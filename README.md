@@ -1,6 +1,6 @@
 # fgsCheck (Prototyp v0.4)
 
-Sichtprüfung an Fussgängerstreifen im Browser. Mit offenen Daten: Amtliche Vermessung (WFS geodienste.ch), OpenStreetMap
+Sichtprüfung an Fussgängerstreifen im Browser.
 
 ## Online
 
