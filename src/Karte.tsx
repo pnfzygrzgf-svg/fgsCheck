@@ -11,12 +11,15 @@ import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernis
 import type { StreifenHand } from './fall'
 import { wgs, lv95, type P } from './geo'
 
+// AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
+// «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
 export const AV_FARBEN: Record<string, string> = {
-  Strasse_Weg: '#94a3b8',
-  Trottoir: '#f59e0b',
-  Verkehrsinsel: '#a3e635',
-  Gebaeude: '#b91c1c',
+  Strasse_Weg: '#6e6e6e',
+  Trottoir: '#e6e6c8',
+  Verkehrsinsel: '#96c878',
+  Gebaeude: '#3f3f46',
 }
+const AV_DECKKRAFT: Record<string, number> = { Strasse_Weg: 0.25, Trottoir: 0.45, Verkehrsinsel: 0.6, Gebaeude: 0.5 }
 /** Farbe und Text der OSM-Übergänge nach Markierung (daten/osm.markierung) */
 export const UEBERGANG_FARBE: Record<string, string> = { markiert: '#eab308', vermutlich: '#eab308', lsa: '#7c3aed', unmarkiert: '#94a3b8',
   unbelegt: '#94a3b8' }
@@ -102,7 +105,11 @@ export default function Karte(props: {
       'Hindernisse': eb.hind }, { collapsed: true }).addTo(map)
     L.control.scale({ imperial: false }).addTo(map)
     map.attributionControl.addAttribution('© OpenStreetMap-Mitwirkende')
-    map.on('click', (e: L.LeafletMouseEvent) => { if (cb.current.werkzeug) cb.current.onKlick(lv95(e.latlng.lat, e.latlng.lng)) })
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      if (cb.current.werkzeug) { cb.current.onKlick(lv95(e.latlng.lat, e.latlng.lng)); return }
+      // Klick auf eine leere Stelle (nicht auf ein Objekt der Karte) hebt die Auswahl der Zufahrt auf
+      if (!(e.originalEvent.target as Element | null)?.closest?.('.leaflet-interactive')) cb.current.onZufahrt(null)
+    })
     map.on('dblclick', () => { if (cb.current.werkzeug) cb.current.onDoppelklick() })
     kartenRef.current = map
     ebenenRef.current = eb
@@ -123,7 +130,7 @@ export default function Karte(props: {
     for (const f of av) {
       const farbe = AV_FARBEN[f.art]
       if (!farbe) continue
-      L.polygon(f.ringe.map(r => r.map(ll)), { color: farbe, weight: 1, fillColor: farbe, fillOpacity: 0.25, interactive: false })
+      L.polygon(f.ringe.map(r => r.map(ll)), { color: farbe, weight: 1, fillColor: farbe, fillOpacity: AV_DECKKRAFT[f.art] ?? 0.25, interactive: false })
         .addTo(eb.av)
     }
     const text = `Amtliche Vermessung, Kanton ${kantone.join(', ') || '?'}, geodienste.ch`
@@ -242,7 +249,8 @@ export default function Karte(props: {
     L.polyline(z.spur.map(ll), { color: '#ffffff', weight: 1.5, dashArray: '4 4', interactive: false }).addTo(eb.auswahl)
     z.sichtpunkte.forEach((p, i) => {
       const ende = i === 0 || i === z.sichtpunkte.length - 1
-      L.circleMarker(ll(p), { radius: ende ? 5 : 3, color: '#ffffff', weight: 1, fillColor: '#dc2626', fillOpacity: 1, interactive: ende })
+      // weiss mit dunklem Rand: Rot steht in der Karte für «verdeckt»
+      L.circleMarker(ll(p), { radius: ende ? 5 : 3, color: '#111827', weight: 1.5, fillColor: '#ffffff', fillOpacity: 1, interactive: ende })
         .bindTooltip(ende ? (i === 0 ? 'erster Sichtpunkt (am Streifen)' : `letzter Sichtpunkt (${z.sichtweite} m)`) : 'Sichtpunkt')
         .addTo(eb.auswahl)
     })
