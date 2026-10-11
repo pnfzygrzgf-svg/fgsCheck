@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="de-CH">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="fgsCheck: Sichtprüfung an Fussgängerstreifen im Browser – Sichtweiten nach VSS 40 241 mit Luftbild, Amtlicher Vermessung und OpenStreetMap. Für Fachleute; ersetzt keine Beurteilung vor Ort." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="fgsCheck – Sichtprüfung an Fussgängerstreifen" />
+    <meta property="og:description" content="Sichtweiten an Fussgängerstreifen im Browser prüfen: Luftbild, Amtliche Vermessung, OpenStreetMap; Hindernisse von Hand ergänzen, Bericht als PDF." />
+    <meta property="og:url" content="https://pnfzygrzgf-svg.github.io/fgsCheck/" />
+    <meta property="og:locale" content="de_CH" />
+    <title>fgsCheck</title>
+    <!-- Nutzungsstatistik: GoatCounter (cookielos, keine Personendaten, privates Dashboard).
+         Zählt nicht auf localhost → Dev/Preview verfälscht die Statistik nicht. -->
+    <!-- Versionierte Datei mit Integritäts-Hash (SRI): Der Browser führt das Skript nur
+         aus, wenn es unverändert ist. Bei einem Wechsel der Version Hash neu berechnen:
+         curl -s https://gc.zgo.at/count.vN.js | openssl dgst -sha384 -binary | openssl base64 -A -->
+    <script data-goatcounter="https://fgs.goatcounter.com/count"
+            async src="https://gc.zgo.at/count.v4.js" crossorigin="anonymous"
+            integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

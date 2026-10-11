@@ -1,0 +1,11 @@
+node_modules
+dist
+*.local
+.DS_Store
+# lokale Fälle (Fall-Dateien) und Referenz-/Vergleichsdaten gehören nicht ins Repo
+fgsCheck_*.json
+*referenz*/
+*referenz*.json
+vergleich*.json
+cache*/
+.env*

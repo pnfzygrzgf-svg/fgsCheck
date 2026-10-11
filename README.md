@@ -1,0 +1,211 @@
+# fgsCheck (Prototyp v0.4)
+
+Sichtprüfung an Fussgängerstreifen im Browser. Mit offenen Daten: Amtliche Vermessung (WFS geodienste.ch), OpenStreetMap
+
+## Online
+
+https://pnfzygrzgf-svg.github.io/fgsCheck/ (GitHub Pages; Build und Veröffentlichung bei jedem Push auf `main`, siehe
+[Veröffentlichung](#veröffentlichung)).
+
+## Start
+
+```bash
+npm install
+npm run dev      # Entwicklungsserver, Adresse steht in der Ausgabe
+npm test         # Tests (vitest)
+npm run build    # Typprüfung und Build nach dist/ (Basis /fgsCheck/ für GitHub Pages)
+```
+
+## Bedienung
+
+1. Karte auf den Ort zoomen, «Übergänge im Ausschnitt suchen» (beim Start automatisch).
+2. Einen OSM-Übergang anklicken. Die App lädt AV (±150 m) und OSM (300 m) um den Knoten und rechnet.
+   Farben: gelb fgs-Markierung, gelb gestrichelt vermutlich markiert (`crossing=uncontrolled` ohne Markierungs-Tag;
+   gerechnet als FGS, Hinweis «bitte prüfen»), violett Lichtsignal, grau unmarkiert bzw. ohne Angabe; das Häkchen «nur
+   markierte Übergänge zeigen» blendet die grauen aus. Graue Übergänge werden ebenfalls gerechnet; Panel, Streifen und Fall-Datei
+   weisen sie aus als «Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug».
+3. Panel: je Streifen (bzw. Teilstreifen über einer Insel) die Zufahrten mit Tempo, Sichtweite, Lage des Sichtpunkts und
+   Status, die nicht geprüften Richtungen mit Grund, die verwendeten Annahmen. Zeile anklicken: Sichtfeld, Sichtpunkte,
+   Spur und Hindernisse im Sichtfeld auf der Karte.
+4. «Eingaben von Hand»: Werkzeug wählen und auf dem Luftbild zeichnen – Parkfeld (Ecken anklicken, Doppelklick schliesst;
+   Klasse Auto bzw. Velo/Motorrad), Längsparkierung (Mittellinie, Breite), Baum (Stamm anklicken), Hecke und Mauer (Linie),
+   übriges Hindernis (Fläche), je mit Schalter «sichtbehindernd». In der Liste bearbeiten (Ecken auf der Karte ziehen) oder
+   löschen. Die Rechnung läuft nach jeder Änderung neu.
+5. Vorschläge «aus OSM, prüfen» (Parkierung aus `parking:*`-Tags, gestrichelt) zählen erst nach «bestätigen». In Bern lässt
+   sich der Baumkataster der Stadt zuschalten; einzelne Bäume daraus können verworfen werden.
+   Amtliche Parkfelder (Bern: Geoportal «Parkplätze öffentlich»): lädt die App automatisch, sobald der Ort in einer Gemeinde
+   mit Quelle liegt; sie zählen sofort als Hindernis (durchgezogen, Farbe nach Klasse Auto/Velo/Motorrad), einzelne lassen
+   sich auf der Karte wählen und verwerfen («verworfene wieder einblenden» holt sie zurück), das Häkchen schaltet die
+   Quelle ab (in der Fall-Datei `parkkataster: false`). OSM-Parkierungsvorschläge, die zu mindestens 30 % ihrer Fläche
+   von amtlichen Feldern bedeckt sind, entfallen dann. Private Parkplätze enthält der Datensatz nicht (von Hand ergänzen).
+6. Streifen von Hand: beide Wartebereiche anklicken (Breite vorher setzen); ersetzt die Streifen aus OSM. «Streifen aus OSM
+   übernehmen und anpassen» macht die gebildeten Streifen verschiebbar.
+7. Je Streifen Lichtsignal und «kein FGS», je Zufahrt (Zeile anklicken) Tempo, «Fahrlinie korrigieren» (A: Linie seitlich
+   verschieben, am Streifen und am Ende, + links, − rechts; B: Fahrlinie selbst zeichnen, bei Abbiegenden mit Kreisvorschlag
+   und «Radius übernehmen») und «Diese Zufahrt gibt es nicht (streichen)». Eine
+   gestrichene gerade Zufahrt deckt die Abbiegenden nicht mehr; sie werden dann geprüft. Eingaben, zu denen die Rechnung
+   keine Zufahrt mehr findet, meldet das Panel.
+8. «Fall speichern» schreibt alle Eingaben als JSON-Datei (Version, Ort, Quellenstand); «Fall laden» stellt sie wieder her.
+   Zusätzlich merkt sich der Browser die Eingaben je Übergang (localStorage, falls verfügbar).
+
+9. Luftbild (E3): Am gewählten Übergang lädt die App einen Ausschnitt SWISSIMAGE 10 cm (± 30 m, © swisstopo) und sucht
+   dort die gelben Balken. «Erkannt» ersetzt den Streifen aus OSM + AV (Hinweis «aus Luftbild, prüfen», Balken orange auf
+   der Karte); «unsicher» erscheint gestrichelt als Vorschlag, die Rechnung nimmt dann OSM + AV. Das Luftbild lädt im
+   Hintergrund: zuerst rechnet die App mit OSM + AV, sobald das Bild da ist, neu. «Luftbild-Streifen
+   übernehmen und anpassen» macht ihn zum Streifen von Hand. Der Schalter «Streifen im Luftbild suchen» schaltet ab.
+
+10. Bericht (E4): «Bericht drucken / als PDF» öffnet eine Druckansicht (A4 hoch): Ort (Bezeichnung frei eingebbar, LV95,
+   WGS84, OSM-Übergang), Kartenbild mit Streifen, Sichtfeldern, Sichtpunkten und Hindernissen, Status je Streifen, Tabelle je
+   Zufahrt (Art, Tempo und Quelle, Sichtweite, Status, Hindernisse), Eingaben von Hand, Annahmen und Hinweise, Quellen,
+   Normbezüge, App-Version. Als PDF speichern über den Druckdialog des Browsers. Status steht zusätzlich als Text (schwarz-weiss
+   lesbar). Das Kartenbild ist ein einzelnes Luftbild per WMS (EPSG:2056) mit einer SVG-Zeichnung darüber, kein
+   Leaflet-Ausschnitt: Bild und Rechnung sind beide in LV95, gedruckt wird erst, wenn das Bild geladen ist.
+
+## Grenzen
+
+- Amtliche Vermessung frei über geodienste.ch: 19 Kantone ganz, Wallis teilweise (ohne einzelne Gemeinden, z. B. Sitten,
+  Brig), Liechtenstein. LU, VD, NE, NW, OW und JU geben die AV nur mit Freigabe ab; dort rechnet die App nicht.
+- Luftbild-Erkennung: nur gelbe Streifen mit Balken bis rund 6 m; weisse Streifen erkennt die App nicht.
+- Mehrere Streifen an einem Knoten und sehr breite Streifen bildet die App nicht immer richtig (offen); dann
+  «Streifen von Hand».
+- Amtliche Parkfelder nur in der Stadt Bern; sonst von Hand bzw. aus OSM-Vorschlägen (bestätigen). Private Parkplätze,
+  Hecken und Mauern (Höhe) fehlen in den Daten.
+- Die App ersetzt keine Beurteilung vor Ort.
+
+## Was gerechnet wird
+
+- **Streifen** (`rechner/streifen.ts`): Achse durch den Übergangsknoten, entlang des OSM-Fusswegs über die Fahrbahn
+  (`footway=crossing`) bzw. senkrecht zum gequerten Weg; Enden 0,3 m vor der AV-Bordkante, bei sehr breiter Fahrbahn aus
+  dem Fussweg bzw. der Breite des OSM-Wegs; Breite 4 m angenommen; Teilstreifen über AV-Verkehrsinseln.
+- **Streifen im Luftbild** (`rechner/luftbild.ts`, `daten/luftbild.ts`; Kern nach fgs_luftbild.py):
+  Gelb-Merkmal b* (CIE-Lab, Grün gedämpft); Abtasten entlang des gequerten OSM-Wegs auf der AV-Fahrbahn (dazu Brücken und
+  übrige befestigte Flächen), ±26 m entlang, ±18 m quer, Drehungen ±24° und schräge Achsen ±30°; Balkentakt 0,92–1,12 m
+  über die Korrelation des Querprofils mit einer Schwingung; zuerst ±8 m um den Knoten, weiter weg nur als Vorschlag.
+  Drehung und Schräge danach aus den Balken selbst (Neigung, Lage der Balkenmitten). Balken: Kontrast gegen die Lücken
+  (≥ 3 b*); Gruppen mit Lücken ohne Fahrbahn (Insel) ergeben Teilstreifen. Balkenlänge über den Kontrast entlang der
+  Balken. Sicherheitsmass: NCC der Balken-Vorlage über ihrem Träger und Gelb-Kontrast: «erkannt» ab NCC 0,45, Kontrast 4,5
+  und 4 Balken; «unsicher» ab NCC 0,30 bzw. bei Schatten; sonst «nicht gefunden». Vor «erkannt» Plausibilität (sonst
+  «unsicher»): OSM-Knoten im Streifen (höchstens 1 m daneben oder auf der Insel zwischen Teilen), Mitte höchstens 4 m und
+  entlang der Fahrbahn höchstens 2 m neben dem Knoten, Enden höchstens 1 m vor der Bordkante (bis 3 m verlängert, wenn
+  dazwischen Grün oder Schatten liegt), Teilstreifen nur über einer AV-Insel oder mit der OSM-Querung, kein Teil auf einem
+  anderen OSM-Übergang, Balkenende frei. Weiter als 8 m vom Knoten sucht die App nur, wenn nahe nichts Sicheres liegt.
+  Weisse Streifen erkennt die App nicht. Achse wie im Kataster:
+  senkrecht zu den Balken durch die Mitte der Balken-Hülle. Luftbild per WMS (wms.geo.admin.ch, EPSG:2056, 600 × 600 px
+  JPEG, ~110 kB), Flugjahr aus den swisstopo-Metadaten; dekodiert und gerechnet im Web Worker (OffscreenCanvas).
+- **Netz** (`rechner/netz.ts`): gequerter Weg, Fahrtrichtungen, Suche stromauf bis zum ersten Strassenknoten
+  (Nebenarme, Gabeln), Knotenbereich (Durchblick, Kreisel-Ausfahrt), Fortsetzung, Rollen der Arme, Abbiegeverbote,
+  Spuren entlang des Netzes.
+- **Zufahrten** (`rechner/zufahrten.ts`): Einbahn, Richtungsfahrbahn, Inselteil, einspurig neben Insel, Teilstreifen mit
+  Gegenstück; ohne gequerten OSM-Weg Spur entlang der nächsten passenden OSM-Achse (`rechner/achsen.ts`).
+- **Tempo und Sichtweite** (`rechner/tempo.ts`): OSM-maxspeed entlang der Spur (Mehrheit innerhalb der Sichtweite),
+  ohne Angabe 50 km/h (als Annahme ausgewiesen); VSS 40 241 Tab. 1; im Knoten nach Kurvenradius (bfu 2.457.01 bzw.
+  VSS Tab. 2); «bis Knoten», «gedeckt», Spurende, Kreisel nach Ringradius.
+- **Fahrstreifenlage** (`rechner/fahrstreifen.ts`, `rechner/spur.ts`): AV-Querschnitte (Median), Bordkanten am Streifen,
+  OSM-Fahrstreifen (`lanes`, `turn:lanes`, Busstreifen), mehrere Fahrstreifen ab 5,50 m je Richtung; Abzug Parkstreifen
+  1,90 m, wo eingegebene Auto-Parkfelder am Rand liegen, Abzug Velostreifen aus `cycleway:*=lane` (1,50 m, angenommen);
+  Sichtpunkte am rechten Rand gehalten (Trottoirnase vor Parkfeldern), mindestens 1,5 m von Parkfeldern, Beginn am Umriss
+  des Streifens; Brückenköpfe (AV-Einzelobjekte) und übrige befestigte Flächen unter einem OSM-Weg wie in Bern.
+- **Abbiegende** (`rechner/abbiegen.ts`): Radius der inneren AV-Bordkante (Kreisfit) + Abstand der Fahrlinie, Prüfung
+  der Ecke (Bogen führt in den Arm, Fahrseite, Bordkante höchstens 6 m hinter dem Rand der Strasse, keine Parkfelder im
+  Bogen), sonst Schätzung aus den Fahrbahnbreiten; Fahrlinie konzentrisch bzw. tangential.
+- **Sichtfeld** (`rechner/pruefen.ts`): Vereinigung der Sichtkeile zum Streifen und zu den Annäherungsbereichen
+  (an der AV-Bordkante); Konflikte (`rechner/pruefen.ts`, `rechner/hindernisse.ts`): Parkfelder ab 0,25 m² im Sichtfeld,
+  Bäume (Stamm 0,5 m), AV-Gebäude und sichtbehindernde Hecken/Mauern/übrige ab 1 m² bzw. 0,5 m Linie. Status nach
+  Rangfolge: Auto-Parkfeld, Gebäude, Hecke/Mauer, Baum, Zweirad-Feld; Auto-Parkfeld näher als 5 m am Streifen wird
+  ausgewiesen (VRV Art. 18 Abs. 2e).
+
+Einordnung der Übergänge (`daten/osm.ts`, `markierung`): *Lichtsignal* bei `crossing=traffic_signals` oder
+`crossing:signals=yes`; *markiert* bei `crossing:markings=zebra*`, `crossing=zebra`, `crossing_ref=zebra`, `crossing=marked`
+oder `crossing:markings=yes`; *vermutlich markiert* bei `crossing=uncontrolled` ohne `crossing:markings` (in der Schweiz
+meist ein Fussgängerstreifen; als FGS geprüft, mit Hinweis «bitte prüfen»); *unmarkiert* bei `crossing=unmarked`,
+`crossing:markings=no` oder einer anderen Markierung als fgs; *ohne Angabe* sonst (z. B. nur `highway=crossing`).
+Unmarkiert und ohne Angabe gelten als kein Fussgängerstreifen. `crossing=no` wird nicht angeboten.
+
+Ohne eingegebene Hindernisse (und ausserhalb von Gemeinden mit amtlichen Parkfeldern) prüft die App nur Gebäude. Hinweise auf Fahrzeuge oder Grün im Sichtfeld aus dem Luftbild gibt es (noch) nicht.
+Baumkataster: derzeit Stadt Bern (WFS map.bern.ch, Ausschnitt ±100 m, «Geodaten Stadt Bern, Baumkataster»); der Dienst erlaubt Abrufe aus dem
+Browser (CORS). Weitere Städte kommen mit einem Eintrag in `src/daten/baumkataster.ts` dazu.
+Amtliche Parkfelder: derzeit Stadt Bern (WFS map.bern.ch, Produkt «Parkplätze öffentlich», Ausschnitt ±150 m, je
+Flächen-Typ eine Abfrage, «Geodaten Stadt Bern, Parkplätze öffentlich»). Klassen wie in der Berner Prüfung: Parkfelder,
+Spezialfelder und übrige = Auto, Parkplatz Velo/Mofa = Velo, Parkplatz Motorrad = Motorrad; Parkverbote, Veloabstell- und
+übrige Punkt-Symbole zählen nicht; Flächen unter 0,5 m² entfallen. Die Rechnung nimmt Felder bis 110 m um den Streifen
+(grösste Sichtweite 75 m bzw. Abbiegende: Knoten innerhalb der Sichtweite + 30 m Messung am Arm). Weitere Städte kommen mit
+einem Eintrag in `src/daten/parkkataster.ts` dazu. An map.bern.ch geht nur der Kartenausschnitt (BBOX), keine Eingaben.
+Beide Berner Dienste werden in LV95 abgefragt (BBOX und Ausgabe EPSG:2056): nach WGS84 rechnet der Dienst ohne
+Datumsübergang um (Lage rund 150 m daneben).
+
+Abrufe: Zeitgrenze bis zur vollständigen Antwort, Overpass mit Ausweichservern (höchstens 60 s gesamt), ein neuer Klick
+bricht laufende Abrufe ab; Fehler stehen je Quelle unter «Geladene Quellen». Die Rechnung im Worker hat eine Zeitgrenze
+von 30 s. Tempo: `maxspeed`, sonst `zone:maxspeed` bzw. `maxspeed:type` (z. B. `CH:zone30`), sonst 50 km/h (Annahme).
+
+## Aufbau
+
+- `src/geo.ts` – LV95 ↔ WGS84 (strenge Umrechnung wie PROJ), ebene Geometrie
+- `src/daten/` – Abrufe: AV-WFS (Bodenbedeckung, Einzelobjekte), Overpass (mit Ausweichservern), Baumkataster, amtliche Parkfelder
+- `src/fall.ts` – Fall-Datei (JSON) lesen, prüfen, schreiben; Eingaben für die Rechnung
+- `src/rechner/` – Rechnung (siehe oben), `worker.ts` (Web Worker), `index.ts` (Einstieg)
+- `src/App.tsx`, `src/Karte.tsx` – Panel und Leaflet-Karte
+- `src/Bericht.tsx` – Bericht (Druckansicht, Kartenbild aus WMS + SVG), `src/Hilfe.tsx` – «So funktioniert's», Datenschutz,
+  Fusszeile, `src/texte.ts` – Texte für Panel und Bericht
+- `src/referenz.test.ts` – Vergleich mit einer Referenz-Datei ausserhalb des Repos (nur lokal; ohne Datei übersprungen;
+  Ergebnisdatei nur mit `FGS_REFERENZ_SCHREIBEN=1`)
+
+## Datenschutz
+
+Keine Anmeldung, kein eigener Server; gerechnet wird im Browser. Eingaben bleiben im Browser bzw. in der Fall-Datei, die man
+selbst speichert; an keinen Dienst gehen Eingaben oder Ergebnisse. Im Browser (localStorage) liegt je Übergang mit Eingaben ein
+Eintrag `fgsCheck.fall.<Übergang>` (Eingaben, Bezeichnung, Koordinaten); Übergänge ohne Eingaben werden nicht gespeichert
+(`fallMerken` in `src/fall.ts`), «Eingaben verwerfen» bzw. das Löschen aller Eingaben entfernt den Eintrag. Alle Einträge
+löscht man über die Website-Daten der Seite im Browser. Der Browser fragt direkt an (die Dienste sehen technisch die
+IP-Adresse):
+
+| Dienst | Inhalt der Anfrage |
+|---|---|
+| wmts.geo.admin.ch (swisstopo) | Kartenkacheln des sichtbaren Ausschnitts |
+| wms.geo.admin.ch, api3.geo.admin.ch | Luftbild ±30 m um den Übergang, Kartenbild des Berichts; Flugjahr der 1-km-Kachel |
+| geodienste.ch (AV-WFS) | Rechteck ±150 m um den Übergang (BBOX) |
+| Overpass: overpass.osm.ch, ersatzweise overpass-api.de, overpass.kumi.systems, overpass.private.coffee | Kartenausschnitt (Suche, auch automatisch beim Start) bzw. Umkreis 300 m |
+| map.bern.ch (nur Stadt Bern) | Rechteck ±150 m (amtliche Parkfelder, Baumkataster) |
+| GoatCounter | Seitenaufruf ohne Cookies: Seitenpfad, Referrer, Bildschirmbreite, Browser und Betriebssystem, Sprache, Land (aus der IP-Adresse, die nicht gespeichert wird); zählt nicht auf localhost |
+
+Eine Adresssuche gibt es nicht. GitHub Pages protokolliert Zugriffe wie jeder Webserver.
+
+## Dienste und Betriebsbestimmungen
+
+| Dienst | Bestimmung (Stand 11.10.2026) | App |
+|---|---|---|
+| geodienste.ch, AV-WFS | Betriebsbestimmungen KGK: Fair Use WFS 10 Abfragen/min bei 1 MB; Web-Apps bis 10 000 Nutzende/Tag gelten als Fair Use; Quellenangabe nach den Bedingungen des Kantons | 2 Abfragen je Klick (Bodenbedeckung, Einzelobjekte), Antwort rund 0,5 MB (bis 0,7 MB); Abbruch beim nächsten Klick; Quellenangabe «Amtliche Vermessung, Kanton …, geodienste.ch» |
+| geo.admin.ch (WMTS, WMS, API) | Nutzung kostenlos ohne Registrierung, Fair Use (Web-Apps bis 20 000 Nutzende/Tag), keine Bots mit hoher Abfragedichte; Quellenangabe nach Datensatz | Kacheln nach Kartenansicht; je Klick 1 WMS-Bild (600 × 600 px) und 1 API-Abfrage; Bericht 1 WMS-Bild; «© swisstopo» |
+| Overpass | öffentliche Instanzen: unter rund 10 000 Abfragen und 1 GB pro Tag, bei 429 warten | 1 Abfrage je Suche bzw. Klick, Ausweichserver nur bei Fehler, Wartezeit nach 429/5xx (Retry-After), höchstens 60 s gesamt |
+| map.bern.ch | Open Data Stadt Bern: freie Nutzung, Quellenangabe Pflicht | nur in Bern, 8 Abfragen (je Flächen-Typ) je Ort, Baumkataster auf Wunsch; «Geodaten Stadt Bern, …» |
+
+Quellen der Bestimmungen: [geodienste.ch, Nutzungsbedingungen](https://www.geodienste.ch/terms-of-use);
+[BGDI/geo.admin.ch, Allgemeine Nutzungsbedingungen](https://www.geo.admin.ch/de/allgemeine-nutzungsbedingungen-bgdi);
+[Overpass API, Nutzung der öffentlichen Instanzen](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html);
+[Stadt Bern auf opendata.swiss](https://opendata.swiss/de/organization/stadt-bern).
+
+## Quellen und Lizenzen
+
+- Luftbild SWISSIMAGE: © swisstopo (WMTS geo.admin.ch für die Karte, WMS wms.geo.admin.ch für die Erkennung)
+- Bodenbedeckung: Amtliche Vermessung, Kanton (je nach Ort), über geodienste.ch; freie Nutzung mit Quellenangabe
+  (App, Fall-Datei und Bericht nennen den Kanton; die Bedingungen je Kanton stehen auf geodienste.ch/services/av)
+- Strassennetz und Übergänge: © OpenStreetMap-Mitwirkende, ODbL (Overpass API)
+- Baumkataster (optional, Bern): Geodaten Stadt Bern, Baumkataster
+- Amtliche Parkfelder (Bern, abschaltbar): Geodaten Stadt Bern, Parkplätze öffentlich
+- Polygon-Operationen: polygon-clipping (MIT)
+- Kartenbild im Bericht: SWISSIMAGE © swisstopo (WMS, mit Flugjahr)
+- Sichtweiten: VSS 40 241, Tab. 1 und Tab. 2; bfu 2.457.01 (nur die Zahlenwerte)
+
+Die App ersetzt keine Beurteilung vor Ort.
+
+## Veröffentlichung
+
+`.github/workflows/deploy.yml`: bei jedem Push auf `main` (bzw. von Hand über «Run workflow») `npm ci`, Tests, `npm run build`
+(Basis `/fgsCheck/`), Veröffentlichung auf GitHub Pages. Einmalig im Repo unter Settings → Pages als Quelle «GitHub Actions»
+wählen. Der Referenzvergleich (`src/referenz.test.ts`) läuft in CI nicht (keine Referenz-Datei); den Pfad setzt man lokal mit
+`FGS_REFERENZ`. Nutzungsstatistik: GoatCounter in `index.html` (versionierte `count.v4.js` mit Integritäts-Hash).
+
+## Lizenz
+
+Code und eigene Inhalte dieses Projekts: **[CC BY-NC 4.0](LICENSE)** (Namensnennung, nicht-kommerziell). Die eingebundenen
+**Dritt-Daten** behalten ihre eigenen Lizenzen und Quellenangaben, siehe [Quellen und Lizenzen](#quellen-und-lizenzen)
+(swisstopo, Amtliche Vermessung, OpenStreetMap/ODbL, Geodaten Stadt Bern). polygon-clipping steht unter MIT.
