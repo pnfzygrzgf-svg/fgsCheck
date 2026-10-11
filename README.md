@@ -18,7 +18,10 @@ npm run build    # Typprüfung und Build nach dist/ (Basis /fgsCheck/ für GitHu
 
 ## Bedienung
 
-1. Karte auf den Ort zoomen, «Übergänge im Ausschnitt suchen» (beim Start automatisch).
+1. Ort finden: oben in der Karte Ort, Adresse, Strasse oder PLZ eingeben und einen Vorschlag wählen (Pfeiltasten, Enter,
+   Escape), oder mit dem Knopf «Zum eigenen Standort» (unter den Zoom-Knöpfen) zum eigenen Standort springen (Zoom 18, Punkt
+   mit Genauigkeitskreis). Die Übergänge im Ausschnitt sucht die App automatisch, sobald die Karte steht (ab Zoom 16, rund
+   1:10 000; weiter draussen steht «Zum Suchen näher heranzoomen» auf der Karte). Nach einem Fehler erscheint «erneut suchen».
 2. Einen OSM-Übergang anklicken. Die App lädt AV (±150 m) und OSM (300 m) um den Knoten und rechnet.
    Farben: gelb fgs-Markierung, gelb gestrichelt vermutlich markiert (`crossing=uncontrolled` ohne Markierungs-Tag;
    gerechnet als FGS, Hinweis «bitte prüfen»), violett Lichtsignal, grau unmarkiert bzw. ohne Angabe; das Häkchen «nur
@@ -137,13 +140,32 @@ Abrufe: Zeitgrenze bis zur vollständigen Antwort, Overpass mit Ausweichservern 
 bricht laufende Abrufe ab; Fehler stehen je Quelle unter «Geladene Quellen». Die Rechnung im Worker hat eine Zeitgrenze
 von 30 s. Tempo: `maxspeed`, sonst `zone:maxspeed` bzw. `maxspeed:type` (z. B. `CH:zone30`), sonst 50 km/h (Annahme).
 
+Automatische Übergangssuche (`src/App.tsx`, `src/ausschnitt.ts`): 800 ms nach dem letzten Verschieben bzw. Zoomen, ab Zoom 16;
+abgefragt wird der Ausschnitt mit einem Rand von höchstens 20 % je Seite, so dass die Abfrage höchstens 4 km² umfasst; ist
+schon die Sicht grösser als 10 km², erscheint «Zum Suchen näher heranzoomen». Liegt der neue Ausschnitt ganz in einem der
+letzten 8 abgesuchten, fragt die App nicht neu; angezeigt werden die Übergänge dieser Ausschnitte (nach OSM-Id ohne Doppel),
+der gewählte Übergang immer. Höchstens eine Suche läuft, zwischen zwei Abfragen liegen mindestens 2 s; eine laufende Suche
+wird nicht abgebrochen, danach fragt die App den dann gezeigten Ausschnitt ab, wenn er noch nicht abgedeckt ist. Nach einer
+Antwort 429 bzw. mit Retry-After gilt für alle Overpass-Abfragen eine Sperre (Retry-After, sonst 30 s, höchstens 120 s).
+Das Laden eines Übergangs hat einen eigenen Abbruch. Gewählter Übergang, Eingaben und Rechnung bleiben beim Verschieben
+unverändert.
+
+Ortssuche (`src/Ortssuche.tsx`, `src/daten/ortssuche.ts`): SearchServer von swisstopo (`type=locations`, Herkünfte
+`address,gazetteer,gg25,zipcode`, höchstens 8 Treffer, keine Parzellen), deckt die Schweiz und Liechtenstein ab. Abfrage ab
+3 Zeichen (Enter ab 2) nach 300 ms Tipp-Pause, eine neue Eingabe bricht die alte Anfrage ab; die HTML-Auszeichnung der
+Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Strasse 18, Ortsname 17, Gemeinde und PLZ 16
+(Grenze der Übergangssuche: die Suche läuft sofort, und vom Zentrum ist möglichst viel zu sehen).
+
 ## Aufbau
 
 - `src/geo.ts` – LV95 ↔ WGS84 (strenge Umrechnung wie PROJ), ebene Geometrie
 - `src/daten/` – Abrufe: AV-WFS (Bodenbedeckung, Einzelobjekte), Overpass (mit Ausweichservern), Baumkataster, amtliche Parkfelder
 - `src/fall.ts` – Fall-Datei (JSON) lesen, prüfen, schreiben; Eingaben für die Rechnung
 - `src/rechner/` – Rechnung (siehe oben), `worker.ts` (Web Worker), `index.ts` (Einstieg)
-- `src/App.tsx`, `src/Karte.tsx` – Panel und Leaflet-Karte
+- `src/App.tsx`, `src/Karte.tsx` – Panel und Leaflet-Karte (mit Knopf «Zum eigenen Standort»), `src/ausschnitt.ts` –
+  abgesuchte Ausschnitte der Übergangssuche, `src/Ortssuche.tsx` – Ortssuche über der Karte
+- `src/Einstieg.tsx` – Startseite oder Prüfung je nach Anker `#pruefen` (Zurück-Taste des Browsers geht; die Prüfung lädt
+  erst beim Wechsel), `src/Startseite.tsx` – Startseite mit Beschreibung, Querverweisen und Datenspeicherung
 - `src/Bericht.tsx` – Bericht (Druckansicht, Kartenbild aus WMS + SVG), `src/Hilfe.tsx` – «So funktioniert's», Datenschutz,
   Fusszeile, `src/texte.ts` – Texte für Panel und Bericht
 - `src/referenz.test.ts` – Vergleich mit einer Referenz-Datei ausserhalb des Repos (nur lokal; ohne Datei übersprungen;
@@ -161,21 +183,23 @@ IP-Adresse):
 | Dienst | Inhalt der Anfrage |
 |---|---|
 | wmts.geo.admin.ch (swisstopo) | Kartenkacheln des sichtbaren Ausschnitts |
+| api3.geo.admin.ch (swisstopo, SearchServer) | Ortssuche: der eingegebene Suchbegriff (Ort, Adresse, Strasse, PLZ) |
 | wms.geo.admin.ch, api3.geo.admin.ch | Luftbild ±30 m um den Übergang, Kartenbild des Berichts; Flugjahr der 1-km-Kachel |
 | geodienste.ch (AV-WFS) | Rechteck ±150 m um den Übergang (BBOX) |
-| Overpass: overpass.osm.ch, ersatzweise overpass-api.de, overpass.kumi.systems, overpass.private.coffee | Kartenausschnitt (Suche, auch automatisch beim Start) bzw. Umkreis 300 m |
+| Overpass: overpass.osm.ch, ersatzweise overpass-api.de, overpass.kumi.systems, overpass.private.coffee | Kartenausschnitt mit Rand (Suche, automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m |
 | map.bern.ch (nur Stadt Bern) | Rechteck ±150 m (amtliche Parkfelder, Baumkataster) |
 | GoatCounter | Seitenaufruf ohne Cookies: Seitenpfad, Referrer, Bildschirmbreite, Browser und Betriebssystem, Sprache, Land (aus der IP-Adresse, die nicht gespeichert wird); zählt nicht auf localhost |
 
-Eine Adresssuche gibt es nicht. GitHub Pages protokolliert Zugriffe wie jeder Webserver.
+Der eigene Standort («Zum eigenen Standort») wird nur im Browser ermittelt und angezeigt, nicht gespeichert und nicht
+gesendet; die Dienste erhalten wie sonst nur den Kartenausschnitt dort. GitHub Pages protokolliert Zugriffe wie jeder Webserver.
 
 ## Dienste und Betriebsbestimmungen
 
 | Dienst | Bestimmung (Stand 11.10.2026) | App |
 |---|---|---|
 | geodienste.ch, AV-WFS | Betriebsbestimmungen KGK: Fair Use WFS 10 Abfragen/min bei 1 MB; Web-Apps bis 10 000 Nutzende/Tag gelten als Fair Use; Quellenangabe nach den Bedingungen des Kantons | 2 Abfragen je Klick (Bodenbedeckung, Einzelobjekte), Antwort rund 0,5 MB (bis 0,7 MB); Abbruch beim nächsten Klick; Quellenangabe «Amtliche Vermessung, Kanton …, geodienste.ch» |
-| geo.admin.ch (WMTS, WMS, API) | Nutzung kostenlos ohne Registrierung, Fair Use (Web-Apps bis 20 000 Nutzende/Tag), keine Bots mit hoher Abfragedichte; Quellenangabe nach Datensatz | Kacheln nach Kartenansicht; je Klick 1 WMS-Bild (600 × 600 px) und 1 API-Abfrage; Bericht 1 WMS-Bild; «© swisstopo» |
-| Overpass | öffentliche Instanzen: unter rund 10 000 Abfragen und 1 GB pro Tag, bei 429 warten | 1 Abfrage je Suche bzw. Klick, Ausweichserver nur bei Fehler, Wartezeit nach 429/5xx (Retry-After), höchstens 60 s gesamt |
+| geo.admin.ch (WMTS, WMS, API) | Nutzung kostenlos ohne Registrierung, Fair Use (Web-Apps bis 20 000 Nutzende/Tag), keine Bots mit hoher Abfragedichte; Quellenangabe nach Datensatz | Kacheln nach Kartenansicht; je Klick 1 WMS-Bild (600 × 600 px) und 1 API-Abfrage; Bericht 1 WMS-Bild; Ortssuche 1 Abfrage nach 300 ms Tipp-Pause (ab 3 Zeichen, alte abgebrochen); «© swisstopo» |
+| Overpass | öffentliche Instanzen: unter rund 10 000 Abfragen und 1 GB pro Tag, bei 429 warten | 1 Abfrage je Suche bzw. Klick; automatische Suche erst 800 ms nach dem Verschieben, höchstens eine laufend, mindestens 2 s Abstand, schon abgesuchte Ausschnitte ohne neue Abfrage, Abfrage höchstens 4 km²; Ausweichserver nur bei Fehler, Wartezeit nach 429/5xx (Retry-After), danach Sperre für alle Abfragen (höchstens 120 s), höchstens 60 s gesamt |
 | map.bern.ch | Open Data Stadt Bern: freie Nutzung, Quellenangabe Pflicht | nur in Bern, 8 Abfragen (je Flächen-Typ) je Ort, Baumkataster auf Wunsch; «Geodaten Stadt Bern, …» |
 
 Quellen der Bestimmungen: [geodienste.ch, Nutzungsbedingungen](https://www.geodienste.ch/terms-of-use);

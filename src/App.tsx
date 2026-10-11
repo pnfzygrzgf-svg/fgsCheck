@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, zufahrtKey, hindernisText, hindernisFarbe,
-  type Werkzeug } from './Karte'
+  type Werkzeug, type KartenHinweis } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, LUFTBILD_QUELLE, type LuftbildRoh } from './daten/luftbild'
-import { ladeOsmRoh, ladeUebergaenge, markierung, istFgs, type OsmKnoten } from './daten/osm'
+import { ladeOsmRoh, ladeUebergaenge, markierung, istFgs, overpassSperre, type OsmKnoten } from './daten/osm'
 import { istAbbruch } from './daten/holen'
 import { baumQuelleFuer, type BaumQuelle, type KatasterBaum } from './daten/baumkataster'
 import { parkQuelleFuer, istParkId, type ParkQuelle, type KatasterFeld } from './daten/parkkataster'
 import { lv95, dist, type P } from './geo'
+import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, aufnehmen, vereinigen } from './ausschnitt'
 import type { ZufahrtErgebnis, StreifenErgebnis } from './rechner/typen'
 import type { FallRechnung } from './rechner'
 import { KATASTER_PARK_M } from './rechner/vorschlaege'
@@ -29,6 +30,15 @@ const AV_RADIUS_M = 150
 const OSM_RADIUS_M = 300
 const START: [number, number] = [46.9420585, 7.4322619]      // Startansicht: Mühlemattstrasse, Bern
 const WORKER_MS = 30000
+// Automatische Übergangssuche nach dem Verschieben bzw. Zoomen: ab SUCHE_ZOOM (rund 1:10 000; weiter draussen wird der
+// Ausschnitt für eine Overpass-Abfrage zu gross; dazu Flächengrenze in ausschnitt.ts), SUCHE_PAUSE_MS nach dem letzten moveend,
+// zwischen zwei Abfragen mindestens SUCHE_ABSTAND_MS (Overpass Fair Use: höchstens eine laufende Suche, keine Abfragen-Flut
+// beim Herumschieben)
+const SUCHE_ZOOM = 16
+const SUCHE_PAUSE_MS = 800
+const SUCHE_ABSTAND_MS = 2000
+const SUCHE_NAME = 'OSM-Übergänge im Ausschnitt'
+const ZU_WEIT: KartenHinweis = { text: 'Zum Suchen näher heranzoomen' }
 // Amtliche Parkfelder und Baumkataster: Ausschnitt ±150 m um den Ort. Die Rechnung erreicht Felder und Bäume bis
 // KATASTER_PARK_M (120 m) um den Umriss der Streifen (rechner/vorschlaege.ts, dort die Herleitung); der Umriss liegt am Ort
 // (OSM-Knoten im Streifen, Luftbild-Streifen höchstens 4 m daneben), reicht aber bis zur halben Streifenlänge (breite
@@ -47,6 +57,9 @@ const WERKZEUGE: [Exclude<Werkzeug, null>, string, string][] = [
   ['flaeche', 'übriges Hindernis', 'Fläche: Ecken anklicken, Doppelklick schliesst'],
   ['streifen', 'Streifen von Hand', 'beide Wartebereiche anklicken (Achse quer über die Fahrbahn)'],
 ]
+
+/** Anzeige der AV-Arten in der Legende (Schlüssel wie in AV_FARBEN) */
+const AV_NAME: Record<string, string> = { Strasse_Weg: 'Fahrbahn', Gebaeude: 'Gebäude' }
 
 const MIN_PUNKTE: Record<Exclude<Werkzeug, null>, number> = { parkfeld: 3, flaeche: 3, laengs: 2, hecke: 2, mauer: 2, streifen: 2,
   spurB: 2, baum: 1 }
@@ -69,7 +82,7 @@ function ZahlFeld({ wert, setze, titel }: { wert: number; setze: (x: number) => 
 let zaehler = 0
 const neueId = (p: string) => `${p}-${Date.now().toString(36)}-${(zaehler++).toString(36)}`
 
-export default function App() {
+export default function App({ onStartseite }: { onStartseite?: () => void } = {}) {
   const kartenRef = useRef<L.Map | null>(null)
   const workerRef = useRef<Worker | null>(null)
   const abbruchRef = useRef<AbortController | null>(null)
@@ -84,7 +97,7 @@ export default function App() {
   const [rechnungFall, setRechnungFall] = useState<Fall | null>(null)   // Fall, zu dem die angezeigte Rechnung gehört
   const [rechnungZeit, setRechnungZeit] = useState<Date | null>(null)
   const [bericht, setBericht] = useState(false)                          // Druckansicht (Bericht) offen
-  const [meldung, setMeldung] = useState<string>('Übergänge werden gesucht …')
+  const [meldung, setMeldung] = useState<string>('Ort suchen bzw. Karte verschieben; dann einen Übergang auf der Karte anklicken.')
   // Hinweis zum Laden des Falls (Fall-Datei, Browser-Speicher); bleibt stehen, bis ein anderer Ort geladen wird
   const [ladeHinweis, setLadeHinweis] = useState<{ text: string; verwerfen: boolean } | null>(null)
   const [auswahl, setAuswahl] = useState<string | null>(null)
@@ -109,21 +122,40 @@ export default function App() {
   const parkDaten = useMemo(() => (parkFelder ? { felder: parkFelder, quellenangabe: parkAngabe } : null), [parkFelder, parkAngabe])
 
   // ---------------------------------------------------------------- Worker
+  // aktiv: App angezeigt (false nach dem Wechsel zur Startseite); laufend: Abbruch der offenen Rechnungen (beim Verlassen)
+  const aktiv = useRef(true)
+  const laufend = useRef(new Set<() => void>())
   const neuerWorker = () => {
     workerRef.current?.terminate()
-    workerRef.current = new Worker(new URL('./rechner/worker.ts', import.meta.url), { type: 'module' })
+    workerRef.current = aktiv.current ? new Worker(new URL('./rechner/worker.ts', import.meta.url), { type: 'module' }) : null
     return workerRef.current
   }
-  useEffect(() => { neuerWorker(); return () => { workerRef.current?.terminate(); workerRef.current = null } }, [])
+  // Verlassen der Prüfung (Startseite): offene Rechnung beenden (keine Antwort wird mehr übernommen, ein später Timeout erzeugt
+  // keinen neuen Worker), laufende Abrufe abbrechen
+  useEffect(() => {
+    aktiv.current = true
+    neuerWorker()
+    const offen = laufend.current
+    return () => {
+      aktiv.current = false
+      auftrag.current++
+      for (const f of [...offen]) f()
+      abbruchRef.current?.abort()
+      workerRef.current?.terminate(); workerRef.current = null
+    }
+  }, [])
 
   const rechnen = useCallback(async (d: Daten, f: Fall, kat: typeof kataster, pk: typeof parkDaten) => {
     const nr = ++auftrag.current
-    setRechnet(true)
     const w = workerRef.current ?? neuerWorker()
+    if (!w) return
+    setRechnet(true)
     const antwort = await new Promise<{ ok: boolean; rechnung?: FallRechnung; fehler?: string }>(res => {
       const fertig = (x: { ok: boolean; rechnung?: FallRechnung; fehler?: string }) => {
-        clearTimeout(t); w.removeEventListener('message', h); w.removeEventListener('error', fe); res(x)
+        clearTimeout(t); w.removeEventListener('message', h); w.removeEventListener('error', fe); laufend.current.delete(abbrechen); res(x)
       }
+      const abbrechen = () => fertig({ ok: false, fehler: 'abgebrochen' })
+      laufend.current.add(abbrechen)
       const h = (ev: MessageEvent) => { if (ev.data.id === nr) fertig(ev.data) }
       const fe = (ev: ErrorEvent) => { neuerWorker(); fertig({ ok: false, fehler: `Worker-Fehler: ${ev.message || 'unbekannt'}` }) }
       const t = setTimeout(() => { neuerWorker(); fertig({ ok: false, fehler: `keine Antwort innert ${WORKER_MS / 1000} s` }) }, WORKER_MS)
@@ -155,25 +187,102 @@ export default function App() {
 
   const aendern = useCallback((f: (x: Fall) => Fall) => setFall(x => (x ? f(structuredClone(x)) : x)), [])
 
-  // ---------------------------------------------------------------- Laden
-  const suchen = useCallback(async () => {
-    const map = kartenRef.current
-    if (!map) return
-    if (map.getZoom() < 16) { setMeldung('Für die Suche näher heranzoomen (Massstab 1:10 000 oder grösser).'); return }
+  // ---------------------------------------------------------------- Übergangssuche (automatisch)
+  // Eigene Abbruch-Steuerung (suche.ctrl), getrennt von abbruchRef: Suche und Laden eines Übergangs brechen einander nicht ab.
+  // Die Suche ändert nur die Liste der Übergänge (gewählter Übergang, Fall, Rechnung und Zeichnung bleiben).
+  // Eine laufende Suche läuft zu Ende (abgebrochen wird sie nur beim Verlassen der Prüfung); wird inzwischen ein Ausschnitt
+  // gewünscht, den sie nicht deckt (nachher), fragt die App danach nur den dann gezeigten Ausschnitt ab, falls er noch nicht
+  // abgesucht ist. Nach 429 gilt die Sperre aus daten/osm.ts (overpassSperre) auch für die nächste automatische Suche.
+  const suche = useRef<{ ctrl: AbortController | null; box: Box | null; timer: number; start: number; nachher: boolean;
+    cache: CacheEintrag<OsmKnoten>[] }>({ ctrl: null, box: null, timer: 0, start: -Infinity, nachher: false, cache: [] })
+  const [suchHinweis, setSuchHinweis] = useState<KartenHinweis | null>(null)
+  /** sichtbarer Ausschnitt, null wenn zu weit herausgezoomt bzw. zu gross für eine Abfrage */
+  const sichtBox = (map: L.Map): Box | null => {
+    if (map.getZoom() < SUCHE_ZOOM) return null
     const b = map.getBounds()
-    setMeldung('Übergänge werden gesucht …')
+    const sicht: Box = { s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() }
+    return zuGross(sicht) ? null : sicht
+  }
+  // Hinweis nach einer Suche; ist inzwischen weiter herausgezoomt, bleibt «näher heranzoomen» stehen
+  const suchHinweisNach = (h: KartenHinweis | null) =>
+    setSuchHinweis(kartenRef.current && !sichtBox(kartenRef.current) ? ZU_WEIT : h)
+  const gesperrtHinweis = (ms: number): KartenHinweis =>
+    ({ text: `Overpass ausgelastet: nächste Übergangssuche in rund ${Math.ceil(ms / 1000)} s` })
+
+  const suchen = useCallback(async () => {
+    const map = kartenRef.current, st = suche.current
+    clearTimeout(st.timer)
+    if (!map) return
+    const sicht = sichtBox(map)
+    if (!sicht) { setSuchHinweis(ZU_WEIT); return }
+    // schon abgesucht bzw. die laufende Suche deckt den Ausschnitt: nichts abfragen
+    const treffer = imCache(st.cache, sicht)
+    if (treffer) {
+      st.cache = treffer
+      if (!st.ctrl) setSuchHinweis(null)
+      return
+    }
+    if (st.ctrl) {
+      // laufende Suche nicht abbrechen; deckt sie den Ausschnitt nicht, danach den dann gezeigten abfragen
+      if (!(st.box && enthaelt(st.box, sicht))) st.nachher = true
+      return
+    }
+    // Sperre nach 429 (Retry-After): Suche erst danach, mit Hinweis
+    const gesperrt = overpassSperre()
+    if (gesperrt > 0) {
+      setSuchHinweis(gesperrtHinweis(gesperrt))
+      st.timer = window.setTimeout(suchen, gesperrt + 100)
+      return
+    }
+    const warten = st.start + SUCHE_ABSTAND_MS - performance.now()
+    if (warten > 0) { st.timer = window.setTimeout(suchen, warten); return }
+    const ctrl = new AbortController(), box = abfrageBox(sicht)
+    Object.assign(st, { ctrl, box, start: performance.now(), nachher: false })
+    setSuchHinweis({ text: 'Übergänge werden gesucht …' })
     try {
-      const r = await ladeUebergaenge(b.getSouth(), b.getWest(), b.getNorth(), b.getEast())
-      setUebergaenge(r.daten)
-      setzeQuelle('suche', { name: 'OSM-Übergänge im Ausschnitt', objekte: `${r.daten.length}`, ms: r.ms, bytes: r.bytes, server: r.quelle })
-      setMeldung(r.daten.length ? 'Übergang auf der Karte anklicken.' : 'Keine OSM-Übergänge im Ausschnitt.')
+      const r = await ladeUebergaenge(box.s, box.w, box.n, box.e, ctrl.signal)
+      if (ctrl.signal.aborted) return
+      st.cache = aufnehmen(st.cache, { box, daten: r.daten })
+      const alle = vereinigen(st.cache)
+      setUebergaenge(alle)
+      setzeQuelle('suche', { name: SUCHE_NAME, objekte: `${r.daten.length} im Ausschnitt, ${alle.length} angezeigt (letzte ${st.cache.length} Ausschnitte)`,
+        ms: r.ms, bytes: r.bytes, server: r.quelle })
+      suchHinweisNach(r.daten.length ? null : { text: 'Keine OSM-Übergänge im Ausschnitt' })
     } catch (e) {
-      setzeQuelle('suche', { name: 'OSM-Übergänge im Ausschnitt', fehler: (e as Error).message })
-      setMeldung(`Suche fehlgeschlagen: ${(e as Error).message}`)
+      if (ctrl.signal.aborted || istAbbruch(e)) return
+      setzeQuelle('suche', { name: SUCHE_NAME, fehler: (e as Error).message })
+      const gesperrt = overpassSperre()
+      if (gesperrt > 0) {
+        // nach 429: Hinweis mit Wartezeit, danach selbst neu versuchen
+        suchHinweisNach(gesperrtHinweis(gesperrt))
+        st.nachher = false
+        st.timer = window.setTimeout(suchen, gesperrt + 100)
+      } else {
+        suchHinweisNach({ text: `Suche fehlgeschlagen: ${(e as Error).message}`, fehler: true, erneut: () => suchen() })
+      }
+    } finally {
+      if (st.ctrl === ctrl) { st.ctrl = null; st.box = null }
+      // inzwischen verschoben: den jetzt gezeigten Ausschnitt abfragen (suchen prüft Cache, Sperre und Abstand)
+      if (st.nachher && !ctrl.signal.aborted) { st.nachher = false; suchen() }
     }
   }, [])
-  useEffect(() => { const t = setTimeout(suchen, 300); return () => clearTimeout(t) }, [suchen])
+  /** nach jedem Verschieben bzw. Zoomen: Hinweis sofort, Suche nach einer Pause */
+  const ausschnitt = useCallback(() => {
+    const map = kartenRef.current, st = suche.current
+    if (!map) return
+    clearTimeout(st.timer)
+    if (!sichtBox(map)) { setSuchHinweis(ZU_WEIT); return }
+    setSuchHinweis(h => (h?.text === ZU_WEIT.text ? null : h))
+    st.timer = window.setTimeout(suchen, SUCHE_PAUSE_MS)
+  }, [suchen])
+  // erste Suche beim Start; beim Verlassen laufende Suche abbrechen
+  useEffect(() => {
+    const st = suche.current
+    const t = setTimeout(suchen, 300)
+    return () => { clearTimeout(t); clearTimeout(st.timer); st.ctrl?.abort(); st.ctrl = null; st.box = null; st.nachher = false }
+  }, [suchen])
 
+  // ---------------------------------------------------------------- Laden
   /** Daten um einen Ort laden (Übergang oder Ort aus der Fall-Datei); fallNeu: mitgebrachte Eingaben */
   const laden = useCallback(async (lat: number, lon: number, nid: number | null, fallNeu: Fall | null) => {
     abbruchRef.current?.abort()
@@ -382,9 +491,16 @@ export default function App() {
   // anderer Ort bzw. keine Rechnung mehr: Bericht schliessen
   useEffect(() => { if (!rechnung) setBericht(false) }, [rechnung])
 
-  const sichtbar = useMemo(() => (nurMarkiert ? uebergaenge.filter(k => istFgs(markierung(k.tags)) ||
-    k.id === gewaehlt?.id) : uebergaenge), [uebergaenge, nurMarkiert, gewaehlt])
+  // gewählter Übergang immer dabei, auch wenn sein Ausschnitt aus dem Cache der Suche gefallen ist
+  const sichtbar = useMemo(() => {
+    const l = nurMarkiert ? uebergaenge.filter(k => istFgs(markierung(k.tags)) || k.id === gewaehlt?.id) : uebergaenge
+    return gewaehlt && !l.some(k => k.id === gewaehlt.id) ? [...l, gewaehlt] : l
+  }, [uebergaenge, nurMarkiert, gewaehlt])
   const verwaist = useMemo(() => (fall && rechnung && rechnungFall === fall ? eingabenVerwaist(fall, rechnung.streifen) : []), [fall, rechnung, rechnungFall])
+  // «Geladene Quellen» eingeklappt; hat eine Quelle einen Fehler, klappt der Abschnitt auf (und die Überschrift nennt ihn)
+  const quellenFehler = Object.values(quellen).some(q => q.fehler)
+  const [quellenOffen, setQuellenOffen] = useState(false)
+  useEffect(() => { if (quellenFehler) setQuellenOffen(true) }, [quellenFehler])
   const kantone = useMemo(() => [...new Set((av ?? []).map(f => f.kanton).filter(Boolean))].sort(), [av])
   const alleZ = useMemo(() => rechnung?.streifen.flatMap(s => s.zufahrten) ?? [], [rechnung])
   const gewaehlteZ: ZufahrtErgebnis | null = useMemo(() => alleZ.find(z => zufahrtKey(z) === auswahl) ?? null, [alleZ, auswahl])
@@ -406,9 +522,13 @@ export default function App() {
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? []} streifenHand={fall?.streifenHand ?? []}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} onUebergang={pruefen} onZufahrt={setAuswahl}
         onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => setBearbeiten(b => (b === id ? null : id))}
-        kartenRef={kartenRef} />
+        onAusschnitt={ausschnitt} hinweis={suchHinweis} kartenRef={kartenRef} />
       <aside className="panel">
-        <h1><img className="logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={40} height={40} />fgsCheck <span className="marke">Prototyp v{__APP_VERSION__}</span></h1>
+        <h1>{onStartseite
+          ? <button type="button" className="logo-knopf" onClick={onStartseite} aria-label="Zur Startseite" title="Zur Startseite">
+              <img className="logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={40} height={40} /></button>
+          : <img className="logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={40} height={40} />}
+          fgsCheck <span className="marke">Prototyp v{__APP_VERSION__}</span></h1>
         <p className="hinweis">
           Sichtprüfung an Fussgängerstreifen nach VSS 40 241 und bfu 2.457.01, gerechnet im Browser. Den Streifen sucht die App
           im Luftbild (sonst aus OSM und AV); Parkfelder, Bäume, Hecken und Mauern zeichnen Sie auf dem Luftbild ein; Vorschläge
@@ -416,7 +536,6 @@ export default function App() {
         </p>
         <Anleitung />
         <div className="knopfzeile">
-          <button onClick={suchen}>Übergänge im Ausschnitt suchen</button>
           <label className="knopf">Fall laden<input type="file" accept=".json,application/json" hidden
             onChange={e => { const d = e.target.files?.[0]; if (d) ladenDatei(d); e.target.value = '' }} /></label>
           {fall && <button onClick={speichern}>Fall speichern</button>}
@@ -605,7 +724,8 @@ export default function App() {
         ))}
         {rechnung && <p className="klein">Rechenzeit {Math.round(rechnung.ms)} ms (Web Worker).</p>}
 
-        <h2>Geladene Quellen</h2>
+        <details className="abschnitt" open={quellenOffen} onToggle={e => setQuellenOffen(e.currentTarget.open)}>
+        <summary><h2>Geladene Quellen{quellenFehler && <span className="fehler"> (Fehler)</span>}</h2></summary>
         <table>
           <tbody>
             {Object.entries(quellen).map(([k, q]) => (
@@ -618,8 +738,10 @@ export default function App() {
             ))}
           </tbody>
         </table>
+        </details>
 
-        <h2>Legende</h2>
+        <details className="abschnitt">
+        <summary><h2>Legende</h2></summary>
         <ul className="legende">
           <li><span className="farbe rund" style={{ background: UEBERGANG_FARBE.markiert }} />OSM-Übergang mit Fussgängerstreifen-Markierung,
             <span className="farbe rund gestrichelt" style={{ background: UEBERGANG_FARBE.vermutlich, borderColor: '#a16207', opacity: 0.6 }} />vermutlich
@@ -636,10 +758,12 @@ export default function App() {
           <li>Amtliche Parkfelder (zählen, einzeln verwerfbar): <span className="farbe" style={{ background: PARK_FARBE.auto }} />Auto,
             <span className="farbe" style={{ background: PARK_FARBE.velo }} />Velo, <span className="farbe" style={{ background: PARK_FARBE.motorrad }} />Motorrad,
             <span className="farbe gestrichelt" style={{ borderColor: PARK_FARBE.auto, opacity: 0.6 }} />verworfen (gestrichelt, anklicken: wieder zählen)</li>
-          {Object.entries(AV_FARBEN).map(([art, farbe]) => <li key={art}><span className="farbe" style={{ background: farbe }} />AV {art}</li>)}
+          {Object.entries(AV_FARBEN).map(([art, farbe]) => <li key={art}><span className="farbe" style={{ background: farbe }} />AV {AV_NAME[art] ?? art}</li>)}
         </ul>
+        </details>
 
-        <h2>Grundlagen und Quellen</h2>
+        <details className="abschnitt">
+        <summary><h2>Grundlagen und Quellen</h2></summary>
         <p className="klein">
           Sichtweiten: VSS 40 241, Tab. 1 ({Object.entries(SICHTWEITE).map(([t, s]) => `${t} km/h: ${s} m`).join(', ')}); im Knoten nach
           Kurvenradius (bfu 2.457.01 bzw. VSS Tab. 2: {KURVE_SICHTWEITE.map(([r, s]) => `bis ${r} m: ${s} m`).join(', ')}).
@@ -650,6 +774,7 @@ export default function App() {
           Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}.
         </p>
         <p className="klein">Die App ersetzt keine Beurteilung vor Ort. Eingaben bleiben im Browser bzw. in der Fall-Datei.</p>
+        </details>
         <Datenschutz />
         <Fusszeile />
       </aside>

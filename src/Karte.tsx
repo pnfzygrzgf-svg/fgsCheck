@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { AvFlaeche } from './daten/av'
@@ -10,6 +10,8 @@ import type { Multi } from './rechner/poly'
 import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernisse'
 import type { StreifenHand } from './fall'
 import { wgs, lv95, type P } from './geo'
+import Ortssuche from './Ortssuche'
+import { ortZoom, type Ort } from './daten/ortssuche'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
@@ -41,9 +43,35 @@ export const PARK_FARBE: Record<string, string> = { auto: '#1e40af', velo: '#0f7
 export const hindernisFarbe = (h: Hindernis): string =>
   h.quelle === 'kataster' && h.art === 'parkfeld' ? PARK_FARBE[h.klasse] : QUELLE_FARBE[h.quelle] ?? '#0ea5e9'
 
+/** Hinweis über der Karte (Stand der Übergangssuche); erneut: Knopf «erneut suchen» (nur nach einem Fehler) */
+export interface KartenHinweis { text: string; fehler?: boolean; erneut?: () => void }
+
+export const STANDORT_ZOOM = 18
+const STANDORT_UNGENAU_M = 100                    // ungenauer: ganzen Genauigkeitskreis zeigen statt auf STANDORT_ZOOM
+// Übergänge: nur Marker im Sichtbereich mit diesem Rand (Anteil je Seite) zeichnen; nach jedem Verschieben nachgeführt
+const MARKER_RAND = 0.5
+const STANDORT_MS = 10000
+const STANDORT_FARBE = '#2563eb'
+const STANDORT_SYMBOL = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" ' +
+  'stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>' +
+  '<path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>'
+
+/** Meldung zu einem Fehler der Standortbestimmung (GeolocationPositionError.code) */
+export function standortFehlerText(code: number): string {
+  if (code === 1) return 'Standort nicht freigegeben: Zugriff auf den Standort in den Einstellungen des Browsers erlauben.'
+  if (code === 3) return `Standort nicht innert ${STANDORT_MS / 1000} s bestimmt; nochmals versuchen.`
+  return 'Standort zurzeit nicht verfügbar (kein GPS- bzw. Netzempfang).'
+}
+
 export type Werkzeug = null | 'parkfeld' | 'laengs' | 'baum' | 'hecke' | 'mauer' | 'flaeche' | 'streifen' | 'spurB'
 
 const ll = (p: P): L.LatLngTuple => wgs(p[0], p[1])
+/** Stil eines Übergangs (gewählt: grösser, dunkler Rand; vermutlich markiert: gestrichelt, blasser) */
+const markerStil = (mk: string, g: boolean): L.CircleMarkerOptions => ({
+  radius: g ? 9 : 6, color: g ? '#0f172a' : mk === 'vermutlich' ? '#a16207' : '#ffffff', weight: g ? 3 : 2,
+  dashArray: mk === 'vermutlich' ? '3 3' : undefined,
+  fillColor: UEBERGANG_FARBE[mk], fillOpacity: mk === 'vermutlich' ? 0.45 : 0.95,
+})
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!))
 const multiLl = (m: Multi) => m.map(poly => poly.map(r => r.map(ll)))
 export const zufahrtKey = (z: ZufahrtErgebnis) => `${z.fgsId}|${z.zufahrt}`
@@ -83,6 +111,8 @@ export default function Karte(props: {
   onDoppelklick: () => void
   onEcke: (id: string, i: number, p: P) => void
   onHindernis: (id: string) => void
+  onAusschnitt: () => void                           // nach jedem Verschieben bzw. Zoomen (moveend)
+  hinweis: KartenHinweis | null
   kartenRef: React.MutableRefObject<L.Map | null>
 }) {
   const { mitte, av, kantone, uebergaenge, gewaehlt, rechnung, auswahl, hindernisse, streifenHand, werkzeug, zeichnung, bearbeiten,
@@ -91,6 +121,26 @@ export default function Karte(props: {
   const ebenenRef = useRef<Record<string, L.LayerGroup> | null>(null)
   const cb = useRef(props)
   cb.current = props
+  const markerRef = useRef(new Map<number, { k: OsmKnoten; m: L.CircleMarker }>())
+  const gewaehltRef = useRef<number | null>(null)
+  /** Marker im Sichtbereich (mit Rand) auf die Karte, die übrigen weg; der gewählte bleibt immer */
+  const markerAbgleich = () => {
+    const map = kartenRef.current, eb = ebenenRef.current
+    if (!map || !eb) return
+    const b = map.getBounds().pad(MARKER_RAND)
+    for (const { k, m } of markerRef.current.values()) {
+      const zeigen = k.id === cb.current.gewaehlt || b.contains([k.lat, k.lon])
+      if (zeigen && !eb.osm.hasLayer(m)) m.addTo(eb.osm)
+      else if (!zeigen && eb.osm.hasLayer(m)) eb.osm.removeLayer(m)
+    }
+  }
+  // Standort: nur Anzeige auf der Karte, wird nirgends gespeichert oder gesendet
+  const [standortHinweis, setStandortHinweis] = useState<KartenHinweis | null>(null)
+  useEffect(() => {
+    if (!standortHinweis?.fehler) return
+    const t = setTimeout(() => setStandortHinweis(null), 8000)
+    return () => clearTimeout(t)
+  }, [standortHinweis])
 
   useEffect(() => {
     if (!elRef.current || kartenRef.current) return
@@ -100,10 +150,42 @@ export default function Karte(props: {
     const eb: Record<string, L.LayerGroup> = {
       av: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
       hind: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
+      standort: L.layerGroup().addTo(map),
     }
     L.control.layers(undefined, { 'Amtliche Vermessung': eb.av, 'OSM-Übergänge': eb.osm, 'Sichtfelder': eb.sicht,
       'Hindernisse': eb.hind }, { collapsed: true }).addTo(map)
     L.control.scale({ imperial: false }).addTo(map)
+    // «Zum eigenen Standort» unter den Zoom-Knöpfen
+    const standortKnopf = new L.Control({ position: 'topleft' })
+    standortKnopf.onAdd = () => {
+      const div = L.DomUtil.create('div', 'leaflet-bar standort-knopf')
+      const a = L.DomUtil.create('a', '', div)
+      a.href = '#'; a.title = 'Zum eigenen Standort'; a.setAttribute('role', 'button'); a.setAttribute('aria-label', 'Zum eigenen Standort')
+      a.innerHTML = STANDORT_SYMBOL
+      L.DomEvent.disableClickPropagation(div)
+      L.DomEvent.on(a, 'click', e => { L.DomEvent.preventDefault(e); standort() })
+      return div
+    }
+    standortKnopf.addTo(map)
+    const standort = () => {
+      if (!window.isSecureContext) { setStandortHinweis({ text: 'Standort nur über eine sichere Verbindung (https) abrufbar.', fehler: true }); return }
+      if (!('geolocation' in navigator)) { setStandortHinweis({ text: 'Dieser Browser kann den Standort nicht bestimmen.', fehler: true }); return }
+      setStandortHinweis({ text: 'Standort wird bestimmt …' })
+      navigator.geolocation.getCurrentPosition(pos => {
+        if (kartenRef.current !== map) return            // Karte inzwischen entfernt bzw. neu aufgebaut
+        const { latitude: lat, longitude: lon, accuracy } = pos.coords
+        eb.standort.clearLayers()
+        // nicht anklickbar: Klicks (Zeichnen, Auswahl) gehen an die Karte
+        L.circle([lat, lon], { radius: accuracy, color: STANDORT_FARBE, weight: 1, fillColor: STANDORT_FARBE, fillOpacity: 0.12,
+          interactive: false }).addTo(eb.standort)
+        L.circleMarker([lat, lon], { radius: 6, color: '#ffffff', weight: 2, fillColor: STANDORT_FARBE, fillOpacity: 1, interactive: false })
+          .addTo(eb.standort)
+        if (accuracy > STANDORT_UNGENAU_M) map.fitBounds(L.latLng(lat, lon).toBounds(2 * accuracy))
+        else map.setView([lat, lon], STANDORT_ZOOM)
+        setStandortHinweis(null)
+      }, err => setStandortHinweis({ text: standortFehlerText(err.code), fehler: true }),
+      { enableHighAccuracy: true, timeout: STANDORT_MS, maximumAge: 30000 })
+    }
     map.attributionControl.addAttribution('© OpenStreetMap-Mitwirkende')
     map.on('click', (e: L.LeafletMouseEvent) => {
       if (cb.current.werkzeug) { cb.current.onKlick(lv95(e.latlng.lat, e.latlng.lng)); return }
@@ -111,6 +193,7 @@ export default function Karte(props: {
       if (!(e.originalEvent.target as Element | null)?.closest?.('.leaflet-interactive')) cb.current.onZufahrt(null)
     })
     map.on('dblclick', () => { if (cb.current.werkzeug) cb.current.onDoppelklick() })
+    map.on('moveend', () => { markerAbgleich(); cb.current.onAusschnitt() })
     kartenRef.current = map
     ebenenRef.current = eb
     return () => { map.remove(); kartenRef.current = null; ebenenRef.current = null }
@@ -138,24 +221,41 @@ export default function Karte(props: {
     return () => { map.attributionControl.removeAttribution(text) }
   }, [av, kantone, kartenRef])
 
-  // OSM-Übergänge zum Anklicken
+  // OSM-Übergänge zum Anklicken. Marker je Übergang einmal erzeugt (neu nur bei geänderten Daten des Knotens), gezeichnet
+  // werden nur die im Sichtbereich mit Rand (MARKER_RAND); die Auswahl ändert nur den Stil des alten und des neuen Markers.
   useEffect(() => {
-    const eb = ebenenRef.current
-    if (!eb) return
-    eb.osm.clearLayers()
+    const vorher = markerRef.current, neu = new Map<number, { k: OsmKnoten; m: L.CircleMarker }>()
     for (const k of uebergaenge) {
-      const g = k.id === gewaehlt
+      const alt = vorher.get(k.id)
+      if (alt && alt.k === k) { neu.set(k.id, alt); vorher.delete(k.id); continue }
       const mk = markierung(k.tags)
-      L.circleMarker([k.lat, k.lon], {
-        radius: g ? 9 : 6, color: g ? '#0f172a' : mk === 'vermutlich' ? '#a16207' : '#ffffff', weight: g ? 3 : 2,
-        dashArray: mk === 'vermutlich' ? '3 3' : undefined,
-        fillColor: UEBERGANG_FARBE[mk], fillOpacity: mk === 'vermutlich' ? 0.45 : 0.95,
-      }).bindTooltip(`<b>OSM-Übergang ${k.id}</b> (${UEBERGANG_TEXT[mk]})<br>` +
-        Object.entries(k.tags).map(([a, b]) => `${esc(a)}=${esc(b)}`).join('<br>') + '<br><i>Klick: prüfen</i>')
+      const m = L.circleMarker([k.lat, k.lon], markerStil(mk, k.id === cb.current.gewaehlt))
+        .bindTooltip(`<b>OSM-Übergang ${k.id}</b> (${UEBERGANG_TEXT[mk]})<br>` +
+          Object.entries(k.tags).map(([a, b]) => `${esc(a)}=${esc(b)}`).join('<br>') + '<br><i>Klick: prüfen</i>')
         // beim Zeichnen: Klick auf den gewählten Übergang setzt einen Punkt, auf einen anderen meldet die App
-        .on('click', e => { if (cb.current.werkzeug && g) return; L.DomEvent.stopPropagation(e); cb.current.onUebergang(k) }).addTo(eb.osm)
+        .on('click', e => {
+          if (cb.current.werkzeug && k.id === cb.current.gewaehlt) return
+          L.DomEvent.stopPropagation(e); cb.current.onUebergang(k)
+        })
+      neu.set(k.id, { k, m })
     }
-  }, [uebergaenge, gewaehlt])
+    for (const { m } of vorher.values()) m.remove()
+    markerRef.current = neu
+    markerAbgleich()
+  }, [uebergaenge])
+  useEffect(() => {
+    const n = markerRef.current
+    for (const id of new Set([gewaehltRef.current, gewaehlt])) {
+      const x = id === null ? undefined : n.get(id)
+      if (!x) continue
+      const g = id === gewaehlt
+      x.m.setStyle(markerStil(markierung(x.k.tags), g))
+    }
+    gewaehltRef.current = gewaehlt
+    markerAbgleich()                                   // gewählter Übergang immer gezeichnet
+    const x = gewaehlt === null ? undefined : n.get(gewaehlt)
+    if (x && ebenenRef.current?.osm.hasLayer(x.m)) x.m.bringToFront()
+  }, [gewaehlt])
 
   // Ergebnis: Streifen, Annäherungsbereiche, Sichtfelder
   useEffect(() => {
@@ -266,5 +366,20 @@ export default function Karte(props: {
     for (const p of zeichnung) L.circleMarker(ll(p), { radius: 4, color: '#f43f5e', fillColor: '#ffffff', fillOpacity: 1, interactive: false }).addTo(eb.zeichnen)
   }, [zeichnung])
 
-  return <div ref={elRef} className="karte" />
+  const ortWaehlen = (o: Ort) => kartenRef.current?.setView([o.lat, o.lon], ortZoom(o.art))
+  const hinweise = [props.hinweis, standortHinweis].filter((h): h is KartenHinweis => !!h)
+  return (
+    <div className="kartenrahmen">
+      <div ref={elRef} className="karte" />
+      <div className="kartenkopf">
+        <Ortssuche onOrt={ortWaehlen} />
+        {hinweise.map(h => (
+          <div key={h.text} className={'kartenhinweis' + (h.fehler ? ' fehler' : '')} role="status">
+            {h.text}
+            {h.erneut && <>{' '}<button className="zweit klein" onClick={h.erneut}>erneut suchen</button></>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }

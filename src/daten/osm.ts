@@ -35,7 +35,44 @@ export const OVERPASS_ENDPOINTS = [
 ]
 const REQUEST_TIMEOUT_MS = 25000
 const MAX_BACKOFF_MS = 10000
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+/** warten; bricht mit AbortError ab, wenn signal abbricht (z. B. beim Verlassen der Prüfung) */
+function warte(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((res, rej) => {
+    const abbruch = () => { clearTimeout(t); rej(new DOMException('abgebrochen', 'AbortError')) }
+    if (signal?.aborted) { abbruch(); return }
+    const t = setTimeout(() => { signal?.removeEventListener('abort', abbruch); res() }, ms)
+    signal?.addEventListener('abort', abbruch, { once: true })
+  })
+}
+
+// ── Sperre nach 429 bzw. Retry-After: «nicht vor t» für alle folgenden Overpass-Abfragen (Fair Use) ──
+// Gilt für den Beginn jeder neuen Abfrage (automatische Suche und Laden eines Übergangs); innerhalb einer laufenden Abfrage
+// bleiben die Ausweichserver (ein 429 gilt für den Server, der ihn sendet). Ohne Retry-After SPERRE_STANDARD_MS, höchstens
+// SPERRE_MAX_MS (Schutz vor unsinnig langen Angaben). Retry-After liest der Browser nur, wenn der Server den Kopf über
+// Access-Control-Expose-Headers freigibt; sonst gilt die Standardsperre. Ein 429 ohne CORS-Kopf erscheint nur als
+// Netzwerkfehler und setzt keine Sperre (nicht unterscheidbar).
+export const SPERRE_STANDARD_MS = 30000
+export const SPERRE_MAX_MS = 120000
+let sperreBis = 0                                    // Date.now()-Zeit, vor der keine neue Abfrage beginnt
+
+/** Retry-After (Sekunden bzw. HTTP-Datum) -> Millisekunden ab jetzt, null ohne bzw. bei ungültiger Angabe */
+export function retryAfterMs(wert: string | null, jetzt = Date.now()): number | null {
+  const w = (wert ?? '').trim()
+  if (!w) return null
+  if (/^\d+$/.test(w)) return Number(w) * 1000
+  const t = Date.parse(w)
+  return Number.isFinite(t) ? Math.max(0, t - jetzt) : null
+}
+/** Sperre nach einer Antwort setzen bzw. verlängern (nie verkürzen): bei 429 bzw. wenn ein Retry-After mitkommt */
+export function sperreNachAntwort(status: number, retryAfter: string | null, jetzt = Date.now()): void {
+  const ra = retryAfterMs(retryAfter, jetzt)
+  if (status !== 429 && ra === null) return
+  sperreBis = Math.max(sperreBis, jetzt + Math.min(SPERRE_MAX_MS, ra ?? SPERRE_STANDARD_MS))
+}
+/** verbleibende Sperre in ms (0: frei) */
+export const overpassSperre = (jetzt = Date.now()) => Math.max(0, sperreBis - jetzt)
+/** nur für Tests */
+export const sperreZuruecksetzen = () => { sperreBis = 0 }
 
 export function overpassAbgebrochen(data: { remark?: unknown }): boolean {
   return typeof data.remark === 'string' && /runtime error|timed out|out of memory/i.test(data.remark)
@@ -104,6 +141,11 @@ async function overpassFetch(query: string, signal?: AbortSignal): Promise<Abruf
   const init: RequestInit = { method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: 'data=' + encodeURIComponent(query) }
+  // Sperre nach 429: kurz warten; bei langer Sperre gleich melden statt das Zeitbudget zu verbrauchen
+  const gesperrt = overpassSperre()
+  if (gesperrt > GESAMT_MS / 2)
+    throw new AbrufFehler(`Overpass ausgelastet (HTTP 429): nächste Abfrage in rund ${Math.ceil(gesperrt / 1000)} s möglich`, 429)
+  if (gesperrt > 0) await warte(gesperrt, signal)
   const start = performance.now()
   let letzter = ''
   for (let runde = 0; runde < 2; runde++) {
@@ -125,8 +167,9 @@ async function overpassFetch(query: string, signal?: AbortSignal): Promise<Abruf
       }
       letzter = `${new URL(url).host}: HTTP ${res.status}`
       if (res.status === 429 || res.status >= 500) {
-        const ra = parseInt(res.headers.get('Retry-After') || '', 10)
-        await sleep(Math.min(MAX_BACKOFF_MS, Number.isFinite(ra) ? ra * 1000 : 1000 * 2 ** runde))
+        const raKopf = res.headers.get('Retry-After'), ra = retryAfterMs(raKopf)
+        sperreNachAntwort(res.status, raKopf)
+        await warte(Math.min(MAX_BACKOFF_MS, ra ?? 1000 * 2 ** runde), signal)
         continue
       }
       // andere Fehler (z. B. 400, 406): nächster Server, nicht abbrechen

@@ -10,8 +10,10 @@ export function Anleitung() {
     <details className="hilfe">
       <summary>So funktioniert's</summary>
       <ol>
-        <li><b>Übergang wählen:</b> Karte auf den Ort zoomen (die Suche läuft ab Massstab 1:10 000), «Übergänge im Ausschnitt suchen»
-          und einen Punkt anklicken. Gelb: Fussgängerstreifen in OSM, gelb gestrichelt: vermutlich, violett: Lichtsignal, grau: kein
+        <li><b>Ort finden:</b> oben in der Karte Ort, Adresse, Strasse oder PLZ eingeben und einen Vorschlag wählen, oder mit dem
+          Standort-Knopf unter den Zoom-Knöpfen zum eigenen Standort springen. Die Übergänge im Ausschnitt erscheinen nach dem
+          Verschieben bzw. Zoomen von selbst (ab Massstab 1:10 000; weiter draussen: «Zum Suchen näher heranzoomen»).</li>
+        <li><b>Übergang wählen:</b> einen Punkt anklicken. Gelb: Fussgängerstreifen in OSM, gelb gestrichelt: vermutlich, violett: Lichtsignal, grau: kein
           Fussgängerstreifen. Die App lädt Amtliche Vermessung, OSM und das Luftbild und rechnet im Browser.</li>
         <li><b>Ergebnis lesen:</b> je Streifen die Zufahrten mit Tempo, Sichtweite und Status (frei bzw. verdeckt und wodurch). Zeile
           anklicken: Sichtfeld, Sichtpunkte und Hindernisse auf der Karte. Hinweise in Braun sind Annahmen («aus OSM, prüfen»,
@@ -52,15 +54,17 @@ export function Datenschutz() {
         <li>Der Browser holt die Daten direkt bei diesen Diensten; sie sehen dabei technisch die IP-Adresse und Browserangaben:
           <ul>
             <li>swisstopo (geo.admin.ch): Kartenkacheln des sichtbaren Ausschnitts (wmts.geo.admin.ch), Luftbild-Ausschnitt ±30 m um den
-              gewählten Übergang und das Kartenbild des Berichts (wms.geo.admin.ch), Flugjahr der 1-km-Kachel (api3.geo.admin.ch).</li>
+              gewählten Übergang und das Kartenbild des Berichts (wms.geo.admin.ch), Flugjahr der 1-km-Kachel (api3.geo.admin.ch);
+              bei der Ortssuche der eingegebene Suchbegriff (api3.geo.admin.ch).</li>
             <li>geodienste.ch (Amtliche Vermessung): Rechteck ±150 m um den Übergang.</li>
-            <li>Overpass (OpenStreetMap): Kartenausschnitt bei der Suche (auch automatisch beim Start) bzw. Umkreis 300 m um den
+            <li>Overpass (OpenStreetMap): Kartenausschnitt mit etwas Rand bei der Suche (automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m um den
               Übergang; Server {erster}
               (Swiss OpenStreetMap Association), bei Störung ersatzweise {weitere.join(', ')}.</li>
             <li>map.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern: Rechteck ±150 m für amtliche Parkfelder bzw. den
               Baumkataster.</li>
           </ul>
-          Eine Adresssuche gibt es nicht.</li>
+          Der eigene Standort (Standort-Knopf) wird nur im Browser ermittelt und auf der Karte gezeigt, nicht gespeichert und
+          nicht gesendet; die Dienste erhalten wie sonst nur den Kartenausschnitt.</li>
         <li>Nutzungsstatistik: Seitenaufrufe werden mit GoatCounter gezählt, ohne Cookies und ohne Speicherung der IP-Adresse. Erfasst
           werden Seitenpfad, Herkunftsseite (Referrer), Bildschirmbreite, Browser und Betriebssystem, Sprache sowie das Land (aus der
           IP-Adresse abgeleitet), nicht Ihre Eingaben oder Ergebnisse.

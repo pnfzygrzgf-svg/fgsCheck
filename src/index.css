@@ -14,10 +14,35 @@
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; height: 100%; background: var(--bg); }
 .app { display: flex; height: 100%; }
-.karte { flex: 1; min-width: 0; height: 100%; }
+.kartenrahmen { position: relative; flex: 1; min-width: 0; height: 100%; }
+.karte { width: 100%; height: 100%; }
+/* Ortssuche und Hinweise über der Karte: zwischen Zoom-Knöpfen (links) und Ebenenwahl (rechts), Karte darum bleibt bedienbar;
+   z-index unter den Leaflet-Knöpfen (1000), damit die aufgeklappte Ebenenwahl darüber liegt, über den Kartenebenen (bis 700) */
+.kartenkopf { position: absolute; top: 10px; left: 56px; right: 62px; max-width: 380px; margin: 0 auto; z-index: 900;
+  display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.kartenkopf > * { pointer-events: auto; }
+.ortssuche { position: relative; }
+.ortssuche input { width: 100%; font: inherit; font-size: 16px; padding: 7px 28px 7px 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: #ffffff; color: var(--text-strong); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.ortssuche input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+.ortssuche-laedt { position: absolute; right: 10px; top: 7px; color: var(--text-muted); }
+.ortssuche-liste { list-style: none; margin: 4px 0 0; padding: 4px 0; background: #ffffff; border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.25); max-height: 50vh; overflow-y: auto; }
+.ortssuche-liste li { padding: 6px 10px; cursor: pointer; line-height: 1.3; }
+.ortssuche-liste li.aktiv { background: #ccfbf1; }
+.ortssuche-liste li.ortssuche-leer { cursor: default; color: var(--text-muted); }
+.ortssuche-art { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.ortssuche-fehler, .kartenhinweis { font-size: 12px; background: rgba(255,255,255,.92); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px 8px; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.2); align-self: center; text-align: center; }
+.ortssuche-fehler, .kartenhinweis.fehler { color: var(--fehler); }
+.standort-knopf a { display: flex !important; align-items: center; justify-content: center; color: var(--text-strong); }
 .panel { width: 400px; max-width: 45vw; overflow-y: auto; padding: 12px 16px; background: #ffffff; border-left: 1px solid var(--border); }
 h1 { font-size: 20px; margin: 4px 0 8px; color: var(--text-strong); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-h1 .logo { flex-shrink: 0; }
+h1 .logo { flex-shrink: 0; display: block; }
+/* Logo in der App: Knopf «Zur Startseite» (tastaturbedienbar) */
+h1 .logo-knopf { flex-shrink: 0; padding: 0; border: 0; background: none; border-radius: 6px; line-height: 0; }
+h1 .logo-knopf:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app-laedt { margin: 0; padding: 24px 16px; color: var(--text-muted); text-align: center; }
 h2 { font-size: 15px; margin: 18px 0 6px; color: var(--text-strong); }
 .marke { font-size: 12px; font-weight: 600; color: #ffffff; background: var(--accent); border-radius: 6px; padding: 2px 6px; vertical-align: middle; }
 .hinweis { background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 8px 10px; margin: 0; }
@@ -33,7 +58,7 @@ th { font-weight: 600; color: var(--text-muted); font-size: 12px; }
 .farbe.rund { border-radius: 50%; margin-left: 2px; }
 @media (max-width: 700px) {
   .app { flex-direction: column; }
-  .karte { height: 60%; flex: none; }
+  .kartenrahmen { height: 60%; flex: none; }
   .panel { width: 100%; max-width: none; border-left: none; border-top: 1px solid var(--border); }
 }
 h3 { font-size: 13px; margin: 8px 0 4px; color: var(--text-strong); }
@@ -49,6 +74,10 @@ button:hover { filter: brightness(1.1); }
 .warnung { color: #b45309; }
 details { margin-bottom: 6px; }
 summary { cursor: pointer; }
+/* ein- und ausblendbare Abschnitte im Panel (Geladene Quellen, Legende, Grundlagen): Titel wie h2, Standard-Pfeil davor */
+details.abschnitt > summary { margin: 18px 0 6px; }
+details.abschnitt > summary h2 { display: inline; margin: 0; }
+details.abschnitt > summary h2 .fehler { font-size: 13px; font-weight: 600; }
 /* E2: Eingaben */
 button.zweit { background: #ffffff; color: var(--accent); }
 button.klein, .knopf.klein { padding: 2px 6px; font-size: 12px; }
@@ -123,3 +152,29 @@ button.aktiv { background: var(--accent); color: #ffffff; }
   .bericht { position: static; overflow: visible; background: #ffffff; }
   .bericht-seite { max-width: none; margin: 0; padding: 0; box-shadow: none; }
 }
+
+/* Startseite (Einstieg) */
+.start { max-width: 680px; margin: 0 auto; padding: 24px 16px 56px; font-size: 15px; line-height: 1.6; }
+html.startseite, html.startseite body, html.startseite #root { height: auto; min-height: 100%; }   /* Klasse aus Einstieg.tsx */
+.start p { margin: 0 0 14px; }
+.start-logo { width: 200px; max-width: 55%; display: block; margin: 8px auto 4px; cursor: pointer; }
+.start-titel { justify-content: center; font-size: 28px; font-weight: 800; margin: 0; }
+.start-untertitel { text-align: center; color: var(--text-muted); margin: 0 0 14px !important; }
+.start-knopf-zeile { text-align: center; margin-bottom: 22px; }
+.start-knopf { border: none; background: var(--accent); color: #ffffff; cursor: pointer; border-radius: 8px; padding: 9px 18px;
+  font-size: 14px; font-weight: 600; }
+.start-knopf:hover { filter: brightness(1.1); }
+.start-grenzen { font-size: 13px; color: var(--text-muted); background: #ffffff; border-left: 3px solid var(--accent);
+  padding: 8px 12px; border-radius: 4px; }
+.start-kachel { display: flex; align-items: center; gap: 14px; margin-top: 14px; text-decoration: none; background: #ffffff;
+  border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; color: var(--text); }
+.start-kachel:hover { box-shadow: 0 4px 12px #0002; }
+.start-kachel img { flex-shrink: 0; border-radius: 8px; object-fit: cover; }
+.start-kachel-titel { font-weight: 700; color: var(--text-strong); }
+.start-kachel-text { font-size: 13px; color: var(--text-muted); }
+.start-daten { margin-top: 22px; padding: 10px 14px; border-radius: 10px; background: #f8fafc; border: 1px solid var(--border);
+  font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
+.start-daten-titel { font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.start-daten ul { margin: 6px 0 0; padding-left: 20px; }
+.start-fuss { margin-top: 18px !important; font-size: 12px; color: var(--text-muted); text-align: center; }
+.start-fuss a { color: var(--accent); }
