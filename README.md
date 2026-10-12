@@ -2,6 +2,8 @@
 
 Sichtprüfung an Fussgängerstreifen im Browser.
 
+Vibecoding. Don't trust, verify!
+
 ## Online
 
 https://pnfzygrzgf-svg.github.io/fgsCheck/ (GitHub Pages; Build und Veröffentlichung bei jedem Push auf `main`, siehe
