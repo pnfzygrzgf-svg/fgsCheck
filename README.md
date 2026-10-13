@@ -57,7 +57,8 @@ npm run build    # Typprüfung und Build nach dist/ (Basis /fgsCheck/ für GitHu
    dort die gelben Balken. «Erkannt» ersetzt den Streifen aus OSM + AV (Hinweis «aus Luftbild, prüfen», Balken orange auf
    der Karte); «unsicher» erscheint gestrichelt als Vorschlag, die Rechnung nimmt dann OSM + AV. Das Luftbild lädt im
    Hintergrund: zuerst rechnet die App mit OSM + AV, sobald das Bild da ist, neu. «Luftbild-Streifen
-   übernehmen und anpassen» macht ihn zum Streifen von Hand. Der Schalter «Streifen im Luftbild suchen» schaltet ab.
+   übernehmen und anpassen» macht ihn zum Streifen von Hand. Der Schalter «Streifen im Luftbild suchen» schaltet ab;
+   dann lädt die App weder Bild noch Flugjahr, wieder eingeschaltet holt sie das Laden nach.
 
 10. Bericht (E4): «Bericht drucken / als PDF» öffnet eine Druckansicht (A4 hoch): Ort (Bezeichnung frei eingebbar, LV95,
    WGS84, OSM-Übergang), Kartenbild mit Streifen, Sichtfeldern, Sichtpunkten und Hindernissen, Status je Streifen, Tabelle je

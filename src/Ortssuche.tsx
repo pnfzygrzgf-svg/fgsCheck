@@ -1,11 +1,12 @@
 // ── Ortssuche über der Karte: Ort, Adresse, Strasse oder PLZ tippen, Vorschlag wählen -> Karte springt hin ──
 //
 // Abfrage beim SearchServer von swisstopo (daten/ortssuche.ts) erst nach einer Tipp-Pause von SUCHE_PAUSE_MS und ab
-// SUCHE_MIN_ZEICHEN Zeichen (Enter sucht schon ab 2 Zeichen); eine neue Eingabe bricht die laufende Anfrage ab. Tastatur:
+// SUCHE_MIN_ZEICHEN Zeichen (Enter sucht schon ab 2 Zeichen). Jede neue Eingabe bricht die laufende Anfrage sofort ab und
+// leert die alten Treffer; eine Antwort gilt nur, solange sie zum aktuellen Text gehört (daten/ortssuche.ts). Tastatur:
 // Pfeile wählen, Enter übernimmt, Escape schliesst die Liste bzw. leert das Feld. Treffer werden nur als Text angezeigt.
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { sucheOrt, type Ort } from './daten/ortssuche'
+import { sucheOrt, eingabeFolge, antwortAktuell, type Ort } from './daten/ortssuche'
 import { istAbbruch } from './daten/holen'
 
 const SUCHE_PAUSE_MS = 300
@@ -22,6 +23,8 @@ export default function Ortssuche({ onOrt }: { onOrt: (o: Ort) => void }) {
   const eingabeRef = useRef<HTMLInputElement>(null)
   const gewaehltRef = useRef('')                     // eben übernommener Text: keine neue Suche dafür
   const timerRef = useRef(0)                          // Entprellung (Enter löscht sie: keine zweite Abfrage)
+  const textRef = useRef('')                          // aktueller Text für die Prüfung der Antwort
+  useEffect(() => { textRef.current = text }, [text])
   const listeId = useId()
 
   const suchen = (q: string) => {
@@ -30,20 +33,22 @@ export default function Ortssuche({ onOrt }: { onOrt: (o: Ort) => void }) {
     ctrlRef.current = ctrl
     setLaedt(true); setFehler('')
     sucheOrt(q, ctrl.signal).then(t => {
-      if (ctrl.signal.aborted) return
+      if (ctrl.signal.aborted || !antwortAktuell(q, textRef.current)) return
       setTreffer(t); setAktiv(t.length ? 0 : -1); setOffen(true); setLaedt(false)
     }, e => {
-      if (istAbbruch(e) || ctrl.signal.aborted) return
+      if (istAbbruch(e) || ctrl.signal.aborted || !antwortAktuell(q, textRef.current)) return
       setTreffer([]); setOffen(false); setLaedt(false)
       setFehler(`Ortssuche nicht verfügbar (${(e as Error).message})`)
     })
   }
 
-  // entprellt suchen, solange getippt wird
+  // entprellt suchen, solange getippt wird; alte Anfrage und Treffer sofort verwerfen
   useEffect(() => {
+    const folge = eingabeFolge(text, gewaehltRef.current, SUCHE_MIN_ZEICHEN)
+    if (folge === 'nichts') return
+    ctrlRef.current?.abort(); setTreffer([]); setAktiv(-1); setOffen(false); setLaedt(false); setFehler('')
+    if (folge === 'leeren') return
     const q = text.trim()
-    if (q === gewaehltRef.current) return
-    if (q.length < SUCHE_MIN_ZEICHEN) { ctrlRef.current?.abort(); setTreffer([]); setOffen(false); setLaedt(false); setFehler(''); return }
     timerRef.current = window.setTimeout(() => suchen(q), SUCHE_PAUSE_MS)
     return () => clearTimeout(timerRef.current)
   }, [text])
@@ -51,6 +56,7 @@ export default function Ortssuche({ onOrt }: { onOrt: (o: Ort) => void }) {
 
   const waehlen = (o: Ort) => {
     gewaehltRef.current = o.text
+    ctrlRef.current?.abort(); setLaedt(false)       // eine noch laufende Suche ist mit der Auswahl erledigt
     setText(o.text); setOffen(false); setTreffer([]); setAktiv(-1); setFehler('')
     eingabeRef.current?.blur()                        // Tastatur auf dem Telefon schliessen
     onOrt(o)

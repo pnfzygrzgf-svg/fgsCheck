@@ -8,11 +8,12 @@ import type { AvFlaeche } from '../daten/av'
 import { konflikteSuchen, konfliktFelder } from './pruefen'
 import { Gebaeude } from './flaechen'
 import { HindernisDaten, laengsPolygon, type Hindernis } from './hindernisse'
+import { abstandLinieMulti } from './poly'
 import { abstandHalten, PARK_ABSTAND_M } from './spur'
 import { rechneFall } from './index'
 import { linieKreis } from './spurhand'
 import { leererFall, fallLesen, fallSchreiben, zufahrtSchluessel, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
-  fallMerken, fallErinnern, type Fall } from '../fall'
+  fallMerken, fallErinnern, imGebiet, type Fall } from '../fall'
 import { markierung } from '../daten/osm'
 import type { Konflikt } from './typen'
 
@@ -115,7 +116,8 @@ describe('Fall-Datei', () => {
     })
     const [g, hinweise] = fallLesen(fallSchreiben(f))
     expect(hinweise).toEqual([])
-    expect(g).toEqual(f)
+    expect(typeof g.gespeichert).toBe('string')        // Speicherdatum wird mitgelesen (Hinweis «Stand …»)
+    expect({ ...g, gespeichert: undefined }).toEqual({ ...f, gespeichert: undefined })
   })
   it('ungültige Einträge werden gemeldet, fremde Dateien abgelehnt', () => {
     const roh = JSON.parse(fallSchreiben(fallMit(() => {})))
@@ -259,6 +261,92 @@ describe('Fall-Datei: doppelte Streifen-Nummern', () => {
   })
 })
 
+describe('Abstand Linienhindernis zum Streifen (Korrektur 13.10.2026)', () => {
+  const sq = (x0: number, y0: number, x1: number, y1: number) => [[[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]] as P[]]]
+  const streifen = sq(20, 0, 24, 10)
+  it('kürzester Abstand über die Strecken, nicht nur die Stützpunkte', () => {
+    // lange Mauer quer vor dem Streifen: Mitte 1 m davor, beide Stützpunkte über 60 m entfernt
+    const mauer: P[] = [[19, -60], [19, 70]]
+    expect(Math.min(...mauer.map(p => Math.hypot(p[0] - 20, p[1] < 0 ? p[1] : p[1] - 10)))).toBeGreaterThan(59)
+    expect(abstandLinieMulti(mauer, streifen)).toBeCloseTo(1, 9)
+    expect(abstandLinieMulti([[10, 5], [15, 5]], streifen)).toBeCloseTo(5, 9)        // Stützpunkt am nächsten: wie bisher
+  })
+  it('Linie schneidet bzw. berührt den Streifen oder liegt darin: 0', () => {
+    expect(abstandLinieMulti([[10, 5], [30, 5]], streifen)).toBe(0)
+    expect(abstandLinieMulti([[22, -5], [22, 15]], streifen)).toBe(0)
+    expect(abstandLinieMulti([[18, 12], [26, 12], [26, -2]], streifen)).toBeCloseTo(2, 9)  // umläuft ihn nur
+    expect(abstandLinieMulti([[20, -5], [20, 15]], streifen)).toBe(0)                  // entlang der Kante
+    expect(abstandLinieMulti([[21, 2], [23, 8]], streifen)).toBe(0)                    // ganz innen
+  })
+  it('Konflikt einer Mauer: Abstand der Mitte zählt (Panel, Karte, Bericht)', () => {
+    const feld = sq(0, 0, 20, 10), keineGeb = new Gebaeude([])
+    const hd = new HindernisDaten([{ id: 'm', art: 'mauer', linie: [[18.5, -60], [18.5, 70]], sichtbehindernd: true, quelle: 'hand' }])
+    const k = konflikteSuchen(feld, streifen, keineGeb, [], [], hd)
+    expect(k.length).toBe(1)
+    expect(k[0].abstand).toBeCloseTo(1.5, 9)        // vorher Abstand der Stützpunkte (> 60 m)
+  })
+})
+
+describe('Fall-Datei: kaputte Dateien (Korrektur 13.10.2026)', () => {
+  const roh = () => JSON.parse(fallSchreiben(fallMit(() => {})))
+  it('Objekt statt Liste, Liste statt Objekt, null: übergangen und gemeldet, keine Ausnahme', () => {
+    const r = roh()
+    r.streifenHand = { id: 'hand-1' }
+    r.hindernisse = null
+    r.zufahrten = [{ tempo: 30 }]
+    r.streifen = 'ja'
+    r.vorschlaege = null
+    r.quellen = [1, 2]
+    let g: Fall | null = null, h: string[] = []
+    expect(() => { [g, h] = fallLesen(JSON.stringify(r)) }).not.toThrow()
+    expect(g!.streifenHand).toEqual([])
+    expect(g!.hindernisse).toEqual([])
+    expect(g!.zufahrten).toEqual({})
+    expect(g!.streifen).toEqual({})
+    expect(g!.vorschlaege).toEqual({})
+    expect(g!.quellen).toEqual({})
+    expect(h).toEqual(['Quellen ungültig (kein Objekt), übergangen', 'Streifen von Hand ungültig (keine Liste), übergangen',
+      'Hindernisse ungültig (keine Liste), übergangen', 'Zufahrten ungültig (kein Objekt), übergangen',
+      'Streifen-Eingaben ungültig (kein Objekt), übergangen', 'Vorschläge ungültig (kein Objekt), übergangen'])
+  })
+  it('einzelne ungültige Einträge übergangen und gemeldet, gültige bleiben', () => {
+    const r = roh()
+    r.streifenHand = [null, 5, { id: 'hand-1', p0: [0, 0], p1: [0, 8], breite: 4 }]
+    r.hindernisse = [null, 'baum', [1, 2], { id: 'b', art: 'baum', p: [1, 2], stamm: 0.5, quelle: 'hand' }]
+    r.zufahrten = { 'a|0': null, 'b|0': [30], 'c|0': { tempo: 999 }, 'd|0': { tempo: 30 }, 'e|0': {} }
+    r.streifen = { 1: 'ja', 2: { lsa: 'ja' } }
+    r.vorschlaege = { x: 'verworfen', y: true }
+    r.quellen = { osm: 'OSM', av: 5, fremd: 'x' }
+    const [g, h] = fallLesen(JSON.stringify(r))
+    expect(g.streifenHand.map(s => s.id)).toEqual(['hand-1'])
+    expect(g.hindernisse.map(x => x.id)).toEqual(['b'])
+    expect(g.zufahrten).toEqual({ 'd|0': { tempo: 30 } })
+    expect(g.streifen).toEqual({ 2: { lsa: 'ja' } })
+    expect(g.vorschlaege).toEqual({ x: 'verworfen' })
+    expect(g.quellen).toEqual({ osm: 'OSM' })
+    expect(h).toEqual(['Quelle «av» ungültig, übergangen', 'Streifen von Hand ungültig, übergangen', 'Streifen von Hand ungültig, übergangen',
+      'Hindernis ungültig, übergangen', 'Hindernis ungültig, übergangen', 'Hindernis ungültig, übergangen',
+      'Zufahrt a|0 ungültig, übergangen', 'Zufahrt b|0 ungültig, übergangen', 'Zufahrt c|0 ungültig, übergangen',
+      'Streifen-Eingabe 1 ungültig, übergangen', 'Vorschlag y ungültig, übergangen'])
+  })
+  it('Ort: ungültige bzw. fremde Koordinaten werfen einen klaren Fehler', () => {
+    const mitOrt = (lat: unknown, lon: unknown) => JSON.stringify({ ...roh(), ort: { lat, lon, uebergang: 12 } })
+    expect(() => fallLesen(mitOrt(999, 7.44))).toThrow(/keine WGS84-Koordinaten/)
+    expect(() => fallLesen(mitOrt(46.95, -200))).toThrow(/keine WGS84-Koordinaten/)
+    expect(() => fallLesen(mitOrt(48.85, 2.35))).toThrow(/ausserhalb der Schweiz/)     // Paris
+    expect(() => fallLesen(mitOrt(1200000, 2600000))).toThrow(/keine WGS84/)          // LV95 statt WGS84
+    expect(() => fallLesen(mitOrt('46.95', 7.44))).toThrow(/Ort fehlt/)
+    expect(() => fallLesen(JSON.stringify({ ...roh(), ort: null }))).toThrow(/Ort fehlt/)
+    expect(() => fallLesen('null')).toThrow(/keine fgsCheck-Fall-Datei/)
+    expect(() => fallLesen('[]')).toThrow(/keine fgsCheck-Fall-Datei/)
+    expect(fallLesen(mitOrt(47.14, 9.52))[0].ort.lat).toBe(47.14)                      // Vaduz
+  })
+  it('Gebiet: Ecken der Schweiz liegen darin', () => {
+    expect([[45.818, 9.02], [47.808, 8.57], [46.13, 5.956], [46.63, 10.492]].every(([a, b]) => imGebiet(a, b))).toBe(true)
+    expect(imGebiet(45.4, 9.2)).toBe(false)                                            // Mailand
+  })
+})
+
 describe('Fall im Browser merken (localStorage)', () => {
   afterEach(() => { vi.unstubAllGlobals() })
   const speicher = () => {
@@ -280,6 +368,16 @@ describe('Fall im Browser merken (localStorage)', () => {
     fallMerken(leererFall(46.95, 7.44, 42))          // «Eingaben verwerfen»
     expect(m.size).toBe(0)
     expect(fallErinnern(42)).toBeNull()
+  })
+  it('kaputte Einträge im Speicher stürzen nicht ab', () => {
+    const m = speicher()
+    m.set('fgsCheck.fall.5', '{kaputt')
+    m.set('fgsCheck.fall.6', JSON.stringify({ app: 'fgsCheck', version: 1, ort: { lat: 999, lon: 7 } }))
+    m.set('fgsCheck.fall.7', JSON.stringify({ app: 'fgsCheck', version: 1, ort: { lat: 46.95, lon: 7.44, uebergang: 7 },
+      hindernisse: {}, zufahrten: [], streifen: null }))
+    expect(fallErinnern(5)).toBeNull()
+    expect(fallErinnern(6)).toBeNull()
+    expect(fallErinnern(7)?.hindernisse).toEqual([])
   })
   it('Bezeichnung oder abgeschaltete Luftbild-Suche allein werden gemerkt', () => {
     const m = speicher()

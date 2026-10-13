@@ -94,6 +94,21 @@ export function ortZoom(art: OrtArt): number {
   return { adresse: 19, strasse: 18, ort: 17, gemeinde: 16, plz: 16 }[art]
 }
 
+/**
+ * Folge einer Änderung des Suchtexts (Ortssuche.tsx): «nichts», wenn der Text eben durch eine Auswahl gesetzt wurde (gewaehlt);
+ * sonst gelten die bisherigen Treffer nicht mehr: «leeren» (zu kurz, keine Suche) bzw. «suchen» (nach der Tipp-Pause). In
+ * beiden Fällen bricht die Oberfläche die laufende Anfrage sofort ab und schliesst die Liste, damit während der Pause kein
+ * Treffer zum alten Text gewählt werden kann.
+ */
+export function eingabeFolge(text: string, gewaehlt: string, minZeichen: number): 'nichts' | 'leeren' | 'suchen' {
+  const q = text.trim()
+  if (gewaehlt && q === gewaehlt) return 'nichts'
+  return q.length < minZeichen ? 'leeren' : 'suchen'
+}
+
+/** Gehört die Antwort zur Anfrage q noch zum aktuellen Suchtext? (sonst verwerfen: späte Antwort zu einem alten Text) */
+export const antwortAktuell = (q: string, text: string): boolean => q === text.trim()
+
 /** Treffer zum Suchbegriff holen (signal: Abbruch, wenn weiter getippt wird) */
 export async function sucheOrt(text: string, signal?: AbortSignal): Promise<Ort[]> {
   const url = `${SUCHE_URL}?type=locations&lang=de&origins=${SUCHE_ORIGINS}&limit=${SUCHE_LIMIT}&searchText=${encodeURIComponent(text)}`

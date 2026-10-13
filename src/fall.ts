@@ -51,12 +51,16 @@ export function leererFall(lat: number, lon: number, uebergang: number | null): 
 
 export const zufahrtSchluessel = (fgsId: string, kennung: string) => `${fgsId}|${kennung}`
 
-const istP = (x: unknown): x is P => Array.isArray(x) && x.length === 2 && x.every(v => typeof v === 'number' && Number.isFinite(v))
+const zahl = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
+/** echtes Objekt (kein Array, nicht null) */
+const istObjekt = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
+const istP = (x: unknown): x is P => Array.isArray(x) && x.length === 2 && x.every(zahl)
 const istPs = (x: unknown, min: number): x is P[] => Array.isArray(x) && x.length >= min && x.every(istP)
 
 function hindernisPruefen(h: unknown): Hindernis | null {
-  const o = h as Record<string, unknown>
-  if (!o || typeof o.id !== 'string' || typeof o.art !== 'string') return null
+  if (!istObjekt(h)) return null
+  const o = h
+  if (typeof o.id !== 'string' || typeof o.art !== 'string') return null
   const quelle = (['hand', 'osm', 'kataster'].includes(o.quelle as string) ? o.quelle : 'hand') as Hindernis['quelle']
   const name = typeof o.name === 'string' ? o.name : undefined
   switch (o.art) {
@@ -65,9 +69,9 @@ function hindernisPruefen(h: unknown): Hindernis | null {
         ring: o.ring, quelle, name } : null
     case 'laengsparkierung':
       return istPs(o.linie, 2) ? { id: o.id, art: 'laengsparkierung', linie: o.linie,
-        breite: typeof o.breite === 'number' && o.breite > 0.5 && o.breite < 8 ? o.breite : 2.0, quelle, name } : null
+        breite: zahl(o.breite) && o.breite > 0.5 && o.breite < 8 ? o.breite : 2.0, quelle, name } : null
     case 'baum':
-      return istP(o.p) ? { id: o.id, art: 'baum', p: o.p, stamm: typeof o.stamm === 'number' && o.stamm > 0 && o.stamm < 5 ? o.stamm : 0.5,
+      return istP(o.p) ? { id: o.id, art: 'baum', p: o.p, stamm: zahl(o.stamm) && o.stamm > 0 && o.stamm < 5 ? o.stamm : 0.5,
         quelle, name } : null
     case 'hecke': case 'mauer': case 'uebrige': {
       const linie = istPs(o.linie, 2) ? o.linie : undefined, ring = istPs(o.ring, 3) ? o.ring : undefined
@@ -78,30 +82,63 @@ function hindernisPruefen(h: unknown): Hindernis | null {
 }
 
 function spurPruefen(x: unknown): SpurHand | undefined {
-  const o = x as Record<string, unknown>
-  if (!o) return undefined
-  if (o.art === 'A' && typeof o.a === 'number' && typeof o.b === 'number' && Math.abs(o.a) < 20 && Math.abs(o.b) < 20)
+  if (!istObjekt(x)) return undefined
+  const o = x
+  if (o.art === 'A' && zahl(o.a) && zahl(o.b) && Math.abs(o.a) < 20 && Math.abs(o.b) < 20)
     return { art: 'A', a: o.a, b: o.b }
   if (o.art === 'B' && istPs(o.linie, 2))
-    return { art: 'B', linie: o.linie, radius: typeof o.radius === 'number' && o.radius >= 3 && o.radius <= 60 ? o.radius : null }
+    return { art: 'B', linie: o.linie, radius: zahl(o.radius) && o.radius >= 3 && o.radius <= 60 ? o.radius : null }
   return undefined
 }
 
-/** Fall aus JSON lesen und prüfen -> [Fall, Hinweise] (ungültige Einträge werden übergangen und gemeldet) */
+/**
+ * Gebiet der App für den Ort einer Fall-Datei (WGS84, Grad): Schweiz und Liechtenstein mit etwa 10 km Rand. Die Schweiz
+ * reicht von 45,82° (Chiasso) bis 47,81° N (Bargen SH) und von 5,96° (Chancy GE) bis 10,49° O (Müstair), Liechtenstein
+ * liegt darin. Ausserhalb gibt es weder AV über geodienste.ch noch SWISSIMAGE, und die LV95-Umrechnung (geo.ts) ist nur
+ * für dieses Gebiet gedacht; der Rand lässt Übergänge an der Grenze zu.
+ */
+export const GEBIET = { latMin: 45.7, latMax: 47.9, lonMin: 5.8, lonMax: 10.6 }
+export const imGebiet = (lat: number, lon: number): boolean =>
+  lat >= GEBIET.latMin && lat <= GEBIET.latMax && lon >= GEBIET.lonMin && lon <= GEBIET.lonMax
+
+const QUELLEN_SCHLUESSEL = ['osm', 'av', 'baumkataster', 'parkkataster', 'luftbild', 'geladen'] as const
+
+/** Fall aus JSON lesen und prüfen -> [Fall, Hinweise]. Ausnahme nur bei fremder Datei, Version oder ungültigem Ort; ungültige
+ * Listen bzw. Objekte und einzelne ungültige Einträge werden übergangen und gemeldet. Auch für den Browser-Speicher (fallErinnern). */
 export function fallLesen(text: string): [Fall, string[]] {
-  const roh = JSON.parse(text) as Record<string, unknown>
-  if (!roh || roh.app !== 'fgsCheck') throw new Error('keine fgsCheck-Fall-Datei')
-  if (typeof roh.version !== 'number' || roh.version > FALL_VERSION) throw new Error(`Fall-Datei Version ${roh.version} wird nicht unterstützt`)
-  const ort = roh.ort as Record<string, unknown>
-  if (!ort || typeof ort.lat !== 'number' || typeof ort.lon !== 'number') throw new Error('Ort fehlt in der Fall-Datei')
+  const roh: unknown = JSON.parse(text)
+  if (!istObjekt(roh) || roh.app !== 'fgsCheck') throw new Error('keine fgsCheck-Fall-Datei')
+  if (!zahl(roh.version) || roh.version > FALL_VERSION) throw new Error(`Fall-Datei Version ${String(roh.version)} wird nicht unterstützt`)
+  const ort = roh.ort
+  if (!istObjekt(ort) || !zahl(ort.lat) || !zahl(ort.lon)) throw new Error('Ort fehlt in der Fall-Datei')
+  if (Math.abs(ort.lat) > 90 || Math.abs(ort.lon) > 180) throw new Error(`Ort ungültig (lat ${ort.lat}, lon ${ort.lon}: keine WGS84-Koordinaten)`)
+  if (!imGebiet(ort.lat, ort.lon))
+    throw new Error(`Ort ausserhalb der Schweiz bzw. Liechtensteins (lat ${ort.lat}, lon ${ort.lon}); fgsCheck rechnet nur dort`)
   const hinweise: string[] = []
-  const fall = leererFall(ort.lat, ort.lon, typeof ort.uebergang === 'number' ? ort.uebergang : null)
+  const fall = leererFall(ort.lat, ort.lon, zahl(ort.uebergang) ? ort.uebergang : null)
   if (typeof ort.bezeichnung === 'string') fall.ort.bezeichnung = ort.bezeichnung
   if (MARKIERUNGEN.includes(ort.markierung as Markierung)) fall.ort.markierung = ort.markierung as Markierung
-  if (roh.quellen && typeof roh.quellen === 'object') fall.quellen = { ...(roh.quellen as Fall['quellen']) }
-  for (const s of (roh.streifenHand as unknown[]) ?? []) {
-    const o = s as Record<string, unknown>
-    if (o && typeof o.id === 'string' && istP(o.p0) && istP(o.p1) && typeof o.breite === 'number' && o.breite >= 0.5 && o.breite <= 15) {
+  /** Liste bzw. Objekt nur, wenn vorhanden und vom richtigen Typ; sonst Hinweis */
+  const liste = (k: string, name: string): unknown[] => {
+    const x = roh[k]
+    if (x === undefined) return []
+    if (Array.isArray(x)) return x
+    hinweise.push(`${name} ungültig (keine Liste), übergangen`); return []
+  }
+  const objekt = (k: string, name: string): [string, unknown][] => {
+    const x = roh[k]
+    if (x === undefined) return []
+    // «__proto__» u. ä. nie als Schlüssel übernehmen (würde den Prototyp des Ziel-Objekts ersetzen)
+    if (istObjekt(x)) return Object.entries(x).filter(([s]) => !['__proto__', 'constructor', 'prototype'].includes(s))
+    hinweise.push(`${name} ungültig (kein Objekt), übergangen`); return []
+  }
+  for (const [k, v] of objekt('quellen', 'Quellen')) {
+    if ((QUELLEN_SCHLUESSEL as readonly string[]).includes(k) && typeof v === 'string') fall.quellen[k as typeof QUELLEN_SCHLUESSEL[number]] = v
+    else if ((QUELLEN_SCHLUESSEL as readonly string[]).includes(k)) hinweise.push(`Quelle «${k}» ungültig, übergangen`)
+  }
+  for (const s of liste('streifenHand', 'Streifen von Hand')) {
+    const o = istObjekt(s) ? s : null
+    if (o && typeof o.id === 'string' && istP(o.p0) && istP(o.p1) && zahl(o.breite) && o.breite >= 0.5 && o.breite <= 15) {
       // doppelte Nummern (ältere Fassung) eindeutig machen
       const doppelt = fall.streifenHand.some(x => x.id === o.id)
       if (doppelt) hinweise.push(`Streifen von Hand ${o.id} doppelt, neu nummeriert`)
@@ -112,30 +149,36 @@ export function fallLesen(text: string): [Fall, string[]] {
       fall.streifenHand.push(sh)
     } else hinweise.push('Streifen von Hand ungültig, übergangen')
   }
-  for (const h of (roh.hindernisse as unknown[]) ?? []) {
+  for (const h of liste('hindernisse', 'Hindernisse')) {
     const x = hindernisPruefen(h)
     if (x) fall.hindernisse.push(x); else hinweise.push('Hindernis ungültig, übergangen')
   }
-  for (const [k, v] of Object.entries((roh.zufahrten as Record<string, unknown>) ?? {})) {
-    const o = v as Record<string, unknown>
+  for (const [k, v] of objekt('zufahrten', 'Zufahrten')) {
+    if (!istObjekt(v)) { hinweise.push(`Zufahrt ${k} ungültig, übergangen`); continue }
     const z: ZufahrtHand = {}
-    if (typeof o?.tempo === 'number' && o.tempo >= 10 && o.tempo <= 120) z.tempo = o.tempo
-    if (o?.streichen === true) z.streichen = true
-    const sp = spurPruefen(o?.spur)
+    if (zahl(v.tempo) && v.tempo >= 10 && v.tempo <= 120) z.tempo = v.tempo
+    if (v.streichen === true) z.streichen = true
+    const sp = spurPruefen(v.spur)
     if (sp) z.spur = sp
     if (Object.keys(z).length) fall.zufahrten[k] = z
+    else if (Object.keys(v).length) hinweise.push(`Zufahrt ${k} ungültig, übergangen`)
   }
-  for (const [k, v] of Object.entries((roh.streifen as Record<string, unknown>) ?? {})) {
-    const o = v as Record<string, unknown>
+  for (const [k, v] of objekt('streifen', 'Streifen-Eingaben')) {
+    if (!istObjekt(v)) { hinweise.push(`Streifen-Eingabe ${k} ungültig, übergangen`); continue }
     const e: StreifenEingabe = {}
-    if (o?.lsa === 'ja' || o?.lsa === 'nein') e.lsa = o.lsa
-    if (o?.keinFgs === true) e.keinFgs = true
+    if (v.lsa === 'ja' || v.lsa === 'nein') e.lsa = v.lsa
+    if (v.keinFgs === true) e.keinFgs = true
     if (Object.keys(e).length) fall.streifen[k] = e
+    else if (Object.keys(v).length) hinweise.push(`Streifen-Eingabe ${k} ungültig, übergangen`)
   }
-  for (const [k, v] of Object.entries((roh.vorschlaege as Record<string, unknown>) ?? {})) if (v === 'verworfen') fall.vorschlaege[k] = 'verworfen'
+  for (const [k, v] of objekt('vorschlaege', 'Vorschläge')) {
+    if (v === 'verworfen') fall.vorschlaege[k] = 'verworfen'
+    else hinweise.push(`Vorschlag ${k} ungültig, übergangen`)
+  }
   fall.baumkataster = roh.baumkataster === true
   if (roh.parkkataster === false) fall.parkkataster = false
   if (roh.luftbild === false) fall.luftbild = false
+  if (typeof roh.gespeichert === 'string') fall.gespeichert = roh.gespeichert   // Stand im Hinweis «aus dem Browser übernommen»
   return [fall, hinweise]
 }
 

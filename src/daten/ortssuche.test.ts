@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ohneHtml, ortLesen, ortsTreffer, ortZoom, zusatzLesbar } from './ortssuche'
+import { ohneHtml, ortLesen, ortsTreffer, ortZoom, zusatzLesbar, eingabeFolge, antwortAktuell } from './ortssuche'
 
 // Labels wie in den Antworten des SearchServer (geprüft 11.10.2026)
 describe('Ortssuche: Labels bereinigen', () => {
@@ -50,5 +50,21 @@ describe('Ortssuche: Zoom je Art', () => {
     expect(ortZoom('ort')).toBe(17)
     expect(ortZoom('gemeinde')).toBe(16)
     expect(ortZoom('plz')).toBe(16)
+  })
+})
+
+describe('Ortssuche: Eingabe und späte Antworten (Korrektur 13.10.2026)', () => {
+  it('jede neue Eingabe verwirft die alten Treffer; nur der eben gewählte Text löst nichts aus', () => {
+    expect(eingabeFolge('Bern', '', 3)).toBe('suchen')
+    expect(eingabeFolge('Be', '', 3)).toBe('leeren')
+    expect(eingabeFolge('', '', 3)).toBe('leeren')                       // Feld geleert: alte Treffer weg (vorher blieben sie)
+    expect(eingabeFolge('Thun (BE)', 'Thun (BE)', 3)).toBe('nichts')     // durch Auswahl gesetzt
+    expect(eingabeFolge('Thun (BE', 'Thun (BE)', 3)).toBe('suchen')
+    expect(eingabeFolge('  ', 'Thun (BE)', 3)).toBe('leeren')
+  })
+  it('eine Antwort gilt nur zum aktuellen Text', () => {
+    expect(antwortAktuell('Bern', ' Bern ')).toBe(true)
+    expect(antwortAktuell('Bern', 'Berne')).toBe(false)
+    expect(antwortAktuell('Bern', '')).toBe(false)
   })
 })

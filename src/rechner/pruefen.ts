@@ -32,7 +32,7 @@ import { OsmAchsen, achseWaehlen } from './achsen'
 import { type SpurHand, spurVersetzen, liniePunkte } from './spurhand'
 import type { ParkRaster } from './hindernisse'
 import { abbiegeZufahrt, SPUR_MIN_M, type AbbiegeKontext } from './abbiegen'
-import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvexeHuelle, enthaelt, abstandMulti, huelle, abstandPunkt } from './poly'
+import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvexeHuelle, enthaelt, abstandMulti, huelle, abstandLinieMulti } from './poly'
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
 import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt } from './typen'
 
@@ -126,7 +126,7 @@ export function konflikteSuchen(feld: Multi, streifen: Multi, gebaeude: Gebaeude
           layer: h.name, id: h.id })
       } else if (h.linie) {
         const l = linieLaengeIn(h.linie, feldG)
-        if (l >= MIN_LINIE_M) out.push({ klasse: 'hindernis', flaeche: 0, abstand: Math.min(...h.linie.map(p => abstandPunkt(streifen, p))),
+        if (l >= MIN_LINIE_M) out.push({ klasse: 'hindernis', flaeche: 0, abstand: abstandLinieMulti(h.linie, streifen),
           geom: [[laengsPolygon(h.linie, 0.2)]], layer: `${h.name} (${l.toFixed(1).replace('.', ',')} m im Sichtfeld)`, id: h.id })
       }
     }

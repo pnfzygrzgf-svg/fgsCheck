@@ -19,8 +19,10 @@ function Querverweis({ href, bild, titel, text }: { href: string; bild: string; 
 export default function Startseite({ onStart }: { onStart: () => void }) {
   return (
     <main className="start">
-      <img className="start-logo" src={BASIS + 'logo.svg'} alt="fgsCheck – zur Sichtprüfung" title="Zur Sichtprüfung"
-        onClick={onStart} />
+      {/* Logo dekorativ (alt="", aria-hidden, nicht fokussierbar): der Klick führt mit der Maus weiter zur Prüfung, die zugängliche
+          Bedienung ist der Knopf «Zur Sichtprüfung» direkt darunter; so meldet der Screenreader nicht zwei Bedienungen für dasselbe
+          und die Überschrift nennt den Namen ohnehin */}
+      <img className="start-logo" src={BASIS + 'logo.svg'} alt="" aria-hidden="true" title="Zur Sichtprüfung" onClick={onStart} />
       <h1 className="start-titel">fgsCheck</h1>
       <p className="start-untertitel">Sichtprüfung an Fussgängerstreifen</p>
       <div className="start-knopf-zeile">

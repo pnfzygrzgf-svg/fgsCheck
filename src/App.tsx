@@ -3,7 +3,7 @@ import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, zufahrtKey, hindernisText, hindernisFarbe,
   type Werkzeug, type KartenHinweis } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
-import { ladeLuftbild, ladeFlugjahr, LUFTBILD_QUELLE, type LuftbildRoh } from './daten/luftbild'
+import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
 import { ladeOsmRoh, ladeUebergaenge, markierung, istFgs, overpassSperre, type OsmKnoten } from './daten/osm'
 import { istAbbruch } from './daten/holen'
 import { baumQuelleFuer, type BaumQuelle, type KatasterBaum } from './daten/baumkataster'
@@ -24,7 +24,8 @@ import { type Fall, type FallErgebnis, leererFall, fallLesen, fallSchreiben, fal
 
 interface QuellenStand { name: string; objekte?: string; ms?: number; bytes?: number; server?: string; fehler?: string }
 interface ParkStand { quelle: ParkQuelle; nr: number; lat: number; lon: number; felder: KatasterFeld[] | null; laedt?: boolean; fehler?: string }
-interface Daten { osm: unknown; av: GeoJson; sosf: GeoJson | null; nid: number | null; bfs: (number | null)[]; luftbild: LuftbildRoh | null; flugjahr: string }
+interface Daten { osm: unknown; av: GeoJson; sosf: GeoJson | null; nid: number | null; bfs: (number | null)[]; luftbild: LuftbildRoh | null; flugjahr: string
+  ort: P }                                         // Ort in LV95 (Luftbild nachladen)
 
 const AV_RADIUS_M = 150
 const OSM_RADIUS_M = 300
@@ -305,7 +306,6 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       throw err
     }
     try {
-      const LB_NAME = `Luftbild SWISSIMAGE 10 cm (${LUFTBILD_QUELLE}), ±30 m`
       const [ra, ro, rs] = await Promise.all([
         ladeAvRoh(e, n, AV_RADIUS_M, ctrl.signal).then(r => { setzeQuelle('av', { name: AV_NAME,
           objekte: `${r.daten.features?.length ?? 0} Flächen`, ms: r.ms, bytes: r.bytes, server: r.quelle }); return r }, quelleFehler('av', AV_NAME)),
@@ -330,20 +330,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       const pq = parkQuelleFuer(bfs)
       if (pq) setParkKat({ quelle: pq, nr, lat, lon, felder: null })
       setMeldung('Rechnung läuft …')
-      setDaten({ osm: ro.daten, av: ra.daten, sosf: rs ? rs.daten : null, nid, bfs, luftbild: null, flugjahr: '' })
-      // Luftbild nachziehen (nur am OSM-Übergang): zuerst rechnet die App mit OSM + AV, mit dem Bild dann neu
-      if (nid !== null) {
-        setzeQuelle('luftbild', { name: LB_NAME })
-        Promise.all([ladeLuftbild(e, n, ctrl.signal), ladeFlugjahr(e, n, ctrl.signal)]).then(([rl, fj]) => {
-          if (ctrl.signal.aborted) return
-          setzeQuelle('luftbild', { name: LB_NAME, ms: rl.ms, bytes: rl.bytes, server: rl.quelle })
-          setDaten(d => (d && d.nid === nid ? { ...d, luftbild: rl.daten, flugjahr: fj } : d))
-          setFall(f => (f && f.luftbild !== false ? { ...f, quellen: { ...f.quellen, luftbild: `${LUFTBILD_QUELLE}${fj ? `, Flugjahr ${fj}` : ''}` } } : f))
-        }, err => {
-          if (!istAbbruch(err) && !ctrl.signal.aborted)
-            setzeQuelle('luftbild', { name: LB_NAME, fehler: `${(err as Error).message} (Streifen aus OSM + AV)` })
-        })
-      }
+      // das Luftbild zieht der Effekt «Luftbild nachladen» nach (nur am OSM-Übergang und wenn die Suche nicht abgeschaltet ist)
+      setDaten({ osm: ro.daten, av: ra.daten, sosf: rs ? rs.daten : null, nid, bfs, luftbild: null, flugjahr: '', ort: [e, n] })
       setFall(f => f ? { ...f, quellen: { osm: ro.quelle, av: `${ra.quelle}, Kanton ${[...new Set(avF.map(x => x.kanton))].join(', ')}`,
         geladen: new Date().toISOString().slice(0, 10) } } : f)
     } catch (err) {
@@ -396,6 +384,36 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       setzeQuelle('parkkataster', { name, fehler: `${(err as Error).message} (Dienst bzw. Zugriff aus dem Browser gesperrt?)` })
     })
   }, [parkAus, parkKat])
+
+  // Luftbild nachladen: zuerst rechnet die App mit OSM + AV, mit dem Bild dann neu. Nur am OSM-Übergang und solange «Streifen im
+  // Luftbild suchen» eingeschaltet ist; abgeschaltet lädt die App weder Bild noch Flugjahr. Wird die Suche später eingeschaltet,
+  // holt der Effekt das Laden nach. Höchstens ein Versuch je Ladevorgang (lbVersuch = ladeNr): kein doppeltes Laden, nach einem
+  // Fehler kein Wiederholen. Abbruch mit dem neuen Klick (abbruchRef); ein später Abruf schreibt nur in denselben Ladevorgang
+  // bzw. Übergang (ladeNr, nid).
+  const lbVersuch = useRef(0)
+  const lbAn = fall?.luftbild !== false
+  useEffect(() => {
+    if (!daten || daten.nid === null) return
+    const nr = ladeNr.current, versucht = lbVersuch.current === nr
+    if (!lbAn) {
+      if (!versucht && !daten.luftbild) setzeQuelle('luftbild', { name: LUFTBILD_NAME, objekte: 'abgeschaltet, nicht geladen' })
+      return
+    }
+    if (!luftbildLaden({ nid: daten.nid, hatBild: !!daten.luftbild, an: lbAn, versucht })) return
+    lbVersuch.current = nr
+    const ctrl = abbruchRef.current, nid = daten.nid, [e, n] = daten.ort
+    const hier = () => !ctrl?.signal.aborted && ladeNr.current === nr
+    setzeQuelle('luftbild', { name: LUFTBILD_NAME })
+    Promise.all([ladeLuftbild(e, n, ctrl?.signal), ladeFlugjahr(e, n, ctrl?.signal)]).then(([rl, fj]) => {
+      if (!hier()) return
+      setzeQuelle('luftbild', { name: LUFTBILD_NAME, ms: rl.ms, bytes: rl.bytes, server: rl.quelle })
+      setDaten(d => (d && d.nid === nid ? { ...d, luftbild: rl.daten, flugjahr: fj } : d))
+      setFall(f => (f && f.luftbild !== false ? { ...f, quellen: { ...f.quellen, luftbild: `${LUFTBILD_QUELLE}${fj ? `, Flugjahr ${fj}` : ''}` } } : f))
+    }, err => {
+      if (!istAbbruch(err) && hier())
+        setzeQuelle('luftbild', { name: LUFTBILD_NAME, fehler: `${(err as Error).message} (Streifen aus OSM + AV)` })
+    })
+  }, [lbAn, daten])
 
   // ---------------------------------------------------------------- Zeichnen
   // Zeichnung zusätzlich in einer Ref, damit Klicks ohne Seiteneffekte in State-Updatern auskommen (StrictMode)
@@ -483,7 +501,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       setGewaehlt(f.ort.uebergang !== null ? { id: f.ort.uebergang, lat: f.ort.lat, lon: f.ort.lon, tags: {} } : null)
       await laden(f.ort.lat, f.ort.lon, f.ort.uebergang, f)
       setLadeHinweis({ text: `Fall «${datei.name}» geladen (${eingabenZahl(f)} Eingaben)` +
-        (hinweise.length ? `; ${hinweise.length} ungültige Einträge übergangen.` : '.'), verwerfen: false })
+        (hinweise.length ? `; ${hinweise.length} ungültige Einträge übergangen (${[...new Set(hinweise)].join('; ')}).` : '.'), verwerfen: false })
     } catch (e) { setMeldung(`Fall-Datei nicht lesbar: ${(e as Error).message}`) }
   }
 
@@ -733,7 +751,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                 {q.fehler ? <td className="fehler">{q.fehler}{k === 'parkkataster' && parkKat?.fehler && <>{' '}
                   <button className="zweit klein" onClick={() => setParkKat(x => (x ? { ...x, felder: null, fehler: undefined, laedt: false } : x))}>
                     erneut laden</button></>}</td> :
-                  <td className="klein">{q.objekte ? `${q.objekte}, ` : ''}{q.ms != null ? `${Math.round(q.ms)} ms, ` : ''}{q.bytes != null ? `${Math.round(q.bytes / 1024)} kB` : ''}</td>}
+                  <td className="klein">{[q.objekte, q.ms != null ? `${Math.round(q.ms)} ms` : '', q.bytes != null ? `${Math.round(q.bytes / 1024)} kB` : '']
+                    .filter(Boolean).join(', ')}</td>}
               </tr>
             ))}
           </tbody>
@@ -780,7 +799,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       </aside>
       {bericht && fall && rechnung && (
         <Bericht fall={fall} rechnung={rechnung} rechnungZeit={rechnungZeit} kantone={kantone} flugjahr={daten?.flugjahr ?? ''}
-          luftbildStand={daten?.luftbild ? 'da' : quellen.luftbild && !quellen.luftbild.fehler ? 'laedt' : 'fehlt'}
+          luftbildStand={daten?.luftbild ? 'da' : fall.luftbild !== false && quellen.luftbild && !quellen.luftbild.fehler ? 'laedt' : 'fehlt'}
           zusatzQuellen={[...(fall.baumkataster && kataster?.baeume ? [`Baumkataster: ${kataster.quelle.quellenangabe} (WFS map.bern.ch)`] : []),
             ...(parkAn && parkKat?.felder ? [`Amtliche Parkfelder: ${parkKat.quelle.quellenangabe} (WFS map.bern.ch)`] : [])]}
           aendern={aendern} schliessen={schliessenBericht} />

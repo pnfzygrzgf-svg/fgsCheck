@@ -8,6 +8,17 @@ import { holeJson, type Abruf, AbrufFehler } from './holen'
 import { AUFLOESUNG_M, FENSTER_M } from '../rechner/luftbild'
 
 export const LUFTBILD_QUELLE = '© swisstopo, SWISSIMAGE'
+/** Name in «Geladene Quellen» */
+export const LUFTBILD_NAME = `Luftbild SWISSIMAGE 10 cm (${LUFTBILD_QUELLE}), ±${FENSTER_M} m`
+
+/**
+ * Luftbild (und Flugjahr) jetzt laden? Nur am OSM-Übergang (nid), wenn «Streifen im Luftbild suchen» eingeschaltet ist (an),
+ * das Bild noch fehlt und für diesen Ladevorgang noch kein Versuch lief (kein doppeltes Laden; nach einem Fehler kein
+ * endloses Wiederholen). Abgeschaltet lädt die App nichts; wird die Suche später eingeschaltet, holt sie das Laden nach.
+ */
+export function luftbildLaden(x: { nid: number | null; hatBild: boolean; an: boolean; versucht: boolean }): boolean {
+  return x.nid !== null && x.an && !x.hatBild && !x.versucht
+}
 
 /** Ausschnitt um (e, n) auf ganze 0,1 m: [e0, n0, e1, n1] und Kantenlänge in Pixeln */
 export function luftbildBox(e: number, n: number, halb = FENSTER_M): [[number, number, number, number], number] {

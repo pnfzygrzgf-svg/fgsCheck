@@ -82,6 +82,19 @@ export function abstandMulti(a: Multi, b: Multi): number {
   return best
 }
 
+/** Kürzester Abstand einer Linie (offene Strecken) zum Mehrfachpolygon: über alle Strecken, nicht nur die Stützpunkte;
+ * 0, wenn die Linie das Polygon schneidet, berührt oder darin liegt */
+export function abstandLinieMulti(linie: P[], m: Multi): number {
+  if (!linie.length) return Infinity
+  if (linie.some(p => enthaelt(m, p))) return 0
+  if (linie.length === 1) return abstandPunkt(m, linie[0])
+  let best = Infinity
+  for (let k = 0; k < linie.length - 1; k++)
+    for (const poly of m) for (const r of poly) for (let i = 0; i < r.length; i++)
+      best = Math.min(best, segAbstand(linie[k], linie[k + 1], r[i], r[(i + 1) % r.length]))
+  return best
+}
+
 /** Konvexe Hülle (Andrew) */
 export function konvexeHuelle(pts: P[]): Ring {
   const s = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1])
