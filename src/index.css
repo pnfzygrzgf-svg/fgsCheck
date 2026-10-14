@@ -98,6 +98,10 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .zeile { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
 .spur { margin: 6px 0; }
 .ecke { background: #ffffff; border: 2px solid #0f172a; border-radius: 50%; cursor: move; }
+/* Strassennamen (OSM) auf der Karte: weiss mit dunklem Halo, mittig über dem Punkt, nicht anklickbar (Pane ohne pointer-events) */
+.strassenname { pointer-events: none; }
+.strassenname span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-size: 12px; font-weight: 600;
+  color: #ffffff; text-shadow: 0 0 2px #0f172a, 0 0 2px #0f172a, 0 0 4px #0f172a; }
 .keinfgs { background: #f1f5f9; border: 1px solid #94a3b8; border-left: 4px solid #64748b; border-radius: 6px; padding: 6px 8px; margin: 6px 0; font-weight: 600; color: #334155; }
 .pruefen { background: #fefce8; border: 1px dashed #a16207; border-left: 4px solid #eab308; border-radius: 6px; padding: 6px 8px; margin: 6px 0; font-weight: 600; color: #713f12; }
 .zahl { width: 4.5em; }

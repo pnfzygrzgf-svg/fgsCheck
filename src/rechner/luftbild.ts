@@ -41,7 +41,7 @@ const LUECKE_BALKEN_MAX = 2              // so viele fehlende Balken auf der Fah
 const INSEL_LUECKE_MAX_M = 12            // Teilstreifen: Lücke ohne Fahrbahn höchstens so breit (TEIL_LUECKE_MAX_M)
 const LAENGE_SCHWELLE = 0.35
 const LAENGE_LUECKE_M = 0.5
-const BALKEN_BREITE_M = 0.5
+export const BALKEN_BREITE_M = 0.5
 const MARGE_U_M = 0.8, MARGE_N_M = 0.6   // Träger der Vorlage (MARGE_FAHRBAHN_M, MARGE_ACHSE_M)
 export const NCC_SICHER = 0.45, NCC_MIN = 0.30
 const BALKEN_SICHER = 4                  // «erkannt» erst ab so vielen Balken (Fahrzeug mit Schatten wirkt wie 2–3 Balken)
@@ -162,8 +162,9 @@ export function nccVorlage(F: ArrayLike<number>, T: ArrayLike<number>, W: ArrayL
 
 // ---------------------------------------------------------------- Erkennung
 export type Befund = 'erkannt' | 'unsicher' | 'nicht_gefunden'
-export interface TeilErkannt { p0: P; p1: P; q0: P; q1: P; richtung: P; bw: number; umriss: P[]; nBalken: number }
-// q0/q1: Enden auf der geschrägten Achse durch die Balkenmitten, richtung: Balkenrichtung (für einen Streifen von Hand)
+export interface TeilErkannt { p0: P; p1: P; q0: P; q1: P; richtung: P; bw: number; umriss: P[]; nBalken: number; balkenS: number[] }
+// q0/q1: Enden auf der geschrägten Achse durch die Balkenmitten, richtung: Balkenrichtung (für einen Streifen von Hand);
+// balkenS: Balkenmitten entlang der Achse ab p0 (m; für die Insel nach OSM, rechner/streifen.ts)
 // schraegGrad der Erkennung: Achse schief zu den Balken; im Kataster-Sinn (Streifen.schraeg) ist es −schraegGrad
 export interface Erkennung {
   befund: Befund
@@ -556,7 +557,8 @@ export function streifenImBild(bild: Bild, c: P, u0: P, auf: ((p: P) => boolean)
       // wie im Kataster: Achse senkrecht zu den Balken durch die Mitte der Balken-Hülle, Länge = Ausdehnung quer
       const mt = punkt((t.sA + t.sB) / 2), q0 = punkt(t.sA), q1 = punkt(t.sB), h = bw / 2
       return { p0: add(mt, nd, -(t.sB - t.sA) / 2), p1: add(mt, nd, (t.sB - t.sA) / 2), q0, q1, richtung: ud, bw: Math.round(bw * 10) / 10,
-        nBalken: t.ks.length, umriss: [add(q0, ud, -h), add(q1, ud, -h), add(q1, ud, h), add(q0, ud, h)] }
+        nBalken: t.ks.length, balkenS: t.ks.map(k => balken[k].s - t.sA),
+        umriss: [add(q0, ud, -h), add(q1, ud, -h), add(q1, ud, h), add(q0, ud, h)] }
     })
     // a) der OSM-Knoten liegt in einem Teil (höchstens KNOTEN_RAND_M daneben); b) dessen Mitte höchstens KNOTEN_MITTE_M vom Knoten
     const nahTeil = teile.reduce<TeilErkannt | null>((b, t) => (b === null || abstandZu(t.umriss, c) < abstandZu(b.umriss, c) ? t : b), null)

@@ -7,8 +7,9 @@ import type { KatasterFeld } from '../daten/parkkataster'
 import { type P, lv95, einheit, sub, dot, dist } from '../geo'
 import { OsmNetz } from './netz'
 import { Fahrbahn, Inseln, Gebaeude, Flaechen } from './flaechen'
-import { ANN_RAND_ARTEN, streifenAusUebergang, neuerStreifen, umrissRing, gequerterWeg, type Streifen } from './streifen'
-import { streifenImBild, type Bild, type Erkennung } from './luftbild'
+import { ANN_RAND_ARTEN, streifenAusUebergang, neuerStreifen, umrissRing, gequerterWeg, luftbildInsel, teilGrundText, inselLuftbildText,
+  type Streifen, type InselZusatz } from './streifen'
+import { streifenImBild, type Bild, type Erkennung, type TeilErkannt } from './luftbild'
 import { pruefen, type Kontext, R2_FLAECHEN } from './pruefen'
 import { eckCacheLeeren } from './abbiegen'
 import { HindernisDaten, type Hindernis } from './hindernisse'
@@ -57,13 +58,23 @@ export function rechneStreifen(osm: OsmDaten | null, av: AvFlaeche[], S: Streife
   return { streifen: erg, meldungen: [], ms: performance.now() - t0 }
 }
 
+export interface LuftbildStreifen {
+  erkennung: Erkennung
+  teile: TeilErkannt[]             // Teile nach der Insel (Insel nach OSM bzw. von Hand), sonst die der Erkennung
+  streifen: Streifen[]             // aus den Teilen («erkannt» bzw. «unsicher»)
+  insel: InselZusatz | null        // Insel nach OSM und Luftbild (für «unsicher»: teilt den Streifen aus OSM + AV)
+}
+
 /**
  * Streifen am OSM-Übergang aus dem Luftbild (E3): Suche entlang des gequerten Wegs auf der AV-Fahrbahn. -> Erkennung und,
- * wenn «erkannt» oder «unsicher», die Teilstreifen (Quelle «luftbild»).
+ * wenn «erkannt» oder «unsicher», die Teilstreifen (Quelle «luftbild»). Inseln (INSEL_AUS_OSM): eine Insel von Hand teilt die
+ * Teile; sonst bei crossing:island=yes die Insel aus der Lücke zwischen zwei Balkengruppen (streifen.luftbildInsel; ohne Lücke
+ * Hinweis, kein Teilen). erkennung: schon gerechnete Erkennung (Cache in rechneFall), sonst wird gesucht.
  */
-export function luftbildStreifen(osm: OsmDaten, kx: Kontext, nid: number, bild: Bild): { erkennung: Erkennung; streifen: Streifen[] } {
+export function luftbildStreifen(osm: OsmDaten, kx: Kontext, nid: number, bild: Bild,
+  opt: { handInseln?: InselZusatz[]; erkennung?: Erkennung; avInsel?: boolean } = {}): LuftbildStreifen {
   const u = osm.uebergaenge.find(x => x.id === nid)
-  const leer = (g: string): { erkennung: Erkennung; streifen: Streifen[] } => ({ streifen: [], erkennung: { befund: 'nicht_gefunden',
+  const leer = (g: string): LuftbildStreifen => ({ streifen: [], teile: [], insel: null, erkennung: { befund: 'nicht_gefunden',
     gruende: [g], ncc: 0, kontrast: 0, periode: 0, schraegGrad: 0, drehungGrad: 0, abstandM: 0, teile: [], balken: [], ms: 0 } })
   if (!u || !kx.netz) return leer('Übergang nicht in den OSM-Daten')
   const c = lv95(u.lat, u.lon)
@@ -75,18 +86,24 @@ export function luftbildStreifen(osm: OsmDaten, kx: Kontext, nid: number, bild: 
   // Plausibilität der Teilstreifen: AV-Inseln und die OSM-Querung(en) am Knoten
   const querungen = (osm.querungen ?? []).filter(w => w.knoten.includes(nid)).map(w => w.geom.map(([la, lo]) => lv95(la, lo)))
   const andereKnoten = osm.uebergaenge.filter(x => x.id !== nid).map(x => lv95(x.lat, x.lon)).filter(p => dist(p, c) <= 60)
-  const erkennung = streifenImBild(bild, c, gw.dWeg, auf, { insel: p => kx.inseln.enthaelt(p), querungen, andereKnoten })
-  if (erkennung.befund === 'nicht_gefunden') return { erkennung, streifen: [] }
-  const n = erkennung.teile.length
-  const streifen = erkennung.teile.map((t, i) => {
+  const erkennung = opt.erkennung ?? streifenImBild(bild, c, gw.dWeg, auf, { insel: p => kx.inseln.enthaelt(p), querungen, andereKnoten })
+  if (erkennung.befund === 'nicht_gefunden') return { erkennung, teile: [], streifen: [], insel: null }
+  const hand = opt.handInseln ?? []
+  // avInsel: auf der Achse des Streifens aus OSM + AV liegt eine AV-Verkehrsinsel (dann keine Insel nach OSM aus dem Luftbild)
+  const li = luftbildInsel(erkennung.teile, opt.avInsel ? {} : u.tags, c, kx.inseln, hand)
+  const n = li.teile.length, befund = erkennung.befund === 'erkannt' ? 'erkannt' : 'unsicher'
+  const streifen = li.teile.map((t, i) => {
     const s = neuerStreifen(n > 1 ? `${nid}-${i + 1}` : `${nid}`, `${nid}`, t.p0, t.p1, t.bw, 'luftbild', t.umriss,
       -erkennung.schraegGrad, nid)
-    s.annahmen.push(`Streifen aus dem Luftbild (${erkennung.befund === 'erkannt' ? 'erkannt' : 'unsicher'}, ${t.nBalken} Balken, ` +
-      `Balkenlänge ${t.bw.toFixed(1).replace('.', ',')} m, NCC ${erkennung.ncc.toFixed(2).replace('.', ',')}) – prüfen`)
-    if (n > 1) s.annahmen.push(`Teilstreifen ${i + 1} von ${n} (Lücke ohne Fahrbahn zwischen den Balken)`)
+    s.annahmen.push(`Streifen aus dem Luftbild (${befund}, ${t.nBalken} Balken, Balkenlänge ${t.bw.toFixed(1).replace('.', ',')} m, ` +
+      `NCC ${erkennung.ncc.toFixed(2).replace('.', ',')}) – prüfen`)
+    if (n > 1) s.annahmen.push(`Teilstreifen ${i + 1} von ${n} (${teilGrundText(li.grund)})`)
+    if (li.insel) s.annahmen.push(inselLuftbildText(li.insel.breite))
+    if (li.hinweis) s.annahmen.push(li.hinweis)
+    s.inseln = li.insel ? [li.insel, ...hand] : hand
     return s
   })
-  return { erkennung, streifen }
+  return { erkennung, teile: li.teile, streifen, insel: li.insel }
 }
 
 /** fgs_extrahieren.hand_umriss: Parallelogramm mit Enden parallel zur Fahrbahn r, sonst Rechteck */
@@ -122,8 +139,11 @@ export interface LuftbildErgebnis {
   befund: Erkennung['befund']; gruende: string[]; ncc: number; kontrast: number; abstandM: number; ms: number
   balken: P[][]
   teile: { fgsId: string; p0: P; p1: P; q0: P; q1: P; richtung: P; bw: number; umriss: P[]; nBalken: number }[]
+  insel: InselZusatz | null        // Insel nach OSM und Luftbild, an der die Teile geteilt sind (für «Luftbild-Streifen übernehmen»)
 }
-const LUFTBILD_CACHE = new Map<string, { erkennung: Erkennung; streifen: Streifen[] }>()
+// letzte Erkennung je Übergang und Bild (der Worker behält das dekodierte Bild, solange der Ausschnitt gleich bleibt); die Inseln
+// rechnet rechneFall jedes Mal neu
+let luftbildCache: { bild: Bild; nid: number; erkennung: Erkennung } | null = null
 
 export interface FallRechnung extends Rechnung {
   vorschlaege: Vorschlag[]; streifenQuelle: 'osm' | 'hand' | 'luftbild'
@@ -132,6 +152,8 @@ export interface FallRechnung extends Rechnung {
   luftbild: LuftbildErgebnis | null
   markierung: Markierung | null      // Einordnung des gewählten OSM-Übergangs (null: Ort ohne Übergang)
   hinweis: string                    // «Kein Fussgängerstreifen: …» bzw. «vermutlich Fussgängerstreifen, bitte prüfen», sonst leer
+  inseln: InselZusatz[]              // angenommene Inseln (nach OSM und Luftbild) der gerechneten Streifen, für die Karte
+  inselTeilt: boolean                // Luftbild «unsicher»: der Streifen aus OSM + AV ist an der Insel aus dem Luftbild geteilt
 }
 
 /**
@@ -147,8 +169,11 @@ export function rechneFall(osm: OsmDaten, av: AvFlaeche[], sosf: AvFlaeche[], ni
   const t0 = performance.now()
   const kxOhne = kontextBauen(osm, av, sosf)
   let streifen: Streifen[] = [], meldungen: string[] = []
+  // Inseln von Hand (Werkzeug «Insel»): teilen den Streifen wie AV-Verkehrsinseln und ersetzen die Insel nach OSM und Luftbild
+  const handInseln: InselZusatz[] = fall.hindernisse.flatMap(h => (h.art === 'insel' ? [{ ring: h.ring, herkunft: 'hand' as const, breite: 0 }] : []))
   let quelle: FallRechnung['streifenQuelle'] = 'osm'
   let luftbild: LuftbildErgebnis | null = null
+  let inselTeilt = false
   if (fall.streifenHand.length) {
     quelle = 'hand'
     const kurz = fall.streifenHand.filter(h => dist(h.p0, h.p1) < HAND_MIN_M)
@@ -157,27 +182,37 @@ export function rechneFall(osm: OsmDaten, av: AvFlaeche[], sosf: AvFlaeche[], ni
       const m: P = [(h.p0[0] + h.p1[0]) / 2, (h.p0[1] + h.p1[1]) / 2]
       const s = neuerStreifen(h.id, 'hand', h.p0, h.p1, h.breite, 'hand', handUmriss(h.p0, h.p1, h.breite, h.richtung ?? fahrbahnRichtung(kxOhne.netz, m)))
       s.annahmen.push('Streifen von Hand (Wartebereiche und Breite gezeichnet)')
+      s.inseln = handInseln
       return s
     })
   } else if (nid !== null) {
     const u = osm.uebergaenge.find(x => x.id === nid)
     if (!u) return { streifen: [], meldungen: [`Übergang ${nid} nicht in den OSM-Daten.`], ms: 0, vorschlaege: [], streifenQuelle: quelle,
-      markierung: null, hinweis: '', luftbild: null, parkVerworfen: [], doppelt: [] }
-    const r = streifenAusUebergang({ nid, p: lv95(u.lat, u.lon), tags: u.tags }, kxOhne.netz!, kxOhne.fahrbahn, kxOhne.inseln,
-      osm.querungen ?? [])
+      markierung: null, hinweis: '', luftbild: null, parkVerworfen: [], doppelt: [], inseln: [], inselTeilt: false }
+    const uw = { nid, p: lv95(u.lat, u.lon), tags: u.tags }
+    const r = streifenAusUebergang(uw, kxOhne.netz!, kxOhne.fahrbahn, kxOhne.inseln, osm.querungen ?? [], { inseln: handInseln })
     streifen = r.streifen; meldungen = r.meldungen
     // Luftbild (E3): «erkannt» ersetzt die Streifen aus OSM + AV, «unsicher» bleibt Vorschlag
     if (bild && fall.luftbild !== false) {
-      const schl = `${nid}|${bild.box.join(',')}`
-      let lb = LUFTBILD_CACHE.get(schl)
-      if (!lb) { lb = luftbildStreifen(osm, kxOhne, nid, bild); LUFTBILD_CACHE.clear(); LUFTBILD_CACHE.set(schl, lb) }
+      const erk = luftbildCache && luftbildCache.bild === bild && luftbildCache.nid === nid ? luftbildCache.erkennung : undefined
+      const lb = luftbildStreifen(osm, kxOhne, nid, bild, { handInseln, erkennung: erk, avInsel: r.avInsel })
+      if (!erk) luftbildCache = { bild, nid, erkennung: lb.erkennung }
       const e = lb.erkennung
       luftbild = { befund: e.befund, gruende: e.gruende, ncc: e.ncc, kontrast: e.kontrast, abstandM: e.abstandM, ms: e.ms,
-        balken: e.balken, teile: e.teile.map((t, i) => ({ fgsId: e.teile.length > 1 ? `${nid}-${i + 1}` : `${nid}`, p0: t.p0, p1: t.p1,
-          q0: t.q0, q1: t.q1, richtung: t.richtung, bw: t.bw, umriss: t.umriss, nBalken: t.nBalken })) }
+        balken: e.balken, teile: lb.teile.map((t, i) => ({ fgsId: lb.teile.length > 1 ? `${nid}-${i + 1}` : `${nid}`, p0: t.p0, p1: t.p1,
+          q0: t.q0, q1: t.q1, richtung: t.richtung, bw: t.bw, umriss: t.umriss, nBalken: t.nBalken })), insel: lb.insel }
       if (e.befund === 'erkannt' && lb.streifen.length) {
-        streifen = lb.streifen.map(x => ({ ...x, annahmen: [...x.annahmen] }))
+        streifen = lb.streifen
         quelle = 'luftbild'
+      } else if (lb.insel) {
+        // «unsicher» mit Insel aus den Balken (INSEL_AUS_OSM): sie teilt den Streifen aus OSM + AV, wenn sie dessen Achse kreuzt
+        // (sonst bleibt er durchgehend, mit Hinweis)
+        const insel = lb.insel
+        const r2 = streifenAusUebergang(uw, kxOhne.netz!, kxOhne.fahrbahn, kxOhne.inseln, osm.querungen ?? [], { inseln: [insel] })
+        if (r2.streifen.some(s => s.inseln.includes(insel))) {
+          streifen = r2.streifen; meldungen = r2.meldungen
+          inselTeilt = r2.streifen.length > 1
+        }
       }
     }
   }
@@ -205,6 +240,7 @@ export function rechneFall(osm: OsmDaten, av: AvFlaeche[], sosf: AvFlaeche[], ni
   if (hinweis) for (const s of erg) {
     if (mk && istFgs(mk)) s.markierungHinweis = hinweis; else s.keinFgsHinweis = hinweis
   }
+  const inseln = [...new Set(streifen.flatMap(s => s.inseln))].filter(z => z.herkunft !== 'hand')
   return { streifen: erg, meldungen, ms: performance.now() - t0, vorschlaege: [...offen, ...kat, ...katPark], streifenQuelle: quelle,
-    markierung: mk, hinweis, luftbild, parkVerworfen, doppelt }
+    markierung: mk, hinweis, luftbild, parkVerworfen, doppelt, inseln, inselTeilt }
 }

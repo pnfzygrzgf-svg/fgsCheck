@@ -12,15 +12,19 @@ export function Anleitung() {
       <ol>
         <li><b>Ort finden:</b> oben in der Karte Ort, Adresse, Strasse oder PLZ eingeben und einen Vorschlag wählen, oder mit dem
           Standort-Knopf unter den Zoom-Knöpfen zum eigenen Standort springen. Die Übergänge im Ausschnitt erscheinen nach dem
-          Verschieben bzw. Zoomen von selbst (ab Massstab 1:10 000; weiter draussen: «Zum Suchen näher heranzoomen»).</li>
+          Verschieben bzw. Zoomen von selbst, mit den Strassennamen aus OSM (ab Massstab 1:10 000; weiter draussen: «Zum Suchen
+          näher heranzoomen»). Oben
+          rechts in der Ebenenwahl lässt sich der Hintergrund umschalten: Luftbild oder Landeskarte (mit Strassennamen).</li>
         <li><b>Übergang wählen:</b> einen Punkt anklicken. Gelb: Fussgängerstreifen in OSM, gelb gestrichelt: vermutlich, violett: Lichtsignal, grau: kein
-          Fussgängerstreifen. Die App lädt Amtliche Vermessung, OSM und das Luftbild und rechnet im Browser.</li>
+          Fussgängerstreifen. Die App lädt Amtliche Vermessung, OSM und das Luftbild und rechnet im Browser. Um den Übergang
+          stehen danach die genaueren Strassennamen aus diesem Abruf (Ebene «Strassennamen (OSM)»).</li>
         <li><b>Ergebnis lesen:</b> je Streifen die Zufahrten mit Tempo, Sichtweite und Status (frei bzw. verdeckt und wodurch). Zeile
           anklicken: Sichtfeld, Sichtpunkte und Hindernisse auf der Karte. Hinweise in Braun sind Annahmen («aus OSM, prüfen»,
           «Annahme» beim Tempo).</li>
         <li><b>Eingaben korrigieren:</b> unter «Eingaben von Hand» Parkfelder, Bäume, Hecken, Mauern und übrige Hindernisse auf dem
-          Luftbild zeichnen; je Zufahrt Tempo, Fahrlinie oder «gibt es nicht»; je Streifen Lichtsignal bzw. «kein FGS». Die Rechnung
-          läuft nach jeder Änderung neu.</li>
+          Luftbild zeichnen, ebenso eine Insel, die den Streifen teilt (ersetzt eine nach OSM und Luftbild angenommene Insel, grün gestrichelt); je
+          Zufahrt Tempo, Fahrlinie oder «gibt es nicht»; je Streifen Lichtsignal bzw. «kein FGS». Die Rechnung läuft nach jeder
+          Änderung neu.</li>
         <li><b>Bericht und Fall-Datei:</b> «Bericht drucken / als PDF» öffnet eine Druckansicht (Kartenbild, Tabellen, Eingaben,
           Quellen). «Fall speichern» sichert alle Eingaben als JSON-Datei, «Fall laden» stellt sie wieder her.</li>
       </ol>
@@ -53,11 +57,12 @@ export function Datenschutz() {
           den Browser-Einstellungen. An keinen Dienst gehen Eingaben oder Ergebnisse.</li>
         <li>Der Browser holt die Daten direkt bei diesen Diensten; sie sehen dabei technisch die IP-Adresse und Browserangaben:
           <ul>
-            <li>swisstopo (geo.admin.ch): Kartenkacheln des sichtbaren Ausschnitts (wmts.geo.admin.ch), Luftbild-Ausschnitt ±30 m um den
-              gewählten Übergang und das Kartenbild des Berichts (wms.geo.admin.ch), Flugjahr der 1-km-Kachel (api3.geo.admin.ch);
+            <li>swisstopo (geo.admin.ch): Kartenkacheln (Luftbild bzw. Landeskarte) des sichtbaren Ausschnitts (wmts.geo.admin.ch),
+              Luftbild-Ausschnitt ±30 m um den gewählten Übergang und das Kartenbild des Berichts (wms.geo.admin.ch), Flugjahr der
+              1-km-Kachel (api3.geo.admin.ch);
               bei der Ortssuche der eingegebene Suchbegriff (api3.geo.admin.ch).</li>
             <li>geodienste.ch (Amtliche Vermessung): Rechteck ±150 m um den Übergang.</li>
-            <li>Overpass (OpenStreetMap): Kartenausschnitt mit etwas Rand bei der Suche (automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m um den
+            <li>Overpass (OpenStreetMap): Kartenausschnitt (Übergänge und Strassennamen) mit etwas Rand bei der Suche (automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m um den
               Übergang; Server {erster}
               (Swiss OpenStreetMap Association), bei Störung ersatzweise {weitere.join(', ')}.</li>
             <li>map.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern: Rechteck ±150 m für amtliche Parkfelder bzw. den

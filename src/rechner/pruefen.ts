@@ -183,7 +183,12 @@ interface StreifenX extends Streifen { netzQuelle?: string; strasse?: string }
 
 /** pruefen: alle Teilstreifen -> Ergebnisse */
 export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
-  const { netz, fahrbahn, inseln, gebaeude, flaechenRand } = kx
+  const { netz, fahrbahn, gebaeude } = kx
+  // Inseln ausserhalb der AV (angenommen nach OSM bzw. von Hand, Streifen.inseln): als Verkehrsinsel für die Zufahrten
+  // (Inselteil, Einspur, Gegenstück) und den Annäherungsbereich; Fahrbahn, Sichtpunkte und Abbiegende bleiben bei der AV (kx.inseln)
+  const zusatz = [...new Set(S.flatMap(s => s.inseln ?? []))].map(z => z.ring)
+  const inseln = zusatz.length ? kx.inseln.mit(zusatz) : kx.inseln
+  const flaechenRand = zusatz.length ? kx.flaechenRand.mit(zusatz, 'Verkehrsinsel') : kx.flaechenRand
   const kreisel = new Kreisel(netz ? netz.kreiselWege() : [])
   zufahrtenStreifen(S)
   const tk = trennungKontext(S, netz, inseln)

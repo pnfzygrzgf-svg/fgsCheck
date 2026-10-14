@@ -3,7 +3,7 @@
 // JSON mit Version, Ort und Quellenstand; Koordinaten in LV95 (m). Wird als Datei gespeichert/geladen und zusätzlich im
 // localStorage gehalten (Zugriffe mit try/catch, die App läuft auch ohne). Kein Server.
 
-import type { P } from './geo'
+import { type P, imPolygon } from './geo'
 import { MARKIERUNGEN, type Markierung } from './daten/osm'
 import type { Hindernis } from './rechner/hindernisse'
 import type { SpurHand } from './rechner/spurhand'
@@ -41,7 +41,8 @@ export interface FallErgebnis {
   hinweis: string                                // z. B. «Kein Fussgängerstreifen: …»
   luftbild?: string                              // Befund der Luftbild-Erkennung (erkannt / unsicher / nicht_gefunden)
   streifenQuelle?: string                        // osm / luftbild / hand
-  streifen: { fgsId: string; status: string; zufahrten: { zufahrt: string; status: string; tempo: number; sichtweite: number }[] }[]
+  streifen: { fgsId: string; status: string; zufahrten: { zufahrt: string; status: string; tempo: number; sichtweite: number
+    gedeckt?: true }[] }[]                       // gedeckt: Abbiegezufahrt, gedeckt durch die gerade Zufahrt (nur mit GEDECKT_RECHNEN)
 }
 
 export function leererFall(lat: number, lon: number, uebergang: number | null): Fall {
@@ -77,6 +78,8 @@ function hindernisPruefen(h: unknown): Hindernis | null {
       const linie = istPs(o.linie, 2) ? o.linie : undefined, ring = istPs(o.ring, 3) ? o.ring : undefined
       return linie || ring ? { id: o.id, art: o.art, linie, ring, sichtbehindernd: o.sichtbehindernd !== false, quelle, name } : null
     }
+    case 'insel':                                  // Verkehrsinsel von Hand (seit 14.10.2026)
+      return istPs(o.ring, 3) ? { id: o.id, art: 'insel', ring: o.ring, quelle, name } : null
   }
   return null
 }
@@ -242,11 +245,14 @@ export function naechsteHandId(f: Fall): string {
  * geschrägten Achse (q0/q1) und die Balkenrichtung mit, damit der Umriss das Parallelogramm nachbildet. Eingaben der bisher
  * gerechneten Streifen (alte: Tempo, Spur, Streichen je Zufahrt; LSA, kein FGS je Streifen) gehen an den neuen Streifen mit der
  * nächsten Mitte (höchstens ZUORDNUNG_M entfernt), nicht über gleiche Nummern; die Rückfall-Kennung «s<Nr>:<Grad>» wird mit
- * umbenannt. Nicht zuordenbare Eingaben bleiben stehen (die App meldet sie als ohne Zufahrt). Rückgabe: übertragene Eingaben.
+ * umbenannt. Nicht zuordenbare Eingaben bleiben stehen (die App meldet sie als ohne Zufahrt). Angenommene Inseln (nach OSM und
+ * Luftbild, inseln: die der Rechnung bzw. der Luftbild-Teile) gehen als Insel von Hand (Hindernis «insel», Name
+ * INSEL_UEBERNOMMEN) in den Fall, damit die Streifen von Hand an der Insel geteilt bleiben (Zufahrten Inselteil, Einspur);
+ * nicht, wenn schon eine Insel von Hand dieselbe Fläche deckt (inselnUebernehmen). Rückgabe: übertragene Eingaben.
  */
 const ZUORDNUNG_M = 3.0
 export function streifenUebernehmen(f: Fall, neue: { p0: P; p1: P; bw: number; q0?: P; q1?: P; richtung?: P }[],
-  alte: { fgsId: string; p0: P; p1: P }[], herkunft?: StreifenHerkunft): number {
+  alte: { fgsId: string; p0: P; p1: P }[], herkunft?: StreifenHerkunft, inseln: { ring: P[] }[] = []): number {
   const mitte = (a: P, b: P): P => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
   f.streifenHand = []
   const neuM: [string, P][] = []
@@ -279,6 +285,27 @@ export function streifenUebernehmen(f: Fall, neue: { p0: P; p1: P; bw: number; q
     if (id) { str[id] = v; n++ } else str[k] = v
   }
   f.streifen = str
+  inselnUebernehmen(f, inseln)
+  return n
+}
+
+/** Name einer beim Übernehmen geschriebenen Insel (angenommen nach OSM und Luftbild, danach Insel von Hand) */
+export const INSEL_UEBERNOMMEN = 'Insel (aus Luftbild übernommen)'
+
+/**
+ * Angenommene Inseln als Inseln von Hand in den Fall schreiben (streifenUebernehmen). Doppel vermeiden: deckt schon eine Insel
+ * von Hand die Mitte der Fläche, wird sie nicht nochmals geschrieben. Rückgabe: geschriebene Inseln.
+ */
+export function inselnUebernehmen(f: Fall, inseln: { ring: P[] }[]): number {
+  const mitte = (r: P[]): P => [r.reduce((a, p) => a + p[0], 0) / r.length, r.reduce((a, p) => a + p[1], 0) / r.length]
+  let n = 0
+  for (const z of inseln) {
+    if (z.ring.length < 3 || f.hindernisse.some(h => h.art === 'insel' && imPolygon(mitte(z.ring), [h.ring]))) continue
+    let k = 1
+    while (f.hindernisse.some(h => h.id === `insel-lb-${k}`)) k++
+    f.hindernisse.push({ id: `insel-lb-${k}`, art: 'insel', ring: z.ring.map(p => [p[0], p[1]] as P), quelle: 'hand', name: INSEL_UEBERNOMMEN })
+    n++
+  }
   return n
 }
 

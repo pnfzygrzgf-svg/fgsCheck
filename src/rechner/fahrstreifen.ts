@@ -9,7 +9,7 @@
 // querschnitt_am_knoten wie in Python.
 
 import { type P, add, dist, dot, einheit, neg, sub, median, drehung } from '../geo'
-import { type OsmNetz, type Gequert, type Suche, type Knotenbereich, type ArmInfo, einbahnTag, RASTER, NEBENAST_GRAD } from './netz'
+import { type OsmNetz, type Gequert, type Suche, type Knotenbereich, type ArmInfo, einbahnTag, RASTER, FAST_GERADE_GRAD } from './netz'
 import type { Fahrbahn } from './flaechen'
 import type { ParkRaster } from './hindernisse'
 import { SEHNE_HALB } from './flaechen'
@@ -212,8 +212,8 @@ export function fahrstreifenOsm(netz: OsmNetz, g: Gequert | null, sd: number, su
       index = 0; regel = `gabel_${seite}`
       let k_: number[] = []
       if (turn && X === (vorw ? nds[nds.length - 1] : nds[0])) {
-        if (dU >= NEBENAST_GRAD) k_ = turn.map((w, k) => (schneidet(w, TURN_LINKS) ? k : -1)).filter(k => k >= 0)
-        else if (dU <= -NEBENAST_GRAD) k_ = turn.map((w, k) => (schneidet(w, TURN_RECHTS) ? k : -1)).filter(k => k >= 0)
+        if (dU >= FAST_GERADE_GRAD) k_ = turn.map((w, k) => (schneidet(w, TURN_LINKS) ? k : -1)).filter(k => k >= 0)
+        else if (dU <= -FAST_GERADE_GRAD) k_ = turn.map((w, k) => (schneidet(w, TURN_RECHTS) ? k : -1)).filter(k => k >= 0)
         else {
           const leicht = new Set(seite === 'links' ? ['slight_left'] : seite === 'rechts' ? ['slight_right'] : [])
           k_ = turn.map((w, k) => (durch(w) || schneidet(w, leicht) ? k : -1)).filter(k => k >= 0)

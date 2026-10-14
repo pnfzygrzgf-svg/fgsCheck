@@ -32,8 +32,22 @@ const DURCHBLICK_MAX = 30.0
 export const GABEL_MAX = 60.0
 const WENDEN_AB = 120.0
 const WENDEN_OHNE_NAME = true
-export const NEBENAST_GRAD = 30.0
+// Nutzerentscheid 13.10.2026 (Rückmeldung «nicht systematisch alle Sichtweiten»: ein Arm mit Drehung 25° wurde als «nebenast»
+// weggelassen, obwohl sein Knoten innerhalb der Sichtweite liegt): ein
+// Arm ab NEBENAST_GRAD Drehung ist eine Abbiegezufahrt mit allen Regeln, darunter «nebenast» (nur Hinweis). Bis 13.10.2026: 30
+export const NEBENAST_GRAD = 10.0
+// «Fast geradeaus» für die Fortsetzung (klasseVorName) und die turn:lanes an Gabeln (fahrstreifen.ts: left/right gegen
+// slight_*/through) bleibt bei 30° (bis 13.10.2026 NEBENAST_GRAD): dort geht es um die Fahrtrichtung, nicht um die Sichtweite
+export const FAST_GERADE_GRAD = 30.0
 const ZU_STEIL_GRAD = 150.0
+// Drehung in Rollen-Texten mit einer Nachkommastelle (13.10.2026), gerundet; erreicht die Rundung die Grenze, unter (unter)
+// bzw. über (ueber) der die Drehung liegt, wird abgeschnitten bzw. aufgerundet (Nebenast 9,96° -> «9,9°» statt «10,0°»)
+const grad1 = (x: number, unter: number | null = null, ueber: number | null = null): string => {
+  let v = Math.round(x * 10) / 10
+  if (unter !== null && v >= unter) v = Math.floor(x * 10) / 10
+  if (ueber !== null && v <= ueber) v = Math.ceil(x * 10) / 10
+  return `${v.toFixed(1).replace('.', ',')}°`
+}
 const MAX_SUCHE = 400.0
 const KREISEL_RING_M = 12.0
 const SERVICE_IST_KNOTEN = false
@@ -744,17 +758,18 @@ export class OsmNetz {
       rolle: '', grund: '', dj: 0, hinweis: '', hinweise: [], nebenarm: false }
   }
 
-  /** fgs_netz.OsmNetz._rolle (SPEC 3.3 Punkt 8) */
+  /** fgs_netz.OsmNetz._rolle (SPEC 3.3 Punkt 8); Drehung in den Texten mit einer Nachkommastelle (grad1, seit 13.10.2026;
+   * bis dahin ganze Grad, ein Nebenast mit 9,6° stand als «Drehung 10°» da) */
   private rolle(a: ArmInfo, nameAnk: string, ringEigen: boolean, forts: ArmInfo | null = null, stamm = false) {
     const ad = Math.abs(a.dreh)
     if (a === forts) [a.rolle, a.grund] = !a.verbot ? ['gerade', ''] : ['gerade_verboten', a.verbot]
     else if (!a.zufluss) [a.rolle, a.grund] = ['kein_zufluss', a.grund || 'Einbahn']
     else if (a.verbot) [a.rolle, a.grund] = ['verbot', a.verbot]
-    else if (a.ring && !ringEigen) [a.rolle, a.grund] = ['kreisel', 'über den Ring gedeckt']
-    else if (nameAnk && a.name === nameAnk && a.ow && ad > WENDEN_AB) [a.rolle, a.grund] = ['wenden', `Gegenfahrbahn, Drehung ${ad.toFixed(0)}°`]
-    else if (stamm && ad > WENDEN_AB) [a.rolle, a.grund] = ['wenden', `Gegenfahrbahn ohne Namen (gemeinsamer Stamm), Drehung ${ad.toFixed(0)}°`]
-    else if (ad < NEBENAST_GRAD) [a.rolle, a.grund] = ['nebenast', `Drehung ${ad.toFixed(0)}°`]
-    else if (ad > ZU_STEIL_GRAD) [a.rolle, a.grund] = ['zu_steil', `Drehung ${ad.toFixed(0)}°`]
+    else if (a.ring && !ringEigen) [a.rolle, a.grund] = ['kreisel', 'über den Ring mitgeprüft']
+    else if (nameAnk && a.name === nameAnk && a.ow && ad > WENDEN_AB) [a.rolle, a.grund] = ['wenden', `Gegenfahrbahn, Drehung ${grad1(ad, null, WENDEN_AB)}`]
+    else if (stamm && ad > WENDEN_AB) [a.rolle, a.grund] = ['wenden', `Gegenfahrbahn ohne Namen (gemeinsamer Stamm), Drehung ${grad1(ad, null, WENDEN_AB)}`]
+    else if (ad < NEBENAST_GRAD) [a.rolle, a.grund] = ['nebenast', `Drehung ${grad1(ad, NEBENAST_GRAD)}`]
+    else if (ad > ZU_STEIL_GRAD) [a.rolle, a.grund] = ['zu_steil', `Drehung ${grad1(ad, null, ZU_STEIL_GRAD)}`]
     else [a.rolle, a.grund] = ['abbiegend', '']
   }
 
@@ -853,7 +868,7 @@ export class OsmNetz {
   private klasseVorName(kand: ArmInfo[], forts: ArmInfo, widAnk: number, nameAnk: string): ArmInfo | null {
     if (!(nameAnk && forts.name === nameAnk)) return null
     const rAnk = OsmNetz.rang(this.w(widAnk).hw)
-    const andere = kand.filter(a => a !== forts && a.name !== nameAnk && a.abw < NEBENAST_GRAD &&
+    const andere = kand.filter(a => a !== forts && a.name !== nameAnk && a.abw < FAST_GERADE_GRAD &&
       OsmNetz.rang(a.hw) === rAnk && OsmNetz.rang(forts.hw) > rAnk)
     return andere.length ? andere.reduce((b, a) => (a.abw < b.abw ? a : b)) : null
   }

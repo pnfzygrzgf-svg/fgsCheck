@@ -6,6 +6,8 @@
 // Rechnung behandelt alle Quellen gleich.
 // Hecken, Mauern und übrige Hindernisse gibt es im Berner Projekt nicht; sie zählen wie Gebäude (Fläche bzw. Linie im
 // Sichtfeld ohne Streifen und Annäherungsbereiche), wenn sie als «sichtbehindernd» markiert sind.
+// Insel (14.10.2026, Werkzeug «Insel»): kein Sichthindernis, sondern eine Verkehrsinsel von Hand; sie teilt den Streifen wie
+// eine AV-Verkehrsinsel und ersetzt die Insel nach OSM (rechner/streifen.ts, INSEL_AUS_OSM). HindernisDaten übergeht sie.
 
 import { type P, add, dist, imPolygon, sub, einheit, rechts } from '../geo'
 import { type Multi, type Poly, abstandPunkt } from './poly'
@@ -21,6 +23,7 @@ export type Hindernis =
   | { id: string; art: 'laengsparkierung'; linie: P[]; breite: number; quelle: Quelle; name?: string }
   | { id: string; art: 'baum'; p: P; stamm: number; quelle: Quelle; name?: string }
   | { id: string; art: 'hecke' | 'mauer' | 'uebrige'; linie?: P[]; ring?: P[]; sichtbehindernd: boolean; quelle: Quelle; name?: string }
+  | { id: string; art: 'insel'; ring: P[]; linie?: undefined; quelle: Quelle; name?: string }
 
 /** Längsparkierung (Mittellinie, Breite) -> Polygon (Puffer quer zur Linie, Enden rechtwinklig) */
 export function laengsPolygon(linie: P[], breite: number): P[] {

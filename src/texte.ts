@@ -2,6 +2,7 @@
 
 import type { ZufahrtErgebnis } from './rechner/typen'
 import type { Hindernis } from './rechner/hindernisse'
+import { NEBENAST_GRAD } from './rechner/netz'
 
 export const f1 = (x: number) => x.toFixed(1).replace('.', ',')
 export const f2 = (x: number) => x.toFixed(2).replace('.', ',')
@@ -10,8 +11,8 @@ export const GRUND: Record<string, string> = {
   einbahn_osm: 'Einbahn (OSM)', richtungsfahrbahn: 'Richtungsfahrbahn (Gegenfahrbahn daneben)', insel: 'Inselteil: Insel rechts der Fahrt',
   insel_einbahn: 'Einbahn gegen die Inselregel', einspurig: 'einspurig neben Verkehrsinsel',
   einmuendung: 'Einmündung: Strasse führt am Knoten nicht weiter', gerade_verboten: 'Weiterfahrt verboten',
-  gedeckt: 'durch die gerade Zufahrt gedeckt', kein_zufluss: 'kein Zufluss (Einbahn vom Knoten weg)', verbot: 'Abbiegeverbot (OSM)',
-  kreisel: 'Kreisel: über den Ring gedeckt', wenden: 'Wenden (Gegenfahrbahn)', nebenast: 'Nebenast (Drehung unter 30°)',
+  gedeckt: 'durch die gerade Zufahrt mitgeprüft', kein_zufluss: 'kein Zufluss (Einbahn vom Knoten weg)', verbot: 'Abbiegeverbot (OSM)',
+  kreisel: 'Kreisel: über den Ring mitgeprüft', wenden: 'Wenden (Gegenfahrbahn)', nebenast: `Nebenast (Drehung unter ${NEBENAST_GRAD}°)`,
   zu_steil: 'zu steil (Drehung über 150°)', arm_schmal: 'Querstrasse schmaler als 3 m', arm_ohne_fahrbahn: 'Zufahrt ohne AV-Fahrbahn',
   geometrie: 'Fahrlinie passt nicht (Geometrie)', teilstreifen: 'fährt auf dem anderen Fahrbahnteil (Teilstreifen)',
   wegende: 'Weg endet', einbahn_widerspruch: 'Einbahn-Widerspruch', hand: 'von Hand gestrichen',

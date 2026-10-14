@@ -9,6 +9,7 @@
 // Ampeln (highway=traffic_signals) für die LSA-Einordnung (fgs_sicht_pruefen.Lichtsignale).
 
 import { holeText, istAbbruch, AbrufFehler, type Abruf } from './holen'
+import { lv95, dist, type P } from '../geo'
 
 export interface OsmWeg { id: number; tags: Record<string, string>; knoten: number[]; geom: [number, number][] }
 export interface OsmKnoten { id: number; tags: Record<string, string>; lat: number; lon: number }
@@ -135,6 +136,96 @@ export function osmParsen(data: { elements?: RohElement[] }): OsmDaten {
   return aus
 }
 
+// ── Strassennamen für die Karte (14.10.2026): aus der Übergangssuche (Wegmitten im Ausschnitt, schon vor dem Klick) und aus
+// der Rohantwort des Umkreis-Abrufs (Wegmitten aus der Geometrie, genauer), kein eigener Abruf ──
+export interface Strassenname { name: string; lat: number; lon: number }
+/** Mittelpunkt eines benannten befahrbaren Wegs aus der Übergangssuche (Overpass «out tags center»: Mitte der Wegbox) */
+export interface StrassenMitte { id: number; name: string; lat: number; lon: number }
+/** je Name höchstens eine Beschriftung in diesem Abstand (m); längere Wege in Abschnitte dieser Länge geteilt */
+export const NAMEN_ABSTAND_M = 120
+
+/** je Name höchstens eine Beschriftung pro abstand: in der Reihenfolge der Kandidaten (die ersten haben Vorrang) */
+function ausduennen(kand: { name: string; p: P; ll: [number, number] }[], abstand: number): Strassenname[] {
+  const gesetzt = new Map<string, P[]>()
+  const aus: Strassenname[] = []
+  for (const k of kand) {
+    const da = gesetzt.get(k.name) ?? []
+    if (da.some(q => dist(q, k.p) < abstand)) continue
+    gesetzt.set(k.name, [...da, k.p])
+    aus.push({ name: k.name, lat: k.ll[0], lon: k.ll[1] })
+  }
+  return aus
+}
+
+/**
+ * Beschriftungen der Strassennamen aus der Overpass-Rohantwort (ladeOsmRoh): je benannter Strasse (highway aus HW_ALLE mit
+ * name) ein Punkt in der Mitte des Wegs, längere Wege in gleiche Abschnitte bis NAMEN_ABSTAND_M geteilt (je Abschnitt die
+ * Mitte; ein Weg reicht oft weit über den Umkreis hinaus). Nur Punkte im Umkreis radius um mitte (LV95). Je Name höchstens
+ * eine Beschriftung pro NAMEN_ABSTAND_M: längere Abschnitte zuerst (Mitte eines Strassenzugs statt eines kurzen Stücks am
+ * Knoten), bei gleicher Länge der nähere.
+ */
+export function strassennamen(roh: unknown, mitte: P, radius: number, abstand = NAMEN_ABSTAND_M): Strassenname[] {
+  const kand: { name: string; ll: [number, number]; p: P; laenge: number; d: number }[] = []
+  const gesehen = new Set<number>()
+  for (const e of (roh as { elements?: RohElement[] } | null)?.elements ?? []) {
+    const name = e.tags?.name?.trim()
+    if (e.type !== 'way' || !name || !HW_ALLE.includes(e.tags!.highway ?? '') || !e.geometry || gesehen.has(e.id)) continue
+    gesehen.add(e.id)
+    const ll = e.geometry.filter((g): g is { lat: number; lon: number } => !!g).map(g => [g.lat, g.lon] as [number, number])
+    if (ll.length < 2) continue
+    const pts = ll.map(([la, lo]) => lv95(la, lo))
+    const kum = [0]
+    for (let i = 1; i < pts.length; i++) kum.push(kum[i - 1] + dist(pts[i - 1], pts[i]))
+    const L = kum[kum.length - 1]
+    if (!(L > 0)) continue
+    const n = Math.ceil(L / abstand)
+    for (let j = 0; j < n; j++) {
+      const s = (j + 0.5) * L / n
+      let i = 1
+      while (i < pts.length - 1 && kum[i] < s) i++
+      const t = kum[i] > kum[i - 1] ? (s - kum[i - 1]) / (kum[i] - kum[i - 1]) : 0
+      const p: P = [pts[i - 1][0] + t * (pts[i][0] - pts[i - 1][0]), pts[i - 1][1] + t * (pts[i][1] - pts[i - 1][1])]
+      const d = dist(p, mitte)
+      if (d > radius) continue
+      kand.push({ name, p, laenge: L / n, d,
+        ll: [ll[i - 1][0] + t * (ll[i][0] - ll[i - 1][0]), ll[i - 1][1] + t * (ll[i][1] - ll[i - 1][1])] })
+    }
+  }
+  kand.sort((a, b) => b.laenge - a.laenge || a.d - b.d)
+  return ausduennen(kand, abstand)
+}
+
+/** Wegmitten (Overpass «out tags center») aus der Rohantwort der Übergangssuche: benannte Wege der Klassen HW_ALLE */
+export function strassenMitten(roh: unknown): StrassenMitte[] {
+  const aus: StrassenMitte[] = []
+  const gesehen = new Set<number>()
+  for (const e of (roh as { elements?: (RohElement & { center?: { lat: number; lon: number } })[] } | null)?.elements ?? []) {
+    const name = e.tags?.name?.trim()
+    if (e.type !== 'way' || !name || !HW_ALLE.includes(e.tags!.highway ?? '') || !e.center || gesehen.has(e.id)) continue
+    if (!Number.isFinite(e.center.lat) || !Number.isFinite(e.center.lon)) continue
+    gesehen.add(e.id)
+    aus.push({ id: e.id, name, lat: e.center.lat, lon: e.center.lon })
+  }
+  return aus
+}
+
+/**
+ * Beschriftungen für die Karte: Wegmitten der Übergangssuche (mitten, alle abgesuchten Ausschnitte) und nach dem Klick die
+ * genaueren Namen aus dem Umkreis-Abruf (genau, strassennamen). Im Umkreis radius um ort gelten nur die genauen; ausserhalb
+ * die Wegmitten, je Name höchstens eine pro abstand, auch gegen die genauen (die Vorrang haben). Ohne Wegelänge: je Name
+ * zuerst die Mitte, die dem Schwerpunkt aller Mitten dieses Namens am nächsten liegt (Mitte eines Strassenzugs).
+ */
+export function namenKarte(mitten: StrassenMitte[], genau: Strassenname[] = [], ort: P | null = null, radius = 0,
+  abstand = NAMEN_ABSTAND_M): Strassenname[] {
+  const mit = (s: { name: string; lat: number; lon: number }) => ({ name: s.name, p: lv95(s.lat, s.lon), ll: [s.lat, s.lon] as [number, number] })
+  const aussen = mitten.map(mit).filter(k => ort === null || dist(k.p, ort) > radius)
+  const schwer = new Map<string, [number, number, number]>()
+  for (const k of aussen) { const x = schwer.get(k.name) ?? [0, 0, 0]; schwer.set(k.name, [x[0] + k.p[0], x[1] + k.p[1], x[2] + 1]) }
+  const d = (k: { name: string; p: P }) => { const [e, n, z] = schwer.get(k.name)!; return dist(k.p, [e / z, n / z]) }
+  aussen.sort((a, b) => d(a) - d(b) || a.name.localeCompare(b.name))
+  return ausduennen([...genau.map(mit), ...aussen], abstand)
+}
+
 const GESAMT_MS = 60000                              // alle Versuche zusammen höchstens so lange
 
 async function overpassFetch(query: string, signal?: AbortSignal): Promise<Abruf<unknown>> {
@@ -235,14 +326,20 @@ export function istLsaUebergang(t: Record<string, string>): boolean {
   return t.crossing === 'traffic_signals' || t['crossing:signals'] === 'yes'
 }
 
-/** Übergangsknoten im Kartenausschnitt (leichte Abfrage für die Auswahl) */
+/**
+ * Übergangsknoten im Kartenausschnitt (leichte Abfrage für die Auswahl); dazu die benannten befahrbaren Wege nur als
+ * Mittelpunkt mit Tags (Strassennamen vor dem Klick, «out tags center»: keine Geometrie, keine Knotenliste)
+ */
 export function uebergaengeAbfrage(s: number, w: number, n: number, e: number): string {
   const b = [s, w, n, e].map(v => v.toFixed(6)).join(',')
   return `[out:json][timeout:20];(node(${b})["highway"="crossing"];node(${b})["crossing"];` +
-    `node(${b})["crossing:markings"];node(${b})["crossing_ref"];);out body;`
+    `node(${b})["crossing:markings"];node(${b})["crossing_ref"];);out body;` +
+    `way(${b})["highway"~"^(${HW_ALLE.join('|')})$"]["name"];out tags center;`
 }
 
-export async function ladeUebergaenge(s: number, w: number, n: number, e: number, signal?: AbortSignal): Promise<Abruf<OsmKnoten[]>> {
+/** Übergangssuche: Übergänge (daten) und Wegmitten der benannten Strassen (namen) im Ausschnitt, eine Abfrage */
+export async function ladeUebergaenge(s: number, w: number, n: number, e: number, signal?: AbortSignal):
+  Promise<Abruf<OsmKnoten[]> & { namen: StrassenMitte[] }> {
   const r = await overpassFetch(uebergaengeAbfrage(s, w, n, e), signal)
-  return { ...r, daten: osmParsen(r.daten as { elements?: RohElement[] }).uebergaenge }
+  return { ...r, daten: osmParsen(r.daten as { elements?: RohElement[] }).uebergaenge, namen: strassenMitten(r.daten) }
 }

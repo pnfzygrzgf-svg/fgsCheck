@@ -23,6 +23,7 @@ import { flaeche } from './rechner/poly'
 import type { Entfallen } from './rechner/zufahrten'
 import type { VonHand } from './rechner/pruefen'
 import type { Hindernis } from './rechner/hindernisse'
+import { NEBENAST_GRAD } from './rechner/netz'
 
 const DIR = process.env.FGS_REFERENZ ? resolve(process.env.FGS_REFERENZ) : resolve(__dirname, '../../referenz_bern')
 const REF = join(DIR, 'referenz.json')
@@ -81,6 +82,12 @@ function vergleichen(lauf: string, s: RefS, se: StreifenErgebnis | null, voll = 
       const ent = s.entfallen.find((e: RefZ) => (e.art === 'abbiegend') === (a.art === 'abbiegend') &&
         winkel(Number(e.richtung), a.richtung) <= (a.art === 'abbiegend' ? 15 : 10))
       if (ent) befund.push(`bern_entfallen:${ent.grund}`)
+      // Regeländerungen 13.10.2026 (die Berner Referenz folgt später): Arme ab NEBENAST_GRAD Drehung sind Abbiegezufahrten;
+      // gedeckte Abbiegezufahrten nur mit GEDECKT_RECHNEN gerechnet (seit 14.10.2026 standardmässig aus: sie entfallen wie in
+      // Bern mit Grund «gedeckt»). Verglichen wird der Grund-Schlüssel, nicht der Text
+      if (ent?.grund === 'gedeckt' && a.deckung) ursache.push('Nutzerentscheid 13.10.2026: gedeckte Abbiegezufahrten gerechnet')
+      if (ent?.grund === 'nebenast' && a.art === 'abbiegend')
+        ursache.push(`Nutzerentscheid 13.10.2026: Arme ab ${NEBENAST_GRAD}° Drehung als Abbiegezufahrt gerechnet`)
     } else if (r && a) {
       if (r.kennung && a.kennung !== r.kennung) befund.push(`kennung ${r.kennung} / ${a.kennung}`)
       if (gerade(r) && r.zufahrt_art !== a.art) {

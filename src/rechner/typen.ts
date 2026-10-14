@@ -55,6 +55,8 @@ export interface ZufahrtErgebnis {
   feld: Multi
   spur: P[]
   annahmen: string[]              // in der App sichtbar gemachte Annahmen und Ersatzwerte
+  deckung?: string                // Abbiegezufahrt, die ab dem Knoten von der geraden Zufahrt gedeckt ist (nur mit GEDECKT_RECHNEN,
+                                  // seit 14.10.2026 standardmässig aus): Text wie beim Entfallen «Knoten … m vor dem Streifen; …»
 }
 
 export interface StreifenErgebnis {

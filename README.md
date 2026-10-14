@@ -24,7 +24,13 @@ npm run build    # Typprüfung und Build nach dist/ (Basis /fgsCheck/ für GitHu
    Escape), oder mit dem Knopf «Zum eigenen Standort» (unter den Zoom-Knöpfen) zum eigenen Standort springen (Zoom 18, Punkt
    mit Genauigkeitskreis). Die Übergänge im Ausschnitt sucht die App automatisch, sobald die Karte steht (ab Zoom 16, rund
    1:10 000; weiter draussen steht «Zum Suchen näher heranzoomen» auf der Karte). Nach einem Fehler erscheint «erneut suchen».
-2. Einen OSM-Übergang anklicken. Die App lädt AV (±150 m) und OSM (300 m) um den Knoten und rechnet.
+   Hintergrund in der Ebenenwahl (oben rechts): Luftbild (SWISSIMAGE, Vorgabe) oder Landeskarte (swisstopo); die
+   Strassennamen darüber kommen aus OSM und stehen schon vor dem ersten Klick (siehe 2.).
+2. Einen OSM-Übergang anklicken. Die App lädt AV (±150 m) und OSM (300 m) um den Knoten und rechnet. Aus diesen OSM-Daten
+   beschriftet sie die Strassen (Ebene «Strassennamen (OSM)», je Name höchstens eine Beschriftung pro rund 120 m).
+   Schon vor dem Klick stehen Strassennamen auf der Karte: die Übergangssuche holt in derselben Abfrage die benannten
+   befahrbaren Wege des Ausschnitts als Mittelpunkte (ab Zoom 16 gezeichnet); im Umkreis von 300 m um den gewählten Übergang
+   gelten danach die genaueren Namen aus dem Umkreis-Abruf.
    Farben: gelb fgs-Markierung, gelb gestrichelt vermutlich markiert (`crossing=uncontrolled` ohne Markierungs-Tag;
    gerechnet als FGS, Hinweis «bitte prüfen»), violett Lichtsignal, grau unmarkiert bzw. ohne Angabe; das Häkchen «nur
    markierte Übergänge zeigen» blendet die grauen aus. Graue Übergänge werden ebenfalls gerechnet; Panel, Streifen und Fall-Datei
@@ -36,6 +42,9 @@ npm run build    # Typprüfung und Build nach dist/ (Basis /fgsCheck/ für GitHu
    Klasse Auto bzw. Velo/Motorrad), Längsparkierung (Mittellinie, Breite), Baum (Stamm anklicken), Hecke und Mauer (Linie),
    übriges Hindernis (Fläche), je mit Schalter «sichtbehindernd». In der Liste bearbeiten (Ecken auf der Karte ziehen) oder
    löschen. Die Rechnung läuft nach jeder Änderung neu.
+   Werkzeug «Insel» (Fläche wie ein Parkfeld): Verkehrsinsel, die die AV nicht kennt. Sie ist kein Sichthindernis, sondern
+   teilt den Streifen wie eine AV-Verkehrsinsel in Teilstreifen und ersetzt die Insel nach OSM und Luftbild (siehe «Was
+   gerechnet wird»); in der Fall-Datei als Hindernis mit `art: "insel"` (ältere Fall-Dateien lesen sich unverändert).
 5. Vorschläge «aus OSM, prüfen» (Parkierung aus `parking:*`-Tags, gestrichelt) zählen erst nach «bestätigen». In Bern lässt
    sich der Baumkataster der Stadt zuschalten; einzelne Bäume daraus können verworfen werden.
    Amtliche Parkfelder (Bern: Geoportal «Parkplätze öffentlich»): lädt die App automatisch, sobald der Ort in einer Gemeinde
@@ -44,12 +53,14 @@ npm run build    # Typprüfung und Build nach dist/ (Basis /fgsCheck/ für GitHu
    Quelle ab (in der Fall-Datei `parkkataster: false`). OSM-Parkierungsvorschläge, die zu mindestens 30 % ihrer Fläche
    von amtlichen Feldern bedeckt sind, entfallen dann. Private Parkplätze enthält der Datensatz nicht (von Hand ergänzen).
 6. Streifen von Hand: beide Wartebereiche anklicken (Breite vorher setzen); ersetzt die Streifen aus OSM. «Streifen aus OSM
-   übernehmen und anpassen» macht die gebildeten Streifen verschiebbar.
+   übernehmen und anpassen» macht die gebildeten Streifen verschiebbar; eine angenommene Insel (nach OSM und Luftbild)
+   kommt dabei als Insel von Hand («Insel (aus Luftbild übernommen)») mit, damit die Teilung bleibt (ebenso bei
+   «Luftbild-Streifen übernehmen und anpassen»; nicht doppelt, wenn schon eine Insel von Hand dort liegt).
 7. Je Streifen Lichtsignal und «kein FGS», je Zufahrt (Zeile anklicken) Tempo, «Fahrlinie korrigieren» (A: Linie seitlich
    verschieben, am Streifen und am Ende, + links, − rechts; B: Fahrlinie selbst zeichnen, bei Abbiegenden mit Kreisvorschlag
-   und «Radius übernehmen») und «Diese Zufahrt gibt es nicht (streichen)». Eine
-   gestrichene gerade Zufahrt deckt die Abbiegenden nicht mehr; sie werden dann geprüft. Eingaben, zu denen die Rechnung
-   keine Zufahrt mehr findet, meldet das Panel.
+   und «Radius übernehmen») und «Diese Zufahrt gibt es nicht (streichen)». Abbiegezufahrten, die bisher wegen der geraden
+   Zufahrt entfielen («durch die gerade Zufahrt mitgeprüft»), werden nach dem Streichen der geraden Zufahrt selbst geprüft,
+   bis zum Knoten mit Tab. 1 der eigenen Strasse. Eingaben, zu denen die Rechnung keine Zufahrt mehr findet, meldet das Panel.
 8. «Fall speichern» schreibt alle Eingaben als JSON-Datei (Version, Ort, Quellenstand); «Fall laden» stellt sie wieder her.
    Zusätzlich merkt sich der Browser die Eingaben je Übergang (localStorage, falls verfügbar).
 
@@ -83,6 +94,21 @@ npm run build    # Typprüfung und Build nach dist/ (Basis /fgsCheck/ für GitHu
 - **Streifen** (`rechner/streifen.ts`): Achse durch den Übergangsknoten, entlang des OSM-Fusswegs über die Fahrbahn
   (`footway=crossing`) bzw. senkrecht zum gequerten Weg; Enden 0,3 m vor der AV-Bordkante, bei sehr breiter Fahrbahn aus
   dem Fussweg bzw. der Breite des OSM-Wegs; Breite 4 m angenommen; Teilstreifen über AV-Verkehrsinseln.
+- **Insel nach OSM** (`rechner/streifen.ts`, Schalter `INSEL_AUS_OSM`, `false` = wie bisher): Trägt der Übergangsknoten
+  `crossing:island=yes` und liegt auf der Achse keine AV-Verkehrsinsel (die Insel ist in der AV Teil der Fahrbahn bzw. fehlt),
+  teilt die App den Streifen nur mit Beleg im Luftbild («erkannt» bzw. «unsicher» mit Balken): zwei Balkengruppen mit einer
+  Lücke von 1,0 bis 4,0 m (breiter: eher Fahrzeug oder Schatten) höchstens 3 m vom Knoten und beide Teile ab 2,0 m (wie die
+  Teile über OSM + AV) – die Lücke ist die Insel, zwei Teilstreifen; bei «unsicher» teilt sie den Streifen aus OSM + AV
+  (Panel und Bericht: «Streifen aus OSM + AV, an der Insel aus dem Luftbild geteilt»). Ohne diesen Beleg (kein Luftbild,
+  nur eine Balkengruppe, Lücke zu breit, ein Teil unter 2,0 m) bleibt der Streifen durchgehend, mit dem Hinweis «OSM meldet
+  eine Mittelinsel (crossing:island=yes), die Amtliche Vermessung keine – prüfen» bzw. «… – im Luftbild laufen die Balken
+  durch», «… – im Luftbild Lücke zwischen den Balken x m zu breit – prüfen», «… – im Luftbild Lücke zwischen den Balken,
+  Teil x m zu kurz – prüfen»; OSM allein ist kein Beleg, die AV behält das letzte Wort. Ob die Insel markiert oder gebaut
+  ist, lässt die App offen (auch gebaute Inseln fehlen zuweilen in der AV). Sie geht als Fläche (Breite der Lücke × 6 m
+  längs, Art Verkehrsinsel) in die Zufahrten (Inselteil, einspurig neben Insel, Gegenstück) und den Annäherungsbereich ein,
+  die Bordkanten der Teilstreifen enden an ihr; Fahrbahn, Sichtpunkte, Abbiegende und Parkfelder bleiben bei der AV. Karte
+  und Bericht zeigen sie grün gestrichelt («Insel angenommen (OSM/Luftbild), in der AV nicht erfasst – prüfen»), das Panel
+  die Annahme. Eine Insel von Hand (Werkzeug «Insel») ersetzt die Annahme; auch neben ihr entstehen nur Teile ab 2,0 m.
 - **Streifen im Luftbild** (`rechner/luftbild.ts`, `daten/luftbild.ts`; Kern nach fgs_luftbild.py):
   Gelb-Merkmal b* (CIE-Lab, Grün gedämpft); Abtasten entlang des gequerten OSM-Wegs auf der AV-Fahrbahn (dazu Brücken und
   übrige befestigte Flächen), ±26 m entlang, ±18 m quer, Drehungen ±24° und schräge Achsen ±30°; Balkentakt 0,92–1,12 m
@@ -105,7 +131,7 @@ npm run build    # Typprüfung und Build nach dist/ (Basis /fgsCheck/ für GitHu
   Gegenstück; ohne gequerten OSM-Weg Spur entlang der nächsten passenden OSM-Achse (`rechner/achsen.ts`).
 - **Tempo und Sichtweite** (`rechner/tempo.ts`): OSM-maxspeed entlang der Spur (Mehrheit innerhalb der Sichtweite),
   ohne Angabe 50 km/h (als Annahme ausgewiesen); VSS 40 241 Tab. 1; im Knoten nach Kurvenradius (bfu 2.457.01 bzw.
-  VSS Tab. 2); «bis Knoten», «gedeckt», Spurende, Kreisel nach Ringradius.
+  VSS Tab. 2); «bis Knoten», Spurende, Kreisel nach Ringradius.
 - **Fahrstreifenlage** (`rechner/fahrstreifen.ts`, `rechner/spur.ts`): AV-Querschnitte (Median), Bordkanten am Streifen,
   OSM-Fahrstreifen (`lanes`, `turn:lanes`, Busstreifen), mehrere Fahrstreifen ab 5,50 m je Richtung; Abzug Parkstreifen
   1,90 m, wo eingegebene Auto-Parkfelder am Rand liegen, Abzug Velostreifen aus `cycleway:*=lane` (1,50 m, angenommen);
@@ -114,6 +140,13 @@ npm run build    # Typprüfung und Build nach dist/ (Basis /fgsCheck/ für GitHu
 - **Abbiegende** (`rechner/abbiegen.ts`): Radius der inneren AV-Bordkante (Kreisfit) + Abstand der Fahrlinie, Prüfung
   der Ecke (Bogen führt in den Arm, Fahrseite, Bordkante höchstens 6 m hinter dem Rand der Strasse, keine Parkfelder im
   Bogen), sonst Schätzung aus den Fahrbahnbreiten; Fahrlinie konzentrisch bzw. tangential.
+- **Abbiegezufahrten und Mitprüfung durch die gerade Zufahrt**: Ein Arm ab 10° Drehung ist eine Abbiegezufahrt
+  (`NEBENAST_GRAD` in `rechner/netz.ts`), darunter ein Nebenast (nur Hinweis). Liegt der Knoten weiter vom Streifen weg als
+  die Kurvensichtweite des Abbiegers und reicht die Sichtweite der geraden Zufahrt bis zum Knoten (bzw. über Tab. 1 der
+  eigenen Strasse), prüft die gerade Zufahrt die Strecke ab dem Knoten mit: die Abbiegezufahrt entfällt mit dem Grund
+  «durch die gerade Zufahrt mitgeprüft» (Schlüssel `gedeckt`; dazu Knoten, Kurvensichtweite und Sichtweite der geraden
+  Zufahrt). Schalter `GEDECKT_RECHNEN` in `rechner/abbiegen.ts`, standardmässig aus (`true`: sie wird mit ihrer
+  Kurvensichtweite gerechnet, zählt für den Status des Streifens und trägt den Vermerk «(mitgeprüft)»).
 - **Sichtfeld** (`rechner/pruefen.ts`): Vereinigung der Sichtkeile zum Streifen und zu den Annäherungsbereichen
   (an der AV-Bordkante); Konflikte (`rechner/pruefen.ts`, `rechner/hindernisse.ts`): Parkfelder ab 0,25 m² im Sichtfeld,
   Bäume (Stamm 0,5 m), AV-Gebäude und sichtbehindernde Hecken/Mauern/übrige ab 1 m² bzw. 0,5 m Linie. Status nach
@@ -152,6 +185,10 @@ wird nicht abgebrochen, danach fragt die App den dann gezeigten Ausschnitt ab, w
 Antwort 429 bzw. mit Retry-After gilt für alle Overpass-Abfragen eine Sperre (Retry-After, sonst 30 s, höchstens 120 s).
 Das Laden eines Übergangs hat einen eigenen Abbruch. Gewählter Übergang, Eingaben und Rechnung bleiben beim Verschieben
 unverändert.
+Dieselbe Abfrage holt die benannten befahrbaren Wege (`highway` wie im Netz, mit `name`) nur als Mittelpunkt mit Tags
+(`out tags center`, keine Geometrie): 4 km² Berner Innenstadt (14.10.2026) rund 480 kB statt 141 kB (582 Übergänge,
+934 Wegstücke, 265 Namen); die Namen der Ausschnitte im Cache werden zusammengeführt (nach Weg-Id ohne Doppel, je Name eine
+Beschriftung pro rund 120 m, zuerst die Mitte nahe dem Schwerpunkt aller Stücke dieses Namens).
 
 Ortssuche (`src/Ortssuche.tsx`, `src/daten/ortssuche.ts`): SearchServer von swisstopo (`type=locations`, Herkünfte
 `address,gazetteer,gg25,zipcode`, höchstens 8 Treffer, keine Parzellen), deckt die Schweiz und Liechtenstein ab. Abfrage ab
@@ -185,11 +222,11 @@ IP-Adresse):
 
 | Dienst | Inhalt der Anfrage |
 |---|---|
-| wmts.geo.admin.ch (swisstopo) | Kartenkacheln des sichtbaren Ausschnitts |
+| wmts.geo.admin.ch (swisstopo) | Kartenkacheln (Luftbild bzw. Landeskarte) des sichtbaren Ausschnitts |
 | api3.geo.admin.ch (swisstopo, SearchServer) | Ortssuche: der eingegebene Suchbegriff (Ort, Adresse, Strasse, PLZ) |
 | wms.geo.admin.ch, api3.geo.admin.ch | Luftbild ±30 m um den Übergang, Kartenbild des Berichts; Flugjahr der 1-km-Kachel |
 | geodienste.ch (AV-WFS) | Rechteck ±150 m um den Übergang (BBOX) |
-| Overpass: overpass.osm.ch, ersatzweise overpass-api.de, overpass.kumi.systems, overpass.private.coffee | Kartenausschnitt mit Rand (Suche, automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m |
+| Overpass: overpass.osm.ch, ersatzweise overpass-api.de, overpass.kumi.systems, overpass.private.coffee | Kartenausschnitt (Übergänge und Strassennamen) mit Rand (Suche, automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m |
 | map.bern.ch (nur Stadt Bern) | Rechteck ±150 m (amtliche Parkfelder, Baumkataster) |
 | GoatCounter | Seitenaufruf ohne Cookies: Seitenpfad, Referrer, Bildschirmbreite, Browser und Betriebssystem, Sprache, Land (aus der IP-Adresse, die nicht gespeichert wird); zählt nicht auf localhost |
 
@@ -213,6 +250,7 @@ Quellen der Bestimmungen: [geodienste.ch, Nutzungsbedingungen](https://www.geodi
 ## Quellen und Lizenzen
 
 - Luftbild SWISSIMAGE: © swisstopo (WMTS geo.admin.ch für die Karte, WMS wms.geo.admin.ch für die Erkennung)
+- Landeskarte (umschaltbarer Hintergrund): © swisstopo (WMTS geo.admin.ch)
 - Bodenbedeckung: Amtliche Vermessung, Kanton (je nach Ort), über geodienste.ch; freie Nutzung mit Quellenangabe
   (App, Fall-Datei und Bericht nennen den Kanton; die Bedingungen je Kanton stehen auf geodienste.ch/services/av)
 - Strassennetz und Übergänge: © OpenStreetMap-Mitwirkende, ODbL (Overpass API)

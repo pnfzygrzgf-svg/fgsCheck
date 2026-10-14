@@ -3,15 +3,16 @@
 // Die App sucht nach jedem Verschieben bzw. Zoomen (App.tsx, ausschnitt und suchen). Liegt der neue Ausschnitt ganz in einem
 // schon abgesuchten, fragt sie Overpass nicht neu. Abgefragt wird der Ausschnitt mit Rand (AUSSCHNITT_RAND, abfrageBox), damit
 // kleines Verschieben und Hineinzoomen keine neue Abfrage auslöst. Behalten werden die letzten CACHE_MAX Ausschnitte; die
-// angezeigten Übergänge sind deren Vereinigung (nach id ohne Doppel), so wächst die Liste nicht ohne Grenze.
+// angezeigten Übergänge sind deren Vereinigung (nach id ohne Doppel), so wächst die Liste nicht ohne Grenze. Dasselbe gilt für
+// die Strassennamen (Wegmitten) aus derselben Abfrage (namen, seit 14.10.2026).
 
 export interface Box { s: number; w: number; n: number; e: number }
-export interface CacheEintrag<T> { box: Box; daten: T[] }
+export interface CacheEintrag<T, N = never> { box: Box; daten: T[]; namen?: N[] }
 
 /**
  * Rand je Seite als Anteil von Breite bzw. Höhe: 20 % je Seite, die Abfrage deckt das 1,4-Fache in jeder Richtung (rund das
  * Doppelte der Fläche). Ein Verschieben um bis zu einem Fünftel des Bildschirms bleibt im abgesuchten Rechteck; die Abfrage
- * holt nur Knoten (keine Wege), auch das Doppelte der Fläche bleibt klein.
+ * holt Knoten und von den benannten Strassen nur die Mittelpunkte (keine Geometrie), auch das Doppelte der Fläche bleibt klein.
  */
 export const AUSSCHNITT_RAND = 0.2
 export const CACHE_MAX = 8
@@ -61,7 +62,7 @@ export function erweitern(b: Box, anteil = AUSSCHNITT_RAND): Box {
  * Ausschnitt im Cache? -> neuer Cache (Treffer ans Ende, damit der zuletzt gezeigte Ausschnitt zuletzt herausfällt) bzw.
  * null, wenn kein abgesuchter Ausschnitt ihn ganz enthält.
  */
-export function imCache<T>(cache: CacheEintrag<T>[], b: Box): CacheEintrag<T>[] | null {
+export function imCache<E extends { box: Box }>(cache: E[], b: Box): E[] | null {
   for (let i = cache.length - 1; i >= 0; i--) {
     if (enthaelt(cache[i].box, b)) return i === cache.length - 1 ? cache : [...cache.slice(0, i), ...cache.slice(i + 1), cache[i]]
   }
@@ -69,13 +70,18 @@ export function imCache<T>(cache: CacheEintrag<T>[], b: Box): CacheEintrag<T>[] 
 }
 
 /** neuen Ausschnitt aufnehmen: darin ganz enthaltene alte fallen weg (überholt), dann höchstens max Einträge (die neusten) */
-export function aufnehmen<T>(cache: CacheEintrag<T>[], neu: CacheEintrag<T>, max = CACHE_MAX): CacheEintrag<T>[] {
+export function aufnehmen<E extends { box: Box }>(cache: E[], neu: E, max = CACHE_MAX): E[] {
   return [...cache.filter(c => !enthaelt(neu.box, c.box)), neu].slice(-max)
 }
 
 /** Daten aller Ausschnitte, nach id ohne Doppel (der neuere Eintrag gilt, z. B. bei geänderten Tags) */
-export function vereinigen<T extends { id: number }>(cache: CacheEintrag<T>[]): T[] {
+export function vereinigen<T extends { id: number }>(cache: { daten: T[] }[]): T[] {
   const m = new Map<number, T>()
   for (const c of cache) for (const x of c.daten) { m.delete(x.id); m.set(x.id, x) }
   return [...m.values()]
+}
+
+/** Strassennamen (Wegmitten) aller Ausschnitte, nach Weg-id ohne Doppel (der neuere Eintrag gilt) */
+export function vereinigenNamen<N extends { id: number }>(cache: { namen?: N[] }[]): N[] {
+  return vereinigen(cache.map(c => ({ daten: c.namen ?? [] })))
 }

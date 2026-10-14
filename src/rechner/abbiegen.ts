@@ -4,8 +4,8 @@
 // (8–30 m ab Knoten), Fahrstreifenmitten beider Strassen als Geraden, Radius der inneren AV-Bordkante (Kreisfit an der
 // Ecke) + Abstand der Fahrlinie (Rechtsabbieger 1,5 m, bfu 2.457.01 Abb. 1; Linksabbieger gemessen), Plausibilität der Ecke
 // (Probe, Bogen führt in den Arm, Fahrseite), sonst Schätzung aus den Fahrbahnbreiten; Sichtweite nach dem Radius
-// (bfu bis 20 m, VSS Tab. 2 bis 40 m, höchstens Tab. 1), «bis Knoten», «gedeckt»; Fahrlinie (konzentrisch zur Ecke bzw.
-// tangential), Sicherheitsnetz, Beginn am Umriss.
+// (bfu bis 20 m, VSS Tab. 2 bis 40 m, höchstens Tab. 1), «bis Knoten», «gedeckt» (entfällt; Schalter GEDECKT_RECHNEN,
+// standardmässig aus); Fahrlinie (konzentrisch zur Ecke bzw. tangential), Sicherheitsnetz, Beginn am Umriss.
 // ECKE_AN_FAHRSTREIFEN (Bordkante weit hinter dem Rand, Parkfelder im Bogen) und Abstand zu Parkfeldern (PARK_ABSTAND) seit E2.
 // Nicht übernommen (Berner Sonderdaten): Abstand zum Velostreifen aus dem Kataster (VELO_ABBIEGEND), Abzug am
 // Streifen aus dem Kataster (ABBIEGENDE_GEOMETRIE_ALT), Spur von Hand.
@@ -14,7 +14,7 @@
 import {
   type P, add, dist, dot, einheit, neg, rechts, sub, richtungGrad, wdiff,
 } from '../geo'
-import { type OsmNetz, type ArmInfo, type Suche, type Knotenbereich, kennungArm, streckeLaenge } from './netz'
+import { type OsmNetz, type ArmInfo, type Suche, type Knotenbereich, kennungArm, streckeLaenge, NEBENAST_GRAD } from './netz'
 import type { Fahrbahn, Inseln } from './flaechen'
 import type { Kreisel } from './kreisel'
 import { KREISEL_EINFAHRT_LOKAL_M, KREISEL_EINFAHRT_ZUSATZ_M } from './kreisel'
@@ -73,6 +73,28 @@ const LINKS_TANGENTIAL = true
 const LINKS_INNEN_MIN_M = 0.5
 const GEDECKT_NUR_MIT_GERADE = true
 const GEDECKT_BIS_KNOTEN = true
+// GEDECKT_RECHNEN an (Nutzerentscheid 13.10.2026, Rückmeldung «nicht systematisch alle Sichtweiten»): eine
+// Abbiegezufahrt, die ab dem Knoten von der geraden Zufahrt gedeckt ist (bis dahin Entfallen-Grund «gedeckt»), wird vollständig
+// gerechnet – Fahrlinie, Sichtfeld, Konflikte, Status – und zählt für den Streifenstatus; Kennzeichnung: Feld «deckung»
+// (bisheriger Entfallen-Text) und Hinweis «gedeckt». Sichtweite: die Kurvensichtweite aus dem Radius (bfu bzw. VSS Tab. 2,
+// höchstens Tab. 1 der Querstrasse) wie bei einer Abbiegezufahrt, deren Knoten innerhalb der Kurvensichtweite liegt, nicht
+// «bis Knoten»: die Strecke ab dem Knoten prüft die gerade Zufahrt; mit «bis Knoten» entstanden Statuswechsel nur aus
+// Sichtpunkten weit hinten im Arm bei Kurventempo (in der Prüfung waren 12 von 15 Statuswechseln solche Artefakte). Ein Radius von Hand
+// entscheidet die Deckung neu (gedeckt oder nicht). Die Radiuswahl an der AV-Ecke (gedecktBei) bleibt wie bisher.
+// False = wie bisher (entfällt, «gedeckt»). Nutzerentscheid 14.10.2026: aus – mit der Kurvensichtweite bringt die gedeckte
+// Zufahrt keine neue Erkenntnis; in 42 Referenzstreifen und 180 Übergängen war keine verdeckt. Schalter und Code bleiben
+export const GEDECKT_RECHNEN = false
+let gedecktRechnen = GEDECKT_RECHNEN
+/** Nur für Tests: Schalter GEDECKT_RECHNEN umstellen (null = Vorgabe) */
+export const gedecktRechnenSetzen = (an: boolean | null) => { gedecktRechnen = an ?? GEDECKT_RECHNEN }
+// «Fahrstreifen fast parallel»: kleinster Betrag des Kreuzprodukts der beiden Fahrstreifengeraden (geraden), darunter kein
+// brauchbarer Schnittpunkt. An die Nebenast-Grenze gekoppelt (13.10.2026): 0,6 · sin(NEBENAST_GRAD), höchstens 0,2 (der Wert
+// bis 13.10.2026, sin 11,5°). Mit NEBENAST_GRAD 10° sind das 0,104 = sin 6,0°: jeder Arm ab 10° Drehung wird gerechnet (mit 0,2
+// fielen Arme mit 10–11,5° Drehung als «geometrie» weg). Reserve rund 4°, weil die Drehung die OSM-Achse misst (Sehne 10 m),
+// die Geraden aber je 3 m Fahrstreifenmitte am Knoten. Die Obergrenze 0,2 hält die Grenze bei einer höheren Nebenast-Grenze
+// beim bisherigen Wert (NEBENAST_GRAD 30° -> 0,2 wie bisher), statt Arme zu verwerfen, deren Fahrstreifen flacher münden, als
+// die Drehung zeigt
+export const PARALLEL_MIN = Math.min(0.2, 0.6 * Math.sin(NEBENAST_GRAD * Math.PI / 180))
 const ECK_GROSS_M = 23.5
 const ECKE_AN_FAHRSTREIFEN = true
 const ECKE_FS_MAX_M = 6.0
@@ -283,7 +305,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     const kb0 = kb[0][0]
     const dB = einheit(sub(kb0, kb[1][0]))
     const kr = dB[0] * dA[1] - dB[1] * dA[0]
-    if (Math.abs(kr) < 0.2) return null
+    if (Math.abs(kr) < PARALLEL_MIN) return null
     const t = ((kb0[0] - pa1[0]) * dB[1] - (kb0[1] - pa1[1]) * dB[0]) / (dA[0] * dB[1] - dA[1] * dB[0])
     return [pa1, dA, kb0, dB, kr, add(pa1, dA, t), Math.max(la, 3), lb]
   }
@@ -341,6 +363,12 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     radiusQuelleB = `AV-Bordkante ${f1(rBord)} m + ${f1(abstL)} m`
   } else if (ohneAbstLinks) radiusQuelleB = `geschätzt (AV-Ecke ${f1(rBord!)} m, Abstand links nicht gemessen)`
   const halbA = k.fs ? k.fs.breite / 2 : BREITE_ERSATZ / 2
+  // Deckung durch die gerade Zufahrt (SPEC 3.6, GEDECKT_NUR_MIT_GERADE, GEDECKT_BIS_KNOTEN) bei Kurvensichtweite sk: Knoten
+  // jenseits beider Sichtweiten bzw. jenseits der Kurvensichtweite mit deckender gerader Zufahrt. Dieselbe Regel für die
+  // Radiuswahl an der AV-Ecke (gedecktBei) und für die Zufahrt (unten)
+  const geradeDeckt = hatG && (!GEDECKT_BIS_KNOTEN || (!k.geradeEntfaellt && k.swAlt >= Math.min(bisKnoten, k.swEigen)))
+  const gedecktBeiSw = (sk: number): boolean =>
+    (bisKnoten >= Math.max(sk, k.swEigen) && (geradeDeckt || !GEDECKT_NUR_MIT_GERADE)) || (bisKnoten > sk && geradeDeckt)
   const halbB = fsB ? fsB.breite / 2 : BREITE_ERSATZ / 2
   let radiusB = radiusAv !== null ? radiusAv : Math.max(RADIUS_MIN, (halbA + halbB + 2 * KURVE_ZUSATZ) / 2 / Math.tan(ablenkung / 2))
   const geo: { sprung?: number; sTb?: number; lB?: number; ta?: P; tb?: P; taBogen?: boolean; sTa?: number; tangential?: boolean
@@ -743,23 +771,22 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   if (ECKE_AN_FAHRSTREIFEN && radiusAv !== null && bogenRegel && eckMitte !== null) {
     const [grundE] = eckeAnFs()
     if (grundE) {
-      // nur, wenn die Schätzung eine brauchbare Fahrlinie gibt und die Zufahrt dadurch nicht still «gedeckt» wird
+      // nur, wenn die Schätzung eine brauchbare Fahrlinie gibt und die Zufahrt dadurch nicht still «gedeckt» wird (mit
+      // GEDECKT_RECHNEN: nicht erst durch die Schätzung zur gedeckten wird; Radiuswahl wie bisher)
       const rAvEcke = radiusAv
       radiusAv = null
       const rSch = Math.max(RADIUS_MIN, (halbA + halbB + 2 * KURVE_ZUSATZ) / 2 / Math.tan(ablenkung / 2))
       const pr_ = linieB(30, 30 + h, rSch)
       radiusAv = rAvEcke
       const gedecktBei = (R_: number): boolean => {
-        let sk_ = sichtweiteKurve(R_)[0]
-        sk_ = sk_ === null || sk_ >= swTab1B ? swTab1B : sk_
-        const dk_ = hatG && (!GEDECKT_BIS_KNOTEN || (!k.geradeEntfaellt && k.swAlt >= Math.min(bisKnoten, k.swEigen)))
-        return (bisKnoten >= Math.max(sk_, k.swEigen) && (dk_ || !GEDECKT_NUR_MIT_GERADE)) || (bisKnoten > sk_ && dk_)
+        const sk_ = sichtweiteKurve(R_)[0]
+        return gedecktBeiSw(sk_ === null || sk_ >= swTab1B ? swTab1B : sk_)
       }
       if (!(pr_ && streifenAbstand(pr_[0][0]) <= STREIFEN_TOL_M && kehre(pr_[0]) <= KEHRE_GRAD &&
         pr_[0].filter(aufFb).length >= SCHAETZUNG_AUF_FAHRBAHN * pr_[0].length)) {
         annahmen.push(`AV-Ecke bleibt (${grundE}; Schätzung ohne brauchbare Fahrlinie)`)
       } else if (gedecktBei(rSch) && !gedecktBei(radiusB)) {
-        annahmen.push(`AV-Ecke bleibt (${grundE}; Schätzung wäre gedeckt)`)
+        annahmen.push(`AV-Ecke bleibt (${grundE}; Schätzung wäre durch die gerade Zufahrt mitgeprüft)`)
       } else {
         eckeFs = grundE
         bogenRegel = ''
@@ -810,32 +837,47 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     if (dot(sub(eckMitte, j), bisEcke) <= 0) eckFrage = 'Kreismitte hinter dem Knoten'
     else if (rBord! > ECK_GROSS_M) eckFrage = `Bordkante ${f1(rBord!)} m`
   }
-  let [swK, quelleK] = sichtweiteKurve(radiusB)
-  if (swK === null || swK >= swTab1B) { swK = swTab1B; quelleK = 'VSS Tab. 1' }
-  let bisKnotenText = `Knoten ${f1(bisKnoten)} m, Kurve ${swK} m, eigene Strasse ${k.swEigen} m`
-  if (k.geradeGestrichen) bisKnotenText += ', gerade Zufahrt von Hand gestrichen (deckt nicht)'
-  if (hatG && !k.geradeEntfaellt && k.swAlt < k.swEigen) bisKnotenText += `, gerade Zufahrt ${k.swAlt} m (${k.swQuelle})`
-  const geradeDeckt = hatG && (!GEDECKT_BIS_KNOTEN || (!k.geradeEntfaellt && k.swAlt >= Math.min(bisKnoten, k.swEigen)))
+  // Kurvensichtweite zum Radius R: bfu bzw. VSS Tab. 2, höchstens Tab. 1 der Querstrasse
+  const kurveSw = (R: number): [number, string] => {
+    const [sk_, q_] = sichtweiteKurve(R)
+    return sk_ === null || sk_ >= swTab1B ? [swTab1B, 'VSS Tab. 1'] : [sk_, q_!]
+  }
+  const [swK, quelleK] = kurveSw(radiusB)
   const kuerzer = hatG && !geradeDeckt
-  if (kuerzer) bisKnotenText += ', gerade Zufahrt reicht nicht bis zum Knoten'
-  const ohneDeckung = bisKnoten >= Math.max(swK, k.swEigen)
-  if (ohneDeckung && (geradeDeckt || !GEDECKT_NUR_MIT_GERADE)) return weg('gedeckt', bisKnotenText)
+  // Text zur Deckung bei Kurvensichtweite sk: Entfallen-Text (Grund «gedeckt») bzw. Feld «deckung». Wortlaut seit 14.10.2026
+  // ohne «gedeckt»/«deckt» (Nutzerentscheid; bis dahin «Knoten … m, Kurve … m, eigene Strasse … m»). Ohne deckende gerade
+  // Zufahrt (nur mit GEDECKT_NUR_MIT_GERADE bzw. GEDECKT_BIS_KNOTEN aus erreichbar) steht Tab. 1 der eigenen Strasse da
+  const deckungText = (sk: number): string => `Knoten ${f1(bisKnoten)} m vor dem Streifen; Kurvensichtweite des Abbiegers ${sk} m; ` +
+    (!geradeDeckt ? `Tab. 1 eigene Strasse ${k.swEigen} m` : !k.geradeEntfaellt && k.swAlt < k.swEigen
+      ? `die gerade Zufahrt prüft diese Strecke über ${k.swAlt} m mit (${k.swQuelle}; Tab. 1 eigene Strasse ${k.swEigen} m)`
+      : `die gerade Zufahrt prüft diese Strecke über ${k.swEigen} m mit`) +
+    (k.geradeGestrichen ? '; gerade Zufahrt von Hand gestrichen (prüft nicht mit)' : '') +
+    (kuerzer ? '; gerade Zufahrt reicht nicht bis zum Knoten' : '')
+  // Quelle der Sichtweite einer gedeckten Zufahrt (GEDECKT_RECHNEN): Kurvensichtweite, ab dem Knoten prüft die gerade Zufahrt
+  const quelleGedeckt = (q: string) => `${q === 'VSS Tab. 1' ? 'Kurvensichtweite, höchstens VSS Tab. 1' : `Kurvensichtweite (${q})`}; ab dem Knoten prüft die gerade Zufahrt mit`
+  // gedeckt: bisher entfallen; mit GEDECKT_RECHNEN gerechnet mit der Kurvensichtweite (nicht «bis Knoten») und gezählt
+  let deckung: string | null = null
+  if (gedecktBeiSw(swK)) {
+    if (!gedecktRechnen) return weg('gedeckt', deckungText(swK))
+    deckung = deckungText(swK)
+  }
+  // Fahrlinie passt nicht: bei einer gedeckten Zufahrt mit dem Deckungstext (bisher entfiel sie als «gedeckt»)
+  const wegGeometrie = (q: string) => weg('geometrie', deckung !== null ? `${q}; durch die gerade Zufahrt mitgeprüft: ${deckung}` : q)
   const quelleKnotenB = kuerzer ? 'bis Knoten (gerade Zufahrt kürzer)' : 'bis Knoten (Tab. 1 eigene Strasse' +
     (k.tempo !== tempoB ? `, Tempo ${k.tempo})` : ')')
   let swB: number, swQuelleB: string, swBBasis: number
   const bisB: [string, number][] = []
-  if (bisKnoten > swK) {
-    if (geradeDeckt) return weg('gedeckt', bisKnotenText)
+  if (bisKnoten > swK && deckung === null) {
     swB = Math.min(Math.ceil(bisKnoten), k.swEigen); swQuelleB = quelleKnotenB
     swBBasis = k.swEigen; bisB.push(['knoten', dj])
-  } else { swB = swK; swQuelleB = quelleK!; swBBasis = swB }
+  } else { swB = swK; swQuelleB = deckung !== null ? quelleGedeckt(quelleK) : quelleK; swBBasis = swB }
   let gesamtB = swB + h
   let lb = linieB(swB, gesamtB, radiusB)
-  if (lb === null) return weg('geometrie', 'keine Fahrlinie (Bogen)')
+  if (lb === null) return wegGeometrie('keine Fahrlinie (Bogen)')
   const startAbst = streifenAbstand(lb[0][0])
-  if (startAbst > STREIFEN_TOL_M) return weg('geometrie', `Fahrlinie beginnt ${f1(startAbst)} m neben dem Streifen`)
+  if (startAbst > STREIFEN_TOL_M) return wegGeometrie(`Fahrlinie beginnt ${f1(startAbst)} m neben dem Streifen`)
   if (schaetzung !== null && schaetzung[0] < SCHAETZUNG_AUF_FAHRBAHN)
-    return weg('geometrie', `geschätzte Fahrlinie nur zu ${(100 * schaetzung[0]).toFixed(0)} % auf der Fahrbahn`)
+    return wegGeometrie(`geschätzte Fahrlinie nur zu ${(100 * schaetzung[0]).toFixed(0)} % auf der Fahrbahn`)
   let hinweisEnde = false
   if (hinB) {
     const s_ende = naechsterAufSpur(punktAuf(arm, hinBM!), lb[2])![1]
@@ -846,7 +888,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
       bisB.push(['ende', s_ende])
       swQuelleB = hinB === 'strassenende' ? 'bis Knoten (Strassenende)' : 'bis Wegende'
       lb = linieB(swB, gesamtB, radiusB)
-      if (lb === null) return weg('geometrie', 'keine Fahrlinie (Bogen)')
+      if (lb === null) return wegGeometrie('keine Fahrlinie (Bogen)')
     }
   }
   // Sicherheitsnetz
@@ -877,7 +919,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     lb = [pts, null, lb[2]]
   }
   if (radiusAv === null && kehre(lb[0]) > KEHRE_GRAD)
-    return weg('geometrie', `geschätzte Fahrlinie kehrt um (Richtungswechsel ${kehre(lb[0]).toFixed(0)}°)`)
+    return wegGeometrie(`geschätzte Fahrlinie kehrt um (Richtungswechsel ${kehre(lb[0]).toFixed(0)}°)`)
   // Beginn am Umriss
   const swBeiB = (h_: number): number => {
     let sw_ = swBBasis
@@ -905,12 +947,20 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     lb = [ptsP, null, lb[2]]
     if (info && info.n) annahmen.push(`${info.n} Sichtpunkte für 1,5 m Abstand zu Parkfeldern verschoben`)
   }
-  // Spur von Hand B (Linie) mit Radius von Hand: Sichtweite aus dem Radius (sichtweite_radius_hand)
+  // Spur von Hand B (Linie) mit Radius von Hand: Sichtweite aus dem Radius (sichtweite_radius_hand). Mit GEDECKT_RECHNEN
+  // entscheidet der Radius von Hand auch die Deckung neu, nach derselben Regel wie oben: gedeckt -> Kurvensichtweite aus dem
+  // Radius von Hand (am Strassen- bzw. Wegende das kürzere, wie sichtweite_radius_hand), sonst ohne «deckung»
   const spurH = k.vonHand?.spur?.(fid, kennungArm(a)) ?? null
   let radiusText: string | null = null, radiusHand: number | null = null, lageHand = false
   if (spurH && spurH.art === 'B' && spurH.linie.length >= 2) {
     if (spurH.radius) {
-      const [swH, qH] = sichtweiteRadiusHand(spurH.radius, swB, swQuelleB, tempoB, bisKnoten, k.swEigen, quelleKnotenB)
+      let [swH, qH] = sichtweiteRadiusHand(spurH.radius, swB, swQuelleB, tempoB, bisKnoten, k.swEigen, quelleKnotenB)
+      if (gedecktRechnen) {
+        const [skH, qkH] = kurveSw(spurH.radius)
+        const ende = swQuelleB === 'bis Knoten (Strassenende)' || swQuelleB === 'bis Wegende'
+        deckung = gedecktBeiSw(skH) ? deckungText(skH) : null
+        if (deckung !== null && (!ende || skH < swB)) { swH = skH; qH = quelleGedeckt(qkH) }
+      }
       radiusText = `von Hand (Fahrlinie von Hand); berechnet ${Number.isFinite(radiusB) ? radiusRunden(radiusB).toFixed(1).replace('.', ',') : '–'} m (${radiusQuelleB})`
       radiusHand = spurH.radius
       swB = swH; swQuelleB = qH
@@ -928,9 +978,10 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   if (fsB?.osm?.breit) hinweiseB.push('fahrstreifen_einspurig_breit')
   if (armOsm !== null || knotenHoch) hinweiseB.push('bruecke')
   if (lageHand) hinweiseB.push('spur_hand')
+  if (deckung !== null) hinweiseB.push('gedeckt')
   const fh = fsHinweis(fsoB, fsDvB)
   if (fh) hinweiseB.push(...fh.split(';'))
-  if (swQuelleB === 'VSS Tab. 2') {
+  if (swQuelleB === 'VSS Tab. 2' || swQuelleB === quelleGedeckt('VSS Tab. 2')) {
     const ftE = zf.g !== null ? fahrstreifenTags(netz.w(zf.g.wid).t, zf.sd! > 0) : null
     if ((fsoB?.n ?? 0) > 1 || (ftE?.[0] ?? 0) > 1) hinweiseB.push('tab2_mehrstreifig')
   }
@@ -951,6 +1002,6 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     sichtpunktVomRandM: fsB ? Math.round(fsB.vomRand * 100) / 100 : null, lageQuelle: lageHand ? 'Hand' : armOsm !== null ? 'OSM' : fsB ? 'AV' : 'Annahme',
     ...k.basisErgebnis(), einbahnQuelle: null, osmWeg: String(a.wid), osmKnoten: String(a.knoten), ersterKnotenM: null,
     netzHinweis: [...new Set(hinweiseB)], punkteVerschoben: nVerschB, sichtpunkte: sichtpunkteB, feld: feldB, spur: lb[2],
-    annahmen,
+    annahmen, ...(deckung !== null ? { deckung } : {}),
   }
 }

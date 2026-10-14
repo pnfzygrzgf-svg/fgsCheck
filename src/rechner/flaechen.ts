@@ -34,20 +34,28 @@ class Raster {
   zellen = new Map<string, Teil[]>()
   teile: Teil[] = []
   constructor(av: AvFlaeche[], arten: string[]) {
-    for (const f of av) {
-      if (!arten.includes(f.art)) continue
-      const poly = sauber(f.ringe)
-      if (!poly.length) continue
-      const t: Teil = { poly, env: env(poly), art: f.art }
-      this.teile.push(t)
-      const [x0, y0, x1, y1] = t.env
-      for (let gx = Math.floor(x0 / ZELLE); gx <= Math.floor(x1 / ZELLE); gx++)
-        for (let gy = Math.floor(y0 / ZELLE); gy <= Math.floor(y1 / ZELLE); gy++) {
-          const k = `${gx},${gy}`
-          if (!this.zellen.has(k)) this.zellen.set(k, [])
-          this.zellen.get(k)!.push(t)
-        }
-    }
+    for (const f of av) if (arten.includes(f.art)) this.hinzu(f.ringe, f.art)
+  }
+  private hinzu(ringe: P[][], art: string): void {
+    const poly = sauber(ringe)
+    if (!poly.length) return
+    const t: Teil = { poly, env: env(poly), art }
+    this.teile.push(t)
+    const [x0, y0, x1, y1] = t.env
+    for (let gx = Math.floor(x0 / ZELLE); gx <= Math.floor(x1 / ZELLE); gx++)
+      for (let gy = Math.floor(y0 / ZELLE); gy <= Math.floor(y1 / ZELLE); gy++) {
+        const k = `${gx},${gy}`
+        if (!this.zellen.has(k)) this.zellen.set(k, [])
+        this.zellen.get(k)!.push(t)
+      }
+  }
+  /** Kopie mit zusätzlichen Flächen (je ein Ring) der Art art; das Original bleibt unverändert */
+  mit(ringe: P[][], art: string): Raster {
+    const r = new Raster([], [])
+    r.teile = [...this.teile]
+    for (const [k, v] of this.zellen) r.zellen.set(k, [...v])
+    for (const ring of ringe) r.hinzu([ring], art)
+    return r
   }
   bei(p: P): Teil[] { return this.zellen.get(`${Math.floor(p[0] / ZELLE)},${Math.floor(p[1] / ZELLE)}`) ?? [] }
   imUmkreis(p: P, r: number): Teil[] {
@@ -128,6 +136,12 @@ export class Fahrbahn {
 export class Inseln {
   r: Raster
   constructor(av: AvFlaeche[]) { this.r = new Raster(av, ['Verkehrsinsel']) }
+  /** Kopie mit zusätzlichen Inseln (angenommen bzw. von Hand, nicht in der AV) */
+  mit(ringe: P[][]): Inseln {
+    const x = new Inseln([])
+    x.r = this.r.mit(ringe, 'Verkehrsinsel')
+    return x
+  }
   /** Inseln.an: Insel höchstens radius von p */
   an(p: P, radius = INSEL_TREFFER_M): boolean {
     return this.r.imUmkreis(p, radius).some(t => abstandPunkt([t.poly], p) <= radius)
@@ -160,6 +174,12 @@ export class Gebaeude {
 export class Flaechen {
   r: Raster
   constructor(av: AvFlaeche[], arten: string[]) { this.r = new Raster(av, arten) }
+  /** Kopie mit zusätzlichen Flächen der Art art (z. B. angenommene Inseln) */
+  mit(ringe: P[][], art: string): Flaechen {
+    const x = new Flaechen([], [])
+    x.r = this.r.mit(ringe, art)
+    return x
+  }
   art(p: P): string | null {
     const t = this.r.bei(p).find(x => imPolygon(p, x.poly))
     return t ? t.art : null

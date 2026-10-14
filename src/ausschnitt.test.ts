@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { enthaelt, erweitern, imCache, aufnehmen, vereinigen, flaecheKm2, abfrageBox, zuGross, ABFRAGE_ZIEL_KM2, type Box,
+import { enthaelt, erweitern, imCache, aufnehmen, vereinigen, vereinigenNamen, flaecheKm2, abfrageBox, zuGross, ABFRAGE_ZIEL_KM2, type Box,
   type CacheEintrag } from './ausschnitt'
 
 const box = (s: number, w: number, n: number, e: number): Box => ({ s, w, n, e })
@@ -37,6 +37,16 @@ describe('Ausschnitt-Cache', () => {
   it('vereinigen: nach id ohne Doppel, der neuere Eintrag gilt', () => {
     const v = vereinigen([eintrag(box(0, 0, 1, 1), [1, 2], 'alt'), eintrag(box(0.5, 0, 2, 1), [2, 3], 'neu')])
     expect(v.map(x => `${x.id}${x.tag}`).sort()).toEqual(['1alt', '2neu', '3neu'])
+  })
+  it('Strassennamen: mit den Ausschnitten aufgenommen und verdrängt, nach Weg-id ohne Doppel', () => {
+    const e = (b: Box, ids: number[], namen: number[]): CacheEintrag<{ id: number }, { id: number; name: string }> =>
+      ({ box: b, daten: ids.map(id => ({ id })), namen: namen.map(id => ({ id, name: `W${id}` })) })
+    let c = [e(box(0, 0, 1, 1), [1], [100, 101]), e(box(5, 5, 6, 6), [2], [101, 102])]
+    expect(vereinigenNamen(c).map(n => n.id).sort()).toEqual([100, 101, 102])
+    c = aufnehmen(c, e(box(10, 10, 11, 11), [3], [103]), 2)              // ältester Ausschnitt fällt weg, seine Namen auch
+    expect(vereinigenNamen(c).map(n => n.id).sort()).toEqual([101, 102, 103])
+    const ohne: CacheEintrag<{ id: number }, { id: number }>[] = [{ box: box(0, 0, 1, 1), daten: [] }]
+    expect(vereinigenNamen(ohne)).toEqual([])
   })
   it('flaecheKm2: 0,01° × 0,01° bei 47° N rund 0,85 km²', () => {
     expect(flaecheKm2(box(46.995, 7.4, 47.005, 7.41))).toBeCloseTo(1.1132 * 1.1132 * Math.cos(47 * Math.PI / 180), 3)

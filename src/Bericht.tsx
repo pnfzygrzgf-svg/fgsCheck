@@ -17,7 +17,7 @@ import type { Multi } from './rechner/poly'
 import { SICHTWEITE, KURVE_SICHTWEITE } from './rechner/tempo'
 import { lv95, dist, type P } from './geo'
 import { wmsBildUrl, LUFTBILD_QUELLE } from './daten/luftbild'
-import { STATUS_FARBE, UEBERGANG_TEXT, hindernisFarbe, hindernisText } from './Karte'
+import { STATUS_FARBE, STRICH_GEDECKT, UEBERGANG_TEXT, INSEL_FARBE, STRICH_INSEL, hindernisFarbe, hindernisText, INSEL_TEXT } from './Karte'
 import { GRUND, ART, STATUS, statusText, f1, f2 } from './texte'
 
 const APP_URL = 'https://pnfzygrzgf-svg.github.io/fgsCheck/'
@@ -86,6 +86,9 @@ function BerichtKarte({ r, hindernisse, ort, onBereit }: {
   // Massstab: runde Länge um ein Fünftel der Breite
   const mass = [5, 10, 20, 25, 50, 100, 200].reduce((b, x) => (Math.abs(x - wM / 5) < Math.abs(b - wM / 5) ? x : b), 10)
   const halo = { stroke: '#ffffff', strokeWidth: 5, paintOrder: 'stroke' as const, strokeLinejoin: 'round' as const }
+  // gedeckte Abbiegezufahrten (nur mit GEDECKT_RECHNEN, standardmässig aus), beschriftet wie im Bild
+  const gedeckte = r.streifen.flatMap(st => st.zufahrten).filter(z => z.deckung)
+    .map(z => `${r.streifen.length > 1 ? `${z.fgsId}/` : ''}${z.zufahrt}`)
   return (
     <figure className="bericht-karte">
       <div className="bericht-bild" style={{ aspectRatio: `${bw} / ${bh}` }}>
@@ -110,6 +113,10 @@ function BerichtKarte({ r, hindernisse, ort, onBereit }: {
             return <path key={'h' + h.id} d={pfad(ringe, !linie)} fill={linie ? 'none' : farbe} fillOpacity={0.35} stroke={farbe}
               strokeWidth={linie ? 5 : 2} />
           })}
+          {(r.inseln ?? []).map((z, i) => (
+            <path key={'i' + i} d={pfad([z.ring])} fill={INSEL_FARBE} fillOpacity={0.15} stroke={INSEL_FARBE} strokeWidth={2.5}
+              strokeDasharray={STRICH_INSEL.split(' ').map(x => Number(x) * 2).join(' ')} />
+          ))}
           {r.streifen.flatMap(st => st.zufahrten).flatMap(z => z.konflikte.map((k, i) => (
             <path key={'k' + z.fgsId + z.zufahrt + i} d={multi(k.geom)} fillRule="evenodd" fill="url(#schraffur)" stroke="#000000" strokeWidth={1.5} />
           )))}
@@ -121,7 +128,7 @@ function BerichtKarte({ r, hindernisse, ort, onBereit }: {
           ))}
           {r.streifen.flatMap(st => st.zufahrten).map(z => (
             <g key={'p' + z.fgsId + z.zufahrt}>
-              <polyline points={z.spur.map(xy).join(' ')} fill="none" stroke="#ffffff" strokeWidth={1.5} strokeDasharray="5 5" />
+              <polyline points={z.spur.map(xy).join(' ')} fill="none" stroke="#ffffff" strokeWidth={1.5} strokeDasharray={z.deckung ? STRICH_GEDECKT : '5 5'} />
               {z.sichtpunkte.map((p, i) => {
                 const ende = i === 0 || i === z.sichtpunkte.length - 1
                 const [x, y] = xy(p).split(',').map(Number)
@@ -158,6 +165,11 @@ function BerichtKarte({ r, hindernisse, ort, onBereit }: {
         der Farbe des Status (durchgezogen: frei, gestrichelt: verdeckt, gepunktet: nicht geprüft); schraffiert: Hindernis im Sichtfeld;
         schwarze Punkte: Sichtpunkte auf der Fahrlinie (weiss gestrichelt), beschriftet am letzten Sichtpunkt mit der Zufahrt; farbige
         Flächen: Hindernisse (Parkfelder, Bäume, Hecken, Mauern).
+        {(r.inseln ?? []).length > 0 && <> Grün gestrichelt: {INSEL_TEXT} (crossing:island in OSM und Lücke zwischen den Balken im
+          Luftbild).</>}
+        {hindernisse.some(h => h.art === 'insel') && <> Grün: Insel von Hand.</>}
+        {gedeckte.length > 0 && <> Abbiegezufahrt{gedeckte.length > 1 ? 'en' : ''} {gedeckte.join(', ')} (mitgeprüft): Weg ab dem Knoten durch die
+          gerade Zufahrt mitgeprüft, selbst geprüft und für den Status gezählt; Fahrlinie weiss gepunktet.</>}
       </figcaption>
     </figure>
   )
@@ -174,7 +186,8 @@ function zufahrtName(r: FallRechnung | null, key: string): string {
 function eingabenListe(fall: Fall, r: FallRechnung | null): string[] {
   const aus: string[] = []
   for (const s of fall.streifenHand) aus.push(`Streifen ${s.id}: ${f1(dist(s.p0, s.p1))} m lang, ${f1(s.breite)} m breit, ${streifenHerkunftText(s)}`)
-  for (const h of fall.hindernisse) aus.push(`Hindernis: ${hindernisText(h)}` + ((h.art === 'hecke' || h.art === 'mauer' || h.art === 'uebrige') ?
+  for (const h of fall.hindernisse) aus.push(h.art === 'insel' ? 'Insel von Hand (teilt den Streifen wie eine AV-Verkehrsinsel, ersetzt die Insel nach OSM und Luftbild)' :
+    `Hindernis: ${hindernisText(h)}` + ((h.art === 'hecke' || h.art === 'mauer' || h.art === 'uebrige') ?
     (h.sichtbehindernd ? ', sichtbehindernd' : ', nicht sichtbehindernd') : '') + (h.art === 'parkfeld' ? `, Klasse ${h.klasse}` : ''))
   for (const [k, z] of Object.entries(fall.zufahrten)) {
     const teile: string[] = []
@@ -205,7 +218,8 @@ function hinweisListe(r: FallRechnung, fall: Fall, luftbildStand: LuftbildStand)
   const lb = r.luftbild
   if (lb) aus.push(lb.befund === 'erkannt' ? `Luftbild: Streifen erkannt (${lb.teile.map(t => `${t.nBalken} Balken`).join(' + ')}) – aus Luftbild, prüfen` +
       (r.streifenQuelle === 'luftbild' ? '; die Rechnung nutzt ihn.' : r.streifenQuelle === 'hand' ? '; die Rechnung nutzt die Streifen von Hand.' : '.')
-    : lb.befund === 'unsicher' ? `Luftbild: Muster unsicher (${lb.gruende.join('; ')}); Streifen aus OSM + AV.`
+    : lb.befund === 'unsicher' ? `Luftbild: Muster unsicher (${lb.gruende.join('; ')}); Streifen aus OSM + AV` +
+      `${r.inselTeilt ? ', an der Insel aus dem Luftbild geteilt' : ''}.`
       : `Luftbild: kein Streifen gefunden (${lb.gruende.join('; ')}); Streifen aus OSM + AV.`)
   else if (fall.ort.uebergang !== null && fall.luftbild !== false && !fall.streifenHand.length) {
     if (luftbildStand === 'laedt') aus.push('Luftbild wird noch geladen: Streifen vorerst aus OSM + AV.')
@@ -246,7 +260,7 @@ function StreifenTabelle({ s, fall }: { s: StreifenErgebnis; fall: Fall }) {
           <tbody>
             {s.zufahrten.map(z => (
               <tr key={z.zufahrt}>
-                <td><b>{z.zufahrt}</b>{z.strasse ? <div className="klein">{z.strasse}</div> : null}</td>
+                <td><b>{z.zufahrt}</b>{z.deckung && <span className="klein"> (mitgeprüft)</span>}{z.strasse ? <div className="klein">{z.strasse}</div> : null}</td>
                 <td>{ART[z.art] ?? z.art}</td>
                 <td>{z.tempo} km/h<div className="klein">{z.tempoQuelle === 'Ersatz' ? 'Annahme (ohne Angabe)' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : 'OSM'}</div></td>
                 <td>{z.sichtweite} m<div className="klein">{z.sichtweiteQuelle}{z.kurvenradiusM != null ? `, R ${f1(z.kurvenradiusM)} m` : ''}</div></td>
@@ -349,7 +363,9 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
           <ul className="bericht-status">
             {rechnung.streifen.map(s => <li key={s.fgsId}>Streifen {s.fgsId}{s.strasse ? ` (${s.strasse})` : ''}: <b>{STATUS[s.status] ?? s.status}</b>
               {' '}– {s.status === 'kein_fgs' ? 'von Hand als kein Fussgängerstreifen bezeichnet, Zufahrten nicht ausgewiesen'
-                : `${s.zufahrten.length} Zufahrt(en) geprüft, davon ${s.zufahrten.filter(z => z.status === 'frei').length} frei`}</li>)}
+                : `${s.zufahrten.length} Zufahrt(en) geprüft, davon ${s.zufahrten.filter(z => z.status === 'frei').length} frei` +
+                  (s.zufahrten.some(z => z.deckung) ? `; ${s.zufahrten.filter(z => z.deckung).length} durch die gerade Zufahrt ` +
+                    'mitgeprüfte Abbiegezufahrt(en) mitgezählt' : '')}</li>)}
           </ul>
         </section>
         {rechnung.streifen.map(s => <StreifenTabelle key={s.fgsId} s={s} fall={fall} />)}

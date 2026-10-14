@@ -12,6 +12,7 @@ import { abstandLinieMulti } from './poly'
 import { abstandHalten, PARK_ABSTAND_M } from './spur'
 import { rechneFall } from './index'
 import { linieKreis } from './spurhand'
+import { gedecktRechnenSetzen } from './abbiegen'
 import { leererFall, fallLesen, fallSchreiben, zufahrtSchluessel, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
   fallMerken, fallErinnern, imGebiet, type Fall } from '../fall'
 import { markierung } from '../daten/osm'
@@ -212,14 +213,95 @@ describe('Korrekturen nach Prüfung E2', () => {
     expect(naechsteHandId(f)).toBe('hand-4')
   })
   it('S2: gestrichene gerade Zufahrt deckt die Abbiegenden nicht mehr', () => {
+    // Vorgabe GEDECKT_RECHNEN aus (seit 14.10.2026 wieder wie bis 13.10.2026): die von der geraden Zufahrt mitgeprüften
+    // Abbiegezufahrten entfallen mit Grund «gedeckt»; nach dem Streichen der geraden Zufahrt werden sie selbst geprüft
     const d = daten()
     const r0 = rechneFall(d, AV, [], 12, fallMit(() => {}), null).streifen[0]
     const ged = r0.entfallen.filter(e => e.grund === 'gedeckt')
     expect(ged.length).toBeGreaterThan(0)
     const g = r0.zufahrten.find(z => z.art !== 'abbiegend' && z.richtung === 0)!
     const r1 = rechneFall(d, AV, [], 12, fallMit(x => { x.zufahrten[zufahrtSchluessel(r0.fgsId, g.kennung)] = { streichen: true } }), null).streifen[0]
-    expect(r1.entfallen.filter(e => e.grund === 'gedeckt').map(e => e.kennung)).not.toEqual(expect.arrayContaining(ged.map(e => e.kennung)))
-    expect(r1.zufahrten.some(z => z.art === 'abbiegend' && ged.some(e => e.kennung === z.kennung))).toBe(true)
+    expect(r1.entfallen.some(e => e.grund === 'gedeckt')).toBe(false)
+    const neu = r1.zufahrten.filter(z => z.art === 'abbiegend' && ged.some(e => e.kennung === z.kennung))
+    expect(neu.length).toBe(ged.length)
+    expect(neu.every(z => z.deckung === undefined && !z.netzHinweis.includes('gedeckt'))).toBe(true)
+    // ohne gerade Zufahrt prüft niemand die Strecke ab dem Knoten mit: «bis Knoten» mit Tab. 1 der eigenen Strasse
+    expect(neu.every(z => z.sichtweiteQuelle.startsWith('bis Knoten (Tab. 1 eigene Strasse'))).toBe(true)
+    // mit Schalter an dasselbe: vorher Zufahrten mit «deckung», nach dem Streichen ohne
+    try {
+      gedecktRechnenSetzen(true)
+      const a0 = rechneFall(d, AV, [], 12, fallMit(() => {}), null).streifen[0]
+      expect(a0.zufahrten.filter(z => z.deckung).map(z => z.kennung)).toEqual(ged.map(e => e.kennung))
+      const a1 = rechneFall(d, AV, [], 12, fallMit(x => { x.zufahrten[zufahrtSchluessel(r0.fgsId, g.kennung)] = { streichen: true } }), null).streifen[0]
+      expect(a1.zufahrten.filter(z => ged.some(e => e.kennung === z.kennung)).every(z => z.deckung === undefined)).toBe(true)
+    } finally { gedecktRechnenSetzen(null) }
+  })
+  it('Schalter GEDECKT_RECHNEN an: gedeckte Abbiegezufahrt mit Eingaben über die Kennung, Ergebnis zählt für den Streifenstatus', () => {
+    try {
+      gedecktRechnenSetzen(true)
+      const fid = rechneFall(daten(), AV, [], 12, fallMit(() => {}), null).streifen[0].fgsId
+      const key = zufahrtSchluessel(fid, 'k11:w2+')
+      // Fahrlinie von Hand am Rand (Rechtsabbieger) und ein Baum auf der Fahrbahn direkt an einem Sichtpunkt der geraden
+      // Zufahrt w1+ (dort unter 1 m: zählt nicht), im Sichtfeld der gedeckten Abbiegezufahrt. Mit der Kurvensichtweite (hier
+      // 10 m, seit 13.10.2026) liegt deren Sichtfeld sonst ganz in dem der geraden Zufahrt; mit «bis Knoten» (38 m) stand der
+      // Baum auf dem Trottoir am Arm (-30/-4,6), den die Sichtpunkte jetzt nicht mehr erreichen
+      const mit = (x: Fall) => {
+        x.zufahrten[key] = { spur: { art: 'B', linie: [lv(-2, -3), lv(-37, -3), lv(-38.5, -5), lv(-38.5, -30)] } }
+        x.hindernisse.push({ id: 'b', art: 'baum', p: lv(-8, -1.8), stamm: 0.5, quelle: 'hand' })
+      }
+      const s = rechneFall(daten(), AV, [], 12, fallMit(mit), null).streifen[0]
+      const ab = s.zufahrten.find(z => z.kennung === 'k11:w2+')!
+      expect(ab.deckung).toBeDefined()
+      expect(ab.lageQuelle).toBe('Hand')
+      expect(ab.sichtweite).toBe(10)                     // Kurvensichtweite, auch entlang der Fahrlinie von Hand
+      expect(ab.netzHinweis).toEqual(expect.arrayContaining(['spur_hand', 'gedeckt']))
+      expect(ab.status).toBe('verdeckt_baum')
+      expect(s.zufahrten.filter(z => z !== ab).map(z => z.status)).toEqual(['frei', 'frei'])
+      expect(s.status).toBe('verdeckt_baum')
+      // Streichen über die Kennung
+      const g = rechneFall(daten(), AV, [], 12, fallMit(x => { x.zufahrten[key] = { streichen: true } }), null).streifen[0]
+      expect(g.zufahrten.map(z => z.kennung)).not.toContain('k11:w2+')
+      expect(g.entfallen.find(e => e.kennung === 'k11:w2+')?.grund).toBe('hand')
+      // Vorgabe (Schalter aus): entfällt «gedeckt», der Baum zählt nicht; die Eingabe hat keine Zufahrt mehr, gilt aber nicht
+      // als verwaist (ihre Kennung steht unter «entfallen»)
+      gedecktRechnenSetzen(null)
+      const fAus = fallMit(mit)
+      const r = rechneFall(daten(), AV, [], 12, fAus, null)
+      expect(r.streifen[0].status).toBe('frei')
+      expect(r.streifen[0].zufahrten.map(z => z.kennung)).not.toContain('k11:w2+')
+      expect(r.streifen[0].entfallen.find(e => e.kennung === 'k11:w2+')?.grund).toBe('gedeckt')
+      expect(eingabenVerwaist(fAus, r.streifen)).toEqual([])
+    } finally { gedecktRechnenSetzen(null) }
+  })
+  it('Schalter GEDECKT_RECHNEN an: Tempo von Hand gilt, Radius von Hand entscheidet die Deckung neu', () => {
+    const fid = rechneFall(daten(), AV, [], 12, fallMit(() => {}), null).streifen[0].fgsId
+    const key = zufahrtSchluessel(fid, 'k11:w2+')
+    const linie = [lv(-2, -3), lv(-37, -3), lv(-38.5, -5), lv(-38.5, -30)]
+    const fall = (e: Fall['zufahrten'][string]) => rechneFall(daten(), AV, [], 12, fallMit(x => { x.zufahrten[key] = e }), null).streifen[0]
+    const ab = (e: Fall['zufahrten'][string]) => fall(e).zufahrten.find(z => z.kennung === 'k11:w2+')!
+    const kurve = 'Kurvensichtweite (bfu); ab dem Knoten prüft die gerade Zufahrt mit'
+    const text = (sk: number) => `Knoten 38,0 m vor dem Streifen; Kurvensichtweite des Abbiegers ${sk} m; die gerade Zufahrt prüft ` +
+      'diese Strecke über 55 m mit'
+    // Vorgabe (Schalter aus): mit Tempo von Hand entfällt sie «gedeckt», der Text nennt die Kurvensichtweite (R 5 m: bfu 10 m)
+    const e = fall({ tempo: 50 }).entfallen.find(x => x.kennung === 'k11:w2+')!
+    expect([e.grund, e.quelle]).toEqual(['gedeckt', text(10)])
+    try {
+      gedecktRechnenSetzen(true)
+      // Tempo von Hand: gilt; die Sichtweite bleibt die Kurvensichtweite (eckige AV-Ecke, R 5 m: bfu 10 m), weiter gedeckt
+      const t = ab({ tempo: 50 })
+      expect([t.tempo, t.tempoQuelle, t.sichtweite, t.sichtweiteQuelle]).toEqual([50, 'Korrektur', 10, kurve])
+      expect(t.deckung).toBe(text(10))
+      // Radius von Hand 12 m: bfu 20 m, der Knoten (38 m) liegt weiter weg -> weiter gedeckt, Sichtweite aus dem Handradius
+      const r12 = ab({ spur: { art: 'B', linie, radius: 12 } })
+      expect([r12.kurvenradiusM, r12.sichtweite, r12.sichtweiteQuelle]).toEqual([12, 20, kurve])
+      expect(r12.deckung).toBe(text(20))
+      expect(r12.netzHinweis).toEqual(expect.arrayContaining(['spur_hand', 'gedeckt']))
+      // Radius von Hand 30 m mit Tempo 50: VSS Tab. 2 40 m, der Knoten liegt innerhalb -> nicht gedeckt, ohne «deckung»
+      const r30 = ab({ tempo: 50, spur: { art: 'B', linie, radius: 30 } })
+      expect([r30.kurvenradiusM, r30.sichtweite, r30.sichtweiteQuelle, r30.deckung]).toEqual([30, 40, 'VSS Tab. 2', undefined])
+      expect(r30.netzHinweis).toContain('spur_hand')
+      expect(r30.netzHinweis).not.toContain('gedeckt')
+    } finally { gedecktRechnenSetzen(null) }
   })
   it('S3: crossing=uncontrolled ohne Markierung gilt als vermutlicher Fussgängerstreifen', () => {
     const r = rechneFall(daten({}, { highway: 'crossing', crossing: 'uncontrolled' }), AV, [], 12, fallMit(() => {}), null)

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { AvFlaeche } from './daten/av'
-import type { OsmKnoten } from './daten/osm'
+import type { OsmKnoten, Strassenname } from './daten/osm'
 import { markierung } from './daten/osm'
 import type { ZufahrtErgebnis } from './rechner/typen'
 import type { FallRechnung } from './rechner'
@@ -32,7 +32,15 @@ export const STATUS_FARBE: Record<string, string> = {
   frei: '#10b981', verdeckt: '#dc2626', verdeckt_gebaeude: '#dc2626', verdeckt_hindernis: '#ea580c', verdeckt_baum: '#ca8a04',
   verdeckt_zweirad: '#a855f7', kein_fgs: '#64748b', ohne_zufahrt: '#64748b',
 }
+/** Strichmuster der Fahrlinie einer gedeckten Abbiegezufahrt (nur mit GEDECKT_RECHNEN), in Karte und Bericht gleich */
+export const STRICH_GEDECKT = '2 8'
 export const LUFTBILD_FARBE = '#f59e0b'
+/** Insel ausserhalb der AV: angenommen nach OSM und Luftbild (gestrichelt, «prüfen») bzw. von Hand (durchgezogen) */
+export const INSEL_FARBE = '#65a30d'
+export const STRICH_INSEL = '6 4'
+/** Tooltip bzw. Legende einer angenommenen Insel (nach OSM und Luftbild; neutral, ob markiert oder gebaut: auch gebaute Inseln
+ * fehlen zuweilen in der AV, rechner/streifen.ts inselLuftbildText) */
+export const INSEL_TEXT = 'Insel angenommen (OSM/Luftbild), in der AV nicht erfasst – prüfen'
 export const QUELLE_FARBE: Record<string, string> = { hand: '#0ea5e9', osm: '#f97316', kataster: '#16a34a' }
 /**
  * Amtliche Parkfelder (Kataster der Stadt) nach Klasse, durchgezogen; verworfene gestrichelt und gedimmt. Farben abseits der
@@ -41,13 +49,22 @@ export const QUELLE_FARBE: Record<string, string> = { hand: '#0ea5e9', osm: '#f9
 export const PARK_FARBE: Record<string, string> = { auto: '#1e40af', velo: '#0f766e', motorrad: '#ec4899' }
 /** Farbe eines Hindernisses: amtliche Parkfelder nach Klasse, sonst nach Quelle */
 export const hindernisFarbe = (h: Hindernis): string =>
-  h.quelle === 'kataster' && h.art === 'parkfeld' ? PARK_FARBE[h.klasse] : QUELLE_FARBE[h.quelle] ?? '#0ea5e9'
+  h.art === 'insel' ? INSEL_FARBE : h.quelle === 'kataster' && h.art === 'parkfeld' ? PARK_FARBE[h.klasse] : QUELLE_FARBE[h.quelle] ?? '#0ea5e9'
 
 /** Hinweis über der Karte (Stand der Übergangssuche); erneut: Knopf «erneut suchen» (nur nach einem Fehler) */
 export interface KartenHinweis { text: string; fehler?: boolean; erneut?: () => void }
 
 export const STANDORT_ZOOM = 18
 const STANDORT_UNGENAU_M = 100                    // ungenauer: ganzen Genauigkeitskreis zeigen statt auf STANDORT_ZOOM
+// Hintergründe (WMTS geo.admin.ch, umschaltbar in der Ebenenwahl): Luftbild bis Zoom 20, Landeskarte bis 18 (Zoom 19 liefert
+// der Dienst nur hochgerechnet, geprüft 14.10.2026); darüber vergrössert Leaflet die Kacheln
+const HINTERGRUND_LUFTBILD = 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage/default/current/3857/{z}/{x}/{y}.jpeg'
+const HINTERGRUND_KARTE = 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg'
+// Strassennamen (OSM): eigenes Pane über den Vektoren (overlayPane 400), unter den Leaflet-Markern; nicht anklickbar. Seit
+// 14.10.2026 schon vor dem Klick (Übergangssuche, viele Namen): nur im Sichtbereich mit Rand (MARKER_RAND) und erst ab NAMEN_ZOOM
+// gezeichnet (weiter draussen zu dicht; die Suche beginnt ebenfalls bei Zoom 16)
+const NAMEN_PANE = 'strassennamen'
+const NAMEN_ZOOM = 16
 // Übergänge: nur Marker im Sichtbereich mit diesem Rand (Anteil je Seite) zeichnen; nach jedem Verschieben nachgeführt
 const MARKER_RAND = 0.5
 const STANDORT_MS = 10000
@@ -63,7 +80,7 @@ export function standortFehlerText(code: number): string {
   return 'Standort zurzeit nicht verfügbar (kein GPS- bzw. Netzempfang).'
 }
 
-export type Werkzeug = null | 'parkfeld' | 'laengs' | 'baum' | 'hecke' | 'mauer' | 'flaeche' | 'streifen' | 'spurB'
+export type Werkzeug = null | 'parkfeld' | 'laengs' | 'baum' | 'hecke' | 'mauer' | 'flaeche' | 'insel' | 'streifen' | 'spurB'
 
 const ll = (p: P): L.LatLngTuple => wgs(p[0], p[1])
 /** Stil eines Übergangs (gewählt: grösser, dunkler Rand; vermutlich markiert: gestrichelt, blasser) */
@@ -88,7 +105,8 @@ function hindernisEbene(h: Hindernis, stil: L.PathOptions): L.Layer {
 export function hindernisText(h: Hindernis): string {
   const q = h.quelle === 'hand' ? 'von Hand' : h.quelle === 'osm' ? 'aus OSM' : h.art === 'baum' ? 'aus Baumkataster' :
     h.art === 'parkfeld' ? 'amtlich, aus dem Kataster der Stadt' : 'aus Kataster der Stadt'
-  const art = { parkfeld: 'Parkfeld', laengsparkierung: 'Längsparkierung', baum: 'Baum', hecke: 'Hecke', mauer: 'Mauer', uebrige: 'Hindernis' }[h.art]
+  const art = { parkfeld: 'Parkfeld', laengsparkierung: 'Längsparkierung', baum: 'Baum', hecke: 'Hecke', mauer: 'Mauer', uebrige: 'Hindernis',
+    insel: 'Insel' }[h.art]
   return `${h.name ?? art} (${q})`
 }
 
@@ -97,6 +115,7 @@ export default function Karte(props: {
   av: AvFlaeche[] | null
   kantone: string[]
   uebergaenge: OsmKnoten[]
+  strassennamen: Strassenname[]                      // aus der Übergangssuche und den OSM-Daten des gewählten Übergangs (daten/osm.namenKarte)
   gewaehlt: number | null
   rechnung: FallRechnung | null
   auswahl: string | null
@@ -115,13 +134,26 @@ export default function Karte(props: {
   hinweis: KartenHinweis | null
   kartenRef: React.MutableRefObject<L.Map | null>
 }) {
-  const { mitte, av, kantone, uebergaenge, gewaehlt, rechnung, auswahl, hindernisse, streifenHand, werkzeug, zeichnung, bearbeiten,
-    kartenRef } = props
+  const { mitte, av, kantone, uebergaenge, strassennamen, gewaehlt, rechnung, auswahl, hindernisse, streifenHand, werkzeug, zeichnung,
+    bearbeiten, kartenRef } = props
   const elRef = useRef<HTMLDivElement>(null)
   const ebenenRef = useRef<Record<string, L.LayerGroup> | null>(null)
   const cb = useRef(props)
   cb.current = props
   const markerRef = useRef(new Map<number, { k: OsmKnoten; m: L.CircleMarker }>())
+  const namenRef = useRef<{ s: Strassenname; m: L.Marker | null }[]>([])
+  /** Strassennamen im Sichtbereich (mit Rand) ab NAMEN_ZOOM auf die Karte, die übrigen weg (Marker nur bei Bedarf erzeugt) */
+  const namenAbgleich = () => {
+    const map = kartenRef.current, eb = ebenenRef.current
+    if (!map || !eb) return
+    const b = map.getBounds().pad(MARKER_RAND), an = map.getZoom() >= NAMEN_ZOOM
+    for (const x of namenRef.current) {
+      const zeigen = an && b.contains([x.s.lat, x.s.lon])
+      if (zeigen && !x.m) x.m = L.marker([x.s.lat, x.s.lon], { pane: NAMEN_PANE, interactive: false, keyboard: false,
+        icon: L.divIcon({ className: 'strassenname', iconSize: [0, 0], html: `<span>${esc(x.s.name)}</span>` }) }).addTo(eb.namen)
+      else if (!zeigen && x.m) { eb.namen.removeLayer(x.m); x.m = null }
+    }
+  }
   const gewaehltRef = useRef<number | null>(null)
   /** Marker im Sichtbereich (mit Rand) auf die Karte, die übrigen weg; der gewählte bleibt immer */
   const markerAbgleich = () => {
@@ -145,15 +177,19 @@ export default function Karte(props: {
   useEffect(() => {
     if (!elRef.current || kartenRef.current) return
     const map = L.map(elRef.current, { maxZoom: 22, doubleClickZoom: false }).setView(mitte, 19)
-    L.tileLayer('https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage/default/current/3857/{z}/{x}/{y}.jpeg',
-      { maxZoom: 22, maxNativeZoom: 20, attribution: '© swisstopo' }).addTo(map)
+    const luftbild = L.tileLayer(HINTERGRUND_LUFTBILD, { maxZoom: 22, maxNativeZoom: 20, attribution: '© swisstopo' }).addTo(map)
+    const landeskarte = L.tileLayer(HINTERGRUND_KARTE, { maxZoom: 22, maxNativeZoom: 18, attribution: '© swisstopo' })
+    const namenPane = map.createPane(NAMEN_PANE)
+    namenPane.style.zIndex = '450'
+    namenPane.style.pointerEvents = 'none'
     const eb: Record<string, L.LayerGroup> = {
-      av: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
+      av: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
       hind: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
       standort: L.layerGroup().addTo(map),
     }
-    L.control.layers(undefined, { 'Amtliche Vermessung': eb.av, 'OSM-Übergänge': eb.osm, 'Sichtfelder': eb.sicht,
-      'Hindernisse': eb.hind }, { collapsed: true }).addTo(map)
+    L.control.layers({ 'Luftbild (SWISSIMAGE)': luftbild, 'Landeskarte (swisstopo)': landeskarte }, { 'Amtliche Vermessung': eb.av,
+      'OSM-Übergänge': eb.osm, 'Strassennamen (OSM)': eb.namen, 'Sichtfelder': eb.sicht, 'Hindernisse': eb.hind },
+    { collapsed: true }).addTo(map)
     L.control.scale({ imperial: false }).addTo(map)
     // «Zum eigenen Standort» unter den Zoom-Knöpfen
     const standortKnopf = new L.Control({ position: 'topleft' })
@@ -193,7 +229,7 @@ export default function Karte(props: {
       if (!(e.originalEvent.target as Element | null)?.closest?.('.leaflet-interactive')) cb.current.onZufahrt(null)
     })
     map.on('dblclick', () => { if (cb.current.werkzeug) cb.current.onDoppelklick() })
-    map.on('moveend', () => { markerAbgleich(); cb.current.onAusschnitt() })
+    map.on('moveend', () => { markerAbgleich(); namenAbgleich(); cb.current.onAusschnitt() })
     kartenRef.current = map
     ebenenRef.current = eb
     return () => { map.remove(); kartenRef.current = null; ebenenRef.current = null }
@@ -220,6 +256,15 @@ export default function Karte(props: {
     map.attributionControl.addAttribution(text)
     return () => { map.attributionControl.removeAttribution(text) }
   }, [av, kantone, kartenRef])
+
+  // Strassennamen (OSM): Beschriftungen nur zur Orientierung, nicht anklickbar (Klicks gehen an die Karte)
+  useEffect(() => {
+    const eb = ebenenRef.current
+    if (!eb) return
+    eb.namen.clearLayers()
+    namenRef.current = strassennamen.map(s => ({ s, m: null }))
+    namenAbgleich()
+  }, [strassennamen])
 
   // OSM-Übergänge zum Anklicken. Marker je Übergang einmal erzeugt (neu nur bei geänderten Daten des Knotens), gezeichnet
   // werden nur die im Sichtbereich mit Rand (MARKER_RAND); die Auswahl ändert nur den Stil des alten und des neuen Markers.
@@ -267,12 +312,18 @@ export default function Karte(props: {
       for (const z of s.zufahrten) {
         const farbe = STATUS_FARBE[z.status] ?? '#10b981'
         L.polygon(multiLl(z.feld), { color: farbe, weight: 1, fillColor: farbe, fillOpacity: 0.1, interactive: !cb.current.werkzeug })
-          .bindTooltip(`Sichtfeld Zufahrt «${esc(z.zufahrt)}»: ${z.status === 'frei' ? 'frei' : esc(z.status.replace('_', ' '))}`, { sticky: true })
+          .bindTooltip(`Sichtfeld Zufahrt «${esc(z.zufahrt)}»${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(z.status.replace('_', ' '))}`, { sticky: true })
           .on('click', () => { if (!cb.current.werkzeug) cb.current.onZufahrt(zufahrtKey(z)) }).addTo(eb.sicht)
       }
       for (const a of s.ann) L.polygon(a.map(r => r.map(ll)), { color: '#0ea5e9', weight: 1, fillOpacity: 0.4, interactive: false }).addTo(eb.sicht)
       L.polygon(s.umriss.map(ll), { color: '#fde047', weight: 2, fillColor: '#fde047', fillOpacity: 0.5, interactive: false }).addTo(eb.sicht)
     }
+    // angenommene Inseln (nach OSM und Luftbild): gestrichelter Umriss, «prüfen»
+    for (const z of rechnung.inseln ?? [])
+      L.polygon(z.ring.map(ll), { color: INSEL_FARBE, weight: 2, dashArray: STRICH_INSEL, fillColor: INSEL_FARBE, fillOpacity: 0.12,
+        interactive: !cb.current.werkzeug })
+        .bindTooltip(`${INSEL_TEXT}: Lücke zwischen den Balken ${z.breite.toFixed(1).replace('.', ',')} m quer zur Strasse; ` +
+          'teilt den Streifen. Sonst Werkzeug «Insel» unter «Eingaben von Hand».', { sticky: true }).addTo(eb.sicht)
     // Luftbild-Erkennung: Balken (erkannt durchgezogen, unsicher gestrichelt), «aus Luftbild, prüfen»
     const lb = rechnung.luftbild
     if (lb && lb.befund !== 'nicht_gefunden') {
@@ -346,7 +397,8 @@ export default function Karte(props: {
       L.polygon(multiLl(k.geom), { color: '#7f1d1d', weight: 2, fillColor: '#dc2626', fillOpacity: 0.6 })
         .bindTooltip(`${esc(k.layer)}: ${k.klasse === 'baum' ? 'Stamm' : `${k.flaeche.toFixed(1)} m²`} im Sichtfeld, ${k.abstand.toFixed(1)} m vom Streifen`)
         .addTo(eb.auswahl)
-    L.polyline(z.spur.map(ll), { color: '#ffffff', weight: 1.5, dashArray: '4 4', interactive: false }).addTo(eb.auswahl)
+    // Fahrlinie weiss gestrichelt; gedeckte Abbiegezufahrt (nur mit GEDECKT_RECHNEN) mit weiterem Strichabstand, Sichtfeld wie üblich
+    L.polyline(z.spur.map(ll), { color: '#ffffff', weight: 1.5, dashArray: z.deckung ? STRICH_GEDECKT : '4 4', interactive: false }).addTo(eb.auswahl)
     z.sichtpunkte.forEach((p, i) => {
       const ende = i === 0 || i === z.sichtpunkte.length - 1
       // weiss mit dunklem Rand: Rot steht in der Karte für «verdeckt»

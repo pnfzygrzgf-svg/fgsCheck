@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type L from 'leaflet'
-import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, zufahrtKey, hindernisText, hindernisFarbe,
-  type Werkzeug, type KartenHinweis } from './Karte'
+import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
+  hindernisText, hindernisFarbe, type Werkzeug, type KartenHinweis } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
-import { ladeOsmRoh, ladeUebergaenge, markierung, istFgs, overpassSperre, type OsmKnoten } from './daten/osm'
+import { ladeOsmRoh, ladeUebergaenge, markierung, istFgs, overpassSperre, strassennamen, namenKarte, type OsmKnoten,
+  type StrassenMitte } from './daten/osm'
 import { istAbbruch } from './daten/holen'
 import { baumQuelleFuer, type BaumQuelle, type KatasterBaum } from './daten/baumkataster'
 import { parkQuelleFuer, istParkId, type ParkQuelle, type KatasterFeld } from './daten/parkkataster'
 import { lv95, dist, type P } from './geo'
-import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, aufnehmen, vereinigen } from './ausschnitt'
+import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, aufnehmen, vereinigen, vereinigenNamen } from './ausschnitt'
 import type { ZufahrtErgebnis, StreifenErgebnis } from './rechner/typen'
 import type { FallRechnung } from './rechner'
 import { KATASTER_PARK_M } from './rechner/vorschlaege'
@@ -38,7 +39,7 @@ const WORKER_MS = 30000
 const SUCHE_ZOOM = 16
 const SUCHE_PAUSE_MS = 800
 const SUCHE_ABSTAND_MS = 2000
-const SUCHE_NAME = 'OSM-Übergänge im Ausschnitt'
+const SUCHE_NAME = 'OSM-Übergänge und Strassennamen im Ausschnitt'
 const ZU_WEIT: KartenHinweis = { text: 'Zum Suchen näher heranzoomen' }
 // Amtliche Parkfelder und Baumkataster: Ausschnitt ±150 m um den Ort. Die Rechnung erreicht Felder und Bäume bis
 // KATASTER_PARK_M (120 m) um den Umriss der Streifen (rechner/vorschlaege.ts, dort die Herleitung); der Umriss liegt am Ort
@@ -56,15 +57,16 @@ const WERKZEUGE: [Exclude<Werkzeug, null>, string, string][] = [
   ['hecke', 'Hecke', 'Linie zeichnen, Doppelklick beendet'],
   ['mauer', 'Mauer', 'Linie zeichnen, Doppelklick beendet'],
   ['flaeche', 'übriges Hindernis', 'Fläche: Ecken anklicken, Doppelklick schliesst'],
+  ['insel', 'Insel', 'Verkehrsinsel: Ecken anklicken, Doppelklick schliesst; teilt den Streifen und ersetzt eine Insel aus OSM und Luftbild'],
   ['streifen', 'Streifen von Hand', 'beide Wartebereiche anklicken (Achse quer über die Fahrbahn)'],
 ]
 
 /** Anzeige der AV-Arten in der Legende (Schlüssel wie in AV_FARBEN) */
 const AV_NAME: Record<string, string> = { Strasse_Weg: 'Fahrbahn', Gebaeude: 'Gebäude' }
 
-const MIN_PUNKTE: Record<Exclude<Werkzeug, null>, number> = { parkfeld: 3, flaeche: 3, laengs: 2, hecke: 2, mauer: 2, streifen: 2,
+const MIN_PUNKTE: Record<Exclude<Werkzeug, null>, number> = { parkfeld: 3, flaeche: 3, insel: 3, laengs: 2, hecke: 2, mauer: 2, streifen: 2,
   spurB: 2, baum: 1 }
-const WERKZEUG_NAME: Record<Exclude<Werkzeug, null>, string> = { parkfeld: 'Parkfeld', flaeche: 'übriges Hindernis (Fläche)',
+const WERKZEUG_NAME: Record<Exclude<Werkzeug, null>, string> = { parkfeld: 'Parkfeld', flaeche: 'übriges Hindernis (Fläche)', insel: 'Insel',
   laengs: 'Längsparkierung', hecke: 'Hecke', mauer: 'Mauer', streifen: 'Streifen von Hand', spurB: 'Fahrlinie selbst zeichnen', baum: 'Baum' }
 
 /** Zahlenfeld, das Minus und Komma beim Tippen zulässt; übernommen beim Verlassen bzw. mit Enter */
@@ -195,7 +197,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // gewünscht, den sie nicht deckt (nachher), fragt die App danach nur den dann gezeigten Ausschnitt ab, falls er noch nicht
   // abgesucht ist. Nach 429 gilt die Sperre aus daten/osm.ts (overpassSperre) auch für die nächste automatische Suche.
   const suche = useRef<{ ctrl: AbortController | null; box: Box | null; timer: number; start: number; nachher: boolean;
-    cache: CacheEintrag<OsmKnoten>[] }>({ ctrl: null, box: null, timer: 0, start: -Infinity, nachher: false, cache: [] })
+    cache: CacheEintrag<OsmKnoten, StrassenMitte>[] }>({ ctrl: null, box: null, timer: 0, start: -Infinity, nachher: false, cache: [] })
+  // Strassennamen (Wegmitten) aus derselben Abfrage, Vereinigung der Ausschnitte im Cache (gleiche Verdrängung wie die Übergänge)
+  const [namenAusschnitt, setNamenAusschnitt] = useState<StrassenMitte[]>([])
   const [suchHinweis, setSuchHinweis] = useState<KartenHinweis | null>(null)
   /** sichtbarer Ausschnitt, null wenn zu weit herausgezoomt bzw. zu gross für eine Abfrage */
   const sichtBox = (map: L.Map): Box | null => {
@@ -243,11 +247,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     try {
       const r = await ladeUebergaenge(box.s, box.w, box.n, box.e, ctrl.signal)
       if (ctrl.signal.aborted) return
-      st.cache = aufnehmen(st.cache, { box, daten: r.daten })
+      st.cache = aufnehmen(st.cache, { box, daten: r.daten, namen: r.namen })
       const alle = vereinigen(st.cache)
       setUebergaenge(alle)
-      setzeQuelle('suche', { name: SUCHE_NAME, objekte: `${r.daten.length} im Ausschnitt, ${alle.length} angezeigt (letzte ${st.cache.length} Ausschnitte)`,
-        ms: r.ms, bytes: r.bytes, server: r.quelle })
+      setNamenAusschnitt(vereinigenNamen(st.cache))
+      setzeQuelle('suche', { name: SUCHE_NAME, objekte: `${r.daten.length} Übergänge und ${r.namen.length} benannte Strassenstücke im ` +
+        `Ausschnitt, ${alle.length} Übergänge angezeigt (letzte ${st.cache.length} Ausschnitte)`, ms: r.ms, bytes: r.bytes, server: r.quelle })
       suchHinweisNach(r.daten.length ? null : { text: 'Keine OSM-Übergänge im Ausschnitt' })
     } catch (e) {
       if (ctrl.signal.aborted || istAbbruch(e)) return
@@ -443,6 +448,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       if (werkzeug === 'baum') h = { id, art: 'baum', p: pts[0], stamm: BAUM_STAMM_M, quelle: 'hand' }
       if (werkzeug === 'hecke' || werkzeug === 'mauer') h = { id, art: werkzeug, linie: pts, sichtbehindernd, quelle: 'hand' }
       if (werkzeug === 'flaeche') h = { id, art: 'uebrige', ring: pts, sichtbehindernd, quelle: 'hand' }
+      if (werkzeug === 'insel') h = { id, art: 'insel', ring: pts, quelle: 'hand' }
       if (h) aendern(f => { f.hindernisse.push(h!); return f })
     }
     setZeichnung([]); zeichnungRef.current = []; setWerkzeug(null); setSpurFuer(null)
@@ -486,7 +492,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const ergebnis: FallErgebnis | null = rechnung ? { hinweis: rechnung.hinweis, luftbild: rechnung.luftbild?.befund,
       streifenQuelle: rechnung.streifenQuelle, streifen: rechnung.streifen.map(s => ({
       fgsId: s.fgsId, status: s.status,
-      zufahrten: s.zufahrten.map(z => ({ zufahrt: z.zufahrt, status: z.status, tempo: z.tempo, sichtweite: z.sichtweite })) })) } : null
+      zufahrten: s.zufahrten.map(z => ({ zufahrt: z.zufahrt, status: z.status, tempo: z.tempo, sichtweite: z.sichtweite,
+        ...(z.deckung ? { gedeckt: true as const } : {}) })) })) } : null
     const blob = new Blob([fallSchreiben(fall, ergebnis)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
@@ -520,6 +527,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [quellenOffen, setQuellenOffen] = useState(false)
   useEffect(() => { if (quellenFehler) setQuellenOffen(true) }, [quellenFehler])
   const kantone = useMemo(() => [...new Set((av ?? []).map(f => f.kanton).filter(Boolean))].sort(), [av])
+  // Strassennamen für die Karte ohne eigenen Abruf: vor dem Klick die Wegmitten aus der Übergangssuche (alle Ausschnitte im
+  // Cache), nach dem Klick im Umkreis OSM_RADIUS_M um den Übergang vorrangig die genaueren aus dem Umkreis-Abruf (Wegmitten aus
+  // der Geometrie); je Name höchstens eine Beschriftung pro rund 120 m (daten/osm.namenKarte)
+  const osmRoh = daten?.osm, osmOrt = daten?.ort
+  const namen = useMemo(() => namenKarte(namenAusschnitt, osmRoh && osmOrt ? strassennamen(osmRoh, osmOrt, OSM_RADIUS_M) : [],
+    osmRoh && osmOrt ? osmOrt : null, OSM_RADIUS_M), [namenAusschnitt, osmRoh, osmOrt])
   const alleZ = useMemo(() => rechnung?.streifen.flatMap(s => s.zufahrten) ?? [], [rechnung])
   const gewaehlteZ: ZufahrtErgebnis | null = useMemo(() => alleZ.find(z => zufahrtKey(z) === auswahl) ?? null, [alleZ, auswahl])
   const vorschlagOsm = (rechnung?.vorschlaege ?? []).filter(v => v.hindernis.quelle === 'osm')
@@ -536,7 +549,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
   return (
     <div className="app">
-      <Karte mitte={START} av={av} kantone={kantone} uebergaenge={sichtbar} gewaehlt={gewaehlt?.id ?? null}
+      <Karte mitte={START} av={av} kantone={kantone} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? []} streifenHand={fall?.streifenHand ?? []}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} onUebergang={pruefen} onZufahrt={setAuswahl}
         onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => setBearbeiten(b => (b === id ? null : id))}
@@ -626,11 +639,15 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
               setMeldung={setMeldung} />
             {rechnung && rechnung.streifenQuelle !== 'hand' && rechnung.streifen.length > 0 && (
               <p className="klein"><button className="zweit klein" onClick={() => {
-                let n = 0
-                aendern(f => { n = streifenUebernehmen(f, rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? rechnung.luftbild.teile : rechnung.streifen, rechnung.streifen,
-                  rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? 'luftbild' : 'osm'); return f })
-                setMeldung(n ? `Streifen übernommen; ${n} Eingaben (Tempo, Spur, Streichen, Lichtsignal, kein FGS) auf die neuen ` +
-                  'Nummern übertragen – bitte prüfen.' : 'Streifen übernommen.')
+                let n = 0, ni = 0
+                // angenommene Inseln (nach OSM und Luftbild) als Insel von Hand mit, sonst ginge die Teilung verloren
+                aendern(f => { const vor = f.hindernisse.length
+                  n = streifenUebernehmen(f, rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? rechnung.luftbild.teile : rechnung.streifen, rechnung.streifen,
+                    rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? 'luftbild' : 'osm', rechnung.inseln ?? [])
+                  ni = f.hindernisse.length - vor; return f })
+                setMeldung((n ? `Streifen übernommen; ${n} Eingaben (Tempo, Spur, Streichen, Lichtsignal, kein FGS) auf die neuen ` +
+                  'Nummern übertragen – bitte prüfen.' : 'Streifen übernommen.') + (ni ? ' Die Insel aus dem Luftbild steht jetzt als Insel ' +
+                  'von Hand unter den Hindernissen.' : ''))
               }}>Streifen aus {rechnung.streifenQuelle === 'luftbild' ? 'dem Luftbild' : 'OSM'} übernehmen und anpassen</button> (Enden danach
                 verschieben)</p>
             )}
@@ -774,6 +791,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_zweirad }} />Zweirad-Feld (Velo/Motorrad)</li>
           <li><span className="farbe" style={{ background: QUELLE_FARBE.hand }} />von Hand, <span className="farbe" style={{ background: QUELLE_FARBE.osm }} />aus OSM (gestrichelt: Vorschlag, prüfen),
             <span className="farbe" style={{ background: QUELLE_FARBE.kataster }} />aus Baumkataster</li>
+          <li><span className="farbe gestrichelt" style={{ borderColor: INSEL_FARBE, borderWidth: 2 }} />{INSEL_TEXT};
+            <span className="farbe" style={{ background: INSEL_FARBE }} />Insel von Hand (Werkzeug «Insel»)</li>
           <li>Amtliche Parkfelder (zählen, einzeln verwerfbar): <span className="farbe" style={{ background: PARK_FARBE.auto }} />Auto,
             <span className="farbe" style={{ background: PARK_FARBE.velo }} />Velo, <span className="farbe" style={{ background: PARK_FARBE.motorrad }} />Motorrad,
             <span className="farbe gestrichelt" style={{ borderColor: PARK_FARBE.auto, opacity: 0.6 }} />verworfen (gestrichelt, anklicken: wieder zählen)</li>
@@ -831,12 +850,16 @@ function LuftbildAnzeige({ rechnung, fall, flugjahr, hatBild, aendern, setMeldun
           {lb.befund === 'erkannt' && <>Streifen aus dem Luftbild erkannt ({lb.teile.map(t => `${t.nBalken} Balken`).join(' + ')}, NCC {f1_(lb.ncc)},
             Gelb-Kontrast {lb.kontrast.toFixed(1).replace('.', ',')}) – aus Luftbild, prüfen. Die Rechnung nutzt ihn.</>}
           {lb.befund === 'unsicher' && <>Muster im Luftbild unsicher ({lb.gruende.join('; ')}): gestrichelt als Vorschlag; die Rechnung
-            nutzt den Streifen aus OSM + AV.</>}
+            nutzt den Streifen aus OSM + AV{rechnung?.inselTeilt ? ', an der Insel aus dem Luftbild geteilt' : ''}.</>}
           {lb.befund === 'nicht_gefunden' && <>Im Luftbild kein Streifen gefunden ({lb.gruende.join('; ')}): Streifen aus OSM + AV.</>}
           {lb.befund === 'unsicher' && lb.teile.length > 0 && <div><button className="zweit klein" onClick={() => {
-            let n = 0
-            aendern(f => { n = streifenUebernehmen(f, lb.teile, rechnung?.streifen ?? [], 'luftbild_vorschlag'); return f })
-            setMeldung(`Streifen aus dem Luftbild als Streifen von Hand übernommen${n ? `; ${n} Eingaben übertragen – bitte prüfen` : ''}.`)
+            let n = 0, ni = 0
+            // die Insel, an der die Luftbild-Teile geteilt sind, als Insel von Hand mit (sonst ginge die Teilung verloren)
+            aendern(f => { const vor = f.hindernisse.length
+              n = streifenUebernehmen(f, lb.teile, rechnung?.streifen ?? [], 'luftbild_vorschlag', lb.insel ? [lb.insel] : [])
+              ni = f.hindernisse.length - vor; return f })
+            setMeldung(`Streifen aus dem Luftbild als Streifen von Hand übernommen${n ? `; ${n} Eingaben übertragen – bitte prüfen` : ''}` +
+              `${ni ? '; die Insel aus dem Luftbild steht jetzt als Insel von Hand unter den Hindernissen' : ''}.`)
           }}>Luftbild-Streifen übernehmen und anpassen</button></div>}
           <div>Erkennung {Math.round(lb.ms)} ms.</div>
         </div>
@@ -844,6 +867,9 @@ function LuftbildAnzeige({ rechnung, fall, flugjahr, hatBild, aendern, setMeldun
     </div>
   )
 }
+
+/** Tooltip gedeckter Abbiegezufahrten (nur mit GEDECKT_RECHNEN, seit 14.10.2026 standardmässig aus) */
+const GEDECKT_TITEL = 'Geprüft; den Weg ab dem Knoten prüft die gerade Zufahrt mit; das Ergebnis zählt trotzdem'
 
 function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, spurZeichnen }: {
   s: StreifenErgebnis; fall: Fall; auswahl: string | null; setAuswahl: (k: string | null) => void
@@ -880,9 +906,9 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           <thead><tr><th>Zufahrt</th><th>Tempo</th><th>Sichtweite</th><th>vom Rand</th><th>Status</th></tr></thead>
           <tbody>
             {s.zufahrten.map(z => (
-              <tr key={z.zufahrt} className={zufahrtKey(z) === auswahl ? 'aktiv' : ''}
+              <tr key={z.zufahrt} className={zufahrtKey(z) === auswahl ? 'aktiv' : ''} title={z.deckung ? GEDECKT_TITEL : undefined}
                 onClick={() => setAuswahl(zufahrtKey(z) === auswahl ? null : zufahrtKey(z))}>
-                <td><b>{z.zufahrt}</b><div className="klein">{ART[z.art] ?? z.art}{z.strasse ? `, ${z.strasse}` : ''}</div></td>
+                <td><b>{z.zufahrt}</b>{z.deckung && <span className="klein"> (mitgeprüft)</span>}<div className="klein">{ART[z.art] ?? z.art}{z.strasse ? `, ${z.strasse}` : ''}</div></td>
                 <td>{z.tempo}<div className={z.tempoQuelle === 'Ersatz' ? 'klein warnung' : 'klein'}>
                   {z.tempoQuelle === 'Ersatz' ? 'Annahme' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : 'OSM'}</div></td>
                 <td>{z.sichtweite} m<div className="klein">{z.sichtweiteQuelle}{z.kurvenradiusM != null ? `, R ${f1(z.kurvenradiusM)} m` : ''}</div></td>
@@ -940,6 +966,7 @@ function ZufahrtDetail({ z, fall, aendern, spurZeichnen }: {
         <tr><td>Sichtweite</td><td>{z.sichtweite} m ({z.sichtweiteQuelle})</td></tr>
         {z.kurvenradiusM != null && <tr><td>Radius</td><td>{f1(z.kurvenradiusM)} m ({z.radiusQuelle})</td></tr>}
         {z.knotenM != null && <tr><td>Knoten</td><td>{f1(z.knotenM)} m vor dem Streifen</td></tr>}
+        {z.deckung && <tr><td>Mitgeprüft</td><td title={GEDECKT_TITEL}>ab dem Knoten durch die gerade Zufahrt ({z.deckung}); zählt trotzdem</td></tr>}
         <tr><td>Fahrbahn</td><td>{z.fahrbahnM != null ? `${f2(z.fahrbahnM)} m` : '–'}, Fahrstreifen
           {z.fahrstreifenM != null ? ` ${f2(z.fahrstreifenM)} m` : ' –'}{z.mehrstreifig ? ' (mehrstreifig)' : ''}</td></tr>
         <tr><td>Sichtpunkt vom Rand</td><td>{z.sichtpunktVomRandM != null ? `${f2(z.sichtpunktVomRandM)} m` : '–'} (Lage {z.lageQuelle}){z.abzugQuelle ? `; Abzug: ${z.abzugQuelle}` : ''}</td></tr>
@@ -977,8 +1004,9 @@ function ZufahrtDetail({ z, fall, aendern, spurZeichnen }: {
       </div>
       <label className="klein" title={'Zufahrt aus der Prüfung nehmen, wenn es sie in Wirklichkeit nicht gibt, z. B. verbotenes ' +
         'Abbiegen, Einbahn in Gegenrichtung, reine Arealzufahrt. Sie zählt nicht mehr für den Status und steht unter «entfallen» ' +
-        '(«von Hand gestrichen»); Häkchen entfernen holt sie zurück. Eine gestrichene gerade Zufahrt deckt die Abbiegenden ' +
-        'nicht mehr; diese werden dann selbst geprüft.'}><input type="checkbox" checked={!!zh.streichen} onChange={e => setze({ streichen: e.target.checked || undefined })} />
+        '(«von Hand gestrichen»); Häkchen entfernen holt sie zurück. Abbiegezufahrten, die bisher wegen der geraden Zufahrt ' +
+        'entfielen («durch die gerade Zufahrt mitgeprüft»), werden nach dem Streichen selbst geprüft, bis zum Knoten mit Tab. 1 ' +
+        'der eigenen Strasse.'}><input type="checkbox" checked={!!zh.streichen} onChange={e => setze({ streichen: e.target.checked || undefined })} />
         {' '}Diese Zufahrt gibt es nicht (streichen)</label>
     </div>
   )
