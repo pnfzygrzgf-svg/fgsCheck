@@ -6,7 +6,7 @@ Vibecoding. Don't trust, verify!
 
 ## Online
 
-https://pnfzygrzgf-svg.github.io/fgsCheck/ (GitHub Pages; Build und Veröffentlichung bei jedem Push auf `main`, siehe
+https://fgscheck.ch/ (GitHub Pages; Build und Veröffentlichung bei jedem Push auf `main`, siehe
 [Veröffentlichung](#veröffentlichung)).
 
 ## Start
@@ -15,7 +15,7 @@ https://pnfzygrzgf-svg.github.io/fgsCheck/ (GitHub Pages; Build und Veröffentli
 npm install
 npm run dev      # Entwicklungsserver, Adresse steht in der Ausgabe
 npm test         # Tests (vitest)
-npm run build    # Typprüfung und Build nach dist/ (Basis /fgsCheck/ für GitHub Pages)
+npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Domain)
 ```
 
 ## Bedienung
@@ -265,8 +265,8 @@ Die App ersetzt keine Beurteilung vor Ort.
 ## Veröffentlichung
 
 `.github/workflows/deploy.yml`: bei jedem Push auf `main` (bzw. von Hand über «Run workflow») `npm ci`, Tests, `npm run build`
-(Basis `/fgsCheck/`), Veröffentlichung auf GitHub Pages. Einmalig im Repo unter Settings → Pages als Quelle «GitHub Actions»
-wählen. Der Referenzvergleich (`src/referenz.test.ts`) läuft in CI nicht (keine Referenz-Datei); den Pfad setzt man lokal mit
+(Basis `/`), Veröffentlichung auf GitHub Pages unter der eigenen Domain fgscheck.ch. Einmalig im Repo unter Settings → Pages als Quelle «GitHub Actions»
+wählen und als Custom domain `fgscheck.ch` eintragen. Der Referenzvergleich (`src/referenz.test.ts`) läuft in CI nicht (keine Referenz-Datei); den Pfad setzt man lokal mit
 `FGS_REFERENZ`. Nutzungsstatistik: GoatCounter in `index.html` (versionierte `count.v4.js` mit Integritäts-Hash).
 
 ## Lizenz

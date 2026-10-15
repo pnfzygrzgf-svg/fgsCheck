@@ -47,9 +47,9 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
         Gemeinden sowie im Fürstentum Liechtenstein, also überall dort, wo die Amtliche Vermessung frei verfügbar ist.
       </p>
 
-      <Querverweis href="https://pnfzygrzgf-svg.github.io/KnotenCheck/" bild="knotencheck.png" titel="KnotenCheck"
+      <Querverweis href="https://knotencheck.ch/" bild="knotencheck.png" titel="KnotenCheck"
         text="Werkzeug zur Leistungsbeurteilung von Knoten innerorts." />
-      <Querverweis href="https://pnfzygrzgf-svg.github.io/VeloroutenCheck/" bild="veloroutencheck.svg" titel="VeloroutenCheck"
+      <Querverweis href="https://veloroutencheck.ch/" bild="veloroutencheck.svg" titel="VeloroutenCheck"
         text="Qualität der Veloinfrastruktur bewerten." />
 
       <div className="start-daten">
