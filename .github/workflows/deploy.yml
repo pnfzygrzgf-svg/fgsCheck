@@ -30,7 +30,7 @@ jobs:
 
       - run: npm ci
       - run: npx vitest run        # Tests müssen grün sein (Referenzvergleich ohne Referenz-Datei übersprungen)
-      - run: npm run build         # Typprüfung (tsc) und Build mit Basis /fgsCheck/
+      - run: npm run build         # Typprüfung (tsc) und Build mit Basis / (eigene Domain fgscheck.ch)
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4

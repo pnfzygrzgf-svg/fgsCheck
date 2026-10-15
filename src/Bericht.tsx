@@ -20,7 +20,7 @@ import { wmsBildUrl, LUFTBILD_QUELLE } from './daten/luftbild'
 import { STATUS_FARBE, STRICH_GEDECKT, UEBERGANG_TEXT, INSEL_FARBE, STRICH_INSEL, hindernisFarbe, hindernisText, INSEL_TEXT } from './Karte'
 import { GRUND, ART, STATUS, statusText, f1, f2 } from './texte'
 
-const APP_URL = 'https://pnfzygrzgf-svg.github.io/fgsCheck/'
+const APP_URL = 'https://fgscheck.ch/'
 const RAND_M = 4                       // Rand um Streifen und Sichtfelder im Kartenbild
 const MIN_M = 40                       // kleinste Kantenlänge des Ausschnitts
 const BILD_PX_MAX = 1400               // Breite des WMS-Bilds höchstens (Auflösung SWISSIMAGE 0,1 m/px)
