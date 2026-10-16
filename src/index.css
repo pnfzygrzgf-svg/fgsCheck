@@ -167,14 +167,24 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .bericht-fuss p { margin: 3px 0; }
 .bericht-bild, .bericht-bild * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-@page { size: A4 portrait; margin: 12mm 12mm 14mm; }
+/* Kein Seitenrand: dann setzt der Browser keine eigene Kopf- und Fusszeile. Der Rand kommt aus dem Rahmen (Bericht.tsx,
+   .bericht-rahmen): seitlich als Innenabstand, oben und unten als Kopf und Fuss der Tabelle, die sich auf jeder gedruckten
+   Seite wiederholen (wie VeloroutenCheck). */
+@page { size: A4 portrait; margin: 0; }
+.bericht-rahmen { width: 100%; border-collapse: collapse; }
+.bericht-seite .bericht-rahmen > thead > tr > td, .bericht-seite .bericht-rahmen > tfoot > tr > td,
+.bericht-seite .bericht-rahmen > tbody > tr > td { border: none; padding: 0; }
 @media print {
   html, body, #root { height: auto; background: #ffffff; }
   body.bericht-offen #root { display: none !important; }
   .nicht-drucken { display: none !important; }
   .nur-drucken { display: inline; }
   .bericht { position: static; overflow: visible; background: #ffffff; }
-  .bericht-seite { max-width: none; margin: 0; padding: 0; box-shadow: none; }
+  .bericht-seite { max-width: none; margin: 0; padding: 0 12mm; box-shadow: none; }
+  .bericht-rand-oben { height: 12mm; }
+  .bericht-rand-unten { height: 14mm; }
+  .bericht-neue-seite { break-before: page; page-break-before: always; }
+  .bericht-neue-seite > td > .bericht-block:first-child > h2 { margin-top: 0; }
 }
 
 /* Startseite (Einstieg) */

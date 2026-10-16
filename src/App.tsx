@@ -134,8 +134,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [rechnungFall, setRechnungFall] = useState<Fall | null>(null)   // Fall, zu dem die angezeigte Rechnung gehört
   const [rechnungZeit, setRechnungZeit] = useState<Date | null>(null)
   const [bericht, setBericht] = useState(false)                          // Druckansicht (Bericht) offen
-  const [meldung, setMeldung] = useState<string>('Ort suchen bzw. Karte verschieben; dann einen Übergang auf der Karte anklicken ' +
-    'oder mit «Streifen planen» einen neuen Streifen zeichnen.')
+  const [meldung, setMeldung] = useState<string>('')
   // Hinweis zum Laden des Falls (Fall-Datei, Browser-Speicher); bleibt stehen, bis ein anderer Ort geladen wird
   const [ladeHinweis, setLadeHinweis] = useState<{ text: string; verwerfen: boolean } | null>(null)
   // Planung (16.10.2026): Inhalt der Eingaben, wie zuletzt als Datei gespeichert bzw. aus einer Datei geladen (fall.eingabenSchluessel;
@@ -959,12 +958,6 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
               <img className="logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={40} height={40} /></button>
           : <img className="logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={40} height={40} />}
           fgsCheck <span className="marke">Prototyp v{__APP_VERSION__}</span></h1>
-        <p className="hinweis">
-          Sichtprüfung an bestehenden und geplanten Fussgängerstreifen nach VSS 40 241 und bfu 2.457.01, gerechnet im Browser. Den
-          Streifen sucht die App im Luftbild (sonst aus OSM und AV); Parkfelder, Bäume, Hecken und Mauern zeichnen Sie auf dem
-          Luftbild ein; Vorschläge aus OSM zählen erst nach Bestätigung. In Bern lädt die App die amtlichen Parkfelder der Stadt; sie
-          zählen sofort. Neue Streifen: «Streifen planen»; geplante Trottoirränder und Inseln: «Fläche (Plan)».
-        </p>
         <Anleitung />
         <div className="knopfzeile">
           <label className="knopf">Fall laden<input type="file" accept=".json,application/json" hidden

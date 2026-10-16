@@ -52,7 +52,7 @@ function hindernisRinge(h: Hindernis): { ringe: P[][]; linie: boolean } {
   return { ringe: [h.linie ?? []], linie: true }
 }
 
-/** Ausschnitt: Streifen, Sichtfelder und Fixpunkte mit Rand, Seitenverhältnis Höhe/Breite zwischen 0,6 und 0,95 (passt auf A4 hoch) */
+/** Ausschnitt: Streifen, Sichtfelder und Fixpunkte mit Rand, Seitenverhältnis Höhe/Breite zwischen 0,6 und 0,75 (Ort und Kartenbild passen zusammen auf Seite 1, A4 hoch) */
 function ausschnitt(r: FallRechnung, ort: P, fix: P[] = []): Box {
   let e0 = ort[0], e1 = ort[0], n0 = ort[1], n1 = ort[1]
   const dazu = (ps: P[]) => { for (const p of ps) { e0 = Math.min(e0, p[0]); e1 = Math.max(e1, p[0]); n0 = Math.min(n0, p[1]); n1 = Math.max(n1, p[1]) } }
@@ -66,7 +66,7 @@ function ausschnitt(r: FallRechnung, ort: P, fix: P[] = []): Box {
   if (e1 - e0 < MIN_M) [e0, e1] = weiten(e0, e1, MIN_M)
   if (n1 - n0 < MIN_M * 0.6) [n0, n1] = weiten(n0, n1, MIN_M * 0.6)
   const w = e1 - e0, h = n1 - n0
-  if (h / w > 0.95) [e0, e1] = weiten(e0, e1, h / 0.95)
+  if (h / w > 0.75) [e0, e1] = weiten(e0, e1, h / 0.75)
   else if (h / w < 0.6) [n0, n1] = weiten(n0, n1, w * 0.6)
   return [e0, n0, e1, n1]
 }
@@ -424,13 +424,16 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
     aendern(f => { if (t.trim()) f.ort.bezeichnung = t; else delete f.ort.bezeichnung; return f })
   }
   const tausender = (x: number) => Math.round(x).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '’')
-  // Titel des Dokuments = Vorschlag für den Dateinamen beim Speichern als PDF
+  // Titel des Dokuments = Vorschlag für den Dateinamen beim Speichern als PDF: Bezeichnung, sonst Strasse, sonst OSM-Übergang
+  // (Zeichen, die in Dateinamen stören, werden zu «_»)
+  const titelTeil = (fall.ort.bezeichnung?.trim() || strassen[0] || (fall.ort.uebergang !== null ? String(fall.ort.uebergang) : 'Ort'))
+    .replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, '_').slice(0, 60)
   useEffect(() => {
     const alt = document.title
     const d = new Date(), zz = (x: number) => String(x).padStart(2, '0')        // Lokaldatum (nicht UTC)
-    document.title = `fgsCheck_Bericht_${fall.ort.uebergang ?? 'Ort'}_${d.getFullYear()}-${zz(d.getMonth() + 1)}-${zz(d.getDate())}`
+    document.title = `fgsCheck_Bericht_${titelTeil}_${d.getFullYear()}-${zz(d.getMonth() + 1)}-${zz(d.getDate())}`
     return () => { document.title = alt }
-  }, [fall.ort.uebergang])
+  }, [titelTeil])
   // gedruckt wird nur der Bericht (index.css: body.bericht-offen #root ausgeblendet)
   useEffect(() => {
     document.body.classList.add('bericht-offen')
@@ -450,6 +453,14 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
         <button className="zweit" onClick={schliessen}>Zurück zur Karte</button>
       </div>
       <article className="bericht-seite">
+        {/* Druckrand als Rahmen (wie VeloroutenCheck, Nutzerwunsch 16.10.2026): Kopf und Fuss der Tabelle wiederholen sich auf
+            jeder gedruckten Seite. So kommt der Bericht ohne Seitenrand aus (@page margin 0), und der Browser setzt keine eigene
+            Kopf- und Fusszeile (Titel, Adresse, Seitenzahl, Datum) dazu. Zwei Zeilen: Seite 1 Ort und Kartenbild, ab Seite 2 das
+            Ergebnis (Seitenumbruch zwischen den Zeilen; innerhalb einer Zelle greift er nicht in allen Browsern). */}
+        <table className="bericht-rahmen">
+        <thead><tr><td><div className="bericht-rand-oben" /></td></tr></thead>
+        <tfoot><tr><td><div className="bericht-rand-unten" /></td></tr></tfoot>
+        <tbody><tr><td>
         <header>
           <h1><img className="logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={36} height={36} />Sichtprüfung Fussgängerstreifen</h1>
           <p className="klein">fgsCheck · Bericht vom {datum(heute)}</p>
@@ -468,7 +479,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
             <tr><td>Koordinaten</td><td>LV95 E {tausender(e)}, N {tausender(n)} · WGS84 {fall.ort.lat.toFixed(6)}, {fall.ort.lon.toFixed(6)}</td></tr>
             <tr><td>OSM-Übergang</td><td>{fall.ort.uebergang !== null ? <>Knoten {fall.ort.uebergang}{mk ? ` (${UEBERGANG_TEXT[mk] ?? mk})` : ''}</> :
               ortOhneUebergangText(fall)}</td></tr>
-            <tr><td>Streifen aus</td><td>{rechnung.streifenQuelle === 'hand' ? `Eingabe von Hand: ${[...new Set(fall.streifenHand.map(streifenHerkunftText))].join('; ')}` : rechnung.streifenQuelle === 'luftbild' ? 'Luftbild (erkannt, prüfen)' : 'OSM und AV'}</td></tr>
+            <tr><td>Streifen aus</td><td>{rechnung.streifenQuelle === 'hand' ? 'Eingabe von Hand' : rechnung.streifenQuelle === 'luftbild' ? 'Luftbild (erkannt, prüfen)' : 'OSM und AV'}</td></tr>
             {(fall.flaechenPlan?.length ?? 0) > 0 && <tr><td>Bodenbedeckung</td><td>Rechnung mit geplanter Bodenbedeckung (von Hand):
               AV mit {fall.flaechenPlan!.length} Fläche(n) (Plan), siehe «Eingaben von Hand»</td></tr>}
             <tr><td>Daten geladen</td><td>{fall.quellen.geladen ?? '–'}; Rechnung {rechnungZeit ? `${datum(rechnungZeit)} ${zeit(rechnungZeit)}` : '–'}</td></tr>
@@ -479,6 +490,9 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
           namen={namen} hand={fall.streifenHand} plan={fall.flaechenPlan ?? []}
           hindernisse={[...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)]} />}
 
+        </td></tr>
+        <tr className={rechnung.streifen.length > 0 ? 'bericht-neue-seite' : undefined}><td>
+        {/* Seite 1: Ort und Kartenbild; das Ergebnis beginnt im Druck oben auf Seite 2 (ohne Kartenbild ohne Umbruch) */}
         <section className="bericht-block">
           <h2>Ergebnis</h2>
           {rechnung.hinweis && <p><b>{rechnung.hinweis}</b></p>}
@@ -531,10 +545,12 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
 
         <footer className="bericht-fuss">
           <p><b>Die App ersetzt keine Beurteilung vor Ort.</b> Daten aus offenen Quellen können veraltet oder unvollständig sein (z. B.
-            Parkierung, Hecken, Mauerhöhen, Signalisation); Ergebnis und Eingaben vor Ort prüfen.</p>
+            Parkierung, Hecken, Mauerhöhen, Signalisation).</p>
           <p>fgsCheck v{__APP_VERSION__} (Stand {__BUILD_DATUM__}) · {APP_URL} · Code und eigene Inhalte unter CC BY-NC 4.0 · eingebundene
             Daten unter ihren eigenen Lizenzen (siehe Quellen).</p>
         </footer>
+        </td></tr></tbody>
+        </table>
       </article>
     </div>,
     document.body,

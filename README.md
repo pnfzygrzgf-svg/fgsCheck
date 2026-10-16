@@ -100,6 +100,9 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    lesbar). Das Kartenbild ist ein einzelnes Luftbild per WMS (EPSG:2056) mit einer SVG-Zeichnung darüber, kein
    Leaflet-Ausschnitt: Bild und Rechnung sind beide in LV95, gedruckt wird erst, wenn das Bild geladen ist.
    Streifen von Hand stehen zusätzlich in der Tabelle «Lage des Streifens (LV95)» mit den Massen aus «Lage und Masse».
+   Der Bericht druckt ohne Seitenrand (`@page { margin: 0 }`); den Rand bildet ein Rahmen, dessen Kopf und Fuss sich auf jeder
+   Seite wiederholen (`.bericht-rahmen`). So setzt der Browser keine eigene Kopf- und Fusszeile mit Titel, Adresse, Seitenzahl und
+   Datum dazu. Seite 1 zeigt Ort und Kartenbild, das Ergebnis beginnt auf Seite 2.
 
 ## Grenzen
 
