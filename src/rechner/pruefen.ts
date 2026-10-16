@@ -21,7 +21,7 @@ import {
 } from './spur'
 import {
   type Fs, type Fso, type FsoLage, fahrstreifenmitte, fahrstreifenOsm, fahrstreifenLage, fahrstreifenUebernehmen, fsHinweis,
-  abzugAusOsm, fahrbahnOsm, type Abzug, type AbzugQuelle, osmBreite, lageOsm, wegeAbschnitte, wegBei, hochBei, MEHRSTREIFIG_AB, MEHRSTREIFIG_EINBAHN,
+  abzugAusOsm, abzugAnnahme, fahrbahnOsm, type Abzug, type AbzugQuelle, osmBreite, lageOsm, wegeAbschnitte, wegBei, hochBei, MEHRSTREIFIG_AB, MEHRSTREIFIG_EINBAHN,
 } from './fahrstreifen'
 import { sichtweiteTab1, sichtweiteKurve, radiusRunden, tempoStart, tempoEntlang, SICHTWEITE } from './tempo'
 import {
@@ -268,12 +268,12 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       wegRoh = achsen.spur([treffer[0], treffer[1], treffer[2]], neg(d), weite)
       zf.name = zf.name || netz.w(wid).name
       kreiselPruefen = true
-      annahmen.push(`Kein OSM-Weg quert den Streifen: Spur entlang OSM-Weg ${wid}` + (aufFb ? '' : ' (neben der Fahrbahn)'))
+      annahmen.push(`Kein OSM-Weg quert den Streifen: Fahrlinie entlang des nächsten OSM-Wegs (Nr. ${wid})` + (aufFb ? '' : ', neben der Fahrbahn'))
     } else {
       wegRoh = [s.m, add(s.m, neg(d), weite)]
       tempoStreifen = 50; tempoQ = 'Ersatz'
       kreiselPruefen = false
-      annahmen.push('Kein OSM-Weg am Streifen: gerade Spur senkrecht zum Streifen')
+      annahmen.push('Kein OSM-Weg am Streifen: Fahrlinie gerade, senkrecht zum Streifen angenommen')
     }
   }
   let tempo = tempoStreifen
@@ -286,7 +286,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   const tempoHand = kx.vonHand?.tempo?.(fid, 'gerade', gradD) ??
     kx.vonHand?.tempoKennung?.(fid, zf.g !== null ? kennungGerade(zf.g, zf.sd!) : `s${fid}:${gradD}`) ?? null
   if (tempoHand) { tempo = tempoHand; sw = sichtweiteTab1(tempoHand); tempoQ = 'Korrektur' }
-  if (tempoQ === 'Ersatz') annahmen.push('Tempo 50 km/h angenommen (kein maxspeed in OSM)')
+  if (tempoQ === 'Ersatz') annahmen.push('Tempo 50 km/h angenommen (in OSM keine Höchstgeschwindigkeit erfasst)')
   const swEigen = sw
   let gesamt = sw + h
   const kInSicht = su !== null && su.art === 'knoten' && su.dist - h < swEigen
@@ -468,11 +468,8 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   const randInfo: RandInfo = {}
   let lageQuelle = fs ? 'AV' : 'Annahme'
   let r2 = false, r2Ende = 0, nKopf = 0
-  if (!fs && hatGerade) annahmen.push('Fahrbahn entlang der Spur nicht gemessen: Lage aus den Bordkanten am Streifen')
-  if (fs?.abzugQuelle) {
-    const br = [fs.parkR || fs.parkL ? 'Parkstreifen 1,90 m' : '', fs.veloR > 0 || fs.veloL > 0 ? 'Velostreifen 1,50 m' : ''].filter(Boolean)
-    annahmen.push(`Abzug: ${fs.abzugQuelle}${br.length ? ` (Breiten angenommen: ${br.join(', ')})` : ''}`)
-  }
+  if (!fs && hatGerade) annahmen.push('Fahrbahn entlang der Fahrlinie in der AV nicht gemessen: Lage der Fahrlinie aus den Bordkanten am Streifen')
+  if (fs?.abzugQuelle) annahmen.push(abzugAnnahme(fs.abzugQuelle))
   if (hatGerade) {
     let quer_ab: number | null = null
     if (zf.g !== null && netz && netz.w(zf.g.wid).ow) {
@@ -581,7 +578,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       if (vers) { sichtpunkte = neu; nVerschoben = vers }
       lageQuelle = 'OSM'
       netzHinweis.push('ohne_av_strasse')
-      annahmen.push('Spur über übrige befestigte Fläche ohne AV-Strasse (R2): Lage aus der OSM-Linie')
+      annahmen.push('Fahrlinie über eine übrige befestigte Fläche (in der AV keine Strasse): Lage aus der OSM-Linie')
     }
     // Kreisel-Ausfahrt: Spur bis vor den Ring, im Bogen auf den Ring, dann dem Ring entgegen der Fahrtrichtung
     if (kt) {

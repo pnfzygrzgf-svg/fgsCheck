@@ -250,6 +250,23 @@ describe('Insel nach OSM aus den Balken (INSEL_AUS_OSM; nur zwei Balkengruppen, 
     expect(aus.streifen.map(s => [s.fgsId, s.zufahrten.map(z => z.art).join()])).toEqual([['12', 'beide,beide']])
     expect([aus.inseln, aus.streifen[0].annahmen.join(' ')]).toEqual([[], expect.not.stringMatching(/insel/i)])
   })
+  it('mit Flächen (Plan): Erkennung auf dem Bestand, «erkannt» nur Vorschlag; gleich, ob zwischengespeichert oder frisch (M1)', () => {
+    const plan = (f: ReturnType<typeof fall>) => { f.flaechenPlan = [{ id: 'plan-1', art: 'trottoir', ring: rr(-3, 2, 3, 4.5) }]; return f }
+    const ohneMs = (x: unknown) => JSON.stringify(x, (k, v) => (k === 'ms' ? undefined : v))
+    const b = bild()
+    const r0 = rechneFall(osm({}), av, [], 12, fall(), null, b)                      // ohne Plan: erkannt, Rechnung aus dem Luftbild
+    expect([r0.streifenQuelle, r0.luftbild?.befund, r0.luftbild?.nurVorschlag]).toEqual(['luftbild', 'erkannt', undefined])
+    const zw = rechneFall(osm({}), av, [], 12, plan(fall()), null, b)                // Erkennung aus dem Zwischenspeicher
+    const frisch = rechneFall(osm({}), av, [], 12, plan(fall()), null, bild())       // neues Bild: frisch erkannt
+    expect(ohneMs(zw)).toBe(ohneMs(frisch))
+    expect([zw.streifenQuelle, zw.luftbild?.befund, zw.luftbild?.nurVorschlag]).toEqual(['osm', 'erkannt', true])
+    // gerechnet mit OSM + AV nach Plan: Ende an der Nase (Rand y = 2, Ende 0,3 m davor)
+    expect(Math.max(zw.streifen[0].p0[1], zw.streifen[0].p1[1]) - O[1]).toBeCloseTo(1.7, 6)
+    expect(zw.meldungen).toContain('Mit Flächen (Plan): Streifen aus dem Luftbild (Bestand) nur als Vorschlag; gerechnet mit OSM + AV ' +
+      'nach Plan bzw. mit den Streifen von Hand.')
+    // die Luftbild-Teile (Vorschlag) liegen wie ohne Plan (Erkennung auf dem Bestand)
+    expect(ohneMs(zw.luftbild?.teile)).toBe(ohneMs(r0.luftbild?.teile))
+  })
   it('rechneFall «erkannt» mit durchgehenden Balken: ein Streifen aus dem Luftbild, Hinweis', () => {
     const r = rechneFall(osm({ 'crossing:island': 'yes' }), av, [], 12, fall(), null, bild())
     expect([r.streifenQuelle, r.luftbild?.befund, r.inseln]).toEqual(['luftbild', 'erkannt', []])

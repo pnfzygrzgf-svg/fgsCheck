@@ -3,6 +3,7 @@
 import type { P } from '../geo'
 import type { Multi, Poly } from './poly'
 import type { Entfallen } from './zufahrten'
+import type { Vermassung } from './vermassung'
 
 export interface Konflikt {
   klasse: 'auto' | 'velo' | 'motorrad' | 'gebaeude' | 'baum' | 'hindernis'
@@ -77,6 +78,7 @@ export interface StreifenErgebnis {
   annahmen: string[]
   keinFgsHinweis?: string    // unmarkierter Übergang: Prüfung sinngemäss, ohne Normbezug
   markierungHinweis?: string // Markierung in OSM nicht belegt (crossing=uncontrolled): vermutlich FGS, bitte prüfen
+  vermassung?: Vermassung    // Streifen von Hand: Lage (LV95) und Masse für den Plan (rechneFall)
 }
 
 export interface Rechnung {

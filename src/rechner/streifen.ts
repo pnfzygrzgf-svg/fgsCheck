@@ -80,6 +80,70 @@ export function zufahrtenStreifen(S: Streifen[]): void {
   }
 }
 
+// ---------------------------------------------------------------- Streifen von Hand: Teilstreifen eines Übergangs
+// zufahrtenStreifen behandelt Streifen mit derselben Übergangskennung (uebergangId) als Teilstreifen (Inselteil zwischen den
+// Teilen statt beider Richtungen). Bis 16.10.2026 hatten alle Streifen von Hand die Kennung 'hand': mehrere Streifen an einem
+// Knoten (z. B. auf zwei Armen) galten als Teilstreifen und verfälschten einander (Prüfung 16.10.2026, Glockenstrasse: Streifen
+// B allein «verdeckt_gebaeude», zusammen mit A «frei», Abbiegezufahrt weg, gerade Zufahrt als «Inselteil» entfallen).
+// Seit 16.10.2026 (Korrektur) gehören Streifen von Hand nur zusammen, wenn sie auf einer Achse liegen wie die Teilstreifen aus
+// OSM + AV bzw. aus dem Luftbild, die «Streifen übernehmen» (fall.streifenUebernehmen) als Streifen von Hand schreibt (Vorschlag
+// der Prüfung: Winkel, Querversatz der Mitten, Lücke):
+// - Winkel zwischen den beiden Achsen höchstens TEIL_ACHSE_GRAD (20°): übernommene Teile 0°; die vorgeschlagenen 10° trennten
+//   schon einen 2 m kurzen Teil (TEIL_MIN_M), dessen Ende an der Insel um 0,5 m seitlich verschoben wurde (14°); quer stehende
+//   Streifen (Arme eines Knotens, ab rund 45°) bleiben getrennt.
+// - gemeinsame Richtung: Mittel der beiden Achsrichtungen, nach Länge gewichtet (ein kurzer, schiefer Teil kippt sie kaum).
+// - Querversatz der Mitten quer zur gemeinsamen Richtung höchstens TEIL_ACHSE_QUER_M (2 m): übernommene Teile 0 m; zwei
+//   Streifen derselben Strasse liegen mindestens eine Streifenbreite (Annahme 4 m) nebeneinander, Streifen auf verschiedenen
+//   Armen eines Knotens weiter.
+// - Lücke zwischen den Enden entlang der gemeinsamen Richtung höchstens TEIL_ENDEN_LUECKE_M = TEIL_LUECKE_MAX_M + 2 ·
+//   RAND_ZUSCHLAG (12,6 m): Teilstreifen aus OSM + AV enden RAND_ZUSCHLAG vor der Insel, die höchstens TEIL_LUECKE_MAX_M (12 m)
+//   breit ist; aus dem Luftbild trennen höchstens 12 m ohne Fahrbahn (luftbild.ts INSEL_LUECKE_MAX_M) bzw. 4 m (Insel aus den
+//   Balken, INSEL_LUECKE_MAX_M unten) die Teile. INSEL_LUECKE_MAX_M dieser Datei (4 m) allein wäre für Teile über AV-Inseln zu
+//   knapp.
+// - Lücke mindestens TEIL_ENDEN_LUECKE_MIN_M = RAND_ZUSCHLAG (0,3 m; Nachprüfung 16.10.2026): Teilstreifen liegen nie
+//   übereinander. Übernommene Teile haben die Insel dazwischen: aus OSM + AV bzw. an einer Insel von Hand Inselbreite +
+//   2 · RAND_ZUSCHLAG (mindestens 0,6 m), aus dem Luftbild mindestens INSEL_LUECKE_MIN_M (1 m, Insel aus den Balken) bzw. eine
+//   Balkenteilung ohne Fahrbahn; in der Berner Referenz 2,1 bis 10,0 m (25 Paare). Die halbe kleinste Lücke bleibt als Spiel für Enden, die von Hand an die Insel gezogen werden.
+//   Überlappen sich zwei Streifen entlang der Richtung bzw. stossen sie aneinander, sind es Varianten desselben Streifens
+//   (z. B. 1 m daneben, kürzer): getrennt rechnen (Prüfung: Glockenstrasse 25800779, gemeinsam nur «171/insel», a70 fehlte).
+// Die Gruppen sind transitiv (drei Teile an zwei Inseln). Kennung: 'hand' für die Gruppe mit dem ersten Streifen der Liste (wie
+// bisher: ein einzelner Streifen und eine Teilstreifen-Gruppe rechnen unverändert), jede weitere Gruppe 'hand:<Nummer ihres
+// ersten Streifens>'. Von der Kennung hängen keine Schlüssel ab: Eingaben gehen an fgsId (Nummer des Streifens von Hand) und
+// die Kennung der Zufahrt (Weg und Richtung bzw. s<Nr>:<Grad>); ändert sich die Gruppe, ändern sich nur Art und Zahl der
+// Zufahrten (Inselteil bzw. beide Richtungen), deren Eingaben bleiben unter ihrem Schlüssel.
+export const TEIL_ACHSE_QUER_M = 2.0
+export const TEIL_ACHSE_GRAD = 20
+export const TEIL_ENDEN_LUECKE_M = TEIL_LUECKE_MAX_M + 2 * RAND_ZUSCHLAG
+export const TEIL_ENDEN_LUECKE_MIN_M = RAND_ZUSCHLAG
+
+/** Liegen zwei Streifen (Achsen p0–p1) als Teilstreifen auf einer Achse? (Regeln oben) */
+export function aufEinerAchse(a: { p0: P; p1: P }, b: { p0: P; p1: P }): boolean {
+  const va = sub(a.p1, a.p0), la = Math.hypot(va[0], va[1])
+  let vb = sub(b.p1, b.p0)
+  const lb = Math.hypot(vb[0], vb[1])
+  if (!(la > 0) || !(lb > 0)) return false
+  if (dot(va, vb) < 0) vb = [-vb[0], -vb[1]]                // gleich orientiert (Achse ohne Richtung)
+  if (dot(va, vb) / (la * lb) < Math.cos(TEIL_ACHSE_GRAD * Math.PI / 180) - 1e-12) return false
+  const e = einheit(add(va, vb)), q: P = [-e[1], e[0]]      // Summe der Vektoren = nach Länge gewichtetes Mittel
+  const ma: P = [(a.p0[0] + a.p1[0]) / 2, (a.p0[1] + a.p1[1]) / 2], mb: P = [(b.p0[0] + b.p1[0]) / 2, (b.p0[1] + b.p1[1]) / 2]
+  if (Math.abs(dot(sub(mb, ma), q)) > TEIL_ACHSE_QUER_M + 1e-9) return false
+  const t = (p: P) => dot(sub(p, ma), e)
+  const [a0, a1] = [Math.min(t(a.p0), t(a.p1)), Math.max(t(a.p0), t(a.p1))]
+  const [b0, b1] = [Math.min(t(b.p0), t(b.p1)), Math.max(t(b.p0), t(b.p1))]
+  const luecke = Math.max(b0 - a1, a0 - b1)
+  return luecke >= TEIL_ENDEN_LUECKE_MIN_M - 1e-9 && luecke <= TEIL_ENDEN_LUECKE_M + 1e-9
+}
+
+/** Übergangskennung je Streifen von Hand (Teilstreifen auf einer Achse gemeinsam, Regeln oben): Nummer -> Kennung */
+export function handGruppen(hs: { id: string; p0: P; p1: P }[]): Map<string, string> {
+  const vater = hs.map((_, i) => i)
+  const wurzel = (i: number): number => { while (vater[i] !== i) { vater[i] = vater[vater[i]]; i = vater[i] } return i }
+  for (let i = 0; i < hs.length; i++) for (let j = i + 1; j < hs.length; j++)
+    if (aufEinerAchse(hs[i], hs[j])) { const a = wurzel(i), b = wurzel(j); if (a !== b) vater[Math.max(a, b)] = Math.min(a, b) }
+  // die Wurzel ist der erste Streifen der Gruppe (kleinster Index)
+  return new Map(hs.map((h, i) => { const w = wurzel(i); return [h.id, w === 0 ? 'hand' : `hand:${hs[w].id}`] }))
+}
+
 /** umriss_ring: Umriss bzw. Rechteck aus Achse und Balkenlänge */
 export function umrissRing(s: Streifen): P[] {
   if (s.umriss) return s.umriss

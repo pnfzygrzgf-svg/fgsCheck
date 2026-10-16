@@ -1,6 +1,6 @@
-# fgsCheck (Prototyp v0.4)
+# fgsCheck (Prototyp v0.5)
 
-Sichtprüfung an Fussgängerstreifen im Browser.
+Sichtprüfung an bestehenden und geplanten Fussgängerstreifen im Browser.
 
 Vibecoding. Don't trust, verify!
 
@@ -35,6 +35,8 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    gerechnet als FGS, Hinweis «bitte prüfen»), violett Lichtsignal, grau unmarkiert bzw. ohne Angabe; das Häkchen «nur
    markierte Übergänge zeigen» blendet die grauen aus. Graue Übergänge werden ebenfalls gerechnet; Panel, Streifen und Fall-Datei
    weisen sie aus als «Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug».
+   Mit Streifen von Hand an einem grauen Übergang steht stattdessen «Heute kein Fussgängerstreifen …; der Streifen von Hand
+   wird als Fussgängerstreifen geprüft» (Planung, siehe 6.).
 3. Panel: je Streifen (bzw. Teilstreifen über einer Insel) die Zufahrten mit Tempo, Sichtweite, Lage des Sichtpunkts und
    Status, die nicht geprüften Richtungen mit Grund, die verwendeten Annahmen. Zeile anklicken: Sichtfeld, Sichtpunkte,
    Spur und Hindernisse im Sichtfeld auf der Karte.
@@ -56,6 +58,23 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    übernehmen und anpassen» macht die gebildeten Streifen verschiebbar; eine angenommene Insel (nach OSM und Luftbild)
    kommt dabei als Insel von Hand («Insel (aus Luftbild übernommen)») mit, damit die Teilung bleibt (ebenso bei
    «Luftbild-Streifen übernehmen und anpassen»; nicht doppelt, wenn schon eine Insel von Hand dort liegt).
+   Planung neuer Streifen: «Streifen planen» (oben im Panel, auch ohne gewählten Übergang) zeichnet einen Streifen an
+   beliebiger Stelle; liegt er ausserhalb der geladenen Daten, lädt die App AV, OSM und Kataster um die Streifen neu
+   (`src/abdeckung.ts`, abgedeckt ist ein Streifen ganz innert 30 m vom Ladeort; mehrere Streifen bis rund 60 m
+   Spannweite in einem Fall). An einem Übergang ohne Fussgängerstreifen heisst der Knopf «Querung als geplanten Streifen
+   übernehmen und anpassen». Die Breite eines Streifens von Hand lässt sich in der Liste ändern. «Lage und Masse» zeigt je
+   Streifen von Hand die LV95-Koordinaten der Achsenenden und Ecken, Länge, Breite, Winkel zur Fahrbahn, Abstand der Enden
+   zum Fahrbahnrand und je gerade geprüfte Zufahrt zum nächsten Knoten stromauf; «Koordinaten kopieren» legt sie tabulatorgetrennt in die Zwischenablage.
+   Jeder Streifen von Hand wird für sich gerechnet; als Teile eines Übergangs gelten nur Teilstreifen auf einer Achse
+   mit einer Lücke dazwischen (z. B. an einer Insel).
+   Fixpunkte (Werkzeug «Fixpunkt», fängt Gebäudeecken und Stützpunkte der AV, `src/fixpunkt.ts`) vermassen die Streifen von
+   Hand in «Lage und Masse» und im Bericht (längs entlang der Balken bis zur Kante bzw. Achse, zum näheren Ende längs und quer,
+   Luftlinie zur nächsten Ecke); sie stehen in der Fall-Datei und ändern die Rechnung nicht.
+   Geplante Trottoirränder: Werkzeug «Fläche (Plan)» mit der Art Trottoir, Fahrbahn bzw. Insel (Ecken fangen auf
+   Stützpunkte der AV bzw. anderer Plan-Flächen, Doppelklick schliesst); die Fläche ersetzt in der Rechnung die
+   AV-Bodenbedeckung darunter (Gebäude bleiben, die zuletzt gezeichnete Plan-Fläche gilt), Bordkanten, Wartebereiche,
+   Inseln, Fahrlinien und Vermassung richten sich danach (`src/rechner/planflaechen.ts`). In der Fall-Datei steht sie
+   im Feld `flaechenPlan`; die Karte zeigt sie schraffiert über der AV, der Bericht im Kartenbild und unter «Eingaben von Hand».
 7. Je Streifen Lichtsignal und «kein FGS», je Zufahrt (Zeile anklicken) Tempo, «Fahrlinie korrigieren» (A: Linie seitlich
    verschieben, am Streifen und am Ende, + links, − rechts; B: Fahrlinie selbst zeichnen, bei Abbiegenden mit Kreisvorschlag
    und «Radius übernehmen») und «Diese Zufahrt gibt es nicht (streichen)». Abbiegezufahrten, die bisher wegen der geraden
@@ -63,20 +82,24 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    bis zum Knoten mit Tab. 1 der eigenen Strasse. Eingaben, zu denen die Rechnung keine Zufahrt mehr findet, meldet das Panel.
 8. «Fall speichern» schreibt alle Eingaben als JSON-Datei (Version, Ort, Quellenstand); «Fall laden» stellt sie wieder her.
    Zusätzlich merkt sich der Browser die Eingaben je Übergang (localStorage, falls verfügbar).
+   Ein geplanter Fall ohne Übergang liegt im Browser nur als letzter geplanter Fall («Letzten geplanten Fall
+   wiederherstellen»); bevor ein ungesicherter geplanter Fall ersetzt oder die Seite verlassen wird und bevor ein anderer
+   geplanter Fall im Browser-Eintrag ersetzt würde, fragt die App nach.
 
-9. Luftbild (E3): Am gewählten Übergang lädt die App einen Ausschnitt SWISSIMAGE 10 cm (± 30 m, © swisstopo) und sucht
+9. Luftbild: Am gewählten Übergang lädt die App einen Ausschnitt SWISSIMAGE 10 cm (± 30 m, © swisstopo) und sucht
    dort die gelben Balken. «Erkannt» ersetzt den Streifen aus OSM + AV (Hinweis «aus Luftbild, prüfen», Balken orange auf
    der Karte); «unsicher» erscheint gestrichelt als Vorschlag, die Rechnung nimmt dann OSM + AV. Das Luftbild lädt im
    Hintergrund: zuerst rechnet die App mit OSM + AV, sobald das Bild da ist, neu. «Luftbild-Streifen
    übernehmen und anpassen» macht ihn zum Streifen von Hand. Der Schalter «Streifen im Luftbild suchen» schaltet ab;
    dann lädt die App weder Bild noch Flugjahr, wieder eingeschaltet holt sie das Laden nach.
 
-10. Bericht (E4): «Bericht drucken / als PDF» öffnet eine Druckansicht (A4 hoch): Ort (Bezeichnung frei eingebbar, LV95,
+10. Bericht: «Bericht drucken / als PDF» öffnet eine Druckansicht (A4 hoch): Ort (Bezeichnung frei eingebbar, LV95,
    WGS84, OSM-Übergang), Kartenbild mit Streifen, Sichtfeldern, Sichtpunkten und Hindernissen, Status je Streifen, Tabelle je
    Zufahrt (Art, Tempo und Quelle, Sichtweite, Status, Hindernisse), Eingaben von Hand, Annahmen und Hinweise, Quellen,
    Normbezüge, App-Version. Als PDF speichern über den Druckdialog des Browsers. Status steht zusätzlich als Text (schwarz-weiss
    lesbar). Das Kartenbild ist ein einzelnes Luftbild per WMS (EPSG:2056) mit einer SVG-Zeichnung darüber, kein
    Leaflet-Ausschnitt: Bild und Rechnung sind beide in LV95, gedruckt wird erst, wenn das Bild geladen ist.
+   Streifen von Hand stehen zusätzlich in der Tabelle «Lage des Streifens (LV95)» mit den Massen aus «Lage und Masse».
 
 ## Grenzen
 
@@ -208,6 +231,10 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   erst beim Wechsel), `src/Startseite.tsx` – Startseite mit Beschreibung, Querverweisen und Datenspeicherung
 - `src/Bericht.tsx` – Bericht (Druckansicht, Kartenbild aus WMS + SVG), `src/Hilfe.tsx` – «So funktioniert's», Datenschutz,
   Fusszeile, `src/texte.ts` – Texte für Panel und Bericht
+- `src/abdeckung.ts` – Abdeckung der geladenen Daten: wann die App um Streifen von Hand neu lädt (Herleitung der 30 m im
+  Kopf der Datei), `src/rechner/vermassung.ts` – Lage und Masse eines Streifens von Hand
+- `src/rechner/planflaechen.ts` – Flächen (Plan) von Hand mit der AV-Bodenbedeckung verschneiden (Regeln im Kopf der Datei),
+  `src/fixpunkt.ts` – Fangen auf AV-Stützpunkte, `src/benennung.ts` – Namen der Streifen von Hand und Zufahrten
 - `src/referenz.test.ts` – Vergleich mit einer Referenz-Datei ausserhalb des Repos (nur lokal; ohne Datei übersprungen;
   Ergebnisdatei nur mit `FGS_REFERENZ_SCHREIBEN=1`)
 
@@ -229,6 +256,9 @@ IP-Adresse):
 | Overpass: overpass.osm.ch, ersatzweise overpass-api.de, overpass.kumi.systems, overpass.private.coffee | Kartenausschnitt (Übergänge und Strassennamen) mit Rand (Suche, automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m |
 | map.bern.ch (nur Stadt Bern) | Rechteck ±150 m (amtliche Parkfelder, Baumkataster) |
 | GoatCounter | Seitenaufruf ohne Cookies: Seitenpfad, Referrer, Bildschirmbreite, Browser und Betriebssystem, Sprache, Land (aus der IP-Adresse, die nicht gespeichert wird); zählt nicht auf localhost |
+
+Beim Planen ohne OSM-Übergang gelten die Ausschnitte um den Ladeort an den gezeichneten Streifen statt um den Übergang.
+Den letzten geplanten Fall ohne Übergang hält der Browser im Eintrag `fgsCheck.fall.ort`.
 
 Der eigene Standort («Zum eigenen Standort») wird nur im Browser ermittelt und angezeigt, nicht gespeichert und nicht
 gesendet; die Dienste erhalten wie sonst nur den Kartenausschnitt dort. GitHub Pages protokolliert Zugriffe wie jeder Webserver.
@@ -268,6 +298,15 @@ Die App ersetzt keine Beurteilung vor Ort.
 (Basis `/`), Veröffentlichung auf GitHub Pages unter der eigenen Domain fgscheck.ch. Einmalig im Repo unter Settings → Pages als Quelle «GitHub Actions»
 wählen und als Custom domain `fgscheck.ch` eintragen. Der Referenzvergleich (`src/referenz.test.ts`) läuft in CI nicht (keine Referenz-Datei); den Pfad setzt man lokal mit
 `FGS_REFERENZ`. Nutzungsstatistik: GoatCounter in `index.html` (versionierte `count.v4.js` mit Integritäts-Hash).
+
+## Versionen
+
+- v0.4: Luftbild-Erkennung gelber Streifen, Bericht (Druckansicht bzw. PDF), amtliche Parkfelder der Stadt Bern,
+  Startseite und Ortssuche.
+- v0.5: Planung neuer Streifen («Streifen planen», Daten um die gezeichneten Streifen), Lage und Masse mit Fixpunkten,
+  Namen für Streifen von Hand, Zufahrten nach Strasse und Herkunft benannt, verständlichere Annahmen im Bericht.
+  Flächen (Plan) von Hand: geplante Trottoirränder, Fahrbahn und Inseln ersetzen in der Rechnung die AV-Bodenbedeckung.
+  Fall-Dateien mit Flächen (Plan) haben die Version 2 (ältere Fassungen lehnen sie ab), alle übrigen bleiben Version 1.
 
 ## Lizenz
 

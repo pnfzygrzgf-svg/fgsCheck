@@ -4,7 +4,7 @@
 // Flächen aus dem WFS (geodienste.ch), unabhängig von der Gemeinde.
 
 import type { AvFlaeche } from '../daten/av'
-import { type P, add, imPolygon, sub, kreuz } from '../geo'
+import { type P, add, imPolygon, sub, kreuz, abstandStrecke } from '../geo'
 import { type Poly, abstandPunkt } from './poly'
 
 export const SEHNE_HALB = 22.0              // halbe Suchlänge der Senkrechten
@@ -100,7 +100,21 @@ export function intervalleImPolygon(p: P, r: P, halb: number, poly: Poly): [numb
 /** fgs_sicht_pruefen.Fahrbahn: AV Strasse_Weg */
 export class Fahrbahn {
   r: Raster
-  constructor(av: AvFlaeche[]) { this.r = new Raster(av, ['Strasse_Weg']) }
+  /** Teile der Flächen (Plan) von Hand in der Rechnung (planflaechen.avMitPlan; leer ohne): Quellenangaben «nach Plan-Fläche» */
+  plan: { id: string; art: string; poly: Poly }[]
+  constructor(av: AvFlaeche[]) {
+    this.r = new Raster(av, ['Strasse_Weg'])
+    this.plan = av.filter(f => f.planId).map(f => ({ id: f.planId!, art: f.art, poly: f.ringe }))
+  }
+  /** Fläche (Plan), an deren Umriss mindestens die Hälfte der Punkte liegt (höchstens tol), sonst null (Bordkante nach Plan) */
+  planAnLinie(pts: P[], tol = 0.05): { id: string; art: string } | null {
+    if (!this.plan.length || !pts.length) return null
+    for (const t of this.plan) {
+      const an = pts.filter(p => t.poly.some(r => r.some((q, i) => abstandStrecke(p, q, r[(i + 1) % r.length]) <= tol))).length
+      if (an * 2 >= pts.length) return { id: t.id, art: t.art }
+    }
+    return null
+  }
   get polys(): Teil[] { return this.r.teile }
   enthaelt(p: P): boolean { return this.r.enthaelt(p) }
 

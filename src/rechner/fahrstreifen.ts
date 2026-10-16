@@ -320,6 +320,24 @@ export function abzugSeite(t: Tags, seite: 'right' | 'left'): Abzug {
   return { park, velo }
 }
 
+// Annahme zu den Abzügen als Text (Panel, Bericht; Korrektur 16.10.2026: «Abzug: Velostreifen aus OSM (cycleway:*)» verstand
+// niemand). abzugQuelle (fahrstreifenmitte) bleibt als Kennzeichen im Ergebnis unverändert.
+const f2_ = (x: number) => x.toFixed(2).replace('.', ',')
+const ABZUG_TEXT: Record<string, string> = {
+  'Parkfelder': `Parkfelder am Fahrbahnrand als Parkstreifen (Breite ${f2_(PARKSTREIFEN)} m angenommen)`,
+  'Parkierung von Hand': 'Parkierung (Breite aus der Eingabe von Hand)',
+  'Velostreifen aus OSM (cycleway:*)': `Velostreifen laut OSM (Tag cycleway, Breite ${f2_(ABZUG_VELO)} m angenommen)`,
+  'Velostreifen von Hand': 'Velostreifen (Breite aus der Eingabe von Hand)',
+}
+/** Abzüge als Text («Velostreifen laut OSM (Tag cycleway, Breite 1,50 m angenommen)», mehrere mit «und») */
+export const abzugTeile = (abzugQuelle: string): string => abzugQuelle.split(', ').map(q => ABZUG_TEXT[q] ?? q).join(' und ')
+/** «Fahrlinie: Velostreifen laut OSM (…) von der Fahrbahnbreite abgezogen; die Fahrlinie liegt in der Mitte der übrigen Fahrbahn …»;
+ * arm: an der Querstrasse einer Abbiegezufahrt */
+export function abzugAnnahme(abzugQuelle: string, arm = false): string {
+  return `Fahrlinie${arm ? ' in der Querstrasse' : ''}: ${abzugTeile(abzugQuelle)} von der gemessenen Fahrbahnbreite abgezogen; die ` +
+    'Fahrlinie liegt in der Mitte der übrigen Fahrbahn bzw. des Fahrstreifens.'
+}
+
 /** Abzug rechts/links zur Fahrt aus dem OSM-Weg unter p (weg_segment, 5 m) */
 export type AbzugQuelle = (k: number) => { r: Abzug; l: Abzug } | null
 

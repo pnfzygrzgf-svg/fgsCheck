@@ -9,16 +9,42 @@ import type { Hindernis } from './rechner/hindernisse'
 import type { SpurHand } from './rechner/spurhand'
 import type { VonHand } from './rechner/pruefen'
 
-export const FALL_VERSION = 1
+/**
+ * Versionen der Fall-Datei (Korrektur 16.10.2026, Prüfbefund S2): 1 = bisher; 2 = mit Flächen (Plan) (Feld flaechenPlan). Version 2
+ * wird nur geschrieben, wenn der Fall Flächen (Plan) hat (fallVersion): eine ältere App lehnt die Datei dann ab («Fall-Datei
+ * Version 2 wird nicht unterstützt»), statt still ohne die Plan-Flächen zu rechnen; alle übrigen Dateien bleiben Version 1 und
+ * für ältere Apps lesbar. FALL_VERSION ist die höchste lesbare Version.
+ */
+export const FALL_VERSION = 2
+export const FALL_VERSION_BASIS = 1
+/** Version, mit der ein Fall geschrieben wird: 2 mit Flächen (Plan), sonst 1 */
+export const fallVersion = (f: { flaechenPlan?: unknown[] }): number => (f.flaechenPlan?.length ? 2 : FALL_VERSION_BASIS)
 
 export interface StreifenHand { id: string; p0: P; p1: P; breite: number; richtung?: P   // richtung: Balken (Luftbild), sonst OSM-Weg
   herkunft?: StreifenHerkunft      // woher der Streifen stammt (fehlt in Fällen vor dem 11.10.2026: unbekannt)
   angepasst?: boolean              // Enden nach dem Übernehmen bzw. Zeichnen verschoben
+  name?: string                    // eigener Name (Anzeige statt «Streifen 1», benennung.streifenTitel; seit 16.10.2026)
 }
+/** Name eines Streifens von Hand höchstens so lang (Zeichen) */
+export const STREIFEN_NAME_MAX = 60
 export type StreifenHerkunft = 'gezeichnet' | 'osm' | 'luftbild' | 'luftbild_vorschlag'
 const HERKUNFTE: StreifenHerkunft[] = ['gezeichnet', 'osm', 'luftbild', 'luftbild_vorschlag']
 export interface ZufahrtHand { tempo?: number; streichen?: boolean; spur?: SpurHand }
+/** Fixpunkt für die Vermassung eines Streifens von Hand (seit 16.10.2026; fixpunkt.ts): gefangen auf eine Gebäudeecke bzw. einen
+ * Stützpunkt der AV-Bodenbedeckung, sonst frei gesetzt. Beeinflusst die Rechnung nicht. avArt: Art der AV-Fläche (av_punkt) */
+export type FixpunktArt = 'gebaeudeecke' | 'av_punkt' | 'frei'
+export const FIXPUNKT_ARTEN: FixpunktArt[] = ['gebaeudeecke', 'av_punkt', 'frei']
+/** Name eines Fixpunkts höchstens so lang (Zeichen; wie das Textfeld in der Liste) */
+export const FIXPUNKT_NAME_MAX = 80
+export interface Fixpunkt { id: string; p: P; art: FixpunktArt; name?: string; avArt?: string }
 export interface StreifenEingabe { lsa?: 'ja' | 'nein'; keinFgs?: boolean }
+/** Fläche (Plan) von Hand (seit 16.10.2026; rechner/planflaechen.ts): geplante Bodenbedeckung, ersetzt für die Rechnung die
+ * AV-Flächen darunter (Trottoirnase, Fahrbahnverengung, verschobener Randstein, neue Insel). Ring ohne Schlusspunkt, LV95 */
+export type PlanArt = 'trottoir' | 'fahrbahn' | 'insel'
+export const PLAN_ARTEN: PlanArt[] = ['trottoir', 'fahrbahn', 'insel']
+export interface FlaechePlan { id: string; art: PlanArt; ring: P[] }
+/** Fläche (Plan): höchstens so viele Ecken (Fall-Datei) */
+export const PLAN_ECKEN_MAX = 500
 
 export interface Fall {
   app: 'fgsCheck'
@@ -33,6 +59,8 @@ export interface Fall {
   baumkataster: boolean
   parkkataster?: boolean                          // amtliche Parkfelder laden (Vorgabe: ja; false = abgeschaltet)
   luftbild?: boolean                              // Streifen im Luftbild suchen (Vorgabe: ja)
+  fixpunkte?: Fixpunkt[]                          // Fixpunkte der Vermassung (fehlt, solange keiner gesetzt ist; ältere Apps übergehen das Feld)
+  flaechenPlan?: FlaechePlan[]                    // Flächen (Plan) von Hand, spätere vor früheren (fehlt, solange keine gezeichnet ist)
   gespeichert?: string
   ergebnis?: FallErgebnis                         // nur beim Speichern geschrieben (Auszug), beim Laden neu gerechnet
 }
@@ -46,7 +74,7 @@ export interface FallErgebnis {
 }
 
 export function leererFall(lat: number, lon: number, uebergang: number | null): Fall {
-  return { app: 'fgsCheck', version: FALL_VERSION, ort: { lat, lon, uebergang }, quellen: {}, streifenHand: [], hindernisse: [],
+  return { app: 'fgsCheck', version: FALL_VERSION_BASIS, ort: { lat, lon, uebergang }, quellen: {}, streifenHand: [], hindernisse: [],
     zufahrten: {}, streifen: {}, vorschlaege: {}, baumkataster: false }
 }
 
@@ -104,6 +132,28 @@ export const GEBIET = { latMin: 45.7, latMax: 47.9, lonMin: 5.8, lonMax: 10.6 }
 export const imGebiet = (lat: number, lon: number): boolean =>
   lat >= GEBIET.latMin && lat <= GEBIET.latMax && lon >= GEBIET.lonMin && lon <= GEBIET.lonMax
 
+/**
+ * Koordinaten in LV95 (m) plausibel für das Gebiet der App (GEBIET): Schweiz und Liechtenstein reichen von rund E 2'485'000 bis
+ * 2'834'000 und N 1'075'000 bis 1'296'000; mit etwa 10 km Rand wie beim Ort. Prüft Punkte aus der Fall-Datei (Fixpunkte, Flächen
+ * (Plan)), damit eine verdorbene Datei (WGS84-Grad, vertauschte Achsen, LV03) nicht weit weg rechnet bzw. zeichnet.
+ */
+export const LV95_GEBIET = { eMin: 2475000, eMax: 2845000, nMin: 1065000, nMax: 1305000 }
+export const imLv95 = (p: P): boolean =>
+  p[0] >= LV95_GEBIET.eMin && p[0] <= LV95_GEBIET.eMax && p[1] >= LV95_GEBIET.nMin && p[1] <= LV95_GEBIET.nMax
+
+/** Ring einer Fläche (Plan) aus der Datei: Punkte in LV95, Schlusspunkt weg, doppelte Nachbarn weg; null wenn ungültig
+ * (weniger als 3 Ecken, mehr als PLAN_ECKEN_MAX, ausserhalb, Fläche unter 0,01 m²) */
+export function planRingPruefen(x: unknown): P[] | null {
+  if (!istPs(x, 3) || x.length > PLAN_ECKEN_MAX + 1 || !x.every(imLv95)) return null
+  const r: P[] = []
+  for (const p of x) if (!r.length || r[r.length - 1][0] !== p[0] || r[r.length - 1][1] !== p[1]) r.push([p[0], p[1]])
+  if (r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]) r.pop()
+  if (r.length < 3) return null
+  let a = 0
+  for (let i = 0, j = r.length - 1; i < r.length; j = i++) a += (r[j][0] - r[0][0]) * (r[i][1] - r[0][1]) - (r[i][0] - r[0][0]) * (r[j][1] - r[0][1])
+  return Math.abs(a / 2) >= 0.01 ? r : null
+}
+
 const QUELLEN_SCHLUESSEL = ['osm', 'av', 'baumkataster', 'parkkataster', 'luftbild', 'geladen'] as const
 
 /** Fall aus JSON lesen und prüfen -> [Fall, Hinweise]. Ausnahme nur bei fremder Datei, Version oder ungültigem Ort; ungültige
@@ -111,7 +161,8 @@ const QUELLEN_SCHLUESSEL = ['osm', 'av', 'baumkataster', 'parkkataster', 'luftbi
 export function fallLesen(text: string): [Fall, string[]] {
   const roh: unknown = JSON.parse(text)
   if (!istObjekt(roh) || roh.app !== 'fgsCheck') throw new Error('keine fgsCheck-Fall-Datei')
-  if (!zahl(roh.version) || roh.version > FALL_VERSION) throw new Error(`Fall-Datei Version ${String(roh.version)} wird nicht unterstützt`)
+  if (!zahl(roh.version) || roh.version > FALL_VERSION) throw new Error(`Fall-Datei Version ${String(roh.version)} wird nicht unterstützt` +
+    (zahl(roh.version) && roh.version > FALL_VERSION ? ' (aus einer neueren fgsCheck-Version: Seite neu laden)' : ''))
   const ort = roh.ort
   if (!istObjekt(ort) || !zahl(ort.lat) || !zahl(ort.lon)) throw new Error('Ort fehlt in der Fall-Datei')
   if (Math.abs(ort.lat) > 90 || Math.abs(ort.lon) > 180) throw new Error(`Ort ungültig (lat ${ort.lat}, lon ${ort.lon}: keine WGS84-Koordinaten)`)
@@ -149,6 +200,7 @@ export function fallLesen(text: string): [Fall, string[]] {
       if (istP(o.richtung) && Math.abs(Math.hypot(o.richtung[0], o.richtung[1]) - 1) < 0.01) sh.richtung = o.richtung
       if (HERKUNFTE.includes(o.herkunft as StreifenHerkunft)) sh.herkunft = o.herkunft as StreifenHerkunft
       if (o.angepasst === true) sh.angepasst = true
+      if (typeof o.name === 'string' && o.name.trim()) sh.name = o.name.trim().slice(0, STREIFEN_NAME_MAX)
       fall.streifenHand.push(sh)
     } else hinweise.push('Streifen von Hand ungültig, übergangen')
   }
@@ -156,6 +208,27 @@ export function fallLesen(text: string): [Fall, string[]] {
     const x = hindernisPruefen(h)
     if (x) fall.hindernisse.push(x); else hinweise.push('Hindernis ungültig, übergangen')
   }
+  const fix: Fixpunkt[] = []
+  for (const x of liste('fixpunkte', 'Fixpunkte')) {
+    const o = istObjekt(x) ? x : null
+    if (o && typeof o.id === 'string' && istP(o.p) && imLv95(o.p) && FIXPUNKT_ARTEN.includes(o.art as FixpunktArt) &&
+      !fix.some(y => y.id === o.id)) {
+      const fp: Fixpunkt = { id: o.id, p: o.p, art: o.art as FixpunktArt }
+      if (typeof o.name === 'string' && o.name.trim()) fp.name = o.name.trim().slice(0, FIXPUNKT_NAME_MAX)
+      if (typeof o.avArt === 'string' && o.avArt) fp.avArt = o.avArt
+      fix.push(fp)
+    } else hinweise.push('Fixpunkt ungültig, übergangen')
+  }
+  if (fix.length) fall.fixpunkte = fix
+  const plan: FlaechePlan[] = []
+  for (const x of liste('flaechenPlan', 'Flächen (Plan)')) {
+    const o = istObjekt(x) ? x : null
+    const ring = o ? planRingPruefen(o.ring) : null
+    if (o && ring && typeof o.id === 'string' && o.id && PLAN_ARTEN.includes(o.art as PlanArt) && !plan.some(y => y.id === o.id))
+      plan.push({ id: o.id, art: o.art as PlanArt, ring })
+    else hinweise.push('Fläche (Plan) ungültig, übergangen')
+  }
+  if (plan.length) fall.flaechenPlan = plan
   for (const [k, v] of objekt('zufahrten', 'Zufahrten')) {
     if (!istObjekt(v)) { hinweise.push(`Zufahrt ${k} ungültig, übergangen`); continue }
     const z: ZufahrtHand = {}
@@ -188,7 +261,7 @@ export function fallLesen(text: string): [Fall, string[]] {
 export function fallSchreiben(fall: Fall, ergebnis: FallErgebnis | null = null): string {
   const { ergebnis: _alt, ...rest } = fall
   void _alt
-  return JSON.stringify({ ...rest, gespeichert: new Date().toISOString(), ...(ergebnis ? { ergebnis } : {}) }, null, 1)
+  return JSON.stringify({ ...rest, version: fallVersion(fall), gespeichert: new Date().toISOString(), ...(ergebnis ? { ergebnis } : {}) }, null, 1)
 }
 
 /** Eingaben des Falls als VonHand für die Rechnung */
@@ -214,19 +287,69 @@ export function fallMerken(fall: Fall): void {
     else localStorage.removeItem(key)
   } catch { /* ohne Speicher */ }
 }
-export function fallErinnern(uebergang: number): Fall | null {
+/** Gemerkten Fall lesen: zu einem Übergang bzw. 'ort' = der zuletzt bearbeitete Fall ohne Übergang (Planung; ein einziger
+ * Eintrag, «Letzten geplanten Fall wiederherstellen»). Unlesbarer Inhalt bzw. ohne Speicher: null */
+export function fallErinnern(uebergang: number | 'ort'): Fall | null {
   try {
     const t = localStorage.getItem(SPEICHER + uebergang)
     return t ? fallLesen(t)[0] : null
   } catch { return null }
 }
+/** Eintrag eines Übergangs entfernen: der Fall gehört nicht mehr zu ihm (Ort verlegt, Übergang ausserhalb der geladenen
+ * Daten; abdeckung.ts). Er lebt dann unter «fgsCheck.fall.ort» weiter, unter dem Übergang bliebe ein veralteter Stand. */
+export function fallVergessen(uebergang: number): void {
+  try { localStorage.removeItem(SPEICHER + uebergang) } catch { /* ohne Speicher */ }
+}
+
+/** Fall ohne OSM-Übergang (Kopie): Übergang und dessen Markierung weg, sonst unverändert */
+export function ohneUebergang(f: Fall): Fall {
+  const neu: Fall = structuredClone(f)
+  neu.ort.uebergang = null
+  delete neu.ort.markierung
+  return neu
+}
+
+/** Wert als Text mit sortierten Schlüsseln (Inhaltsvergleich unabhängig von der Reihenfolge der Einträge) */
+function stabil(x: unknown): string {
+  if (Array.isArray(x)) return `[${x.map(stabil).join(',')}]`
+  if (x && typeof x === 'object') return `{${Object.keys(x).sort().filter(k => (x as Record<string, unknown>)[k] !== undefined)
+    .map(k => `${JSON.stringify(k)}:${stabil((x as Record<string, unknown>)[k])}`).join(',')}}`
+  return JSON.stringify(x) ?? 'null'
+}
+/**
+ * Inhalt der Eingaben eines Falls (Vergleich «als Datei gesichert», App): was hatEingaben zählt – Streifen von Hand, Hindernisse,
+ * Zufahrten, Streifen-Eingaben, Vorschläge, Kataster- und Luftbild-Schalter, Bezeichnung, Fixpunkte, Flächen (Plan). Nicht dabei: quellen, gespeichert
+ * und ergebnis (laufen nach dem Laden bzw. Rechnen nach, ohne Zutun), ort.markierung (aus der Rechnung) und die Lage des Orts
+ * (folgt aus dem Übergang bzw. den Streifen von Hand; nach dem Laden einer Fall-Datei kann die App sie verlegen, die Datei
+ * ergibt beim nächsten Laden dasselbe). Gleicher Text = gleiche Eingaben.
+ */
+export function eingabenSchluessel(f: Fall): string {
+  // Flächen (Plan) nur, wenn vorhanden: der Schlüssel der Fälle ohne sie bleibt wie bisher
+  return stabil([f.ort.bezeichnung ?? '', f.streifenHand, f.hindernisse, f.zufahrten, f.streifen, f.vorschlaege, f.baumkataster,
+    f.parkkataster !== false, f.luftbild !== false, f.fixpunkte ?? [], ...(f.flaechenPlan?.length ? [f.flaechenPlan] : [])])
+}
+
+/**
+ * Den offenen Fall im Browser merken? Für Fälle ohne Übergang gibt es nur den einen Eintrag «fgsCheck.fall.ort» (Planung). Ein
+ * dort gemerkter ANDERER Fall (andere Eingaben, eingabenSchluessel) wird nicht still ersetzt (Nachprüfung 16.10.2026: Planfall
+ * A ungesichert, Wechsel zu Übergang X bestätigt, bei X weit weg «Streifen planen» – B ersetzte A ohne Rückfrage).
+ * eigen: der Eintrag gehört schon dem offenen Fall (er hat ihn geschrieben, bzw. Ersetzen ist bestätigt); gemerkt: Inhalt des
+ * Eintrags (null: keiner bzw. unlesbar). -> 'merken' (fallMerken wie bisher, mit Übergang immer), 'nichts' (weder schreiben noch
+ * den fremden Eintrag löschen: der offene Fall hat keine Eingaben) bzw. 'rueckfrage' (erst nach Bestätigung ersetzen).
+ */
+export function ortMerkenEntscheid(fall: Fall, eigen: boolean, gemerkt: Fall | null): 'merken' | 'nichts' | 'rueckfrage' {
+  if (fall.ort.uebergang !== null || eigen) return 'merken'
+  if (!gemerkt || !hatEingaben(gemerkt) || eingabenSchluessel(gemerkt) === eingabenSchluessel(fall)) return 'merken'
+  return hatEingaben(fall) ? 'rueckfrage' : 'nichts'
+}
 
 // ---------------------------------------------------------------- Hilfen für die Oberfläche (E2-Korrektur)
 /** Anzahl Eingaben eines Falls (Streifen von Hand, Hindernisse, Zufahrten, Streifen-Eingaben, verworfene Vorschläge bzw.
- * Parkfelder, Baumkataster zugeschaltet, amtliche Parkfelder abgeschaltet) */
+ * Parkfelder, Baumkataster zugeschaltet, amtliche Parkfelder abgeschaltet, Fixpunkte, Flächen (Plan)) */
 export function eingabenZahl(f: Fall): number {
   return f.streifenHand.length + f.hindernisse.length + Object.keys(f.zufahrten).length + Object.keys(f.streifen).length +
-    Object.keys(f.vorschlaege).length + (f.baumkataster ? 1 : 0) + (f.parkkataster === false ? 1 : 0)
+    Object.keys(f.vorschlaege).length + (f.baumkataster ? 1 : 0) + (f.parkkataster === false ? 1 : 0) + (f.fixpunkte?.length ?? 0) +
+    (f.flaechenPlan?.length ?? 0)
 }
 
 /** Hat der Fall etwas zu merken? Eingaben (eingabenZahl), Luftbild-Suche abgeschaltet oder eine Bezeichnung */
@@ -238,6 +361,16 @@ export function hatEingaben(f: Fall): boolean {
 export function naechsteHandId(f: Fall): string {
   const n = Math.max(0, ...f.streifenHand.map(s => Number(/^hand-(\d+)$/.exec(s.id)?.[1] ?? 0)))
   return `hand-${n + 1}`
+}
+/** Nächste freie Nummer für eine Fläche (Plan) (plan-1, plan-2, …) */
+export function naechstePlanId(f: Fall): string {
+  const n = Math.max(0, ...(f.flaechenPlan ?? []).map(x => Number(/^plan-(\d+)$/.exec(x.id)?.[1] ?? 0)))
+  return `plan-${n + 1}`
+}
+/** Nächste freie Nummer für einen Fixpunkt (fix-1, fix-2, …) */
+export function naechsteFixId(f: Fall): string {
+  const n = Math.max(0, ...(f.fixpunkte ?? []).map(x => Number(/^fix-(\d+)$/.exec(x.id)?.[1] ?? 0)))
+  return `fix-${n + 1}`
 }
 
 /**
@@ -315,6 +448,15 @@ export function eingabenVerwaist(f: Fall, streifen: { fgsId: string; zufahrten: 
   const zk = new Set(streifen.flatMap(s => [...s.zufahrten, ...s.entfallen].map(z => zufahrtSchluessel(s.fgsId, z.kennung))))
   const sk = new Set(streifen.map(s => s.fgsId))
   return [...Object.keys(f.zufahrten).filter(k => !zk.has(k)), ...Object.keys(f.streifen).filter(k => !sk.has(k))]
+}
+
+/** Bericht, Zeile «OSM-Übergang» eines Falls ohne Übergang: «geplanter Streifen» nur, wenn alle Streifen von Hand gezeichnet
+ * sind (Herkunft 'gezeichnet', Werkzeug «Streifen planen»); übernommen bzw. Herkunft unklar (Fall-Dateien vor dem 11.10.2026):
+ * neutral */
+export function ortOhneUebergangText(f: Fall): string {
+  if (!f.streifenHand.length) return 'kein OSM-Übergang'
+  return f.streifenHand.every(s => s.herkunft === 'gezeichnet') ? 'kein OSM-Übergang (Ort am geplanten Streifen)' :
+    'kein OSM-Übergang (Ort am Streifen von Hand)'
 }
 
 /** Herkunft eines Streifens von Hand als Text (Panel, Bericht) */

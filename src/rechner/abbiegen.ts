@@ -25,7 +25,7 @@ import {
 } from './spur'
 import {
   type Fs, fahrstreifenmitte, fahrstreifenArm, fahrstreifenUebernehmen, fsHinweis, querschnittAmKnoten, fahrbahnOsm,
-  wegeAbschnitte, hochBei, abzugAusOsm, fahrstreifenTags, BREITE_ERSATZ, LAGE_ERSATZ,
+  wegeAbschnitte, hochBei, abzugAusOsm, abzugAnnahme, fahrstreifenTags, BREITE_ERSATZ, LAGE_ERSATZ,
 } from './fahrstreifen'
 import { sichtweiteTab1, sichtweiteKurve, radiusRunden, tempoStart, tempoEntlang, SICHTWEITE } from './tempo'
 import { type Streifen, randAmUmriss, umrissRing } from './streifen'
@@ -33,6 +33,7 @@ import { type Multi, linieImPolygon, segmentieren, vereinigung, linienLaenge, ab
 import { type Zufahrt, type Entfallen, entfallen } from './zufahrten'
 import type { ZufahrtErgebnis } from './typen'
 import { type VonHand, konfliktFelder, R2_FLAECHEN } from './pruefen'
+import { planKurzAv } from './planflaechen'
 import type { Flaechen } from './flaechen'
 import { liniePunkte, sichtweiteRadiusHand } from './spurhand'
 import type { HindernisDaten } from './hindernisse'
@@ -263,7 +264,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   if (trefferB) tempoQB = 'OSM maxspeed'
   const tempoHandB = k.vonHand?.tempo?.(fid, 'abbiegend', grad) ?? k.vonHand?.tempoKennung?.(fid, kennungArm(a)) ?? null
   if (tempoHandB) { tempoB = tempoHandB; tempoQB = 'Korrektur' }
-  if (tempoQB === 'Ersatz') annahmen.push(`Tempo Querstrasse ${tempoB} km/h angenommen (kein maxspeed in OSM)`)
+  if (tempoQB === 'Ersatz') annahmen.push(`Tempo Querstrasse ${tempoB} km/h angenommen (in OSM keine Höchstgeschwindigkeit erfasst)`)
   const swTab1B = sichtweiteTab1(tempoB)
   // Fahrbahn der Querstrasse 8–30 m ab Knoten
   const messRef = refAuf(arm, ARM_MESSUNG, 0)
@@ -291,7 +292,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   let anteilB = 0.5
   if (fsDvB !== null) anteilB = fsoB!.zweirichtig && fsoB!.gesamt === 1 ? 1.0 : fsoB!.n / fsoB!.gesamt
   let lageB = fsB ? fsB.lage : LAGE_ERSATZ
-  if (!fsB) annahmen.push(`Fahrbahn der Querstrasse nicht gemessen: Lage ${f2(LAGE_ERSATZ)} m rechts der OSM-Achse angenommen`)
+  if (!fsB) annahmen.push(`Fahrbahn der Querstrasse in der AV nicht gemessen: Fahrlinie ${f2(LAGE_ERSATZ)} m rechts der OSM-Linie angenommen`)
   let querA = k.versatz + k.lageAb
   let vomRandAb = k.vomRandAb
 
@@ -952,6 +953,12 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   // Radius von Hand (am Strassen- bzw. Wegende das kürzere, wie sichtweite_radius_hand), sonst ohne «deckung»
   const spurH = k.vonHand?.spur?.(fid, kennungArm(a)) ?? null
   let radiusText: string | null = null, radiusHand: number | null = null, lageHand = false
+  // Bordkante der Ecke an einer Fläche (Plan) von Hand: Quelle «nach Plan-Fläche n» statt «AV-» (planflaechen.ts; ohne Plan-Flächen
+  // unverändert)
+  if (fahrbahn.plan.length && bordBogen && radiusQuelleB.includes('AV-')) {
+    const pl = fahrbahn.planAnLinie(bordBogen)
+    if (pl) radiusQuelleB = radiusQuelleB.replace(/AV-(Bordkante|Ecke)/g, (_, w: string) => `${w} nach ${planKurzAv(pl.id, pl.art)} von Hand`)
+  }
   if (spurH && spurH.art === 'B' && spurH.linie.length >= 2) {
     if (spurH.radius) {
       let [swH, qH] = sichtweiteRadiusHand(spurH.radius, swB, swQuelleB, tempoB, bisKnoten, k.swEigen, quelleKnotenB)
@@ -986,7 +993,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     if ((fsoB?.n ?? 0) > 1 || (ftE?.[0] ?? 0) > 1) hinweiseB.push('tab2_mehrstreifig')
   }
   if (eckFrage) annahmen.push(`AV-Ecke prüfen: ${eckFrage}`)
-  if (fsB?.abzugQuelle) annahmen.push(`Abzug am Arm: ${fsB.abzugQuelle} (Breiten angenommen)`)
+  if (fsB?.abzugQuelle) annahmen.push(abzugAnnahme(fsB.abzugQuelle, true))
   const konflikte = k.konflikte(feldB, sichtpunkteB)
   const radiusOut = Number.isFinite(radiusB) ? radiusRunden(radiusB) : null
   return {

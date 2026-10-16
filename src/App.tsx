@@ -1,35 +1,44 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
-  hindernisText, hindernisFarbe, type Werkzeug, type KartenHinweis } from './Karte'
+  hindernisText, hindernisFarbe, FIXPUNKT_FARBE, PLAN_FARBEN, planMarke, type Werkzeug, type KartenHinweis, type Masslinie } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
-import { ladeOsmRoh, ladeUebergaenge, markierung, istFgs, overpassSperre, strassennamen, namenKarte, type OsmKnoten,
+import { ladeOsmRoh, ladeUebergaenge, markierung, istFgs, overpassSperre, strassennamen, namenKarte, knotenLage, type OsmKnoten,
   type StrassenMitte } from './daten/osm'
 import { istAbbruch } from './daten/holen'
 import { baumQuelleFuer, type BaumQuelle, type KatasterBaum } from './daten/baumkataster'
 import { parkQuelleFuer, istParkId, type ParkQuelle, type KatasterFeld } from './daten/parkkataster'
-import { lv95, dist, type P } from './geo'
+import { lv95, wgs, dist, type P } from './geo'
 import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, aufnehmen, vereinigen, vereinigenNamen } from './ausschnitt'
 import type { ZufahrtErgebnis, StreifenErgebnis } from './rechner/typen'
 import type { FallRechnung } from './rechner'
 import { KATASTER_PARK_M } from './rechner/vorschlaege'
 import { SICHTWEITE, KURVE_SICHTWEITE } from './rechner/tempo'
+import { abzugTeile } from './rechner/fahrstreifen'
 import { type Hindernis, BAUM_STAMM_M, LAENGS_BREITE_M } from './rechner/hindernisse'
 import { linieKreis, RADIUS_HAND_M } from './rechner/spurhand'
 import { GRUND, ART, STATUS, statusText, f1, f2 } from './texte'
 import Bericht from './Bericht'
 import { Anleitung, Datenschutz, Fusszeile } from './Hilfe'
-import { type Fall, type FallErgebnis, leererFall, fallLesen, fallSchreiben, fallMerken, fallErinnern, zufahrtSchluessel, eingabenZahl,
-  naechsteHandId, streifenUebernehmen, eingabenVerwaist, streifenHerkunftText } from './fall'
+import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type PlanArt, PLAN_ARTEN, naechstePlanId, planRingPruefen,
+  naechsteFixId, FIXPUNKT_NAME_MAX, STREIFEN_NAME_MAX, leererFall, fallLesen, fallSchreiben, fallMerken, fallErinnern, fallVergessen,
+  ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
+  streifenHerkunftText } from './fall'
+import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_M, ORT_TOL_M, streifenMitte, streifenAbstand, planEntscheid,
+  ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
+  querungAusserhalb, querungWegText, querungVerschobenText, type OrtEntscheid, type Ausserhalb } from './abdeckung'
+import { koordText, vorzeichenText, vermassungTabelle, fixpunktMasse, type Vermassung } from './rechner/vermassung'
+import { streifenTitel, zufahrtNamen, zufahrtLang, entfallenLang, wegNamen, zufahrtHerkunft16, type ZufahrtNamen } from './benennung'
+import { planTitel, planFlaecheM2, planAlsAv, PLAN_NAME } from './rechner/planflaechen'
+import { fangen, fangRadiusM, FANG_PX, fixpunktVorschlaege, fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT, VORSCHLAG_M,
+  type FixVorschlag } from './fixpunkt'
 
 interface QuellenStand { name: string; objekte?: string; ms?: number; bytes?: number; server?: string; fehler?: string }
 interface ParkStand { quelle: ParkQuelle; nr: number; lat: number; lon: number; felder: KatasterFeld[] | null; laedt?: boolean; fehler?: string }
 interface Daten { osm: unknown; av: GeoJson; sosf: GeoJson | null; nid: number | null; bfs: (number | null)[]; luftbild: LuftbildRoh | null; flugjahr: string
   ort: P }                                         // Ort in LV95 (Luftbild nachladen)
 
-const AV_RADIUS_M = 150
-const OSM_RADIUS_M = 300
 const START: [number, number] = [46.9420585, 7.4322619]      // Startansicht: Mühlemattstrasse, Bern
 const WORKER_MS = 30000
 // Automatische Übergangssuche nach dem Verschieben bzw. Zoomen: ab SUCHE_ZOOM (rund 1:10 000; weiter draussen wird der
@@ -41,14 +50,8 @@ const SUCHE_PAUSE_MS = 800
 const SUCHE_ABSTAND_MS = 2000
 const SUCHE_NAME = 'OSM-Übergänge und Strassennamen im Ausschnitt'
 const ZU_WEIT: KartenHinweis = { text: 'Zum Suchen näher heranzoomen' }
-// Amtliche Parkfelder und Baumkataster: Ausschnitt ±150 m um den Ort. Die Rechnung erreicht Felder und Bäume bis
-// KATASTER_PARK_M (120 m) um den Umriss der Streifen (rechner/vorschlaege.ts, dort die Herleitung); der Umriss liegt am Ort
-// (OSM-Knoten im Streifen, Luftbild-Streifen höchstens 4 m daneben), reicht aber bis zur halben Streifenlänge (breite
-// Fahrbahn, Teilstreifen) davon weg: 120 + rund 15 m + Reserve. 150 m entspricht dem AV-Ausschnitt (weiter reicht die
-// Fahrbahn der Rechnung nicht) und dem Umkreis der Berner Prüfung. Baumkataster bis 11.10.2026 ±100 m (Bäume bis 100 m um
-// die Streifenmitte).
-const PARK_RADIUS_M = 150
-const KATASTER_RADIUS_M = PARK_RADIUS_M
+// Ausschnitte der Abrufe (AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M) und die Abdeckung um einen Streifen von
+// Hand (NACHLADEN_M): abdeckung.ts, dort die Herleitung
 const STREIFEN_MIN_M = 1.0                      // Streifen von Hand: kürzeste Länge
 const WERKZEUGE: [Exclude<Werkzeug, null>, string, string][] = [
   ['parkfeld', 'Parkfeld', 'Ecken anklicken, Doppelklick schliesst'],
@@ -57,25 +60,49 @@ const WERKZEUGE: [Exclude<Werkzeug, null>, string, string][] = [
   ['hecke', 'Hecke', 'Linie zeichnen, Doppelklick beendet'],
   ['mauer', 'Mauer', 'Linie zeichnen, Doppelklick beendet'],
   ['flaeche', 'übriges Hindernis', 'Fläche: Ecken anklicken, Doppelklick schliesst'],
-  ['insel', 'Insel', 'Verkehrsinsel: Ecken anklicken, Doppelklick schliesst; teilt den Streifen und ersetzt eine Insel aus OSM und Luftbild'],
-  ['streifen', 'Streifen von Hand', 'beide Wartebereiche anklicken (Achse quer über die Fahrbahn)'],
+  ['insel', 'Insel', 'Verkehrsinsel, die in der AV fehlt (z. B. markiert bzw. noch nicht erfasst): Ecken anklicken, Doppelklick ' +
+    'schliesst; teilt den Streifen und ersetzt eine Insel aus OSM und Luftbild, die AV-Fahrbahn darunter bleibt. Eine geplante ' +
+    'bauliche Insel besser als «Fläche (Plan)» mit Art Insel'],
+  ['planflaeche', 'Fläche (Plan)', 'geplante Bodenbedeckung (Trottoirnase, Fahrbahnverengung, verschobener Randstein, neue Insel): ' +
+    `Ecken anklicken, die App fängt sie auf Stützpunkte der AV bzw. anderer Plan-Flächen (${FANG_PX} Bildschirmpunkte); ` +
+    'Doppelklick schliesst. Ersetzt in der Rechnung die AV-Flächen darunter (Gebäude bleiben); die zuletzt gezeichnete gilt, wo ' +
+    'sich Plan-Flächen überlappen'],
+  // derselbe Werkzeug-Name wie der Knopf oben («Streifen planen»); die gezeichneten Streifen heissen «Streifen von Hand»
+  ['streifen', 'Streifen planen', 'beide Wartebereiche anklicken (Achse quer über die Fahrbahn)'],
+  ['fixpunkt', 'Fixpunkt', 'Gebäudeecke bzw. Punkt der AV anklicken: die App fängt den nächsten AV-Stützpunkt im Umkreis von ' +
+    `${FANG_PX} Bildschirmpunkten, sonst freier Punkt. Für die Vermassung der Streifen von Hand, ohne Einfluss auf die Rechnung`],
 ]
 
 /** Anzeige der AV-Arten in der Legende (Schlüssel wie in AV_FARBEN) */
 const AV_NAME: Record<string, string> = { Strasse_Weg: 'Fahrbahn', Gebaeude: 'Gebäude' }
 
 const MIN_PUNKTE: Record<Exclude<Werkzeug, null>, number> = { parkfeld: 3, flaeche: 3, insel: 3, laengs: 2, hecke: 2, mauer: 2, streifen: 2,
-  spurB: 2, baum: 1 }
+  spurB: 2, baum: 1, fixpunkt: 1, planflaeche: 3 }
 const WERKZEUG_NAME: Record<Exclude<Werkzeug, null>, string> = { parkfeld: 'Parkfeld', flaeche: 'übriges Hindernis (Fläche)', insel: 'Insel',
-  laengs: 'Längsparkierung', hecke: 'Hecke', mauer: 'Mauer', streifen: 'Streifen von Hand', spurB: 'Fahrlinie selbst zeichnen', baum: 'Baum' }
+  laengs: 'Längsparkierung', hecke: 'Hecke', mauer: 'Mauer', streifen: 'Streifen planen', spurB: 'Fahrlinie selbst zeichnen', baum: 'Baum',
+  fixpunkt: 'Fixpunkt', planflaeche: 'Fläche (Plan)' }
+/** Textfeld, übernommen erst beim Verlassen bzw. mit Enter (Escape: zurück); leer = kein eigener Text */
+function TextFeld({ wert, setze, platzhalter, titel, max = 80 }: { wert: string; setze: (x: string) => void; platzhalter?: string
+  titel?: string; max?: number }) {
+  const [text, setText] = useState(wert)
+  useEffect(() => { setText(wert) }, [wert])
+  const uebernehmen = () => { const t = text.trim().slice(0, max); if (t !== wert) setze(t); else setText(wert) }
+  return <input type="text" className="textfeld" value={text} placeholder={platzhalter} title={titel} maxLength={max}
+    onChange={e => setText(e.target.value)} onBlur={uebernehmen}
+    onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') setText(wert) }} />
+}
 
-/** Zahlenfeld, das Minus und Komma beim Tippen zulässt; übernommen beim Verlassen bzw. mit Enter */
-function ZahlFeld({ wert, setze, titel }: { wert: number; setze: (x: number) => void; titel?: string }) {
+// Streifen von Hand eben neu gezeichnet und zum Fall dazu (geaendert): Abdeckung aller Streifen prüfen, Bezug = der letzte
+const NEU_GEZEICHNET = '+neu'
+
+/** Zahlenfeld, das Minus und Komma beim Tippen zulässt; übernommen beim Verlassen bzw. mit Enter. Gültig: |x| < 20 bzw. im
+ * Bereich [min, max]; sonst bleibt der bisherige Wert stehen */
+function ZahlFeld({ wert, setze, titel, bereich }: { wert: number; setze: (x: number) => void; titel?: string; bereich?: [number, number] }) {
   const [text, setText] = useState(String(wert).replace('.', ','))
   useEffect(() => { setText(String(wert).replace('.', ',')) }, [wert])
   const uebernehmen = () => {
     const x = Number(text.trim().replace(',', '.').replace('−', '-'))
-    if (Number.isFinite(x) && Math.abs(x) < 20) setze(Math.round(x * 100) / 100)
+    if (Number.isFinite(x) && (bereich ? x >= bereich[0] && x <= bereich[1] : Math.abs(x) < 20)) setze(Math.round(x * 100) / 100)
     else setText(String(wert).replace('.', ','))
   }
   return <input type="text" inputMode="decimal" className="zahl" title={titel} value={text} onChange={e => setText(e.target.value)}
@@ -84,6 +111,13 @@ function ZahlFeld({ wert, setze, titel }: { wert: number; setze: (x: number) => 
 
 let zaehler = 0
 const neueId = (p: string) => `${p}-${Date.now().toString(36)}-${(zaehler++).toString(36)}`
+
+/** Fixpunkt-Zeichen für die Legende (wie auf der Karte: Kreuz im Quadrat, Vorschlag blass) */
+function FixLegende({ blass = false }: { blass?: boolean }) {
+  return <svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 3, opacity: blass ? 0.45 : 1 }}>
+    <rect x="1" y="1" width="12" height="12" fill="#ffffff" stroke={FIXPUNKT_FARBE} strokeWidth="1.5" />
+    <path d="M3 3L11 11M11 3L3 11" stroke={FIXPUNKT_FARBE} strokeWidth="1.5" /></svg>
+}
 
 export default function App({ onStartseite }: { onStartseite?: () => void } = {}) {
   const kartenRef = useRef<L.Map | null>(null)
@@ -100,21 +134,48 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [rechnungFall, setRechnungFall] = useState<Fall | null>(null)   // Fall, zu dem die angezeigte Rechnung gehört
   const [rechnungZeit, setRechnungZeit] = useState<Date | null>(null)
   const [bericht, setBericht] = useState(false)                          // Druckansicht (Bericht) offen
-  const [meldung, setMeldung] = useState<string>('Ort suchen bzw. Karte verschieben; dann einen Übergang auf der Karte anklicken.')
+  const [meldung, setMeldung] = useState<string>('Ort suchen bzw. Karte verschieben; dann einen Übergang auf der Karte anklicken ' +
+    'oder mit «Streifen planen» einen neuen Streifen zeichnen.')
   // Hinweis zum Laden des Falls (Fall-Datei, Browser-Speicher); bleibt stehen, bis ein anderer Ort geladen wird
   const [ladeHinweis, setLadeHinweis] = useState<{ text: string; verwerfen: boolean } | null>(null)
+  // Planung (16.10.2026): Inhalt der Eingaben, wie zuletzt als Datei gespeichert bzw. aus einer Datei geladen (fall.eingabenSchluessel;
+  // ungesicherte Eingaben erkennen), offener Wechsel zu einem anderen Fall (wartet auf Bestätigung, weil der bisherige Fall ohne
+  // OSM-Übergang sonst verloren gehen kann), Laden fehlgeschlagen
+  const [gespeichert, setGespeichert] = useState<string | null>(null)
+  // wechsel.gemerkt: der bisherige Fall steht im Eintrag «fgsCheck.fall.ort» (sonst liegt dort ein anderer, ortKonflikt)
+  const [wechsel, setWechsel] = useState<{ text: string; knopf: string; ersetzt: boolean; gemerkt: boolean; weiter: () => void } | null>(null)
+  const [ladeFehler, setLadeFehler] = useState(false)
+  // Ort, um den zuletzt geladen wurde bzw. wird (LV95; Abdeckung neuer Streifen von Hand, auch während des Ladens)
+  const ladeOrtRef = useRef<P | null>(null)
+  // Streifen von Hand, dessen Enden bzw. Breite eben geändert wurden: nach der Änderung Abdeckung prüfen, ggf. um ihn neu laden
+  const geaendert = useRef<string | null>(null)
+  // Eintrag «fgsCheck.fall.ort», ein einziger für Fälle ohne Übergang (Nachprüfung 16.10.2026, S-b): ortEigen = er gehört dem
+  // offenen Fall (von ihm geschrieben bzw. Ersetzen bestätigt); ortFreigabe = ein bestätigter Wechsel gibt den Eintrag des
+  // bisherigen Falls dem nächsten frei; ortVergessen = Übergang, dessen Eintrag weg soll, sobald der Fall unter «ort» gemerkt
+  // ist; ortKonflikt = dort liegt ein anderer Fall, Ersetzen wartet auf Bestätigung (bis dahin ist der offene Fall nicht gemerkt)
+  const ortEigen = useRef(false)
+  const ortFreigabe = useRef(false)
+  const ortVergessen = useRef<number | null>(null)
+  const [ortKonflikt, setOrtKonflikt] = useState<Fall | null>(null)
+  // aktueller Ladehinweis für Effekte, die nach laden() (setzt ihn zurück) einen Hinweis anhängen
+  const ladeHinweisRef = useRef(ladeHinweis)
+  ladeHinweisRef.current = ladeHinweis
   const [auswahl, setAuswahl] = useState<string | null>(null)
   const [quellen, setQuellen] = useState<Record<string, QuellenStand>>({})
   const [werkzeug, setWerkzeug] = useState<Werkzeug>(null)
+  // Werkzeug über den Knopf oben («Streifen planen» neben «Fall laden») gewählt: Werkzeughilfe dort zeigen, sonst bei den Werkzeugen
+  const [werkzeugOben, setWerkzeugOben] = useState(false)
   const [zeichnung, setZeichnung] = useState<P[]>([])
   const [bearbeiten, setBearbeiten] = useState<string | null>(null)
   const [klasse, setKlasse] = useState<'auto' | 'velo'>('auto')
+  const [planArt, setPlanArt] = useState<PlanArt>('trottoir')
   const [breite, setBreite] = useState(LAENGS_BREITE_M)
   const [streifenBreite, setStreifenBreite] = useState(4)
   const [sichtbehindernd, setSichtbehindernd] = useState(true)
   const [spurFuer, setSpurFuer] = useState<string | null>(null)     // Zufahrt, für die eine Linie (Spur B) gezeichnet wird
   const [nurMarkiert, setNurMarkiert] = useState(false)
-  const [kataster, setKataster] = useState<{ quelle: BaumQuelle; baeume: KatasterBaum[] | null; fehler?: string } | null>(null)
+  // Baumkataster: lat/lon = Ladeort (wie die amtlichen Parkfelder; Ausschnitt deckt sich mit AV und Abdeckung, abdeckung.ts)
+  const [kataster, setKataster] = useState<{ quelle: BaumQuelle; baeume: KatasterBaum[] | null; fehler?: string; lat: number; lon: number } | null>(null)
   // amtliche Parkfelder: nr = Nummer des Ladevorgangs (ladeNr), damit ein alter Abruf keine Felder in einen neuen Fall schreibt
   const ladeNr = useRef(0)
   const [parkKat, setParkKat] = useState<ParkStand | null>(null)
@@ -123,6 +184,16 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // aus; nach erfolgreichem Laden ändern sich felder (und im selben Schritt fall.quellen) -> genau eine neue Rechnung.
   const parkFelder = parkKat?.felder ?? null, parkAngabe = parkKat?.quelle.quellenangabe ?? ''
   const parkDaten = useMemo(() => (parkFelder ? { felder: parkFelder, quellenangabe: parkAngabe } : null), [parkFelder, parkAngabe])
+  // Gewählter OSM-Übergang aus den geladenen OSM-Daten (Lage und Tags): der Ladeort ist nicht immer sein Knoten (Planung: Mitte
+  // der Streifen von Hand, abdeckung.ts), eine Fall-Datei bringt nur den gespeicherten Ort mit
+  const querungKnoten = useMemo(() => (daten && daten.nid !== null ? knotenLage(daten.osm, daten.nid) : null), [daten])
+  const querungLage = useMemo(() => (querungKnoten ? lv95(querungKnoten.lat, querungKnoten.lon) : null), [querungKnoten])
+  // Eingaben als Datei gesichert: Inhalt wie beim letzten Speichern bzw. Laden der Datei (nicht Objektgleichheit: Quellenangaben
+  // und Markierung, die nach dem Laden eintreffen, ändern daran nichts). Ob der Download wirklich ankam (abgebrochen, Datei
+  // gelöscht), kann die App nicht erkennen: «gesichert» heisst «Speichern ausgelöst».
+  const gesichert = useMemo(() => !!fall && gespeichert !== null && eingabenSchluessel(fall) === gespeichert, [fall, gespeichert])
+  // Fall ohne OSM-Übergang mit Eingaben, die nicht als Datei gesichert sind: Rückfrage beim Wechsel, Warnung beim Verlassen
+  const ungesichert = !!fall && fall.ort.uebergang === null && hatEingaben(fall) && !gesichert
 
   // ---------------------------------------------------------------- Worker
   // aktiv: App angezeigt (false nach dem Wechsel zur Startseite); laufend: Abbruch der offenen Rechnungen (beim Verlassen)
@@ -179,8 +250,42 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     setMeldung(antwort.rechnung!.streifen.length ? '' : antwort.rechnung!.meldungen.join(' ') || 'Kein Streifen gebildet.')
   }, [])
 
-  // nach jeder Änderung den Fall merken (ohne Eingaben: Eintrag entfernen; auch während des Ladens, z. B. nach «Eingaben verwerfen»)
-  useEffect(() => { if (fall) fallMerken(fall) }, [fall])
+  /** Fall im Browser merken; ohne Übergang gehört ihm danach der Eintrag «ort», der Eintrag eines verlassenen Übergangs geht weg */
+  const merken = (f: Fall) => {
+    fallMerken(f)
+    if (f.ort.uebergang !== null) return
+    ortEigen.current = true
+    if (ortVergessen.current !== null) { fallVergessen(ortVergessen.current); ortVergessen.current = null }
+  }
+  /** Ein anderer Fall wird offen bzw. der Fall verliert seinen Übergang: der Eintrag «ort» gehört ihm (noch) nicht, ausser ein
+   * bestätigter Wechsel hat den Eintrag des bisherigen Falls freigegeben; ein noch offenes ortVergessen gehörte zum bisherigen
+   * Fall und verfällt (sonst entfernte ein späterer Fall den Eintrag eines inzwischen wieder bearbeiteten Übergangs) */
+  const neuerFallImOrt = () => { ortEigen.current = ortFreigabe.current; ortFreigabe.current = false; ortVergessen.current = null }
+  // nach jeder Änderung den Fall merken (ohne Eingaben: eigenen Eintrag entfernen; auch während des Ladens, z. B. nach «Eingaben
+  // verwerfen»); einen anderen Fall im Eintrag «ort» erst nach Rückfrage ersetzen bzw. löschen (fall.ortMerkenEntscheid)
+  useEffect(() => {
+    if (!fall) return
+    const gemerkt = fall.ort.uebergang === null && !ortEigen.current ? fallErinnern('ort') : null
+    const e = ortMerkenEntscheid(fall, ortEigen.current, gemerkt)
+    setOrtKonflikt(e === 'rueckfrage' ? gemerkt : null)
+    if (e === 'merken') merken(fall)
+  }, [fall])
+  // Zuletzt bearbeiteter Fall ohne OSM-Übergang im Browser («fgsCheck.fall.ort»): zum Wiederherstellen anbieten, solange nicht er
+  // bzw. ein anderer Fall ohne Übergang offen ist (der Eintrag ist dann der offene Fall selbst). Ein Fall ohne Übergang geht
+  // sonst beim Wechsel zur Startseite, mit der Zurück-Taste, beim Neuladen bzw. Schliessen und beim Wechsel zu einem Übergang
+  // aus der App verloren. Gelesen beim Rendern: fallMerken schreibt den Eintrag nur, solange ein Fall ohne Übergang offen ist.
+  // Rückfragen: Logo und Wechsel über wechseln, Neuladen/Schliessen über beforeunload. Die Zurück-Taste (Anker #pruefen, Einstieg)
+  // fragt nicht: hashchange bzw. popstate kommen erst nach dem Wechsel, abfangen liesse sie sich nur mit einem künstlichen
+  // Verlaufseintrag, der die Taste sperrt (verwirrend, auch für Fälle ohne Eingaben); dort fängt dieser Eintrag den Fall auf, und
+  // bevor ein anderer Fall ohne Übergang ihn ersetzt, fragt die App nach (ortKonflikt).
+  const ortGemerkt = useMemo(() => (!fall || fall.ort.uebergang !== null ? fallErinnern('ort') : null), [fall])
+  // Verlassen bzw. Neuladen der Seite mit ungesichertem Fall ohne Übergang: Rückfrage des Browsers (eigener Text nicht möglich)
+  useEffect(() => {
+    if (!ungesichert) return
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', h)
+    return () => window.removeEventListener('beforeunload', h)
+  }, [ungesichert])
   // und neu rechnen (kurz entprellt)
   useEffect(() => {
     if (!daten || !fall) return
@@ -296,14 +401,19 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     abbruchRef.current = ctrl
     auftrag.current++
     setRechnung(null); setAuswahl(null); setAv(null); setDaten(null); setWerkzeug(null); setZeichnung([]); setBearbeiten(null)
-    setKataster(null); setParkKat(null)
+    setKataster(null); setParkKat(null); setWechsel(null); setLadeFehler(false)
     const nr = ++ladeNr.current
     const erinnert = !fallNeu && nid !== null ? fallErinnern(nid) : null
+    // Fall aus dem Browser, dessen Streifen von Hand nur um den gespeicherten Ort abgedeckt sind (Ort nach dem Verschieben an die
+    // Streifenmitte gelegt, OSM-Übergang höchstens QUERUNG_M daneben, abdeckung.ts): dort laden statt am Übergangsknoten
+    if (erinnert?.streifenHand.length && nichtAbgedeckt(erinnert.streifenHand, lv95(lat, lon)).length &&
+      !nichtAbgedeckt(erinnert.streifenHand, lv95(erinnert.ort.lat, erinnert.ort.lon)).length) ({ lat, lon } = erinnert.ort)
     setFall(fallNeu ?? erinnert ?? leererFall(lat, lon, nid))
     setLadeHinweis(erinnert && eingabenZahl(erinnert) ? { text: `Eingaben zu diesem Übergang aus dem Browser übernommen ` +
       `(${eingabenZahl(erinnert)} Einträge, Stand ${erinnert.gespeichert?.slice(0, 10) ?? 'unbekannt'}).`, verwerfen: true } : null)
     setMeldung('AV und OSM werden geladen …')
     const [e, n] = lv95(lat, lon)
+    ladeOrtRef.current = [e, n]
     const AV_NAME = `Amtliche Vermessung (WFS, ±${AV_RADIUS_M} m)`, OSM_NAME = `OpenStreetMap (Overpass, ${OSM_RADIUS_M} m)`
     setQuellen(q => ({ suche: q.suche, av: { name: AV_NAME }, osm: { name: OSM_NAME } }))
     const quelleFehler = (key: string, name: string) => (err: unknown) => {
@@ -331,7 +441,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       }
       const bfs = [...new Set(avF.map(f => f.bfs))]
       const bq = baumQuelleFuer(bfs)
-      if (bq) setKataster({ quelle: bq, baeume: null })
+      if (bq) setKataster({ quelle: bq, baeume: null, lat, lon })
       const pq = parkQuelleFuer(bfs)
       if (pq) setParkKat({ quelle: pq, nr, lat, lon, felder: null })
       setMeldung('Rechnung läuft …')
@@ -342,19 +452,33 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     } catch (err) {
       if (ctrl.signal.aborted || istAbbruch(err)) return
       setMeldung(`Laden fehlgeschlagen: ${(err as Error).message} (Details unter «Geladene Quellen»)`)
+      setLadeFehler(true)
     }
   }, [])
 
-  const pruefen = useCallback((k: OsmKnoten) => {
-    if (werkzeug) { setMeldung('Zeichnen läuft: zuerst «Fertig» oder «Abbrechen», dann einen anderen Übergang wählen.'); return }
-    setGewaehlt(k); laden(k.lat, k.lon, k.id, null)
-  }, [laden, werkzeug])
+  /** Zu einem anderen Fall bzw. zur Startseite wechseln (Übergang, Fall-Datei, neuer Streifen weit weg, Logo): hat der bisherige
+   * Fall keinen OSM-Übergang und Eingaben, die nicht als Datei gesichert sind, erst nach Bestätigung (mit Übergang merkt ihn der
+   * Browser je Übergang; ohne nur als letzten Fall ohne Übergang, ersetzt: das Ziel ist selbst ein Fall ohne Übergang und
+   * nimmt dessen Eintrag «ort»). Hinweis mit zweitem Klick statt window.confirm: so lässt sich der Fall vorher noch speichern.
+   * Ohne Rückfrage gibt ein als Datei gesicherter Fall ohne Übergang seinen Eintrag frei (sein Inhalt liegt in der Datei). */
+  const wechseln = (text: string, knopf: string, weiter: () => void, ersetzt = false) => {
+    if (ungesichert) { setWechsel({ text, knopf, ersetzt, gemerkt: ortEigen.current, weiter }); return }
+    if (ersetzt && ortEigen.current && fall?.ort.uebergang === null && gesichert) ortFreigabe.current = true
+    setWechsel(null); weiter()
+  }
 
-  // Baumkataster auf Wunsch laden
+  const pruefen = (k: OsmKnoten) => {
+    if (werkzeug) { setMeldung('Zeichnen läuft: zuerst «Fertig» oder «Abbrechen», dann einen anderen Übergang wählen.'); return }
+    wechseln(`Übergang ${k.id} prüfen: der bisherige Fall wird ersetzt.`, 'Übergang laden', () => {
+      setGewaehlt(k); setGespeichert(null); neuerFallImOrt(); laden(k.lat, k.lon, k.id, null)
+    })
+  }
+
+  // Baumkataster auf Wunsch laden (um den Ladeort)
   useEffect(() => {
     if (!fall?.baumkataster || !kataster || kataster.baeume || kataster.fehler) return
     const ctrl = abbruchRef.current
-    kataster.quelle.laden(fall.ort.lat, fall.ort.lon, KATASTER_RADIUS_M, ctrl?.signal).then(r => {
+    kataster.quelle.laden(kataster.lat, kataster.lon, KATASTER_RADIUS_M, ctrl?.signal).then(r => {
       setKataster(k => k ? { ...k, baeume: r.daten } : k)
       setzeQuelle('kataster', { name: kataster.quelle.name, objekte: `${r.daten.length} Bäume`, ms: r.ms, bytes: r.bytes, server: r.quelle })
       setFall(f => f ? { ...f, quellen: { ...f.quellen, baumkataster: kataster.quelle.quellenangabe } } : f)
@@ -363,7 +487,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       setKataster(k => k ? { ...k, fehler: (err as Error).message } : k)
       setzeQuelle('kataster', { name: kataster.quelle.name, fehler: `${(err as Error).message} (Dienst bzw. Zugriff aus dem Browser gesperrt?)` })
     })
-  }, [fall?.baumkataster, kataster, fall?.ort.lat, fall?.ort.lon])
+  }, [fall?.baumkataster, kataster])
 
   // Amtliche Parkfelder automatisch laden (wenn die Gemeinde eine Quelle hat und der Fall sie nicht abgeschaltet hat). Bis sie
   // da sind, rechnet die App ohne sie, danach neu. Abbruch mit dem neuen Klick (abbruchRef); ein später Abruf eines alten Orts
@@ -398,7 +522,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const lbVersuch = useRef(0)
   const lbAn = fall?.luftbild !== false
   useEffect(() => {
-    if (!daten || daten.nid === null) return
+    // Übergang ausserhalb der Abdeckung: gehört gleich nicht mehr zum Fall (Effekt unten), kein Luftbild
+    if (!daten || daten.nid === null || querungAusserhalb(querungLage, daten.ort)) return
     const nr = ladeNr.current, versucht = lbVersuch.current === nr
     if (!lbAn) {
       if (!versucht && !daten.luftbild) setzeQuelle('luftbild', { name: LUFTBILD_NAME, objekte: 'abgeschaltet, nicht geladen' })
@@ -406,7 +531,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     }
     if (!luftbildLaden({ nid: daten.nid, hatBild: !!daten.luftbild, an: lbAn, versucht })) return
     lbVersuch.current = nr
-    const ctrl = abbruchRef.current, nid = daten.nid, [e, n] = daten.ort
+    // Ausschnitt um den Übergangsknoten (Erkennung am Knoten, Datenschutz-Hinweis «±30 m um den gewählten Übergang»): am Knoten
+    // geladen (Normalfall) wie bisher um den Ladeort, sonst (Ort an die Streifen von Hand verlegt) um den Knoten aus OSM
+    const lbOrt = querungLage && dist(querungLage, daten.ort) > ORT_TOL_M ? querungLage : daten.ort
+    const ctrl = abbruchRef.current, nid = daten.nid, [e, n] = lbOrt
     const hier = () => !ctrl?.signal.aborted && ladeNr.current === nr
     setzeQuelle('luftbild', { name: LUFTBILD_NAME })
     Promise.all([ladeLuftbild(e, n, ctrl?.signal), ladeFlugjahr(e, n, ctrl?.signal)]).then(([rl, fj]) => {
@@ -418,7 +546,38 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       if (!istAbbruch(err) && hier())
         setzeQuelle('luftbild', { name: LUFTBILD_NAME, fehler: `${(err as Error).message} (Streifen aus OSM + AV)` })
     })
-  }, [lbAn, daten])
+  }, [lbAn, daten, querungLage])
+
+  // Nach dem Laden: gewählten Übergang aus den OSM-Daten nachführen (Fall-Datei: Lage war der gespeicherte Ort, Tags fehlten)
+  useEffect(() => {
+    if (!querungKnoten) return
+    const k = querungKnoten
+    setGewaehlt(g => (g && g.id === k.id && (!Object.keys(g.tags).length || dist(lv95(g.lat, g.lon), lv95(k.lat, k.lon)) > 0.5) ? k : g))
+  }, [querungKnoten])
+  // Nach dem Laden: liegt der OSM-Übergang weiter als QUERUNG_M vom Ladeort (Fall-Datei bzw. gemerkter Fall, deren gespeicherter
+  // Ort nicht der Knoten war bzw. deren Knoten in OSM inzwischen verschoben ist; abdeckung.querungAusserhalb):
+  // - mit Streifen von Hand gehört er nicht mehr zum Fall: wie beim Verlegen des Orts (nachladen) Übergang weg; den Eintrag des
+  //   Übergangs im Browser entfernt die App, sobald der Fall unter «fgsCheck.fall.ort» gemerkt ist; Hinweis.
+  // - ohne Streifen von Hand (nur Hindernisse, Tempo usw.) gehört der Fall zum Übergang (Nachprüfung 16.10.2026, K-a): um dessen
+  //   aktuelle Lage neu laden, wie beim Klick auf ihn (danach liegt der Knoten am Ladeort, keine Schleife).
+  useEffect(() => {
+    if (!daten || daten.nid === null || !fall || fall.ort.uebergang !== daten.nid || !querungKnoten ||
+      !querungAusserhalb(querungLage, daten.ort)) return
+    const nid = daten.nid, ab = dist(querungLage!, daten.ort), k = querungKnoten, alt = ladeHinweisRef.current
+    if (!fall.streifenHand.length) {
+      const neu: Fall = structuredClone(fall)
+      neu.ort.lat = k.lat; neu.ort.lon = k.lon
+      setGewaehlt(k)
+      laden(k.lat, k.lon, nid, neu)
+      setLadeHinweis({ text: (alt ? `${alt.text} ` : '') + querungVerschobenText(nid, ab), verwerfen: alt?.verwerfen ?? false })
+      return
+    }
+    neuerFallImOrt(); ortVergessen.current = nid
+    setFall(f => (f && f.ort.uebergang === nid ? ohneUebergang(f) : f))
+    setDaten(d => (d && d.nid === nid ? { ...d, nid: null, luftbild: null, flugjahr: '' } : d))
+    setGewaehlt(g => (g?.id === nid ? null : g))
+    setLadeHinweis({ text: (alt ? `${alt.text} ` : '') + querungWegText(nid, ab), verwerfen: alt?.verwerfen ?? false })
+  }, [daten, querungLage, querungKnoten, fall, laden])
 
   // ---------------------------------------------------------------- Zeichnen
   // Zeichnung zusätzlich in einer Ref, damit Klicks ohne Seiteneffekte in State-Updatern auskommen (StrictMode)
@@ -440,7 +599,35 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         setZeichnung([]); zeichnungRef.current = []
         return
       }
-      aendern(f => { f.streifenHand.push({ id: naechsteHandId(f), p0: pts[0], p1: pts[1], breite: streifenBreite, herkunft: 'gezeichnet' }); return f })
+      // Planung (16.10.2026): in der Abdeckung der geladenen Daten bzw. mit den übrigen Streifen von Hand gemeinsam abdeckbar zum
+      // laufenden Fall dazu (danach prüft der Effekt «geaendert» die Abdeckung und lädt um alle nach), sonst neuer Fall am Streifen
+      // (abdeckung.planEntscheid; ohne OSM-Übergang mit ungesicherten Eingaben erst nach Bestätigung)
+      const neu = { p0: pts[0], p1: pts[1], breite: streifenBreite }
+      const ort = ladeOrtRef.current
+      const art = planEntscheid(neu, fall ? ort : null, fall ? { uebergang: fall.ort.uebergang, eingaben: hatEingaben(fall), gesichert,
+        streifen: fall.streifenHand } : null)
+      if (art === 'dazu') {
+        geaendert.current = NEU_GEZEICHNET
+        aendern(f => { f.streifenHand.push({ id: naechsteHandId(f), ...neu, herkunft: 'gezeichnet' }); return f })
+      } else {
+        const reicht = fall && ort ? streifenAbstand(neu, ort) : null
+        setWerkzeug(null); setSpurFuer(null)
+        // die gezeichnete Achse bleibt sichtbar, bis der Wechsel bestätigt bzw. abgebrochen ist
+        zeichnungRef.current = []; setZeichnung(art === 'bestaetigen' ? pts : [])
+        wechseln(planNeuText(reicht, !!fall?.streifenHand.length), 'neuen Fall beginnen', () => planFall(neu, reicht), true)
+        return
+      }
+    } else if (werkzeug === 'fixpunkt') {
+      fixpunktSetzen(pts[0])
+    } else if (werkzeug === 'planflaeche') {
+      const ring = planRingPruefen(pts)
+      if (!ring) {
+        setMeldung('Fläche (Plan) ohne Fläche (Ecken doppelt bzw. auf einer Linie): weiter klicken oder «Abbrechen».')
+        return
+      }
+      aendern(f => { f.flaechenPlan = [...(f.flaechenPlan ?? []), { id: naechstePlanId(f), art: planArt, ring }]; return f })
+      setMeldung(`Fläche (Plan) gezeichnet: ${PLAN_NAME[planArt]}, ${f1(planFlaecheM2(ring))} m². Sie ersetzt in der Rechnung die ` +
+        'AV-Flächen darunter; Art und Ecken unter «Flächen (Plan)» änderbar.')
     } else {
       let h: Hindernis | null = null
       if (werkzeug === 'parkfeld') h = { id, art: 'parkfeld', klasse: klasse === 'velo' ? 'velo' : 'auto', ring: pts, quelle: 'hand' }
@@ -452,15 +639,18 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       if (h) aendern(f => { f.hindernisse.push(h!); return f })
     }
     setZeichnung([]); zeichnungRef.current = []; setWerkzeug(null); setSpurFuer(null)
-  }, [werkzeug, spurFuer, klasse, breite, streifenBreite, sichtbehindernd, aendern])
+  }, [werkzeug, spurFuer, klasse, breite, streifenBreite, sichtbehindernd, aendern, fall, gesichert, av, planArt])
 
+  // Fangen der Ecken einer Fläche (Plan): AV-Stützpunkte und Ecken der übrigen Plan-Flächen (ohneId: die eben bearbeitete)
+  const planFangen = (p: P, ohneId: string | null): P => fangen(p, [...(av ?? []), ...planAlsAv(fall?.flaechenPlan, ohneId)], fangRadius()).p
   const klick = useCallback((p: P) => {
-    if (werkzeug === 'baum') { fertig([p]); return }
+    if (werkzeug === 'baum' || werkzeug === 'fixpunkt') { fertig([p]); return }
+    if (werkzeug === 'planflaeche') p = planFangen(p, null)
     const neu = [...zeichnungRef.current, p]
     zeichnungRef.current = neu
     if (werkzeug === 'streifen' && neu.length === 2) { fertig(neu); return }
     setZeichnung(neu)
-  }, [werkzeug, fertig])
+  }, [werkzeug, fertig, av, fall])
 
   const doppelklick = useCallback(() => {
     // Doppelklick setzt zwei Klicks ab: den doppelten letzten Punkt weglassen
@@ -469,7 +659,33 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     fertig(pts)
   }, [fertig])
 
-  const ecke = useCallback((id: string, i: number, p: P) => aendern(f => {
+  // Fixpunkte, die verschoben wurden, solange die AV fehlte (Laden läuft): nach dem Laden fangen (Id -> Lage beim Verschieben;
+  // gefangen wird nur, wenn der Fixpunkt noch dort liegt, sonst gilt der Eintrag als erledigt)
+  const fangOffen = useRef(new Map<string, P>())
+  const ecke = useCallback((id: string, i: number, p: P) => {
+    geaendert.current = id
+    if (fall?.fixpunkte?.some(x => x.id === id) && !av) {
+      // ohne AV kein Fangen: Lage übernehmen, Art behalten (nicht zum «freien Punkt» machen), nach dem Laden fangen
+      fangOffen.current.set(id, p)
+      aendern(f => { const fp = f.fixpunkte?.find(x => x.id === id); if (fp) fp.p = p; return f })
+      setMeldung('Fixpunkt verschoben, während die Daten laden: er wird nach dem Laden auf die AV gefangen.')
+      return
+    }
+    // Fixpunkt verschoben: wieder auf die AV fangen (gerechnet für jeden Griff, verwendet nur beim Fixpunkt)
+    const g = fangen(p, av ?? [], fangRadius())
+    // Ecke einer Fläche (Plan): auf AV bzw. andere Plan-Flächen fangen (ohne AV: wie geklickt)
+    const pp = fall?.flaechenPlan?.some(x => x.id === id) ? planFangen(p, id) : p
+    aendern(f => {
+    const fp = f.fixpunkte?.find(x => x.id === id)
+    if (fp) { fp.p = g.p; fp.art = g.art; if (g.avArt) fp.avArt = g.avArt; else delete fp.avArt; return f }
+    const pl = f.flaechenPlan?.find(x => x.id === id)
+    if (pl) {
+      const ring = [...pl.ring]; ring[i] = pp
+      // ungültig (z. B. Ecke auf die Nachbarecke gezogen): Fläche bleibt wie sie war
+      const ok = planRingPruefen(ring)
+      if (ok) pl.ring = ok
+      return f
+    }
     const h = f.hindernisse.find(x => x.id === id)
     if (h) {
       if (h.art === 'parkfeld') h.ring[i] = p
@@ -482,34 +698,153 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const s = f.streifenHand.find(x => x.id === id)
     if (s) { if (i === 0) s.p0 = p; else s.p1 = p; s.angepasst = true }
     return f
-  }), [aendern])
+  }) }, [aendern, av, fall])
+  // nach dem Laden: die beim Laden verschobenen Fixpunkte fangen
+  useEffect(() => {
+    if (!av || !fangOffen.current.size) return
+    const offen = new Map(fangOffen.current)
+    fangOffen.current.clear()
+    const r = fangRadius()
+    aendern(f => {
+      for (const [id, p] of offen) {
+        const fp = f.fixpunkte?.find(x => x.id === id)
+        if (!fp || fp.p[0] !== p[0] || fp.p[1] !== p[1]) continue
+        const g = fangen(p, av, r)
+        fp.p = g.p; fp.art = g.art
+        if (g.avArt) fp.avArt = g.avArt; else delete fp.avArt
+      }
+      return f
+    })
+  }, [av, aendern])
 
-  const werkzeugWaehlen = (w: Werkzeug) => { setZeichnung([]); setBearbeiten(null); setWerkzeug(x => (x === w ? null : w)) }
+  // ---------------------------------------------------------------- Fixpunkte (Vermassung ab Fixpunkt, fixpunkt.ts)
+  /** Länge von FANG_PX Bildschirmpunkten in Metern beim aktuellen Zoom (Mitte der Karte), höchstens FANG_MAX_M */
+  function fangRadius(): number {
+    const map = kartenRef.current
+    if (!map) return fangRadiusM(Infinity)
+    const c = map.getCenter(), pt = map.latLngToContainerPoint(c)
+    return fangRadiusM(map.distance(c, map.containerPointToLatLng([pt.x + FANG_PX, pt.y])))
+  }
+  /** Fixpunkt am Klick: auf die AV gefangen bzw. frei (Meldung) */
+  function fixpunktSetzen(p: P, art?: Fixpunkt['art']) {
+    const g = art ? { p, art } : fangen(p, av ?? [], fangRadius())
+    aendern(f => { f.fixpunkte = [...(f.fixpunkte ?? []), { id: naechsteFixId(f), ...g }]; return f })
+    setMeldung(g.art === 'frei' ? `Fixpunkt gesetzt: freier Punkt, nicht aus der AV (kein AV-Stützpunkt im Umkreis von ${FANG_PX} ` +
+      'Bildschirmpunkten). Zum Fangen näher heranzoomen bzw. genauer auf die Ecke klicken.' :
+      `Fixpunkt gesetzt: ${fixpunktName(g)} (gefangen). Bezeichnung unter «Fixpunkte» änderbar.`)
+  }
+
+  const werkzeugWaehlen = (w: Werkzeug, oben = false) => {
+    setZeichnung([]); setBearbeiten(null); setWerkzeugOben(oben); setWerkzeug(x => (x === w ? null : w))
+  }
+
+  // ---------------------------------------------------------------- Planung: Streifen von Hand ohne OSM-Übergang (16.10.2026)
+  /** Neuer Fall am gezeichneten Streifen (nur dieser Streifen, ohne OSM-Übergang); die Karte bleibt, wo sie ist. reicht: weitester
+   * Punkt des Streifens vom bisherigen Ladeort (null ohne geladenen Ort) */
+  const planFall = (neu: { p0: P; p1: P; breite: number }, reicht: number | null) => {
+    const [lat, lon] = wgs(...streifenMitte(neu))
+    const f = leererFall(lat, lon, null)
+    const id = naechsteHandId(f)
+    f.streifenHand.push({ id, ...neu, herkunft: 'gezeichnet' })
+    const bisher = fall && hatEingaben(fall) ? fall.ort.uebergang : null
+    setGewaehlt(null); setGespeichert(null); neuerFallImOrt()
+    laden(lat, lon, null, f)
+    const weit = reicht !== null ? ` (reicht bis ${abstandText(reicht)} vom bisherigen Ort)` : ''
+    setLadeHinweis({ text: `Neuer Fall am geplanten ${streifenTitel(id)}${weit}: AV, OSM und Kataster werden um den Streifen geladen.` +
+      (bisher !== null ? ` Der bisherige Fall bleibt beim OSM-Übergang ${bisher} im Browser gemerkt.` : ''), verwerfen: false })
+  }
+  /** Daten um die Streifen von Hand neu laden, der Fall bleibt (Ort aus dem Entscheid; OSM-Übergang nur, wenn noch abgedeckt –
+   * sonst gehört der Fall nicht mehr zum Übergang: er kommt unter «fgsCheck.fall.ort» (liegt dort ein anderer Fall, nach
+   * Rückfrage), danach entfernt merken den Eintrag des Übergangs) */
+  const nachladen = (f: Fall, e: OrtEntscheid) => {
+    const neu = ortVerlegen(f, e)
+    if (neu.ort.uebergang === null) setGewaehlt(null)
+    if (neu.ort.uebergang === null && f.ort.uebergang !== null) { neuerFallImOrt(); ortVergessen.current = f.ort.uebergang }
+    const b = bearbeiten
+    laden(neu.ort.lat, neu.ort.lon, neu.ort.uebergang, neu)
+    if (b && neu.streifenHand.some(x => x.id === b)) setBearbeiten(b)      // «verschieben» bleibt offen
+    setLadeHinweis({ text: nachladenText(e, 'geaendert', f.ort.uebergang, f.streifenHand.length, id => streifenTitel(id, f.streifenHand)),
+      verwerfen: false })
+  }
+  // Streifen von Hand ausserhalb der Abdeckung um den Ladeort; gemeldet beim Streifen (Panel, Bericht), gesammelt nur die ohne
+  // eigenes Ergebnis in der Rechnung (z. B. während sie läuft) – jeder Hinweis nur einmal
+  const ausserhalb = useMemo(() => (fall && daten ? nichtAbgedeckt(fall.streifenHand, daten.ort) : []), [fall, daten])
+  const ausserhalbOhne = ausserhalb.filter(x => !rechnung?.streifen.some(s => s.fgsId === x.id))
+  /** um einen Streifen von Hand neu laden (Knopf im Hinweis «ausserhalb der geladenen Daten») */
+  const umStreifenLaden = (id: string) => {
+    if (!fall || !daten) return
+    const e = ortEntscheid(fall.streifenHand, daten.ort, { bezug: id, querung: querungLage })
+    if (e.nachladen) nachladen(fall, e)
+  }
+  // nach dem Verschieben eines Endes, dem Ändern der Breite bzw. einem neu gezeichneten Streifen («dazu»): liegen die Streifen
+  // von Hand nicht mehr alle in der Abdeckung, neu laden (um alle bzw. um diesen Streifen, abdeckung.ortEntscheid)
+  useEffect(() => {
+    const id = geaendert.current
+    if (!id || !fall || !daten) return
+    geaendert.current = null
+    if (id !== NEU_GEZEICHNET && !fall.streifenHand.some(x => x.id === id)) return
+    const e = ortEntscheid(fall.streifenHand, daten.ort, { bezug: id === NEU_GEZEICHNET ? null : id, querung: querungLage })
+    if (e.nachladen) nachladen(fall, e)
+  }, [fall, daten, querungLage])
 
   // ---------------------------------------------------------------- Fall-Datei
+  /** Fall als JSON-Datei herunterladen (offener Fall mit Ergebnis-Auszug bzw. der im Browser gemerkte ohne) */
+  const herunterladen = (f: Fall, ergebnis: FallErgebnis | null) => {
+    const blob = new Blob([fallSchreiben(f, ergebnis)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `fgsCheck_${f.ort.uebergang ?? 'ort'}_${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+  }
   const speichern = () => {
     if (!fall) return
+    // als gesichert gilt der Inhalt der Eingaben zum Zeitpunkt des Speicherns (ein abgebrochener Download bleibt unerkannt)
+    setGespeichert(eingabenSchluessel(fall))
     const ergebnis: FallErgebnis | null = rechnung ? { hinweis: rechnung.hinweis, luftbild: rechnung.luftbild?.befund,
       streifenQuelle: rechnung.streifenQuelle, streifen: rechnung.streifen.map(s => ({
       fgsId: s.fgsId, status: s.status,
       zufahrten: s.zufahrten.map(z => ({ zufahrt: z.zufahrt, status: z.status, tempo: z.tempo, sichtweite: z.sichtweite,
         ...(z.deckung ? { gedeckt: true as const } : {}) })) })) } : null
-    const blob = new Blob([fallSchreiben(fall, ergebnis)], { type: 'application/json' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `fgsCheck_${fall.ort.uebergang ?? 'ort'}_${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+    herunterladen(fall, ergebnis)
   }
-  const ladenDatei = async (datei: File) => {
-    try {
-      const [f, hinweise] = fallLesen(await datei.text())
-      kartenRef.current?.setView([f.ort.lat, f.ort.lon], 19)
-      setGewaehlt(f.ort.uebergang !== null ? { id: f.ort.uebergang, lat: f.ort.lat, lon: f.ort.lon, tags: {} } : null)
-      await laden(f.ort.lat, f.ort.lon, f.ort.uebergang, f)
-      setLadeHinweis({ text: `Fall «${datei.name}» geladen (${eingabenZahl(f)} Eingaben)` +
-        (hinweise.length ? `; ${hinweise.length} ungültige Einträge übergangen (${[...new Set(hinweise)].join('; ')}).` : '.'), verwerfen: false })
-    } catch (e) { setMeldung(`Fall-Datei nicht lesbar: ${(e as Error).message}`) }
+  /** Rückfrage «anderer Fall im Browser» (ortKonflikt): der offene Fall ersetzt den gemerkten */
+  const ortErsetzen = () => {
+    setOrtKonflikt(null)
+    if (!fall) return
+    ortEigen.current = true
+    merken(fall)
+  }
+  /** Fall öffnen (Fall-Datei bzw. letzter Fall ohne Übergang aus dem Browser). Streifen von Hand ausserhalb der Abdeckung um den
+   * gespeicherten Ort: Ort verlegen (abdeckung.fallAmStreifen); den Übergang prüft die App nach dem Laden mit der Lage aus OSM.
+   * titel: Anfang des Hinweises; datei: aus einer Datei geladen (gilt dann als gesichert) */
+  const fallOeffnen = (f0: Fall, hinweise: string[], titel: string, datei: boolean) => {
+    const { fall: f, hinweis: ortHinweis } = fallAmStreifen(f0)
+    kartenRef.current?.setView([f.ort.lat, f.ort.lon], 19)
+    // Lage des Übergangs vorläufig der gespeicherte Ort (Tags fehlen); nach dem Laden aus OSM nachgeführt
+    setGewaehlt(f.ort.uebergang !== null ? { id: f.ort.uebergang, lat: f0.ort.lat, lon: f0.ort.lon, tags: {} } : null)
+    setGespeichert(datei ? eingabenSchluessel(f) : null)
+    neuerFallImOrt()
+    laden(f.ort.lat, f.ort.lon, f.ort.uebergang, f)
+    // nach dem Start von laden (setzt den Hinweis zurück); ein späterer Hinweis (Übergang ausserhalb) wird angehängt
+    setLadeHinweis({ text: `${titel} (${eingabenZahl(f)} Eingaben)` +
+      (hinweise.length ? `; ${hinweise.length} ungültige Einträge übergangen (${[...new Set(hinweise)].join('; ')}).` : '.') +
+      (ortHinweis ? ` ${ortHinweis}` : ''), verwerfen: false })
+  }
+  /** Fall-Datei gewählt: lesen, dann (bei ungesichertem Fall ohne Übergang nach Bestätigung) öffnen */
+  const dateiGewaehlt = async (datei: File) => {
+    let f0: Fall, hinweise: string[]
+    try { [f0, hinweise] = fallLesen(await datei.text()) } catch (e) { setMeldung(`Fall-Datei nicht lesbar: ${(e as Error).message}`); return }
+    wechseln(`Fall-Datei «${datei.name}» laden: der bisherige Fall wird ersetzt.`, 'Datei laden',
+      () => fallOeffnen(f0, hinweise, `Fall «${datei.name}» geladen`, true), fallAmStreifen(f0).fall.ort.uebergang === null)
+  }
+  /** Letzten Fall ohne Übergang aus dem Browser wiederherstellen («fgsCheck.fall.ort», S1) */
+  const ortWiederherstellen = () => {
+    const f0 = fallErinnern('ort')
+    if (!f0) { setMeldung('Kein gemerkter Fall ohne OSM-Übergang (mehr) im Browser.'); return }
+    wechseln('Letzten geplanten Fall wiederherstellen: der bisherige Fall wird ersetzt.', 'wiederherstellen',
+      () => fallOeffnen(f0, [], `Letzten Fall ohne OSM-Übergang aus dem Browser wiederhergestellt (Stand ${f0.gespeichert?.slice(0, 10) ??
+        'unbekannt'})`, false))
   }
 
   const schliessenBericht = useCallback(() => setBericht(false), [])
@@ -534,6 +869,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const namen = useMemo(() => namenKarte(namenAusschnitt, osmRoh && osmOrt ? strassennamen(osmRoh, osmOrt, OSM_RADIUS_M) : [],
     osmRoh && osmOrt ? osmOrt : null, OSM_RADIUS_M), [namenAusschnitt, osmRoh, osmOrt])
   const alleZ = useMemo(() => rechnung?.streifen.flatMap(s => s.zufahrten) ?? [], [rechnung])
+  // Anzeige (benennung.ts): Streifen von Hand mit Namen bzw. «Streifen 1», Zufahrten nach Strasse und Herkunft statt Gradzahl
+  const osmWegNamen = useMemo(() => wegNamen(daten?.osm), [daten])
+  const zNamen = useMemo(() => new Map((rechnung?.streifen ?? []).map(s => [s.fgsId, zufahrtNamen(s, w => osmWegNamen.get(w) ?? null)])),
+    [rechnung, osmWegNamen])
+  const handListe = fall?.streifenHand
+  const titel = useCallback((id: string) => streifenTitel(id, handListe ?? []), [handListe])
   const gewaehlteZ: ZufahrtErgebnis | null = useMemo(() => alleZ.find(z => zufahrtKey(z) === auswahl) ?? null, [alleZ, auswahl])
   const vorschlagOsm = (rechnung?.vorschlaege ?? []).filter(v => v.hindernis.quelle === 'osm')
   const katBaeume = (rechnung?.vorschlaege ?? []).filter(v => v.hindernis.quelle === 'kataster' && v.hindernis.art === 'baum')
@@ -547,35 +888,135 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const doppelt = useMemo(() => new Set(rechnung?.doppelt ?? []), [rechnung])
   const doppeltIds = useMemo(() => (fall ? fall.hindernisse.filter(h => doppelt.has(h.id)).map(h => h.id) : []), [fall, doppelt])
 
+  // Vermassung ab Fixpunkt: gerechnete Streifen von Hand (mit Vermassung), Vorschläge je Streifen (nächste Gebäudeecke je
+  // Strassenseite, ohne schon gesetzte Fixpunkte), Masslinien je Fixpunkt zum nächsten Streifen (Karte)
+  const handStreifen = useMemo(() => (rechnung?.streifenQuelle === 'hand' ? rechnung.streifen.filter(s => s.vermassung) : []), [rechnung])
+  const fixListe = fall?.fixpunkte
+  const fixVorschlag = useMemo(() => new Map(handStreifen.map(s => [s.fgsId, fixpunktVorschlaege(s, av ?? [])
+    .filter(v => !(fixListe ?? []).some(f => dist(f.p, v.p) < 0.01))])), [handStreifen, av, fixListe])
+  const masslinien = useMemo<Masslinie[]>(() => (fixListe ?? []).flatMap(f => {
+    const s = naechsterStreifen(f.p, handStreifen)
+    if (!s) return []
+    const m = fixpunktMasse(f.p, { p0: s.p0, p1: s.p1, breite: s.bw, umriss: s.umriss })
+    return m.aufHoehe ? [] : [{ von: f.p, bis: m.kantenPunkt, text: `${f2(m.laengsKanteM)} m` }]
+  }), [fixListe, handStreifen])
+  const vorschlagKarte = useMemo(() => [...fixVorschlag.values()].flat().map(v => ({ p: v.p,
+    text: `Vorschlag Fixpunkt: nächste Gebäudeecke (AV), ${f1(v.abstandM)} m vom Streifen` })), [fixVorschlag])
+
+  // OSM-Querung ohne Fussgängerstreifen, Streifen aus OSM + AV: Übernahme als geplanter Streifen (Planungs-Wortlaut)
+  const planQuerung = !!rechnung && rechnung.streifenQuelle === 'osm' && !!rechnung.markierung && !istFgs(rechnung.markierung)
+  /** Koordinaten eines Streifens von Hand in die Zwischenablage (tabulatorgetrennt Punkt, E, N); Rückmeldung als Meldung */
+  const kopieren = async (id: string, v: Vermassung) => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Zwischenablage hier nicht verfügbar (nur über https bzw. in neueren Browsern)')
+      const fix = (fall?.fixpunkte ?? []).map(f => ({ name: fixpunktName(f), p: f.p }))
+      await navigator.clipboard.writeText(vermassungTabelle(titel(id), v, fix))
+      setMeldung(`Koordinaten von ${titel(id)} kopiert: ${v.punkte.length} Punkte${fix.length ? ` und ${fix.length} Fixpunkt(e)` : ''}, ` +
+        'tabulatorgetrennt (Punkt, E, N in LV95, Meter).')
+    } catch (e) { setMeldung(`Koordinaten nicht kopiert: ${(e as Error).message}`) }
+  }
+  // Hilfe zum gewählten Werkzeug: unter der Knopfzeile, wenn es dort gewählt wurde («Streifen planen») bzw. noch kein Fall
+  // geladen ist, sonst im Abschnitt «Eingaben von Hand»
+  const hilfeOben = werkzeugOben || !(fall && daten)
+  const werkzeugHilfe = werkzeug && (
+    <div className="werkzeughilfe">
+      <b>{(WERKZEUGE.find(x => x[0] === werkzeug) ?? ['', 'Fahrlinie selbst zeichnen'])[1]}:</b>{' '}
+      {(WERKZEUGE.find(x => x[0] === werkzeug) ?? ['', '', 'am Streifen beginnen, gegen die Fahrtrichtung klicken, Doppelklick beendet'])[2]}
+      {werkzeug === 'streifen' && (fall
+        ? <>; liegt der Streifen nicht ganz innert {NACHLADEN_M} m um den geladenen Ort{fall.streifenHand.length ? <> und auch mit
+            den übrigen Streifen von Hand nicht ganz innert {NACHLADEN_M} m um einen gemeinsamen Ort</> : ''}, beginnt dort ein
+            neuer Fall (AV, OSM und Kataster werden um ihn geladen)</>
+        : <>; ohne geladenen Ort beginnt am Streifen ein neuer Fall (AV, OSM und Kataster werden um ihn geladen)</>)}
+      {werkzeug === 'planflaeche' && <label> Art <select value={planArt} onChange={e => setPlanArt(e.target.value as PlanArt)}>
+        {PLAN_ARTEN.map(a => <option key={a} value={a}>{PLAN_NAME[a]}</option>)}</select></label>}
+      {werkzeug === 'parkfeld' && <label> Klasse <select value={klasse} onChange={e => setKlasse(e.target.value as 'auto' | 'velo')}>
+        <option value="auto">Auto</option><option value="velo">Velo/Motorrad</option></select></label>}
+      {werkzeug === 'laengs' && <label> Breite <input type="number" step="0.1" min="1" max="6" value={breite}
+        onChange={e => setBreite(Number(e.target.value) || LAENGS_BREITE_M)} /> m</label>}
+      {werkzeug === 'streifen' && <label> Breite <input type="number" step="0.5" min="1" max="15" value={streifenBreite}
+        onChange={e => setStreifenBreite(Number(e.target.value) || 4)} /> m</label>}
+      {(werkzeug === 'hecke' || werkzeug === 'mauer' || werkzeug === 'flaeche') &&
+        <label> <input type="checkbox" checked={sichtbehindernd} onChange={e => setSichtbehindernd(e.target.checked)} /> sichtbehindernd</label>}
+      <div><button onClick={() => fertig(zeichnung)} disabled={zeichnung.length < 2}>Fertig</button>{' '}
+        <button className="zweit" onClick={() => { setZeichnung([]); setWerkzeug(null) }}>Abbrechen</button></div>
+    </div>
+  )
+
   return (
     <div className="app">
       <Karte mitte={START} av={av} kantone={kantone} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? []} streifenHand={fall?.streifenHand ?? []}
-        werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} onUebergang={pruefen} onZufahrt={setAuswahl}
+        werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} fixpunkte={fall?.fixpunkte ?? []} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
+        flaechenPlan={fall?.flaechenPlan ?? []}
+        masslinien={masslinien} zufahrtName={(fid, zf) => zufahrtLang(zNamen.get(fid), zf)} streifenTitel={titel}
+        onUebergang={pruefen} onZufahrt={setAuswahl}
         onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => setBearbeiten(b => (b === id ? null : id))}
         onAusschnitt={ausschnitt} hinweis={suchHinweis} kartenRef={kartenRef} />
       <aside className="panel">
         <h1>{onStartseite
-          ? <button type="button" className="logo-knopf" onClick={onStartseite} aria-label="Zur Startseite" title="Zur Startseite">
+          ? <button type="button" className="logo-knopf" onClick={() => wechseln('Zur Startseite: der bisherige Fall wird verlassen.',
+              'zur Startseite', onStartseite)} aria-label="Zur Startseite" title="Zur Startseite">
               <img className="logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={40} height={40} /></button>
           : <img className="logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={40} height={40} />}
           fgsCheck <span className="marke">Prototyp v{__APP_VERSION__}</span></h1>
         <p className="hinweis">
-          Sichtprüfung an Fussgängerstreifen nach VSS 40 241 und bfu 2.457.01, gerechnet im Browser. Den Streifen sucht die App
-          im Luftbild (sonst aus OSM und AV); Parkfelder, Bäume, Hecken und Mauern zeichnen Sie auf dem Luftbild ein; Vorschläge
-          aus OSM zählen erst nach Bestätigung. In Bern lädt die App die amtlichen Parkfelder der Stadt; sie zählen sofort.
+          Sichtprüfung an bestehenden und geplanten Fussgängerstreifen nach VSS 40 241 und bfu 2.457.01, gerechnet im Browser. Den
+          Streifen sucht die App im Luftbild (sonst aus OSM und AV); Parkfelder, Bäume, Hecken und Mauern zeichnen Sie auf dem
+          Luftbild ein; Vorschläge aus OSM zählen erst nach Bestätigung. In Bern lädt die App die amtlichen Parkfelder der Stadt; sie
+          zählen sofort. Neue Streifen: «Streifen planen»; geplante Trottoirränder und Inseln: «Fläche (Plan)».
         </p>
         <Anleitung />
         <div className="knopfzeile">
           <label className="knopf">Fall laden<input type="file" accept=".json,application/json" hidden
-            onChange={e => { const d = e.target.files?.[0]; if (d) ladenDatei(d); e.target.value = '' }} /></label>
+            onChange={e => { const d = e.target.files?.[0]
+              if (d) dateiGewaehlt(d)
+              e.target.value = '' }} /></label>
+          <button className={werkzeug === 'streifen' ? 'aktiv' : 'zweit'} onClick={() => werkzeugWaehlen('streifen', true)}
+            title={'Neuen Fussgängerstreifen zeichnen, auch ohne OSM-Übergang: beide Wartebereiche anklicken. Zum laufenden Fall kommt ' +
+              `er, wenn er ganz innert ${NACHLADEN_M} m um den geladenen Ort liegt oder alle Streifen von Hand zusammen ganz innert ` +
+              `${NACHLADEN_M} m um einen Ort liegen (dann lädt die App dort nach); sonst bzw. ohne geladenen Ort beginnt am Streifen ` +
+              'ein neuer Fall. Die App lädt AV, OSM und Kataster um den Streifen, rechnet und vermasst ihn.'}>Streifen planen</button>
           {fall && <button onClick={speichern}>Fall speichern</button>}
+          {ortGemerkt && <button className="zweit" onClick={ortWiederherstellen} title={'Den zuletzt bearbeiteten Fall ohne ' +
+            `OSM-Übergang (z. B. geplanter Streifen; ${eingabenZahl(ortGemerkt)} Eingaben, Stand ${ortGemerkt.gespeichert?.slice(0, 10) ??
+            'unbekannt'}) aus dem Browser zurückholen. Der Browser merkt nur einen solchen Fall: ein anderer Fall ohne Übergang ` +
+            'ersetzt ihn erst nach Rückfrage.'}>Letzten geplanten Fall wiederherstellen</button>}
           {fall && rechnung && !rechnet && <button onClick={() => setBericht(true)} title={'Druckansicht mit Kartenbild, Ergebnis, Eingaben ' +
             'und Quellen; als PDF speichern über den Druckdialog des Browsers'}>Bericht drucken / als PDF</button>}
         </div>
         <label className="klein"><input type="checkbox" checked={nurMarkiert} onChange={e => setNurMarkiert(e.target.checked)} />
           {' '}nur markierte Übergänge zeigen (Fussgängerstreifen, vermutliche und Lichtsignal)</label>
-        {meldung && <p className="klein">{meldung}</p>}
+        {meldung && <p className="klein">{meldung}{ladeFehler && fall && !daten && <>{' '}
+          <button className="zweit klein" onClick={() => laden(fall.ort.lat, fall.ort.lon, fall.ort.uebergang, fall)}>erneut laden</button></>}</p>}
+        {hilfeOben && werkzeugHilfe}
+        {wechsel && (
+          <p className="klein warnung hinweisbox">{wechsel.text} Der bisherige Fall hat keinen OSM-Übergang und ist nicht als Datei
+            gesichert{fall ? ` (${eingabenZahl(fall)} Eingaben)` : ''}: {!wechsel.gemerkt ? 'er ist im Browser nicht gemerkt (dort liegt ' +
+            'ein anderer Fall) und geht verloren.' : wechsel.ersetzt ? 'der Browser merkt nur einen Fall ohne Übergang, der neue ' +
+            'ersetzt ihn.' : 'der Browser merkt ihn als letzten geplanten Fall («Letzten geplanten Fall wiederherstellen»).'}{' '}
+            {fall && <button className="zweit klein" onClick={speichern}>Fall speichern</button>}{' '}
+            <button className="klein" onClick={() => {
+              const w = wechsel
+              // bestätigt: der Eintrag «ort» des bisherigen Falls darf an den neuen Fall ohne Übergang gehen
+              if (w.ersetzt && w.gemerkt && ortEigen.current) ortFreigabe.current = true
+              setWechsel(null); setZeichnung([]); w.weiter()
+            }}>{wechsel.knopf}</button>{' '}
+            <button className="zweit klein" onClick={() => { setWechsel(null); setZeichnung([]) }}>abbrechen</button></p>
+        )}
+        {ortKonflikt && fall && !wechsel && (
+          <p className="klein warnung hinweisbox">Im Browser ist noch ein anderer Fall ohne OSM-Übergang gemerkt
+            ({eingabenZahl(ortKonflikt)} Eingaben, Stand {ortKonflikt.gespeichert?.slice(0, 10) ?? 'unbekannt'}). Der Browser merkt nur
+            einen solchen Fall: der offene Fall ersetzt ihn erst nach Bestätigung, bis dahin ist er nur hier offen.{' '}
+            <button className="zweit klein" onClick={() => herunterladen(ortKonflikt, null)} title={'Den gemerkten Fall als JSON-Datei ' +
+              'speichern (danach «ersetzen»)'}>gemerkten Fall speichern</button>{' '}
+            <button className="zweit klein" onClick={ortWiederherstellen}>letzten geplanten Fall wiederherstellen</button>{' '}
+            <button className="klein" onClick={ortErsetzen}>ersetzen</button></p>
+        )}
+        {!wechsel && !ortKonflikt && ungesichert && (
+          <p className="klein hinweisbox">Fall ohne OSM-Übergang, nicht als Datei gesichert: der Browser merkt nur den zuletzt
+            bearbeiteten Fall ohne Übergang («Letzten geplanten Fall wiederherstellen»), ein anderer ersetzt ihn erst nach
+            Rückfrage – mit «Fall speichern» als Datei sichern.</p>
+        )}
         {ladeHinweis && fall && (
           <p className="klein hinweisbox">{ladeHinweis.text}{' '}
             {ladeHinweis.verwerfen && <button className="zweit klein" onClick={() => {
@@ -591,7 +1032,13 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
               return f
             })}>entfernen</button></p>
         )}
-        {rechnung?.hinweis && <p className={rechnung.markierung && istFgs(rechnung.markierung) ? 'pruefen' : 'keinfgs'}>{rechnung.hinweis}</p>}
+        {rechnung?.hinweis && <p className={rechnung.markierung && istFgs(rechnung.markierung) ? 'pruefen' :
+          rechnung.streifenQuelle === 'hand' ? 'hinweisbox' : 'keinfgs'}>{rechnung.hinweis}</p>}
+        {/* Streifen ausserhalb der Abdeckung: beim Streifen (StreifenAnzeige); hier gesammelt nur die ohne eigenes Ergebnis */}
+        {ausserhalbOhne.length > 0 && (
+          <p className="klein warnung">{nichtAbgedecktText(ausserhalbOhne, titel)}{' '}
+            {ausserhalbOhne.map(x => <button key={x.id} className="zweit klein" onClick={() => umStreifenLaden(x.id)}>um {titel(x.id)} neu laden</button>)}</p>
+        )}
         {rechnet && <p className="klein">Rechnung läuft …</p>}
 
         {fall && daten && (
@@ -602,37 +1049,97 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                 <button key={w} className={werkzeug === w ? 'aktiv' : 'zweit'} onClick={() => werkzeugWaehlen(w)}>{name}</button>
               ))}
             </div>
-            {werkzeug && (
-              <div className="werkzeughilfe">
-                <b>{(WERKZEUGE.find(x => x[0] === werkzeug) ?? ['', 'Fahrlinie selbst zeichnen'])[1]}:</b>{' '}
-                {(WERKZEUGE.find(x => x[0] === werkzeug) ?? ['', '', 'am Streifen beginnen, gegen die Fahrtrichtung klicken, Doppelklick beendet'])[2]}
-                {werkzeug === 'parkfeld' && <label> Klasse <select value={klasse} onChange={e => setKlasse(e.target.value as 'auto' | 'velo')}>
-                  <option value="auto">Auto</option><option value="velo">Velo/Motorrad</option></select></label>}
-                {werkzeug === 'laengs' && <label> Breite <input type="number" step="0.1" min="1" max="6" value={breite}
-                  onChange={e => setBreite(Number(e.target.value) || LAENGS_BREITE_M)} /> m</label>}
-                {werkzeug === 'streifen' && <label> Breite <input type="number" step="0.5" min="1" max="15" value={streifenBreite}
-                  onChange={e => setStreifenBreite(Number(e.target.value) || 4)} /> m</label>}
-                {(werkzeug === 'hecke' || werkzeug === 'mauer' || werkzeug === 'flaeche') &&
-                  <label> <input type="checkbox" checked={sichtbehindernd} onChange={e => setSichtbehindernd(e.target.checked)} /> sichtbehindernd</label>}
-                <div><button onClick={() => fertig(zeichnung)} disabled={zeichnung.length < 2}>Fertig</button>{' '}
-                  <button className="zweit" onClick={() => { setZeichnung([]); setWerkzeug(null) }}>Abbrechen</button></div>
-              </div>
-            )}
+            {!hilfeOben && werkzeugHilfe}
             {fall.streifenHand.length > 0 && (
               <>
                 <h3>Streifen von Hand (ersetzen den Streifen aus OSM)</h3>
                 <ul className="liste">
                   {fall.streifenHand.map(s => (
                     <li key={s.id}>
-                      <span className="farbe" style={{ background: '#fde047' }} />{s.id}: {f1(dist(s.p0, s.p1))} m lang, {f1(s.breite)} m breit, {streifenHerkunftText(s)}
+                      <span className="farbe" style={{ background: '#fde047' }} />
+                      {/* Name: erst beim Verlassen bzw. Enter übernommen (TextFeld), sonst rechnete jeder Tastendruck neu */}
+                      <TextFeld wert={s.name ?? ''} max={STREIFEN_NAME_MAX} platzhalter={streifenTitel(s.id)} titel={'Name des Streifens ' +
+                        '(erscheint in Panel, Karte und Bericht statt «' + streifenTitel(s.id) + '»); leer: Nummer. Enter bzw. Feld verlassen übernimmt'}
+                        setze={t => aendern(f => { const y = f.streifenHand.find(z => z.id === s.id); if (y) { if (t) y.name = t; else delete y.name } return f })} />
+                      : {f1(dist(s.p0, s.p1))} m lang,{' '}
+                      {/* Breite (Balkenlänge) änderbar; setzt «angepasst» nicht: das beschreibt verschobene Enden, die Breite steht
+                          in Liste und Bericht ohnehin als Zahl */}
+                      <ZahlFeld wert={s.breite} bereich={[0.5, 15]} titel={'Breite des Streifens (Balkenlänge entlang der Fahrbahn) in m, ' +
+                        '0,5 bis 15 m; Enter bzw. Feld verlassen übernimmt'} setze={x => {
+                        if (x === s.breite) return
+                        geaendert.current = s.id
+                        aendern(f => { const y = f.streifenHand.find(z => z.id === s.id); if (y) y.breite = x; return f })
+                      }} /> m breit, {streifenHerkunftText(s)}
                       <span className="aktionen">
                         <button className="zweit klein" title="Enden auf der Karte verschieben" onClick={() => setBearbeiten(b => (b === s.id ? null : s.id))}>
                           {bearbeiten === s.id ? 'fertig' : 'verschieben'}</button>
                         <button className="zweit klein" onClick={() => aendern(f => { f.streifenHand = f.streifenHand.filter(x => x.id !== s.id); return f })}>löschen</button>
                       </span>
+                      <MasseAnzeige s={s} e={rechnung?.streifen.find(x => x.fgsId === s.id) ?? null} kopieren={kopieren} namen={zNamen.get(s.id)}
+                        fixpunkte={fall.fixpunkte ?? []} vorschlaege={fixVorschlag.get(s.id) ?? []}
+                        setzen={() => werkzeugWaehlen('fixpunkt')} uebernehmen={v => fixpunktSetzen(v.p, 'gebaeudeecke')} />
                     </li>
                   ))}
                 </ul>
+              </>
+            )}
+            {(fall.fixpunkte?.length ?? 0) > 0 && (
+              <>
+                <h3>Fixpunkte (Vermassung der Streifen von Hand, ohne Einfluss auf die Rechnung)</h3>
+                <ul className="liste">
+                  {fall.fixpunkte!.map(fp => (
+                    <li key={fp.id} className={bearbeiten === fp.id ? 'aktiv' : ''}>
+                      <span className="farbe" style={{ background: FIXPUNKT_FARBE }} />
+                      <TextFeld wert={fp.name ?? ''} max={FIXPUNKT_NAME_MAX} platzhalter={fixpunktName({ ...fp, name: undefined })} titel={'Bezeichnung des Fixpunkts ' +
+                        '(z. B. Gebäudeecke Haus Nr. 5); leer: nach Art. Enter bzw. Feld verlassen übernimmt'} setze={t => aendern(f => {
+                        const x = f.fixpunkte?.find(y => y.id === fp.id)
+                        if (x) { if (t) x.name = t; else delete x.name }
+                        return f
+                      })} />
+                      <span className="klein">{ART_TEXT[fp.art]} · E {koordText(fp.p[0])}, N {koordText(fp.p[1])}</span>
+                      <span className="aktionen">
+                        <button className="zweit klein" title="auf der Karte verschieben (fängt wieder auf die AV)"
+                          onClick={() => setBearbeiten(b => (b === fp.id ? null : fp.id))}>{bearbeiten === fp.id ? 'fertig' : 'verschieben'}</button>
+                        <button className="zweit klein" onClick={() => aendern(f => {
+                          f.fixpunkte = (f.fixpunkte ?? []).filter(x => x.id !== fp.id)
+                          if (!f.fixpunkte.length) delete f.fixpunkte
+                          return f
+                        })}>löschen</button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {(fall.flaechenPlan?.length ?? 0) > 0 && (
+              <>
+                <h3>Flächen (Plan): geplante Bodenbedeckung, ersetzt in der Rechnung die AV darunter</h3>
+                <ul className="liste">
+                  {fall.flaechenPlan!.map(fp => (
+                    <li key={fp.id} className={bearbeiten === fp.id ? 'aktiv' : ''}>
+                      <span className="farbe" style={{ background: planMarke(fp.art), borderColor: PLAN_FARBEN[fp.art].linie }} />
+                      {planTitel(fp.id)}:{' '}
+                      <select value={fp.art} title="Art der geplanten Fläche" onChange={e => aendern(f => {
+                        const x = f.flaechenPlan?.find(y => y.id === fp.id)
+                        if (x) x.art = e.target.value as PlanArt
+                        return f
+                      })}>{PLAN_ARTEN.map(a => <option key={a} value={a}>{PLAN_NAME[a]}</option>)}</select>
+                      {' '}{f1(planFlaecheM2(fp.ring))} m², {fp.ring.length} Ecken
+                      <span className="aktionen">
+                        <button className="zweit klein" title="Ecken auf der Karte verschieben (fangen auf die AV bzw. andere Plan-Flächen)"
+                          onClick={() => setBearbeiten(b => (b === fp.id ? null : fp.id))}>{bearbeiten === fp.id ? 'fertig' : 'bearbeiten'}</button>
+                        <button className="zweit klein" onClick={() => aendern(f => {
+                          f.flaechenPlan = (f.flaechenPlan ?? []).filter(x => x.id !== fp.id)
+                          if (!f.flaechenPlan.length) delete f.flaechenPlan
+                          return f
+                        })}>löschen</button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {rechnung?.planFlaechen !== undefined && <p className="klein">Rechnung mit geplanter Bodenbedeckung (von Hand):
+                  {' '}{rechnung.planFlaechen} von {fall.flaechenPlan!.length} Plan-Fläche(n) wirksam; Bordkanten, Wartebereiche, Inseln und
+                  Fahrlinien richten sich danach (Annahmen je Streifen und Zufahrt). Wo sich Plan-Flächen überlappen, gilt die spätere.</p>}
               </>
             )}
             <LuftbildAnzeige rechnung={rechnung} fall={fall} flugjahr={daten.flugjahr} hatBild={!!daten.luftbild} aendern={aendern}
@@ -645,11 +1152,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                   n = streifenUebernehmen(f, rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? rechnung.luftbild.teile : rechnung.streifen, rechnung.streifen,
                     rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? 'luftbild' : 'osm', rechnung.inseln ?? [])
                   ni = f.hindernisse.length - vor; return f })
-                setMeldung((n ? `Streifen übernommen; ${n} Eingaben (Tempo, Spur, Streichen, Lichtsignal, kein FGS) auf die neuen ` +
-                  'Nummern übertragen – bitte prüfen.' : 'Streifen übernommen.') + (ni ? ' Die Insel aus dem Luftbild steht jetzt als Insel ' +
-                  'von Hand unter den Hindernissen.' : ''))
-              }}>Streifen aus {rechnung.streifenQuelle === 'luftbild' ? 'dem Luftbild' : 'OSM'} übernehmen und anpassen</button> (Enden danach
-                verschieben)</p>
+                setMeldung((n ? `${planQuerung ? 'Querung als geplanten Streifen' : 'Streifen'} übernommen; ${n} Eingaben (Tempo, Spur, ` +
+                  'Streichen, Lichtsignal, kein FGS) auf die neuen Nummern übertragen – bitte prüfen.' : planQuerung ?
+                  'Querung als geplanten Streifen übernommen: Enden verschieben und Breite anpassen.' : 'Streifen übernommen.') +
+                  (ni ? ' Die Insel aus dem Luftbild steht jetzt als Insel von Hand unter den Hindernissen.' : ''))
+              }}>{planQuerung ? 'Querung als geplanten Streifen' : `Streifen aus ${rechnung.streifenQuelle === 'luftbild' ? 'dem Luftbild' : 'OSM'}`}
+                {' '}übernehmen und anpassen</button> (Enden danach verschieben)</p>
             )}
             <h3>Hindernisse ({fall.hindernisse.length})</h3>
             <p className="klein">Höhe von Hecken und Mauern vor Ort prüfen: sichtbehindernd sind sie nur, wenn sie die Sicht
@@ -709,7 +1217,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                 })} />
                   {' '}{kataster.quelle.name} laden ({kataster.quelle.quellenangabe})</label>
                 {kataster.fehler && <div className="fehler">Nicht geladen: {kataster.fehler}{' '}
-                  <button className="zweit klein" onClick={() => setKataster(k => (k ? { quelle: k.quelle, baeume: null } : k))}>erneut laden</button></div>}
+                  <button className="zweit klein" onClick={() => setKataster(k => (k ? { quelle: k.quelle, baeume: null, lat: k.lat, lon: k.lon } : k))}>erneut laden</button></div>}
                 {fall.baumkataster && kataster.baeume && <div>{katBaeume.length} Bäume in Reichweite der Rechnung ({KATASTER_PARK_M} m um den Streifen) zählen als Hindernis (Stamm {f1(BAUM_STAMM_M)} m);
                   einzelne auf der Karte anklicken und unten verwerfen.</div>}
                 {bearbeiten && katBaeume.some(v => v.id === bearbeiten) && <button className="zweit klein"
@@ -754,8 +1262,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
         {rechnung && rechnung.meldungen.length > 0 && <ul className="annahmen">{rechnung.meldungen.map(m => <li key={m}>{m}</li>)}</ul>}
         {rechnung?.streifen.map(s => fall && (
-          <StreifenAnzeige key={s.fgsId} s={s} fall={fall} auswahl={auswahl} setAuswahl={setAuswahl} aendern={aendern}
-            gewaehlteZ={gewaehlteZ} spurZeichnen={key => { setSpurFuer(key); setZeichnung([]); setWerkzeug('spurB') }} />
+          <StreifenAnzeige key={s.fgsId} s={s} fall={fall} auswahl={auswahl} setAuswahl={setAuswahl} aendern={aendern} namen={zNamen.get(s.fgsId)}
+            gewaehlteZ={gewaehlteZ} spurZeichnen={key => { setSpurFuer(key); setZeichnung([]); setWerkzeugOben(false); setWerkzeug('spurB') }}
+            ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null} neuLaden={() => umStreifenLaden(s.fgsId)} />
         ))}
         {rechnung && <p className="klein">Rechenzeit {Math.round(rechnung.ms)} ms (Web Worker).</p>}
 
@@ -796,7 +1305,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           <li>Amtliche Parkfelder (zählen, einzeln verwerfbar): <span className="farbe" style={{ background: PARK_FARBE.auto }} />Auto,
             <span className="farbe" style={{ background: PARK_FARBE.velo }} />Velo, <span className="farbe" style={{ background: PARK_FARBE.motorrad }} />Motorrad,
             <span className="farbe gestrichelt" style={{ borderColor: PARK_FARBE.auto, opacity: 0.6 }} />verworfen (gestrichelt, anklicken: wieder zählen)</li>
+          <li><FixLegende />Fixpunkt, <FixLegende blass />Vorschlag Fixpunkt (nächste Gebäudeecke der AV; Klick übernimmt), gestrichelte
+            Masslinie bis zur Streifenkante</li>
           {Object.entries(AV_FARBEN).map(([art, farbe]) => <li key={art}><span className="farbe" style={{ background: farbe }} />AV {AV_NAME[art] ?? art}</li>)}
+          <li>Flächen (Plan) von Hand, schraffiert mit gestricheltem Rand (ersetzen in der Rechnung die AV darunter):{' '}
+            {PLAN_ARTEN.map((a, i) => <span key={a}>{i ? ', ' : ''}<span className="farbe" style={{ background: planMarke(a),
+              borderColor: PLAN_FARBEN[a].linie }} />{PLAN_NAME[a]}</span>)}</li>
         </ul>
         </details>
 
@@ -821,9 +1335,53 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           luftbildStand={daten?.luftbild ? 'da' : fall.luftbild !== false && quellen.luftbild && !quellen.luftbild.fehler ? 'laedt' : 'fehlt'}
           zusatzQuellen={[...(fall.baumkataster && kataster?.baeume ? [`Baumkataster: ${kataster.quelle.quellenangabe} (WFS map.bern.ch)`] : []),
             ...(parkAn && parkKat?.felder ? [`Amtliche Parkfelder: ${parkKat.quelle.quellenangabe} (WFS map.bern.ch)`] : [])]}
-          aendern={aendern} schliessen={schliessenBericht} />
+          ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} />
       )}
     </div>
+  )
+}
+
+/** Lage und Masse eines Streifens von Hand (Vermassung aus der Rechnung, rechner/vermassung.ts), aufklappbar; Vermassung ab
+ * Fixpunkt (fixpunkt.ts) mit Vorschlägen (nächste Gebäudeecke je Strassenseite) */
+function MasseAnzeige({ s, e, kopieren, namen, fixpunkte, vorschlaege, setzen, uebernehmen }: { s: StreifenHand; e: StreifenErgebnis | null
+  namen: ZufahrtNamen | undefined
+  kopieren: (id: string, v: Vermassung) => void; fixpunkte: Fixpunkt[]; vorschlaege: FixVorschlag[]; setzen: () => void
+  uebernehmen: (v: FixVorschlag) => void }) {
+  const v = e?.vermassung ?? null
+  // Rechnung zu einem älteren Stand (Enden bzw. Breite seither geändert): keine alten Masse zeigen
+  const aktuell = !!e && e.p0[0] === s.p0[0] && e.p0[1] === s.p0[1] && e.p1[0] === s.p1[0] && e.p1[1] === s.p1[1] && e.bw === s.breite
+  return (
+    <details className="masse">
+      <summary className="klein">Lage und Masse</summary>
+      {!v || !aktuell ? <div className="klein">{e && !aktuell ? 'wird neu gerechnet …' : 'noch nicht gerechnet'}</div> : <div className="klein">
+        <table className="zahlen"><thead><tr><th>Punkt</th><th>E (LV95)</th><th>N (LV95)</th></tr></thead><tbody>
+          {v.punkte.map(q => <tr key={q.name}><td>{q.name}</td><td>{koordText(q.p[0])}</td><td>{koordText(q.p[1])}</td></tr>)}
+        </tbody></table>
+        <div>Ende A liegt im {v.seiteA}en (erster Punkt). Achse A–B {f2(v.laengeM)} m, Breite {f2(v.breiteM)} m, Winkel zur
+          Fahrbahnachse {v.winkelGrad !== null ? `${f1(v.winkelGrad)}° (90° = senkrecht; ${v.winkelQuelle})` : `– (${v.winkelQuelle})`}.</div>
+        <div>Abstand zum Fahrbahnrand entlang der Achse (+ vor dem Rand, − darüber hinaus): {v.randAbstandM ? <>Ende A
+          {' '}{vorzeichenText(v.randAbstandM[0])}, Ende B {vorzeichenText(v.randAbstandM[1])}; Fahrbahn {f2(v.fahrbahnM!)} m</> : '–'}
+          {' '}({v.randQuelle}).</div>
+        {v.knoten.length > 0 && <div>Nächster Knoten stromauf (OSM, entlang der Strasse ab Streifenrand): {v.knoten.map(k =>
+          `${zufahrtLang(namen, k.zufahrt)} ${f1(k.abstandM)} m`).join('; ')}.</div>}
+        <div><b>Vermassung ab Fixpunkt</b> (längs = entlang der Balken bzw. der Fahrbahn, quer = senkrecht dazu){' '}
+          <button className="zweit klein" onClick={setzen} title={'Fixpunkt auf der Karte setzen (fängt Gebäudeecken und Punkte der AV)'}>
+            Fixpunkt setzen</button></div>
+        {fixpunkte.length > 0 && <table className="zahlen fixmasse"><thead><tr><th>Fixpunkt</th><th>längs zur Kante</th><th>zur Achse</th>
+          <th>zum Ende (längs, quer)</th><th>Luftlinie</th></tr></thead><tbody>
+          {fixpunkte.map(f => {
+            const t = fixMassTexte(fixpunktMasse(f.p, { p0: e.p0, p1: e.p1, breite: e.bw, umriss: e.umriss }))
+            return <tr key={f.id}><td>{fixpunktName(f)}<div className="klein">{ART_TEXT[f.art]}</div></td><td>{t.kante}</td>
+              <td>{t.achse}</td><td>{t.ende}</td><td>{t.ecke}</td></tr>
+          })}
+        </tbody></table>}
+        {vorschlaege.length > 0 && <div>Vorschlag (nächste Gebäudeecke der AV je Strassenseite, bis {VORSCHLAG_M} m):{' '}
+          {vorschlaege.map(x => <span key={x.seite}>Seite {x.seite}, {f1(x.abstandM)} m vom Streifen{' '}
+            <button className="zweit klein" onClick={() => uebernehmen(x)}>übernehmen</button>{' '}</span>)}</div>}
+        <button className="zweit klein" onClick={() => kopieren(s.id, v)} title={'Punkt, E und N (LV95, Meter, Dezimalpunkt) ' +
+          'tabulatorgetrennt in die Zwischenablage, z. B. für CAD oder eine Tabelle; mit den Fixpunkten'}>Koordinaten kopieren</button>
+      </div>}
+    </details>
   )
 }
 
@@ -848,15 +1406,17 @@ function LuftbildAnzeige({ rechnung, fall, flugjahr, hatBild, aendern, setMeldun
       {an && lb && (
         <div className={lb.befund === 'erkannt' ? 'pruefen' : lb.befund === 'unsicher' ? 'hinweisbox' : ''}>
           {lb.befund === 'erkannt' && <>Streifen aus dem Luftbild erkannt ({lb.teile.map(t => `${t.nBalken} Balken`).join(' + ')}, NCC {f1_(lb.ncc)},
-            Gelb-Kontrast {lb.kontrast.toFixed(1).replace('.', ',')}) – aus Luftbild, prüfen. Die Rechnung nutzt ihn.</>}
+            Gelb-Kontrast {lb.kontrast.toFixed(1).replace('.', ',')}) – aus Luftbild, prüfen. {lb.nurVorschlag ? <>Mit Flächen (Plan): der
+            Streifen aus dem Luftbild (Bestand) ist nur Vorschlag (gestrichelt); gerechnet wird mit OSM + AV nach Plan bzw. mit den
+            Streifen von Hand.</> : 'Die Rechnung nutzt ihn.'}</>}
           {lb.befund === 'unsicher' && <>Muster im Luftbild unsicher ({lb.gruende.join('; ')}): gestrichelt als Vorschlag; die Rechnung
             nutzt den Streifen aus OSM + AV{rechnung?.inselTeilt ? ', an der Insel aus dem Luftbild geteilt' : ''}.</>}
           {lb.befund === 'nicht_gefunden' && <>Im Luftbild kein Streifen gefunden ({lb.gruende.join('; ')}): Streifen aus OSM + AV.</>}
-          {lb.befund === 'unsicher' && lb.teile.length > 0 && <div><button className="zweit klein" onClick={() => {
+          {(lb.befund === 'unsicher' || lb.nurVorschlag) && lb.teile.length > 0 && <div><button className="zweit klein" onClick={() => {
             let n = 0, ni = 0
             // die Insel, an der die Luftbild-Teile geteilt sind, als Insel von Hand mit (sonst ginge die Teilung verloren)
             aendern(f => { const vor = f.hindernisse.length
-              n = streifenUebernehmen(f, lb.teile, rechnung?.streifen ?? [], 'luftbild_vorschlag', lb.insel ? [lb.insel] : [])
+              n = streifenUebernehmen(f, lb.teile, rechnung?.streifen ?? [], lb.nurVorschlag ? 'luftbild' : 'luftbild_vorschlag', lb.insel ? [lb.insel] : [])
               ni = f.hindernisse.length - vor; return f })
             setMeldung(`Streifen aus dem Luftbild als Streifen von Hand übernommen${n ? `; ${n} Eingaben übertragen – bitte prüfen` : ''}` +
               `${ni ? '; die Insel aus dem Luftbild steht jetzt als Insel von Hand unter den Hindernissen' : ''}.`)
@@ -871,9 +1431,12 @@ function LuftbildAnzeige({ rechnung, fall, flugjahr, hatBild, aendern, setMeldun
 /** Tooltip gedeckter Abbiegezufahrten (nur mit GEDECKT_RECHNEN, seit 14.10.2026 standardmässig aus) */
 const GEDECKT_TITEL = 'Geprüft; den Weg ab dem Knoten prüft die gerade Zufahrt mit; das Ergebnis zählt trotzdem'
 
-function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, spurZeichnen }: {
+function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, spurZeichnen, ausserhalb, neuLaden, namen }: {
   s: StreifenErgebnis; fall: Fall; auswahl: string | null; setAuswahl: (k: string | null) => void
+  namen: ZufahrtNamen | undefined    // Zufahrten nach Strasse und Herkunft (benennung.ts)
   aendern: (f: (x: Fall) => Fall) => void; gewaehlteZ: ZufahrtErgebnis | null; spurZeichnen: (key: string) => void
+  ausserhalb: Ausserhalb | null      // Streifen von Hand ausserhalb der geladenen Daten (abdeckung.ts)
+  neuLaden: () => void               // um diesen Streifen neu laden
 }) {
   const se = fall.streifen[s.fgsId] ?? {}
   const setzeS = (e: Partial<typeof se>) => aendern(f => {
@@ -886,7 +1449,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
     <section className="streifen">
       <h2>
         <span className="farbe" style={{ background: STATUS_FARBE[s.status] ?? '#64748b' }} />
-        Streifen {s.fgsId} {s.strasse && <>– {s.strasse}</>}: {STATUS[s.status] ?? s.status}
+        {streifenTitel(s.fgsId, fall.streifenHand)} {s.strasse && <>– {s.strasse}</>}: {STATUS[s.status] ?? s.status}
       </h2>
       <div className="klein zeile">
         Lichtsignal: <select value={se.lsa ?? ''} onChange={e => setzeS({ lsa: (e.target.value || undefined) as 'ja' | 'nein' | undefined })}>
@@ -897,6 +1460,8 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
       </div>
       <p className="klein">Zuordnung OSM: {s.netzQuelle} · Bordkanten: {s.randQuelle === 'AV' ? 'AV' : 'angenommen'} ·
         Länge {f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m, Breite {f1(s.bw)} m</p>
+      {ausserhalb && <p className="klein warnung"><b>Ausserhalb der geladenen Daten:</b> {ausserhalbText(ausserhalb)}{' '}
+        <button className="zweit klein" onClick={neuLaden}>um {streifenTitel(s.fgsId, fall.streifenHand)} neu laden</button></p>}
       {s.keinFgsHinweis && <p className="keinfgs klein">Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug.</p>}
       {s.markierungHinweis && <p className="pruefen klein">Vermutlich Fussgängerstreifen (Markierung in OSM nicht erfasst), bitte prüfen.</p>}
       {s.lsa === 'ja' && <p className="klein">Mit Lichtsignal gilt die Arbeitshilfe nicht; die Rechnung wird trotzdem gezeigt.</p>}
@@ -906,9 +1471,12 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           <thead><tr><th>Zufahrt</th><th>Tempo</th><th>Sichtweite</th><th>vom Rand</th><th>Status</th></tr></thead>
           <tbody>
             {s.zufahrten.map(z => (
-              <tr key={z.zufahrt} className={zufahrtKey(z) === auswahl ? 'aktiv' : ''} title={z.deckung ? GEDECKT_TITEL : undefined}
+              <tr key={z.zufahrt} className={zufahrtKey(z) === auswahl ? 'aktiv' : ''}
+                title={`Fahrtrichtung ${z.richtung}° (Zufahrt «${z.zufahrt}», ab Osten gegen den Uhrzeigersinn); Fahrt von ${zufahrtHerkunft16(z, s.bw)}` +
+                  (z.deckung ? `. ${GEDECKT_TITEL}` : '')}
                 onClick={() => setAuswahl(zufahrtKey(z) === auswahl ? null : zufahrtKey(z))}>
-                <td><b>{z.zufahrt}</b>{z.deckung && <span className="klein"> (mitgeprüft)</span>}<div className="klein">{ART[z.art] ?? z.art}{z.strasse ? `, ${z.strasse}` : ''}</div></td>
+                <td><b>{zufahrtLang(namen, z.zufahrt)}</b>{z.deckung && <span className="klein"> (mitgeprüft)</span>}<div className="klein">{ART[z.art] ?? z.art}
+                  {z.art === 'abbiegend' && z.ueberStrasse ? `, weiter auf ${z.ueberStrasse}` : ''}</div></td>
                 <td>{z.tempo}<div className={z.tempoQuelle === 'Ersatz' ? 'klein warnung' : 'klein'}>
                   {z.tempoQuelle === 'Ersatz' ? 'Annahme' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : 'OSM'}</div></td>
                 <td>{z.sichtweite} m<div className="klein">{z.sichtweiteQuelle}{z.kurvenradiusM != null ? `, R ${f1(z.kurvenradiusM)} m` : ''}</div></td>
@@ -921,13 +1489,15 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           </tbody>
         </table>
       )}
-      {gewaehlteZ && gewaehlteZ.fgsId === s.fgsId && <ZufahrtDetail z={gewaehlteZ} fall={fall} aendern={aendern} spurZeichnen={spurZeichnen} />}
+      {gewaehlteZ && gewaehlteZ.fgsId === s.fgsId && <ZufahrtDetail z={gewaehlteZ} name={zufahrtLang(namen, gewaehlteZ.zufahrt)} fall={fall}
+        aendern={aendern} spurZeichnen={spurZeichnen} />}
       {s.entfallen.length > 0 && (
         <details>
           <summary className="klein">Nicht geprüfte Richtungen ({s.entfallen.length})</summary>
           <table><tbody>
             {s.entfallen.map(e => (
-              <tr key={e.kennung + e.zufahrt}><td>{e.zufahrt}</td><td>{GRUND[e.grund] ?? e.grund}<div className="klein">{e.quelle}</div>
+              <tr key={e.kennung + e.zufahrt} title={`Fahrtrichtung ${e.richtung}° (ab Osten gegen den Uhrzeigersinn)`}>
+                <td>{entfallenLang(namen, e)}</td><td>{GRUND[e.grund] ?? e.grund}<div className="klein">{e.quelle}</div>
                 {e.grund === 'hand' && <button className="zweit klein" onClick={() => aendern(f => {
                   const k = zufahrtSchluessel(s.fgsId, e.kennung)
                   if (f.zufahrten[k]) delete f.zufahrten[k].streichen
@@ -941,8 +1511,8 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
   )
 }
 
-function ZufahrtDetail({ z, fall, aendern, spurZeichnen }: {
-  z: ZufahrtErgebnis; fall: Fall; aendern: (f: (x: Fall) => Fall) => void; spurZeichnen: (key: string) => void
+function ZufahrtDetail({ z, name, fall, aendern, spurZeichnen }: {
+  z: ZufahrtErgebnis; name: string; fall: Fall; aendern: (f: (x: Fall) => Fall) => void; spurZeichnen: (key: string) => void
 }) {
   const key = zufahrtSchluessel(z.fgsId, z.kennung)
   const zh = fall.zufahrten[key] ?? {}
@@ -956,7 +1526,7 @@ function ZufahrtDetail({ z, fall, aendern, spurZeichnen }: {
   const kreis = spur?.art === 'B' ? linieKreis(spur.linie) : null
   return (
     <div className="detail">
-      <h3>Zufahrt «{z.zufahrt}» ({z.kennung})</h3>
+      <h3>{name} <span className="klein">(Fahrtrichtung {z.richtung}°, Kennung {z.kennung})</span></h3>
       <table className="zahlen"><tbody>
         <tr><td>Tempo</td><td>
           <select value={zh.tempo ?? ''} onChange={e => setze({ tempo: e.target.value ? Number(e.target.value) : undefined })}>
@@ -969,7 +1539,7 @@ function ZufahrtDetail({ z, fall, aendern, spurZeichnen }: {
         {z.deckung && <tr><td>Mitgeprüft</td><td title={GEDECKT_TITEL}>ab dem Knoten durch die gerade Zufahrt ({z.deckung}); zählt trotzdem</td></tr>}
         <tr><td>Fahrbahn</td><td>{z.fahrbahnM != null ? `${f2(z.fahrbahnM)} m` : '–'}, Fahrstreifen
           {z.fahrstreifenM != null ? ` ${f2(z.fahrstreifenM)} m` : ' –'}{z.mehrstreifig ? ' (mehrstreifig)' : ''}</td></tr>
-        <tr><td>Sichtpunkt vom Rand</td><td>{z.sichtpunktVomRandM != null ? `${f2(z.sichtpunktVomRandM)} m` : '–'} (Lage {z.lageQuelle}){z.abzugQuelle ? `; Abzug: ${z.abzugQuelle}` : ''}</td></tr>
+        <tr><td>Sichtpunkt vom Rand</td><td>{z.sichtpunktVomRandM != null ? `${f2(z.sichtpunktVomRandM)} m` : '–'} (Lage {z.lageQuelle}){z.abzugQuelle ? `; von der Fahrbahn abgezogen: ${abzugTeile(z.abzugQuelle)}` : ''}</td></tr>
         <tr><td>Sichtfeld</td><td>{z.konflikte.length ? z.konflikte.map(k => `${k.layer}${k.klasse === 'baum' ? '' : ` ${f1(k.flaeche)} m²`}`).join('; ') : 'kein Hindernis'}
           {z.minAbstandAutoM != null && <div className="klein">Auto-Parkfeld {f1(z.minAbstandAutoM)} m vom Streifen{z.unter5m ? ' (unter 5 m)' : ''}</div>}</td></tr>
         {z.netzHinweis.length > 0 && <tr><td>Hinweise Netz</td><td className="klein">{z.netzHinweis.join(', ')}</td></tr>}

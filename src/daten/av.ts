@@ -12,6 +12,7 @@ export interface AvFlaeche {
   qualitaet: string
   bfs: number | null     // BFS-Nummer der Gemeinde (BFSNr), für gemeindebezogene Quellen (Baumkataster)
   ringe: P[][]           // äusserer Ring + Löcher; bei MultiPolygon je Teil eine eigene Fläche
+  planId?: string        // nur in der Rechnung: Teil einer Fläche (Plan) von Hand (rechner/planflaechen.avMitPlan), nicht aus der AV
 }
 
 const WFS = 'https://geodienste.ch/db/av_0/deu'

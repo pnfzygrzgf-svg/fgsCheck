@@ -6,10 +6,13 @@
 // festen Ausschnitt und darüber eine SVG-Zeichnung der Geometrie. Weil Bild und Rechnung beide in LV95 (ebene Koordinaten)
 // sind, ist die Zuordnung eine reine Verschiebung und Skalierung, ohne Projektion. «Drucken» wird erst frei, wenn das Bild
 // geladen ist (bzw. nicht geladen werden konnte oder nach BILD_ZEITGRENZE_MS nicht da ist: dann ohne Hintergrund, mit Hinweis).
+// Nach der Zeitgrenze lädt das Bild weiter (Element bleibt, unsichtbar) und erscheint, sobald es eintrifft (Korrektur 16.10.2026:
+// bis dahin blieb «ohne Luftbild» stehen, auch wenn das Bild später kam); «erneut versuchen» fragt die URL neu an.
 
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { type Fall, streifenHerkunftText } from './fall'
+import { type Fall, type Fixpunkt, type StreifenHand, type FlaechePlan, PLAN_ARTEN, streifenHerkunftText, ortOhneUebergangText } from './fall'
+import { planTitel, planFlaecheM2, PLAN_NAME } from './rechner/planflaechen'
 import type { FallRechnung } from './rechner'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernisse'
@@ -19,6 +22,14 @@ import { lv95, dist, type P } from './geo'
 import { wmsBildUrl, LUFTBILD_QUELLE } from './daten/luftbild'
 import { STATUS_FARBE, STRICH_GEDECKT, UEBERGANG_TEXT, INSEL_FARBE, STRICH_INSEL, hindernisFarbe, hindernisText, INSEL_TEXT } from './Karte'
 import { GRUND, ART, STATUS, statusText, f1, f2 } from './texte'
+import { koordText, vorzeichenText, fixpunktMasse } from './rechner/vermassung'
+import { fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT } from './fixpunkt'
+import { FIXPUNKT_FARBE, PLAN_FARBEN, STRICH_PLAN } from './Karte'
+import { streifenTitel, streifenKurz, zufahrtLang, zufahrtKurz, entfallenLang, type ZufahrtNamen } from './benennung'
+
+/** Zufahrt-Namen je Streifen (benennung.zufahrtNamen, in der App gerechnet) */
+type Namen = Map<string, ZufahrtNamen>
+import { ausserhalbText, nichtAbgedecktText, type Ausserhalb } from './abdeckung'
 
 const APP_URL = 'https://fgscheck.ch/'
 const RAND_M = 4                       // Rand um Streifen und Sichtfelder im Kartenbild
@@ -41,14 +52,15 @@ function hindernisRinge(h: Hindernis): { ringe: P[][]; linie: boolean } {
   return { ringe: [h.linie ?? []], linie: true }
 }
 
-/** Ausschnitt: Streifen und Sichtfelder mit Rand, Seitenverhältnis Höhe/Breite zwischen 0,6 und 0,95 (passt auf A4 hoch) */
-function ausschnitt(r: FallRechnung, ort: P): Box {
+/** Ausschnitt: Streifen, Sichtfelder und Fixpunkte mit Rand, Seitenverhältnis Höhe/Breite zwischen 0,6 und 0,95 (passt auf A4 hoch) */
+function ausschnitt(r: FallRechnung, ort: P, fix: P[] = []): Box {
   let e0 = ort[0], e1 = ort[0], n0 = ort[1], n1 = ort[1]
   const dazu = (ps: P[]) => { for (const p of ps) { e0 = Math.min(e0, p[0]); e1 = Math.max(e1, p[0]); n0 = Math.min(n0, p[1]); n1 = Math.max(n1, p[1]) } }
   for (const s of r.streifen) {
     dazu(s.umriss)
     for (const z of s.zufahrten) { for (const poly of z.feld) for (const ring of poly) dazu(ring); dazu(z.sichtpunkte) }
   }
+  dazu(fix)
   e0 -= RAND_M; e1 += RAND_M; n0 -= RAND_M; n1 += RAND_M
   const weiten = (a: number, b: number, l: number): [number, number] => { const m = (a + b) / 2; return [m - l / 2, m + l / 2] }
   if (e1 - e0 < MIN_M) [e0, e1] = weiten(e0, e1, MIN_M)
@@ -59,50 +71,79 @@ function ausschnitt(r: FallRechnung, ort: P): Box {
   return [e0, n0, e1, n1]
 }
 
-function BerichtKarte({ r, hindernisse, ort, onBereit }: {
-  r: FallRechnung; hindernisse: Hindernis[]; ort: P; onBereit: (s: 'laedt' | 'ok' | 'fehler') => void
+/** Masslinien ab Fixpunkt zum nächsten Streifen von Hand (wie auf der Karte): von, bis, Länge */
+function masslinien(r: FallRechnung, fixpunkte: Fixpunkt[]): { von: P; bis: P; m: number }[] {
+  const hand = r.streifenQuelle === 'hand' ? r.streifen.filter(s => s.vermassung) : []
+  return fixpunkte.flatMap(f => {
+    const s = naechsterStreifen(f.p, hand)
+    if (!s) return []
+    const m = fixpunktMasse(f.p, { p0: s.p0, p1: s.p1, breite: s.bw, umriss: s.umriss })
+    return m.aufHoehe ? [] : [{ von: f.p, bis: m.kantenPunkt, m: m.laengsKanteM }]
+  })
+}
+
+function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, plan = [] }: {
+  r: FallRechnung; hindernisse: Hindernis[]; fixpunkte: Fixpunkt[]; ort: P; onBereit: (s: 'laedt' | 'ok' | 'fehler') => void
+  namen: Namen; hand: StreifenHand[]
+  plan?: FlaechePlan[]           // Flächen (Plan) von Hand: schraffiert unter Sichtfeldern und Streifen
 }) {
-  const box = useMemo(() => ausschnitt(r, ort), [r, ort])
+  const box = useMemo(() => ausschnitt(r, ort, fixpunkte.map(f => f.p)), [r, ort, fixpunkte])
   const [e0, n0, e1, n1] = box
   const wM = e1 - e0, hM = n1 - n0
   // Breite in Pixeln: 0,1 m/px, begrenzt auf BILD_PX_MIN..BILD_PX_MAX; Höhe aus derselben m/px (gleiches Seitenverhältnis)
   const bw = Math.min(BILD_PX_MAX, Math.max(BILD_PX_MIN, Math.round(wM / 0.1)))
   const mpx = wM / bw
   const bh = Math.round(hM / mpx)
-  const url = wmsBildUrl(box, bw, bh)
+  // erneut versuchen: dieselbe Anfrage mit Zusatzparameter (der Dienst übergeht ihn; der Browser fragt neu an)
+  const [versuch, setVersuch] = useState(0)
+  const basis = wmsBildUrl(box, bw, bh)
+  const url = versuch ? `${basis}&FGSVERSUCH=${versuch}` : basis
   const s = VB / wM, vh = hM * s
   const xy = (p: P) => `${((p[0] - e0) * s).toFixed(1)},${((n1 - p[1]) * s).toFixed(1)}`
   const pfad = (ringe: P[][], zu = true) => ringe.filter(x => x.length).map(x => 'M' + x.map(xy).join('L') + (zu ? 'Z' : '')).join(' ')
   const multi = (m: Multi) => pfad(m.flat())
-  // Ladezustand je Bild-URL (ändert sich der Ausschnitt, gilt das neue Bild als nicht geladen)
-  const [geladen, setGeladen] = useState<{ url: string; ok: boolean } | null>(null)
-  const status: 'laedt' | 'ok' | 'fehler' = geladen?.url !== url ? 'laedt' : geladen.ok ? 'ok' : 'fehler'
-  useEffect(() => { onBereit(status) }, [status, onBereit])
-  // Zeitgrenze je Bild-URL: ohne Antwort gilt das Bild als nicht geladen (aufgeräumt bei neuer URL und beim Schliessen)
+  // Ladezustand je Bild-URL (ändert sich der Ausschnitt, gilt das neue Bild als nicht geladen): laedt, ok, fehler (onError) bzw.
+  // zeit (nach BILD_ZEITGRENZE_MS ohne Antwort: Drucken ohne Hintergrund frei, das Bild lädt weiter und erscheint mit onLoad)
+  const [geladen, setGeladen] = useState<{ url: string; stand: 'ok' | 'fehler' | 'zeit' } | null>(null)
+  const status: 'laedt' | 'ok' | 'fehler' | 'zeit' = geladen?.url !== url ? 'laedt' : geladen.stand
+  useEffect(() => { onBereit(status === 'zeit' ? 'fehler' : status) }, [status, onBereit])
+  // Zeitgrenze je Bild-URL (aufgeräumt bei neuer URL und beim Schliessen); ein späteres onLoad bzw. onError gilt weiter
   useEffect(() => {
-    const t = setTimeout(() => setGeladen(g => (g?.url === url ? g : { url, ok: false })), BILD_ZEITGRENZE_MS)
+    const t = setTimeout(() => setGeladen(g => (g?.url === url ? g : { url, stand: 'zeit' })), BILD_ZEITGRENZE_MS)
     return () => clearTimeout(t)
   }, [url])
+  const linien = useMemo(() => masslinien(r, fixpunkte), [r, fixpunkte])
   // Massstab: runde Länge um ein Fünftel der Breite
   const mass = [5, 10, 20, 25, 50, 100, 200].reduce((b, x) => (Math.abs(x - wM / 5) < Math.abs(b - wM / 5) ? x : b), 10)
   const halo = { stroke: '#ffffff', strokeWidth: 5, paintOrder: 'stroke' as const, strokeLinejoin: 'round' as const }
   // gedeckte Abbiegezufahrten (nur mit GEDECKT_RECHNEN, standardmässig aus), beschriftet wie im Bild
   const gedeckte = r.streifen.flatMap(st => st.zufahrten).filter(z => z.deckung)
-    .map(z => `${r.streifen.length > 1 ? `${z.fgsId}/` : ''}${z.zufahrt}`)
+    .map(z => `${r.streifen.length > 1 ? `${streifenTitel(z.fgsId, hand)}, ` : ''}${zufahrtLang(namen.get(z.fgsId), z.zufahrt)}`)
   return (
     <figure className="bericht-karte">
       <div className="bericht-bild" style={{ aspectRatio: `${bw} / ${bh}` }}>
-        {status === 'fehler'
-          ? <div className="bericht-ohne-bild klein">ohne Luftbild</div>
-          : <img src={url} alt="Luftbild SWISSIMAGE des Ausschnitts" onLoad={() => setGeladen({ url, ok: true })}
-            onError={() => setGeladen({ url, ok: false })} />}
+        {(status === 'fehler' || status === 'zeit') && <div className="bericht-ohne-bild klein">ohne Luftbild</div>}
+        {status !== 'fehler' && <img key={url} src={url} alt="Luftbild SWISSIMAGE des Ausschnitts"
+          style={status === 'zeit' ? { visibility: 'hidden' } : undefined}
+          onLoad={() => setGeladen({ url, stand: 'ok' })} onError={() => setGeladen({ url, stand: 'fehler' })} />}
         <svg viewBox={`0 0 ${VB} ${vh.toFixed(1)}`} preserveAspectRatio="none" aria-label="Streifen, Sichtfelder, Sichtpunkte und Hindernisse">
           <defs>
             <pattern id="schraffur" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
               <rect width="8" height="8" fill="#dc2626" fillOpacity="0.35" />
               <line x1="0" y1="0" x2="0" y2="8" stroke="#000000" strokeWidth="2.5" />
             </pattern>
+            {/* Flächen (Plan): eigene Muster im Bericht (die der Karte liegen im ausgeblendeten App-Teil) */}
+            {PLAN_ARTEN.map(a => (
+              <pattern key={a} id={`bericht-plan-${a}`} width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+                <rect width="10" height="10" fill={PLAN_FARBEN[a].flaeche} fillOpacity="0.6" />
+                <line x1="0" y1="0" x2="0" y2="10" stroke={PLAN_FARBEN[a].linie} strokeWidth="2.5" />
+              </pattern>
+            ))}
           </defs>
+          {plan.map(fp => (
+            <path key={'pl' + fp.id} d={pfad([fp.ring])} fill={`url(#bericht-plan-${fp.art})`} stroke={PLAN_FARBEN[fp.art].linie}
+              strokeWidth={2.5} strokeDasharray={STRICH_PLAN.split(' ').map(x => Number(x) * 2).join(' ')} />
+          ))}
           {r.streifen.flatMap(st => st.zufahrten).map(z => (
             <path key={'f' + z.fgsId + z.zufahrt} d={multi(z.feld)} fillRule="evenodd" fill={STATUS_FARBE[z.status] ?? '#10b981'} fillOpacity={0.14}
               stroke={STATUS_FARBE[z.status] ?? '#10b981'} strokeWidth={2.5} strokeDasharray={strich(z.status)} />
@@ -142,7 +183,22 @@ function BerichtKarte({ r, hindernisse, ort, onBereit }: {
             const [x, y] = xy(p).split(',').map(Number)
             const mehrere = r.streifen.length > 1
             return <text key={'t' + z.fgsId + z.zufahrt} x={x + 8} y={y - 8} fontSize={20} fontWeight={700} fill="#000000" {...halo}>
-              {mehrere ? `${z.fgsId}/` : ''}{z.zufahrt}</text>
+              {mehrere ? `${streifenKurz(z.fgsId, hand)}: ` : ''}{zufahrtKurz(namen.get(z.fgsId), z.zufahrt)}</text>
+          })}
+          {linien.map((l, i) => {
+            const [x0, y0] = xy(l.von).split(',').map(Number), [x1, y1] = xy(l.bis).split(',').map(Number)
+            return <g key={'m' + i}>
+              <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={FIXPUNKT_FARBE} strokeWidth={2.5} strokeDasharray="8 6" />
+              <text x={(x0 + x1) / 2 + 6} y={(y0 + y1) / 2 - 6} fontSize={18} fontWeight={700} fill={FIXPUNKT_FARBE} {...halo}>
+                {f2(l.m)} m</text>
+            </g>
+          })}
+          {fixpunkte.map(f => {
+            const [x, y] = xy(f.p).split(',').map(Number)
+            return <g key={'x' + f.id}>
+              <rect x={x - 7} y={y - 7} width={14} height={14} fill="#ffffff" fillOpacity={0.85} stroke={FIXPUNKT_FARBE} strokeWidth={2} />
+              <path d={`M${x - 5},${y - 5}L${x + 5},${y + 5}M${x + 5},${y - 5}L${x - 5},${y + 5}`} stroke={FIXPUNKT_FARBE} strokeWidth={2} />
+            </g>
           })}
           <g transform={`translate(20 ${(vh - 24).toFixed(1)})`}>
             <rect x={-8} y={-30} width={mass * s + 16} height={44} fill="#ffffff" fillOpacity={0.85} />
@@ -160,14 +216,22 @@ function BerichtKarte({ r, hindernisse, ort, onBereit }: {
       </div>
       <figcaption className="klein">
         {status === 'laedt' && <span className="nicht-drucken">Luftbild wird geladen … </span>}
-        {status === 'fehler' && <span className="warnung">Luftbild nicht geladen: Kartenbild ohne Hintergrund. </span>}
+        {(status === 'fehler' || status === 'zeit') && <span className="warnung">Luftbild nicht geladen: Kartenbild ohne Hintergrund. </span>}
+        {(status === 'fehler' || status === 'zeit') && <span className="nicht-drucken">
+          {status === 'zeit' ? `Noch keine Antwort nach ${BILD_ZEITGRENZE_MS / 1000} s; es erscheint, sobald es eintrifft. ` : ''}
+          <button className="zweit klein" onClick={() => setVersuch(v => v + 1)}>erneut versuchen</button>{' '}</span>}
         Ausschnitt {Math.round(wM)} × {Math.round(hM)} m, Norden oben (LV95). Gelb: Streifen; blau: Annäherungsbereiche; Sichtfelder umrandet in
         der Farbe des Status (durchgezogen: frei, gestrichelt: verdeckt, gepunktet: nicht geprüft); schraffiert: Hindernis im Sichtfeld;
         schwarze Punkte: Sichtpunkte auf der Fahrlinie (weiss gestrichelt), beschriftet am letzten Sichtpunkt mit der Zufahrt; farbige
-        Flächen: Hindernisse (Parkfelder, Bäume, Hecken, Mauern).
+        Flächen: Hindernisse (Parkfelder, Bäume, Hecken, Mauern). Zufahrten heissen nach der Strasse und der Herkunft der Fahrzeuge
+        (Himmelsrichtung, im Bild kurz «von S»), Abbieger nach der Strasse, aus der sie abbiegen.
         {(r.inseln ?? []).length > 0 && <> Grün gestrichelt: {INSEL_TEXT} (crossing:island in OSM und Lücke zwischen den Balken im
           Luftbild).</>}
         {hindernisse.some(h => h.art === 'insel') && <> Grün: Insel von Hand.</>}
+        {plan.length > 0 && <> Schraffiert mit gestricheltem Rand: Flächen (Plan) von Hand ({[...new Set(plan.map(fp => PLAN_NAME[fp.art]))].join(', ')});
+          sie ersetzen in der Rechnung die AV-Bodenbedeckung darunter.</>}
+        {fixpunkte.length > 0 && <> Kreuz im Quadrat: Fixpunkt; gestrichelt mit Länge: Mass vom Fixpunkt entlang der Balken bis zur
+          Streifenkante (Tabelle «Vermassung ab Fixpunkt»).</>}
         {gedeckte.length > 0 && <> Abbiegezufahrt{gedeckte.length > 1 ? 'en' : ''} {gedeckte.join(', ')} (mitgeprüft): Weg ab dem Knoten durch die
           gerade Zufahrt mitgeprüft, selbst geprüft und für den Status gezählt; Fahrlinie weiss gepunktet.</>}
       </figcaption>
@@ -176,16 +240,18 @@ function BerichtKarte({ r, hindernisse, ort, onBereit }: {
 }
 
 /** Beschreibung einer Zufahrt-Eingabe (Schlüssel «Streifen|Kennung») mit dem Namen der Zufahrt, wenn die Rechnung sie kennt */
-function zufahrtName(r: FallRechnung | null, key: string): string {
+function zufahrtName(r: FallRechnung | null, key: string, namen: Namen, hand: StreifenHand[]): string {
   const i = key.indexOf('|'), fid = key.slice(0, i), kennung = key.slice(i + 1)
   const s = r?.streifen.find(x => x.fgsId === fid)
-  const z = s ? [...s.zufahrten, ...s.entfallen].find(x => x.kennung === kennung) : undefined
-  return z ? `Streifen ${fid}, Zufahrt ${z.zufahrt}` : `Streifen ${fid}, ${kennung} (ohne passende Zufahrt)`
+  const z = s?.zufahrten.find(x => x.kennung === kennung), e = s?.entfallen.find(x => x.kennung === kennung)
+  const t = streifenTitel(fid, hand)
+  return z ? `${t}, ${zufahrtLang(namen.get(fid), z.zufahrt)}` : e ? `${t}, ${entfallenLang(namen.get(fid), e)}` :
+    `${t}, Zufahrt mit Kennung ${kennung} (ohne passende Zufahrt)`
 }
 
-function eingabenListe(fall: Fall, r: FallRechnung | null): string[] {
-  const aus: string[] = []
-  for (const s of fall.streifenHand) aus.push(`Streifen ${s.id}: ${f1(dist(s.p0, s.p1))} m lang, ${f1(s.breite)} m breit, ${streifenHerkunftText(s)}`)
+function eingabenListe(fall: Fall, r: FallRechnung | null, namen: Namen): string[] {
+  const aus: string[] = [], hand = fall.streifenHand
+  for (const s of fall.streifenHand) aus.push(`${streifenTitel(s.id, hand)}: ${f1(dist(s.p0, s.p1))} m lang, ${f1(s.breite)} m breit, ${streifenHerkunftText(s)}`)
   for (const h of fall.hindernisse) aus.push(h.art === 'insel' ? 'Insel von Hand (teilt den Streifen wie eine AV-Verkehrsinsel, ersetzt die Insel nach OSM und Luftbild)' :
     `Hindernis: ${hindernisText(h)}` + ((h.art === 'hecke' || h.art === 'mauer' || h.art === 'uebrige') ?
     (h.sichtbehindernd ? ', sichtbehindernd' : ', nicht sichtbehindernd') : '') + (h.art === 'parkfeld' ? `, Klasse ${h.klasse}` : ''))
@@ -195,29 +261,38 @@ function eingabenListe(fall: Fall, r: FallRechnung | null): string[] {
     if (z.spur?.art === 'A') teile.push(`Fahrlinie seitlich verschoben (am Streifen ${f2(z.spur.a)} m, am Ende ${f2(z.spur.b)} m; + links)`)
     if (z.spur?.art === 'B') teile.push(`Fahrlinie gezeichnet (${z.spur.linie.length} Punkte${z.spur.radius ? `, Radius ${f1(z.spur.radius)} m übernommen` : ''})`)
     if (z.streichen) teile.push('Zufahrt gestrichen («gibt es nicht»)')
-    if (teile.length) aus.push(`${zufahrtName(r, k)}: ${teile.join('; ')}`)
+    if (teile.length) aus.push(`${zufahrtName(r, k, namen, hand)}: ${teile.join('; ')}`)
   }
   for (const [k, e] of Object.entries(fall.streifen)) {
     const teile: string[] = []
     if (e.lsa) teile.push(`Lichtsignal ${e.lsa}`)
     if (e.keinFgs) teile.push('kein FGS')
-    if (teile.length) aus.push(`Streifen ${k}: ${teile.join(', ')}`)
+    if (teile.length) aus.push(`${streifenTitel(k, hand)}: ${teile.join(', ')}`)
   }
   const verworfen = Object.keys(fall.vorschlaege).length
   if (verworfen) aus.push(`${verworfen} Vorschläge bzw. amtliche Felder verworfen (zählen nicht)`)
   if (fall.baumkataster) aus.push('Baumkataster zugeschaltet')
   if (fall.parkkataster === false) aus.push('Amtliche Parkfelder abgeschaltet')
   if (fall.luftbild === false) aus.push('Streifen-Suche im Luftbild abgeschaltet')
+  for (const fp of fall.flaechenPlan ?? []) aus.push(`${planTitel(fp.id)} (Plan): ${PLAN_NAME[fp.art]}, ${f1(planFlaecheM2(fp.ring))} m², ` +
+    `${fp.ring.length} Ecken – ersetzt in der Rechnung die AV-Bodenbedeckung darunter (Gebäude bleiben)`)
+  for (const f of fall.fixpunkte ?? []) aus.push(`Fixpunkt ${fixpunktName(f)}: ${ART_TEXT[f.art]}, E ${koordText(f.p[0])}, N ${koordText(f.p[1])} ` +
+    '(nur Vermassung, ohne Einfluss auf die Rechnung)')
   return aus
 }
 
-function hinweisListe(r: FallRechnung, fall: Fall, luftbildStand: LuftbildStand): string[] {
+function hinweisListe(r: FallRechnung, fall: Fall, luftbildStand: LuftbildStand, ausserhalb: Ausserhalb[], namen: Namen): string[] {
+  const t = (id: string) => streifenTitel(id, fall.streifenHand)
   const aus: string[] = []
   if (r.hinweis) aus.push(r.hinweis)
+  // Streifen ausserhalb der Abdeckung: beim Streifen (StreifenTabelle); hier nur die ohne eigenes Ergebnis (jeder Hinweis einmal)
+  const ohne = ausserhalb.filter(x => !r.streifen.some(s => s.fgsId === x.id))
+  if (ohne.length) aus.push(nichtAbgedecktText(ohne, t))
   aus.push(...r.meldungen)
   const lb = r.luftbild
   if (lb) aus.push(lb.befund === 'erkannt' ? `Luftbild: Streifen erkannt (${lb.teile.map(t => `${t.nBalken} Balken`).join(' + ')}) – aus Luftbild, prüfen` +
-      (r.streifenQuelle === 'luftbild' ? '; die Rechnung nutzt ihn.' : r.streifenQuelle === 'hand' ? '; die Rechnung nutzt die Streifen von Hand.' : '.')
+      (r.streifenQuelle === 'luftbild' ? '; die Rechnung nutzt ihn.' : r.streifenQuelle === 'hand' ? '; die Rechnung nutzt die Streifen von Hand.' :
+        lb.nurVorschlag ? '; mit Flächen (Plan) nur Vorschlag, gerechnet mit OSM + AV nach Plan.' : '.')
     : lb.befund === 'unsicher' ? `Luftbild: Muster unsicher (${lb.gruende.join('; ')}); Streifen aus OSM + AV` +
       `${r.inselTeilt ? ', an der Insel aus dem Luftbild geteilt' : ''}.`
       : `Luftbild: kein Streifen gefunden (${lb.gruende.join('; ')}); Streifen aus OSM + AV.`)
@@ -229,8 +304,8 @@ function hinweisListe(r: FallRechnung, fall: Fall, luftbildStand: LuftbildStand)
   if (offen) aus.push(`${offen} Vorschläge «aus OSM, prüfen» (Parkierung) nicht bestätigt: zählen nicht.`)
   if (r.doppelt.length) aus.push(`${r.doppelt.length} Parkierung(en) von Hand decken sich mit amtlichen Parkfeldern (zählen doppelt?).`)
   for (const s of r.streifen) {
-    for (const a of s.annahmen) aus.push(`Streifen ${s.fgsId}: ${a}`)
-    for (const z of s.zufahrten) for (const a of z.annahmen) aus.push(`Streifen ${s.fgsId}, Zufahrt ${z.zufahrt}: ${a}`)
+    for (const a of s.annahmen) aus.push(`${t(s.fgsId)}: ${a}`)
+    for (const z of s.zufahrten) for (const a of z.annahmen) aus.push(`${t(s.fgsId)}, ${zufahrtLang(namen.get(s.fgsId), z.zufahrt)}: ${a}`)
   }
   if (!fall.hindernisse.length && !r.vorschlaege.some(v => v.hindernis.quelle === 'kataster'))
     aus.push('Keine Hindernisse eingegeben und keine amtlichen Parkfelder: geprüft wurden nur Gebäude (AV).')
@@ -245,12 +320,52 @@ function hindernisseText(z: ZufahrtErgebnis): string {
   return z.konflikte.map(k => `${k.layer}${k.klasse === 'baum' ? '' : ` ${f1(k.flaeche)} m²`}, ${f1(k.abstand)} m vom Streifen`).join('; ')
 }
 
-function StreifenTabelle({ s, fall }: { s: StreifenErgebnis; fall: Fall }) {
+/** Lage eines Streifens von Hand (LV95) und Masse für den Plan (rechner/vermassung.ts), Vermassung ab Fixpunkt */
+function LageTabelle({ s, fixpunkte, namen, plan = false }: { s: StreifenErgebnis; fixpunkte: Fixpunkt[]; namen: ZufahrtNamen | undefined
+  plan?: boolean }) {
+  const v = s.vermassung
+  if (!v) return null
+  return (
+    <div className="bericht-lage">
+      <h4>Lage des Streifens (LV95)</h4>
+      <table className="bericht-tabelle">
+        <thead><tr><th>Punkt</th><th>E</th><th>N</th></tr></thead>
+        <tbody>{v.punkte.map(q => <tr key={q.name}><td>{q.name}</td><td>{koordText(q.p[0])}</td><td>{koordText(q.p[1])}</td></tr>)}</tbody>
+      </table>
+      <p className="klein">Ende A liegt im {v.seiteA}en. Achse A–B {f2(v.laengeM)} m, Breite {f2(v.breiteM)} m; Winkel zur Fahrbahnachse
+        {' '}{v.winkelGrad !== null ? `${f1(v.winkelGrad)}° (90° = senkrecht; ${v.winkelQuelle})` : `– (${v.winkelQuelle})`}. Abstand zum
+        Fahrbahnrand entlang der Achse (+ vor dem Rand, − darüber hinaus): {v.randAbstandM ? `Ende A ${vorzeichenText(v.randAbstandM[0])}, ` +
+        `Ende B ${vorzeichenText(v.randAbstandM[1])}; Fahrbahn ${f2(v.fahrbahnM!)} m` : '–'} ({v.randQuelle}).
+        {v.knoten.length > 0 && <> Nächster Knoten stromauf (OSM, entlang der Strasse ab Streifenrand): {v.knoten.map(k =>
+          `${zufahrtLang(namen, k.zufahrt)} ${f1(k.abstandM)} m`).join('; ')}.</>}
+        {' '}Ecken wie in der Rechnung (Enden parallel zur Fahrbahn bzw. zu den Balken); Randsteine nach AV (Bestand){plan ?
+          ' bzw. nach den Flächen (Plan) von Hand' : ''}.</p>
+      {fixpunkte.length > 0 && <>
+        <h4>Vermassung ab Fixpunkt</h4>
+        <table className="bericht-tabelle">
+          <thead><tr><th>Fixpunkt</th><th>E / N</th><th>längs zur Kante</th><th>zur Achse</th><th>zum Ende (längs, quer)</th><th>Luftlinie</th></tr></thead>
+          <tbody>{fixpunkte.map(f => {
+            const t = fixMassTexte(fixpunktMasse(f.p, { p0: s.p0, p1: s.p1, breite: s.bw, umriss: s.umriss }))
+            return <tr key={f.id}><td>{fixpunktName(f)}<div className="klein">{ART_TEXT[f.art]}</div></td>
+              <td className="klein">{koordText(f.p[0])}<br />{koordText(f.p[1])}</td><td>{t.kante}</td><td>{t.achse}</td><td>{t.ende}</td><td>{t.ecke}</td></tr>
+          })}</tbody>
+        </table>
+        <p className="klein">Längs = entlang der Balken (bei geraden Streifen der Fahrbahn), quer = senkrecht dazu; Kante = Rand des Streifens
+          (Achse ± halbe Breite), bei schiefen Streifen auf der Höhe des Fixpunkts gemessen. AV-Punkte sind keine vermarkten Grenzpunkte:
+          ihre Lage hat die Genauigkeit der AV-Bodenbedeckung.</p>
+      </>}
+    </div>
+  )
+}
+
+function StreifenTabelle({ s, fall, ausserhalb, namen }: { s: StreifenErgebnis; fall: Fall; ausserhalb: Ausserhalb | null
+  namen: ZufahrtNamen | undefined }) {
   return (
     <section className="bericht-block">
-      <h3>Streifen {s.fgsId}{s.strasse ? ` – ${s.strasse}` : ''}: {STATUS[s.status] ?? s.status}</h3>
+      <h3>{streifenTitel(s.fgsId, fall.streifenHand)}{s.strasse ? ` – ${s.strasse}` : ''}: {STATUS[s.status] ?? s.status}</h3>
       <p className="klein">Länge {f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m, Breite {f1(s.bw)} m · Zuordnung OSM: {s.netzQuelle} ·
         Bordkanten: {s.randQuelle === 'AV' ? 'AV' : 'angenommen'} · Lichtsignal: {s.lsa === 'ja' ? `ja (${s.lsaQuelle ?? 'OSM'})` : 'nein'}</p>
+      {ausserhalb && <p className="klein"><b>Ausserhalb der geladenen Daten:</b> {ausserhalbText(ausserhalb)}</p>}
       {s.keinFgsHinweis && <p className="klein"><b>Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug.</b></p>}
       {s.markierungHinweis && <p className="klein"><b>Vermutlich Fussgängerstreifen (Markierung in OSM nicht erfasst), bitte prüfen.</b></p>}
       {s.lsa === 'ja' && <p className="klein">Mit Lichtsignal gilt die Arbeitshilfe nicht; die Rechnung wird trotzdem gezeigt.</p>}
@@ -260,7 +375,8 @@ function StreifenTabelle({ s, fall }: { s: StreifenErgebnis; fall: Fall }) {
           <tbody>
             {s.zufahrten.map(z => (
               <tr key={z.zufahrt}>
-                <td><b>{z.zufahrt}</b>{z.deckung && <span className="klein"> (mitgeprüft)</span>}{z.strasse ? <div className="klein">{z.strasse}</div> : null}</td>
+                <td><b>{zufahrtLang(namen, z.zufahrt)}</b>{z.deckung && <span className="klein"> (mitgeprüft)</span>}
+                  {z.art === 'abbiegend' && z.ueberStrasse ? <div className="klein">weiter auf {z.ueberStrasse}</div> : null}</td>
                 <td>{ART[z.art] ?? z.art}</td>
                 <td>{z.tempo} km/h<div className="klein">{z.tempoQuelle === 'Ersatz' ? 'Annahme (ohne Angabe)' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : 'OSM'}</div></td>
                 <td>{z.sichtweite} m<div className="klein">{z.sichtweiteQuelle}{z.kurvenradiusM != null ? `, R ${f1(z.kurvenradiusM)} m` : ''}</div></td>
@@ -273,15 +389,19 @@ function StreifenTabelle({ s, fall }: { s: StreifenErgebnis; fall: Fall }) {
         </table>
       )}
       {s.entfallen.length > 0 && (
-        <p className="klein">Nicht geprüfte Richtungen: {s.entfallen.map(e => `${e.zufahrt} (${GRUND[e.grund] ?? e.grund})`).join('; ')}.</p>
+        <p className="klein">Nicht geprüfte Richtungen: {s.entfallen.map(e => `${entfallenLang(namen, e)} – ${GRUND[e.grund] ?? e.grund}`).join('; ')}.</p>
       )}
+      <LageTabelle s={s} fixpunkte={fall.fixpunkte ?? []} namen={namen} plan={!!fall.flaechenPlan?.length} />
     </section>
   )
 }
 
-export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjahr, luftbildStand, zusatzQuellen, aendern, schliessen }: {
+export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjahr, luftbildStand, zusatzQuellen, ausserhalb = [], aendern,
+  schliessen, namen = new Map() }: {
+  namen?: Namen                  // Zufahrten nach Strasse und Herkunft (benennung.ts), je Streifen
   fall: Fall; rechnung: FallRechnung; rechnungZeit: Date | null; kantone: string[]; flugjahr: string; luftbildStand: LuftbildStand
   zusatzQuellen: string[]
+  ausserhalb?: Ausserhalb[]      // Streifen von Hand ausserhalb der geladenen Daten (abdeckung.ts)
   aendern: (f: (x: Fall) => Fall) => void; schliessen: () => void
 }) {
   const [bild, setBild] = useState<'laedt' | 'ok' | 'fehler'>('laedt')
@@ -293,8 +413,8 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
   const zeit = (d: Date) => d.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })
   const strassen = [...new Set(rechnung.streifen.map(s => s.strasse).filter(Boolean))]
   const mk = rechnung.markierung ?? fall.ort.markierung
-  const eingaben = eingabenListe(fall, rechnung)
-  const hinweise = hinweisListe(rechnung, fall, luftbildStand)
+  const eingaben = eingabenListe(fall, rechnung, namen)
+  const hinweise = hinweisListe(rechnung, fall, luftbildStand, ausserhalb, namen)
   // Bezeichnung: lokal tippen, erst beim Verlassen des Felds (bzw. Enter, Escape) in den Fall übernehmen – sonst lösten
   // jeder Tastendruck eine neue Rechnung und das Speichern im Browser aus. Der Bericht zeigt den lokalen Wert sofort.
   const [bez, setBez] = useState(fall.ort.bezeichnung ?? '')
@@ -328,7 +448,6 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
         <button onClick={() => window.print()} disabled={wartet} title={wartet ? 'Luftbild wird noch geladen' : ''}>
           {wartet ? 'Luftbild lädt …' : 'Drucken / als PDF speichern'}</button>
         <button className="zweit" onClick={schliessen}>Zurück zur Karte</button>
-        <span className="klein">Im Druckdialog «Als PDF sichern» bzw. «Microsoft Print to PDF» wählen; A4 hoch, Hintergrundgrafiken einschalten.</span>
       </div>
       <article className="bericht-seite">
         <header>
@@ -347,13 +466,17 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
             </td></tr>
             {strassen.length > 0 && <tr><td>Strasse (OSM)</td><td>{strassen.join(', ')}</td></tr>}
             <tr><td>Koordinaten</td><td>LV95 E {tausender(e)}, N {tausender(n)} · WGS84 {fall.ort.lat.toFixed(6)}, {fall.ort.lon.toFixed(6)}</td></tr>
-            <tr><td>OSM-Übergang</td><td>{fall.ort.uebergang !== null ? <>Knoten {fall.ort.uebergang}{mk ? ` (${UEBERGANG_TEXT[mk] ?? mk})` : ''}</> : 'kein OSM-Übergang (Ort aus der Fall-Datei)'}</td></tr>
+            <tr><td>OSM-Übergang</td><td>{fall.ort.uebergang !== null ? <>Knoten {fall.ort.uebergang}{mk ? ` (${UEBERGANG_TEXT[mk] ?? mk})` : ''}</> :
+              ortOhneUebergangText(fall)}</td></tr>
             <tr><td>Streifen aus</td><td>{rechnung.streifenQuelle === 'hand' ? `Eingabe von Hand: ${[...new Set(fall.streifenHand.map(streifenHerkunftText))].join('; ')}` : rechnung.streifenQuelle === 'luftbild' ? 'Luftbild (erkannt, prüfen)' : 'OSM und AV'}</td></tr>
+            {(fall.flaechenPlan?.length ?? 0) > 0 && <tr><td>Bodenbedeckung</td><td>Rechnung mit geplanter Bodenbedeckung (von Hand):
+              AV mit {fall.flaechenPlan!.length} Fläche(n) (Plan), siehe «Eingaben von Hand»</td></tr>}
             <tr><td>Daten geladen</td><td>{fall.quellen.geladen ?? '–'}; Rechnung {rechnungZeit ? `${datum(rechnungZeit)} ${zeit(rechnungZeit)}` : '–'}</td></tr>
           </tbody></table>
         </section>
 
-        {rechnung.streifen.length > 0 && <BerichtKarte r={rechnung} ort={ort} onBereit={setBild}
+        {rechnung.streifen.length > 0 && <BerichtKarte r={rechnung} ort={ort} onBereit={setBild} fixpunkte={fall.fixpunkte ?? []}
+          namen={namen} hand={fall.streifenHand} plan={fall.flaechenPlan ?? []}
           hindernisse={[...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)]} />}
 
         <section className="bericht-block">
@@ -361,14 +484,15 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
           {rechnung.hinweis && <p><b>{rechnung.hinweis}</b></p>}
           {!rechnung.streifen.length && <p>Kein Streifen gebildet. {rechnung.meldungen.join(' ')}</p>}
           <ul className="bericht-status">
-            {rechnung.streifen.map(s => <li key={s.fgsId}>Streifen {s.fgsId}{s.strasse ? ` (${s.strasse})` : ''}: <b>{STATUS[s.status] ?? s.status}</b>
+            {rechnung.streifen.map(s => <li key={s.fgsId}>{streifenTitel(s.fgsId, fall.streifenHand)}{s.strasse ? ` (${s.strasse})` : ''}: <b>{STATUS[s.status] ?? s.status}</b>
               {' '}– {s.status === 'kein_fgs' ? 'von Hand als kein Fussgängerstreifen bezeichnet, Zufahrten nicht ausgewiesen'
                 : `${s.zufahrten.length} Zufahrt(en) geprüft, davon ${s.zufahrten.filter(z => z.status === 'frei').length} frei` +
                   (s.zufahrten.some(z => z.deckung) ? `; ${s.zufahrten.filter(z => z.deckung).length} durch die gerade Zufahrt ` +
                     'mitgeprüfte Abbiegezufahrt(en) mitgezählt' : '')}</li>)}
           </ul>
         </section>
-        {rechnung.streifen.map(s => <StreifenTabelle key={s.fgsId} s={s} fall={fall} />)}
+        {rechnung.streifen.map(s => <StreifenTabelle key={s.fgsId} s={s} fall={fall} ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null}
+          namen={namen.get(s.fgsId)} />)}
 
         <section className="bericht-block">
           <h2>Eingaben von Hand</h2>

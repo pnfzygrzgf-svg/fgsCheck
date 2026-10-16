@@ -320,6 +320,27 @@ export function markierungHinweis(m: Markierung, t: Record<string, string>): str
   if (m === 'unbelegt') return `${KEIN_FGS_TEXT} (OSM ohne Angabe zur Art der Querung; falls vor Ort markiert, OSM-Tag nachführen).`
   return ''
 }
+/**
+ * Hinweis bei Streifen von Hand an einem OSM-Übergang ohne Fussgängerstreifen (unmarkiert bzw. unbelegt; Planung eines neuen
+ * Streifens, 16.10.2026): heute kein FGS, der Streifen von Hand wird aber als Fussgängerstreifen geprüft (statt KEIN_FGS_TEXT,
+ * der für den Streifen aus OSM + AV bleibt). Leer bei Fussgängerstreifen bzw. LSA (istFgs).
+ */
+export function planungHinweis(m: Markierung, t: Record<string, string>): string {
+  if (istFgs(m)) return ''
+  const osm = m === 'unmarkiert' ? (t.crossing === 'unmarked' ? 'crossing=unmarked' : `crossing:markings=${t['crossing:markings']}`) :
+    'ohne Angabe zur Art der Querung'
+  return `Heute kein Fussgängerstreifen (OSM: ${osm}); der Streifen von Hand wird als Fussgängerstreifen geprüft.`
+}
+/** Knoten (Lage WGS84 und Tags) aus der Overpass-Rohantwort, null wenn nicht enthalten: die Lage des gewählten Übergangs,
+ * wenn der Ladeort nicht sein Knoten ist (Planung) bzw. der Übergang aus einer Fall-Datei stammt */
+export function knotenLage(roh: unknown, id: number): OsmKnoten | null {
+  const el = (roh as { elements?: { type?: string; id?: number; lat?: number; lon?: number; tags?: unknown }[] } | null)?.elements ?? []
+  const k = el.find(e => e.type === 'node' && e.id === id && typeof e.lat === 'number' && typeof e.lon === 'number')
+  if (!k) return null
+  const tags: Record<string, string> = {}
+  if (k.tags && typeof k.tags === 'object') for (const [a, b] of Object.entries(k.tags)) if (typeof b === 'string') tags[a] = b
+  return { id, lat: k.lat!, lon: k.lon!, tags }
+}
 
 /** Signalisierte Querung (fgs_sicht_pruefen.osm_uebergaenge, Spalte lsa) */
 export function istLsaUebergang(t: Record<string, string>): boolean {

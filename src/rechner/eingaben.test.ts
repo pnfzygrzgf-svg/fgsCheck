@@ -10,12 +10,14 @@ import { Gebaeude } from './flaechen'
 import { HindernisDaten, laengsPolygon, type Hindernis } from './hindernisse'
 import { abstandLinieMulti } from './poly'
 import { abstandHalten, PARK_ABSTAND_M } from './spur'
-import { rechneFall } from './index'
+import { rechneFall, handUmriss } from './index'
+import { neuerStreifen, zufahrtenStreifen, handGruppen, TEIL_ENDEN_LUECKE_M, TEIL_ENDEN_LUECKE_MIN_M } from './streifen'
 import { linieKreis } from './spurhand'
 import { gedecktRechnenSetzen } from './abbiegen'
 import { leererFall, fallLesen, fallSchreiben, zufahrtSchluessel, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
-  fallMerken, fallErinnern, imGebiet, type Fall } from '../fall'
-import { markierung } from '../daten/osm'
+  fallMerken, fallErinnern, fallVergessen, ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, ortOhneUebergangText, imGebiet, type Fall,
+  type StreifenHand } from '../fall'
+import { markierung, markierungHinweis, planungHinweis, knotenLage } from '../daten/osm'
 import type { Konflikt } from './typen'
 
 const O: P = [2600000, 1200000]
@@ -483,5 +485,237 @@ describe('Herkunft der Streifen von Hand', () => {
     expect(g.streifenHand[0].herkunft).toBe('luftbild')
     expect(streifenHerkunftText(g.streifenHand[0])).toBe('aus dem Luftbild übernommen, Enden von Hand angepasst')
     expect(streifenHerkunftText({ id: 'hand-1', p0: [0, 0], p1: [8, 0], breite: 4 })).toBe('von Hand (Herkunft nicht gespeichert)')
+  })
+})
+
+describe('Planung: Streifen von Hand (16.10.2026)', () => {
+  const hand = (x: Fall) => { x.streifenHand.push({ id: 'hand-1', p0: lv(0, -3.7), p1: lv(0, 3.6), breite: 4, herkunft: 'gezeichnet' }) }
+  it('an einer Querung ohne Fussgängerstreifen: «Heute kein Fussgängerstreifen …», nicht «kein FGS» am Streifen', () => {
+    const r = rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), AV, [], 12, fallMit(hand), null)
+    expect(r.streifenQuelle).toBe('hand')
+    expect(r.markierung).toBe('unmarkiert')
+    expect(r.hinweis).toBe('Heute kein Fussgängerstreifen (OSM: crossing=unmarked); der Streifen von Hand wird als Fussgängerstreifen geprüft.')
+    expect(r.streifen.map(s => [s.keinFgsHinweis, s.markierungHinweis])).toEqual([[undefined, undefined]])
+    expect(r.streifen[0].status).not.toBe('kein_fgs')
+    expect(r.streifen[0].zufahrten.length).toBeGreaterThan(0)
+    const u = rechneFall(daten({}, { highway: 'crossing' }), AV, [], 12, fallMit(hand), null)
+    expect(u.hinweis).toBe('Heute kein Fussgängerstreifen (OSM: ohne Angabe zur Art der Querung); der Streifen von Hand wird als ' +
+      'Fussgängerstreifen geprüft.')
+    const d = rechneFall(daten({}, { highway: 'crossing', 'crossing:markings': 'dots' }), AV, [], 12, fallMit(hand), null)
+    expect(d.hinweis).toMatch(/^Heute kein Fussgängerstreifen \(OSM: crossing:markings=dots\)/)
+    // ohne Streifen von Hand bleibt «Kein Fussgängerstreifen» am Streifen aus OSM + AV; am Fussgängerstreifen kein Hinweis
+    const o = rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), AV, [], 12, fallMit(() => {}), null)
+    expect(o.hinweis).toMatch(/^Kein Fussgängerstreifen: Prüfung sinngemäss/)
+    expect(o.streifen.every(s => s.keinFgsHinweis === o.hinweis)).toBe(true)
+    const z = rechneFall(daten(), AV, [], 12, fallMit(hand), null)
+    expect([z.hinweis, z.streifen[0].keinFgsHinweis]).toEqual(['', undefined])
+    // «kein FGS» von Hand bleibt wie bisher
+    const k = rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), AV, [], 12,
+      fallMit(x => { hand(x); x.streifen['hand-1'] = { keinFgs: true } }), null)
+    expect(k.streifen[0].status).toBe('kein_fgs')
+  })
+  it('ohne OSM-Übergang: gerechnet und vermasst (Bordkanten der Rechnung, Winkel zum OSM-Weg, Knoten stromauf)', () => {
+    const f = leererFall(ll(0, 0)[0], ll(0, 0)[1], null)
+    hand(f)
+    const r = rechneFall(daten(), AV, [], null, f, null)
+    expect([r.streifenQuelle, r.hinweis, r.markierung]).toEqual(['hand', '', null])
+    const s = r.streifen[0], v = s.vermassung!
+    expect(s.randQuelle).toBe('AV')
+    expect(v.punkte.length).toBe(6)
+    expect(v.punkte.slice(2).map(q => q.p)).toEqual(s.umriss)              // Ecken = Umriss der Rechnung
+    expect(v.laengeM).toBeCloseTo(7.3)
+    expect(v.winkelGrad).toBeCloseTo(90)
+    expect(v.winkelQuelle).toBe('nächster befahrbarer OSM-Weg')
+    expect(v.randAbstandM![0]).toBeCloseTo(0.3)
+    expect(v.randAbstandM![1]).toBeCloseTo(0.4)
+    expect(v.fahrbahnM).toBeCloseTo(8)
+    // Richtung Ost (Fahrt von Westen): Knoten Querweg bei x = -40, ab Streifenrand (Breite 4 m) 38 m
+    expect(v.knoten.map(k => [k.strasse, Math.round(k.abstandM)])).toContainEqual(['Hauptstrasse', 38])
+    expect(s.zufahrten.length).toBeGreaterThan(0)
+  })
+})
+
+describe('Planung: Hinweis zur Markierung mit Streifen von Hand («vermutlich», Lichtsignal: wie bisher)', () => {
+  const hand = (x: Fall) => { x.streifenHand.push({ id: 'hand-1', p0: lv(0, -3.7), p1: lv(0, 3.6), breite: 4, herkunft: 'gezeichnet' }) }
+  it('«vermutlich» (crossing=uncontrolled): kein Planungshinweis, «vermutlich Fussgängerstreifen» am Streifen', () => {
+    const t = { highway: 'crossing', crossing: 'uncontrolled' }
+    expect(markierung(t)).toBe('vermutlich')
+    expect(planungHinweis('vermutlich', t)).toBe('')
+    const r = rechneFall(daten({}, t), AV, [], 12, fallMit(hand), null)
+    expect(r.hinweis).toBe(markierungHinweis('vermutlich', t))
+    expect(r.hinweis).toMatch(/vermutlich Fussgängerstreifen, bitte prüfen/)
+    expect(r.streifen.map(s => [s.markierungHinweis, s.keinFgsHinweis])).toEqual([[r.hinweis, undefined]])
+  })
+  it('Lichtsignal: weder Planungs- noch Markierungshinweis', () => {
+    const t = { highway: 'crossing', crossing: 'traffic_signals' }
+    expect(markierung(t)).toBe('lsa')
+    expect(planungHinweis('lsa', t)).toBe('')
+    const r = rechneFall(daten({}, t), AV, [], 12, fallMit(hand), null)
+    expect([r.markierung, r.hinweis]).toEqual(['lsa', ''])
+    expect(r.streifen.map(s => [s.markierungHinweis, s.keinFgsHinweis])).toEqual([[undefined, undefined]])
+  })
+})
+
+describe('Mehrere Streifen von Hand (Korrektur 16.10.2026, M1): Teilstreifen nur auf einer Achse', () => {
+  // A über die Hauptstrasse beim Übergang, B über den Querweg (x = -40, Fahrbahn x -43 … -37) 20 m südlich: zwei Arme
+  const A: StreifenHand = { id: 'hand-1', p0: lv(0, -3.7), p1: lv(0, 3.6), breite: 4, herkunft: 'gezeichnet' }
+  const B: StreifenHand = { id: 'hand-2', p0: lv(-43.3, -20), p1: lv(-36.7, -20), breite: 4, herkunft: 'gezeichnet' }
+  const mit = (...hs: StreifenHand[]) => { const f = leererFall(ll(0, 0)[0], ll(0, 0)[1], null); f.streifenHand = structuredClone(hs); return f }
+  const ohneKennung = (s: object) => JSON.parse(JSON.stringify(s, (k, v) => (k === 'uebergangId' ? undefined : v)))
+  it('A + B ergibt dasselbe wie A allein und B allein', () => {
+    const a = rechneFall(daten(), AV, [], null, mit(A), null), b = rechneFall(daten(), AV, [], null, mit(B), null)
+    const ab = rechneFall(daten(), AV, [], null, mit(A, B), null)
+    expect(ab.streifen.map(s => s.fgsId)).toEqual(['hand-1', 'hand-2'])
+    expect(ohneKennung(ab.streifen[0])).toEqual(ohneKennung(a.streifen[0]))
+    expect(ohneKennung(ab.streifen[1])).toEqual(ohneKennung(b.streifen[0]))
+    // B auch zusammen mit A ohne «Inselteil»: gerade Zufahrt beide Spuren, die Gegenrichtung entfällt nur wegen der Einmündung
+    expect(ab.streifen[1].zufahrten.map(z => `${z.zufahrt}:${z.art}`)).toEqual(['90:beide', 'a0:abbiegend', 'a180:abbiegend'])
+    expect(ab.streifen[1].entfallen.map(e => `${e.zufahrt}:${e.grund}`)).toEqual(['270:einmuendung'])
+    // Kennungen: erste Gruppe wie bisher 'hand', weitere eigene
+    expect([a.streifen[0].uebergangId, ab.streifen[0].uebergangId, ab.streifen[1].uebergangId]).toEqual(['hand', 'hand', 'hand:hand-2'])
+    // Gegenprobe: mit einer gemeinsamen Kennung (bis 16.10.2026) gälten sie als Teilstreifen (Inselteil an B)
+    const S = [A, B].map(h => neuerStreifen(h.id, 'hand', h.p0, h.p1, h.breite, 'hand', handUmriss(h.p0, h.p1, h.breite, null)))
+    zufahrtenStreifen(S)
+    expect(S[1].zufahrten.map(z => z[2])).toEqual(['insel'])
+  })
+  it('zwei Varianten desselben geplanten Streifens (1 m daneben, kürzer): je wie allein gerechnet', () => {
+    const V: StreifenHand = { id: 'hand-2', p0: lv(1, -1.7), p1: lv(1, 3.6), breite: 4, herkunft: 'gezeichnet' }
+    const a = rechneFall(daten(), AV, [], null, mit(A), null), v = rechneFall(daten(), AV, [], null, mit(V), null)
+    const av = rechneFall(daten(), AV, [], null, mit(A, V), null)
+    expect(av.streifen.map(s => s.uebergangId)).toEqual(['hand', 'hand:hand-2'])
+    expect(ohneKennung(av.streifen[0])).toEqual(ohneKennung(a.streifen[0]))
+    expect(ohneKennung(av.streifen[1])).toEqual(ohneKennung(v.streifen[0]))
+    expect(av.streifen.flatMap(s => s.zufahrten.map(z => z.art))).not.toContain('insel')
+  })
+  it('Gruppen: auf einer Achse (Lücke bis 12,6 m, quer bis 2 m, bis 20° gedreht) gemeinsam, sonst getrennt; transitiv', () => {
+    const s = (id: string, x0: number, y0: number, x1: number, y1: number) => ({ id, p0: lv(x0, y0), p1: lv(x1, y1) })
+    const g = (...hs: { id: string; p0: P; p1: P }[]) => [...handGruppen(hs).values()]
+    expect(TEIL_ENDEN_LUECKE_M).toBeCloseTo(12.6)
+    expect(g(s('a', 0, -10, 0, -3), s('b', 0, 3, 0, 10))).toEqual(['hand', 'hand'])                  // Insel 6 m
+    expect(g(s('a', 0, -10, 0, -3), s('b', 0, 9.6, 0, 14))).toEqual(['hand', 'hand'])                 // Lücke 12,6 m
+    expect(g(s('a', 0, -10, 0, -3), s('b', 0, 9.7, 0, 14))).toEqual(['hand', 'hand:b'])               // 12,7 m
+    expect(g(s('a', 0, -10, 0, -3), s('b', 1.9, 3, 1.9, 10))).toEqual(['hand', 'hand'])               // 1,9 m quer versetzt
+    expect(g(s('a', 0, -10, 0, -3), s('b', 2.5, 3, 2.5, 10))).toEqual(['hand', 'hand:b'])             // 2,5 m
+    expect(g(s('a', 0, -10, 0, -3), s('b', 12, -3, 12, 3))).toEqual(['hand', 'hand:b'])               // parallel, 12 m daneben
+    expect(g(s('a', 0, -3, 0, 3), s('b', -3, 8, 3, 8))).toEqual(['hand', 'hand:b'])                   // quer (anderer Arm)
+    // kurzer Teil (2 m) an der Insel, Ende 0,5 m seitlich verschoben: 14°, bleibt dabei; 25° nicht
+    expect(g(s('a', 0, -10, 0, -3), s('b', 0, 3, 0.5, 5))).toEqual(['hand', 'hand'])
+    expect(g(s('a', 0, -10, 0, -3), s('b', 0, 3, 0.93, 5))).toEqual(['hand', 'hand:b'])
+    // Lücke mindestens 0,3 m (Nachprüfung): überlappende bzw. anstossende Varianten desselben Streifens bleiben getrennt
+    expect(TEIL_ENDEN_LUECKE_MIN_M).toBeCloseTo(0.3)
+    expect(g(s('a', 0, -10, 0, -3), s('b', 0, -2.7, 0, 5))).toEqual(['hand', 'hand'])                // 0,3 m
+    expect(g(s('a', 0, -10, 0, -3), s('b', 0, -2.8, 0, 5))).toEqual(['hand', 'hand:b'])              // 0,2 m
+    expect(g(s('a', 0, -10, 0, -3), s('b', 1, -7, 1, -3))).toEqual(['hand', 'hand:b'])               // 1 m daneben, kürzer
+    expect(g(s('a', 0, -10, 0, -3), s('b', 0, -7.5, 0, -0.5))).toEqual(['hand', 'hand:b'])           // entlang verschoben
+    // drei Teile an zwei Inseln; dazwischen ein fremder Streifen
+    expect(g(s('a', 0, -12, 0, -6), s('x', 30, 0, 36, 0), s('b', 0, -3, 0, 3), s('c', 0, 6, 0, 12))).toEqual(['hand', 'hand:x', 'hand', 'hand'])
+    expect(g(s('x', 30, 0, 36, 0), s('c', 0, 6, 0, 12), s('a', 0, -12, 0, -6), s('b', 0, -3, 0, 3))).toEqual(['hand', 'hand:c', 'hand:c', 'hand:c'])
+  })
+  it('zwei Teilstreifen an einer Insel bleiben ein Übergang («Streifen übernehmen», Insel von Hand bzw. AV-Verkehrsinsel)', () => {
+    const kurz = (r: ReturnType<typeof rechneFall>) => r.streifen.map(s => [s.uebergangId, s.zufahrten.filter(z => z.art !== 'abbiegend')
+      .map(z => `${z.richtung}:${z.art}`).join(), s.entfallen.filter(e => e.art === 'gerade').map(e => `${e.richtung}:${e.grund}`).join()])
+    // Insel von Hand auf der Achse: OSM + AV bildet zwei Teile, übernommen als hand-1, hand-2 (Insel bleibt als Hindernis)
+    const f = fallMit(x => { x.hindernisse.push({ id: 'insel-1', art: 'insel', ring: [lv(-3, -0.5), lv(3, -0.5), lv(3, 1.5), lv(-3, 1.5)], quelle: 'hand' }) })
+    const r = rechneFall(daten(), AV, [], 12, f, null)
+    expect(r.streifen.map(s => s.fgsId)).toEqual(['12-1', '12-2'])
+    streifenUebernehmen(f, r.streifen, r.streifen, 'osm', r.inseln)
+    const h = rechneFall(daten(), AV, [], 12, f, null)
+    expect(h.streifenQuelle).toBe('hand')
+    expect(kurz(h)).toEqual([['hand', '0:insel', '180:insel'], ['hand', '180:insel', '0:insel']])
+    expect(kurz(h).map(x => x.slice(1))).toEqual(kurz(r).map(x => x.slice(1)))       // wie die Teilstreifen aus OSM + AV
+    // AV-Verkehrsinsel 2,4 m quer über die Fahrbahn
+    const avInsel: AvFlaeche[] = [
+      { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(-200, -4, 200, -1.2)] },
+      { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(-200, 1.2, 200, 4)] },
+      { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(-200, -1.2, -4, 1.2)] },
+      { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(4, -1.2, 200, 1.2)] },
+      { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(-43, -200, -37, -4)] },
+      { art: 'Verkehrsinsel', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(-4, -1.2, 4, 1.2)] },
+      ...AV.slice(1),
+    ]
+    const g = fallMit(() => {})
+    const ra = rechneFall(daten(), avInsel, [], 12, g, null)
+    expect(ra.streifen.map(s => s.fgsId)).toEqual(['12-1', '12-2'])
+    streifenUebernehmen(g, ra.streifen, ra.streifen, 'osm', ra.inseln)
+    const ha = rechneFall(daten(), avInsel, [], 12, g, null)
+    expect(kurz(ha).map(x => x[0])).toEqual(['hand', 'hand'])
+    expect(kurz(ha).map(x => x.slice(1))).toEqual(kurz(ra).map(x => x.slice(1)))
+    // Enden danach von Hand angepasst (Ende an der Insel 0,4 m seitlich): bleibt ein Übergang
+    g.streifenHand[0].p1 = [g.streifenHand[0].p1[0] + 0.4, g.streifenHand[0].p1[1]]
+    expect(kurz(rechneFall(daten(), avInsel, [], 12, g, null)).map(x => x[0])).toEqual(['hand', 'hand'])
+  })
+})
+
+describe('Planung: gesichert, Übergang weg, Bericht (Korrektur 16.10.2026)', () => {
+  afterEach(() => { vi.unstubAllGlobals() })
+  it('«gesichert» über den Inhalt der Eingaben: Quellen, Stand, Ergebnis, Markierung und Ort zählen nicht', () => {
+    const f = leererFall(46.95, 7.44, null)
+    f.streifenHand.push({ id: 'hand-1', p0: [2600000, 1200000], p1: [2600000, 1200007], breite: 4, herkunft: 'gezeichnet' })
+    f.zufahrten['hand-1|w1+'] = { tempo: 30 }
+    const k = eingabenSchluessel(f)
+    // eben gespeichert und wieder gelesen (andere Reihenfolge der Schlüssel, gespeichert-Stempel): gleich
+    const [g] = fallLesen(fallSchreiben(f, { hinweis: 'x', streifen: [] }))
+    expect(eingabenSchluessel(g)).toBe(k)
+    const h = structuredClone(f)
+    h.quellen = { osm: 'overpass', geladen: '2026-10-16' }; h.gespeichert = '2026-10-16T10:00:00Z'; h.ort.markierung = 'unmarkiert'
+    h.ort.lat = 46.96; h.zufahrten = { 'hand-1|w1+': { tempo: 30 } }
+    expect(eingabenSchluessel(h)).toBe(k)
+    // Eingaben geändert: nicht mehr gesichert
+    const e = structuredClone(f); e.streifenHand[0].breite = 5
+    expect(eingabenSchluessel(e)).not.toBe(k)
+    const b = structuredClone(f); b.ort.bezeichnung = 'Glockenstrasse'
+    expect(eingabenSchluessel(b)).not.toBe(k)
+  })
+  it('Übergang weg: ohneUebergang, Eintrag des Übergangs entfernen, Fall ohne Übergang zurückholen', () => {
+    const m = new Map<string, string>()
+    vi.stubGlobal('localStorage', { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v) },
+      removeItem: (k: string) => { m.delete(k) } })
+    const f = leererFall(46.95, 7.44, 42); f.ort.markierung = 'unbelegt'; f.streifen['1'] = { lsa: 'ja' }
+    fallMerken(f)
+    const o = ohneUebergang(f)
+    expect([o.ort.uebergang, o.ort.markierung, f.ort.uebergang]).toEqual([null, undefined, 42])
+    fallVergessen(42); fallMerken(o)
+    expect([...m.keys()]).toEqual(['fgsCheck.fall.ort'])
+    expect(fallErinnern('ort')?.streifen['1']?.lsa).toBe('ja')
+    m.set('fgsCheck.fall.ort', '{kaputt')
+    expect(fallErinnern('ort')).toBeNull()
+  })
+  it('Eintrag «fgsCheck.fall.ort»: ein anderer gemerkter Fall wird nicht still ersetzt (ortMerkenEntscheid, Nachprüfung S-b)', () => {
+    const plan = (x: number) => { const f = leererFall(46.95, 7.44, null)
+      f.streifenHand.push({ id: 'hand-1', p0: [2600000 + x, 1200000], p1: [2600000 + x, 1200007], breite: 4, herkunft: 'gezeichnet' }); return f }
+    const A = plan(0), B = plan(500), X = leererFall(46.95, 7.44, 42)
+    X.streifen['1'] = { lsa: 'ja' }
+    // Fall mit Übergang: immer unter seinem Übergang merken
+    expect(ortMerkenEntscheid(X, false, A)).toBe('merken')
+    // Planfall A ungesichert im Eintrag, später (nach dem Wechsel zu X) ein neuer Planfall B: erst nachfragen
+    expect(ortMerkenEntscheid(B, false, A)).toBe('rueckfrage')
+    // B gehört der Eintrag schon (selbst geschrieben bzw. Ersetzen bestätigt): weiter merken
+    expect(ortMerkenEntscheid(B, true, A)).toBe('merken')
+    // A wiederhergestellt (gleiche Eingaben, auch mit anderem Ort, Quellen, Stand): merken, gehört ihm
+    const A2 = structuredClone(A); A2.ort.lat = 46.96; A2.quellen = { osm: 'x' }; A2.gespeichert = '2026-10-16T09:00:00Z'
+    expect(ortMerkenEntscheid(A2, false, A)).toBe('merken')
+    // kein bzw. unlesbarer Eintrag oder einer ohne Eingaben: merken
+    expect(ortMerkenEntscheid(B, false, null)).toBe('merken')
+    expect(ortMerkenEntscheid(B, false, leererFall(46.95, 7.44, null))).toBe('merken')
+    // offener Fall ohne Übergang und ohne Eingaben: fremden Eintrag weder überschreiben noch löschen
+    expect(ortMerkenEntscheid(leererFall(46.95, 7.44, null), false, A)).toBe('nichts')
+    expect(ortMerkenEntscheid(leererFall(46.95, 7.44, null), true, A)).toBe('merken')     // eigener Eintrag: entfernen wie bisher
+  })
+  it('Bericht: «geplanter Streifen» nur bei gezeichneten Streifen, sonst neutral', () => {
+    const f = leererFall(46.95, 7.44, null)
+    expect(ortOhneUebergangText(f)).toBe('kein OSM-Übergang')
+    f.streifenHand.push({ id: 'hand-1', p0: [0, 0], p1: [0, 7], breite: 4, herkunft: 'gezeichnet' })
+    expect(ortOhneUebergangText(f)).toBe('kein OSM-Übergang (Ort am geplanten Streifen)')
+    f.streifenHand.push({ id: 'hand-2', p0: [0, 10], p1: [0, 17], breite: 4 })              // Herkunft nicht gespeichert
+    expect(ortOhneUebergangText(f)).toBe('kein OSM-Übergang (Ort am Streifen von Hand)')
+  })
+  it('knotenLage: Lage und Tags aus der Overpass-Antwort, sonst null', () => {
+    const roh = { elements: [{ type: 'way', id: 5, nodes: [5] }, { type: 'node', id: 7, lat: 46.9, lon: 7.4, tags: { highway: 'crossing', x: 3 } },
+      { type: 'node', id: 8, lat: 46.91 }] }
+    expect(knotenLage(roh, 7)).toEqual({ id: 7, lat: 46.9, lon: 7.4, tags: { highway: 'crossing' } })
+    expect(knotenLage(roh, 5)).toBeNull()                                  // Weg, kein Knoten
+    expect(knotenLage(roh, 8)).toBeNull()                                  // ohne Länge
+    expect(knotenLage({ elements: [{ type: 'node', id: 9, lat: 1, lon: 2 }] }, 9)).toEqual({ id: 9, lat: 1, lon: 2, tags: {} })
+    expect([knotenLage(null, 7), knotenLage({}, 7)]).toEqual([null, null])
   })
 })

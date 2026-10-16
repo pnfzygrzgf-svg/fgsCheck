@@ -1,5 +1,5 @@
 // ── Startseite (Einstieg) wie bei VeloroutenCheck und KnotenCheck: Logo, Knopf zur Prüfung, kurze Beschreibung,
-// Grenzen, Querverweise und Datenspeicherung. Die Prüfung (App) lädt erst nach «Zur Sichtprüfung», damit die Startseite
+// Grenzen, Querverweise und Datenspeicherung. Die Prüfung (App) lädt erst nach «Zur Prüfung und Planung», damit die Startseite
 // keine Abfragen an Overpass, geodienste.ch oder swisstopo auslöst. Direkter Einstieg über #pruefen.
 
 const BASIS = import.meta.env.BASE_URL
@@ -20,13 +20,13 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
   return (
     <main className="start">
       {/* Logo dekorativ (alt="", aria-hidden, nicht fokussierbar): der Klick führt mit der Maus weiter zur Prüfung, die zugängliche
-          Bedienung ist der Knopf «Zur Sichtprüfung» direkt darunter; so meldet der Screenreader nicht zwei Bedienungen für dasselbe
+          Bedienung ist der Knopf «Zur Prüfung und Planung» direkt darunter; so meldet der Screenreader nicht zwei Bedienungen für dasselbe
           und die Überschrift nennt den Namen ohnehin */}
-      <img className="start-logo" src={BASIS + 'logo.svg'} alt="" aria-hidden="true" title="Zur Sichtprüfung" onClick={onStart} />
+      <img className="start-logo" src={BASIS + 'logo.svg'} alt="" aria-hidden="true" title="Zur Prüfung und Planung" onClick={onStart} />
       <h1 className="start-titel">fgsCheck</h1>
-      <p className="start-untertitel">Sichtprüfung an Fussgängerstreifen</p>
+      <p className="start-untertitel">Sichtprüfung an bestehenden und geplanten Fussgängerstreifen</p>
       <div className="start-knopf-zeile">
-        <button className="start-knopf" onClick={onStart}>Zur Sichtprüfung →</button>
+        <button className="start-knopf" onClick={onStart}>Zur Prüfung und Planung →</button>
       </div>
 
       <p>
@@ -34,6 +34,11 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
         Übergang genügt: Die App bildet den Streifen und seine Zufahrten, rechnet die Sichtweiten nach VSS 40 241 und
         zeigt für jede Zufahrt, ob Parkfelder, Bäume, Gebäude oder andere Hindernisse im Sichtfeld liegen, auch für
         abbiegende Fahrzeuge.
+      </p>
+      <p>
+        Neue Streifen lassen sich planen: an beliebiger Stelle zeichnen, die App lädt die Daten dort, rechnet die
+        Sichtweiten und vermisst die Lage des Streifens mit Koordinaten, Randabständen und Massen ab einem Fixpunkt, etwa
+        einer Gebäudeecke. So lässt sich ein Standort prüfen, bevor der Plan gezeichnet ist.
       </p>
       <p>
         Grundlage sind offene Daten: das Luftbild SWISSIMAGE von swisstopo, die Amtliche Vermessung über geodienste.ch
@@ -57,7 +62,9 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
         <div>Alle Berechnungen laufen im Browser. Eingaben und Ergebnisse werden an keinen Server übermittelt.</div>
         <ul>
           <li>Eingaben merkt sich der Browser je Übergang (lokaler Speicher), nur wenn etwas eingegeben wurde; «Eingaben
-            verwerfen» löscht sie. Die Fall-Datei und der PDF-Bericht werden lokal gespeichert, ohne Upload.</li>
+            verwerfen» löscht sie. Von geplanten Streifen ohne OSM-Übergang merkt er nur den zuletzt bearbeiteten Fall («Letzten
+            geplanten Fall wiederherstellen»); sichern Sie ihn mit «Fall speichern». Die Fall-Datei und der PDF-Bericht werden
+            lokal gespeichert, ohne Upload.</li>
           <li>Für Karte und Rechnung fragt die App den Kartenausschnitt bei swisstopo, geodienste.ch, OpenStreetMap
             (Overpass) und in Bern bei map.bern.ch ab; gesendet werden nur Koordinaten des Ausschnitts. Den Suchbegriff der
             Ortssuche erhält swisstopo; der eigene Standort bleibt im Browser.</li>

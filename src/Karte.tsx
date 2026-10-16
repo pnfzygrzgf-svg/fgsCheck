@@ -8,7 +8,9 @@ import type { ZufahrtErgebnis } from './rechner/typen'
 import type { FallRechnung } from './rechner'
 import type { Multi } from './rechner/poly'
 import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernisse'
-import type { StreifenHand } from './fall'
+import { type StreifenHand, type Fixpunkt, type FlaechePlan, type PlanArt, PLAN_ARTEN } from './fall'
+import { planTitel, planFlaecheM2, PLAN_NAME } from './rechner/planflaechen'
+import { fixpunktName, ART_TEXT } from './fixpunkt'
 import { wgs, lv95, type P } from './geo'
 import Ortssuche from './Ortssuche'
 import { ortZoom, type Ort } from './daten/ortssuche'
@@ -22,6 +24,36 @@ export const AV_FARBEN: Record<string, string> = {
   Gebaeude: '#3f3f46',
 }
 const AV_DECKKRAFT: Record<string, number> = { Strasse_Weg: 0.25, Trottoir: 0.45, Verkehrsinsel: 0.6, Gebaeude: 0.5 }
+/**
+ * Flächen (Plan) von Hand (rechner/planflaechen.ts): schraffiert in der Farbe der AV-Art (flaeche, wie AV_FARBEN) mit dunkleren
+ * Schraffurlinien und gestricheltem Rand (linie), über der AV-Ebene; so als «Plan» vom AV-Bestand zu unterscheiden. Die Muster
+ * (SVG-Pattern, id PLAN_MUSTER + Art) stehen einmal im Dokument (PlanMuster), Karte und Legende verweisen darauf.
+ */
+export const PLAN_FARBEN: Record<PlanArt, { flaeche: string; linie: string }> = {
+  trottoir: { flaeche: AV_FARBEN.Trottoir, linie: '#8a8350' },
+  fahrbahn: { flaeche: AV_FARBEN.Strasse_Weg, linie: '#262626' },
+  insel: { flaeche: AV_FARBEN.Verkehrsinsel, linie: '#3f6212' },
+}
+export const PLAN_MUSTER = 'fgs-plan-'
+export const STRICH_PLAN = '6 3'
+/** Hintergrund einer Legenden-Farbmarke für eine Fläche (Plan) (CSS, schräg gestreift wie das Muster) */
+export const planMarke = (art: PlanArt) => `repeating-linear-gradient(45deg, ${PLAN_FARBEN[art].linie} 0 2px, ${PLAN_FARBEN[art].flaeche} 2px 5px)`
+/** SVG-Muster der Flächen (Plan), einmal im Dokument (unsichtbares SVG mit Grösse 0; nicht display:none, sonst finden manche
+ * Browser die Muster nicht) */
+function PlanMuster() {
+  return (
+    <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false">
+      <defs>
+        {PLAN_ARTEN.map(a => (
+          <pattern key={a} id={PLAN_MUSTER + a} width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="7" height="7" fill={PLAN_FARBEN[a].flaeche} fillOpacity="0.55" />
+            <line x1="0" y1="0" x2="0" y2="7" stroke={PLAN_FARBEN[a].linie} strokeWidth="2" />
+          </pattern>
+        ))}
+      </defs>
+    </svg>
+  )
+}
 /** Farbe und Text der OSM-Übergänge nach Markierung (daten/osm.markierung) */
 export const UEBERGANG_FARBE: Record<string, string> = { markiert: '#eab308', vermutlich: '#eab308', lsa: '#7c3aed', unmarkiert: '#94a3b8',
   unbelegt: '#94a3b8' }
@@ -80,7 +112,16 @@ export function standortFehlerText(code: number): string {
   return 'Standort zurzeit nicht verfügbar (kein GPS- bzw. Netzempfang).'
 }
 
-export type Werkzeug = null | 'parkfeld' | 'laengs' | 'baum' | 'hecke' | 'mauer' | 'flaeche' | 'insel' | 'streifen' | 'spurB'
+export type Werkzeug = null | 'parkfeld' | 'laengs' | 'baum' | 'hecke' | 'mauer' | 'flaeche' | 'insel' | 'streifen' | 'spurB' | 'fixpunkt' |
+  'planflaeche'
+/** Masslinie ab Fixpunkt (rechner/vermassung.fixpunktMasse): von, bis, Beschriftung */
+export interface Masslinie { von: P; bis: P; text: string }
+export const FIXPUNKT_FARBE = '#be185d'
+/** Fixpunkt als kleines Kreuz im Quadrat (Karte; Bericht zeichnet dasselbe als SVG) */
+const fixIcon = (blass: boolean) => L.divIcon({ className: 'fixpunkt' + (blass ? ' blass' : ''), iconSize: [14, 14],
+  html: '<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><rect x="1" y="1" width="12" height="12" fill="#ffffff" ' +
+    `fill-opacity="0.85" stroke="${FIXPUNKT_FARBE}" stroke-width="1.5"/><path d="M3 3L11 11M11 3L3 11" stroke="${FIXPUNKT_FARBE}" ` +
+    'stroke-width="1.5"/></svg>' })
 
 const ll = (p: P): L.LatLngTuple => wgs(p[0], p[1])
 /** Stil eines Übergangs (gewählt: grösser, dunkler Rand; vermutlich markiert: gestrichelt, blasser) */
@@ -123,7 +164,14 @@ export default function Karte(props: {
   streifenHand: StreifenHand[]
   werkzeug: Werkzeug
   zeichnung: P[]
-  bearbeiten: string | null                          // Id des Hindernisses bzw. Handstreifens, dessen Ecken verschoben werden
+  bearbeiten: string | null                          // Id des Hindernisses, Handstreifens bzw. Fixpunkts, dessen Ecken verschoben werden
+  fixpunkte: Fixpunkt[]
+  flaechenPlan: FlaechePlan[]                        // Flächen (Plan) von Hand, über der AV-Ebene
+  fixVorschlaege: { p: P; text: string }[]           // vorgeschlagene Fixpunkte (blass; Tooltip, Klick übernimmt)
+  onFixVorschlag?: (p: P) => void                    // Klick auf einen vorgeschlagenen Fixpunkt: übernehmen
+  masslinien: Masslinie[]
+  zufahrtName: (fgsId: string, zufahrt: string) => string   // Anzeige (benennung.ts): Strasse und Herkunft
+  streifenTitel: (fgsId: string) => string                 // Anzeige: Name bzw. «Streifen 1»
   onUebergang: (k: OsmKnoten) => void
   onZufahrt: (key: string | null) => void
   onKlick: (p: P) => void
@@ -135,7 +183,10 @@ export default function Karte(props: {
   kartenRef: React.MutableRefObject<L.Map | null>
 }) {
   const { mitte, av, kantone, uebergaenge, strassennamen, gewaehlt, rechnung, auswahl, hindernisse, streifenHand, werkzeug, zeichnung,
-    bearbeiten, kartenRef } = props
+    bearbeiten, fixpunkte, flaechenPlan, fixVorschlaege, masslinien, kartenRef } = props
+  // Rückruf in einer Ref: der Fixpunkt-Effekt soll nicht bei jedem Neuzeichnen der App neu laufen
+  const fixVorschlagRef = useRef(props.onFixVorschlag)
+  fixVorschlagRef.current = props.onFixVorschlag
   const elRef = useRef<HTMLDivElement>(null)
   const ebenenRef = useRef<Record<string, L.LayerGroup> | null>(null)
   const cb = useRef(props)
@@ -183,12 +234,14 @@ export default function Karte(props: {
     namenPane.style.zIndex = '450'
     namenPane.style.pointerEvents = 'none'
     const eb: Record<string, L.LayerGroup> = {
-      av: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
-      hind: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
+      av: L.layerGroup().addTo(map), plan: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
+      hind: L.layerGroup().addTo(map), fix: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
       standort: L.layerGroup().addTo(map),
     }
     L.control.layers({ 'Luftbild (SWISSIMAGE)': luftbild, 'Landeskarte (swisstopo)': landeskarte }, { 'Amtliche Vermessung': eb.av,
-      'OSM-Übergänge': eb.osm, 'Strassennamen (OSM)': eb.namen, 'Sichtfelder': eb.sicht, 'Hindernisse': eb.hind },
+      'Flächen (Plan)': eb.plan,
+      'OSM-Übergänge': eb.osm, 'Strassennamen (OSM)': eb.namen, 'Sichtfelder': eb.sicht, 'Hindernisse': eb.hind,
+      'Fixpunkte und Masse': eb.fix },
     { collapsed: true }).addTo(map)
     L.control.scale({ imperial: false }).addTo(map)
     // «Zum eigenen Standort» unter den Zoom-Knöpfen
@@ -257,6 +310,25 @@ export default function Karte(props: {
     return () => { map.attributionControl.removeAttribution(text) }
   }, [av, kantone, kartenRef])
 
+  // Flächen (Plan) von Hand: schraffiert über der AV (Bestand bleibt darunter sichtbar); Klick wählt zum Bearbeiten, Ecken des
+  // gewählten Plans als Griffe (Hindernisse-Effekt)
+  useEffect(() => {
+    const eb = ebenenRef.current
+    if (!eb) return
+    eb.plan.clearLayers()
+    for (const fp of flaechenPlan) {
+      const f = PLAN_FARBEN[fp.art]
+      L.polygon(fp.ring.map(ll), { color: f.linie, weight: fp.id === bearbeiten ? 3 : 2, dashArray: STRICH_PLAN,
+        fillColor: `url(#${PLAN_MUSTER}${fp.art})`, fillOpacity: 1, interactive: !werkzeug })
+        .bindTooltip(`<b>${esc(planTitel(fp.id))}: ${esc(PLAN_NAME[fp.art])} (Plan, von Hand)</b>, ` +
+          `${planFlaecheM2(fp.ring).toFixed(1).replace('.', ',')} m²<br>ersetzt in der Rechnung die AV darunter<br><i>Klick: wählen und bearbeiten</i>`,
+        { sticky: true })
+        .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(fp.id) })
+        .addTo(eb.plan)
+    }
+    // av: nach einem Neuzeichnen der AV-Ebene (eigene Pfade im selben SVG) die Plan-Flächen wieder darüber
+  }, [flaechenPlan, bearbeiten, werkzeug, av])
+
   // Strassennamen (OSM): Beschriftungen nur zur Orientierung, nicht anklickbar (Klicks gehen an die Karte)
   useEffect(() => {
     const eb = ebenenRef.current
@@ -277,9 +349,10 @@ export default function Karte(props: {
       const m = L.circleMarker([k.lat, k.lon], markerStil(mk, k.id === cb.current.gewaehlt))
         .bindTooltip(`<b>OSM-Übergang ${k.id}</b> (${UEBERGANG_TEXT[mk]})<br>` +
           Object.entries(k.tags).map(([a, b]) => `${esc(a)}=${esc(b)}`).join('<br>') + '<br><i>Klick: prüfen</i>')
-        // beim Zeichnen: Klick auf den gewählten Übergang setzt einen Punkt, auf einen anderen meldet die App
+        // beim Zeichnen zählt der Klick auf jeden Übergang als Kartenklick (setzt einen Punkt; ohne stopPropagation geht er an die
+        // Karte): sonst finge ein fremder Marker z. B. einen Wartebereich eines geplanten Streifens ab (Prüfung 16.10.2026)
         .on('click', e => {
-          if (cb.current.werkzeug && k.id === cb.current.gewaehlt) return
+          if (cb.current.werkzeug) return
           L.DomEvent.stopPropagation(e); cb.current.onUebergang(k)
         })
       neu.set(k.id, { k, m })
@@ -312,7 +385,7 @@ export default function Karte(props: {
       for (const z of s.zufahrten) {
         const farbe = STATUS_FARBE[z.status] ?? '#10b981'
         L.polygon(multiLl(z.feld), { color: farbe, weight: 1, fillColor: farbe, fillOpacity: 0.1, interactive: !cb.current.werkzeug })
-          .bindTooltip(`Sichtfeld Zufahrt «${esc(z.zufahrt)}»${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(z.status.replace('_', ' '))}`, { sticky: true })
+          .bindTooltip(`Sichtfeld ${esc(cb.current.zufahrtName(z.fgsId, z.zufahrt))}${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(z.status.replace('_', ' '))}`, { sticky: true })
           .on('click', () => { if (!cb.current.werkzeug) cb.current.onZufahrt(zufahrtKey(z)) }).addTo(eb.sicht)
       }
       for (const a of s.ann) L.polygon(a.map(r => r.map(ll)), { color: '#0ea5e9', weight: 1, fillOpacity: 0.4, interactive: false }).addTo(eb.sicht)
@@ -327,10 +400,12 @@ export default function Karte(props: {
     // Luftbild-Erkennung: Balken (erkannt durchgezogen, unsicher gestrichelt), «aus Luftbild, prüfen»
     const lb = rechnung.luftbild
     if (lb && lb.befund !== 'nicht_gefunden') {
-      const st = { color: LUFTBILD_FARBE, weight: 1.5, fill: false, dashArray: lb.befund === 'erkannt' ? undefined : '4 3', interactive: false }
+      // gestrichelt: unsicher bzw. mit Flächen (Plan) nur Vorschlag
+      const st = { color: LUFTBILD_FARBE, weight: 1.5, fill: false, dashArray: lb.befund === 'erkannt' && !lb.nurVorschlag ? undefined : '4 3',
+        interactive: false }
       for (const b of lb.balken) L.polygon(b.map(ll), st).addTo(eb.sicht)
       for (const t of lb.teile) L.polygon(t.umriss.map(ll), { ...st, weight: 2, interactive: true })
-        .bindTooltip(`Streifen aus Luftbild (${lb.befund === 'erkannt' ? 'erkannt' : 'unsicher'}), prüfen: ${t.nBalken} Balken, ` +
+        .bindTooltip(`Streifen aus Luftbild (${lb.befund === 'erkannt' ? 'erkannt' : 'unsicher'}${lb.nurVorschlag ? ', mit Flächen (Plan) nur Vorschlag' : ''}), prüfen: ${t.nBalken} Balken, ` +
           `Balkenlänge ${t.bw.toFixed(1).replace('.', ',')} m`, { sticky: true }).addTo(eb.sicht)
     }
   }, [rechnung, werkzeug])
@@ -368,7 +443,8 @@ export default function Karte(props: {
       ebene.addTo(eb.hind)
     }
     for (const s of streifenHand) {
-      L.polyline([ll(s.p0), ll(s.p1)], { color: '#fde047', weight: 3, dashArray: '6 4' }).bindTooltip(`Streifen von Hand ${esc(s.id)}`)
+      L.polyline([ll(s.p0), ll(s.p1)], { color: '#fde047', weight: 3, dashArray: '6 4' })
+        .bindTooltip(`${esc(cb.current.streifenTitel(s.id))} (Streifen von Hand)`)
         .addTo(eb.hind)
     }
     // Ecken des bearbeiteten Objekts verschieben
@@ -381,7 +457,37 @@ export default function Karte(props: {
     if (h) ecken(h.id, h.art === 'parkfeld' ? h.ring : h.art === 'baum' ? [h.p] : h.art === 'laengsparkierung' ? h.linie : h.ring ?? h.linie ?? [])
     const sh = streifenHand.find(x => x.id === bearbeiten)
     if (sh) ecken(sh.id, [sh.p0, sh.p1])
-  }, [hindernisse, rechnung, streifenHand, bearbeiten])
+    const fp = fixpunkte.find(x => x.id === bearbeiten)
+    if (fp) ecken(fp.id, [fp.p])
+    const pl = flaechenPlan.find(x => x.id === bearbeiten)
+    if (pl) ecken(pl.id, pl.ring)
+  }, [hindernisse, rechnung, streifenHand, fixpunkte, flaechenPlan, bearbeiten])
+
+  // Fixpunkte (Kreuz im Quadrat; Klick wählt zum Verschieben, beim Zeichnen nicht anklickbar), Vorschläge blass, Masslinien
+  // gestrichelt mit Länge in m (rechner/vermassung.fixpunktMasse)
+  useEffect(() => {
+    const eb = ebenenRef.current
+    if (!eb) return
+    eb.fix.clearLayers()
+    for (const m of masslinien) {
+      L.polyline([ll(m.von), ll(m.bis)], { color: FIXPUNKT_FARBE, weight: 2, dashArray: '5 4', interactive: false }).addTo(eb.fix)
+      const mitte: P = [(m.von[0] + m.bis[0]) / 2, (m.von[1] + m.bis[1]) / 2]
+      L.marker(ll(mitte), { interactive: false, keyboard: false, icon: L.divIcon({ className: 'masstext', iconSize: [0, 0],
+        html: `<span>${esc(m.text)}</span>` }) }).addTo(eb.fix)
+    }
+    // Vorschläge: Tooltip mit Herkunft und Abstand, Klick übernimmt (beim Zeichnen nicht anklickbar, der Klick geht an die Karte)
+    for (const v of fixVorschlaege)
+      L.marker(ll(v.p), { interactive: !werkzeug, keyboard: false, icon: fixIcon(true) })
+        .bindTooltip(`${esc(v.text)}<br><i>Klick: als Fixpunkt übernehmen</i>`)
+        .on('click', () => fixVorschlagRef.current?.(v.p)).addTo(eb.fix)
+    for (const f of fixpunkte) {
+      if (f.id === bearbeiten) continue                    // mit Griff gezeichnet (Hindernisse-Effekt)
+      L.marker(ll(f.p), { interactive: !werkzeug, keyboard: false, icon: fixIcon(false) })
+        .bindTooltip(`<b>${esc(fixpunktName(f))}</b><br>${esc(ART_TEXT[f.art])}<br><i>Klick: wählen und verschieben</i>`)
+        .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(f.id) })
+        .addTo(eb.fix)
+    }
+  }, [fixpunkte, fixVorschlaege, masslinien, bearbeiten, werkzeug])
 
   // gewählte Zufahrt hervorheben
   useEffect(() => {
@@ -422,6 +528,7 @@ export default function Karte(props: {
   const hinweise = [props.hinweis, standortHinweis].filter((h): h is KartenHinweis => !!h)
   return (
     <div className="kartenrahmen">
+      <PlanMuster />
       <div ref={elRef} className="karte" />
       <div className="kartenkopf">
         <Ortssuche onOrt={ortWaehlen} />

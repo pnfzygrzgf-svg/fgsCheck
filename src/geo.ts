@@ -192,6 +192,44 @@ export function abstandStrecke(p: P, a: P, b: P): number {
   return dist(p, add(a, v, t))
 }
 
+/**
+ * Kleinster Kreis um Punkte (Welzl, iterativ) -> Mitte und Radius, null ohne Punkte. Gerechnet relativ zum ersten Punkt
+ * (LV95-Koordinaten um 2,6 Mio. m machen die Umkreis-Formel sonst ungenau); die Punkte in fester Pseudo-Zufallsfolge (gleiche
+ * Eingabe, gleiches Ergebnis; erwartet linear statt kubisch bei ungünstiger Reihenfolge).
+ */
+export function kleinsterKreis(punkte: P[]): { m: P; r: number } | null {
+  if (!punkte.length) return null
+  const o = punkte[0]
+  const q = punkte.map((p): P => [p[0] - o[0], p[1] - o[1]])
+  let s = 1
+  for (let i = q.length - 1; i > 0; i--) {
+    s = (s * 16807) % 2147483647                     // Park–Miller
+    const j = s % (i + 1); [q[i], q[j]] = [q[j], q[i]]
+  }
+  type K = { m: P; r: number }
+  const drin = (k: K, p: P) => dist(k.m, p) <= k.r + 1e-7
+  const zwei = (a: P, b: P): K => ({ m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], r: dist(a, b) / 2 })
+  const drei = (a: P, b: P, c: P): K => {
+    const bx = b[0] - a[0], by = b[1] - a[1], cx = c[0] - a[0], cy = c[1] - a[1], d = 2 * (bx * cy - by * cx)
+    // auf einer Geraden: Kreis über die beiden äussersten
+    if (Math.abs(d) < 1e-12) return [zwei(a, b), zwei(a, c), zwei(b, c)].reduce((x, y) => (y.r > x.r ? y : x))
+    const b2 = bx * bx + by * by, c2 = cx * cx + cy * cy
+    const ux = (cy * b2 - by * c2) / d, uy = (bx * c2 - cx * b2) / d
+    return { m: [a[0] + ux, a[1] + uy], r: Math.hypot(ux, uy) }
+  }
+  let k: K = { m: q[0], r: 0 }
+  for (let i = 1; i < q.length; i++) {
+    if (drin(k, q[i])) continue
+    k = { m: q[i], r: 0 }
+    for (let j = 0; j < i; j++) {
+      if (drin(k, q[j])) continue
+      k = zwei(q[i], q[j])
+      for (let l = 0; l < j; l++) if (!drin(k, q[l])) k = drei(q[i], q[j], q[l])
+    }
+  }
+  return { m: [k.m[0] + o[0], k.m[1] + o[1]], r: k.r }
+}
+
 /** statistics.median */
 export function median(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b), n = s.length
