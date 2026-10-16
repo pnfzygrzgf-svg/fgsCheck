@@ -1,7 +1,7 @@
 :root {
   color-scheme: light;
   --bg: #f1f5f9;
-  --accent: #0f766e;
+  --accent: #b45309;
   --text-strong: #1e293b;
   --text: #334155;
   --text-muted: #64748b;
@@ -29,7 +29,7 @@ html, body, #root { margin: 0; height: 100%; background: var(--bg); }
 .ortssuche-liste { list-style: none; margin: 4px 0 0; padding: 4px 0; background: #ffffff; border: 1px solid var(--border);
   border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.25); max-height: 50vh; overflow-y: auto; }
 .ortssuche-liste li { padding: 6px 10px; cursor: pointer; line-height: 1.3; }
-.ortssuche-liste li.aktiv { background: #ccfbf1; }
+.ortssuche-liste li.aktiv { background: #fef3c7; }
 .ortssuche-liste li.ortssuche-leer { cursor: default; color: var(--text-muted); }
 .ortssuche-art { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
 .ortssuche-fehler, .kartenhinweis { font-size: 12px; background: rgba(255,255,255,.92); border: 1px solid var(--border);
@@ -68,7 +68,7 @@ button:hover { filter: brightness(1.1); }
 .streifen { border-top: 1px solid var(--border); margin-top: 12px; }
 .zufahrten tbody tr { cursor: pointer; }
 .zufahrten tbody tr:hover { background: #f1f5f9; }
-.zufahrten tbody tr.aktiv { background: #ecfeff; }
+.zufahrten tbody tr.aktiv { background: #fffbeb; }
 .detail { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; margin-bottom: 8px; }
 .annahmen { margin: 4px 0 8px; padding-left: 18px; font-size: 12px; color: #92400e; }
 .warnung { color: #b45309; }
@@ -87,12 +87,12 @@ button:disabled { opacity: .5; cursor: default; }
 .werkzeuge { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
 .werkzeuge button { padding: 4px 8px; font-size: 12px; }
 button.aktiv { background: var(--accent); color: #ffffff; }
-.werkzeughilfe { font-size: 12px; background: #ecfeff; border: 1px solid #a5f3fc; border-radius: 8px; padding: 6px 8px; margin: 4px 0; }
+.werkzeughilfe { font-size: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 6px 8px; margin: 4px 0; }
 .werkzeughilfe div { margin-top: 4px; }
 .werkzeughilfe input[type=number], .spur input[type=number] { width: 4.5em; }
 .liste { list-style: none; padding: 0; margin: 0 0 6px; font-size: 12px; }
 .liste li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 3px 0; border-bottom: 1px solid #f1f5f9; }
-.liste li.aktiv { background: #ecfeff; }
+.liste li.aktiv { background: #fffbeb; }
 .aktionen { margin-left: auto; display: flex; gap: 4px; }
 .farbe.gestrichelt { background: transparent; border: 2px dashed; }
 .zeile { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
@@ -105,7 +105,7 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .keinfgs { background: #f1f5f9; border: 1px solid #94a3b8; border-left: 4px solid #64748b; border-radius: 6px; padding: 6px 8px; margin: 6px 0; font-weight: 600; color: #334155; }
 .pruefen { background: #fefce8; border: 1px dashed #a16207; border-left: 4px solid #eab308; border-radius: 6px; padding: 6px 8px; margin: 6px 0; font-weight: 600; color: #713f12; }
 .zahl { width: 4.5em; }
-.hinweisbox { background: #ecfeff; border: 1px solid #a5f3fc; border-radius: 6px; padding: 4px 8px; }
+.hinweisbox { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 4px 8px; }
 .luftbild { margin: 6px 0; }
 .luftbild > div { margin-top: 4px; }
 /* E4: Einstiegshilfe, Datenschutz, Fusszeile */
