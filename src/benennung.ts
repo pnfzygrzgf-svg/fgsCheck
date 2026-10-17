@@ -14,9 +14,18 @@
 //   Abbiegend «Abbieger: Bernstrasse von Osten» (Strasse des Arms, aus dem abgebogen wird,
 //   ZufahrtErgebnis.strasse; die Strasse des Streifens steht in ueberStrasse). Nicht geprüfte Richtungen haben keinen
 //   Strassennamen: gerade die Strasse des Streifens, abbiegend der Name des OSM-Wegs (wegName). Gleiche Namen an einem Streifen:
-//   die Herkunft in 16 Teilen («von Südsüdwesten»), dann «(2)», «(3)». Kurzform für Kartenbild und Bericht-Bild: «von S» bzw.
-//   «Abbieger von O». Die Gradzahl steht nur noch im Tooltip und in der Detailansicht einer Zufahrt (Zuordnung zu Rechnung und
+//   die Herkunft in 16 Teilen («von Südsüdwesten»), dann «(2)», «(3)». Kurzform «von S» bzw. «Abbieger von O» (zufahrtKurz;
+//   seit 17.10.2026 zeigt das Bericht-Bild statt ihrer die Nummer). Die Gradzahl steht nur noch im Tooltip und in der Detailansicht einer Zufahrt (Zuordnung zu Rechnung und
 //   Berner Karte); in der Fall-Datei stehen die Eingaben unter der Kennung des OSM-Wegs, nicht unter der Gradzahl.
+// - Nummern (17.10.2026, nach dem SichtweitenCheck): je Streifen 1, 2, 3 … im Uhrzeigersinn ab Norden nach der Herkunft
+//   (zufahrtAzimut, wie die Namen), gerade und abbiegende Zufahrten gemeinsam; bis 1° westlich von Nord zählt als Nord, nach
+//   dem exakten Winkel, bei Gleichstand in der Reihenfolge der Rechnung; «(2)» im Namen folgt den Nummern. Nummeriert werden
+//   die geprüften und die von Hand gestrichenen Zufahrten (Grund «hand»): Streichen lässt die übrigen Nummern stehen, die
+//   gestrichene behält ihre Nummer unter «Nicht geprüfte Richtungen» (ohne Schild auf der Karte, es gibt keine Fahrlinie).
+//   Aus den Daten entfallene Richtungen (Einbahn, Einmündung …) haben keine Nummer. Grenze: die Herkunft einer gestrichenen
+//   geraden Zufahrt kommt aus der Fahrtrichtung, nicht mehr aus den Sichtpunkten; auf kurvigen Strassen kann sie darum mit
+//   einer Nachbarin den Platz tauschen. Nur Anzeige, nicht in der Fall-Datei. Karte und Bericht-Bild zeigen das Nummernschild
+//   hinter dem letzten Sichtpunkt (schildLage), Panel und Bericht die Nummer vor dem Namen («1 Glockenstrasse von Süden»).
 
 import type { StreifenHand } from './fall'
 import type { P } from './geo'
@@ -71,7 +80,10 @@ export function streifenKurz(fgsId: string, hand: StreifenHand[] = []): string {
   return m ? m[1] : fgsId
 }
 
-export interface ZufahrtName { lang: string; kurz: string }
+export interface ZufahrtName {
+  lang: string; kurz: string
+  nr?: string                                // Nummer am Streifen (nur geprüfte Zufahrten): «1», «2» …
+}
 export interface ZufahrtNamen {
   zufahrt: Map<string, ZufahrtName>          // Schlüssel: ZufahrtErgebnis.zufahrt
   entfallen: Map<string, ZufahrtName>        // Schlüssel: `${zufahrt}|${kennung}` (Entfallen)
@@ -80,39 +92,99 @@ export interface ZufahrtNamen {
 /** Namen der Zufahrten und der nicht geprüften Richtungen eines Streifens, eindeutig (Regeln oben) */
 export function zufahrtNamen(s: { strasse: string; zufahrten: ZufahrtErgebnis[]; entfallen: Entfallen[]; bw?: number },
   wegName: (wid: string) => string | null = () => null): ZufahrtNamen {
-  type E = { key: string; liste: 'zufahrt' | 'entfallen'; az: number; abb: boolean; strasse: string }
+  type E = { key: string; liste: 'zufahrt' | 'entfallen'; az: number; abb: boolean; strasse: string; gestrichen?: boolean }
   const ohne = 'Strasse ohne Namen'
   const alle: E[] = [
     ...s.zufahrten.map((z): E => ({ key: z.zufahrt, liste: 'zufahrt', az: zufahrtAzimut(z, s.bw ?? 0), abb: z.art === 'abbiegend',
       strasse: z.strasse || (z.art === 'abbiegend' ? '' : s.strasse) || ohne })),
     ...s.entfallen.map((e): E => ({ key: `${e.zufahrt}|${e.kennung}`, liste: 'entfallen', az: herkunftAzimut(e.richtung), abb: e.art === 'abbiegend',
-      strasse: wegName(e.osmWeg) || (e.art === 'abbiegend' ? '' : s.strasse) || ohne })),
+      strasse: wegName(e.osmWeg) || (e.art === 'abbiegend' ? '' : s.strasse) || ohne, gestrichen: e.grund === GESTRICHEN })),
   ]
+  // Nummern: geprüfte und von Hand gestrichene Zufahrten im Uhrzeigersinn ab Norden (exakter Winkel), bei Gleichstand in der
+  // Reihenfolge der Rechnung; Reihenfolge für «(2)» im Namen: nummerierte nach Nummer, dann die übrigen wie gehabt
+  const folge = alle.map((x, i) => ({ x, i })).filter(({ x }) => x.liste === 'zufahrt' || x.gestrichen)
+    .sort((a, b) => { const d = nrAzimut(a.x.az) - nrAzimut(b.x.az); return Math.abs(d) < NR_GLEICH_GRAD ? a.i - b.i : d })
+    .map(({ i }) => i)
+  const nr = new Map(folge.map((i, j) => [i, String(j + 1)]))
+  const reihe = [...folge, ...alle.map((_, i) => i).filter(i => !nr.has(i))]
   const lang = (x: E, fein: boolean) => `${x.abb ? 'Abbieger: ' : ''}${x.strasse} von ${(fein ? R16[teil(x.az, 16)] : R8[teil(x.az, 8)])}`
   const kurz = (x: E, fein: boolean) => `${x.abb ? 'Abbieger ' : ''}von ${(fein ? R16K[teil(x.az, 16)] : R8K[teil(x.az, 8)])}`
   const eindeutig = (f: (x: E, fein: boolean) => string): string[] => {
     const grob = alle.map(x => f(x, false))
     const n = (t: string[], v: string) => t.filter(y => y === v).length
     const zwei = alle.map((x, i) => (n(grob, grob[i]) > 1 ? f(x, true) : grob[i]))
-    const zaehler = new Map<string, number>()
-    return zwei.map(t => {
-      if (n(zwei, t) < 2) return t
+    const zaehler = new Map<string, number>(), aus = [...zwei]
+    for (const i of reihe) {
+      const t = zwei[i]
+      if (n(zwei, t) < 2) continue
       const k = (zaehler.get(t) ?? 0) + 1
       zaehler.set(t, k)
-      return k === 1 ? t : `${t} (${k})`
-    })
+      if (k > 1) aus[i] = `${t} (${k})`
+    }
+    return aus
   }
   const l = eindeutig(lang), k = eindeutig(kurz)
   const aus: ZufahrtNamen = { zufahrt: new Map(), entfallen: new Map() }
-  alle.forEach((x, i) => aus[x.liste].set(x.key, { lang: l[i], kurz: k[i] }))
+  alle.forEach((x, i) => aus[x.liste].set(x.key, nr.has(i) ? { lang: l[i], kurz: k[i], nr: nr.get(i) } : { lang: l[i], kurz: k[i] }))
   return aus
 }
+
+/** Azimut für die Nummern: bis 1° westlich von Nord zählt als Nord (wie SichtweitenCheck), sonst 0–359° */
+const nrAzimut = (az: number) => (az > 359 ? az - 360 : az)
+/** Herkunft gleich (Reihenfolge der Rechnung) unter diesem Unterschied [°] */
+const NR_GLEICH_GRAD = 1e-6
+/** Grund einer von Hand gestrichenen Zufahrt («gibt es nicht»): mitnummeriert, damit die übrigen Nummern bleiben */
+const GESTRICHEN = 'hand'
 
 /** Name einer Zufahrt (Schlüssel «70», «a151»); unbekannt: die Gradzahl wie bisher */
 export const zufahrtLang = (n: ZufahrtNamen | undefined, zufahrt: string) => n?.zufahrt.get(zufahrt)?.lang ?? `Zufahrt ${zufahrt}`
 export const zufahrtKurz = (n: ZufahrtNamen | undefined, zufahrt: string) => n?.zufahrt.get(zufahrt)?.kurz ?? zufahrt
 export const entfallenLang = (n: ZufahrtNamen | undefined, e: { zufahrt: string; kennung: string }) =>
   n?.entfallen.get(`${e.zufahrt}|${e.kennung}`)?.lang ?? `Richtung ${e.zufahrt}`
+/** Nummer einer Zufahrt am Streifen («1»); unbekannt bzw. nicht geprüft: leer */
+export const zufahrtNr = (n: ZufahrtNamen | undefined, zufahrt: string) => n?.zufahrt.get(zufahrt)?.nr ?? ''
+/** Nummer einer nicht geprüften Richtung: nur von Hand gestrichene, sonst leer */
+export const entfallenNr = (n: ZufahrtNamen | undefined, e: { zufahrt: string; kennung: string }) =>
+  n?.entfallen.get(`${e.zufahrt}|${e.kennung}`)?.nr ?? ''
+/** Name einer nicht geprüften Richtung mit Nummer (nur von Hand gestrichene): «3 Glockenstrasse von Norden» */
+export const entfallenText = (n: ZufahrtNamen | undefined, e: { zufahrt: string; kennung: string }) => {
+  const nr = entfallenNr(n, e), l = entfallenLang(n, e)
+  return nr ? `${nr} ${l}` : l
+}
+/** Name mit Nummer für Fliesstext und Tooltips: «1 Glockenstrasse von Süden» (ohne Nummer nur der Name) */
+export const zufahrtText = (n: ZufahrtNamen | undefined, zufahrt: string) => {
+  const nr = zufahrtNr(n, zufahrt), l = zufahrtLang(n, zufahrt)
+  return nr ? `${nr} ${l}` : l
+}
+/** Zufahrten in der Reihenfolge ihrer Nummern (Tabellen in Panel und Bericht); ohne Nummer zuletzt, sonst wie gehabt */
+export const nachNr = <T extends { zufahrt: string }>(liste: T[], n: ZufahrtNamen | undefined): T[] => {
+  const k = (z: T) => Number(zufahrtNr(n, z.zufahrt)) || Number.MAX_SAFE_INTEGER
+  return [...liste].sort((a, b) => k(a) - k(b))
+}
+/** Erklärsatz zu den Nummern (Legende im Panel, Hilfe, Bericht) */
+export const NUMMERN_TEXT = 'Nummern: Zufahrten im Uhrzeigersinn ab Norden'
+/** Ein Einheitsvektor (E, N) bzw. null bei Länge 0 */
+const einheit = (a: P, b: P): P | null => {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy)
+  return l > 1e-6 ? [dx / l, dy / l] : null
+}
+/** Punkte vor dem Ende für die Richtung nach aussen (Sichtpunkte alle 2 m: rund 6 m) */
+const SCHILD_RUECK = 3
+/**
+ * Lage des Nummernschilds einer Zufahrt (Karte, Bericht-Bild): der letzte Sichtpunkt (ohne Sichtpunkte das Ende der Fahrlinie)
+ * und die Richtung nach aussen (Einheitsvektor E/N, entlang der Fahrlinie vom Streifen weg, aus den letzten Punkten). Das
+ * Schild steht um einen festen Abstand in Bildpunkten in dieser Richtung hinter dem Punkt: dort, wo die Fahrzeuge herkommen,
+ * ohne Streifen und Sichtpunkte zu verdecken; die Enden gerader und abbiegender Zufahrten liegen auseinander, die Anfänge am
+ * Streifen nicht. Ohne Punkte null.
+ */
+export function schildLage(z: { sichtpunkte: P[]; spur: P[] }): { p: P; aussen: P } | null {
+  const l = z.sichtpunkte.length ? z.sichtpunkte : z.spur
+  if (!l.length) return null
+  const p = l[l.length - 1]
+  const aussen = einheit(l[Math.max(0, l.length - 1 - SCHILD_RUECK)], p) ?? (l.length > 1 ? einheit(l[0], p) : null) ??
+    (z.spur.length > 1 ? einheit(z.spur[0], z.spur[z.spur.length - 1]) : null) ?? [0, 1]
+  return { p, aussen }
+}
 
 /** Namen der OSM-Wege (Overpass-Rohantwort): Id -> name */
 export function wegNamen(roh: unknown): Map<string, string> {

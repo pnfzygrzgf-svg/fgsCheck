@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
-  hindernisText, hindernisFarbe, FIXPUNKT_FARBE, PLAN_FARBEN, planMarke, type Werkzeug, type KartenHinweis, type Masslinie } from './Karte'
+  hindernisText, hindernisFarbe, FIXPUNKT_FARBE, PLAN_FARBEN, planMarke, NrMarke, type Werkzeug, type KartenHinweis, type Masslinie } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
 import { ladeOsmRoh, ladeUebergaenge, markierung, istFgs, overpassSperre, strassennamen, namenKarte, knotenLage, type OsmKnoten,
@@ -29,7 +29,8 @@ import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
   querungAusserhalb, querungWegText, querungVerschobenText, type OrtEntscheid, type Ausserhalb } from './abdeckung'
 import { koordText, vorzeichenText, vermassungTabelle, fixpunktMasse, type Vermassung } from './rechner/vermassung'
-import { streifenTitel, zufahrtNamen, zufahrtLang, entfallenLang, wegNamen, zufahrtHerkunft16, type ZufahrtNamen } from './benennung'
+import { streifenTitel, zufahrtNamen, zufahrtLang, zufahrtNr, zufahrtText, entfallenLang, entfallenNr, wegNamen, zufahrtHerkunft16, NUMMERN_TEXT, nachNr,
+  type ZufahrtNamen } from './benennung'
 import { planTitel, planFlaecheM2, planAlsAv, PLAN_NAME } from './rechner/planflaechen'
 import { fangen, fangRadiusM, FANG_PX, fixpunktVorschlaege, fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT, VORSCHLAG_M,
   type FixVorschlag } from './fixpunkt'
@@ -947,7 +948,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? []} streifenHand={fall?.streifenHand ?? []}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} fixpunkte={fall?.fixpunkte ?? []} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
         flaechenPlan={fall?.flaechenPlan ?? []}
-        masslinien={masslinien} zufahrtName={(fid, zf) => zufahrtLang(zNamen.get(fid), zf)} streifenTitel={titel}
+        masslinien={masslinien} zufahrtNamen={zNamen} streifenTitel={titel}
         onUebergang={pruefen} onZufahrt={setAuswahl}
         onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => setBearbeiten(b => (b === id ? null : id))}
         onAusschnitt={ausschnitt} hinweis={suchHinweis} kartenRef={kartenRef} />
@@ -1287,6 +1288,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             <span className="farbe rund" style={{ background: UEBERGANG_FARBE.unmarkiert }} />unmarkiert bzw. ohne Angabe (kein FGS)</li>
           <li><span className="farbe" style={{ background: '#fde047' }} />Streifen, <span className="farbe" style={{ background: '#0ea5e9' }} />Annäherungsbereiche,
             <span className="farbe" style={{ borderColor: LUFTBILD_FARBE, borderWidth: 2 }} />Balken aus dem Luftbild (gestrichelt: unsicher)</li>
+          <li><NrMarke nr="1" />{NUMMERN_TEXT} (je Streifen nach der Herkunft der Fahrzeuge, gerade und abbiegende gemeinsam; von Hand
+            gestrichene behalten ihre Nummer ohne Schild, aus den Daten entfallene Richtungen haben keine), Schild hinter dem letzten Sichtpunkt; <NrMarke nr="2" gewaehlt />gewählte Zufahrt (Klick
+            aufs Schild wählt sie)</li>
           <li><span className="farbe" style={{ background: STATUS_FARBE.frei }} />Sichtfeld frei, <span className="farbe" style={{ background: STATUS_FARBE.verdeckt }} />verdeckt
             (Auto-Parkfeld, Gebäude), <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_hindernis }} />Hecke, Mauer,
             übriges Hindernis, <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_baum }} />Baum,
@@ -1356,7 +1360,7 @@ function MasseAnzeige({ s, e, kopieren, namen, fixpunkte, vorschlaege, setzen, u
           {' '}{vorzeichenText(v.randAbstandM[0])}, Ende B {vorzeichenText(v.randAbstandM[1])}; Fahrbahn {f2(v.fahrbahnM!)} m</> : '–'}
           {' '}({v.randQuelle}).</div>
         {v.knoten.length > 0 && <div>Nächster Knoten stromauf (OSM, entlang der Strasse ab Streifenrand): {v.knoten.map(k =>
-          `${zufahrtLang(namen, k.zufahrt)} ${f1(k.abstandM)} m`).join('; ')}.</div>}
+          `${zufahrtText(namen, k.zufahrt)} ${f1(k.abstandM)} m`).join('; ')}.</div>}
         <div><b>Vermassung ab Fixpunkt</b> (längs = entlang der Balken bzw. der Fahrbahn, quer = senkrecht dazu){' '}
           <button className="zweit klein" onClick={setzen} title={'Fixpunkt auf der Karte setzen (fängt Gebäudeecken und Punkte der AV)'}>
             Fixpunkt setzen</button></div>
@@ -1463,12 +1467,13 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
         <table className="zufahrten">
           <thead><tr><th>Zufahrt</th><th>Tempo</th><th>Sichtweite</th><th>vom Rand</th><th>Status</th></tr></thead>
           <tbody>
-            {s.zufahrten.map(z => (
+            {nachNr(s.zufahrten, namen).map(z => (
               <tr key={z.zufahrt} className={zufahrtKey(z) === auswahl ? 'aktiv' : ''}
                 title={`Fahrtrichtung ${z.richtung}° (Zufahrt «${z.zufahrt}», ab Osten gegen den Uhrzeigersinn); Fahrt von ${zufahrtHerkunft16(z, s.bw)}` +
                   (z.deckung ? `. ${GEDECKT_TITEL}` : '')}
                 onClick={() => setAuswahl(zufahrtKey(z) === auswahl ? null : zufahrtKey(z))}>
-                <td><b>{zufahrtLang(namen, z.zufahrt)}</b>{z.deckung && <span className="klein"> (mitgeprüft)</span>}<div className="klein">{ART[z.art] ?? z.art}
+                <td><NrMarke nr={zufahrtNr(namen, z.zufahrt)} gewaehlt={zufahrtKey(z) === auswahl} /><b>{zufahrtLang(namen, z.zufahrt)}</b>
+                  {z.deckung && <span className="klein"> (mitgeprüft)</span>}<div className="klein">{ART[z.art] ?? z.art}
                   {z.art === 'abbiegend' && z.ueberStrasse ? `, weiter auf ${z.ueberStrasse}` : ''}</div></td>
                 <td>{z.tempo}<div className={z.tempoQuelle === 'Ersatz' ? 'klein warnung' : 'klein'}>
                   {z.tempoQuelle === 'Ersatz' ? 'Annahme' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : 'OSM'}</div></td>
@@ -1482,7 +1487,8 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           </tbody>
         </table>
       )}
-      {gewaehlteZ && gewaehlteZ.fgsId === s.fgsId && <ZufahrtDetail z={gewaehlteZ} name={zufahrtLang(namen, gewaehlteZ.zufahrt)} fall={fall}
+      {gewaehlteZ && gewaehlteZ.fgsId === s.fgsId && <ZufahrtDetail z={gewaehlteZ} name={zufahrtLang(namen, gewaehlteZ.zufahrt)}
+        nr={zufahrtNr(namen, gewaehlteZ.zufahrt)} fall={fall}
         aendern={aendern} spurZeichnen={spurZeichnen} />}
       {s.entfallen.length > 0 && (
         <details>
@@ -1490,7 +1496,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           <table><tbody>
             {s.entfallen.map(e => (
               <tr key={e.kennung + e.zufahrt} title={`Fahrtrichtung ${e.richtung}° (ab Osten gegen den Uhrzeigersinn)`}>
-                <td>{entfallenLang(namen, e)}</td><td>{GRUND[e.grund] ?? e.grund}<div className="klein">{e.quelle}</div>
+                <td><NrMarke nr={entfallenNr(namen, e)} />{entfallenLang(namen, e)}</td><td>{GRUND[e.grund] ?? e.grund}<div className="klein">{e.quelle}</div>
                 {e.grund === 'hand' && <button className="zweit klein" onClick={() => aendern(f => {
                   const k = zufahrtSchluessel(s.fgsId, e.kennung)
                   if (f.zufahrten[k]) delete f.zufahrten[k].streichen
@@ -1504,8 +1510,8 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
   )
 }
 
-function ZufahrtDetail({ z, name, fall, aendern, spurZeichnen }: {
-  z: ZufahrtErgebnis; name: string; fall: Fall; aendern: (f: (x: Fall) => Fall) => void; spurZeichnen: (key: string) => void
+function ZufahrtDetail({ z, name, nr, fall, aendern, spurZeichnen }: {
+  z: ZufahrtErgebnis; name: string; nr: string; fall: Fall; aendern: (f: (x: Fall) => Fall) => void; spurZeichnen: (key: string) => void
 }) {
   const key = zufahrtSchluessel(z.fgsId, z.kennung)
   const zh = fall.zufahrten[key] ?? {}
@@ -1519,7 +1525,7 @@ function ZufahrtDetail({ z, name, fall, aendern, spurZeichnen }: {
   const kreis = spur?.art === 'B' ? linieKreis(spur.linie) : null
   return (
     <div className="detail">
-      <h3>{name} <span className="klein">(Fahrtrichtung {z.richtung}°, Kennung {z.kennung})</span></h3>
+      <h3><NrMarke nr={nr} gewaehlt />{name} <span className="klein">(Fahrtrichtung {z.richtung}°, Kennung {z.kennung})</span></h3>
       <table className="zahlen"><tbody>
         <tr><td>Tempo</td><td>
           <select value={zh.tempo ?? ''} onChange={e => setze({ tempo: e.target.value ? Number(e.target.value) : undefined })}>

@@ -24,8 +24,9 @@ import { STATUS_FARBE, STRICH_GEDECKT, UEBERGANG_TEXT, INSEL_FARBE, STRICH_INSEL
 import { GRUND, ART, STATUS, statusText, f1, f2 } from './texte'
 import { koordText, vorzeichenText, fixpunktMasse } from './rechner/vermassung'
 import { fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT } from './fixpunkt'
-import { FIXPUNKT_FARBE, PLAN_FARBEN, STRICH_PLAN } from './Karte'
-import { streifenTitel, streifenKurz, zufahrtLang, zufahrtKurz, entfallenLang, type ZufahrtNamen } from './benennung'
+import { FIXPUNKT_FARBE, PLAN_FARBEN, STRICH_PLAN, NrMarke } from './Karte'
+import { streifenTitel, zufahrtLang, zufahrtNr, zufahrtText, entfallenNr, entfallenText, nachNr, schildLage, NUMMERN_TEXT, type ZufahrtNamen }
+  from './benennung'
 
 /** Zufahrt-Namen je Streifen (benennung.zufahrtNamen, in der App gerechnet) */
 type Namen = Map<string, ZufahrtNamen>
@@ -38,6 +39,8 @@ const BILD_PX_MAX = 1400               // Breite des WMS-Bilds höchstens (Aufl�
 const BILD_PX_MIN = 1200               // und mindestens: A4 hoch, Kartenbreite rund 186 mm -> rund 164 dpi im Druck
 const BILD_ZEITGRENZE_MS = 20000       // danach gilt das Bild als nicht geladen (Drucken ohne Hintergrund)
 const VB = 1000                        // Breite der SVG-Zeichnung in Einheiten
+const SCHILD_R = 13                    // Nummernschild im Kartenbild: Radius (Einheiten der SVG-Zeichnung, wie SichtweitenCheck)
+const SCHILD_AB = 24                   // Mitte so weit hinter dem letzten Sichtpunkt (Sichtpunkt r 5), wie auf der Karte
 
 type Box = [number, number, number, number]
 
@@ -118,7 +121,27 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
   const halo = { stroke: '#ffffff', strokeWidth: 5, paintOrder: 'stroke' as const, strokeLinejoin: 'round' as const }
   // gedeckte Abbiegezufahrten (nur mit GEDECKT_RECHNEN, standardmässig aus), beschriftet wie im Bild
   const gedeckte = r.streifen.flatMap(st => st.zufahrten).filter(z => z.deckung)
-    .map(z => `${r.streifen.length > 1 ? `${streifenTitel(z.fgsId, hand)}, ` : ''}${zufahrtLang(namen.get(z.fgsId), z.zufahrt)}`)
+    .map(z => `${r.streifen.length > 1 ? `${streifenTitel(z.fgsId, hand)}, ` : ''}${zufahrtText(namen.get(z.fgsId), z.zufahrt)}`)
+  // Nummernschilder (benennung.ts): hinter dem letzten Sichtpunkt, bei mehreren Streifen mit dem Streifen daneben; Schlüssel der
+  // Nummern unter dem Bild (je Streifen in der Reihenfolge der Nummern)
+  const mehrere = r.streifen.length > 1
+  const schilder = r.streifen.flatMap(st => st.zufahrten.flatMap(z => {
+    const nr = zufahrtNr(namen.get(st.fgsId), z.zufahrt), lage = schildLage(z)
+    if (!nr || !lage) return []
+    const [x, y] = xy(lage.p).split(',').map(Number)
+    // am Bildrand ganz ins Bild (der Rand RAND_M reicht bei grossen Ausschnitten nicht immer für das Schild)
+    const imBild = (v: number, max: number) => Math.min(max - SCHILD_R - 2, Math.max(SCHILD_R + 2, v))
+    return [{ key: z.fgsId + z.zufahrt, nr, x: imBild(x + lage.aussen[0] * SCHILD_AB, VB), y: imBild(y - lage.aussen[1] * SCHILD_AB, vh),
+      streifen: mehrere ? streifenTitel(st.fgsId, hand) : null }]
+  }))
+  // von Hand gestrichene Zufahrten behalten ihre Nummer (ohne Schild): im Schlüssel mit «(gestrichen)»
+  const schluessel = r.streifen.map(st => {
+    const n = namen.get(st.fgsId)
+    const teile = [...st.zufahrten.map(z => ({ nr: Number(zufahrtNr(n, z.zufahrt)), t: zufahrtText(n, z.zufahrt) })),
+      ...st.entfallen.filter(e => entfallenNr(n, e)).map(e => ({ nr: Number(entfallenNr(n, e)), t: `${entfallenText(n, e)} (gestrichen)` }))]
+      .sort((a, b) => (a.nr || Number.MAX_SAFE_INTEGER) - (b.nr || Number.MAX_SAFE_INTEGER))
+    return teile.length ? `${mehrere ? `${streifenTitel(st.fgsId, hand)}: ` : ''}${teile.map(x => x.t).join(', ')}` : ''
+  }).filter(Boolean)
   return (
     <figure className="bericht-karte">
       <div className="bericht-bild" style={{ aspectRatio: `${bw} / ${bh}` }}>
@@ -177,14 +200,13 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
               })}
             </g>
           ))}
-          {r.streifen.flatMap(st => st.zufahrten).map(z => {
-            const p = z.sichtpunkte[z.sichtpunkte.length - 1]
-            if (!p) return null
-            const [x, y] = xy(p).split(',').map(Number)
-            const mehrere = r.streifen.length > 1
-            return <text key={'t' + z.fgsId + z.zufahrt} x={x + 8} y={y - 8} fontSize={20} fontWeight={700} fill="#000000" {...halo}>
-              {mehrere ? `${streifenKurz(z.fgsId, hand)}: ` : ''}{zufahrtKurz(namen.get(z.fgsId), z.zufahrt)}</text>
-          })}
+          {/* Nummernschilder wie auf der Karte: weisser Kreis, dunkler Rand und Zahl (im Bericht keine gewählte Zufahrt) */}
+          {schilder.map(sc => <g key={'nr' + sc.key}>
+            <circle cx={sc.x} cy={sc.y} r={SCHILD_R} fill="#ffffff" stroke="#0f172a" strokeWidth={2.5} />
+            <text x={sc.x} y={sc.y} fontSize={15} fontWeight={700} fill="#0f172a" textAnchor="middle" dominantBaseline="central">{sc.nr}</text>
+            {sc.streifen && <text x={sc.x + SCHILD_R + 4} y={sc.y} fontSize={15} fontWeight={700} fill="#000000" dominantBaseline="central"
+              {...halo}>{sc.streifen}</text>}
+          </g>)}
           {linien.map((l, i) => {
             const [x0, y0] = xy(l.von).split(',').map(Number), [x1, y1] = xy(l.bis).split(',').map(Number)
             return <g key={'m' + i}>
@@ -222,9 +244,11 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
           <button className="zweit klein" onClick={() => setVersuch(v => v + 1)}>erneut versuchen</button>{' '}</span>}
         Ausschnitt {Math.round(wM)} × {Math.round(hM)} m, Norden oben (LV95). Gelb: Streifen; blau: Annäherungsbereiche; Sichtfelder umrandet in
         der Farbe des Status (durchgezogen: frei, gestrichelt: verdeckt, gepunktet: nicht geprüft); schraffiert: Hindernis im Sichtfeld;
-        schwarze Punkte: Sichtpunkte auf der Fahrlinie (weiss gestrichelt), beschriftet am letzten Sichtpunkt mit der Zufahrt; farbige
-        Flächen: Hindernisse (Parkfelder, Bäume, Hecken, Mauern). Zufahrten heissen nach der Strasse und der Herkunft der Fahrzeuge
-        (Himmelsrichtung, im Bild kurz «von S»), Abbieger nach der Strasse, aus der sie abbiegen.
+        schwarze Punkte: Sichtpunkte auf der Fahrlinie (weiss gestrichelt), hinter dem letzten Sichtpunkt die Nummer der Zufahrt; farbige
+        Flächen: Hindernisse (Parkfelder, Bäume, Hecken, Mauern).
+        {schluessel.length > 0 && <> {NUMMERN_TEXT} nach der Herkunft der Fahrzeuge, gerade und abbiegende
+          gemeinsam{mehrere ? ', je Streifen (Streifen neben der Nummer)' : ''}: {schluessel.join('; ')}.</>} Zufahrten heissen
+        nach der Strasse und der Herkunft der Fahrzeuge (Himmelsrichtung), Abbieger nach der Strasse, aus der sie abbiegen.
         {(r.inseln ?? []).length > 0 && <> Grün gestrichelt: {INSEL_TEXT} (crossing:island in OSM und Lücke zwischen den Balken im
           Luftbild).</>}
         {hindernisse.some(h => h.art === 'insel') && <> Grün: Insel von Hand.</>}
@@ -245,7 +269,7 @@ function zufahrtName(r: FallRechnung | null, key: string, namen: Namen, hand: St
   const s = r?.streifen.find(x => x.fgsId === fid)
   const z = s?.zufahrten.find(x => x.kennung === kennung), e = s?.entfallen.find(x => x.kennung === kennung)
   const t = streifenTitel(fid, hand)
-  return z ? `${t}, ${zufahrtLang(namen.get(fid), z.zufahrt)}` : e ? `${t}, ${entfallenLang(namen.get(fid), e)}` :
+  return z ? `${t}, ${zufahrtText(namen.get(fid), z.zufahrt)}` : e ? `${t}, ${entfallenText(namen.get(fid), e)}` :
     `${t}, Zufahrt mit Kennung ${kennung} (ohne passende Zufahrt)`
 }
 
@@ -305,7 +329,7 @@ function hinweisListe(r: FallRechnung, fall: Fall, luftbildStand: LuftbildStand,
   if (r.doppelt.length) aus.push(`${r.doppelt.length} Parkierung(en) von Hand decken sich mit amtlichen Parkfeldern (zählen doppelt?).`)
   for (const s of r.streifen) {
     for (const a of s.annahmen) aus.push(`${t(s.fgsId)}: ${a}`)
-    for (const z of s.zufahrten) for (const a of z.annahmen) aus.push(`${t(s.fgsId)}, ${zufahrtLang(namen.get(s.fgsId), z.zufahrt)}: ${a}`)
+    for (const z of s.zufahrten) for (const a of z.annahmen) aus.push(`${t(s.fgsId)}, ${zufahrtText(namen.get(s.fgsId), z.zufahrt)}: ${a}`)
   }
   if (!fall.hindernisse.length && !r.vorschlaege.some(v => v.hindernis.quelle === 'kataster'))
     aus.push('Keine Hindernisse eingegeben und keine amtlichen Parkfelder: geprüft wurden nur Gebäude (AV).')
@@ -337,7 +361,7 @@ function LageTabelle({ s, fixpunkte, namen, plan = false }: { s: StreifenErgebni
         Fahrbahnrand entlang der Achse (+ vor dem Rand, − darüber hinaus): {v.randAbstandM ? `Ende A ${vorzeichenText(v.randAbstandM[0])}, ` +
         `Ende B ${vorzeichenText(v.randAbstandM[1])}; Fahrbahn ${f2(v.fahrbahnM!)} m` : '–'} ({v.randQuelle}).
         {v.knoten.length > 0 && <> Nächster Knoten stromauf (OSM, entlang der Strasse ab Streifenrand): {v.knoten.map(k =>
-          `${zufahrtLang(namen, k.zufahrt)} ${f1(k.abstandM)} m`).join('; ')}.</>}
+          `${zufahrtText(namen, k.zufahrt)} ${f1(k.abstandM)} m`).join('; ')}.</>}
         {' '}Ecken wie in der Rechnung (Enden parallel zur Fahrbahn bzw. zu den Balken); Randsteine nach AV (Bestand){plan ?
           ' bzw. nach den Flächen (Plan) von Hand' : ''}.</p>
       {fixpunkte.length > 0 && <>
@@ -373,9 +397,9 @@ function StreifenTabelle({ s, fall, ausserhalb, namen }: { s: StreifenErgebnis; 
         <table className="bericht-tabelle">
           <thead><tr><th>Zufahrt</th><th>Art</th><th>Tempo</th><th>Sichtweite</th><th>Status</th><th>Hindernisse im Sichtfeld</th></tr></thead>
           <tbody>
-            {s.zufahrten.map(z => (
+            {nachNr(s.zufahrten, namen).map(z => (
               <tr key={z.zufahrt}>
-                <td><b>{zufahrtLang(namen, z.zufahrt)}</b>{z.deckung && <span className="klein"> (mitgeprüft)</span>}
+                <td><NrMarke nr={zufahrtNr(namen, z.zufahrt)} /><b>{zufahrtLang(namen, z.zufahrt)}</b>{z.deckung && <span className="klein"> (mitgeprüft)</span>}
                   {z.art === 'abbiegend' && z.ueberStrasse ? <div className="klein">weiter auf {z.ueberStrasse}</div> : null}</td>
                 <td>{ART[z.art] ?? z.art}</td>
                 <td>{z.tempo} km/h<div className="klein">{z.tempoQuelle === 'Ersatz' ? 'Annahme (ohne Angabe)' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : 'OSM'}</div></td>
@@ -389,7 +413,7 @@ function StreifenTabelle({ s, fall, ausserhalb, namen }: { s: StreifenErgebnis; 
         </table>
       )}
       {s.entfallen.length > 0 && (
-        <p className="klein">Nicht geprüfte Richtungen: {s.entfallen.map(e => `${entfallenLang(namen, e)} – ${GRUND[e.grund] ?? e.grund}`).join('; ')}.</p>
+        <p className="klein">Nicht geprüfte Richtungen: {s.entfallen.map(e => `${entfallenText(namen, e)} – ${GRUND[e.grund] ?? e.grund}`).join('; ')}.</p>
       )}
       <LageTabelle s={s} fixpunkte={fall.fixpunkte ?? []} namen={namen} plan={!!fall.flaechenPlan?.length} />
     </section>

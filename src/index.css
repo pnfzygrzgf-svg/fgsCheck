@@ -121,6 +121,19 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .masstext { pointer-events: none; }
 .masstext span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-size: 12px; font-weight: 700;
   color: #be185d; text-shadow: 0 0 2px #ffffff, 0 0 2px #ffffff, 0 0 4px #ffffff; }
+/* Nummernschild einer Zufahrt (17.10.2026, wie .arm-nr im SichtweitenCheck): weisser Kreis, dunkler Rand und Zahl; gewählte
+   Zufahrt Bernstein mit weisser Zahl. Leaflet setzt .leaflet-marker-icon auf display: block: Zahl über die Zeilenhöhe
+   (22 px − 2 × 2 px Rand) und text-align zentriert. Bei mehreren Streifen rechts daneben der Streifen (weiss mit Halo). */
+.zufahrt-nr { box-sizing: border-box; background: #ffffff; border: 2px solid #0f172a; border-radius: 50%; color: #0f172a; cursor: pointer;
+  text-align: center; font: 700 12px/18px system-ui, sans-serif; box-shadow: 0 0 2px #000; }
+.zufahrt-nr span { display: block; }
+.zufahrt-nr.gewaehlt { background: var(--accent); color: #ffffff; }
+.zufahrt-nr .nr-streifen { position: absolute; left: 24px; top: 1px; white-space: nowrap; font-size: 11px; font-weight: 600; color: #ffffff;
+  text-shadow: 0 0 2px #0f172a, 0 0 2px #0f172a, 0 0 4px #0f172a; pointer-events: none; }
+/* als Marke im Text (Panel, Legende, Bericht) vor dem Namen */
+span.zufahrt-nr { display: inline-block; width: 18px; height: 18px; font-size: 10px; line-height: 14px; vertical-align: -4px; margin-right: 4px;
+  cursor: inherit; box-shadow: none; }
+.bericht-seite span.zufahrt-nr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .masse .fixmasse td, .masse .fixmasse th { vertical-align: top; text-align: left; padding-right: 8px; }
 .hinweisbox { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 4px 8px; }
 .luftbild { margin: 6px 0; }

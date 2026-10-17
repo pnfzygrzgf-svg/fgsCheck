@@ -26,8 +26,12 @@ export function Anleitung() {
         <li><b>Ergebnis lesen:</b> je Streifen die Zufahrten mit Tempo, Sichtweite und Status (frei bzw. verdeckt und wodurch). Zeile
           anklicken: Sichtfeld, Sichtpunkte und Hindernisse auf der Karte. Hinweise in Braun sind Annahmen («aus OSM, prüfen»,
           «Annahme» beim Tempo). Zufahrten heissen nach der Strasse und der Herkunft der Fahrzeuge als Himmelsrichtung (z. B.
-          «Glockenstrasse von Süden», im Kartenbild des Berichts kurz «von S»), Abbieger nach der Strasse, aus der sie abbiegen; die
-          Fahrtrichtung in Grad zeigt der Tooltip. Streifen von Hand heissen «Streifen 1», «Streifen 2» … oder wie in der Liste benannt.</li>
+          «Glockenstrasse von Süden»), Abbieger nach der Strasse, aus der sie abbiegen; die
+          Fahrtrichtung in Grad zeigt der Tooltip. Dazu tragen sie eine Nummer, auf der Karte als Schild hinter dem letzten
+          Sichtpunkt, im Panel und im Bericht vor dem Namen: je Streifen im Uhrzeigersinn ab Norden nach der Herkunft, gerade und
+          abbiegende gemeinsam. Von Hand gestrichene Zufahrten behalten ihre Nummer (unter «Nicht geprüfte Richtungen», ohne
+          Schild), so bleiben die übrigen Nummern gleich; aus den Daten entfallene Richtungen haben keine Nummer. Klick aufs Schild
+          wählt die Zufahrt, nochmals Klick hebt die Auswahl auf. Streifen von Hand heissen «Streifen 1», «Streifen 2» … oder wie in der Liste benannt.</li>
         <li><b>Eingaben korrigieren:</b> unter «Eingaben von Hand» Parkfelder, Bäume, Hecken, Mauern und übrige Hindernisse auf dem
           Luftbild zeichnen, ebenso eine Insel, die den Streifen teilt (ersetzt eine nach OSM und Luftbild angenommene Insel, grün gestrichelt); je
           Zufahrt Tempo, Fahrlinie oder «gibt es nicht»; je Streifen Lichtsignal bzw. «kein FGS». Vorschläge aus OSM (gestrichelt) zählen erst nach

@@ -310,6 +310,9 @@ wählen und als Custom domain `fgscheck.ch` eintragen. Der Referenzvergleich (`s
   Namen für Streifen von Hand, Zufahrten nach Strasse und Herkunft benannt, verständlichere Annahmen im Bericht.
   Flächen (Plan) von Hand: geplante Trottoirränder, Fahrbahn und Inseln ersetzen in der Rechnung die AV-Bodenbedeckung.
   Fall-Dateien mit Flächen (Plan) haben die Version 2 (ältere Fassungen lehnen sie ab), alle übrigen bleiben Version 1.
+  Zufahrten tragen Nummern (je Streifen im Uhrzeigersinn ab Norden nach der Herkunft) als Schild auf der Karte und im
+  Kartenbild des Berichts sowie vor dem Namen in Panel und Bericht; von Hand gestrichene Zufahrten behalten ihre Nummer;
+  nur Anzeige, nicht in der Fall-Datei.
 
 ## Lizenz
 

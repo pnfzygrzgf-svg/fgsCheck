@@ -13,6 +13,7 @@ import { planTitel, planFlaecheM2, PLAN_NAME } from './rechner/planflaechen'
 import { fixpunktName, ART_TEXT } from './fixpunkt'
 import { wgs, lv95, type P } from './geo'
 import Ortssuche from './Ortssuche'
+import { schildLage, zufahrtNr, zufahrtText, type ZufahrtNamen } from './benennung'
 import { ortZoom, type Ort } from './daten/ortssuche'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
@@ -123,6 +124,24 @@ const fixIcon = (blass: boolean) => L.divIcon({ className: 'fixpunkt' + (blass ?
     `fill-opacity="0.85" stroke="${FIXPUNKT_FARBE}" stroke-width="1.5"/><path d="M3 3L11 11M11 3L3 11" stroke="${FIXPUNKT_FARBE}" ` +
     'stroke-width="1.5"/></svg>' })
 
+/** Mitte des Nummernschilds so weit hinter dem letzten Sichtpunkt [px], auf jedem Zoom gleich (Schild 22 px, Sichtpunkt r 5 px) */
+const SCHILD_PX = 20
+/**
+ * Nummernschild einer Zufahrt (benennung.ts): weisser Kreis, dunkler Rand und Zahl, gewählt Bernstein; bei mehreren Streifen
+ * daneben der Streifen. Der Marker steht auf dem letzten Sichtpunkt, das Schild um SCHILD_PX nach aussen versetzt (Ankerpunkt;
+ * Bildschirm: y nach Süden).
+ */
+const nrIcon = (nr: string, aussen: P, gewaehlt: boolean, streifen: string | null) => L.divIcon({
+  className: 'zufahrt-nr' + (gewaehlt ? ' gewaehlt' : ''), iconSize: [22, 22],
+  iconAnchor: [11 - aussen[0] * SCHILD_PX, 11 + aussen[1] * SCHILD_PX],
+  html: `<span>${esc(nr)}</span>` + (streifen ? `<span class="nr-streifen">${esc(streifen)}</span>` : ''),
+})
+
+/** Nummer einer Zufahrt als Marke im Text (Panel, Legende, Bericht) vor dem Namen; ohne Nummer nichts */
+export function NrMarke({ nr, gewaehlt = false }: { nr: string; gewaehlt?: boolean }) {
+  return nr ? <span className={'zufahrt-nr' + (gewaehlt ? ' gewaehlt' : '')}>{nr}</span> : null
+}
+
 const ll = (p: P): L.LatLngTuple => wgs(p[0], p[1])
 /** Stil eines Übergangs (gewählt: grösser, dunkler Rand; vermutlich markiert: gestrichelt, blasser) */
 const markerStil = (mk: string, g: boolean): L.CircleMarkerOptions => ({
@@ -170,7 +189,7 @@ export default function Karte(props: {
   fixVorschlaege: { p: P; text: string }[]           // vorgeschlagene Fixpunkte (blass; Tooltip, Klick übernimmt)
   onFixVorschlag?: (p: P) => void                    // Klick auf einen vorgeschlagenen Fixpunkt: übernehmen
   masslinien: Masslinie[]
-  zufahrtName: (fgsId: string, zufahrt: string) => string   // Anzeige (benennung.ts): Strasse und Herkunft
+  zufahrtNamen: Map<string, ZufahrtNamen>                  // Anzeige (benennung.ts) je Streifen: Nummer, Strasse und Herkunft
   streifenTitel: (fgsId: string) => string                 // Anzeige: Name bzw. «Streifen 1»
   onUebergang: (k: OsmKnoten) => void
   onZufahrt: (key: string | null) => void
@@ -235,12 +254,13 @@ export default function Karte(props: {
     namenPane.style.pointerEvents = 'none'
     const eb: Record<string, L.LayerGroup> = {
       av: L.layerGroup().addTo(map), plan: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
+      nr: L.layerGroup().addTo(map),
       hind: L.layerGroup().addTo(map), fix: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
       standort: L.layerGroup().addTo(map),
     }
     L.control.layers({ 'Luftbild (SWISSIMAGE)': luftbild, 'Landeskarte (swisstopo)': landeskarte }, { 'Amtliche Vermessung': eb.av,
       'Flächen (Plan)': eb.plan,
-      'OSM-Übergänge': eb.osm, 'Strassennamen (OSM)': eb.namen, 'Sichtfelder': eb.sicht, 'Hindernisse': eb.hind,
+      'OSM-Übergänge': eb.osm, 'Strassennamen (OSM)': eb.namen, 'Sichtfelder': eb.sicht, 'Nummern der Zufahrten': eb.nr, 'Hindernisse': eb.hind,
       'Fixpunkte und Masse': eb.fix },
     { collapsed: true }).addTo(map)
     L.control.scale({ imperial: false }).addTo(map)
@@ -385,7 +405,7 @@ export default function Karte(props: {
       for (const z of s.zufahrten) {
         const farbe = STATUS_FARBE[z.status] ?? '#10b981'
         L.polygon(multiLl(z.feld), { color: farbe, weight: 1, fillColor: farbe, fillOpacity: 0.1, interactive: !cb.current.werkzeug })
-          .bindTooltip(`Sichtfeld ${esc(cb.current.zufahrtName(z.fgsId, z.zufahrt))}${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(z.status.replace('_', ' '))}`, { sticky: true })
+          .bindTooltip(`Sichtfeld ${esc(zufahrtText(cb.current.zufahrtNamen.get(z.fgsId), z.zufahrt))}${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(z.status.replace('_', ' '))}`, { sticky: true })
           .on('click', () => { if (!cb.current.werkzeug) cb.current.onZufahrt(zufahrtKey(z)) }).addTo(eb.sicht)
       }
       for (const a of s.ann) L.polygon(a.map(r => r.map(ll)), { color: '#0ea5e9', weight: 1, fillOpacity: 0.4, interactive: false }).addTo(eb.sicht)
@@ -408,7 +428,30 @@ export default function Karte(props: {
         .bindTooltip(`Streifen aus Luftbild (${lb.befund === 'erkannt' ? 'erkannt' : 'unsicher'}${lb.nurVorschlag ? ', mit Flächen (Plan) nur Vorschlag' : ''}), prüfen: ${t.nBalken} Balken, ` +
           `Balkenlänge ${t.bw.toFixed(1).replace('.', ',')} m`, { sticky: true }).addTo(eb.sicht)
     }
-  }, [rechnung, werkzeug])
+  }, [rechnung, werkzeug, props.zufahrtNamen])
+
+  // Nummernschilder der Zufahrten (benennung.ts) hinter dem letzten Sichtpunkt; Klick wählt die Zufahrt wie die Zeile im Panel
+  // (auf der gewählten: Auswahl aufheben); gestrichene Zufahrten ohne Schild (keine Fahrlinie);
+  // Tooltip mit dem vollen Namen; die gewählte Zufahrt Bernstein und zuoberst. Beim Zeichnen nicht anklickbar (Klick an die Karte).
+  const zNamen = props.zufahrtNamen
+  useEffect(() => {
+    const eb = ebenenRef.current
+    if (!eb) return
+    eb.nr.clearLayers()
+    if (!rechnung) return
+    const mehrere = rechnung.streifen.length > 1
+    for (const s of rechnung.streifen) for (const z of s.zufahrten) {
+      const nr = zufahrtNr(zNamen.get(s.fgsId), z.zufahrt), lage = schildLage(z)
+      if (!nr || !lage) continue
+      const g = zufahrtKey(z) === auswahl, titel = mehrere ? cb.current.streifenTitel(s.fgsId) : null
+      L.marker(ll(lage.p), { icon: nrIcon(nr, lage.aussen, g, titel), interactive: !werkzeug, keyboard: false, zIndexOffset: g ? 1000 : 0 })
+        .bindTooltip(`${titel ? `${esc(titel)}: ` : ''}<b>${esc(zufahrtText(zNamen.get(s.fgsId), z.zufahrt))}</b>` +
+          `${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(z.status.replace('_', ' '))}` +
+          `<br><i>Klick: ${g ? 'Auswahl aufheben' : 'Zufahrt wählen'}</i>`, { direction: 'top', offset: [lage.aussen[0] * SCHILD_PX, -lage.aussen[1] * SCHILD_PX - 10] })
+        .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onZufahrt(g ? null : zufahrtKey(z)) })
+        .addTo(eb.nr)
+    }
+  }, [rechnung, auswahl, werkzeug, zNamen])
 
   // Hindernisse (von Hand, bestätigt) und Vorschläge (gestrichelt, «aus OSM, prüfen»)
   useEffect(() => {

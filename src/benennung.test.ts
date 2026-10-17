@@ -1,6 +1,7 @@
 // Tests Benennung (16.10.2026): Streifen von Hand (Name, «Streifen 1»), Zufahrten nach Strasse und Herkunft statt Gradzahl.
 import { describe, expect, it } from 'vitest'
-import { herkunftAzimut, herkunft8, herkunft16, streifenTitel, streifenKurz, zufahrtNamen, zufahrtLang, entfallenLang, wegNamen } from './benennung'
+import { herkunftAzimut, herkunft8, herkunft16, streifenTitel, streifenKurz, zufahrtNamen, zufahrtLang, entfallenLang, wegNamen, zufahrtNr,
+  zufahrtText, nachNr, schildLage, NUMMERN_TEXT, entfallenNr, entfallenText } from './benennung'
 import { fallLesen, fallSchreiben, leererFall, eingabenSchluessel, STREIFEN_NAME_MAX, type StreifenHand } from './fall'
 import type { ZufahrtErgebnis } from './rechner/typen'
 import type { Entfallen } from './rechner/zufahrten'
@@ -76,5 +77,92 @@ describe('Zufahrten: Strasse und Herkunft statt Gradzahl', () => {
     expect([...wegNamen({ elements: [{ type: 'way', id: 7, tags: { name: 'Glockenstrasse' } }, { type: 'way', id: 8, tags: {} },
       { type: 'node', id: 9, tags: { name: 'x' } }] })]).toEqual([['7', 'Glockenstrasse']])
     expect(wegNamen(null).size).toBe(0)
+  })
+})
+
+// Nummern der Zufahrten (17.10.2026, wie SichtweitenCheck): je Streifen im Uhrzeigersinn ab Norden nach der Herkunft
+describe('Nummern der Zufahrten', () => {
+  const nrn = (n: ReturnType<typeof zufahrtNamen>, keys: string[]) => keys.map(k => zufahrtNr(n, k))
+  it('im Uhrzeigersinn ab Norden, unabhängig von der Reihenfolge der Rechnung', () => {
+    // Fahrtrichtung 90 = nach Norden, Herkunft Süden; 0 Herkunft Westen; 270 Herkunft Norden; 180 Herkunft Osten
+    const n = zufahrtNamen({ strasse: 'A', zufahrten: [z('90', 90, 'beide', 'A'), z('0', 0, 'beide', 'B'), z('270', 270, 'beide', 'A'),
+      z('180', 180, 'beide', 'B')], entfallen: [] })
+    expect(nrn(n, ['270', '180', '90', '0'])).toEqual(['1', '2', '3', '4'])
+    expect(zufahrtText(n, '270')).toBe('1 A von Norden')
+    expect(zufahrtText(n, '0')).toBe('4 B von Westen')
+  })
+  it('gerade und abbiegende gemeinsam; nicht geprüfte Richtungen ohne Nummer, lückenlos', () => {
+    const n = zufahrtNamen({ strasse: 'Glockenstrasse', zufahrten: [z('70', 70, 'einbahn', 'Glockenstrasse'), z('a151', 151, 'abbiegend', 'Bernstrasse'),
+      z('a20', 20, 'abbiegend', 'Waldeggstrasse')], entfallen: [e('250', 250, 'gerade'), e('a74', 74, 'abbiegend')] })
+    // Herkunft: a20 Azimut 250 (Westsüdwesten), 70 Azimut 200 (Süden), a151 Azimut 119 (Ostsüdosten), 250 (entfallen) Norden
+    expect(nrn(n, ['a151', '70', 'a20'])).toEqual(['1', '2', '3'])
+    expect(zufahrtText(n, 'a151')).toBe('1 Abbieger: Bernstrasse von Südosten')
+    expect([...n.entfallen.values()].every(x => x.nr === undefined)).toBe(true)
+    expect(entfallenLang(n, { zufahrt: '250', kennung: 'k250' })).toBe('Glockenstrasse von Norden')
+    // unbekannte Zufahrt: ohne Nummer wie bisher
+    expect([zufahrtNr(n, '999'), zufahrtText(n, '999'), zufahrtNr(undefined, '70'), zufahrtText(undefined, '70')])
+      .toEqual(['', 'Zufahrt 999', '', 'Zufahrt 70'])
+  })
+  it('Herkunft aus der Fahrlinie wie der Name; bis 1° westlich von Nord zählt als Nord', () => {
+    // gerade Zufahrt mit Fahrtrichtung 90 (Herkunft Süden), deren Sichtpunkte aber nach Osten liegen: Herkunft Osten
+    const ost = { ...z('90', 90, 'beide', 'A'), sichtpunkte: [[0, 0], [30, 1]] as [number, number][] } as ZufahrtErgebnis
+    const n = zufahrtNamen({ strasse: 'A', zufahrten: [z('0', 0, 'beide', 'A'), ost, z('270', 270, 'beide', 'A')], entfallen: [] })
+    expect(nrn(n, ['270', '90', '0'])).toEqual(['1', '2', '3'])
+    expect(zufahrtLang(n, '90')).toBe('A von Osten')
+    // Herkunft 359,5° (Fahrt 270,5) vor 10° (Fahrt 260); 358,5° (Fahrt 271,5) zuletzt
+    const m = zufahrtNamen({ strasse: 'A', zufahrten: [z('260', 260, 'beide', 'A'), z('271.5', 271.5, 'beide', 'B'), z('270.5', 270.5, 'beide', 'C')],
+      entfallen: [] })
+    expect(nrn(m, ['270.5', '260', '271.5'])).toEqual(['1', '2', '3'])
+  })
+  it('gleiche Herkunft: Reihenfolge der Rechnung, passend zu «(2)»', () => {
+    const n = zufahrtNamen({ strasse: 'A', zufahrten: [z('0', 0, 'beide', 'A'), z('90', 90, 'beide', 'A'), z('90b', 90, 'beide', 'A')], entfallen: [] })
+    expect(nrn(n, ['90', '90b', '0'])).toEqual(['1', '2', '3'])
+    expect([zufahrtText(n, '90'), zufahrtText(n, '90b')]).toEqual(['1 A von Süden', '2 A von Süden (2)'])
+    // dieselbe Rechnung zweimal: dieselben Nummern
+    const m = zufahrtNamen({ strasse: 'A', zufahrten: [z('0', 0, 'beide', 'A'), z('90', 90, 'beide', 'A'), z('90b', 90, 'beide', 'A')], entfallen: [] })
+    expect(nrn(m, ['90', '90b', '0'])).toEqual(nrn(n, ['90', '90b', '0']))
+  })
+  it('mehrere Streifen: eigene Nummern je Streifen, Tabellen nach Nummern', () => {
+    const s1 = zufahrtNamen({ strasse: 'A', zufahrten: [z('0', 0, 'beide', 'A'), z('180', 180, 'beide', 'A')], entfallen: [] })
+    const s2 = zufahrtNamen({ strasse: 'A', zufahrten: [z('90', 90, 'beide', 'A'), z('a151', 151, 'abbiegend', 'B')], entfallen: [] })
+    expect([nrn(s1, ['180', '0']), nrn(s2, ['a151', '90'])]).toEqual([['1', '2'], ['1', '2']])
+    const liste = [{ zufahrt: '0' }, { zufahrt: 'x' }, { zufahrt: '180' }]
+    expect(nachNr(liste, s1).map(x => x.zufahrt)).toEqual(['180', '0', 'x'])
+    expect(liste.map(x => x.zufahrt)).toEqual(['0', 'x', '180'])
+  })
+  it('Lage des Schilds: letzter Sichtpunkt, nach aussen entlang der Fahrlinie', () => {
+    const l = schildLage({ sichtpunkte: [[0, 0], [0, -2], [0, -4], [0, -6], [0, -8]], spur: [] })!
+    expect(l.p).toEqual([0, -8])
+    expect(l.aussen[0]).toBeCloseTo(0)
+    expect(l.aussen[1]).toBeCloseTo(-1)
+    // ohne Sichtpunkte: Ende der Fahrlinie; ohne Punkte keine Lage
+    const f = schildLage({ sichtpunkte: [], spur: [[0, 0], [3, 4]] })!
+    expect([f.p, f.aussen]).toEqual([[3, 4], [0.6, 0.8]])
+    expect(schildLage({ sichtpunkte: [], spur: [] })).toBeNull()
+    expect(schildLage({ sichtpunkte: [[1, 1]], spur: [] })!.aussen).toEqual([0, 1])
+  })
+  it('von Hand gestrichene Zufahrt behält ihre Nummer, die übrigen bleiben; aus den Daten entfallene ohne Nummer', () => {
+    const vier = [z('90', 90, 'beide', 'A'), z('0', 0, 'beide', 'B'), z('270', 270, 'beide', 'A'), z('180', 180, 'beide', 'B')]
+    const vorher = zufahrtNamen({ strasse: 'A', zufahrten: vier, entfallen: [] })
+    expect(nrn(vorher, ['270', '180', '90', '0'])).toEqual(['1', '2', '3', '4'])
+    // Zufahrt 1 (von Norden) gestrichen: steht als Entfallen mit Grund «hand» (wie rechner/pruefen.ts), dazu eine Einbahn
+    const hand: Entfallen = { ...e('270', 270, 'gerade'), grund: 'hand' }
+    const nachher = zufahrtNamen({ strasse: 'A', zufahrten: vier.filter(x => x.zufahrt !== '270'), entfallen: [hand, e('45', 45, 'gerade')] })
+    expect(nrn(nachher, ['180', '90', '0'])).toEqual(['2', '3', '4'])
+    expect([entfallenNr(nachher, hand), entfallenText(nachher, hand)]).toEqual(['1', '1 A von Norden'])
+    expect([entfallenNr(nachher, { zufahrt: '45', kennung: 'k45' }), entfallenText(nachher, { zufahrt: '45', kennung: 'k45' })])
+      .toEqual(['', 'A von Südwesten'])
+    // ohne die Einbahn usw.: dieselben Nummern; Streichen und Zurückholen ergeben dieselben Nummern wie vorher
+    const zurueck = zufahrtNamen({ strasse: 'A', zufahrten: vier, entfallen: [e('45', 45, 'gerade')] })
+    expect(nrn(zurueck, ['270', '180', '90', '0'])).toEqual(['1', '2', '3', '4'])
+  })
+  it('exakter Winkel statt ganzer Grad; «(2)» folgt den Nummern', () => {
+    // Fahrt 259,6 (Herkunft 10,4°) vor Fahrt 259,8 (10,2°) in der Rechnung: Nummern nach dem Winkel, «(2)» passend dazu
+    const n = zufahrtNamen({ strasse: 'A', zufahrten: [z('259.6', 259.6, 'beide', 'A'), z('259.8', 259.8, 'beide', 'A')], entfallen: [] })
+    expect(nrn(n, ['259.8', '259.6'])).toEqual(['1', '2'])
+    expect([zufahrtText(n, '259.8'), zufahrtText(n, '259.6')]).toEqual(['1 A von Norden', '2 A von Norden (2)'])
+  })
+  it('Erklärsatz', () => {
+    expect(NUMMERN_TEXT).toBe('Nummern: Zufahrten im Uhrzeigersinn ab Norden')
   })
 })
