@@ -56,6 +56,8 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
         text="Werkzeug zur Leistungsbeurteilung von Knoten innerorts." />
       <Querverweis href="https://veloroutencheck.ch/" bild="veloroutencheck.svg" titel="VeloroutenCheck"
         text="Qualität der Veloinfrastruktur bewerten." />
+      <Querverweis href="https://sichtweitencheck.ch/" bild="sichtweitencheck.svg" titel="SichtweitenCheck"
+        text="Sichtprüfung an Knoten und Grundstückzufahrten." />
 
       <div className="start-daten">
         <div className="start-daten-titel">Datenspeicherung</div>
