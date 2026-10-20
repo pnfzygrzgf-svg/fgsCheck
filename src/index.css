@@ -113,7 +113,11 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .karte-werkzeug .ecke-runden { cursor: pointer; }
 .runden-angebot { font-size: 12px; }
 /* «Mittelinsel (Standard)»: Griff zum Ziehen (Karte.tsx) und Lagehinweise an der Vorschau */
-.insel-griff { cursor: move; background: none; border: none; }
+.insel-griff { cursor: move; background: none; border: none; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.insel-griff.sichtbar { opacity: 1; pointer-events: auto; }
+/* leaflet.css setzt .leaflet-marker-icon.leaflet-interactive auf pointer-events: auto (spezifischer als .insel-griff): der
+   unsichtbare Griff fängt sonst Klicks bzw. Antippen der Inselmitte ab, die Insel liesse sich dort nicht wählen */
+.leaflet-marker-icon.insel-griff:not(.sichtbar) { pointer-events: none; }
 .insel-griff svg { display: block; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35)); }
 .leaflet-tooltip.insel-hinweis { white-space: normal; max-width: 260px; font-size: 12px; }
 .runden-knoepfe { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
@@ -156,6 +160,36 @@ span.zufahrt-nr { display: inline-block; width: 18px; height: 18px; font-size: 1
 .hilfe p { margin: 6px 0 2px; }
 .fuss { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--border); line-height: 1.6; }
 .fuss a, .hilfe a { color: var(--accent); }
+
+/* Bedarfsmodul E1: Abschnitt «Bedarf und Querungstyp» und Befundblatt (rot Pflicht, gelb Empfehlung, blau Hinweis, grau offen) */
+details.bedarf > summary .klein { display: block; margin-top: 2px; }
+.bedarf-ebenen label { display: block; margin: 2px 0; }
+.befundblatt { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin: 8px 0; background: #ffffff; }
+.befundblatt h3 { margin-top: 2px; }
+.befund-typ { margin: 2px 0 4px; }
+.befund-liste { border-left: 4px solid #94a3b8; padding: 2px 0 2px 8px; margin: 6px 0; font-size: 12px; }
+.befund-liste ul { margin: 2px 0; padding-left: 16px; }
+.befund-liste.rot { border-color: #dc2626; }
+.befund-liste.rot > b { color: #b91c1c; }
+.befund-liste.gelb { border-color: #eab308; }
+.befund-liste.gelb > b { color: #a16207; }
+.befund-liste.blau { border-color: #0ea5e9; }
+.befund-liste.grau { border-color: #94a3b8; color: var(--text-muted); }
+.befund-lokal { border-top: 1px dashed var(--border); margin-top: 6px; padding-top: 4px; font-size: 12px; }
+.befund-masse { font-size: 12px; }
+.befund-masse tr.verletzt td { color: #b91c1c; }
+.befund-masse tr.offen td { color: var(--text-muted); }
+.bedarf-gruppe { margin: 4px 0; }
+.bedarf-maske { font-size: 12px; }
+.bedarf-maske td { padding: 2px 4px; vertical-align: middle; }
+.bedarf-maske td:first-child { width: 42%; }
+.bedarf-maske tr.offen td:first-child { color: var(--text-muted); }
+.bedarf-maske select { max-width: 150px; font-size: 12px; }
+.bedarf-zahl { width: 90px; }
+.bedarf-liste label { display: inline-block; margin-right: 6px; }
+.befundblatt.druck { border: 1px solid #9ca3af; break-inside: auto; }
+.befundblatt.druck .befund-liste { font-size: 9.5pt; }
+.befundblatt.druck .befund-liste, .befundblatt.druck .befund-liste * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
 /* E4: Bericht (Druckansicht) – auf dem Bildschirm über der App, gedruckt allein (A4 hoch) */
 .bericht { position: fixed; inset: 0; z-index: 2000; overflow-y: auto; background: #e2e8f0; }

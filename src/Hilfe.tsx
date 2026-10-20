@@ -4,7 +4,12 @@ import { OVERPASS_ENDPOINTS } from './daten/osm'
 import { NACHLADEN_M } from './abdeckung'
 import { FANG_PX, FANG_MAX_M, VORSCHLAG_M } from './fixpunkt'
 import { ECK_GROSS_M, RUNDEN_R_VORGABE, RUNDEN_R_BEREICH } from './rechner/planflaechen'
-import { E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M } from './rechner/standardinsel'
+import { E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M, INSEL_TIEFE_MIN_M } from './rechner/standardinsel'
+import { AHS_40240 } from './bedarf/tabellen'
+import { KATALOG } from './bedarf/katalog'
+import { REICHWEITE_SICHT_M } from './rechner/ohneVortritt'
+
+const F3 = KATALOG.F3.werte, F3B = KATALOG['F3-B'].werte
 import { f2 } from './texte'
 
 const host = (u: string) => new URL(u).host
@@ -37,7 +42,8 @@ export function Anleitung() {
           wählt die Zufahrt, nochmals Klick hebt die Auswahl auf. Streifen von Hand heissen «Streifen 1», «Streifen 2» … oder wie in der Liste benannt.</li>
         <li><b>Eingaben korrigieren:</b> unter «Eingaben von Hand» Parkfelder, Bäume, Hecken, Mauern und übrige Hindernisse auf dem
           Luftbild zeichnen, ebenso eine Insel, die den Streifen teilt (ersetzt eine nach OSM und Luftbild angenommene Insel, grün gestrichelt); je
-          Zufahrt Tempo, Fahrlinie oder «gibt es nicht»; je Streifen Lichtsignal bzw. «kein FGS». Vorschläge aus OSM (gestrichelt) zählen erst nach
+          Zufahrt Tempo, Fahrlinie oder «gibt es nicht»; je Streifen Lichtsignal, «kein FGS» (nicht prüfen) bzw. die Querung
+          (Fussgängerstreifen oder ohne Vortritt). Vorschläge aus OSM (gestrichelt) zählen erst nach
           «bestätigen»; in Bern lädt die App die amtlichen Parkfelder der Stadt, sie zählen sofort. Die Rechnung läuft nach jeder
           Änderung neu.</li>
         <li><b>Streifen planen:</b> «Streifen planen» (neben «Fall laden») wählen, die Breite (Balkenlänge) einstellen und auf der
@@ -79,7 +85,7 @@ export function Anleitung() {
           Radius mit «Ecke runden» festzulegen. Ecken der AV über {String(ECK_GROSS_M).replace('.', ',')} m rechnet die App wie
           bisher mit dem Hinweis «AV-Ecke prüfen». <b>Mittelinsel (Standard):</b> Werkzeug «Mittelinsel (Standard)» fügt eine
           Schutzinsel mit Rollstuhlfurt nach Masterplan Fussverkehr Stadt Bern, Standards, E1 ein: Inseltiefe quer zur Fahrbahn
-          {' '}{f2(E1_TIEFE_M)} m (kleiner mit Hinweis), Streifenbreite wie der gewählte Streifen bzw. {f2(E1_BREITE_M)} m, darin
+          {' '}{f2(E1_TIEFE_M)} m (kleiner mit Hinweis, unter {f2(INSEL_TIEFE_MIN_M)} m keine Insel), Streifenbreite wie der gewählte Streifen bzw. {f2(E1_BREITE_M)} m, darin
           {' '}{f2(E1_FURT_M)} m Rollstuhlfurt auf Fahrbahnniveau und daneben die erhöhte Wartefläche, vor und nach dem Streifen je ein
           halbrunder Kopf (Kopflänge = halbe Tiefe, änderbar), auf der Seite der Furt mit Signalmast (Punkt, nur Hinweis). Streifen
           wählen bzw. auf einen Streifen klicken: die Mitte liegt auf der Streifenachse in der Fahrbahnmitte, ausgerichtet nach den
@@ -93,7 +99,7 @@ export function Anleitung() {
           erster Sichtpunkt liegt. «Teilung zurücknehmen» beim Streifen (bzw. «Mittelinsel löschen und Teilung zurücknehmen»)
           stellt den ungeteilten Streifen samt seinen Eingaben wieder her, solange die Teilstreifen seither nicht geändert wurden.
           {' '}<b>Mittelinsel ziehen:</b> eine eingefügte Mittelinsel in der Standardform hat in der Mitte einen Griff (Kreis mit
-          Vierfachpfeil; ausserhalb der Werkzeuge, mit Maus bzw. Finger). Ziehen verschiebt sie entlang der Streifenachse; frei (Ausrichtung
+          Vierfachpfeil; ausserhalb der Werkzeuge, mit Maus bzw. Finger). Er erscheint, sobald die Maus über der Insel ist bzw. die Insel angetippt und damit gewählt ist. Ziehen verschiebt sie entlang der Streifenachse; frei (Ausrichtung
           bleibt) mit dem Schalter «frei verschieben» unter «Flächen (Plan)» bei der Mittelinsel (auch auf Touch) oder der Umschalttaste
           während des Ziehens (erst nach dem Anfassen drücken: mit gedrückter Taste beginnt kein Ziehen). Beim Ziehen zeigt eine
           Vorschau die neue Lage mit Lagehinweisen (ragt ins Trottoir, zu wenig Fahrbahn daneben, Achse quert die Furt, ein Streifen
@@ -110,6 +116,35 @@ export function Anleitung() {
           das Längsmass die schiefe Kante auf der Höhe des Fixpunkts. Fixpunkte lassen sich benennen, verschieben (fangen wieder) und
           löschen, stehen in der Fall-Datei und im Bericht und ändern die Sichtprüfung nicht. Punkte der AV sind keine vermarkten
           Grenzpunkte: ihre Lage hat die Genauigkeit der AV-Bodenbedeckung.</li>
+        <li><b>Bedarf und Querungstyp:</b> der aufklappbare Abschnitt über den Streifen beurteilt, ob ein Fussgängerstreifen zulässig
+          ist, welcher Querungstyp passt (Fussgängerstreifen, mit Schutzinsel, mit Lichtsignal, Querung ohne Vortritt, Trottoirüberfahrt)
+          und welche Elemente und Masse nötig sind. Grundlage sind VSS 40 241, 40 240, 40 242, 40 837, SN 640 075 und weitere (nur
+          Ziffern und eigene Kurztexte). Die Eingaben stehen nach Blöcken (Rahmen, Nachfrage, Verkehr, Lage, Insel, Ausrüstung,
+          LSA-Zeiten, Trottoirüberfahrt): vorbelegt ist, was die Rechnung schon kennt (Querungsart der Streifen, Lichtsignal, Tempo,
+          innerorts als Annahme bis 50 km/h, Fahrbahnbreite und Querdistanzen nach den Bordkanten, Fahrstreifen nach OSM, Insel aus der
+          Teilung bzw. der Mittelinsel (Standard), Radstreifen, Tram nach OSM), mit Quelle; eine Eingabe von Hand überschreibt den Wert
+          («zurück» stellt die Vorbelegung wieder her), wählbar als von Hand, Schätzung oder Annahme. Fussgänger lassen sich als
+          Schätzklasse (unter 100, 100 bis 500, über 500 in den 5 Spitzenstunden) angeben; eine Zählung geht vor. Leere Felder sind
+          «offen» und zählen nie als erfüllt. Das Befundblatt nennt den empfohlenen Querungstyp mit kurzer Begründung und Ziffern, rot
+          die Pflichtverletzungen und was nur mit verkehrstechnischem Bericht geht, gelb die Empfehlungen, die Hinweise, offene Punkte
+          nach fehlender Eingabe, nicht geprüfte Blöcke und die Masse Soll/Ist. Die Ebenen Bern (Masterplan, Handbuch LSA) und Kanton BE
+          (Arbeitshilfe) stehen gesondert und lassen sich schalten; vorgegeben sind sie nach der Gemeinde bzw. dem Kanton der AV am
+          Streifen. Die Sicht übernimmt das Befundblatt aus dem Sichtrechner (frei bzw. verdeckt je Zufahrt), ausser eine vorhandene
+          Sichtweite ist von Hand eingegeben. <b>Querung ohne Vortritt:</b> je Streifen unter «Querung» Furt (Insel ohne Balken) bzw.
+          Nase, Einengung oder ohne bauliche Massnahme wählen: der Streifen erscheint ohne Balken (weiss gestrichelt), geprüft wird mit
+          der Sichtweite nach VSS 40 240 Z. 8.2, max(v · L / 1,2 m/s; Anhaltesichtweite {Object.entries(AHS_40240).map(([t, sw]) =>
+          `${t} km/h ${sw} m`).join(', ')}) je Teilquerung, v = Tempo der Zufahrt, L = Querdistanz Bord bis Bord bzw. bis zur Insel; ist
+          die Insel im Bedarf als «nur markiert» angegeben, gilt die ganze Fahrbahn. Sichtfeld und Hindernisse wie beim
+          Fussgängerstreifen, ohne die Kurvenregeln; geprüft wird höchstens bis {REICHWEITE_SICHT_M} m ab dem Streifen (so weit reichen
+          die geladenen Daten): ein höheres Soll erscheint mit «geprüft bis {REICHWEITE_SICHT_M} m, darüber nicht geprüft» und gilt im
+          Befundblatt als offen. Ist die Sicht verdeckt, wo das Soll über der Anhaltesichtweite liegt, meldet das Befundblatt das
+          vorerst gelb (ob die Anhaltesichtweite frei bleibt, prüft die App noch nicht getrennt). An einem Streifen mit Lichtsignal
+          gilt die Sichtweite nach VSS 40 241 nicht; das Befundblatt nennt den Sichtrechner dort nur als Hinweis. Ein Querungstyp
+          von Hand, der der Querungsart der Streifen widerspricht, gilt nicht (Hinweis im Befundblatt). «kein FGS» bleibt davon getrennt: der Streifen wird dann gar nicht geprüft.
+          Ein Fall mit Eingaben zum Bedarf bzw. mit einer Querung ohne Vortritt hat die Version 3; ältere Fassungen der App lehnen ihn
+          ab. Die Mittelinsel (Standard) prüft die Durchfahrt daneben nach den Bändern der Arbeitshilfe Kanton BE (unter {f2(F3.min)} m zu
+          schmal, zwischen {f2(F3.schmalMax)} und {f2(F3.breitMin)} m Überholkonflikt Lastwagen–Velo, mit Radstreifen nach den Berner
+          Standards {f2(F3B.min)} bis {f2(F3B.max)} m).</li>
         <li><b>Bericht und Fall-Datei:</b> «Bericht drucken / als PDF» öffnet eine Druckansicht (Kartenbild, Tabellen, Eingaben,
           Quellen). «Fall speichern» sichert alle Eingaben als JSON-Datei, «Fall laden» stellt sie wieder her.</li>
       </ol>

@@ -6,6 +6,8 @@ import { NEBENAST_GRAD } from './rechner/netz'
 
 export const f1 = (x: number) => x.toFixed(1).replace('.', ',')
 export const f2 = (x: number) => x.toFixed(2).replace('.', ',')
+/** Länge in m: ganze Zahlen ohne Dezimalen (Tab. 1), sonst eine Dezimale mit Komma (Sichtweite ohne Vortritt, auf 0,1 m) */
+export const mText = (x: number) => (Number.isInteger(x) ? String(x) : f1(x))
 
 // Gründe nicht geprüfter Richtungen (Korrektur 16.10.2026: ausformuliert, «laut OSM» statt «(OSM)»)
 export const GRUND: Record<string, string> = {

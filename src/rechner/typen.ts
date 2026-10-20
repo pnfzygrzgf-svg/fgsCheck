@@ -56,6 +56,11 @@ export interface ZufahrtErgebnis {
   feld: Multi
   spur: P[]
   annahmen: string[]              // in der App sichtbar gemachte Annahmen und Ersatzwerte
+  /** Querung ohne Vortritt: Sichtfeld nur bis hier geprüft (Reichweite der geladenen Daten); sichtweite ist dann das Soll, darüber
+   * nicht geprüft (ohneVortritt.REICHWEITE_SICHT_M) */
+  geprueftBisM?: number
+  fahrstreifenOsmN?: number | null  // Fahrstreifen dieser Richtung nach OSM (lanes, Busstreifen nach Regel), nur gerade Zufahrten mit
+                                  // OSM-Weg (seit E1 Bedarfsmodul: Vorbelegung «Fahrstreifen je Richtung»; die Rechnung nutzt ihn nicht)
   deckung?: string                // Abbiegezufahrt, die ab dem Knoten von der geraden Zufahrt gedeckt ist (nur mit GEDECKT_RECHNEN,
                                   // seit 14.10.2026 standardmässig aus): Text wie beim Entfallen «Knoten … m vor dem Streifen; …»
 }
@@ -79,7 +84,15 @@ export interface StreifenErgebnis {
   keinFgsHinweis?: string    // unmarkierter Übergang: Prüfung sinngemäss, ohne Normbezug
   markierungHinweis?: string // Markierung in OSM nicht belegt (crossing=uncontrolled): vermutlich FGS, bitte prüfen
   vermassung?: Vermassung    // Streifen von Hand: Lage (LV95) und Masse für den Plan (rechneFall)
+  /** Querung ohne Vortritt (von Hand, Bedarfsmodul E1): Sichtweite nach VSS 40 240 Z. 8.2 statt Tab. 1; L = Querdistanz der
+   * Teilquerung (ganzeFahrbahn: Insel nur markiert, L über die ganze Fahrbahn). Fehlt bei Fussgängerstreifen */
+  querung?: { typ: QuerungOhneVortritt; L: number; ganzeFahrbahn: boolean }
+  /** OSM-Tramgleis quert den Streifen (nur mit OSM-Netz; Vorbelegung Bedarfsmodul) */
+  tram?: boolean
 }
+
+/** Querung ohne Vortritt: Furt (Insel ohne Balken) bzw. Nase, Einengung, ohne bauliche Massnahme */
+export type QuerungOhneVortritt = 'furt' | 'ohne_vortritt'
 
 export interface Rechnung {
   streifen: StreifenErgebnis[]

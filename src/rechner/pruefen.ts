@@ -34,7 +34,8 @@ import type { ParkRaster } from './hindernisse'
 import { abbiegeZufahrt, SPUR_MIN_M, type AbbiegeKontext } from './abbiegen'
 import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvexeHuelle, enthaelt, abstandMulti, huelle, abstandLinieMulti } from './poly'
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
-import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt } from './typen'
+import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt, QuerungOhneVortritt } from './typen'
+import { type OhneVortritt, sichtOhneVortritt, quelleOhneVortritt, annahmeOhneVortritt, weiteOhneVortritt, REICHWEITE_SICHT_M } from './ohneVortritt'
 
 const RAND_TOL = 1.0
 const KNOTEN_SPERRE = 10.0
@@ -70,6 +71,9 @@ export interface VonHand {
   lsa?: (fid: string) => 'ja' | 'nein' | null
   /** Streifen von Hand als «kein FGS» beurteilt: nicht gerechnet */
   keinFgs?: (fid: string) => boolean
+  /** Streifen als Querung ohne Vortritt (Bedarfsmodul E1): Sichtweite nach VSS 40 240 Z. 8.2 (ohneVortritt.ts); inselMarkiert: die
+   * Insel ist nur markiert, L gilt über die ganze Fahrbahn. null bzw. fehlt: Fussgängerstreifen wie bisher */
+  querung?: (fid: string) => { typ: QuerungOhneVortritt; inselMarkiert: boolean } | null
 }
 
 export interface Kontext {
@@ -203,6 +207,7 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
   const aus: StreifenErgebnis[] = []
   for (const s of S) {
     const fid = s.fgsId
+    const ov = ohneVortritt(s, S, kx.vonHand?.querung?.(fid) ?? null)
     let ann: [Poly, Poly] = [annaeherungsbereich(...s.warte[0].slice(0, 2) as [P, P], s.warte[0][2], s.warte[0][3]),
       annaeherungsbereich(...s.warte[1].slice(0, 2) as [P, P], s.warte[1][2], s.warte[1][3])]
     const annRand = s.warte.map(w => annAmRand(w, fahrbahn, flaechenRand))
@@ -221,21 +226,43 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
     const kf = (feld: Multi, pts: P[]) => konflikteSuchen(feld, streifenPoly, gebaeude, ziele, pts, kx.hindernisse ?? null)
     const keinFgs = kx.vonHand?.keinFgs?.(fid) ?? false
     for (const zf of keinFgs ? [] : zfs) {
-      const r = geradeUndAbbiegend(s, zf, kx, kreisel, sf, kf, streifenPoly, erg)
+      const r = geradeUndAbbiegend(s, zf, kx, kreisel, sf, kf, streifenPoly, erg, keinFgs ? null : ov)
       erg.push(...r.ergebnisse)
       ent.push(...r.entfallen)
     }
+    if (ov && !keinFgs) annahmenS.push(annahmeOhneVortritt(ov, erg.map(z => z.tempo), s.randQuelle !== 'AV'))
     const status = keinFgs ? 'kein_fgs' :
       erg.length ? erg.reduce((b, e) => (RANG_STATUS[e.status] > RANG_STATUS[b] ? e.status : b), 'frei') : 'ohne_zufahrt'
     aus.push({ fgsId: fid, uebergangId: s.uebergangId, p0: s.p0, p1: s.p1, bw: s.bw, m: s.m, umriss: umrissRing(s), ann,
       rand: s.rand, randQuelle: s.randQuelle, strasse: s.strasse ?? '', netzQuelle: s.netzQuelle ?? '', lsa, lsaQuelle: lsaQ,
-      zufahrten: erg, entfallen: ent, status, annahmen: annahmenS })
+      zufahrten: erg, entfallen: ent, status, annahmen: annahmenS, ...(ov && !keinFgs ? { querung: ov } : {}) })
   }
   return aus
 }
 
+/**
+ * Querung ohne Vortritt (Bedarfsmodul E1): L = Querdistanz des Streifens entlang der Achse zwischen den Bordkanten der Rechnung
+ * (bei angenommenen Bordkanten: 0,3 m vor den Enden); Insel nur markiert: über alle Teilstreifen derselben Querung (Übergang),
+ * vom äussersten zum äussersten Rand (ganze Fahrbahn, 40 240 Z. 13.3, Entscheid 6). null: Fussgängerstreifen
+ */
+function ohneVortritt(s: StreifenX, S: StreifenX[], q: { typ: QuerungOhneVortritt; inselMarkiert: boolean } | null): OhneVortritt | null {
+  if (!q) return null
+  const n = einheitV(sub(s.p1, s.p0))
+  const proj = (p: P) => dot(sub(p, s.p0), n)
+  let L = proj(s.rand[1]) - proj(s.rand[0])
+  const gruppe = S.filter(x => x.uebergangId === s.uebergangId)
+  const ganz = q.inselMarkiert && gruppe.length > 1
+  if (ganz) {
+    const ps = gruppe.flatMap(x => x.rand).map(proj)
+    L = Math.max(...ps) - Math.min(...ps)
+  }
+  if (!(L > 0)) L = dist(s.p0, s.p1)
+  return { typ: q.typ, L: Math.round(L * 100) / 100, ganzeFahrbahn: ganz }
+}
+const einheitV = (v: P): P => { const l = Math.hypot(v[0], v[1]); return l > 0 ? [v[0] / l, v[1] / l] : [1, 0] }
+
 function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kreisel, sf: (p: P[]) => Multi,
-  kf: (f: Multi, p: P[]) => Konflikt[], streifenPoly: Multi, bisher: ZufahrtErgebnis[]):
+  kf: (f: Multi, p: P[]) => Konflikt[], streifenPoly: Multi, bisher: ZufahrtErgebnis[], ov: OhneVortritt | null = null):
   { ergebnisse: ZufahrtErgebnis[]; entfallen: Entfallen[] } {
   const { netz, fahrbahn, inseln, gebaeude } = kx
   const fid = s.fgsId
@@ -245,7 +272,9 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   const annahmen: string[] = []
   const h = s.bw / 2, hAlt = h
   let bis: [number, number, number, number, (x: number) => number] | null = null
-  const weite = SICHTWEITE[60] + h + 5
+  // Querung ohne Vortritt: Soll nach VSS 40 240 Z. 8.2 statt Tab. 1 (ohneVortritt.ts), Fahrlinie entsprechend länger
+  const swTab = (t: number) => (ov ? sichtOhneVortritt(t, ov.L) : sichtweiteTab1(t))
+  const weite = (ov ? weiteOhneVortritt(ov.L, SICHTWEITE[60]) : SICHTWEITE[60]) + h + 5
   let su: Suche | null = null, kbe: Knotenbereich | null = null, sg: SpurGerade | null = null
   let knotenM: number[] = []
   let wegRoh: P[], tempoStreifen: number, tempoQ: string, kreiselPruefen: boolean, achseFb = true
@@ -282,10 +311,10 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     tempo = t
     if (treffer) tempoQ = 'OSM maxspeed'
   }
-  let sw = sichtweiteTab1(tempo)
+  let sw = swTab(tempo)
   const tempoHand = kx.vonHand?.tempo?.(fid, 'gerade', gradD) ??
     kx.vonHand?.tempoKennung?.(fid, zf.g !== null ? kennungGerade(zf.g, zf.sd!) : `s${fid}:${gradD}`) ?? null
-  if (tempoHand) { tempo = tempoHand; sw = sichtweiteTab1(tempoHand); tempoQ = 'Korrektur' }
+  if (tempoHand) { tempo = tempoHand; sw = swTab(tempoHand); tempoQ = 'Korrektur' }
   if (tempoQ === 'Ersatz') annahmen.push('Tempo 50 km/h angenommen (in OSM keine Höchstgeschwindigkeit erfasst)')
   const swEigen = sw
   let gesamt = sw + h
@@ -315,7 +344,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     }
     return { ergebnisse, entfallen: entf }
   }
-  let swQuelle = 'VSS Tab. 1', hinweis = '', hinweisM: number | null = null
+  let swQuelle = ov ? quelleOhneVortritt(ov.L) : 'VSS Tab. 1', hinweis = '', hinweisM: number | null = null
   if (kInSicht && hatGerade) { hinweis = 'knoten'; hinweisM = su!.dist }
   if (hatGerade && sg !== null && sg.endeM !== null && sg.endeM - h < sw) {
     hinweis = 'spur_ende'; hinweisM = sg.endeM
@@ -361,10 +390,19 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
         bisR = swR > swO ? [kt[0], o + KREISEL_LOKAL_M / 2, swO] : null
       }
     }
-    if (swR !== null && swR < sw) {
+    // Kreiselregel nach Ringradius (bfu bzw. VSS 40 241 Tab. 2) nur für Fussgängerstreifen
+    if (swR !== null && swR < sw && !ov) {
       bis = bisR === null ? null : [bisR[0], bisR[1], bisR[2], sw, Math.ceil]
       sw = swR; gesamt = swR + h; swQuelle = qR!
     }
+  }
+  // Querung ohne Vortritt: geprüft höchstens bis REICHWEITE_SICHT_M (Reichweite der geladenen Daten, ohneVortritt.ts); ein Wegende
+  // bzw. Strassenende jenseits davon ist keine Grenze (Grenze der OSM-Daten möglich): ausgewiesen wird das Soll nach Z. 8.2
+  let geprueftBis: number | null = null
+  if (ov && sw > REICHWEITE_SICHT_M) {
+    geprueftBis = REICHWEITE_SICHT_M
+    sw = REICHWEITE_SICHT_M; gesamt = sw + h; bis = null; swQuelle = quelleOhneVortritt(ov.L)
+    if (hinweis === 'spur_ende') { hinweis = kInSicht ? 'knoten' : ''; hinweisM = kInSicht ? su!.dist : null }
   }
   // Spur auf die Streifenmitte verschieben, glätten
   const verschiebung = sub(s.m, wegRoh[0])
@@ -696,7 +734,10 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     const konflikte = kf(feld, sichtpunkte)
     ergebnisse.push({
       fgsId: fid, zufahrt: schluessel([...bisher, ...ergebnisse], art, gradD), kennung: kennungG, richtung: gradD, art,
-      strasse: zf.name || null, ueberStrasse: null, knotenM: null, tempo, tempoQuelle: tempoQ, sichtweite: sw,
+      strasse: zf.name || null, ueberStrasse: null, knotenM: null, tempo, tempoQuelle: tempoQ,
+      // geprüft bis zur Reichweite (ohne Vortritt): ausgewiesen das Soll, geprüft bis geprueftBisM (nicht, wenn ein Gebäude kürzt)
+      sichtweite: geprueftBis !== null && sw >= geprueftBis - 1e-9 ? swEigen : sw,
+      ...(geprueftBis !== null && sw >= geprueftBis - 1e-9 ? { geprueftBisM: geprueftBis } : {}),
       sichtweiteQuelle: swQuelle, kurvenradiusM: radiusG, radiusQuelle: radiusQG,
       ...konfliktFelder(konflikte), konflikte,
       spurHinweis: hinweis, spurHinweisM: hinweisM === null ? null : Math.round(Math.max(0, hinweisM - h) * 10) / 10,
@@ -707,6 +748,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       einbahnQuelle: zf.einbahnQuelle, netzQuelle: zf.netzQuelle, osmWeg: zf.g ? String(zf.g.wid) : null,
       osmKnoten: mitKnoten ? String(su!.K) : null, ersterKnotenM: mitKnoten ? Math.round((su!.dist - h) * 10) / 10 : null,
       netzHinweis: [...new Set(netzHinweis)], punkteVerschoben: nVerschoben, sichtpunkte, feld, spur: weg, annahmen,
+      ...(fso ? { fahrstreifenOsmN: fso.n } : {}),
     })
   } else if (!hatGerade) {
     const ende = sg !== null && sg.endeM !== null ? `Spur endet nach ${sg.endeM.toFixed(1)} m (${sg.endeGrund})` : ''
@@ -726,6 +768,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       swQuelle, fs, lageAb, vomRandAb, versatz, arS, alS, rd, art, verschiebung, refDa: ref.length > 0, streifenPoly,
       sichtfeld: sf, konflikte: kf,
       basisErgebnis: () => ({ randQuelle: s.randQuelle, netzQuelle: zf.netzQuelle }),
+      ...(ov ? { ov } : {}),
     }
     for (const a of [...arme].sort((x, y) => x.dj - y.dj || richtungGrad(x.fahrt) - richtungGrad(y.fahrt))) {
       const r = abbiegeZufahrt(kontext, a)

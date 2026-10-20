@@ -253,7 +253,11 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Ergebnisdatei nur mit `FGS_REFERENZ_SCHREIBEN=1`)
 - `src/bedarf/` – Bedarfsmodul, Etappe E0 (noch ohne Oberfläche): Regelkatalog mit Ziffer, Ausgabe, Stärke und Ebene je Regel
   (`katalog.ts`, nur eigene Kurztexte), Eingaben mit Quelle je Feld (`eingaben.ts`) und Entscheidbaum als reine Funktion
-  `beurteile(eingaben, optionen)` → Befund (`entscheid.ts`; Ebenen Bern, Kanton BE und Richtlinie schaltbar)
+  `beurteile(eingaben, optionen)` → Befund (`entscheid.ts`; Ebenen Bern, Kanton BE und Richtlinie schaltbar). Seit Etappe E1
+  mit Oberfläche: Abschnitt «Bedarf und Querungstyp» im Panel (`src/BedarfPanel.tsx`; Eingaben nach Blöcken mit Quelle,
+  vorbelegt aus der Rechnung in `vorbelegung.ts`, Befundblatt aus `befundblatt.ts` auch im Bericht), Querung ohne Vortritt je
+  Streifen mit der Sichtweite nach VSS 40 240 Z. 8.2 im Sichtrechner (`src/rechner/ohneVortritt.ts`); Fall-Dateien mit
+  Bedarf-Eingaben (Block `bedarf`, je Unterfeld geprüft in `fallBedarf.ts`) bzw. mit einer Querung ohne Vortritt haben die Version 3.
 
 ## Datenschutz
 

@@ -36,6 +36,8 @@ import { type P, add, dot, einheit, sub, dist, links, kreuz, imPolygon } from '.
 import type { AvFlaeche } from '../daten/av'
 import type { FlaechePlan, FurtSeite, PlanStandard, StandardTeil, StreifenHand } from '../fall'
 import { flaeche, schnitt, vereinigung, type Multi } from './poly'
+import { KATALOG } from '../bedarf/katalog'
+import { durchfahrtHinweise } from '../bedarf/durchfahrt'
 
 /** Vorgaben nach E1 (Masterplan Fussverkehr Stadt Bern, Standards) */
 export const E1_TIEFE_M = 2.0           // Inseltiefe quer zur Fahrbahn, mindestens (Standardbreite für Schutzinseln)
@@ -101,10 +103,15 @@ export function inselMasse(tiefe: number, breite: number, furt: number, kopf: nu
   return { tiefe, breite, furt, kopf: kopf ?? tiefe / 2, seite }
 }
 
+/** Harte Untergrenze der Inseltiefe [m] (Regel F2 des Bedarfsmoduls, VSS 40 241 Z. 24): darunter keine Insel (Korrektur E1) */
+export const INSEL_TIEFE_MIN_M = KATALOG.F2.werte.min
+
 /** Unzulässige Masse (die Insel wird nicht gebildet) -> Grund, sonst null */
 export function masseFehler(x: InselMasse): string | null {
   const ok = (v: number, [a, b]: [number, number]) => Number.isFinite(v) && v >= a - 1e-9 && v <= b + 1e-9
   if (!ok(x.tiefe, INSEL_BEREICH.tiefe)) return `Inseltiefe ${f2(x.tiefe)} m ausserhalb ${INSEL_BEREICH.tiefe[0]} bis ${INSEL_BEREICH.tiefe[1]} m.`
+  if (x.tiefe < INSEL_TIEFE_MIN_M - 1e-9) return `Inseltiefe ${f2(x.tiefe)} m unter ${f2(INSEL_TIEFE_MIN_M)} m: zu schmal für eine ` +
+    'Schutzinsel (F2, VSS 40 241 Z. 24); die Insel wird nicht eingefügt.'
   if (!ok(x.breite, INSEL_BEREICH.breite)) return `Streifenbreite ${f2(x.breite)} m ausserhalb ${INSEL_BEREICH.breite[0]} bis ${INSEL_BEREICH.breite[1]} m.`
   if (!ok(x.furt, INSEL_BEREICH.furt)) return `Furt ${f2(x.furt)} m ausserhalb ${INSEL_BEREICH.furt[0]} bis ${INSEL_BEREICH.furt[1]} m.`
   if (!ok(x.kopf, INSEL_BEREICH.kopf)) return `Kopflänge ${f2(x.kopf)} m ausserhalb ${INSEL_BEREICH.kopf[0]} bis ${INSEL_BEREICH.kopf[1]} m.`
@@ -264,7 +271,8 @@ export interface InselPruefung {
   restM: [number, number] | null   // Fahrbahn neben der Insel quer zur Fahrbahn: Seite von Ende A, Seite von Ende B
   hinweise: string[]
 }
-export function inselPruefen(lage: InselLage, x: InselMasse, av: AvFlaeche[], sehne: (p: P, r: P) => [number, number] | null): InselPruefung {
+export function inselPruefen(lage: InselLage, x: InselMasse, av: AvFlaeche[], sehne: (p: P, r: P) => [number, number] | null,
+  opt: { radstreifen?: boolean | null; kantonBE?: boolean; bern?: boolean } = {}): InselPruefung {
   const g = inselGeometrie(lage, x)
   const ringe = [g.insel, ...(g.kopf ? [g.kopf] : [])]
   const alle = [...ringe, ...(g.furt ? [g.furt] : [])].flat()
@@ -293,8 +301,8 @@ export function inselPruefen(lage: InselLage, x: InselMasse, av: AvFlaeche[], se
   const sh = sehne(lage.m, lage.achse)
   const h = g.tiefeAchse / 2
   const restM: [number, number] | null = sh ? [(sh[1] - h) * sin, (sh[0] - h) * sin] : null
-  if (restM && Math.min(...restM) < 2.0)
-    hinweise.push(`Neben der Insel bleibt ${f2(Math.max(0, Math.min(...restM)))} m Fahrbahn (quer gemessen): Lage bzw. Inseltiefe prüfen.`)
+  // Durchfahrt neben der Insel nach F3 bzw. F3-B (Werte aus dem Katalog des Bedarfsmoduls; Korrektur E1, statt «unter 2,0 m»)
+  if (restM) hinweise.push(...durchfahrtHinweise(restM.map(r => Math.max(0, r)), opt))
   return { furtFahrbahn, ausserhalbM2, restM, hinweise }
 }
 

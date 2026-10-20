@@ -38,6 +38,7 @@ import type { Flaechen } from './flaechen'
 import { liniePunkte, sichtweiteRadiusHand } from './spurhand'
 import type { HindernisDaten } from './hindernisse'
 import { SEHNE_HALB, INSELRAND_M } from './flaechen'
+import { type OhneVortritt, sichtOhneVortritt, quelleOhneVortritt, weiteOhneVortritt, REICHWEITE_SICHT_M } from './ohneVortritt'
 
 export const BORD_ABSTAND_M = 1.5
 const FAHRLINIE_AUF_FAHRBAHN = 0.9
@@ -283,6 +284,8 @@ export interface AbbiegeKontext {
   sichtfeld: (pts: P[]) => Multi
   konflikte: (feld: Multi, pts: P[]) => ZufahrtErgebnis['konflikte']
   basisErgebnis: () => Pick<ZufahrtErgebnis, 'randQuelle' | 'netzQuelle'>
+  /** Querung ohne Vortritt (Bedarfsmodul E1): Soll nach VSS 40 240 Z. 8.2 statt Tab. 1, ohne Kurvenregel (ohneVortritt.ts) */
+  ov?: OhneVortritt
 }
 
 const ringKnoten = (netz: OsmNetz, nid: number) => (netz.an.get(nid) ?? []).some(([w]) => netz.w(w).ring)
@@ -302,7 +305,8 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const szRoh = netz.spurZumKnoten(su, kbe, a)
   const wegA = glaetten(szRoh.map(p => add(p, k.verschiebung)), GLAETTUNG_M)
   const dK = richtungAmKnoten(wegA, dj)
-  const [arm, hinB, hinBM] = netz.armSpur(a, Math.max(SICHTWEITE[60] + h + 15, ARM_MESSUNG[ARM_MESSUNG.length - 1] + 2))
+  const [arm, hinB, hinBM] = netz.armSpur(a, Math.max((k.ov ? weiteOhneVortritt(k.ov.L, SICHTWEITE[60]) : SICHTWEITE[60]) + h + 15,
+    ARM_MESSUNG[ARM_MESSUNG.length - 1] + 2))
   const armAb = wegeAbschnitte(netz, arm), eigAb = wegeAbschnitte(netz, szRoh)
   const mitBruecke = [...armAb, ...eigAb].some(([, , w]) => w !== null && netz.w(w).hoch)
   // R2 für Abbiegende: Streifenmitte auf übriger befestigter Fläche ohne AV-Strasse -> die Fläche gilt als Fahrbahn
@@ -329,7 +333,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const tempoHandB = k.vonHand?.tempo?.(fid, 'abbiegend', grad) ?? k.vonHand?.tempoKennung?.(fid, kennungArm(a)) ?? null
   if (tempoHandB) { tempoB = tempoHandB; tempoQB = 'Korrektur' }
   if (tempoQB === 'Ersatz') annahmen.push(`Tempo Querstrasse ${tempoB} km/h angenommen (in OSM keine Höchstgeschwindigkeit erfasst)`)
-  const swTab1B = sichtweiteTab1(tempoB)
+  const swTab1B = k.ov ? sichtOhneVortritt(tempoB, k.ov.L) : sichtweiteTab1(tempoB)
   // Fahrbahn der Querstrasse 8–30 m ab Knoten
   const messRef = refAuf(arm, ARM_MESSUNG, 0)
   const fsoB = fahrstreifenArm(netz, a, a.dreh > 0)
@@ -937,6 +941,8 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   }
   // Kurvensichtweite zum Radius R: bfu bzw. VSS Tab. 2, höchstens Tab. 1 der Querstrasse
   const kurveSw = (R: number): [number, string] => {
+    // Querung ohne Vortritt: keine Kurvenregel, Soll nach VSS 40 240 Z. 8.2 mit dem Tempo der Querstrasse
+    if (k.ov) return [swTab1B, quelleOhneVortritt(k.ov.L)]
     const [sk_, q_] = sichtweiteKurve(R)
     return sk_ === null || sk_ >= swTab1B ? [swTab1B, 'VSS Tab. 1'] : [sk_, q_!]
   }
@@ -988,6 +994,17 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
       lb = linieB(swB, gesamtB, radiusB)
       if (lb === null) return wegGeometrie('keine Fahrlinie (Bogen)')
     }
+  }
+  // Querung ohne Vortritt: geprüft höchstens bis REICHWEITE_SICHT_M (Reichweite der geladenen Daten, ohneVortritt.ts); ein
+  // Wegende bzw. Strassenende jenseits davon ist keine Grenze (Grenze der OSM-Daten möglich), es gilt das Soll nach Z. 8.2
+  let geprueftB: { bis: number; soll: number } | null = null
+  if (k.ov && swB > REICHWEITE_SICHT_M) {
+    const ende = swQuelleB === 'bis Knoten (Strassenende)' || swQuelleB === 'bis Wegende'
+    geprueftB = { bis: REICHWEITE_SICHT_M, soll: ende ? swTab1B : swB }
+    if (ende) { swQuelleB = quelleOhneVortritt(k.ov.L); hinweisEnde = false }
+    swB = REICHWEITE_SICHT_M; gesamtB = swB + h; swBBasis = Math.min(swBBasis, REICHWEITE_SICHT_M)
+    lb = linieB(swB, gesamtB, radiusB)
+    if (lb === null) return wegGeometrie('keine Fahrlinie (Bogen)')
   }
   // Sicherheitsnetz
   let nVerschB = 0
@@ -1056,7 +1073,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const plQ = radiusQuelleB.includes('AV-') ? planEcke() : null
   if (plQ) radiusQuelleB = radiusQuelleB.replace(/AV-(Bordkante|Ecke)/g, (_, w: string) => `${bordBogen ? w : 'Ecke'} nach ${plQ} von Hand`)
   if (spurH && spurH.art === 'B' && spurH.linie.length >= 2) {
-    if (spurH.radius) {
+    if (spurH.radius && !k.ov) {
       let [swH, qH] = sichtweiteRadiusHand(spurH.radius, swB, swQuelleB, tempoB, bisKnoten, k.swEigen, quelleKnotenB)
       if (gedecktRechnen) {
         const [skH, qkH] = kurveSw(spurH.radius)
@@ -1096,7 +1113,8 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   return {
     fgsId: fid, zufahrt: `a${grad}`, kennung: kennungArm(a), richtung: grad, art: 'abbiegend',
     strasse: a.name || null, ueberStrasse: zf.name || null, knotenM: Math.round(bisKnoten * 10) / 10,
-    tempo: tempoB, tempoQuelle: tempoQB, sichtweite: swB, sichtweiteQuelle: swQuelleB,
+    tempo: tempoB, tempoQuelle: tempoQB, sichtweite: geprueftB ? geprueftB.soll : swB, sichtweiteQuelle: swQuelleB,
+    ...(geprueftB ? { geprueftBisM: geprueftB.bis } : {}),
     kurvenradiusM: radiusHand !== null ? radiusRunden(radiusHand) : radiusOut, radiusQuelle: radiusText ?? radiusQuelleB, ...konfliktFelder(konflikte), konflikte,
     spurHinweis: hinweisB, spurHinweisM: null, fahrbahnM: fsB ? Math.round(fsB.breite * 100) / 100 : null,
     parkRechts: fsB ? fsB.parkR : null, parkLinks: fsB ? fsB.parkL : null, velostreifenRechtsM: fsB ? fsB.veloR : null,

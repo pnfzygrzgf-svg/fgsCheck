@@ -169,7 +169,11 @@ describe('Platzierung und Teilen', () => {
     const fb = new Fahrbahn(AV), sehne = (p: P, r: P) => fb.sehne(p, r)
     const p = inselPruefen(lage, E1, AV, sehne)
     expect(p.furtFahrbahn).toBe(false); expect(p.ausserhalbM2).toBeCloseTo(0, 9)
-    expect(p.restM![0]).toBeCloseTo(3, 9); expect(p.restM![1]).toBeCloseTo(3, 9); expect(p.hinweise).toEqual([])
+    expect(p.restM![0]).toBeCloseTo(3, 9); expect(p.restM![1]).toBeCloseTo(3, 9)
+    // seit E1 (Bedarfsmodul): Durchfahrt nach F3 statt «unter 2,0 m»; 3,00 m liegt unter 3,50 m (zu schmal)
+    expect(p.hinweise.slice(0, 2)).toEqual(['Durchfahrt neben der Insel 3,00 m (Seite Ende A): unter 3,50 m, zu schmal (F3, Arbeitshilfe Kanton BE).',
+      'Durchfahrt neben der Insel 3,00 m (Seite Ende B): unter 3,50 m, zu schmal (F3, Arbeitshilfe Kanton BE).'])
+    expect(p.hinweise[2]).toContain('keine VSS-Norm nennt Durchfahrtsmasse')
     const rand = inselPruefen(inselLage(lv(0, 3.5), [0, 1], [1, 0]), E1, AV, sehne)
     expect(rand.ausserhalbM2).toBeGreaterThan(1)
     expect(rand.hinweise.join(' ')).toContain('über die Fahrbahn hinaus')

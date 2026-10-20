@@ -4,7 +4,7 @@ import { type OsmDaten, type Markierung, markierung, markierungHinweis, planungH
 import type { AvFlaeche } from '../daten/av'
 import type { KatasterBaum } from '../daten/baumkataster'
 import type { KatasterFeld } from '../daten/parkkataster'
-import { type P, lv95, einheit, sub, dot, dist, imPolygon } from '../geo'
+import { type P, lv95, einheit, sub, dot, dist, imPolygon, streckenSchnitt } from '../geo'
 import { OsmNetz, fahrbahnRichtung } from './netz'
 import { Fahrbahn, Inseln, Gebaeude, Flaechen } from './flaechen'
 import { ANN_RAND_ARTEN, streifenAusUebergang, neuerStreifen, umrissRing, gequerterWeg, luftbildInsel, teilGrundText, inselLuftbildText,
@@ -284,10 +284,18 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
       zufahrten: e.zufahrten })
   }
   if (plan.teile.length || plan.meldungen.length) planAnnahmen(erg, plan, meldungen, planMeldungen, kx.fahrbahn, fall.flaechenPlan)
+  // Tramgleis nach OSM quert den Streifen (Achse bzw. Umriss): nur Vorbelegung des Bedarfsmoduls, die Sichtprüfung nutzt es nicht
+  if (kxOhne.netz) for (const e of erg) e.tram = kxOhne.netz.tram.some(l => tramQuert(l, e.p0, e.p1, e.umriss))
   const inseln = [...new Set(streifen.flatMap(s => s.inseln))].filter(z => z.herkunft !== 'hand')
   return { streifen: erg, meldungen, ms: performance.now() - t0, vorschlaege: [...offen, ...kat, ...katPark], streifenQuelle: quelle,
     markierung: mk, hinweis, luftbild, parkVerworfen, doppelt, inseln, inselTeilt,
     ...(fall.flaechenPlan?.length ? { planFlaechen: new Set(plan.teile.map(t => t.id)).size } : {}) }
+}
+
+/** OSM-Tramgleis (Linie) schneidet die Streifenachse oder liegt mit einem Stützpunkt im Umriss */
+function tramQuert(linie: P[], p0: P, p1: P, umriss: P[]): boolean {
+  for (let i = 0; i + 1 < linie.length; i++) if (streckenSchnitt(linie[i], linie[i + 1], p0, p1)) return true
+  return linie.some(p => imPolygon(p, [umriss]))
 }
 
 /**

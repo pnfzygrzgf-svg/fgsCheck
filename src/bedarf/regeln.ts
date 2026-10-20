@@ -10,6 +10,7 @@ import { BERN_INSEL, BERN_LSA, BERN_Q3, Q3_DTV_GRENZE, bernTabelle, kTempo, sich
 import { EPS, pruefeSichtOhneVortritt, type SichtOhneVortritt } from './sichtOhneVortritt'
 import { freigabeSollInsel, freigabeSollNorm, gelbZulaessig, rundeBern } from './lsaZeiten'
 import { sichtweiteKurve } from '../rechner/tempo'
+import { f3Klasse } from './durchfahrt'
 import type { Staerke } from './typen'
 
 export type RegelFn = (k: Kontext) => Ergebnis | null
@@ -75,14 +76,7 @@ function hSollSicher(k: Kontext): number {
   return h.soll
 }
 
-/** Durchfahrt neben der Insel (F3, Kanton BE): Klasse je Seite */
-function f3Klasse(d: number): 'schmal' | 'band' | 'knapp' | null {
-  const W = K.F3.werte
-  if (d < W.min) return 'schmal'
-  if (d > W.schmalMax && d < W.breitMin) return 'band'
-  if (d < W.ideal || (d >= W.breitMin && d < W.breitIdeal)) return 'knapp'
-  return null
-}
+// Durchfahrt neben der Insel (F3, Kanton BE): Klasse je Seite in durchfahrt.ts (eine Quelle mit dem Werkzeug «Mittelinsel»)
 
 /** Bern: Qualitätsstufe der Wartezeit an der LSA (MP S. 60), mit Insel eigene Spalte */
 function wartestufe(w: number, insel: boolean): 'A/B' | 'C' | 'D' | 'E' | 'F' {
@@ -319,7 +313,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
   },
   F1d: k => {
     const a = k.w('achsWinkel'), W = K.F1d.werte
-    return ja(Math.abs(a - W.recht) > W.tol, { ist: String(a), soll: `${W.recht} ± ${W.tol} (Annahme)` })
+    return ja(Math.abs(a - W.recht) > W.tol, { ist: fmt(a, 1), soll: `${W.recht} ± ${W.tol} (Annahme)` })
   },
   F1e: k => (!k.w('busspur') ? null : ja(!k.w('busDurchmarkiert'))),
   F2: k => {

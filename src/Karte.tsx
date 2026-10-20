@@ -66,6 +66,9 @@ export const STATUS_FARBE: Record<string, string> = {
   frei: '#10b981', verdeckt: '#dc2626', verdeckt_gebaeude: '#dc2626', verdeckt_hindernis: '#ea580c', verdeckt_baum: '#ca8a04',
   verdeckt_zweirad: '#a855f7', kein_fgs: '#64748b', ohne_zufahrt: '#64748b',
 }
+/** Querung ohne Vortritt (Bedarfsmodul E1): Umriss ohne Balken, weiss gestrichelt über dunklem Rand, in Karte und Bericht */
+export const OHNE_VORTRITT_FARBE = '#ffffff'
+export const STRICH_OHNE_VORTRITT = '6 4'
 /** Strichmuster der Fahrlinie einer gedeckten Abbiegezufahrt (nur mit GEDECKT_RECHNEN), in Karte und Bericht gleich */
 export const STRICH_GEDECKT = '2 8'
 export const LUFTBILD_FARBE = '#f59e0b'
@@ -226,6 +229,23 @@ export default function Karte(props: {
   fixVorschlagRef.current = props.onFixVorschlag
   const elRef = useRef<HTMLDivElement>(null)
   const ebenenRef = useRef<Record<string, L.LayerGroup> | null>(null)
+  // Griffe der Mittelinseln je Gruppe: nur beim Überfahren der Insel bzw. des Griffs oder bei gewählter Insel sichtbar
+  const griffe = useRef(new Map<string, { mk: L.Marker; fest: boolean }>())
+  const griffZeit = useRef(new Map<string, number>())
+  const griffZug = useRef(new Set<string>())          // Gruppen, deren Griff gerade gezogen wird
+  const griffZeigen = (gruppe: string) => {
+    window.clearTimeout(griffZeit.current.get(gruppe)); griffZeit.current.delete(gruppe)
+    griffe.current.get(gruppe)?.mk.getElement()?.classList.add('sichtbar')
+  }
+  const griffVerstecken = (gruppe: string) => {
+    const g = griffe.current.get(gruppe)
+    if (!g || g.fest) return
+    window.clearTimeout(griffZeit.current.get(gruppe))
+    // kurz warten: von der Insel auf den Griff wechseln, ohne dass er verschwindet; im Zug bleibt er sichtbar
+    griffZeit.current.set(gruppe, window.setTimeout(() => {
+      if (!griffZug.current.has(gruppe)) g.mk.getElement()?.classList.remove('sichtbar')
+    }, 400))
+  }
   const cb = useRef(props)
   cb.current = props
   const markerRef = useRef(new Map<number, { k: OsmKnoten; m: L.CircleMarker }>())
@@ -376,6 +396,8 @@ export default function Karte(props: {
           '<br>ersetzt in der Rechnung die AV darunter<br><i>Klick: wählen und bearbeiten</i>',
         { sticky: true })
         .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(fp.id) })
+        .on('mouseover', () => { if (fp.standard) griffZeigen(fp.standard.gruppe) })
+        .on('mouseout', () => { if (fp.standard) griffVerstecken(fp.standard.gruppe) })
         .addTo(eb.plan)
     }
     // Mittelinsel (Standard): Signalmast im Kopf der Furt-Seite (Punkt, nur Hinweis; nicht bei von Hand veränderter Form)
@@ -448,7 +470,12 @@ export default function Karte(props: {
           .on('click', () => { if (!cb.current.werkzeug) cb.current.onZufahrt(zufahrtKey(z)) }).addTo(eb.sicht)
       }
       for (const a of s.ann) L.polygon(a.map(r => r.map(ll)), { color: '#0ea5e9', weight: 1, fillOpacity: 0.4, interactive: false }).addTo(eb.sicht)
-      L.polygon(s.umriss.map(ll), { color: '#fde047', weight: 2, fillColor: '#fde047', fillOpacity: 0.5, interactive: false }).addTo(eb.sicht)
+      if (s.querung) {
+        // ohne Vortritt: keine Balken (keine gelbe Fläche), Umriss weiss gestrichelt auf dunklem Rand
+        L.polygon(s.umriss.map(ll), { color: '#0f172a', weight: 4, opacity: 0.55, fill: false, interactive: false }).addTo(eb.sicht)
+        L.polygon(s.umriss.map(ll), { color: OHNE_VORTRITT_FARBE, weight: 2, dashArray: STRICH_OHNE_VORTRITT, fillColor: OHNE_VORTRITT_FARBE,
+          fillOpacity: 0.12, interactive: false }).addTo(eb.sicht)
+      } else L.polygon(s.umriss.map(ll), { color: '#fde047', weight: 2, fillColor: '#fde047', fillOpacity: 0.5, interactive: false }).addTo(eb.sicht)
     }
     // angenommene Inseln (nach OSM und Luftbild): gestrichelter Umriss, «prüfen»
     for (const z of rechnung.inseln ?? [])
@@ -654,10 +681,18 @@ export default function Karte(props: {
     const eb = ebenenRef.current
     if (!eb) return
     eb.griffe.clearLayers()
+    griffe.current.clear()
+    // Griff nur sichtbar, solange die Maus über der Insel bzw. dem Griff ist oder ein Teil der Insel gewählt ist (Touch: Tippen
+    // auf die Insel, auch auf ihre Mitte unter dem unsichtbaren Griff, wählt sie); sonst ausgeblendet und für Zeiger durchlässig
+    // (index.css: .leaflet-marker-icon.insel-griff:not(.sichtbar) mit pointer-events none, gegen die Regel aus leaflet.css)
+    const gewaehlt = new Set(flaechenPlan.filter(x => x.id === bearbeiten && x.standard).map(x => x.standard!.gruppe))
     for (const g of props.inselGriffe ?? []) {
+      const fest = gewaehlt.has(g.gruppe)
       const mk = L.marker(ll(g.m), { pane: GRIFF_PANE, draggable: !werkzeug, interactive: !werkzeug, keyboard: false,
-        icon: L.divIcon({ className: 'insel-griff', html: GRIFF_SVG, iconSize: [26, 26], iconAnchor: [13, 13] }) })
-        .bindTooltip(g.text, { direction: 'top', offset: [0, -14] })
+        icon: L.divIcon({ className: 'insel-griff' + (fest ? ' sichtbar' : ''), html: GRIFF_SVG, iconSize: [26, 26], iconAnchor: [13, 13] }) })
+        .bindTooltip(g.text, { direction: 'top', offset: [0, -14], className: 'insel-hinweis' })
+      griffe.current.set(g.gruppe, { mk, fest })
+      mk.on('mouseover', () => griffZeigen(g.gruppe)).on('mouseout', () => griffVerstecken(g.gruppe))
       let frei = false
       // Umschalttaste schon beim Drücken: Leaflet startet dann kein Ziehen, sondern den Box-Zoom (Ziehen mit Umschalttaste). Über
       // dem Griff ist der Box-Zoom darum aus (beim Verlassen bzw. Entfernen des Griffs wieder an); «frei» gilt erst, wenn die Taste
@@ -665,7 +700,7 @@ export default function Karte(props: {
       const map = kartenRef.current
       const boxAus = () => map?.boxZoom.disable(), boxAn = () => map?.boxZoom.enable()
       mk.on('mouseover', boxAus).on('mouseout', boxAn).on('remove', boxAn)
-      mk.on('dragstart', () => mk.closeTooltip())
+      mk.on('dragstart', () => { griffZug.current.add(g.gruppe); mk.closeTooltip() })
       mk.on('drag', (e: L.LeafletEvent) => {
         const oe = (e as L.LeafletEvent & { originalEvent?: { shiftKey?: boolean } }).originalEvent
         frei = !!oe?.shiftKey
@@ -674,10 +709,10 @@ export default function Karte(props: {
       })
       // zurück an die bisherige Mitte: übernimmt die App die Verschiebung, zeichnet sie den Griff an der neuen Mitte neu; lehnt
       // sie ab (Teilstreifen zu kurz), bleibt er dort, wo die Insel ist
-      mk.on('dragend', () => { const q = mk.getLatLng(); mk.setLatLng(ll(g.m)); cb.current.onInselLos?.(g.gruppe, lv95(q.lat, q.lng), frei) })
+      mk.on('dragend', () => { griffZug.current.delete(g.gruppe); griffVerstecken(g.gruppe); const q = mk.getLatLng(); mk.setLatLng(ll(g.m)); cb.current.onInselLos?.(g.gruppe, lv95(q.lat, q.lng), frei) })
       mk.addTo(eb.griffe)
     }
-  }, [props.inselGriffe, werkzeug])
+  }, [props.inselGriffe, werkzeug, flaechenPlan, bearbeiten])
 
   // «Ecke runden»: Angebot als Popup an der Ecke. Inhalt aus DOM-Knoten mit textContent (kein HTML aus Daten); Klicks im Popup
   // gehen nicht an die Karte. Schliessen (Knopf, Kreuz, Klick anderswo) meldet «abbrechen»; die App entfernt das Angebot dann
@@ -748,7 +783,7 @@ export default function Karte(props: {
       const ende = i === 0 || i === z.sichtpunkte.length - 1
       // weiss mit dunklem Rand: Rot steht in der Karte für «verdeckt»
       L.circleMarker(ll(p), { radius: ende ? 5 : 3, color: '#111827', weight: 1.5, fillColor: '#ffffff', fillOpacity: 1, interactive: ende })
-        .bindTooltip(ende ? (i === 0 ? 'erster Sichtpunkt (am Streifen)' : `letzter Sichtpunkt (${z.sichtweite} m)`) : 'Sichtpunkt')
+        .bindTooltip(ende ? (i === 0 ? 'erster Sichtpunkt (am Streifen)' : `letzter Sichtpunkt (${String(z.sichtweite).replace('.', ',')} m)`) : 'Sichtpunkt')
         .addTo(eb.auswahl)
     })
   }, [rechnung, auswahl])

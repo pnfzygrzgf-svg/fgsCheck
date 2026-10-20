@@ -22,7 +22,7 @@ import { SICHTWEITE, KURVE_SICHTWEITE } from './rechner/tempo'
 import { lv95, dist, type P } from './geo'
 import { wmsBildUrl, LUFTBILD_QUELLE } from './daten/luftbild'
 import { STATUS_FARBE, STRICH_GEDECKT, UEBERGANG_TEXT, INSEL_FARBE, STRICH_INSEL, hindernisFarbe, hindernisText, INSEL_TEXT } from './Karte'
-import { GRUND, ART, STATUS, statusText, f1, f2 } from './texte'
+import { GRUND, ART, STATUS, statusText, f1, f2, mText } from './texte'
 import { koordText, vorzeichenText, fixpunktMasse } from './rechner/vermassung'
 import { fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT } from './fixpunkt'
 import { FIXPUNKT_FARBE, PLAN_FARBEN, STRICH_PLAN, NrMarke } from './Karte'
@@ -32,6 +32,10 @@ import { streifenTitel, zufahrtLang, zufahrtNr, zufahrtText, entfallenNr, entfal
 /** Zufahrt-Namen je Streifen (benennung.zufahrtNamen, in der App gerechnet) */
 type Namen = Map<string, ZufahrtNamen>
 import { ausserhalbText, nichtAbgedecktText, type Ausserhalb } from './abdeckung'
+import { BefundblattAnzeige, eingabenText } from './BedarfPanel'
+import type { BefundBlatt } from './bedarf/befundblatt'
+import { bedarfLeer } from './bedarf/fallBedarf'
+import { AHS_40240 } from './bedarf/tabellen'
 
 const APP_URL = 'https://fgscheck.ch/'
 const RAND_M = 4                       // Rand um Streifen und Sichtfelder im Kartenbild
@@ -195,7 +199,9 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
           {r.streifen.map(st => (
             <g key={'s' + st.fgsId}>
               {st.ann.map((a, i) => <path key={i} d={pfad(a)} fill="#0ea5e9" fillOpacity={0.35} stroke="#0369a1" strokeWidth={1} />)}
-              <path d={pfad([st.umriss])} fill="#fde047" fillOpacity={0.7} stroke="#000000" strokeWidth={2} />
+              {st.querung
+                ? <path d={pfad([st.umriss])} fill="#ffffff" fillOpacity={0.3} stroke="#000000" strokeWidth={2.5} strokeDasharray="10 6" />
+                : <path d={pfad([st.umriss])} fill="#fde047" fillOpacity={0.7} stroke="#000000" strokeWidth={2} />}
             </g>
           ))}
           {r.streifen.flatMap(st => st.zufahrten).map(z => (
@@ -250,7 +256,8 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
         {(status === 'fehler' || status === 'zeit') && <span className="nicht-drucken">
           {status === 'zeit' ? `Noch keine Antwort nach ${BILD_ZEITGRENZE_MS / 1000} s; es erscheint, sobald es eintrifft. ` : ''}
           <button className="zweit klein" onClick={() => setVersuch(v => v + 1)}>erneut versuchen</button>{' '}</span>}
-        Ausschnitt {Math.round(wM)} × {Math.round(hM)} m, Norden oben (LV95). Gelb: Streifen; blau: Annäherungsbereiche; Sichtfelder umrandet in
+        Ausschnitt {Math.round(wM)} × {Math.round(hM)} m, Norden oben (LV95). Gelb: Streifen{r.streifen.some(st => st.querung) ?
+          '; weiss gestrichelt ohne Balken: Querung ohne Vortritt' : ''}; blau: Annäherungsbereiche; Sichtfelder umrandet in
         der Farbe des Status (durchgezogen: frei, gestrichelt: verdeckt, gepunktet: nicht geprüft); schraffiert: Hindernis im Sichtfeld;
         schwarze Punkte: Sichtpunkte auf der Fahrlinie (weiss gestrichelt), hinter dem letzten Sichtpunkt die Nummer der Zufahrt; farbige
         Flächen: Hindernisse (Parkfelder, Bäume, Hecken, Mauern).
@@ -300,6 +307,7 @@ function eingabenListe(fall: Fall, r: FallRechnung | null, namen: Namen): string
     const teile: string[] = []
     if (e.lsa) teile.push(`Lichtsignal ${e.lsa}`)
     if (e.keinFgs) teile.push('kein FGS')
+    if (e.typ) teile.push(`Querung ohne Vortritt (${e.typ === 'furt' ? 'Furt, Insel ohne Balken' : 'Nase, Einengung bzw. ohne bauliche Massnahme'})`)
     if (teile.length) aus.push(`${streifenTitel(k, hand)}: ${teile.join(', ')}`)
   }
   const verworfen = Object.keys(fall.vorschlaege).length
@@ -312,6 +320,9 @@ function eingabenListe(fall: Fall, r: FallRechnung | null, namen: Namen): string
     (fp.standard ? `; ${standardTeilText(fp)}` : ''))
   for (const f of fall.fixpunkte ?? []) aus.push(`Fixpunkt ${fixpunktName(f)}: ${ART_TEXT[f.art]}, E ${koordText(f.p[0])}, N ${koordText(f.p[1])} ` +
     '(nur Vermassung, ohne Einfluss auf die Rechnung)')
+  const nb = Object.keys(fall.bedarf?.felder ?? {}).length, ne = Object.keys(fall.bedarf?.ebenen ?? {}).length
+  if (nb || ne) aus.push(`Bedarf und Querungstyp: ${nb} Eingabe(n) von Hand${ne ? `, ${ne} Ebene(n) von Hand geschaltet` : ''} ` +
+    '(siehe Abschnitt «Bedarf und Querungstyp»)')
   return aus
 }
 
@@ -396,13 +407,17 @@ function StreifenTabelle({ s, fall, ausserhalb, namen }: { s: StreifenErgebnis; 
   namen: ZufahrtNamen | undefined }) {
   return (
     <section className="bericht-block">
-      <h3>{streifenTitel(s.fgsId, fall.streifenHand)}{s.strasse ? ` – ${s.strasse}` : ''}: {STATUS[s.status] ?? s.status}</h3>
+      <h3>{streifenTitel(s.fgsId, fall.streifenHand)}{s.strasse ? ` – ${s.strasse}` : ''}: {STATUS[s.status] ?? s.status}
+        {s.querung ? ' (Querung ohne Vortritt)' : ''}</h3>
       <p className="klein">Länge {f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m, Breite {f1(s.bw)} m · Zuordnung OSM: {s.netzQuelle} ·
         Bordkanten: {s.randQuelle === 'AV' ? 'AV' : 'angenommen'} · Lichtsignal: {s.lsa === 'ja' ? `ja (${s.lsaQuelle ?? 'OSM'})` : 'nein'}</p>
       {ausserhalb && <p className="klein"><b>Ausserhalb der geladenen Daten:</b> {ausserhalbText(ausserhalb)}</p>}
       {s.keinFgsHinweis && <p className="klein"><b>Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug.</b></p>}
       {s.markierungHinweis && <p className="klein"><b>Vermutlich Fussgängerstreifen (Markierung in OSM nicht erfasst), bitte prüfen.</b></p>}
       {s.lsa === 'ja' && <p className="klein">Mit Lichtsignal gilt die Arbeitshilfe nicht; die Rechnung wird trotzdem gezeigt.</p>}
+      {s.querung && <p className="klein"><b>Querung ohne Vortritt</b> ({s.querung.typ === 'furt' ? 'Furt, Insel ohne Balken' :
+        'Nase, Einengung bzw. ohne bauliche Massnahme'}), kein Fussgängerstreifen: Sichtweite nach VSS 40 240 Z. 8.2, max(v · L / 1,2 m/s;
+        Anhaltesichtweite), L = {f1(s.querung.L)} m{s.querung.ganzeFahrbahn ? ' (Insel nur markiert: ganze Fahrbahn)' : ''}.</p>}
       {s.status !== 'kein_fgs' && (
         <table className="bericht-tabelle">
           <thead><tr><th>Zufahrt</th><th>Art</th><th>Tempo</th><th>Sichtweite</th><th>Status</th><th>Hindernisse im Sichtfeld</th></tr></thead>
@@ -413,7 +428,8 @@ function StreifenTabelle({ s, fall, ausserhalb, namen }: { s: StreifenErgebnis; 
                   {z.art === 'abbiegend' && z.ueberStrasse ? <div className="klein">weiter auf {z.ueberStrasse}</div> : null}</td>
                 <td>{ART[z.art] ?? z.art}</td>
                 <td>{z.tempo} km/h<div className="klein">{z.tempoQuelle === 'Ersatz' ? 'Annahme (ohne Angabe)' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : 'OSM'}</div></td>
-                <td>{z.sichtweite} m<div className="klein">{z.sichtweiteQuelle}{z.kurvenradiusM != null ? `, R ${f1(z.kurvenradiusM)} m` : ''}</div></td>
+                <td>{mText(z.sichtweite)} m<div className="klein">{z.sichtweiteQuelle}{z.kurvenradiusM != null ? `, R ${f1(z.kurvenradiusM)} m` : ''}</div>
+                  {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
                 <td><b>{statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}</td>
                 <td className="klein">{hindernisseText(z)}</td>
               </tr>
@@ -431,8 +447,9 @@ function StreifenTabelle({ s, fall, ausserhalb, namen }: { s: StreifenErgebnis; 
 }
 
 export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjahr, luftbildStand, zusatzQuellen, ausserhalb = [], aendern,
-  schliessen, namen = new Map() }: {
+  schliessen, namen = new Map(), blaetter = [] }: {
   namen?: Namen                  // Zufahrten nach Strasse und Herkunft (benennung.ts), je Streifen
+  blaetter?: BefundBlatt[]       // Bedarfsmodul E1: Befundblatt je Querung (gezeigt mit Eingaben zum Bedarf bzw. Querung ohne Vortritt)
   fall: Fall; rechnung: FallRechnung; rechnungZeit: Date | null; kantone: string[]; flugjahr: string; luftbildStand: LuftbildStand
   zusatzQuellen: string[]
   ausserhalb?: Ausserhalb[]      // Streifen von Hand ausserhalb der geladenen Daten (abdeckung.ts)
@@ -448,6 +465,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
   const strassen = [...new Set(rechnung.streifen.map(s => s.strasse).filter(Boolean))]
   const mk = rechnung.markierung ?? fall.ort.markierung
   const eingaben = eingabenListe(fall, rechnung, namen)
+  const mitBedarf = blaetter.length > 0 && (!bedarfLeer(fall.bedarf) || Object.values(fall.streifen).some(e => !!e.typ))
   const hinweise = hinweisListe(rechnung, fall, luftbildStand, ausserhalb, namen)
   // Bezeichnung: lokal tippen, erst beim Verlassen des Felds (bzw. Enter, Escape) in den Fall übernehmen – sonst lösten
   // jeder Tastendruck eine neue Rechnung und das Speichern im Browser aus. Der Bericht zeigt den lokalen Wert sofort.
@@ -526,13 +544,25 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
 
         </td></tr>
         <tr className={rechnung.streifen.length > 0 ? 'bericht-neue-seite' : undefined}><td>
-        {/* Seite 1: Ort und Kartenbild; das Ergebnis beginnt im Druck oben auf Seite 2 (ohne Kartenbild ohne Umbruch) */}
+        {/* Seite 1: Ort und Kartenbild; das Ergebnis beginnt im Druck oben auf Seite 2 (ohne Kartenbild ohne Umbruch). Mit Eingaben
+            zu Bedarf und Querungstyp (bzw. einem Streifen ohne Vortritt) steht das Befundblatt davor (Skizze: oberhalb des Sichtbefunds) */}
+        {mitBedarf && <section className="bericht-block">
+          <h2>Bedarf und Querungstyp</h2>
+          <p className="klein">Beurteilung nach VSS 40 241, 40 240 und weiteren Grundlagen (Ziffern und eigene Kurztexte, kein Normtext).
+            Rot: Pflichtverletzung bzw. nur mit verkehrstechnischem Bericht; gelb: Empfehlung; offen: Eingabe fehlt (zählt nie als
+            erfüllt). Ebenen Bern und Kanton BE gesondert. Die Sicht stammt aus dem Sichtrechner (Abschnitt Ergebnis).</p>
+          {blaetter.map(b => <BefundblattAnzeige key={b.gruppe} b={b} mehrere={blaetter.length > 1} druck />)}
+          <h3>Eingaben und Quellen{blaetter.length > 1 ? ` (vorbelegt nach ${blaetter[0].titel})` : ''}</h3>
+          <ul className="klein">{eingabenText(blaetter[0]).map(g => <li key={g.gruppe}><b>{g.gruppe}:</b>
+            {g.hand.length > 0 && <> von Hand: {g.hand.join('; ')}.</>}{g.vorbelegt.length > 0 && <> Vorbelegt: {g.vorbelegt.join('; ')}.</>}</li>)}</ul>
+        </section>}
         <section className="bericht-block">
           <h2>Ergebnis</h2>
           {rechnung.hinweis && <p><b>{rechnung.hinweis}</b></p>}
           {!rechnung.streifen.length && <p>Kein Streifen gebildet. {rechnung.meldungen.join(' ')}</p>}
           <ul className="bericht-status">
-            {rechnung.streifen.map(s => <li key={s.fgsId}>{streifenTitel(s.fgsId, fall.streifenHand)}{s.strasse ? ` (${s.strasse})` : ''}: <b>{STATUS[s.status] ?? s.status}</b>
+            {rechnung.streifen.map(s => <li key={s.fgsId}>{streifenTitel(s.fgsId, fall.streifenHand)}{s.strasse ? ` (${s.strasse})` : ''}{s.querung ?
+              ' – Querung ohne Vortritt' : ''}: <b>{STATUS[s.status] ?? s.status}</b>
               {' '}– {s.status === 'kein_fgs' ? 'von Hand als kein Fussgängerstreifen bezeichnet, Zufahrten nicht ausgewiesen'
                 : `${s.zufahrten.length} Zufahrt(en) geprüft, davon ${s.zufahrten.filter(z => z.status === 'frei').length} frei` +
                   (s.zufahrten.some(z => z.deckung) ? `; ${s.zufahrten.filter(z => z.deckung).length} durch die gerade Zufahrt ` +
@@ -574,6 +604,9 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
             <li>Sichtweiten: VSS 40 241, Tab. 1 ({Object.entries(SICHTWEITE).map(([t, sw]) => `${t} km/h: ${sw} m`).join(', ')}).</li>
             <li>Im Knoten nach Kurvenradius: bfu 2.457.01 bzw. VSS 40 241, Tab. 2 ({KURVE_SICHTWEITE.map(([r, sw]) => `bis ${r} m: ${sw} m`).join(', ')}).</li>
             <li>Auto-Parkfeld näher als 5 m am Streifen: VRV Art. 18 Abs. 2e.</li>
+            {rechnung.streifen.some(s => s.querung) && <li>Querung ohne Vortritt: VSS 40 240:2025, Z. 8.2, Sichtweite max(v · L / 1,2 m/s;
+              Anhaltesichtweite {Object.entries(AHS_40240).map(([t, sw]) => `${t} km/h: ${sw} m`).join(', ')}) je Teilquerung.</li>}
+            {mitBedarf && <li>Bedarf und Querungstyp: Regelkatalog des Bedarfsmoduls (Ziffer und Ausgabe je Befund).</li>}
           </ul>
         </section>
 

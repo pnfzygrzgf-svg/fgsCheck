@@ -8,17 +8,23 @@ import { MARKIERUNGEN, type Markierung } from './daten/osm'
 import type { Hindernis } from './rechner/hindernisse'
 import type { SpurHand } from './rechner/spurhand'
 import type { VonHand } from './rechner/pruefen'
+import type { QuerungOhneVortritt } from './rechner/typen'
+import { bedarfLesen, bedarfLeer, type BedarfBlock } from './bedarf/fallBedarf'
 
 /**
  * Versionen der Fall-Datei (Korrektur 16.10.2026, Prüfbefund S2): 1 = bisher; 2 = mit Flächen (Plan) (Feld flaechenPlan). Version 2
  * wird nur geschrieben, wenn der Fall Flächen (Plan) hat (fallVersion): eine ältere App lehnt die Datei dann ab («Fall-Datei
  * Version 2 wird nicht unterstützt»), statt still ohne die Plan-Flächen zu rechnen; alle übrigen Dateien bleiben Version 1 und
  * für ältere Apps lesbar. FALL_VERSION ist die höchste lesbare Version.
+ * Version 3 (Bedarfsmodul E1, 20.10.2026): mit Block «bedarf» (Handeingaben zu Bedarf und Querungstyp) bzw. mit einem Streifen
+ * als Querung ohne Vortritt (StreifenEingabe.typ). Beides würde eine ältere App still übergehen (den Streifen ohne Vortritt
+ * prüfte sie als Fussgängerstreifen); sie lehnt Version 3 mit ihrer Meldung ab. Ohne beides bleibt es bei 1 bzw. 2.
  */
-export const FALL_VERSION = 2
+export const FALL_VERSION = 3
 export const FALL_VERSION_BASIS = 1
-/** Version, mit der ein Fall geschrieben wird: 2 mit Flächen (Plan), sonst 1 */
-export const fallVersion = (f: { flaechenPlan?: unknown[] }): number => (f.flaechenPlan?.length ? 2 : FALL_VERSION_BASIS)
+/** Version, mit der ein Fall geschrieben wird: 3 mit Bedarf bzw. Querung ohne Vortritt, 2 mit Flächen (Plan), sonst 1 */
+export const fallVersion = (f: { flaechenPlan?: unknown[]; bedarf?: BedarfBlock; streifen?: Record<string, StreifenEingabe> }): number =>
+  (!bedarfLeer(f.bedarf) || Object.values(f.streifen ?? {}).some(e => !!e.typ) ? 3 : f.flaechenPlan?.length ? 2 : FALL_VERSION_BASIS)
 
 export interface StreifenHand { id: string; p0: P; p1: P; breite: number; richtung?: P   // richtung: Balken (Luftbild), sonst OSM-Weg
   herkunft?: StreifenHerkunft      // woher der Streifen stammt (fehlt in Fällen vor dem 11.10.2026: unbekannt)
@@ -37,7 +43,11 @@ export const FIXPUNKT_ARTEN: FixpunktArt[] = ['gebaeudeecke', 'av_punkt', 'frei'
 /** Name eines Fixpunkts höchstens so lang (Zeichen; wie das Textfeld in der Liste) */
 export const FIXPUNKT_NAME_MAX = 80
 export interface Fixpunkt { id: string; p: P; art: FixpunktArt; name?: string; avArt?: string }
-export interface StreifenEingabe { lsa?: 'ja' | 'nein'; keinFgs?: boolean }
+/** Eingaben je Streifen: Lichtsignal von Hand; keinFgs: kein Fussgängerstreifen, Streifen nicht prüfen (wie bisher); typ:
+ * Querung ohne Vortritt (Bedarfsmodul E1), geprüft mit der Sichtweite nach VSS 40 240 Z. 8.2. keinFgs und typ schliessen sich aus
+ * (keinFgs geht vor). Fehlt typ: Fussgängerstreifen */
+export interface StreifenEingabe { lsa?: 'ja' | 'nein'; keinFgs?: boolean; typ?: QuerungOhneVortritt }
+export const QUERUNG_OHNE_VORTRITT: QuerungOhneVortritt[] = ['furt', 'ohne_vortritt']
 /** Fläche (Plan) von Hand (seit 16.10.2026; rechner/planflaechen.ts): geplante Bodenbedeckung, ersetzt für die Rechnung die
  * AV-Flächen darunter (Trottoirnase, Fahrbahnverengung, verschobener Randstein, neue Insel). Ring ohne Schlusspunkt, LV95 */
 export type PlanArt = 'trottoir' | 'fahrbahn' | 'insel'
@@ -73,6 +83,7 @@ export interface Fall {
   luftbild?: boolean                              // Streifen im Luftbild suchen (Vorgabe: ja)
   fixpunkte?: Fixpunkt[]                          // Fixpunkte der Vermassung (fehlt, solange keiner gesetzt ist; ältere Apps übergehen das Feld)
   flaechenPlan?: FlaechePlan[]                    // Flächen (Plan) von Hand, spätere vor früheren (fehlt, solange keine gezeichnet ist)
+  bedarf?: BedarfBlock                            // Bedarfsmodul E1: Handeingaben zu Bedarf und Querungstyp je Fall (fehlt ohne; Version 3)
   gespeichert?: string
   ergebnis?: FallErgebnis                         // nur beim Speichern geschrieben (Auszug), beim Laden neu gerechnet
 }
@@ -273,8 +284,15 @@ export function fallLesen(text: string): [Fall, string[]] {
     const e: StreifenEingabe = {}
     if (v.lsa === 'ja' || v.lsa === 'nein') e.lsa = v.lsa
     if (v.keinFgs === true) e.keinFgs = true
+    let gemeldet = false
+    if (v.typ !== undefined) {
+      gemeldet = true
+      if (!QUERUNG_OHNE_VORTRITT.includes(v.typ as QuerungOhneVortritt)) hinweise.push(`Streifen-Eingabe ${k}: Querungstyp ungültig, übergangen`)
+      else if (e.keinFgs) hinweise.push(`Streifen-Eingabe ${k}: «kein FGS» und Querung ohne Vortritt zugleich – «kein FGS» gilt, Querungstyp übergangen`)
+      else { e.typ = v.typ as QuerungOhneVortritt; gemeldet = false }
+    }
     if (Object.keys(e).length) fall.streifen[k] = e
-    else if (Object.keys(v).length) hinweise.push(`Streifen-Eingabe ${k} ungültig, übergangen`)
+    else if (Object.keys(v).length && !gemeldet) hinweise.push(`Streifen-Eingabe ${k} ungültig, übergangen`)
   }
   for (const [k, v] of objekt('vorschlaege', 'Vorschläge')) {
     if (v === 'verworfen') fall.vorschlaege[k] = 'verworfen'
@@ -283,13 +301,20 @@ export function fallLesen(text: string): [Fall, string[]] {
   fall.baumkataster = roh.baumkataster === true
   if (roh.parkkataster === false) fall.parkkataster = false
   if (roh.luftbild === false) fall.luftbild = false
+  if (roh.bedarf !== undefined) {
+    const [b, hb] = bedarfLesen(roh.bedarf)
+    hinweise.push(...hb)
+    if (b) fall.bedarf = b
+  }
   if (typeof roh.gespeichert === 'string') fall.gespeichert = roh.gespeichert   // Stand im Hinweis «aus dem Browser übernommen»
   return [fall, hinweise]
 }
 
 export function fallSchreiben(fall: Fall, ergebnis: FallErgebnis | null = null): string {
-  const { ergebnis: _alt, ...rest } = fall
+  const { ergebnis: _alt, bedarf, ...ohne } = fall
   void _alt
+  // leerer Bedarf-Block (keine Handeingabe, keine Ebene) wird nicht geschrieben: der Fall bleibt Version 1 bzw. 2
+  const rest = bedarfLeer(bedarf) ? ohne : { ...ohne, bedarf }
   return JSON.stringify({ ...rest, version: fallVersion(fall), gespeichert: new Date().toISOString(), ...(ergebnis ? { ergebnis } : {}) }, null, 1)
 }
 
@@ -302,7 +327,24 @@ export function vonHandAusFall(fall: Fall): VonHand {
     lsa: fid => fall.streifen[fid]?.lsa ?? null,
     keinFgs: fid => !!fall.streifen[fid]?.keinFgs,
     tempoKennung: (fid, kennung) => z(fid, kennung)?.tempo ?? null,
+    querung: fid => {
+      const e = fall.streifen[fid]
+      return e?.typ && !e.keinFgs ? { typ: e.typ, inselMarkiert: inselMarkiert(fall) } : null
+    },
   }
+}
+
+/** Insel im Bedarf von Hand als «nur markiert» bezeichnet (Querung ohne Vortritt: L über die ganze Fahrbahn) */
+export const inselMarkiert = (fall: Fall): boolean => fall.bedarf?.felder['insel.art']?.wert === 'markiert'
+
+/**
+ * Schlüssel der Eingaben, die die Rechnung braucht: der ganze Fall ohne Bedarf-Block (der wirkt nur über «Insel nur markiert»),
+ * ohne Speicherdatum und Ergebnis-Auszug. Gleicher Schlüssel: keine neue Rechnung nach einer Bedarf-Eingabe (App)
+ */
+export function rechnungsSchluessel(f: Fall): string {
+  const { bedarf: _b, gespeichert: _g, ergebnis: _e, ...rest } = f
+  void _b; void _g; void _e
+  return stabil([rest, inselMarkiert(f)])
 }
 
 // ---------------------------------------------------------------- localStorage (nur Bequemlichkeit, darf fehlen)
@@ -354,8 +396,10 @@ function stabil(x: unknown): string {
  */
 export function eingabenSchluessel(f: Fall): string {
   // Flächen (Plan) nur, wenn vorhanden: der Schlüssel der Fälle ohne sie bleibt wie bisher
+  // Bedarf ebenso nur, wenn vorhanden (Bedarfsmodul E1)
   return stabil([f.ort.bezeichnung ?? '', f.streifenHand, f.hindernisse, f.zufahrten, f.streifen, f.vorschlaege, f.baumkataster,
-    f.parkkataster !== false, f.luftbild !== false, f.fixpunkte ?? [], ...(f.flaechenPlan?.length ? [f.flaechenPlan] : [])])
+    f.parkkataster !== false, f.luftbild !== false, f.fixpunkte ?? [], ...(f.flaechenPlan?.length ? [f.flaechenPlan] : []),
+    ...(!bedarfLeer(f.bedarf) ? [{ bedarf: f.bedarf }] : [])])
 }
 
 /**
@@ -374,11 +418,12 @@ export function ortMerkenEntscheid(fall: Fall, eigen: boolean, gemerkt: Fall | n
 
 // ---------------------------------------------------------------- Hilfen für die Oberfläche (E2-Korrektur)
 /** Anzahl Eingaben eines Falls (Streifen von Hand, Hindernisse, Zufahrten, Streifen-Eingaben, verworfene Vorschläge bzw.
- * Parkfelder, Baumkataster zugeschaltet, amtliche Parkfelder abgeschaltet, Fixpunkte, Flächen (Plan)) */
+ * Parkfelder, Baumkataster zugeschaltet, amtliche Parkfelder abgeschaltet, Fixpunkte, Flächen (Plan), Bedarf: Handeingaben und
+ * geschaltete Ebenen) */
 export function eingabenZahl(f: Fall): number {
   return f.streifenHand.length + f.hindernisse.length + Object.keys(f.zufahrten).length + Object.keys(f.streifen).length +
     Object.keys(f.vorschlaege).length + (f.baumkataster ? 1 : 0) + (f.parkkataster === false ? 1 : 0) + (f.fixpunkte?.length ?? 0) +
-    (f.flaechenPlan?.length ?? 0)
+    (f.flaechenPlan?.length ?? 0) + Object.keys(f.bedarf?.felder ?? {}).length + Object.keys(f.bedarf?.ebenen ?? {}).length
 }
 
 /** Hat der Fall etwas zu merken? Eingaben (eingabenZahl), Luftbild-Suche abgeschaltet oder eine Bezeichnung */
