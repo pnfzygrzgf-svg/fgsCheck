@@ -251,6 +251,9 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   `src/fixpunkt.ts` – Fangen auf AV-Stützpunkte, `src/benennung.ts` – Namen der Streifen von Hand und Zufahrten
 - `src/referenz.test.ts` – Vergleich mit einer Referenz-Datei ausserhalb des Repos (nur lokal; ohne Datei übersprungen;
   Ergebnisdatei nur mit `FGS_REFERENZ_SCHREIBEN=1`)
+- `src/bedarf/` – Bedarfsmodul, Etappe E0 (noch ohne Oberfläche): Regelkatalog mit Ziffer, Ausgabe, Stärke und Ebene je Regel
+  (`katalog.ts`, nur eigene Kurztexte), Eingaben mit Quelle je Feld (`eingaben.ts`) und Entscheidbaum als reine Funktion
+  `beurteile(eingaben, optionen)` → Befund (`entscheid.ts`; Ebenen Bern, Kanton BE und Richtlinie schaltbar)
 
 ## Datenschutz
 
