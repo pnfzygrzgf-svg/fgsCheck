@@ -33,7 +33,7 @@ import { type Multi, linieImPolygon, segmentieren, vereinigung, linienLaenge, ab
 import { type Zufahrt, type Entfallen, entfallen } from './zufahrten'
 import type { ZufahrtErgebnis } from './typen'
 import { type VonHand, konfliktFelder, R2_FLAECHEN } from './pruefen'
-import { planKurzAv } from './planflaechen'
+import { planKurzAv, ECK_GROSS_M } from './planflaechen'
 import type { Flaechen } from './flaechen'
 import { liniePunkte, sichtweiteRadiusHand } from './spurhand'
 import type { HindernisDaten } from './hindernisse'
@@ -96,7 +96,7 @@ export const gedecktRechnenSetzen = (an: boolean | null) => { gedecktRechnen = a
 // beim bisherigen Wert (NEBENAST_GRAD 30° -> 0,2 wie bisher), statt Arme zu verwerfen, deren Fahrstreifen flacher münden, als
 // die Drehung zeigt
 export const PARALLEL_MIN = Math.min(0.2, 0.6 * Math.sin(NEBENAST_GRAD * Math.PI / 180))
-const ECK_GROSS_M = 23.5
+// ECK_GROSS_M (23,5 m): seit 20.10.2026 in planflaechen.ts (die Anzeige nennt die Grenze für Ecken nach Plan-Flächen, ohne den Rechner zu laden)
 const ECKE_AN_FAHRSTREIFEN = true
 const ECKE_FS_MAX_M = 6.0
 const ECKE_PARK_MIN = 2
@@ -110,6 +110,70 @@ const RAD = Math.PI / 180
 export type Eck = [number | null, string, P | null, P[] | null, [number, number, number, P, P[]] | null]
 const eckCache = new Map<string, Eck>()
 export const eckCacheLeeren = () => eckCache.clear()
+
+// Bogen nach Plan-Fläche (20.10.2026, «Ecke runden»): der Kreisfit der Ecke (eckradiusAv) nimmt alle Randpunkte im Keil, die
+// weder in der Richtung des Anfangs noch des Endes laufen. Endet der Keil an einer zweiten Ecke (z. B. eine gerundete Ecke,
+// daneben eine gerade Kante und eine scharfe Ecke einer Plan-Fläche), misst er die Endrichtung dort und nimmt die gerade Kante
+// in den Fit (Nutzerfall Könizstrasse: Bogen 6 m gerundet, gelesen 9,0 m). Mit Flächen (Plan) liegen die Ecken eines
+// gezeichneten bzw. gerundeten Bogens als Ringpunkte vor: eine Folge von mindestens PLAN_BOGEN_MIN Ringecken auf dem gelesenen
+// Bogen, je PLAN_BOGEN_GRAD gedreht (gleicher Sinn), Kanten höchstens PLAN_BOGEN_KANTE_M, zusammen mindestens
+// PLAN_BOGEN_SUMME_GRAD, Kreisfit innert BOGEN_RES_MAX. Sie gilt als Bogen dieser Ecke, wenn ihre beiden Endtangenten je einer der
+// beiden Strassen folgen (höchstens PLAN_BOGEN_WINKEL_GRAD) und als Bordkante neben deren Achse liegen (Abstand vom Knoten quer
+// zur Strasse höchstens halbe Fahrbahn + PLAN_BOGEN_SEITE_M): sonst gehört der Bogen zu einer anderen Ecke (z. B. an der
+// gegenüberliegenden Einmündung). Weicht ihr Radius um mehr als 5 cm vom gelesenen ab, gilt sie (die dem Knoten nächste Folge).
+// Ohne Flächen (Plan) unverändert
+const PLAN_BOGEN_GRAD: [number, number] = [0.2, 12.0]
+const PLAN_BOGEN_KANTE_M = 1.0
+const PLAN_BOGEN_MIN = 4
+const PLAN_BOGEN_SUMME_GRAD = 20.0
+const PLAN_BOGEN_WINKEL_GRAD = 30.0
+const PLAN_BOGEN_SEITE_M = 3.0
+export function planBogen(fahrbahn: Fahrbahn, bogen: P[], j: P, dEigen: P, dArm: P, halbEigen: number, halbArm: number): [number, P, P[]] | null {
+  let best: [number, P, P[], number] | null = null
+  const sinMax = Math.sin(PLAN_BOGEN_WINKEL_GRAD * RAD)
+  // Endtangente (Punkt, Richtung) folgt der Strasse d und liegt höchstens grenze quer neben dem Knoten
+  const anStrasse = (q: P, t: P, d_: P, grenze: number) =>
+    Math.abs(t[0] * d_[1] - t[1] * d_[0]) <= sinMax && Math.abs((q[0] - j[0]) * d_[1] - (q[1] - j[1]) * d_[0]) <= grenze
+  for (const t of fahrbahn.plan) for (const ring of t.poly) {
+    const n = ring.length
+    if (n < PLAN_BOGEN_MIN) continue
+    const dreh = ring.map((q, i) => {
+      const a = ring[(i - 1 + n) % n], b = ring[(i + 1) % n]
+      const u = sub(q, a), v = sub(b, q)
+      return Math.atan2(u[0] * v[1] - u[1] * v[0], u[0] * v[0] + u[1] * v[1]) / RAD
+    })
+    const ok = ring.map((q, i) => abstandLinie(q, bogen) <= 0.05 && Math.abs(dreh[i]) >= PLAN_BOGEN_GRAD[0] && Math.abs(dreh[i]) <= PLAN_BOGEN_GRAD[1])
+    if (ok.every(x => x)) continue                               // ganzer Ring ein Bogen (Kreis): keine Ecke
+    // Folgen im Ring (zyklisch), Start nach einer Ecke, die nicht passt
+    const start = ok.findIndex(x => !x)
+    let folge: number[] = []
+    const folgen: number[][] = []
+    for (let k = 1; k <= n; k++) {
+      const i = (start + k) % n
+      const passt = ok[i] && (!folge.length || (Math.sign(dreh[i]) === Math.sign(dreh[folge[0]]) &&
+        dist(ring[i], ring[folge[folge.length - 1]]) <= PLAN_BOGEN_KANTE_M))
+      if (passt) folge.push(i)
+      else { if (folge.length) folgen.push(folge); folge = ok[i] ? [i] : [] }
+    }
+    if (folge.length) folgen.push(folge)
+    for (const f of folgen) {
+      if (f.length < PLAN_BOGEN_MIN || Math.abs(f.reduce((s_, i) => s_ + dreh[i], 0)) < PLAN_BOGEN_SUMME_GRAD) continue
+      const pts = f.map(i => ring[i])
+      const q0 = pts[0], q1 = pts[pts.length - 1]
+      const t0 = einheit(sub(pts[1], q0)), t1 = einheit(sub(q1, pts[pts.length - 2]))
+      if (!((anStrasse(q0, t0, dEigen, halbEigen + PLAN_BOGEN_SEITE_M) && anStrasse(q1, t1, dArm, halbArm + PLAN_BOGEN_SEITE_M)) ||
+        (anStrasse(q0, t0, dArm, halbArm + PLAN_BOGEN_SEITE_M) && anStrasse(q1, t1, dEigen, halbEigen + PLAN_BOGEN_SEITE_M)))) continue
+      const k = kreisAnpassen(pts)
+      if (!k || k[1] > 60 || kreisResiduum(k, pts) > BOGEN_RES_MAX) continue
+      const dj = Math.min(...pts.map(q => dist(q, j)))
+      if (best === null || dj < best[3]) best = [k[1], k[0], pts, dj]
+    }
+  }
+  if (best === null) return null
+  let b = segmentieren(best[2], 0.25)
+  if (dist(b[0], bogen[0]) > dist(b[b.length - 1], bogen[0])) b = [...b].reverse()
+  return [best[0], best[1], b]
+}
 
 /** eckradius_av: Radius der inneren Bordkante an der Knotenecke aus der AV -> [radius, grund, mitte, bogenpunkte, eckstück] */
 export function eckradiusAv(fahrbahn: Fahrbahn, j: P, dEigen: P, dArm: P, inseln: Inseln | null = null): Eck {
@@ -343,6 +407,21 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   if (knotenHoch) { eck = [null, 'bruecke', null, null, null]; radiusQuelleB = 'geschätzt (Fahrbahnbreiten, Knoten auf einer Brücke)' }
   else eck = eckradiusAv(fahrbahn, j, dK, aus, linksAb ? null : inseln)
   let [rBord, , eckMitte, bordBogen, eckstueck] = eck
+  // Bogen nach Plan-Fläche (planBogen): der gezeichnete bzw. gerundete Bogen statt des Kreisfits über Bogen und Nachbarkante;
+  // planBogenR: Radius eines als gezeichnet bzw. gerundet erkannten Plan-Bogens (Schwelle ECK_GROSS_M gilt dafür nicht, unten)
+  let planBogenR: number | null = null
+  if (fahrbahn.plan.length && bordBogen && rBord !== null) {
+    const pb = planBogen(fahrbahn, bordBogen, j, dK, aus, (k.fs ? k.fs.breite : BREITE_ERSATZ) / 2, (fsB ? fsB.breite : BREITE_ERSATZ) / 2)
+    if (pb) planBogenR = pb[0]
+    if (pb && Math.abs(pb[0] - rBord) > 0.05) { [rBord, eckMitte, bordBogen] = pb; eckstueck = null }
+  }
+  // Ecke an einer Fläche (Plan) (Quellen- und Annahmetexte): Bogen bzw. bei einer scharfen Ecke der Eckpunkt am Umriss
+  const planEcke = (): string | null => {
+    if (!fahrbahn.plan.length) return null
+    const pl = bordBogen ? fahrbahn.planAnLinie(bordBogen) : rBord === 0 && eckMitte ? fahrbahn.planAnLinie([eckMitte]) : null
+    return pl ? planKurzAv(pl.id, pl.art) : null
+  }
+  const planBogenErkannt = () => planBogenR !== null && rBord !== null && Math.abs(rBord - planBogenR) <= 0.05
   let zielE: [number, number, number] | null = null, zielA: [number, number, number] | null = null
   const armZweirichtig = !(a.ow && netz.zufluss(a.arm))
   let ohneAbstLinks = false
@@ -794,10 +873,26 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
       }
     }
   }
+  // Ecke nach Plan-Fläche fast gerade gezeichnet (Nutzerentscheid 20.10.2026): liegt der Bordkantenbogen an einer Fläche (Plan)
+  // und ist sein Radius grösser als ECK_GROSS_M, gilt er als unplausibel (eine Abschrägung mit wenigen Punkten ist kein geplanter
+  // Radius) -> Schätzung wie bei einer unplausiblen AV-Ecke, für alle Zufahrten an dieser Ecke gleich (unabhängig davon, ob die
+  // Ecke die übrigen Prüfungen bestünde). AV-Ecken ohne Plan-Fläche wie bisher (dort nur «AV-Ecke prüfen»). Nicht für einen als
+  // gezeichnet bzw. gerundet erkannten Plan-Bogen (planBogen): «Ecke runden» erlaubt Radien bis 30 m, die gelten wie geplant
+  // (Korrektur 20.10.2026, Prüfbefund M1)
+  let planGross: string | null = null
+  if (rBord !== null && rBord > ECK_GROSS_M && bordBogen && fahrbahn.plan.length && !planBogenErkannt()) {
+    const pl = fahrbahn.planAnLinie(bordBogen)
+    if (pl) planGross = planKurzAv(pl.id, pl.art)
+  }
+  const planGrossText = planGross ? `Ecke nach ${planGross} fast gerade gezeichnet (Bogen ${f1(rBord!)} m): Abbiegeradius ` +
+    'geschätzt – den geplanten Radius mit «Ecke runden» festlegen' : ''
+  if (planGross && radiusAv !== null) bogenRegel = ''
+  if (planGross && ohneAbstLinks) radiusQuelleB = `geschätzt (Ecke nach ${planGross} fast gerade gezeichnet: Bogen ${f1(rBord!)} m)`
   if (radiusAv !== null && !bogenRegel) {
     radiusAv = null
     radiusQuelleB = `geschätzt (AV-Ecke ${f1(rBord!)} m unplausibel` + (gegenseite ? ': Bogenende auf der Gegenseite des Arms)' : ')')
     if (eckeFs) radiusQuelleB = `geschätzt (AV-Ecke ${f1(rBord!)} m grenzt nicht an die Fahrstreifen: ${eckeFs})`
+    if (planGross) radiusQuelleB = `geschätzt (Ecke nach ${planGross} fast gerade gezeichnet: Bogen ${f1(rBord!)} m)`
     radiusB = Math.max(RADIUS_MIN, (halbA + halbB + 2 * KURVE_ZUSATZ) / 2 / Math.tan(ablenkung / 2))
   }
   // Kreisel-Einfahrt: Eckradius höchstens Ringradius + 5 m
@@ -830,13 +925,15 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
         ;[radiusB, schaetzung] = wahl
       }
     }
-    annahmen.push('Abbiegeradius geschätzt (keine passende AV-Ecke)')
+    const plE = planGross ? null : planEcke()
+    annahmen.push(planGross ? planGrossText : plE ? `Abbiegeradius geschätzt (keine passende Ecke nach ${plE})` :
+      'Abbiegeradius geschätzt (keine passende AV-Ecke)')
   }
   let eckFrage = ''
   if (radiusAv !== null && eckMitte !== null) {
     const bisEcke = einheit(add(dK, aus))
     if (dot(sub(eckMitte, j), bisEcke) <= 0) eckFrage = 'Kreismitte hinter dem Knoten'
-    else if (rBord! > ECK_GROSS_M) eckFrage = `Bordkante ${f1(rBord!)} m`
+    else if (rBord! > ECK_GROSS_M && !planBogenErkannt()) eckFrage = `Bordkante ${f1(rBord!)} m`
   }
   // Kurvensichtweite zum Radius R: bfu bzw. VSS Tab. 2, höchstens Tab. 1 der Querstrasse
   const kurveSw = (R: number): [number, string] => {
@@ -955,10 +1052,9 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   let radiusText: string | null = null, radiusHand: number | null = null, lageHand = false
   // Bordkante der Ecke an einer Fläche (Plan) von Hand: Quelle «nach Plan-Fläche n» statt «AV-» (planflaechen.ts; ohne Plan-Flächen
   // unverändert)
-  if (fahrbahn.plan.length && bordBogen && radiusQuelleB.includes('AV-')) {
-    const pl = fahrbahn.planAnLinie(bordBogen)
-    if (pl) radiusQuelleB = radiusQuelleB.replace(/AV-(Bordkante|Ecke)/g, (_, w: string) => `${w} nach ${planKurzAv(pl.id, pl.art)} von Hand`)
-  }
+  // Scharfe Ecke (Radius 0, kein Bogen) an einer Plan-Fläche: «Ecke nach Plan-Fläche n (Art) von Hand 0,0 m + …» (Prüfbefund 20.10.)
+  const plQ = radiusQuelleB.includes('AV-') ? planEcke() : null
+  if (plQ) radiusQuelleB = radiusQuelleB.replace(/AV-(Bordkante|Ecke)/g, (_, w: string) => `${bordBogen ? w : 'Ecke'} nach ${plQ} von Hand`)
   if (spurH && spurH.art === 'B' && spurH.linie.length >= 2) {
     if (spurH.radius) {
       let [swH, qH] = sichtweiteRadiusHand(spurH.radius, swB, swQuelleB, tempoB, bisKnoten, k.swEigen, quelleKnotenB)
@@ -992,7 +1088,8 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     const ftE = zf.g !== null ? fahrstreifenTags(netz.w(zf.g.wid).t, zf.sd! > 0) : null
     if ((fsoB?.n ?? 0) > 1 || (ftE?.[0] ?? 0) > 1) hinweiseB.push('tab2_mehrstreifig')
   }
-  if (eckFrage) annahmen.push(`AV-Ecke prüfen: ${eckFrage}`)
+  const plF = eckFrage ? planEcke() : null
+  if (eckFrage) annahmen.push(plF ? `Ecke nach ${plF} prüfen: ${eckFrage}` : `AV-Ecke prüfen: ${eckFrage}`)
   if (fsB?.abzugQuelle) annahmen.push(abzugAnnahme(fsB.abzugQuelle, true))
   const konflikte = k.konflikte(feldB, sichtpunkteB)
   const radiusOut = Number.isFinite(radiusB) ? radiusRunden(radiusB) : null

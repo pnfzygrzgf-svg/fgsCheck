@@ -107,6 +107,12 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .zeile { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
 .spur { margin: 6px 0; }
 .ecke { background: #ffffff; border: 2px solid #0f172a; border-radius: 50%; cursor: move; }
+/* Werkzeugmodus (Karte.tsx): Objekte der Karte lassen Klicks an die Karte durch (Punkt setzen, Ecke fangen); nur die Ecken beim
+   «Ecke runden» bleiben anklickbar */
+.karte-werkzeug .leaflet-interactive:not(.ecke-runden) { pointer-events: none !important; }
+.karte-werkzeug .ecke-runden { cursor: pointer; }
+.runden-angebot { font-size: 12px; }
+.runden-knoepfe { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
 /* Strassennamen (OSM) auf der Karte: weiss mit dunklem Halo, mittig über dem Punkt, nicht anklickbar (Pane ohne pointer-events) */
 .strassenname { pointer-events: none; }
 .strassenname span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-size: 12px; font-weight: 600;

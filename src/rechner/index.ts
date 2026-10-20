@@ -5,7 +5,7 @@ import type { AvFlaeche } from '../daten/av'
 import type { KatasterBaum } from '../daten/baumkataster'
 import type { KatasterFeld } from '../daten/parkkataster'
 import { type P, lv95, einheit, sub, dot, dist, imPolygon } from '../geo'
-import { OsmNetz } from './netz'
+import { OsmNetz, fahrbahnRichtung } from './netz'
 import { Fahrbahn, Inseln, Gebaeude, Flaechen } from './flaechen'
 import { ANN_RAND_ARTEN, streifenAusUebergang, neuerStreifen, umrissRing, gequerterWeg, luftbildInsel, teilGrundText, inselLuftbildText,
   sehneStreifen, handGruppen, type Streifen, type InselZusatz } from './streifen'
@@ -16,9 +16,10 @@ import { eckCacheLeeren } from './abbiegen'
 import { HindernisDaten, type Hindernis } from './hindernisse'
 import { parkVorschlaege, baumVorschlaege, parkKatasterFelder, osmUeberdeckt, doppeltAmtlich, type Vorschlag } from './vorschlaege'
 import { abstandPunkt, flaeche } from './poly'
-import { avMitPlan, planAmRand, planNahLinie, planKurz, anteilInPlanInsel, PLAN_NAME, planTitel, INSEL_DOPPELT_ANTEIL,
+import { avMitPlan, planAmRand, planNahLinie, planKurz, anteilInPlanInsel, PLAN_NAME, PLAN_STANDARD_KURZ, planTitel, INSEL_DOPPELT_ANTEIL,
   type PlanTeil } from './planflaechen'
-import type { PlanArt } from '../fall'
+import type { PlanArt, FlaechePlan } from '../fall'
+import { furtQuert, E1_KURZ } from './standardinsel'
 import { f1 } from '../texte'
 import type { Rechnung, StreifenErgebnis } from './typen'
 import { vonHandAusFall, streifenHerkunftText, type Fall } from '../fall'
@@ -123,22 +124,9 @@ export function handUmriss(q0: P, q1: P, breite: number, r: P | null): P[] {
     [q1[0] - rr[0] * h, q1[1] - rr[1] * h], [q0[0] - rr[0] * h, q0[1] - rr[1] * h]]
 }
 
-/** Richtung der Fahrbahn bei p: nächster befahrbarer OSM-Weg (bis 15 m) */
-export function fahrbahnRichtung(netz: OsmNetz | null, p: P): P | null {
-  if (!netz) return null
-  let best: [number, P] | null = null
-  for (const w of netz.W.values()) {
-    if (!w.mfz) continue
-    for (let k = 0; k < w.nds.length - 1; k++) {
-      const a = netz.p(w.nds[k]), b = netz.p(w.nds[k + 1]), v = sub(b, a), l2 = dot(v, v)
-      if (l2 === 0) continue
-      const t = Math.max(0, Math.min(1, dot(sub(p, a), v) / l2))
-      const d = dist(p, [a[0] + v[0] * t, a[1] + v[1] * t])
-      if (d <= 15 && (best === null || d < best[0])) best = [d, einheit(v)]
-    }
-  }
-  return best ? best[1] : null
-}
+// fahrbahnRichtung (nächster befahrbarer OSM-Weg bis 15 m) steht seit 20.10.2026 in netz.ts, damit die Oberfläche sie ohne die
+// ganze Rechnung nutzen kann (Werkzeug «Mittelinsel (Standard)»); hier weiter ausgeführt wie bisher
+export { fahrbahnRichtung }
 
 /** Ergebnis der Luftbild-Erkennung für Anzeige und Übernahme */
 export interface LuftbildErgebnis {
@@ -295,7 +283,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
       fahrbahn: r ? { r, quelle: 'nächster befahrbarer OSM-Weg' } : h.richtung ? { r: h.richtung, quelle: 'Balkenrichtung des Streifens' } : null,
       zufahrten: e.zufahrten })
   }
-  if (plan.teile.length || plan.meldungen.length) planAnnahmen(erg, plan, meldungen, planMeldungen, kx.fahrbahn)
+  if (plan.teile.length || plan.meldungen.length) planAnnahmen(erg, plan, meldungen, planMeldungen, kx.fahrbahn, fall.flaechenPlan)
   const inseln = [...new Set(streifen.flatMap(s => s.inseln))].filter(z => z.herkunft !== 'hand')
   return { streifen: erg, meldungen, ms: performance.now() - t0, vorschlaege: [...offen, ...kat, ...katPark], streifenQuelle: quelle,
     markierung: mk, hinweis, luftbild, parkVerworfen, doppelt, inseln, inselTeilt,
@@ -315,12 +303,12 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
  */
 const FAHRLINIE_SCHRITT_M = 2
 function planAnnahmen(erg: StreifenErgebnis[], plan: ReturnType<typeof avMitPlan>, meldungen: string[], weitere: string[],
-  fahrbahn: Fahrbahn): void {
+  fahrbahn: Fahrbahn, flaechenPlan: FlaechePlan[] = []): void {
   const ids = [...new Set(plan.teile.map(t => t.id))]
   if (ids.length) {
     const liste = ids.map(id => {
       const ts = plan.teile.filter(t => t.id === id)
-      return `${planTitel(id)}: ${PLAN_NAME[ts[0].art]} ${f1(flaeche(ts.map(t => t.poly)))} m²`
+      return `${planTitel(id)}: ${PLAN_NAME[ts[0].art]}${ts[0].standard ? ` (${PLAN_STANDARD_KURZ})` : ''} ${f1(flaeche(ts.map(t => t.poly)))} m²`
     })
     meldungen.push(`Rechnung mit geplanter Bodenbedeckung (von Hand): ${liste.join('; ')}. Die Plan-Flächen ersetzen die AV-Flächen ` +
       'darunter (Gebäude bleiben); Bordkanten, Wartebereiche, Inseln und Fahrlinien richten sich danach.')
@@ -353,6 +341,10 @@ function planAnnahmen(erg: StreifenErgebnis[], plan: ReturnType<typeof avMitPlan
       if (an[0] || an[1]) v.randQuelle = `Sehne der Fahrbahn entlang der Achse (Ende A ${nach(an[0])}, Ende B ${nach(an[1])}); die ` +
         'Rechnung nimmt den Rand 0,3 m vor den Enden an (Sehne weicht mehr als 2,5 m ab)'
     }
+    // Mittelinsel (Standard): die Achse quert die Furt, nicht die erhöhte Fläche -> die Rechnung teilt den Streifen dort nicht
+    const fq = furtQuert(flaechenPlan, e.p0, e.p1)
+    if (fq) e.annahmen.push(`Streifenachse quert die Rollstuhlfurt der ${E1_KURZ} (${fq.ids.map(planTitel).join(', ')}), nicht die ` +
+      'erhöhte Inselfläche: der Streifen ist dort nicht an der Insel geteilt – Insel mit der Mitte auf die Streifenachse setzen')
     // Teilstreifen: die Insel auf der Achse ist eine Plan-Fläche (Art Insel), nicht die AV
     const ip = planNahLinie(inselPlan, [e.p0, e.p1], 1.2)
     if (ip.length) e.annahmen = e.annahmen.map(a => a.replace('(AV-Verkehrsinsel auf der Achse)',

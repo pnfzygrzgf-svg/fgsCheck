@@ -42,7 +42,19 @@ export interface StreifenEingabe { lsa?: 'ja' | 'nein'; keinFgs?: boolean }
  * AV-Flächen darunter (Trottoirnase, Fahrbahnverengung, verschobener Randstein, neue Insel). Ring ohne Schlusspunkt, LV95 */
 export type PlanArt = 'trottoir' | 'fahrbahn' | 'insel'
 export const PLAN_ARTEN: PlanArt[] = ['trottoir', 'fahrbahn', 'insel']
-export interface FlaechePlan { id: string; art: PlanArt; ring: P[] }
+/** Mittelinsel (Standard) (seit 20.10.2026; rechner/standardinsel.ts): Kennzeichnung der Flächen (Plan), die das Werkzeug
+ * «Mittelinsel (Standard)» nach Masterplan Fussverkehr Stadt Bern, Standards, E1 (Schutzinsel mit Rollstuhlfurt) einfügt. Optional:
+ * die Rechnung liest nur Art und Ring; ältere Apps übergehen das Feld (die Geometrie bleibt). Gespeichert sind die Masse und die
+ * Lage (Mitte, Achse, Balkenrichtung), daraus lassen sich Teile und Signalmast neu bilden (standardinsel.inselGeometrie);
+ * weicht der Ring davon ab, gilt der Teil als von Hand angepasst. gruppe: gemeinsame Kennung aller Teile einer Mittelinsel */
+export type FurtSeite = 'links' | 'rechts'
+export type StandardTeil = 'kopf' | 'insel' | 'furt'
+export interface PlanStandard {
+  typ: 'mittelinsel_e1'; gruppe: string; teil: StandardTeil
+  tiefe: number; breite: number; furt: number; kopf: number; seite: FurtSeite   // m: Tiefe quer, Streifenbreite, Furt, Kopflänge
+  m: P; achse: P; balken: P                                                        // Mitte (LV95), Achse A -> B, Balkenrichtung
+}
+export interface FlaechePlan { id: string; art: PlanArt; ring: P[]; standard?: PlanStandard }
 /** Fläche (Plan): höchstens so viele Ecken (Fall-Datei) */
 export const PLAN_ECKEN_MAX = 500
 
@@ -154,6 +166,18 @@ export function planRingPruefen(x: unknown): P[] | null {
   return Math.abs(a / 2) >= 0.01 ? r : null
 }
 
+/** Kennzeichnung «Mittelinsel (Standard)» einer Fläche (Plan) aus der Datei; null wenn ungültig (die Fläche bleibt, ohne Kennzeichnung) */
+export function planStandardPruefen(x: unknown): PlanStandard | null {
+  if (!istObjekt(x) || x.typ !== 'mittelinsel_e1' || typeof x.gruppe !== 'string' || !x.gruppe || x.gruppe.length > 40) return null
+  if (!['kopf', 'insel', 'furt'].includes(x.teil as string) || !['links', 'rechts'].includes(x.seite as string)) return null
+  const im = (v: unknown, a: number, b: number): v is number => zahl(v) && v >= a && v <= b
+  if (!im(x.tiefe, 0.5, 20) || !im(x.breite, 0.5, 15) || !im(x.furt, 0, 15) || !im(x.kopf, 0, 20)) return null
+  const einheitP = (v: unknown): v is P => istP(v) && Math.abs(Math.hypot(v[0], v[1]) - 1) < 0.01
+  if (!istP(x.m) || !imLv95(x.m) || !einheitP(x.achse) || !einheitP(x.balken)) return null
+  return { typ: 'mittelinsel_e1', gruppe: x.gruppe, teil: x.teil as StandardTeil, tiefe: x.tiefe, breite: x.breite, furt: x.furt,
+    kopf: x.kopf, seite: x.seite as FurtSeite, m: [x.m[0], x.m[1]], achse: [x.achse[0], x.achse[1]], balken: [x.balken[0], x.balken[1]] }
+}
+
 const QUELLEN_SCHLUESSEL = ['osm', 'av', 'baumkataster', 'parkkataster', 'luftbild', 'geladen'] as const
 
 /** Fall aus JSON lesen und prüfen -> [Fall, Hinweise]. Ausnahme nur bei fremder Datei, Version oder ungültigem Ort; ungültige
@@ -224,9 +248,14 @@ export function fallLesen(text: string): [Fall, string[]] {
   for (const x of liste('flaechenPlan', 'Flächen (Plan)')) {
     const o = istObjekt(x) ? x : null
     const ring = o ? planRingPruefen(o.ring) : null
-    if (o && ring && typeof o.id === 'string' && o.id && PLAN_ARTEN.includes(o.art as PlanArt) && !plan.some(y => y.id === o.id))
-      plan.push({ id: o.id, art: o.art as PlanArt, ring })
-    else hinweise.push('Fläche (Plan) ungültig, übergangen')
+    if (o && ring && typeof o.id === 'string' && o.id && PLAN_ARTEN.includes(o.art as PlanArt) && !plan.some(y => y.id === o.id)) {
+      const fp: FlaechePlan = { id: o.id, art: o.art as PlanArt, ring }
+      if (o.standard !== undefined) {
+        const st = planStandardPruefen(o.standard)
+        if (st) fp.standard = st; else hinweise.push(`Kennzeichnung «Mittelinsel (Standard)» von ${o.id} ungültig, übergangen (Fläche bleibt)`)
+      }
+      plan.push(fp)
+    } else hinweise.push('Fläche (Plan) ungültig, übergangen')
   }
   if (plan.length) fall.flaechenPlan = plan
   for (const [k, v] of objekt('zufahrten', 'Zufahrten')) {
@@ -420,6 +449,69 @@ export function streifenUebernehmen(f: Fall, neue: { p0: P; p1: P; bw: number; q
   f.streifen = str
   inselnUebernehmen(f, inseln)
   return n
+}
+
+/**
+ * Streifen von Hand id an einer Insel in zwei Teilstreifen teilen (Werkzeug «Mittelinsel (Standard)», 20.10.2026): der Streifen
+ * behält Nummer und Eingaben und wird zum ersten Teil (teile[0]), der zweite Teil (teile[1]) bekommt die nächste freie Nummer und
+ * steht in der Liste gleich dahinter; beide «angepasst», Name mit «(Teil 1)» bzw. «(Teil 2)». Die Streifen-Eingaben (Lichtsignal,
+ * kein FGS) gelten für beide Teile; Eingaben je Zufahrt gehen an den Teil, den teilVon(Kennung) nennt (Rückfall-Kennung
+ * «s<Nr>:<Grad>» umbenannt wie in streifenUebernehmen). -> neue Nummer, Zahl der übertragenen Zufahrt-Eingaben und was
+ * teilungZuruecknehmen braucht; null ohne Streifen
+ */
+export interface TeilungRueck {
+  id: string; neuId: string
+  vorher: StreifenHand                      // der ungeteilte Streifen
+  teil1: StreifenHand; teil2: StreifenHand  // die Teilstreifen direkt nach dem Teilen (Vergleich: seither geändert?)
+  zufahrten: Record<string, ZufahrtHand>    // Eingaben je Zufahrt des ungeteilten Streifens (Schlüssel «id|Kennung»)
+  streifen: StreifenEingabe | null          // Streifen-Eingabe des ungeteilten Streifens
+}
+export function streifenHandTeilen(f: Fall, id: string, teile: [[P, P], [P, P]], teilVon: (kennung: string) => 1 | 2):
+  { neuId: string; verschoben: number; rueck: TeilungRueck } | null {
+  const s = f.streifenHand.find(y => y.id === id)
+  if (!s) return null
+  const vorher = structuredClone(s)
+  const zufVorher = Object.fromEntries(Object.entries(f.zufahrten).filter(([k]) => k.slice(0, k.indexOf('|')) === id)
+    .map(([k, v]) => [k, structuredClone(v)]))
+  const strVorher = f.streifen[id] ? structuredClone(f.streifen[id]) : null
+  const neuId = naechsteHandId(f)
+  const name = (n: number) => (s.name ? { name: `${s.name} (Teil ${n})`.slice(0, STREIFEN_NAME_MAX) } : {})
+  const zweiter: StreifenHand = { ...s, id: neuId, p0: teile[1][0], p1: teile[1][1], angepasst: true, ...name(2) }
+  Object.assign(s, { p0: teile[0][0], p1: teile[0][1], angepasst: true, ...name(1) })
+  f.streifenHand.splice(f.streifenHand.indexOf(s) + 1, 0, zweiter)
+  if (f.streifen[id]) f.streifen[neuId] = { ...f.streifen[id] }
+  let verschoben = 0
+  for (const [key, v] of Object.entries(f.zufahrten)) {
+    const i = key.indexOf('|')
+    if (key.slice(0, i) !== id) continue
+    const kennung = key.slice(i + 1)
+    if (teilVon(kennung) !== 2) continue
+    delete f.zufahrten[key]
+    f.zufahrten[zufahrtSchluessel(neuId, kennung.replace(`s${id}:`, `s${neuId}:`))] = v
+    verschoben++
+  }
+  return { neuId, verschoben, rueck: { id, neuId, vorher, teil1: structuredClone(s), teil2: structuredClone(zweiter), zufahrten: zufVorher,
+    streifen: strVorher } }
+}
+
+/** Sind die Teilstreifen einer Teilung seither unverändert (Lage, Breite, Name, Richtung)? Dann lässt sie sich zurücknehmen */
+export function teilungZuruecknehmbar(f: Fall, r: TeilungRueck): boolean {
+  const a = f.streifenHand.find(y => y.id === r.id), b = f.streifenHand.find(y => y.id === r.neuId)
+  return !!a && !!b && stabil(a) === stabil(r.teil1) && stabil(b) === stabil(r.teil2)
+}
+
+/** Teilung zurücknehmen: den ungeteilten Streifen samt seinen Eingaben wie vor dem Teilen; Eingaben, die seither an den
+ * Teilstreifen gesetzt wurden, entfallen. -> false, wenn die Teilstreifen seither geändert wurden (dann bleibt alles) */
+export function teilungZuruecknehmen(f: Fall, r: TeilungRueck): boolean {
+  if (!teilungZuruecknehmbar(f, r)) return false
+  const i = f.streifenHand.findIndex(y => y.id === r.id)
+  f.streifenHand[i] = structuredClone(r.vorher)
+  f.streifenHand = f.streifenHand.filter(y => y.id !== r.neuId)
+  for (const k of Object.keys(f.zufahrten)) if ([r.id, r.neuId].includes(k.slice(0, k.indexOf('|')))) delete f.zufahrten[k]
+  Object.assign(f.zufahrten, structuredClone(r.zufahrten))
+  delete f.streifen[r.neuId]
+  if (r.streifen) f.streifen[r.id] = structuredClone(r.streifen); else delete f.streifen[r.id]
+  return true
 }
 
 /** Name einer beim Übernehmen geschriebenen Insel (angenommen nach OSM und Luftbild, danach Insel von Hand) */

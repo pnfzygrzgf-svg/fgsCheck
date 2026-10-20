@@ -4,12 +4,12 @@ import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FAR
   hindernisText, hindernisFarbe, FIXPUNKT_FARBE, PLAN_FARBEN, planMarke, NrMarke, type Werkzeug, type KartenHinweis, type Masslinie } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
-import { ladeOsmRoh, ladeUebergaenge, markierung, istFgs, overpassSperre, strassennamen, namenKarte, knotenLage, type OsmKnoten,
+import { ladeOsmRoh, osmParsen, ladeUebergaenge, markierung, istFgs, overpassSperre, strassennamen, namenKarte, knotenLage, type OsmKnoten,
   type StrassenMitte } from './daten/osm'
 import { istAbbruch } from './daten/holen'
 import { baumQuelleFuer, type BaumQuelle, type KatasterBaum } from './daten/baumkataster'
 import { parkQuelleFuer, istParkId, type ParkQuelle, type KatasterFeld } from './daten/parkkataster'
-import { lv95, wgs, dist, type P } from './geo'
+import { lv95, wgs, dist, sub, einheit as einheitP, type P } from './geo'
 import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, aufnehmen, vereinigen, vereinigenNamen } from './ausschnitt'
 import type { ZufahrtErgebnis, StreifenErgebnis } from './rechner/typen'
 import type { FallRechnung } from './rechner'
@@ -21,9 +21,10 @@ import { linieKreis, RADIUS_HAND_M } from './rechner/spurhand'
 import { GRUND, ART, STATUS, statusText, f1, f2 } from './texte'
 import Bericht from './Bericht'
 import { Anleitung, Datenschutz, Fusszeile } from './Hilfe'
-import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type PlanArt, PLAN_ARTEN, naechstePlanId, planRingPruefen,
+import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type PlanArt, type FurtSeite, PLAN_ARTEN, naechstePlanId, planRingPruefen,
   naechsteFixId, FIXPUNKT_NAME_MAX, STREIFEN_NAME_MAX, leererFall, fallLesen, fallSchreiben, fallMerken, fallErinnern, fallVergessen,
-  ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
+  ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, streifenHandTeilen, teilungZuruecknehmbar,
+  teilungZuruecknehmen, type TeilungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
   streifenHerkunftText } from './fall'
 import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_M, ORT_TOL_M, streifenMitte, streifenAbstand, planEntscheid,
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
@@ -31,7 +32,12 @@ import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_
 import { koordText, vorzeichenText, vermassungTabelle, fixpunktMasse, type Vermassung } from './rechner/vermassung'
 import { streifenTitel, zufahrtNamen, zufahrtLang, zufahrtNr, zufahrtText, entfallenLang, entfallenNr, wegNamen, zufahrtHerkunft16, NUMMERN_TEXT, nachNr,
   type ZufahrtNamen } from './benennung'
-import { planTitel, planFlaecheM2, planAlsAv, PLAN_NAME } from './rechner/planflaechen'
+import { planTitel, planFlaecheM2, planAlsAv, avMitPlan, PLAN_NAME, eckeRunden, eckeAmPunkt, eckeRadiusMax, echteEcken, eckeGrenze, eckeGrenzeText, RUNDEN_R_VORGABE, RUNDEN_R_BEREICH, ECK_GROSS_M } from './rechner/planflaechen'
+import { inselGeometrie, inselLage, inselMasse, masseFehler, masseHinweise, streifenTeilen, standardText, standardTeilText, inselFlaechen,
+  fahrbahnMitte, teilLuecke, inselPruefen, zufahrtTeil, naechsteGruppe, aufAchse, balkenAusUmriss, E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M,
+  INSEL_BEREICH, type InselLage } from './rechner/standardinsel'
+import { Fahrbahn } from './rechner/flaechen'
+import { OsmNetz, fahrbahnRichtung } from './rechner/netz'
 import { fangen, fangRadiusM, FANG_PX, fixpunktVorschlaege, fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT, VORSCHLAG_M,
   type FixVorschlag } from './fixpunkt'
 
@@ -68,6 +74,8 @@ const WERKZEUGE: [Exclude<Werkzeug, null>, string, string][] = [
     `Ecken anklicken, die App fängt sie auf Stützpunkte der AV bzw. anderer Plan-Flächen (${FANG_PX} Bildschirmpunkte); ` +
     'Doppelklick schliesst. Ersetzt in der Rechnung die AV-Flächen darunter (Gebäude bleiben); die zuletzt gezeichnete gilt, wo ' +
     'sich Plan-Flächen überlappen'],
+  ['mittelinsel', 'Mittelinsel (Standard)', 'Schutzinsel mit Rollstuhlfurt nach Masterplan Fussverkehr Stadt Bern, Standards, E1, als ' +
+    'Flächen (Plan) der Art Insel einfügen'],
   // derselbe Werkzeug-Name wie der Knopf oben («Streifen planen»); die gezeichneten Streifen heissen «Streifen von Hand»
   ['streifen', 'Streifen planen', 'beide Wartebereiche anklicken (Achse quer über die Fahrbahn)'],
   ['fixpunkt', 'Fixpunkt', 'Gebäudeecke bzw. Punkt der AV anklicken: die App fängt den nächsten AV-Stützpunkt im Umkreis von ' +
@@ -78,10 +86,10 @@ const WERKZEUGE: [Exclude<Werkzeug, null>, string, string][] = [
 const AV_NAME: Record<string, string> = { Strasse_Weg: 'Fahrbahn', Gebaeude: 'Gebäude' }
 
 const MIN_PUNKTE: Record<Exclude<Werkzeug, null>, number> = { parkfeld: 3, flaeche: 3, insel: 3, laengs: 2, hecke: 2, mauer: 2, streifen: 2,
-  spurB: 2, baum: 1, fixpunkt: 1, planflaeche: 3 }
+  spurB: 2, baum: 1, fixpunkt: 1, planflaeche: 3, eckeRunden: 1, mittelinsel: 1 }
 const WERKZEUG_NAME: Record<Exclude<Werkzeug, null>, string> = { parkfeld: 'Parkfeld', flaeche: 'übriges Hindernis (Fläche)', insel: 'Insel',
   laengs: 'Längsparkierung', hecke: 'Hecke', mauer: 'Mauer', streifen: 'Streifen planen', spurB: 'Fahrlinie selbst zeichnen', baum: 'Baum',
-  fixpunkt: 'Fixpunkt', planflaeche: 'Fläche (Plan)' }
+  fixpunkt: 'Fixpunkt', planflaeche: 'Fläche (Plan)', eckeRunden: 'Ecke runden', mittelinsel: 'Mittelinsel (Standard)' }
 /** Textfeld, übernommen erst beim Verlassen bzw. mit Enter (Escape: zurück); leer = kein eigener Text */
 function TextFeld({ wert, setze, platzhalter, titel, max = 80 }: { wert: string; setze: (x: string) => void; platzhalter?: string
   titel?: string; max?: number }) {
@@ -111,6 +119,8 @@ function ZahlFeld({ wert, setze, titel, bereich }: { wert: number; setze: (x: nu
 }
 
 let zaehler = 0
+/** Zwei Ringe gleich (Koordinaten; Fall-Kopien haben neue Arrays) */
+const gleicherRing = (a: P[], b: P[]) => a.length === b.length && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1])
 const neueId = (p: string) => `${p}-${Date.now().toString(36)}-${(zaehler++).toString(36)}`
 
 /** Fixpunkt-Zeichen für die Legende (wie auf der Karte: Kreuz im Quadrat, Vorschlag blass) */
@@ -169,6 +179,34 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [bearbeiten, setBearbeiten] = useState<string | null>(null)
   const [klasse, setKlasse] = useState<'auto' | 'velo'>('auto')
   const [planArt, setPlanArt] = useState<PlanArt>('trottoir')
+  // «Ecke runden» (20.10.2026): Radius des Bogens; zuletzt gerundete Fläche (Ring davor und danach) zum Zurücknehmen
+  const [rundenR, setRundenR] = useState(RUNDEN_R_VORGABE)
+  // rundung: zuletzt gerundete Ecke (Index i im Ring vorher, Radius R); ändert der Nutzer danach den Radius, wird sie aus «vorher»
+  // neu gerundet (solange die Fläche seither nicht anders geändert wurde). rundenFehler: Ablehnung, steht in der Werkzeughilfe bis
+  // zur nächsten Aktion; rundenAngebot: Ecke, an der der eingestellte Radius nicht passt -> «mit höchstens x m runden»
+  const [rundung, setRundung] = useState<{ id: string; i: number; R: number; vorher: P[]; nachher: P[]; text: string } | null>(null)
+  const [rundenFehler, setRundenFehler] = useState<string | null>(null)
+  // Radius beim Ziehen des Reglers (nur Vorschau auf der Karte, keine Rechnung); übernommen beim Loslassen (natives «change»)
+  const [rundenZug, setRundenZug] = useState<number | null>(null)
+  const reglerAlt = useRef<HTMLInputElement | null>(null)
+  const reglerLos = useRef<(v: number) => void>(() => {})
+  reglerLos.current = v => { setRundenZug(null); setRundenR(v) }
+  const reglerChange = useCallback((e: Event) => reglerLos.current(Number((e.target as HTMLInputElement).value)), [])
+  // React meldet mit onChange jede Bewegung (input); das native «change» kommt erst beim Loslassen (Maus, Finger) bzw. je Tastenschritt
+  const reglerRef = useCallback((el: HTMLInputElement | null) => {
+    reglerAlt.current?.removeEventListener('change', reglerChange)
+    el?.addEventListener('change', reglerChange)
+    reglerAlt.current = el
+  }, [reglerChange])
+  const [rundenAngebot, setRundenAngebot] = useState<{ id: string; i: number; rMax: number; ring: P[]; text: string } | null>(null)
+  // «Mittelinsel (Standard)» (20.10.2026, rechner/standardinsel.ts): Masse (Vorgaben E1; kopf null = halbe Tiefe), Streifen von Hand
+  // an der Insel teilen; inselOrt: gewählte Lage (streifen: Kennung des Streifens, auf dessen Achse die Insel liegt, sonst null)
+  const [inselEin, setInselEin] = useState<{ tiefe: number; breite: number; furt: number; kopf: number | null; seite: FurtSeite;
+    teilen: boolean }>({ tiefe: E1_TIEFE_M, breite: E1_BREITE_M, furt: E1_FURT_M, kopf: null, seite: 'links', teilen: true })
+  const [inselOrt, setInselOrt] = useState<{ streifen: string | null; lage: InselLage; quelle: string } | null>(null)
+  // letzte Teilung eines Streifens von Hand an einer Mittelinsel (Gruppe der Insel): «Teilung zurücknehmen», solange die Teilstreifen
+  // seither nicht anders geändert wurden (fall.teilungZuruecknehmbar)
+  const [teilung, setTeilung] = useState<(TeilungRueck & { gruppe: string }) | null>(null)
   const [breite, setBreite] = useState(LAENGS_BREITE_M)
   const [streifenBreite, setStreifenBreite] = useState(4)
   const [sichtbehindernd, setSichtbehindernd] = useState(true)
@@ -641,23 +679,226 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     setZeichnung([]); zeichnungRef.current = []; setWerkzeug(null); setSpurFuer(null)
   }, [werkzeug, spurFuer, klasse, breite, streifenBreite, sichtbehindernd, aendern, fall, gesichert, av, planArt])
 
+  // «Ecke runden» (20.10.2026, planflaechen.eckeRunden): Klick fängt die nächste Ecke der gewählten Fläche (Plan) im Fangradius
+  // (mindestens 1 m); die Ecke wird durch einen Kreisbogen mit Radius rundenR ersetzt, tangential an beide Kanten. Passt der Bogen
+  // nicht, bleibt die Fläche unverändert (Meldung mit dem grössten möglichen Radius). Das Werkzeug bleibt an (weitere Ecken)
+  /** Ecke i des Rings vorher der Fläche id mit Radius R runden und übernehmen -> Fehlertext bzw. null */
+  const rundungAnwenden = (id: string, vorher: P[], i: number, R: number): string | null => {
+    const r = eckeRunden(vorher, i, R)
+    if (!r.ok) return `Ecke runden (${planTitel(id)}, Ecke ${i + 1}): ${r.grund}`
+    const ring = planRingPruefen(r.ring)
+    if (!ring) return `Ecke runden (${planTitel(id)}): die gerundete Fläche wäre ungültig (zu viele Ecken bzw. ohne Fläche).`
+    aendern(f => { const x = f.flaechenPlan?.find(y => y.id === id); if (x) x.ring = ring; return f })
+    const text = `${planTitel(id)}: Ecke ${i + 1} mit Radius ${f1(R)} m gerundet (${r.einspringend ? 'einspringende Ecke, Bogen füllt sie aus' :
+      'Bogen schneidet die Ecke ab'}; Tangentialpunkte ${f1(r.t)} m von der Ecke, ${r.bogenPunkte} Bogenpunkte).`
+    setRundung({ id, i, R, vorher, nachher: ring, text })
+    setRundenFehler(null); setRundenAngebot(null)
+    setMeldung(`${text} Der Eckradius der Abbieger liest den Bogen; Radius ändern passt diese Ecke an, weitere Ecke anklicken bzw. «fertig».`)
+    return null
+  }
+  const eckeRundenBei = (p: P) => {
+    setRundenFehler(null); setRundenAngebot(null)
+    const pl = fall?.flaechenPlan?.find(x => x.id === bearbeiten)
+    if (!pl) { setMeldung('Ecke runden: zuerst unter «Flächen (Plan)» die Fläche wählen («Ecke runden»).'); return }
+    // nur echte Ecken (planflaechen.echteEcken): Bogenpunkte und fast gerade Punkte sind keine Rund-Ziele
+    const i = eckeAmPunkt(pl.ring, p, Math.max(1, fangRadius()), echteEcken(pl.ring))
+    if (i === null) {
+      setMeldung(`Ecke runden: keine Ecke von ${planTitel(pl.id)} getroffen – näher an eine Ecke klicken (Kreise; Punkte eines Bogens sind keine Ecken).`)
+      return
+    }
+    const fehler = rundungAnwenden(pl.id, pl.ring, i, rundenR)
+    if (fehler) {
+      const t = `${fehler} ${eckeGrenzeText(pl.ring, i)} Die Fläche bleibt unverändert.`
+      setRundenFehler(t); setMeldung(t)
+      const g = eckeGrenze(pl.ring, i)
+      // Angebot (Popup an der Ecke und Knopf in der Werkzeughilfe): mit dem grössten möglichen Radius runden
+      if (g && g.rMax >= RUNDEN_R_BEREICH[0] && g.rMax < rundenR)
+        setRundenAngebot({ id: pl.id, i, rMax: g.rMax, ring: pl.ring,
+          text: `Ecke ${i + 1}: höchstens ${f1(g.rMax)} m (Nachbarkante ${f1(g.kanteM)} m). ${eckeGrenzeText(pl.ring, i)}` })
+    }
+  }
+  /** Angebot annehmen: mit dem grössten möglichen Radius runden und den Radius darauf setzen */
+  const angebotAnnehmen = () => {
+    const a = rundenAngebot
+    if (!a) return
+    const pl = fall?.flaechenPlan?.find(x => x.id === a.id)
+    if (!pl || !gleicherRing(pl.ring, a.ring)) { setRundenAngebot(null); setRundenFehler('Die Fläche wurde inzwischen geändert: Ecke neu anklicken.'); return }
+    const fehler = rundungAnwenden(a.id, a.ring, a.i, a.rMax)
+    if (fehler) { setRundenFehler(`${fehler} Die Fläche bleibt unverändert.`); setRundenAngebot(null) }
+    else setRundenR(a.rMax)
+  }
+  // Radius übernommen (Regler losgelassen, Zahlenfeld mit Enter bzw. verlassen): die zuletzt gerundete Ecke neu runden, solange
+  // ihre Fläche seither nicht anders geändert wurde; passt der neue Radius nicht, bleibt die bisherige Rundung (Meldung in der
+  // Werkzeughilfe). Beim Ziehen nur die Vorschau (rundenVorschau), ohne Rechnung
+  useEffect(() => {
+    if (werkzeug !== 'eckeRunden' || !rundung || rundung.R === rundenR) return
+    const pl = fall?.flaechenPlan?.find(x => x.id === rundung.id)
+    if (!pl || !gleicherRing(pl.ring, rundung.nachher)) return
+    const fehler = rundungAnwenden(rundung.id, rundung.vorher, rundung.i, rundenR)
+    if (fehler) { setRundenFehler(`${fehler} Die bisherige Rundung (${f1(rundung.R)} m) bleibt.`); setRundenAngebot(null) }
+  }, [rundenR, rundung, werkzeug, fall])
+  // Vorschau beim Ziehen: die zuletzt gerundete Ecke aus dem Ring vor der Rundung mit dem Radius am Regler (nur Geometrie)
+  const rundenVorschau = useMemo(() => {
+    if (werkzeug !== 'eckeRunden' || rundenZug === null || !rundung) return null
+    const pl = fall?.flaechenPlan?.find(x => x.id === rundung.id)
+    if (!pl || !gleicherRing(pl.ring, rundung.nachher)) return null
+    const p = rundung.vorher[rundung.i]
+    const r = eckeRunden(rundung.vorher, rundung.i, rundenZug)
+    if (r.ok) return { ring: r.ring, passt: true, text: `${f1(rundenZug)} m`, p }
+    const rMax = eckeRadiusMax(rundung.vorher, rundung.i)
+    return { ring: rundung.nachher, passt: false, text: `${f1(rundenZug)} m passt nicht${rMax !== null ? ` (höchstens ${f1(rMax)} m)` : ''}`, p }
+  }, [werkzeug, rundenZug, rundung, fall])
+  // «Mittelinsel (Standard)» (20.10.2026, rechner/standardinsel.ts). Streifen, auf deren Achse die Insel liegen kann: die Streifen
+  // von Hand (Teilstreifen-Gruppe aus der Rechnung: uebergangId), ohne sie die gerechneten Streifen (OSM + AV bzw. Luftbild; die
+  // Rechnung teilt diese selbst an der Insel). Balkenrichtung wie in der Rechnung (Umriss), sonst Balken des Streifens bzw. OSM-Weg
+  const inselAktiv = werkzeug === 'mittelinsel'
+  const inselNetz = useMemo(() => (inselAktiv && daten ? new OsmNetz(osmParsen(daten.osm as Parameters<typeof osmParsen>[0])) : null),
+    [inselAktiv, daten])
+  const inselAv = useMemo(() => (inselAktiv && av ? avMitPlan(av, fall?.flaechenPlan).av : null), [inselAktiv, av, fall?.flaechenPlan])
+  const inselFahrbahn = useMemo(() => (inselAv ? new Fahrbahn(inselAv) : null), [inselAv])
+  type InselStreifen = { id: string; titel: string; p0: P; p1: P; breite: number; balken: P | null; hand: boolean; gruppe: { id: string; p0: P; p1: P }[] }
+  const inselStreifen = useMemo<InselStreifen[]>(() => {
+    if (!inselAktiv || !fall) return []
+    const erg = rechnung?.streifen ?? []
+    if (fall.streifenHand.length) {
+      const lang = fall.streifenHand.filter(h => dist(h.p0, h.p1) >= STREIFEN_MIN_M)
+      return lang.map(h => {
+        const e = erg.find(x => x.fgsId === h.id)
+        const a = sub(h.p1, h.p0), m: P = [(h.p0[0] + h.p1[0]) / 2, (h.p0[1] + h.p1[1]) / 2]
+        const balken = (e ? balkenAusUmriss(einheitP(a), e.umriss) : null) ?? h.richtung ?? fahrbahnRichtung(inselNetz, m)
+        const gruppe = e ? lang.filter(x => erg.find(y => y.fgsId === x.id)?.uebergangId === e.uebergangId) : [h]
+        return { id: h.id, titel: streifenTitel(h.id, fall.streifenHand), p0: h.p0, p1: h.p1, breite: h.breite, balken, hand: true,
+          gruppe: gruppe.map(x => ({ id: x.id, p0: x.p0, p1: x.p1 })) }
+      })
+    }
+    return erg.map(e => ({ id: e.fgsId, titel: `Streifen ${e.fgsId} (${rechnung?.streifenQuelle === 'luftbild' ? 'Luftbild' : 'OSM + AV'})`,
+      p0: e.p0, p1: e.p1, breite: e.bw, balken: balkenAusUmriss(einheitP(sub(e.p1, e.p0)), e.umriss), hand: false,
+      gruppe: erg.filter(x => x.uebergangId === e.uebergangId).map(x => ({ id: x.fgsId, p0: x.p0, p1: x.p1 })) }))
+  }, [inselAktiv, fall, rechnung, inselNetz])
+  const inselM = useMemo(() => inselMasse(inselEin.tiefe, inselEin.breite, inselEin.furt, inselEin.kopf, inselEin.seite), [inselEin])
+  const inselFehler = masseFehler(inselM)
+  const inselK = inselOrt?.streifen ? inselStreifen.find(k => k.id === inselOrt.streifen) ?? null : null
+  // Streifen von Hand teilen: nur ein einzelner Streifen von Hand (Teilstreifen sind schon geteilt)
+  const inselTeilbar = !!inselK && inselK.hand && inselK.gruppe.length === 1
+  const inselTeilung = useMemo(() => (inselOrt && inselK && inselTeilbar && !inselFehler ?
+    streifenTeilen(inselK.p0, inselK.p1, inselOrt.lage, inselM) : null), [inselOrt, inselK, inselTeilbar, inselFehler, inselM])
+  const inselPruefung = useMemo(() => (inselOrt && inselAv && inselFahrbahn && !inselFehler ?
+    inselPruefen(inselOrt.lage, inselM, inselAv, (p, r) => inselFahrbahn.sehne(p, r)) : null),
+  [inselOrt, inselAv, inselFahrbahn, inselFehler, inselM])
+  const inselVorschau = useMemo(() => {
+    if (!inselOrt || inselFehler) return null
+    const g = inselGeometrie(inselOrt.lage, inselM)
+    return { ringe: [...(g.kopf ? [g.kopf] : []), g.insel], furt: g.furt, mast: g.mast, mitte: inselOrt.lage.m,
+      teile: inselEin.teilen && inselTeilung && 'teile' in inselTeilung ? inselTeilung.teile : [] }
+  }, [inselOrt, inselFehler, inselM, inselEin.teilen, inselTeilung])
+  useEffect(() => { if (!inselAktiv) setInselOrt(null) }, [inselAktiv])
+  /** Streifen k wählen: Insel auf seiner Achse, in der Fahrbahnmitte bzw. (Teilstreifen) in der Lücke nächst p; Breite des Streifens */
+  const inselAufStreifen = (k: InselStreifen, p: P | null) => {
+    const achse = einheitP(sub(k.p1, k.p0))
+    let m: P, quelle: string
+    const l = k.gruppe.length > 1 ? teilLuecke(k.gruppe, achse, p ?? k.p0) : null
+    if (l) { m = l; quelle = 'Mitte der Lücke zwischen den Teilstreifen' }
+    else if (inselFahrbahn) ({ m, quelle } = fahrbahnMitte((q, r) => inselFahrbahn.sehne(q, r), k.p0, k.p1))
+    else { m = [(k.p0[0] + k.p1[0]) / 2, (k.p0[1] + k.p1[1]) / 2]; quelle = 'Streifenmitte' }
+    setInselOrt({ streifen: k.id, lage: inselLage(m, achse, k.balken), quelle: `${k.titel}: ${quelle}` })
+    setInselEin(x => ({ ...x, breite: Math.round(Math.min(INSEL_BEREICH.breite[1], Math.max(INSEL_BEREICH.breite[0], k.breite)) * 100) / 100 }))
+  }
+  /** Abstand von p zur Achse eines Streifens (Strecke, je 2 m verlängert) */
+  const achsAbstand = (k: { p0: P; p1: P }, p: P) => {
+    const a = einheitP(sub(k.p1, k.p0)), L = dist(k.p0, k.p1), t = Math.max(-2, Math.min(L + 2, a[0] * (p[0] - k.p0[0]) + a[1] * (p[1] - k.p0[1])))
+    return dist(p, [k.p0[0] + a[0] * t, k.p0[1] + a[1] * t])
+  }
+  const mittelinselBei = (p: P) => {
+    // gewählter Streifen: Klick nahe der Achse (Gruppe) verschiebt die Insel entlang der Achse
+    if (inselOrt && inselK && inselK.gruppe.some(g => achsAbstand(g, p) <= inselK.breite / 2 + 1.5)) {
+      setInselOrt({ ...inselOrt, lage: { ...inselOrt.lage, m: aufAchse(p, inselOrt.lage.m, inselOrt.lage.achse) },
+        quelle: `${inselK.titel}: von Hand auf der Achse verschoben` })
+      return
+    }
+    // anderer Streifen in der Nähe: wählen
+    let best: [InselStreifen, number] | null = null
+    for (const k of inselStreifen) { const d = achsAbstand(k, p); if (d <= k.breite / 2 + 1.5 && (!best || d < best[1])) best = [k, d] }
+    if (best) { inselAufStreifen(best[0], p); return }
+    // ohne Streifen: Klick setzt die Mitte, Ausrichtung nach dem nächsten befahrbaren OSM-Weg
+    const r = fahrbahnRichtung(inselNetz, p)
+    if (!r) { setMeldung('Mittelinsel: kein Streifen und kein befahrbarer OSM-Weg bis 15 m – auf einen Streifen bzw. näher an die Strasse klicken.'); return }
+    setInselOrt({ streifen: null, lage: inselLage(p, [-r[1], r[0]], r), quelle: 'Mitte von Hand gesetzt, ausgerichtet nach dem nächsten OSM-Weg' })
+  }
+  const mittelinselEinfuegen = () => {
+    if (!inselOrt || inselFehler || !fall) return
+    const lage = inselOrt.lage, masse = inselM, k = inselK
+    const tl = inselEin.teilen && inselTeilung && 'teile' in inselTeilung ? inselTeilung.teile : null
+    const furtFahrbahn = inselPruefung?.furtFahrbahn ?? false
+    // Eingaben je Zufahrt des geteilten Streifens: an den Teil, an dem der erste Sichtpunkt der Zufahrt liegt (standardinsel.zufahrtTeil)
+    const e = k ? rechnung?.streifen.find(x => x.fgsId === k.id) : undefined
+    const teilVon = zufahrtTeil(e?.zufahrten ?? [], lage)
+    // Änderung am Fall (rein: gleiche Eingabe, gleiches Ergebnis); für die Meldung einmal auf einer Kopie des offenen Falls, dann
+    // im Updater (der später bzw. zweimal laufen kann)
+    const einfuegen = (f: Fall) => {
+      const ids: string[] = []
+      let neuId = '', verschoben = 0, rueck: TeilungRueck | null = null
+      const gruppe = naechsteGruppe(f.flaechenPlan)
+      f.flaechenPlan = [...(f.flaechenPlan ?? [])]
+      for (const x of inselFlaechen(lage, masse, gruppe, furtFahrbahn)) { const id = naechstePlanId(f); f.flaechenPlan.push({ id, ...x }); ids.push(id) }
+      if (tl && k) {
+        const t = streifenHandTeilen(f, k.id, tl, teilVon)
+        if (t) ({ neuId, verschoben, rueck } = t)
+      }
+      return { ids, neuId, verschoben, rueck: rueck as TeilungRueck | null, gruppe }
+    }
+    const { ids, neuId, verschoben, rueck, gruppe } = einfuegen(structuredClone(fall))
+    aendern(f => { einfuegen(f); return f })
+    setTeilung(rueck ? { ...rueck, gruppe } : null)
+    setInselOrt(null); setWerkzeug(null)
+    setMeldung(`${standardText(masse)} eingefügt als ${ids.map(planTitel).join(', ')} (Art Insel${furtFahrbahn ? '; Furt als Fahrbahn' : ''}).` +
+      (neuId && k ? ` ${k.titel} an der Insel in zwei Teilstreifen geteilt (${streifenTitel(k.id, fall.streifenHand)} und ein neuer Teil)` +
+        `${verschoben ? `; ${verschoben} Eingabe(n) je Zufahrt an den zweiten Teil übertragen – bitte prüfen` : ''}; zurück mit ` +
+        '«Teilung zurücknehmen» beim Streifen.' : '') +
+      (k && k.hand && !neuId ? ' Der Streifen von Hand ist nicht geteilt: die Rechnung meldet «als zwei Teilstreifen zeichnen».' : ''))
+  }
+  /** Teilung zurücknehmen (fall.teilungZuruecknehmen); die Mittelinsel bleibt */
+  const teilungZurueck = () => {
+    const t = teilung
+    if (!t || !fall) return
+    if (!teilungZuruecknehmbar(fall, t)) { setTeilung(null); setMeldung('Die Teilstreifen wurden seither geändert: Teilung nicht zurückgenommen.'); return }
+    aendern(f => { teilungZuruecknehmen(f, t); return f })
+    setTeilung(null)
+    setMeldung(`Teilung zurückgenommen: ${titel(t.id)} wieder ungeteilt, mit den Eingaben wie vor dem Teilen; ${titel(t.neuId)} entfernt.`)
+  }
+  /** alle Flächen (Plan) einer Mittelinsel löschen, auf Wunsch mit der Teilung des Streifens */
+  const mittelinselLoeschen = (g: string, mitTeilung: boolean) => {
+    if (!fall) return
+    if (fall.flaechenPlan?.some(x => x.standard?.gruppe === g && x.id === bearbeiten)) { setBearbeiten(null); if (werkzeug === 'eckeRunden') setWerkzeug(null) }
+    const t = mitTeilung && teilung?.gruppe === g && teilungZuruecknehmbar(fall, teilung) ? teilung : null
+    aendern(f => {
+      f.flaechenPlan = (f.flaechenPlan ?? []).filter(x => x.standard?.gruppe !== g)
+      if (!f.flaechenPlan.length) delete f.flaechenPlan
+      if (t) teilungZuruecknehmen(f, t)
+      return f
+    })
+    if (t) setTeilung(null)
+    setMeldung(`Mittelinsel gelöscht${t ? `; Teilung zurückgenommen (${titel(t.id)} wieder ungeteilt)` : ''}.`)
+  }
   // Fangen der Ecken einer Fläche (Plan): AV-Stützpunkte und Ecken der übrigen Plan-Flächen (ohneId: die eben bearbeitete)
   const planFangen = (p: P, ohneId: string | null): P => fangen(p, [...(av ?? []), ...planAlsAv(fall?.flaechenPlan, ohneId)], fangRadius()).p
   const klick = useCallback((p: P) => {
+    if (werkzeug === 'eckeRunden') { eckeRundenBei(p); return }
+    if (werkzeug === 'mittelinsel') { mittelinselBei(p); return }
     if (werkzeug === 'baum' || werkzeug === 'fixpunkt') { fertig([p]); return }
     if (werkzeug === 'planflaeche') p = planFangen(p, null)
     const neu = [...zeichnungRef.current, p]
     zeichnungRef.current = neu
     if (werkzeug === 'streifen' && neu.length === 2) { fertig(neu); return }
     setZeichnung(neu)
-  }, [werkzeug, fertig, av, fall])
+  }, [werkzeug, fertig, av, fall, bearbeiten, rundenR, inselOrt, inselK, inselStreifen, inselNetz, inselFahrbahn])
 
   const doppelklick = useCallback(() => {
+    if (werkzeug === 'eckeRunden' || werkzeug === 'mittelinsel') return
     // Doppelklick setzt zwei Klicks ab: den doppelten letzten Punkt weglassen
     const z = zeichnungRef.current
     const pts = z.length >= 2 && dist(z[z.length - 1], z[z.length - 2]) < 0.3 ? z.slice(0, -1) : z
     fertig(pts)
-  }, [fertig])
+  }, [fertig, werkzeug])
 
   // Fixpunkte, die verschoben wurden, solange die AV fehlte (Laden läuft): nach dem Laden fangen (Id -> Lage beim Verschieben;
   // gefangen wird nur, wenn der Fixpunkt noch dort liegt, sonst gilt der Eintrag als erledigt)
@@ -918,7 +1159,81 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // Hilfe zum gewählten Werkzeug: unter der Knopfzeile, wenn es dort gewählt wurde («Streifen planen») bzw. noch kein Fall
   // geladen ist, sonst im Abschnitt «Eingaben von Hand»
   const hilfeOben = werkzeugOben || !(fall && daten)
-  const werkzeugHilfe = werkzeug && (
+  // Angebot für das Popup an der Ecke (gleiches Objekt, solange das Angebot gleich bleibt: sonst öffnete die Karte es neu)
+  const angebotKarte = useMemo(() => (werkzeug === 'eckeRunden' && rundenAngebot ? { p: rundenAngebot.ring[rundenAngebot.i],
+    text: rundenAngebot.text, knopf: `mit ${f1(rundenAngebot.rMax)} m runden` } : null), [werkzeug, rundenAngebot])
+  const rundenPlan = werkzeug === 'eckeRunden' ? fall?.flaechenPlan?.find(x => x.id === bearbeiten) ?? null : null
+  // Werkzeughilfe «Mittelinsel (Standard)»: Streifen, Masse, Furt-Seite, Teilen; Lage, Hinweise, Einfügen
+  const inselSetze = (k: 'tiefe' | 'breite' | 'furt') => (x: number) => setInselEin(e => ({ ...e, [k]: x }))
+  const inselHinweise = [...(inselFehler ? [] : masseHinweise(inselM)), ...(inselPruefung?.hinweise ?? []),
+    ...(inselEin.teilen && inselTeilung && 'grund' in inselTeilung ? [inselTeilung.grund] : [])]
+  const inselHilfe = (
+    <div className="werkzeughilfe">
+      <b>Mittelinsel (Standard):</b> Schutzinsel mit Rollstuhlfurt nach Masterplan Fussverkehr Stadt Bern, Standards, E1
+      (Abbildung «Neues Prinzip: Mittelinsel mit Rollstuhlfurt»). Streifen wählen bzw. auf oder neben einen Streifen klicken: die
+      Insel liegt mit der Mitte auf der Streifenachse in der Fahrbahnmitte zwischen den Bordkanten, ausgerichtet nach den Balken; ein
+      weiterer Klick auf der Achse verschiebt sie entlang der Achse. Ohne Streifen setzt der Klick die Mitte, ausgerichtet nach dem
+      nächsten OSM-Weg. Vorschau gestrichelt (Furt grau, Signalmast als Punkt); «Mittelinsel einfügen» legt die Flächen (Plan) an.
+      <div className="zeile">
+        <label> Streifen <select value={inselOrt?.streifen ?? ''} onChange={e => {
+          const k = inselStreifen.find(x => x.id === e.target.value)
+          if (k) inselAufStreifen(k, null); else setInselOrt(null)
+        }}>
+          <option value="">{inselStreifen.length ? '– wählen bzw. auf der Karte klicken –' : '– keiner: auf der Karte klicken –'}</option>
+          {inselStreifen.map(k => <option key={k.id} value={k.id}>{k.titel}</option>)}</select></label>
+      </div>
+      <div className="zeile">
+        <label> Inseltiefe <ZahlFeld wert={inselEin.tiefe} bereich={INSEL_BEREICH.tiefe} setze={inselSetze('tiefe')}
+          titel={`Tiefe der Insel quer zur Fahrbahn in m (E1: mindestens ${f2(E1_TIEFE_M)} m)`} /> m</label>
+        <label> Streifenbreite <ZahlFeld wert={inselEin.breite} bereich={INSEL_BEREICH.breite} setze={inselSetze('breite')}
+          titel={`Breite des Fussgängerstreifens entlang der Fahrbahn in m (Vorgabe: Breite des gewählten Streifens bzw. ${f2(E1_BREITE_M)} m)`} /> m</label>
+        <label> Furt <ZahlFeld wert={inselEin.furt} bereich={INSEL_BEREICH.furt} setze={inselSetze('furt')}
+          titel={`Rollstuhlfurt auf Fahrbahnniveau in m (E1: ${f2(E1_FURT_M)} m; 0 = ohne Furt)`} /> m</label>
+        <label> Kopflänge <ZahlFeld wert={inselEin.kopf ?? inselEin.tiefe / 2} bereich={INSEL_BEREICH.kopf}
+          setze={x => setInselEin(e => ({ ...e, kopf: Math.abs(x - e.tiefe / 2) < 1e-9 ? null : x }))}
+          titel="Länge der Inselköpfe vor und nach dem Streifen in m (Vorgabe: halbe Tiefe, halbrund; 0 = ohne Kopf)" /> m</label>
+        {inselEin.kopf !== null && <button className="zweit klein" onClick={() => setInselEin(e => ({ ...e, kopf: null }))}
+          title="Kopflänge = halbe Tiefe">halbrund</button>}
+      </div>
+      <div className="zeile">
+        <span>Furt {inselEin.seite} {inselK ? '(Blick von Ende A nach Ende B des Streifens)' : '(siehe Vorschau: Furt grau, Mast im Kopf daneben)'}</span>
+        <button className="zweit klein" onClick={() => setInselEin(e => ({ ...e, seite: e.seite === 'links' ? 'rechts' : 'links' }))}>
+          Furt-Seite wechseln</button>
+      </div>
+      {inselTeilbar && inselK && <div><label><input type="checkbox" checked={inselEin.teilen}
+        onChange={e => setInselEin(x => ({ ...x, teilen: e.target.checked }))} /> {inselK.titel} an der Insel in zwei Teilstreifen teilen
+        (empfohlen: Streifen von Hand teilt die Rechnung nicht selbst; Enden {f2(TEIL_ABSTAND_M)} m vor den Inselkanten)</label></div>}
+      {inselK && !inselK.hand && <p className="klein">Streifen aus {inselK.titel.includes('Luftbild') ? 'dem Luftbild' : 'OSM + AV'}: die Rechnung
+        teilt ihn selbst an der Insel (mit Flächen (Plan) gilt der Streifen aus OSM + AV).</p>}
+      {inselOrt
+        ? <p className="klein">Lage: {inselOrt.quelle}. {standardText(inselM)}
+          {inselPruefung?.restM && <>; Fahrbahn neben der Insel (quer) {f2(Math.max(0, inselPruefung.restM[0]))} m bzw.{' '}
+            {f2(Math.max(0, inselPruefung.restM[1]))} m</>}.</p>
+        : <p className="klein">Noch nicht platziert.</p>}
+      {inselFehler && <p className="klein warnung">{inselFehler}</p>}
+      {inselHinweise.map(h => <p key={h} className="klein warnung">{h}</p>)}
+      <div><button onClick={mittelinselEinfuegen} disabled={!inselOrt || !!inselFehler}>Mittelinsel einfügen</button>{' '}
+        <button className="zweit" onClick={() => { setInselOrt(null); setWerkzeug(null) }}>Abbrechen</button></div>
+    </div>
+  )
+  const werkzeugHilfe = werkzeug === 'mittelinsel' ? inselHilfe : werkzeug === 'eckeRunden' ? (
+    <div className="werkzeughilfe">
+      <b>Ecke runden{rundenPlan ? ` (${planTitel(rundenPlan.id)})` : ''}:</b> Radius einstellen, dann eine Ecke der Fläche anklicken
+      (Kreise; die App fängt die nächste Ecke). Die Ecke wird durch einen Kreisbogen mit diesem Radius ersetzt, tangential an beide
+      Kanten; konvexe Ecken werden abgeschnitten, einspringende ausgefüllt. Grau gestrichelte Ecken: der eingestellte Radius passt
+      dort nicht (Tooltip: höchstens möglicher Radius; Klick bietet ihn an). Kleine Punkte gehören zu einem Bogen und sind keine
+      Ecken. Radius ändern passt die zuletzt gerundete Ecke an. An einer Einmündung den
+      Radius der Bordkante eingeben (die Fahrlinie der Abbieger rechnet die App daneben).
+      <label> Radius <ZahlFeld wert={rundenR} bereich={RUNDEN_R_BEREICH} setze={setRundenR}
+        titel={`Radius des Bogens in m, ${RUNDEN_R_BEREICH[0]} bis ${RUNDEN_R_BEREICH[1]} m; Enter bzw. Feld verlassen übernimmt`} /> m{' '}
+        <input type="range" ref={reglerRef} min={RUNDEN_R_BEREICH[0]} max={RUNDEN_R_BEREICH[1]} step={0.5} value={rundenZug ?? rundenR}
+          aria-label="Radius" title="Radius verschieben: Vorschau beim Ziehen, die zuletzt gerundete Ecke folgt beim Loslassen"
+          onChange={e => setRundenZug(Number(e.target.value))} /></label>
+      {rundenFehler && <p className="klein warnung">{rundenFehler}{rundenAngebot && <>{' '}
+        <button className="klein" onClick={angebotAnnehmen}>mit höchstens {f1(rundenAngebot.rMax)} m runden</button></>}</p>}
+      <div><button className="zweit" onClick={() => { setWerkzeug(null); setBearbeiten(null); setRundenFehler(null); setRundenAngebot(null) }}>fertig</button></div>
+    </div>
+  ) : werkzeug && (
     <div className="werkzeughilfe">
       <b>{(WERKZEUGE.find(x => x[0] === werkzeug) ?? ['', 'Fahrlinie selbst zeichnen'])[1]}:</b>{' '}
       {(WERKZEUGE.find(x => x[0] === werkzeug) ?? ['', '', 'am Streifen beginnen, gegen die Fahrtrichtung klicken, Doppelklick beendet'])[2]}
@@ -946,7 +1261,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     <div className="app">
       <Karte mitte={START} av={av} kantone={kantone} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? []} streifenHand={fall?.streifenHand ?? []}
-        werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} fixpunkte={fall?.fixpunkte ?? []} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
+        werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} rundenR={rundenR}
+        rundenAngebot={angebotKarte} rundenVorschau={rundenVorschau} inselVorschau={inselVorschau}
+        onRundenAngebot={ja => { if (ja) angebotAnnehmen(); else setRundenAngebot(null) }} fixpunkte={fall?.fixpunkte ?? []} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
         flaechenPlan={fall?.flaechenPlan ?? []}
         masslinien={masslinien} zufahrtNamen={zNamen} streifenTitel={titel}
         onUebergang={pruefen} onZufahrt={setAuswahl}
@@ -1069,6 +1386,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                           {bearbeiten === s.id ? 'fertig' : 'verschieben'}</button>
                         <button className="zweit klein" onClick={() => aendern(f => { f.streifenHand = f.streifenHand.filter(x => x.id !== s.id); return f })}>löschen</button>
                       </span>
+                      {teilung?.id === s.id && teilungZuruecknehmbar(fall, teilung) && <div className="klein">An der Mittelinsel in zwei
+                        Teilstreifen geteilt ({titel(teilung.id)} und {titel(teilung.neuId)}).{' '}
+                        <button className="zweit klein" title="den ungeteilten Streifen samt seinen Eingaben wie vor dem Teilen (die Mittelinsel bleibt)"
+                          onClick={teilungZurueck}>Teilung zurücknehmen</button></div>}
                       <MasseAnzeige s={s} e={rechnung?.streifen.find(x => x.fgsId === s.id) ?? null} kopieren={kopieren} namen={zNamen.get(s.id)}
                         fixpunkte={fall.fixpunkte ?? []} vorschlaege={fixVorschlag.get(s.id) ?? []}
                         setzen={() => werkzeugWaehlen('fixpunkt')} uebernehmen={v => fixpunktSetzen(v.p, 'gebaeudeecke')} />
@@ -1121,19 +1442,48 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                       {' '}{f1(planFlaecheM2(fp.ring))} m², {fp.ring.length} Ecken
                       <span className="aktionen">
                         <button className="zweit klein" title="Ecken auf der Karte verschieben (fangen auf die AV bzw. andere Plan-Flächen)"
-                          onClick={() => setBearbeiten(b => (b === fp.id ? null : fp.id))}>{bearbeiten === fp.id ? 'fertig' : 'bearbeiten'}</button>
-                        <button className="zweit klein" onClick={() => aendern(f => {
-                          f.flaechenPlan = (f.flaechenPlan ?? []).filter(x => x.id !== fp.id)
-                          if (!f.flaechenPlan.length) delete f.flaechenPlan
-                          return f
-                        })}>löschen</button>
+                          onClick={() => { if (werkzeug === 'eckeRunden') setWerkzeug(null); setBearbeiten(b => (b === fp.id && werkzeug !== 'eckeRunden' ? null : fp.id)) }}>
+                          {bearbeiten === fp.id && werkzeug !== 'eckeRunden' ? 'fertig' : 'bearbeiten'}</button>
+                        <button className={werkzeug === 'eckeRunden' && bearbeiten === fp.id ? 'aktiv klein' : 'zweit klein'}
+                          title={'Eine Ecke dieser Fläche durch einen Kreisbogen ersetzen (Radius eingeben, Ecke auf der Karte anklicken), z. B. den ' +
+                          'geplanten Bordkantenradius an einer Einmündung'} onClick={() => {
+                            setZeichnung([]); zeichnungRef.current = []; setSpurFuer(null); setWerkzeugOben(false)
+                            setRundenFehler(null); setRundenAngebot(null)
+                            if (werkzeug === 'eckeRunden' && bearbeiten === fp.id) { setWerkzeug(null); setBearbeiten(null) }
+                            else { setWerkzeug('eckeRunden'); setBearbeiten(fp.id) }
+                          }}>Ecke runden</button>
+                        <button className="zweit klein" onClick={() => {
+                          if (bearbeiten === fp.id) { setBearbeiten(null); if (werkzeug === 'eckeRunden') setWerkzeug(null) }
+                          aendern(f => {
+                            f.flaechenPlan = (f.flaechenPlan ?? []).filter(x => x.id !== fp.id)
+                            if (!f.flaechenPlan.length) delete f.flaechenPlan
+                            return f
+                          })
+                        }}>löschen</button>
                       </span>
+                      {fp.standard && <div className="klein">{standardTeilText(fp)}
+                        {(fall.flaechenPlan ?? []).filter(x => x.standard?.gruppe === fp.standard!.gruppe)[0]?.id === fp.id &&
+                          (fall.flaechenPlan ?? []).filter(x => x.standard?.gruppe === fp.standard!.gruppe).length > 1 && <>{' '}
+                          <button className="zweit klein" title="alle Flächen (Plan) dieser Mittelinsel löschen (Streifen von Hand bleiben, wie sie sind)"
+                            onClick={() => mittelinselLoeschen(fp.standard!.gruppe, false)}>ganze Mittelinsel löschen</button>
+                          {teilung?.gruppe === fp.standard!.gruppe && teilungZuruecknehmbar(fall, teilung) && <>{' '}
+                            <button className="zweit klein" title={`alle Flächen (Plan) dieser Mittelinsel löschen und ${titel(teilung.id)} wieder ungeteilt (samt Eingaben wie vor dem Teilen)`}
+                              onClick={() => mittelinselLoeschen(fp.standard!.gruppe, true)}>Mittelinsel löschen und Teilung zurücknehmen</button></>}</>}</div>}
+                      {rundung?.id === fp.id && gleicherRing(rundung.nachher, fp.ring) && <div className="klein">{rundung.text}{' '}
+                        <button className="zweit klein" title="die Fläche wie vor dem letzten Runden" onClick={() => {
+                          const r = rundung
+                          aendern(f => { const x = f.flaechenPlan?.find(y => y.id === r.id); if (x && gleicherRing(x.ring, r.nachher)) x.ring = r.vorher; return f })
+                          setRundung(null); setMeldung(`${planTitel(r.id)}: Rundung zurückgenommen.`)
+                        }}>Rundung zurücknehmen</button></div>}
                     </li>
                   ))}
                 </ul>
                 {rechnung?.planFlaechen !== undefined && <p className="klein">Rechnung mit geplanter Bodenbedeckung (von Hand):
                   {' '}{rechnung.planFlaechen} von {fall.flaechenPlan!.length} Plan-Fläche(n) wirksam; Bordkanten, Wartebereiche, Inseln und
-                  Fahrlinien richten sich danach (Annahmen je Streifen und Zufahrt). Wo sich Plan-Flächen überlappen, gilt die spätere.</p>}
+                  Fahrlinien richten sich danach (Annahmen je Streifen und Zufahrt). Wo sich Plan-Flächen überlappen, gilt die spätere.
+                  Eine Ecke nach Plan-Fläche, deren Bordkante die App als Bogen über {f1(ECK_GROSS_M)} m liest (fast gerade bzw. als
+                  Abschrägung gezeichnet), gilt als unplausibel: der Abbiegeradius wird geschätzt. Den geplanten Radius mit «Ecke runden»
+                  festlegen.</p>}
               </>
             )}
             <LuftbildAnzeige rechnung={rechnung} fall={fall} flugjahr={daten.flugjahr} hatBild={!!daten.luftbild} aendern={aendern}
@@ -1307,7 +1657,11 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           {Object.entries(AV_FARBEN).map(([art, farbe]) => <li key={art}><span className="farbe" style={{ background: farbe }} />AV {AV_NAME[art] ?? art}</li>)}
           <li>Flächen (Plan) von Hand, schraffiert mit gestricheltem Rand (ersetzen in der Rechnung die AV darunter):{' '}
             {PLAN_ARTEN.map((a, i) => <span key={a}>{i ? ', ' : ''}<span className="farbe" style={{ background: planMarke(a),
-              borderColor: PLAN_FARBEN[a].linie }} />{PLAN_NAME[a]}</span>)}</li>
+              borderColor: PLAN_FARBEN[a].linie }} />{PLAN_NAME[a]}</span>)}; beim Werkzeug «Ecke runden» die Ecken der gewählten
+            Fläche als weisse Kreise</li>
+          <li><span className="farbe" style={{ background: '#000000', borderRadius: '50%' }} />Signalmast einer Mittelinsel (Standard E1),
+            im Kopf auf der Seite der Rollstuhlfurt: nur Hinweis, kein Hindernis; beim Werkzeug «Mittelinsel (Standard)» Vorschau
+            gestrichelt, Furt grau, Teilstreifen gelb gestrichelt</li>
         </ul>
         </details>
 

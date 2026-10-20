@@ -75,6 +75,14 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    AV-Bodenbedeckung darunter (Gebäude bleiben, die zuletzt gezeichnete Plan-Fläche gilt), Bordkanten, Wartebereiche,
    Inseln, Fahrlinien und Vermassung richten sich danach (`src/rechner/planflaechen.ts`). In der Fall-Datei steht sie
    im Feld `flaechenPlan`; die Karte zeigt sie schraffiert über der AV, der Bericht im Kartenbild und unter «Eingaben von Hand».
+   «Ecke runden» (je Fläche unter «Flächen (Plan)») ersetzt eine angeklickte Ecke durch einen Kreisbogen mit dem eingegebenen
+   Radius (Vorgabe 6 m, 1 bis 30 m), tangential an beide Kanten; passt der Bogen nicht, bleibt die Fläche unverändert
+   (`eckeRunden` in `src/rechner/planflaechen.ts`). Liest der Eckradius an einer Ecke nach Plan-Fläche einen Bogen über 23,5 m,
+   gilt sie als unplausibel und der Abbiegeradius wird geschätzt; AV-Ecken über 23,5 m bleiben mit «AV-Ecke prüfen».
+   Das Werkzeug «Mittelinsel (Standard)» fügt eine Schutzinsel mit Rollstuhlfurt nach Masterplan Fussverkehr Stadt Bern,
+   Standards, E1 als Flächen (Plan) der Art Insel ein (Vorgaben Tiefe 2,00 m, Streifenbreite 4,00 m, Furt 1,20 m, Köpfe
+   halbrund; Mitte auf der Streifenachse in der Fahrbahnmitte, die Furt bleibt Fahrbahn) und teilt einen Streifen von Hand auf
+   Wunsch in zwei Teilstreifen (`src/rechner/standardinsel.ts`; Kennzeichnung im optionalen Feld `standard` der Fläche).
 7. Je Streifen Lichtsignal und «kein FGS», je Zufahrt (Zeile anklicken) Tempo, «Fahrlinie korrigieren» (A: Linie seitlich
    verschieben, am Streifen und am Ende, + links, − rechts; B: Fahrlinie selbst zeichnen, bei Abbiegenden mit Kreisvorschlag
    und «Radius übernehmen») und «Diese Zufahrt gibt es nicht (streichen)». Abbiegezufahrten, die bisher wegen der geraden

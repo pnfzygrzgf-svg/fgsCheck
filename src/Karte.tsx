@@ -9,7 +9,8 @@ import type { FallRechnung } from './rechner'
 import type { Multi } from './rechner/poly'
 import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernisse'
 import { type StreifenHand, type Fixpunkt, type FlaechePlan, type PlanArt, PLAN_ARTEN } from './fall'
-import { planTitel, planFlaecheM2, PLAN_NAME } from './rechner/planflaechen'
+import { planTitel, planFlaecheM2, PLAN_NAME, eckeRadiusMax, echteEcken, RUNDEN_R_BEREICH } from './rechner/planflaechen'
+import { standardTeilText, standardGeometrie, standardAngepasst } from './rechner/standardinsel'
 import { fixpunktName, ART_TEXT } from './fixpunkt'
 import { wgs, lv95, type P } from './geo'
 import Ortssuche from './Ortssuche'
@@ -97,6 +98,7 @@ const HINTERGRUND_KARTE = 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkar
 // 14.10.2026 schon vor dem Klick (Übergangssuche, viele Namen): nur im Sichtbereich mit Rand (MARKER_RAND) und erst ab NAMEN_ZOOM
 // gezeichnet (weiter draussen zu dicht; die Suche beginnt ebenfalls bei Zoom 16)
 const NAMEN_PANE = 'strassennamen'
+const ECKEN_PANE = 'eckenRunden'                   // «Ecke runden»: Ecken der gewählten Fläche (Plan), über allem anklickbar
 const NAMEN_ZOOM = 16
 // Übergänge: nur Marker im Sichtbereich mit diesem Rand (Anteil je Seite) zeichnen; nach jedem Verschieben nachgeführt
 const MARKER_RAND = 0.5
@@ -114,7 +116,7 @@ export function standortFehlerText(code: number): string {
 }
 
 export type Werkzeug = null | 'parkfeld' | 'laengs' | 'baum' | 'hecke' | 'mauer' | 'flaeche' | 'insel' | 'streifen' | 'spurB' | 'fixpunkt' |
-  'planflaeche'
+  'planflaeche' | 'eckeRunden' | 'mittelinsel'
 /** Masslinie ab Fixpunkt (rechner/vermassung.fixpunktMasse): von, bis, Beschriftung */
 export interface Masslinie { von: P; bis: P; text: string }
 export const FIXPUNKT_FARBE = '#be185d'
@@ -184,6 +186,14 @@ export default function Karte(props: {
   werkzeug: Werkzeug
   zeichnung: P[]
   bearbeiten: string | null                          // Id des Hindernisses, Handstreifens bzw. Fixpunkts, dessen Ecken verschoben werden
+  rundenR?: number                                   // Werkzeug «Ecke runden»: Radius (Tooltip der Ecken)
+  // «Ecke runden»: Angebot an einer Ecke, an der der Radius nicht passt (Popup mit «mit x m runden» / «abbrechen»)
+  rundenAngebot?: { p: P; text: string; knopf: string } | null
+  onRundenAngebot?: (annehmen: boolean) => void
+  // «Ecke runden»: Vorschau beim Ziehen des Reglers (Ring, passt der Radius, Text an der Ecke)
+  rundenVorschau?: { ring: P[]; passt: boolean; text: string; p: P } | null
+  // «Mittelinsel (Standard)»: Vorschau vor dem Einfügen (Inselteile, Furt, Signalmast, Mitte, Teilstreifen beim Teilen)
+  inselVorschau?: { ringe: P[][]; furt: P[] | null; mast: P | null; mitte: P; teile: [P, P][] } | null
   fixpunkte: Fixpunkt[]
   flaechenPlan: FlaechePlan[]                        // Flächen (Plan) von Hand, über der AV-Ebene
   fixVorschlaege: { p: P; text: string }[]           // vorgeschlagene Fixpunkte (blass; Tooltip, Klick übernimmt)
@@ -252,11 +262,14 @@ export default function Karte(props: {
     const namenPane = map.createPane(NAMEN_PANE)
     namenPane.style.zIndex = '450'
     namenPane.style.pointerEvents = 'none'
+    // «Ecke runden»: Ecken der gewählten Fläche (Plan) in einem eigenen Pane über allen Ebenen und Markern (markerPane 600), unter
+    // den Tooltips (650); anklickbar auch im Werkzeugmodus (index.css: .karte-werkzeug)
+    map.createPane(ECKEN_PANE).style.zIndex = '620'
     const eb: Record<string, L.LayerGroup> = {
       av: L.layerGroup().addTo(map), plan: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
       nr: L.layerGroup().addTo(map),
       hind: L.layerGroup().addTo(map), fix: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
-      standort: L.layerGroup().addTo(map),
+      standort: L.layerGroup().addTo(map), ecken: L.layerGroup().addTo(map), inselVorschau: L.layerGroup().addTo(map),
     }
     L.control.layers({ 'Luftbild (SWISSIMAGE)': luftbild, 'Landeskarte (swisstopo)': landeskarte }, { 'Amtliche Vermessung': eb.av,
       'Flächen (Plan)': eb.plan,
@@ -311,6 +324,10 @@ export default function Karte(props: {
   useEffect(() => {
     const el = elRef.current
     if (el) el.style.cursor = werkzeug ? 'crosshair' : ''
+    // Werkzeugmodus (20.10.2026, Rückmeldung «nicht alle Punkte auswählbar»): alle Objekte der Karte lassen den Klick durch (CSS
+    // pointer-events: none auf .leaflet-interactive), damit er als Kartenklick beim Werkzeug ankommt – ausser den Ecken beim
+    // «Ecke runden» (.ecke-runden). Gilt gleich für alle Werkzeuge
+    el?.classList.toggle('karte-werkzeug', !!werkzeug)
   }, [werkzeug])
 
   // AV-Bodenbedeckung (Ebene, standardmässig aus)
@@ -341,10 +358,18 @@ export default function Karte(props: {
       L.polygon(fp.ring.map(ll), { color: f.linie, weight: fp.id === bearbeiten ? 3 : 2, dashArray: STRICH_PLAN,
         fillColor: `url(#${PLAN_MUSTER}${fp.art})`, fillOpacity: 1, interactive: !werkzeug })
         .bindTooltip(`<b>${esc(planTitel(fp.id))}: ${esc(PLAN_NAME[fp.art])} (Plan, von Hand)</b>, ` +
-          `${planFlaecheM2(fp.ring).toFixed(1).replace('.', ',')} m²<br>ersetzt in der Rechnung die AV darunter<br><i>Klick: wählen und bearbeiten</i>`,
+          `${planFlaecheM2(fp.ring).toFixed(1).replace('.', ',')} m²${fp.standard ? `<br>${esc(standardTeilText(fp))}` : ''}` +
+          '<br>ersetzt in der Rechnung die AV darunter<br><i>Klick: wählen und bearbeiten</i>',
         { sticky: true })
         .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(fp.id) })
         .addTo(eb.plan)
+    }
+    // Mittelinsel (Standard): Signalmast im Kopf der Furt-Seite (Punkt, nur Hinweis; nicht bei von Hand veränderter Form)
+    for (const fp of flaechenPlan) {
+      if (fp.standard?.teil !== 'kopf' || standardAngepasst(fp)) continue
+      const mast = standardGeometrie(fp.standard).mast
+      if (mast) L.circleMarker(ll(mast), { radius: 4, color: '#ffffff', weight: 1.5, fillColor: '#000000', fillOpacity: 1, interactive: !werkzeug })
+        .bindTooltip('Signalmast der Mittelinsel (Standard E1): Hinweis, kein Hindernis in der Rechnung').addTo(eb.plan)
     }
     // av: nach einem Neuzeichnen der AV-Ebene (eigene Pfade im selben SVG) die Plan-Flächen wieder darüber
   }, [flaechenPlan, bearbeiten, werkzeug, av])
@@ -503,8 +528,113 @@ export default function Karte(props: {
     const fp = fixpunkte.find(x => x.id === bearbeiten)
     if (fp) ecken(fp.id, [fp.p])
     const pl = flaechenPlan.find(x => x.id === bearbeiten)
-    if (pl) ecken(pl.id, pl.ring)
-  }, [hindernisse, rechnung, streifenHand, fixpunkte, flaechenPlan, bearbeiten])
+    if (pl && werkzeug !== 'eckeRunden') ecken(pl.id, pl.ring)      // beim «Ecke runden»: eigene Ebene (unten)
+  }, [hindernisse, rechnung, streifenHand, fixpunkte, flaechenPlan, bearbeiten, werkzeug])
+
+  // «Ecke runden»: Ecken der gewählten Fläche (Plan) als anklickbare Kreise im eigenen Pane über allem (nicht in der Ebene
+  // «Hindernisse», die sich ausschalten lässt); Klick wählt genau diese Ecke (als Kartenklick auf ihre Lage, App fängt sie).
+  // Ein Kartenklick neben einer Ecke fängt weiterhin die nächste im Fangradius
+  useEffect(() => {
+    const eb = ebenenRef.current
+    if (!eb) return
+    eb.ecken.clearLayers()
+    const pl = werkzeug === 'eckeRunden' ? flaechenPlan.find(x => x.id === bearbeiten) : undefined
+    if (!pl) return
+    const r = props.rundenR ?? 0
+    const m = (x: number) => String(x).replace('.', ',')
+    // nur echte Ecken als Rund-Ziele (planflaechen.echteEcken); Punkte eines Bogens bzw. fast gerade Punkte als kleine, nicht
+    // anklickbare Punkte
+    const echt = new Set(echteEcken(pl.ring))
+    pl.ring.forEach((p, i) => {
+      if (echt.has(i)) return
+      L.circleMarker(ll(p), { pane: ECKEN_PANE, radius: 2, color: PLAN_FARBEN[pl.art].linie, weight: 1, fillColor: '#ffffff', fillOpacity: 1,
+        interactive: false }).addTo(eb.ecken)
+    })
+    pl.ring.forEach((p, i) => {
+      if (!echt.has(i)) return
+      // grösster möglicher Radius (planflaechen.eckeRadiusMax): passt der eingestellte nicht, grau gestrichelt; Klick bietet in der
+      // Werkzeughilfe «mit höchstens x m runden» an
+      const rMax = eckeRadiusMax(pl.ring, i)
+      const passt = rMax !== null && rMax >= r
+      const text = rMax === null ? `Ecke ${i + 1} – nicht rundbar (Kanten fast gerade bzw. spitz)` : passt
+        ? `Ecke ${i + 1} – ${rMax >= RUNDEN_R_BEREICH[1] ? `bis ${m(RUNDEN_R_BEREICH[1])}` : `höchstens ${m(rMax)}`} m; Klick: mit ${m(r)} m runden`
+        : `Ecke ${i + 1} – höchstens ${m(rMax)} m, ${m(r)} m passt nicht; Klick: Angebot mit ${m(rMax)} m`
+      L.circleMarker(ll(p), { pane: ECKEN_PANE, className: 'ecke-runden', radius: 8, color: passt ? PLAN_FARBEN[pl.art].linie : '#6b7280',
+        weight: 2, dashArray: passt ? undefined : '3 3', fillColor: passt ? '#ffffff' : '#d1d5db', fillOpacity: 1, bubblingMouseEvents: false })
+        .bindTooltip(text, { direction: 'top', offset: [0, -8] })
+        .on('click', e => { L.DomEvent.stopPropagation(e); cb.current.onKlick(p) })
+        .addTo(eb.ecken)
+    })
+  }, [flaechenPlan, bearbeiten, werkzeug, props.rundenR])
+
+  // «Ecke runden»: Vorschau beim Ziehen des Reglers. Eine Linie und ein Text, einmal angelegt und danach nur nachgeführt
+  // (setLatLngs, textContent), damit die Vorschau der Reglerbewegung ohne Neuaufbau der Ebenen folgt
+  const vorschauRef = useRef<{ linie: L.Polygon; tip: L.Tooltip; text: HTMLElement } | null>(null)
+  const vorschau = props.rundenVorschau ?? null
+  useEffect(() => {
+    const map = kartenRef.current
+    if (!map) return
+    let v = vorschauRef.current
+    if (!vorschau) {
+      if (v) { v.linie.remove(); map.closeTooltip(v.tip) }
+      return
+    }
+    if (!v) {
+      const text = L.DomUtil.create('span')
+      v = vorschauRef.current = {
+        linie: L.polygon([], { pane: ECKEN_PANE, fill: false, weight: 3, dashArray: '6 4', interactive: false }),
+        tip: L.tooltip({ permanent: true, direction: 'top', offset: [0, -10], pane: 'tooltipPane' }).setContent(text), text,
+      }
+    }
+    v.linie.setLatLngs(vorschau.ring.map(ll)).setStyle({ color: vorschau.passt ? '#111827' : '#dc2626' })
+    if (!map.hasLayer(v.linie)) v.linie.addTo(map)
+    v.text.textContent = vorschau.text
+    v.tip.setLatLng(ll(vorschau.p))
+    if (!map.hasLayer(v.tip)) v.tip.openOn(map)
+  }, [vorschau, kartenRef])
+
+  // «Mittelinsel (Standard)»: Vorschau vor dem Einfügen (leichte Ebene im Pane der Ecken, nicht anklickbar: Klicks gehen an die
+  // Karte und verschieben die Insel). Inselteile gestrichelt in der Farbe der Plan-Inseln, Furt grau, Mast als Punkt, Mitte als
+  // Kreuz, beim Teilen die Achsen der beiden Teilstreifen gelb gestrichelt
+  const inselV = props.inselVorschau ?? null
+  useEffect(() => {
+    const eb = ebenenRef.current
+    if (!eb) return
+    eb.inselVorschau.clearLayers()
+    if (!inselV) return
+    const o = { pane: ECKEN_PANE, interactive: false }
+    for (const r of inselV.ringe) L.polygon(r.map(ll), { ...o, color: PLAN_FARBEN.insel.linie, weight: 2, dashArray: '5 4',
+      fillColor: PLAN_FARBEN.insel.flaeche, fillOpacity: 0.5 }).addTo(eb.inselVorschau)
+    if (inselV.furt) L.polygon(inselV.furt.map(ll), { ...o, color: '#6b7280', weight: 1, dashArray: '2 3', fillColor: '#9ca3af', fillOpacity: 0.35 })
+      .addTo(eb.inselVorschau)
+    for (const [a, b] of inselV.teile) L.polyline([ll(a), ll(b)], { ...o, color: '#ca8a04', weight: 4, dashArray: '6 4' }).addTo(eb.inselVorschau)
+    if (inselV.mast) L.circleMarker(ll(inselV.mast), { ...o, radius: 4, color: '#ffffff', weight: 1.5, fillColor: '#000000', fillOpacity: 1 })
+      .addTo(eb.inselVorschau)
+    L.circleMarker(ll(inselV.mitte), { ...o, radius: 3, color: '#111827', weight: 1, fillColor: '#ffffff', fillOpacity: 1 }).addTo(eb.inselVorschau)
+  }, [inselV])
+
+  // «Ecke runden»: Angebot als Popup an der Ecke. Inhalt aus DOM-Knoten mit textContent (kein HTML aus Daten); Klicks im Popup
+  // gehen nicht an die Karte. Schliessen (Knopf, Kreuz, Klick anderswo) meldet «abbrechen»; die App entfernt das Angebot dann
+  const angebot = props.rundenAngebot ?? null
+  useEffect(() => {
+    const map = kartenRef.current
+    if (!map || !angebot) return
+    const div = L.DomUtil.create('div', 'runden-angebot')
+    L.DomUtil.create('div', '', div).textContent = angebot.text
+    const knoepfe = L.DomUtil.create('div', 'runden-knoepfe', div)
+    const ja = L.DomUtil.create('button', 'klein', knoepfe)
+    ja.type = 'button'; ja.textContent = angebot.knopf
+    const nein = L.DomUtil.create('button', 'zweit klein', knoepfe)
+    nein.type = 'button'; nein.textContent = 'abbrechen'
+    L.DomEvent.disableClickPropagation(div)
+    let erledigt = false
+    const popup = L.popup({ autoPan: true, closeOnClick: true, maxWidth: 280, offset: [0, -6] }).setLatLng(ll(angebot.p)).setContent(div)
+    L.DomEvent.on(ja, 'click', () => { erledigt = true; map.closePopup(popup); cb.current.onRundenAngebot?.(true) })
+    L.DomEvent.on(nein, 'click', () => { erledigt = true; map.closePopup(popup); cb.current.onRundenAngebot?.(false) })
+    popup.on('remove', () => { if (!erledigt) { erledigt = true; cb.current.onRundenAngebot?.(false) } })
+    popup.openOn(map)
+    return () => { erledigt = true; map.closePopup(popup) }
+  }, [angebot, kartenRef])
 
   // Fixpunkte (Kreuz im Quadrat; Klick wählt zum Verschieben, beim Zeichnen nicht anklickbar), Vorschläge blass, Masslinien
   // gestrichelt mit Länge in m (rechner/vermassung.fixpunktMasse)

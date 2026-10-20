@@ -1031,3 +1031,20 @@ export function lexKleiner(a: number[], b: number[]): boolean {
   }
   return false
 }
+
+/** Richtung der Fahrbahn bei p: nächster befahrbarer OSM-Weg (bis 15 m); bis 20.10.2026 in index.ts */
+export function fahrbahnRichtung(netz: OsmNetz | null, p: P): P | null {
+  if (!netz) return null
+  let best: [number, P] | null = null
+  for (const w of netz.W.values()) {
+    if (!w.mfz) continue
+    for (let k = 0; k < w.nds.length - 1; k++) {
+      const a = netz.p(w.nds[k]), b = netz.p(w.nds[k + 1]), v: P = [b[0] - a[0], b[1] - a[1]], l2 = dot(v, v)
+      if (l2 === 0) continue
+      const t = Math.max(0, Math.min(1, dot([p[0] - a[0], p[1] - a[1]], v) / l2))
+      const d = dist(p, [a[0] + v[0] * t, a[1] + v[1] * t])
+      if (d <= 15 && (best === null || d < best[0])) best = [d, einheit(v)]
+    }
+  }
+  return best ? best[1] : null
+}

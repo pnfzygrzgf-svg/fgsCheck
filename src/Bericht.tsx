@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { type Fall, type Fixpunkt, type StreifenHand, type FlaechePlan, PLAN_ARTEN, streifenHerkunftText, ortOhneUebergangText } from './fall'
 import { planTitel, planFlaecheM2, PLAN_NAME } from './rechner/planflaechen'
+import { standardTeilText, standardGeometrie, standardAngepasst } from './rechner/standardinsel'
 import type { FallRechnung } from './rechner'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernisse'
@@ -116,6 +117,9 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
     return () => clearTimeout(t)
   }, [url])
   const linien = useMemo(() => masslinien(r, fixpunkte), [r, fixpunkte])
+  // Mittelinsel (Standard): Signalmast im Kopf der Furt-Seite (nur Hinweis; nicht bei von Hand veränderter Form)
+  const masten = plan.filter(fp => fp.standard?.teil === 'kopf' && !standardAngepasst(fp))
+    .map(fp => standardGeometrie(fp.standard!).mast).filter((m): m is P => !!m)
   // Massstab: runde Länge um ein Fünftel der Breite
   const mass = [5, 10, 20, 25, 50, 100, 200].reduce((b, x) => (Math.abs(x - wM / 5) < Math.abs(b - wM / 5) ? x : b), 10)
   const halo = { stroke: '#ffffff', strokeWidth: 5, paintOrder: 'stroke' as const, strokeLinejoin: 'round' as const }
@@ -167,6 +171,10 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
             <path key={'pl' + fp.id} d={pfad([fp.ring])} fill={`url(#bericht-plan-${fp.art})`} stroke={PLAN_FARBEN[fp.art].linie}
               strokeWidth={2.5} strokeDasharray={STRICH_PLAN.split(' ').map(x => Number(x) * 2).join(' ')} />
           ))}
+          {masten.map((m, i) => {
+            const [x, y] = xy(m).split(',').map(Number)
+            return <circle key={'mast' + i} cx={x} cy={y} r={6} fill="#000000" stroke="#ffffff" strokeWidth={2} />
+          })}
           {r.streifen.flatMap(st => st.zufahrten).map(z => (
             <path key={'f' + z.fgsId + z.zufahrt} d={multi(z.feld)} fillRule="evenodd" fill={STATUS_FARBE[z.status] ?? '#10b981'} fillOpacity={0.14}
               stroke={STATUS_FARBE[z.status] ?? '#10b981'} strokeWidth={2.5} strokeDasharray={strich(z.status)} />
@@ -254,6 +262,7 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
         {hindernisse.some(h => h.art === 'insel') && <> Grün: Insel von Hand.</>}
         {plan.length > 0 && <> Schraffiert mit gestricheltem Rand: Flächen (Plan) von Hand ({[...new Set(plan.map(fp => PLAN_NAME[fp.art]))].join(', ')});
           sie ersetzen in der Rechnung die AV-Bodenbedeckung darunter.</>}
+        {masten.length > 0 && <> Schwarzer Punkt: Signalmast einer Mittelinsel (Standard E1, Hinweis, kein Hindernis).</>}
         {fixpunkte.length > 0 && <> Kreuz im Quadrat: Fixpunkt; gestrichelt mit Länge: Mass vom Fixpunkt entlang der Balken bis zur
           Streifenkante (Tabelle «Vermassung ab Fixpunkt»).</>}
         {gedeckte.length > 0 && <> Abbiegezufahrt{gedeckte.length > 1 ? 'en' : ''} {gedeckte.join(', ')} (mitgeprüft): Weg ab dem Knoten durch die
@@ -299,7 +308,8 @@ function eingabenListe(fall: Fall, r: FallRechnung | null, namen: Namen): string
   if (fall.parkkataster === false) aus.push('Amtliche Parkfelder abgeschaltet')
   if (fall.luftbild === false) aus.push('Streifen-Suche im Luftbild abgeschaltet')
   for (const fp of fall.flaechenPlan ?? []) aus.push(`${planTitel(fp.id)} (Plan): ${PLAN_NAME[fp.art]}, ${f1(planFlaecheM2(fp.ring))} m², ` +
-    `${fp.ring.length} Ecken – ersetzt in der Rechnung die AV-Bodenbedeckung darunter (Gebäude bleiben)`)
+    `${fp.ring.length} Ecken – ersetzt in der Rechnung die AV-Bodenbedeckung darunter (Gebäude bleiben)` +
+    (fp.standard ? `; ${standardTeilText(fp)}` : ''))
   for (const f of fall.fixpunkte ?? []) aus.push(`Fixpunkt ${fixpunktName(f)}: ${ART_TEXT[f.art]}, E ${koordText(f.p[0])}, N ${koordText(f.p[1])} ` +
     '(nur Vermassung, ohne Einfluss auf die Rechnung)')
   return aus

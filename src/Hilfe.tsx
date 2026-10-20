@@ -3,6 +3,9 @@
 import { OVERPASS_ENDPOINTS } from './daten/osm'
 import { NACHLADEN_M } from './abdeckung'
 import { FANG_PX, FANG_MAX_M, VORSCHLAG_M } from './fixpunkt'
+import { ECK_GROSS_M, RUNDEN_R_VORGABE, RUNDEN_R_BEREICH } from './rechner/planflaechen'
+import { E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M } from './rechner/standardinsel'
+import { f2 } from './texte'
 
 const host = (u: string) => new URL(u).host
 
@@ -56,7 +59,39 @@ export function Anleitung() {
           danach. Überlappen sich Plan-Flächen, gilt die zuletzt gezeichnete. Auf der Karte erscheinen sie schraffiert über der AV,
           unter «Flächen (Plan)» mit Art und Fläche (Art änderbar, Ecken verschieben, löschen), im Bericht im Kartenbild und unter
           «Eingaben von Hand». Das Werkzeug «Insel» bleibt für eine Insel, die in der AV fehlt (die AV-Fahrbahn bleibt darunter);
-          liegt eine Insel von Hand in einer Plan-Fläche der Art Insel, zählt nur die Plan-Fläche.</li>
+          liegt eine Insel von Hand in einer Plan-Fläche der Art Insel, zählt nur die Plan-Fläche. <b>Ecke runden:</b> unter
+          «Flächen (Plan)» bei der Fläche «Ecke runden» wählen, den Radius eingeben (Vorgabe {RUNDEN_R_VORGABE} m,
+          {' '}{RUNDEN_R_BEREICH[0]} bis {RUNDEN_R_BEREICH[1]} m) und auf der Karte eine Ecke der Fläche anklicken: die App ersetzt sie
+          durch einen Kreisbogen mit diesem Radius, tangential an beide Kanten (konvexe Ecken abgeschnitten, einspringende ausgefüllt).
+          Passt der Bogen nicht auf die Kanten, bleibt die Fläche unverändert: die Meldung steht beim Radiusfeld, mit dem grössten
+          möglichen Radius, der begrenzenden Nachbarecke und dem Knopf «mit höchstens … m runden» (ebenso als Fenster an der Ecke auf
+          der Karte). Als Ecken bietet die App nur echte Ecken an (ab 15° Knick); Punkte eines Bogens erscheinen als kleine Punkte.
+          Auf der Karte zeigt der Tooltip jeder Ecke den grössten möglichen
+          Radius; Ecken, an denen der eingestellte Radius nicht passt, sind grau gestrichelt. Radius ändern (Feld bzw. Schieber) passt
+          die zuletzt gerundete Ecke an, solange die Fläche seither nicht anders geändert wurde.
+          Zurück: «Rundung zurücknehmen» (die letzte Rundung) bzw. die Ecken mit «bearbeiten» verschieben. Von Hand gezeichnete Bögen
+          mit wenigen Punkten liest die App nur ungenau; für einen geplanten Radius ist «Ecke runden» der vorgesehene Weg. Teilt eine
+          Ecke ihre Lage mit einer Nachbarfläche (Plan), bleibt sie dort scharf, wo die später gezeichnete Fläche darüber liegt (die
+          spätere gilt): dann die Ecke der späteren Fläche runden bzw. beide passend zeichnen. Gespeichert wird nur die
+          Form; der Eckradius der Abbieger liest den Bogen aus der Fläche. Liest er an einer Ecke nach Plan-Fläche einen Bogen über
+          {' '}{String(ECK_GROSS_M).replace('.', ',')} m (Ecke fast gerade bzw. als Abschrägung gezeichnet), gilt die Ecke als
+          unplausibel: der Abbiegeradius wird geschätzt, für alle Zufahrten an dieser Ecke gleich, mit dem Hinweis, den geplanten
+          Radius mit «Ecke runden» festzulegen. Ecken der AV über {String(ECK_GROSS_M).replace('.', ',')} m rechnet die App wie
+          bisher mit dem Hinweis «AV-Ecke prüfen». <b>Mittelinsel (Standard):</b> Werkzeug «Mittelinsel (Standard)» fügt eine
+          Schutzinsel mit Rollstuhlfurt nach Masterplan Fussverkehr Stadt Bern, Standards, E1 ein: Inseltiefe quer zur Fahrbahn
+          {' '}{f2(E1_TIEFE_M)} m (kleiner mit Hinweis), Streifenbreite wie der gewählte Streifen bzw. {f2(E1_BREITE_M)} m, darin
+          {' '}{f2(E1_FURT_M)} m Rollstuhlfurt auf Fahrbahnniveau und daneben die erhöhte Wartefläche, vor und nach dem Streifen je ein
+          halbrunder Kopf (Kopflänge = halbe Tiefe, änderbar), auf der Seite der Furt mit Signalmast (Punkt, nur Hinweis). Streifen
+          wählen bzw. auf einen Streifen klicken: die Mitte liegt auf der Streifenachse in der Fahrbahnmitte, ausgerichtet nach den
+          Balken; ein weiterer Klick auf der Achse verschiebt die Insel, «Furt-Seite wechseln» spiegelt sie. Ohne Streifen setzt der
+          Klick die Mitte (Ausrichtung nach dem nächsten OSM-Weg). Eingefügt werden zwei Flächen (Plan) der Art Insel (Kopf mit Mast;
+          erhöhte Fläche mit Gegenkopf); die Furt bleibt Fahrbahn (liegt dort heute eine Insel, kommt sie als Fläche (Plan) Fahrbahn
+          dazu). Liste, Karte und Bericht kennzeichnen die Teile mit den Massen. Die Rechnung teilt einen Streifen an der Insel, wo
+          seine Achse die erhöhte Fläche quert; die Furt daneben gilt als Teil der Querung (keine Bordkante, kein eigener
+          Wartebereich). Einen Streifen von Hand teilt die Rechnung nicht selbst: das Werkzeug teilt ihn auf Wunsch (Vorgabe) gleich
+          in zwei Teilstreifen, Enden {f2(TEIL_ABSTAND_M)} m vor den Inselkanten; Eingaben je Zufahrt gehen an den Teil, an dem ihr
+          erster Sichtpunkt liegt. «Teilung zurücknehmen» beim Streifen (bzw. «Mittelinsel löschen und Teilung zurücknehmen»)
+          stellt den ungeteilten Streifen samt seinen Eingaben wieder her, solange die Teilstreifen seither nicht geändert wurden.</li>
         <li><b>Vermassung ab Fixpunkt:</b> Werkzeug «Fixpunkt» (unter «Eingaben von Hand» bzw. «Fixpunkt setzen» in «Lage und
           Masse») und auf der Karte eine Gebäudeecke bzw. einen Punkt der AV anklicken: die App fängt den nächsten Stützpunkt der
           AV-Bodenbedeckung im Umkreis von {FANG_PX} Bildschirmpunkten (höchstens {FANG_MAX_M} m), sonst bleibt es ein freier Punkt.
