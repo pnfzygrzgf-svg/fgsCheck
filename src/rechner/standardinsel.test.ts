@@ -11,9 +11,11 @@ import { rechneFall, handUmriss } from './index'
 import { RAND_ZUSCHLAG } from './streifen'
 import { ringFlaeche } from './poly'
 import { inselGeometrie, inselLage, inselMasse, masseFehler, masseHinweise, streifenTeilen, standardAngepasst, standardText,
-  standardTeilText, inselFlaechen, fahrbahnMitte, teilLuecke, inselPruefen, naechsteGruppe, furtQuert, balkenNormiert, balkenAusUmriss, zufahrtTeil,
+  standardTeilText, inselFlaechen, fahrbahnMitte, teilLuecke, inselPruefen, naechsteGruppe, furtQuert, balkenNormiert, balkenAusUmriss, zufahrtTeil, zugMitte, teilstreifenAnInsel, inselVerschieben,
+  standardZiehbar,
   TEIL_ABSTAND_M, E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, type InselMasse } from './standardinsel'
-import { leererFall, fallLesen, fallSchreiben, eingabenSchluessel, planStandardPruefen, streifenHandTeilen, teilungZuruecknehmbar, teilungZuruecknehmen, type Fall, type FlaechePlan } from '../fall'
+import { leererFall, fallLesen, fallSchreiben, eingabenSchluessel, planStandardPruefen, type StreifenHand, streifenHandTeilen, teilungZuruecknehmbar, teilungZuruecknehmen,
+  verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type Fall, type FlaechePlan } from '../fall'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number): [number, number] => wgs(O[0] + x, O[1] + y)
@@ -338,6 +340,112 @@ describe('Eingaben je Zufahrt beim Teilen (Prüfbefund M1 20.10.2026)', () => {
     expect(teilungZuruecknehmbar(v, erg.rueck)).toBe(false)
     expect(teilungZuruecknehmen(v, erg.rueck)).toBe(false)
     expect(v.streifenHand.length).toBe(2)
+  })
+})
+
+describe('Mittelinsel ziehen (Drag-and-drop)', () => {
+  const lage = inselLage(lv(0, 0), [0, 1], [1, 0])
+  /** Fall mit eingefügter Mittelinsel und an ihr geteiltem Streifen von Hand (wie das Werkzeug) */
+  const eingefuegt = () => fallMit(x => {
+    x.streifenHand.push({ id: 'hand-1', p0: lv(0, -3.7), p1: lv(0, 3.7), breite: 4, herkunft: 'gezeichnet' })
+    x.flaechenPlan = [{ id: 'plan-1', art: 'trottoir', ring: rechteck(10, 4, 14, 6) }, ...planVon(lage, E1, 2)]
+    const t = streifenTeilen(lv(0, -3.7), lv(0, 3.7), lage, E1)
+    if ('teile' in t) streifenHandTeilen(x, 'hand-1', t.teile, () => 1)
+  })
+  it('Projektion auf die Achse bzw. frei', () => {
+    const st = { m: lv(0, 0), achse: [0, 1] as P }
+    expect(lok(zugMitte(st, lv(1.5, 0.7), false)).map(v => +v.toFixed(9))).toEqual([0, 0.7])
+    expect(lok(zugMitte(st, lv(1.5, 0.7), true)).map(v => +v.toFixed(6))).toEqual([1.5, 0.7])
+    // schiefe Achse: Mitte bleibt auf der Geraden
+    const s2 = { m: lv(0, 0), achse: [Math.SQRT1_2, Math.SQRT1_2] as P }
+    const q = lok(zugMitte(s2, lv(2, 0), false))
+    expect(q[0]).toBeCloseTo(1, 9); expect(q[1]).toBeCloseTo(1, 9)
+  })
+  it('Teilstreifen an den Inselkanten erkennen; ungeteilt bzw. fremde Streifen nicht', () => {
+    const f = eingefuegt(), st = f.flaechenPlan![1].standard!
+    expect(teilstreifenAnInsel(f.streifenHand, st)).toEqual({ a: { id: 'hand-1', ende: 'p1' }, b: { id: 'hand-2', ende: 'p0' } })
+    expect(teilstreifenAnInsel([{ id: 'hand-1', p0: lv(0, -3.7), p1: lv(0, 3.7), breite: 4 }], st)).toEqual({ a: null, b: null })
+    // umgekehrt gezeichneter Teil (Ende B an der Insel)
+    expect(teilstreifenAnInsel([{ id: 'x', p0: lv(0, -1.3), p1: lv(0, -3.7), breite: 4 }], st).a).toEqual({ id: 'x', ende: 'p0' })
+  })
+  it('entlang der Achse: Geometrie an der neuen Mitte (gleiche Ids und Reihenfolge), Teilstreifen-Enden nachgeführt, Eingaben bleiben', () => {
+    const f = eingefuegt()
+    rechneFall(OSM, AV, [], 12, f, null).streifen.forEach((x, i) => x.zufahrten.forEach(z => { f.zufahrten[`${x.fgsId}|${z.kennung}`] = { tempo: 30 + 10 * i } }))
+    expect(Object.keys(f.zufahrten).length).toBe(2)
+    const r = inselVerschieben(f.flaechenPlan!, f.streifenHand, 'e1-1', zugMitte(f.flaechenPlan![1].standard!, lv(0.8, 0.5), false))
+    if ('grund' in r) throw new Error(r.grund)
+    expect(r.plan.map(x => x.id)).toEqual(['plan-1', 'plan-2', 'plan-3'])
+    expect(r.plan[0]).toBe(f.flaechenPlan![0])                                     // andere Flächen unverändert
+    const neu = inselGeometrie(inselLage(lv(0, 0.5), [0, 1], [1, 0]), E1)
+    expect(r.plan[1].ring).toEqual(neu.kopf); expect(r.plan[2].ring).toEqual(neu.insel)
+    expect(lok(r.plan[2].standard!.m).map(v => +v.toFixed(9))).toEqual([0, 0.5])
+    expect(r.plan.slice(1).every(x => !standardAngepasst(x))).toBe(true)
+    expect(r.teilIds).toEqual(['hand-1', 'hand-2']); expect(r.abAchseM).toBeCloseTo(0, 9)
+    expect(r.streifen.map(x => [lok(x.p0)[1].toFixed(2), lok(x.p1)[1].toFixed(2)])).toEqual([['-3.70', '-0.80'], ['1.80', '3.70']])
+    expect(f.streifenHand[0].p1).toEqual(lv(0, -1.3))                              // Eingabe nicht verändert (rein)
+    const g = structuredClone(f); g.flaechenPlan = r.plan; g.streifenHand = r.streifen
+    const q = rechneFall(OSM, AV, [], 12, g, null)
+    expect(q.streifen.map(x => lok(x.rand[x.fgsId === 'hand-1' ? 1 : 0])[1].toFixed(2))).toEqual(['-0.50', '1.50'])
+    expect(q.streifen.flatMap(x => x.zufahrten.map(z => [x.fgsId, z.tempo]))).toEqual([['hand-1', 30], ['hand-2', 40]])
+  })
+  it('frei (Umschalttaste): Ausrichtung bleibt, Teilstreifen-Enden auf ihrer Achse; zu weit bzw. angepasst: nichts geändert', () => {
+    const f = eingefuegt()
+    const r = inselVerschieben(f.flaechenPlan!, f.streifenHand, 'e1-1', lv(1, 0))
+    if ('grund' in r) throw new Error(r.grund)
+    expect(r.plan[2].standard!.achse).toEqual(f.flaechenPlan![2].standard!.achse)
+    expect(r.streifen.map(x => lok(x.p1)[0].toFixed(6))).toEqual(['0.000000', '0.000000'])
+    expect(lok(r.streifen[0].p1)[1]).toBeCloseTo(-1.3, 9)
+    expect(r.abAchseM).toBeCloseTo(1, 9)
+    const weit = inselVerschieben(f.flaechenPlan!, f.streifenHand, 'e1-1', lv(0, 2))
+    expect('grund' in weit && weit.grund).toContain('kürzer als 1,00 m')
+    const ang = structuredClone(f.flaechenPlan!); ang[2].ring[0] = lv(-0.7, -1)
+    expect(standardZiehbar(ang, 'e1-1')).toBeNull()
+    expect('grund' in inselVerschieben(ang, f.streifenHand, 'e1-1', lv(0, 0.5))).toBe(true)
+    expect('grund' in inselVerschieben(f.flaechenPlan!, f.streifenHand, 'e1-9', lv(0, 0.5))).toBe(true)
+  })
+  it('nach freiem Zug quer (0,3 m bzw. 1,0 m) werden die Teilstreifen beim nächsten Zug entlang der Achse weiter mitgeführt', () => {
+    for (const quer of [0.3, 1.0]) {
+      const f = eingefuegt()
+      const r1 = inselVerschieben(f.flaechenPlan!, f.streifenHand, 'e1-1', lv(quer, 0))
+      if ('grund' in r1) throw new Error(r1.grund)
+      expect(r1.teilIds).toEqual(['hand-1', 'hand-2']); expect(r1.abAchseM).toBeCloseTo(quer, 9); expect(r1.inInsel).toEqual([])
+      const st = r1.plan[2].standard!
+      expect(teilstreifenAnInsel(r1.streifen, st)).toEqual({ a: { id: 'hand-1', ende: 'p1' }, b: { id: 'hand-2', ende: 'p0' } })
+      const r2 = inselVerschieben(r1.plan, r1.streifen, 'e1-1', zugMitte(st, lv(quer + 2, 0.5), false))
+      if ('grund' in r2) throw new Error(r2.grund)
+      expect(lok(r2.plan[2].standard!.m).map(v => +v.toFixed(9))).toEqual([quer, 0.5])
+      expect(r2.teilIds).toEqual(['hand-1', 'hand-2']); expect(r2.inInsel).toEqual([])
+      expect(r2.streifen.map(x => [lok(x.p0)[0].toFixed(6), lok(x.p0)[1].toFixed(2), lok(x.p1)[1].toFixed(2)])).toEqual([
+        ['0.000000', '-3.70', '-0.80'], ['0.000000', '1.80', '3.70']])
+    }
+  })
+  it('Erkennung: paralleler Streifen weiter als eine halbe Breite daneben bzw. nicht paralleler Streifen am Zielpunkt zählt nicht; ' +
+    'Streifen in der Insel gemeldet', () => {
+    const f = eingefuegt(), st = f.flaechenPlan![2].standard!
+    const fremd: StreifenHand[] = [
+      { id: 'hand-5', p0: lv(3, -3.7), p1: lv(3, -1.3), breite: 4 },                  // parallel, 3 m daneben
+      { id: 'hand-6', p0: lv(0, 1.3), p1: lv(5, 1.3), breite: 4 },                    // Ende am Zielpunkt, quer
+    ]
+    expect(teilstreifenAnInsel(fremd, st)).toEqual({ a: null, b: null })
+    // ungeteilter Streifen über die Insel: nicht mitgeführt, aber gemeldet
+    const r = inselVerschieben(f.flaechenPlan!, [{ id: 'hand-1', p0: lv(0, -3.7), p1: lv(0, 3.7), breite: 4 }], 'e1-1', lv(0, 0.5))
+    if ('grund' in r) throw new Error(r.grund)
+    expect(r.teilIds).toEqual([]); expect(r.inInsel).toEqual(['hand-1'])
+  })
+  it('Verschiebung zurücknehmen: nur solange seither nichts anderes geändert wurde', () => {
+    const f = eingefuegt(), vorher = structuredClone(f)
+    const r = inselVerschieben(f.flaechenPlan!, f.streifenHand, 'e1-1', lv(0, 0.5))
+    if ('grund' in r) throw new Error(r.grund)
+    f.flaechenPlan = r.plan; f.streifenHand = r.streifen
+    const rueck = { gruppe: 'e1-1', schluessel: eingabenSchluessel(f), flaechenPlan: vorher.flaechenPlan!, streifenHand: vorher.streifenHand }
+    const g = structuredClone(f)
+    expect(verschiebungZuruecknehmbar(g, rueck)).toBe(true)
+    expect(verschiebungZuruecknehmen(g, rueck)).toBe(true)
+    expect(eingabenSchluessel(g)).toBe(eingabenSchluessel(vorher))
+    const h = structuredClone(f); h.zufahrten['hand-1|w1-'] = { tempo: 30 }
+    expect(verschiebungZuruecknehmbar(h, rueck)).toBe(false)
+    expect(verschiebungZuruecknehmen(h, rueck)).toBe(false)
+    expect(h.flaechenPlan).toEqual(f.flaechenPlan)
   })
 })
 

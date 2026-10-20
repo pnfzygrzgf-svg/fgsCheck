@@ -21,10 +21,10 @@ import { linieKreis, RADIUS_HAND_M } from './rechner/spurhand'
 import { GRUND, ART, STATUS, statusText, f1, f2 } from './texte'
 import Bericht from './Bericht'
 import { Anleitung, Datenschutz, Fusszeile } from './Hilfe'
-import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type PlanArt, type FurtSeite, PLAN_ARTEN, naechstePlanId, planRingPruefen,
+import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type PlanArt, type FlaechePlan, type FurtSeite, PLAN_ARTEN, naechstePlanId, planRingPruefen,
   naechsteFixId, FIXPUNKT_NAME_MAX, STREIFEN_NAME_MAX, leererFall, fallLesen, fallSchreiben, fallMerken, fallErinnern, fallVergessen,
   ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, streifenHandTeilen, teilungZuruecknehmbar,
-  teilungZuruecknehmen, type TeilungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
+  teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
   streifenHerkunftText } from './fall'
 import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_M, ORT_TOL_M, streifenMitte, streifenAbstand, planEntscheid,
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
@@ -34,7 +34,8 @@ import { streifenTitel, zufahrtNamen, zufahrtLang, zufahrtNr, zufahrtText, entfa
   type ZufahrtNamen } from './benennung'
 import { planTitel, planFlaecheM2, planAlsAv, avMitPlan, PLAN_NAME, eckeRunden, eckeAmPunkt, eckeRadiusMax, echteEcken, eckeGrenze, eckeGrenzeText, RUNDEN_R_VORGABE, RUNDEN_R_BEREICH, ECK_GROSS_M } from './rechner/planflaechen'
 import { inselGeometrie, inselLage, inselMasse, masseFehler, masseHinweise, streifenTeilen, standardText, standardTeilText, inselFlaechen,
-  fahrbahnMitte, teilLuecke, inselPruefen, zufahrtTeil, naechsteGruppe, aufAchse, balkenAusUmriss, E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M,
+  fahrbahnMitte, teilLuecke, inselPruefen, zufahrtTeil, zugMitte, standardZiehbar, standardGruppen, inselVerschieben,
+  standardGeometrie, furtQuert, naechsteGruppe, aufAchse, balkenAusUmriss, E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M,
   INSEL_BEREICH, type InselLage } from './rechner/standardinsel'
 import { Fahrbahn } from './rechner/flaechen'
 import { OsmNetz, fahrbahnRichtung } from './rechner/netz'
@@ -119,6 +120,9 @@ function ZahlFeld({ wert, setze, titel, bereich }: { wert: number; setze: (x: nu
 }
 
 let zaehler = 0
+// stabile leere Listen für die Karte (Prüfbefund 20.10.2026): ein neues [] je Render liess die Karten-Effekte bei jeder Mausbewegung
+// im Zug der Mittelinsel alles neu zeichnen
+const LEER_FIX: Fixpunkt[] = [], LEER_PLAN: FlaechePlan[] = [], LEER_HIND: Hindernis[] = [], LEER_HAND: StreifenHand[] = []
 /** Zwei Ringe gleich (Koordinaten; Fall-Kopien haben neue Arrays) */
 const gleicherRing = (a: P[], b: P[]) => a.length === b.length && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1])
 const neueId = (p: string) => `${p}-${Date.now().toString(36)}-${(zaehler++).toString(36)}`
@@ -207,6 +211,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // letzte Teilung eines Streifens von Hand an einer Mittelinsel (Gruppe der Insel): «Teilung zurücknehmen», solange die Teilstreifen
   // seither nicht anders geändert wurden (fall.teilungZuruecknehmbar)
   const [teilung, setTeilung] = useState<(TeilungRueck & { gruppe: string }) | null>(null)
+  // Mittelinsel am Griff ziehen (Drag-and-drop): laufender Zug (nur Vorschau, ohne Rechnung) und letzte Verschiebung zum
+  // Zurücknehmen (mit der Teilung davor, deren Teilstreifen die Verschiebung nachführt)
+  const [inselZug, setInselZug] = useState<{ gruppe: string; m: P; frei: boolean } | null>(null)
+  // Schalter «frei verschieben» (auch für Touch): Umschalttaste schon beim Drücken startet in Leaflet den Box-Zoom statt des Ziehens
+  const [inselFrei, setInselFrei] = useState(false)
+  const [verschiebung, setVerschiebung] = useState<(VerschiebungRueck & { teilungVorher: (TeilungRueck & { gruppe: string }) | null }) | null>(null)
   const [breite, setBreite] = useState(LAENGS_BREITE_M)
   const [streifenBreite, setStreifenBreite] = useState(4)
   const [sichtbehindernd, setSichtbehindernd] = useState(true)
@@ -775,6 +785,102 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       p0: e.p0, p1: e.p1, breite: e.bw, balken: balkenAusUmriss(einheitP(sub(e.p1, e.p0)), e.umriss), hand: false,
       gruppe: erg.filter(x => x.uebergangId === e.uebergangId).map(x => ({ id: x.fgsId, p0: x.p0, p1: x.p1 })) }))
   }, [inselAktiv, fall, rechnung, inselNetz])
+  // ---- Mittelinsel ziehen: Griffe (nur Standardform), Vorschau und Lagehinweise beim Ziehen, Übernahme beim Loslassen
+  const planListe = fall?.flaechenPlan
+  const inselGriffe = useMemo(() => standardGruppen(planListe).filter(g => standardZiehbar(planListe, g.gruppe))
+    .map(g => ({ gruppe: g.gruppe, m: g.st.m, text: `Mittelinsel (Standard E1) – Ziehen: ${inselFrei ? 'frei verschieben (Schalter «frei verschieben» an)' :
+      'entlang der Streifenachse verschieben; frei mit dem Schalter «frei verschieben» (Flächen (Plan)) bzw. der Umschalttaste während des Ziehens'}` })),
+  [planListe, inselFrei])
+  // Bodenbedeckung ohne die gezogene Mittelinsel (für die Lagehinweise; einmal je Zug, nicht bei jeder Bewegung)
+  const zugGruppe = inselZug?.gruppe ?? null
+  const zugBoden = useMemo(() => {
+    if (!zugGruppe || !av) return null
+    const a = avMitPlan(av, planListe?.filter(x => x.standard?.gruppe !== zugGruppe)).av
+    return { av: a, fb: new Fahrbahn(a) }
+  }, [zugGruppe, av, planListe])
+  /** Lage nach dem Ziehen: neue Listen bzw. Grund, Vorschau-Geometrie, Lagehinweise */
+  const zugAuswerten = useCallback((gruppe: string, m: P) => {
+    const st = standardZiehbar(planListe, gruppe)
+    if (!st || !fall) return null
+    const r = inselVerschieben(planListe ?? [], fall.streifenHand, gruppe, m)
+    const neuSt = { ...st, m }
+    const g = standardGeometrie(neuSt)
+    const hinweise: string[] = []
+    if ('grund' in r) hinweise.push(r.grund)
+    else {
+      if (r.abAchseM !== null && r.abAchseM > 0.05) hinweise.push(`Mitte ${f2(r.abAchseM)} m neben der Achse der Teilstreifen.`)
+      // Streifen von Hand, die danach in die Insel reichen (Teilstreifen nicht bzw. nur einer erkannt, ungeteilter Streifen)
+      if (r.inInsel.length) hinweise.push(`${r.inInsel.map(id => streifenTitel(id, fall.streifenHand)).join(', ')} reicht in die Insel bzw. quert sie (nicht mitgeführt): ` +
+        'Enden prüfen bzw. «als zwei Teilstreifen zeichnen».')
+    }
+    if (zugBoden) {
+      const pr = inselPruefen({ m, achse: st.achse, balken: st.balken }, st, zugBoden.av, (p, q) => zugBoden.fb.sehne(p, q))
+      hinweise.push(...pr.hinweise.filter(h => !h.startsWith('In der Furt')))
+      if (pr.furtFahrbahn && !(planListe ?? []).some(x => x.standard?.gruppe === gruppe && x.standard.teil === 'furt'))
+        hinweise.push('In der Furt liegt eine Verkehrsinsel der AV: für die Furt auf Fahrbahnniveau die Mittelinsel dort neu einfügen.')
+    }
+    // Achse eines Streifens quert die Furt: Streifen der Rechnung (ohne die mitgeführten Teilstreifen) und die gemeinsame Achse der
+    // Teilstreifen an ihrer neuen Lage (vom äusseren Ende des einen zum äusseren Ende des anderen)
+    const tmp = [{ id: 'zug', art: 'insel' as PlanArt, ring: g.insel, standard: { ...neuSt, teil: 'insel' as const } }]
+    const teilIds = 'grund' in r ? [] : r.teilIds
+    const achsen: [P, P][] = (rechnung?.streifen ?? []).filter(e => !teilIds.includes(e.fgsId)).map(e => [e.p0, e.p1])
+    if (!('grund' in r) && r.teilIds.length === 2) {
+      const [t1, t2] = r.teilIds.map(id => r.streifen.find(x => x.id === id)!)
+      const aussen = (t: StreifenHand) => (dist(t.p0, m) > dist(t.p1, m) ? t.p0 : t.p1)
+      achsen.push([aussen(t1), aussen(t2)])
+    }
+    if (achsen.some(([a, b]) => furtQuert(tmp, a, b)))
+      hinweise.push('Eine Streifenachse quert die Rollstuhlfurt statt der erhöhten Inselfläche: dort teilt die Rechnung nicht an der Insel.')
+    return { r, g, hinweise }
+  }, [planListe, fall, zugBoden, rechnung])
+  const zugVorschau = useMemo(() => {
+    if (!inselZug) return null
+    const a = zugAuswerten(inselZug.gruppe, inselZug.m)
+    if (!a) return null
+    const rr = a.r
+    const teile = 'grund' in rr ? [] : rr.streifen.filter(x => rr.teilIds.includes(x.id)).map(x => [x.p0, x.p1] as [P, P])
+    return { ringe: [...(a.g.kopf ? [a.g.kopf] : []), a.g.insel], furt: a.g.furt, mast: a.g.mast, mitte: inselZug.m, teile,
+      text: [inselZug.frei ? 'frei verschoben' : 'entlang der Achse', ...a.hinweise].join(' – ') }
+  }, [inselZug, zugAuswerten])
+  const inselZiehen = useCallback((gruppe: string, p: P, umschalt: boolean) => {
+    const st = standardZiehbar(planListe, gruppe), frei = umschalt || inselFrei
+    if (st) setInselZug({ gruppe, m: zugMitte(st, p, frei), frei })
+  }, [planListe, inselFrei])
+  const inselLoslassen = useCallback((gruppe: string, p: P, umschalt: boolean) => {
+    const frei = umschalt || inselFrei
+    setInselZug(null)
+    const st = standardZiehbar(planListe, gruppe)
+    if (!st || !fall) return
+    const m = zugMitte(st, p, frei)
+    if (dist(m, st.m) < 0.01) return
+    const a = zugAuswerten(gruppe, m)
+    if (!a) return
+    if ('grund' in a.r) { setMeldung(`Mittelinsel nicht verschoben: ${a.r.grund}`); return }
+    const r = a.r
+    const nachher = structuredClone(fall); nachher.flaechenPlan = r.plan; nachher.streifenHand = r.streifen
+    setVerschiebung({ gruppe, schluessel: eingabenSchluessel(nachher), flaechenPlan: structuredClone(fall.flaechenPlan ?? []),
+      streifenHand: structuredClone(fall.streifenHand), teilungVorher: teilung })
+    aendern(f => {
+      const x = inselVerschieben(f.flaechenPlan ?? [], f.streifenHand, gruppe, m)
+      if (!('grund' in x)) { f.flaechenPlan = x.plan; f.streifenHand = x.streifen }
+      return f
+    })
+    // die Teilung (zum Zurücknehmen) kennt jetzt die nachgeführten Teilstreifen
+    if (teilung && r.teilIds.includes(teilung.id) && r.teilIds.includes(teilung.neuId))
+      setTeilung({ ...teilung, teil1: structuredClone(r.streifen.find(x => x.id === teilung.id)!),
+        teil2: structuredClone(r.streifen.find(x => x.id === teilung.neuId)!) })
+    setMeldung(`Mittelinsel um ${f2(dist(m, st.m))} m ${frei ? 'frei ' : 'entlang der Achse '}verschoben` +
+      (r.teilIds.length ? `; Teilstreifen ${r.teilIds.map(id => streifenTitel(id, fall.streifenHand)).join(' und ')} an die Inselkanten nachgeführt` : '') +
+      `.${a.hinweise.length ? ` ${a.hinweise.join(' ')}` : ''} Zurück mit «Verschiebung zurücknehmen» unter «Flächen (Plan)».`)
+  }, [planListe, fall, zugAuswerten, teilung, aendern, inselFrei])
+  const verschiebungZurueck = () => {
+    const v = verschiebung
+    if (!v || !fall) return
+    if (!verschiebungZuruecknehmbar(fall, v)) { setVerschiebung(null); setMeldung('Seither wurde etwas anderes geändert: Verschiebung nicht zurückgenommen.'); return }
+    aendern(f => { verschiebungZuruecknehmen(f, v); return f })
+    setTeilung(v.teilungVorher); setVerschiebung(null)
+    setMeldung('Verschiebung der Mittelinsel zurückgenommen.')
+  }
   const inselM = useMemo(() => inselMasse(inselEin.tiefe, inselEin.breite, inselEin.furt, inselEin.kopf, inselEin.seite), [inselEin])
   const inselFehler = masseFehler(inselM)
   const inselK = inselOrt?.streifen ? inselStreifen.find(k => k.id === inselOrt.streifen) ?? null : null
@@ -786,11 +892,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     inselPruefen(inselOrt.lage, inselM, inselAv, (p, r) => inselFahrbahn.sehne(p, r)) : null),
   [inselOrt, inselAv, inselFahrbahn, inselFehler, inselM])
   const inselVorschau = useMemo(() => {
+    if (zugVorschau) return zugVorschau
     if (!inselOrt || inselFehler) return null
     const g = inselGeometrie(inselOrt.lage, inselM)
     return { ringe: [...(g.kopf ? [g.kopf] : []), g.insel], furt: g.furt, mast: g.mast, mitte: inselOrt.lage.m,
       teile: inselEin.teilen && inselTeilung && 'teile' in inselTeilung ? inselTeilung.teile : [] }
-  }, [inselOrt, inselFehler, inselM, inselEin.teilen, inselTeilung])
+  }, [inselOrt, inselFehler, inselM, inselEin.teilen, inselTeilung, zugVorschau])
   useEffect(() => { if (!inselAktiv) setInselOrt(null) }, [inselAktiv])
   /** Streifen k wählen: Insel auf seiner Achse, in der Fahrbahnmitte bzw. (Teilstreifen) in der Lücke nächst p; Breite des Streifens */
   const inselAufStreifen = (k: InselStreifen, p: P | null) => {
@@ -1260,11 +1367,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   return (
     <div className="app">
       <Karte mitte={START} av={av} kantone={kantone} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
-        rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? []} streifenHand={fall?.streifenHand ?? []}
+        rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? LEER_HIND} streifenHand={fall?.streifenHand ?? LEER_HAND}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} rundenR={rundenR}
         rundenAngebot={angebotKarte} rundenVorschau={rundenVorschau} inselVorschau={inselVorschau}
-        onRundenAngebot={ja => { if (ja) angebotAnnehmen(); else setRundenAngebot(null) }} fixpunkte={fall?.fixpunkte ?? []} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
-        flaechenPlan={fall?.flaechenPlan ?? []}
+        inselGriffe={inselGriffe} onInselZug={inselZiehen} onInselLos={inselLoslassen}
+        onRundenAngebot={ja => { if (ja) angebotAnnehmen(); else setRundenAngebot(null) }} fixpunkte={fall?.fixpunkte ?? LEER_FIX} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
+        flaechenPlan={fall?.flaechenPlan ?? LEER_PLAN}
         masslinien={masslinien} zufahrtNamen={zNamen} streifenTitel={titel}
         onUebergang={pruefen} onZufahrt={setAuswahl}
         onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => setBearbeiten(b => (b === id ? null : id))}
@@ -1462,6 +1570,14 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                         }}>löschen</button>
                       </span>
                       {fp.standard && <div className="klein">{standardTeilText(fp)}
+                        {(fall.flaechenPlan ?? []).find(x => x.standard?.gruppe === fp.standard!.gruppe)?.id === fp.id &&
+                          inselGriffe.some(g => g.gruppe === fp.standard!.gruppe) && <>{' '}
+                          <label title="Ziehen am Griff in der Inselmitte: frei statt entlang der Streifenachse (gilt für alle Mittelinseln; auch auf Touch)">
+                            <input type="checkbox" checked={inselFrei} onChange={e => setInselFrei(e.target.checked)} /> frei verschieben</label></>}
+                        {verschiebung?.gruppe === fp.standard.gruppe && (fall.flaechenPlan ?? []).find(x => x.standard?.gruppe === fp.standard!.gruppe)?.id === fp.id &&
+                          verschiebungZuruecknehmbar(fall, verschiebung) && <>{' '}
+                          <button className="zweit klein" title="Mittelinsel (und nachgeführte Teilstreifen) wie vor dem letzten Ziehen"
+                            onClick={verschiebungZurueck}>Verschiebung zurücknehmen</button></>}
                         {(fall.flaechenPlan ?? []).filter(x => x.standard?.gruppe === fp.standard!.gruppe)[0]?.id === fp.id &&
                           (fall.flaechenPlan ?? []).filter(x => x.standard?.gruppe === fp.standard!.gruppe).length > 1 && <>{' '}
                           <button className="zweit klein" title="alle Flächen (Plan) dieser Mittelinsel löschen (Streifen von Hand bleiben, wie sie sind)"
@@ -1661,7 +1777,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             Fläche als weisse Kreise</li>
           <li><span className="farbe" style={{ background: '#000000', borderRadius: '50%' }} />Signalmast einer Mittelinsel (Standard E1),
             im Kopf auf der Seite der Rollstuhlfurt: nur Hinweis, kein Hindernis; beim Werkzeug «Mittelinsel (Standard)» Vorschau
-            gestrichelt, Furt grau, Teilstreifen gelb gestrichelt</li>
+            gestrichelt, Furt grau, Teilstreifen gelb gestrichelt; Kreis mit Vierfachpfeil in der Inselmitte: Griff zum Ziehen
+            (entlang der Achse; frei mit dem Schalter «frei verschieben» oder der Umschalttaste während des Ziehens)</li>
         </ul>
         </details>
 

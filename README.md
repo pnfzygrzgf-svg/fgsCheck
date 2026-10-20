@@ -83,6 +83,9 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    Standards, E1 als Flächen (Plan) der Art Insel ein (Vorgaben Tiefe 2,00 m, Streifenbreite 4,00 m, Furt 1,20 m, Köpfe
    halbrund; Mitte auf der Streifenachse in der Fahrbahnmitte, die Furt bleibt Fahrbahn) und teilt einen Streifen von Hand auf
    Wunsch in zwei Teilstreifen (`src/rechner/standardinsel.ts`; Kennzeichnung im optionalen Feld `standard` der Fläche).
+   Eine Mittelinsel in der Standardform lässt sich am Griff in der Inselmitte ziehen (entlang der Streifenachse; frei mit dem
+   Schalter «frei verschieben» oder der Umschalttaste während des Ziehens); die Teile werden an der neuen Mitte neu gebildet, an ihr geteilte Teilstreifen nachgeführt
+   (`inselVerschieben` in `src/rechner/standardinsel.ts`), «Verschiebung zurücknehmen» stellt die letzte Verschiebung zurück.
 7. Je Streifen Lichtsignal und «kein FGS», je Zufahrt (Zeile anklicken) Tempo, «Fahrlinie korrigieren» (A: Linie seitlich
    verschieben, am Streifen und am Ende, + links, − rechts; B: Fahrlinie selbst zeichnen, bei Abbiegenden mit Kreisvorschlag
    und «Radius übernehmen») und «Diese Zufahrt gibt es nicht (streichen)». Abbiegezufahrten, die bisher wegen der geraden

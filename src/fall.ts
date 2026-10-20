@@ -514,6 +514,18 @@ export function teilungZuruecknehmen(f: Fall, r: TeilungRueck): boolean {
   return true
 }
 
+/** Letzte Verschiebung einer Mittelinsel (Drag-and-drop): Flächen (Plan) und Streifen von Hand davor; schluessel: Eingaben
+ * (eingabenSchluessel) direkt danach. Zurücknehmen nur, solange seither nichts anderes geändert wurde (gleicher Schlüssel) */
+export interface VerschiebungRueck { gruppe: string; schluessel: string; flaechenPlan: FlaechePlan[]; streifenHand: StreifenHand[] }
+export const verschiebungZuruecknehmbar = (f: Fall, r: VerschiebungRueck): boolean => eingabenSchluessel(f) === r.schluessel
+/** Verschiebung zurücknehmen: Flächen (Plan) und Streifen von Hand wie davor -> false, wenn seither etwas anderes geändert wurde */
+export function verschiebungZuruecknehmen(f: Fall, r: VerschiebungRueck): boolean {
+  if (!verschiebungZuruecknehmbar(f, r)) return false
+  f.flaechenPlan = structuredClone(r.flaechenPlan)
+  f.streifenHand = structuredClone(r.streifenHand)
+  return true
+}
+
 /** Name einer beim Übernehmen geschriebenen Insel (angenommen nach OSM und Luftbild, danach Insel von Hand) */
 export const INSEL_UEBERNOMMEN = 'Insel (aus Luftbild übernommen)'
 

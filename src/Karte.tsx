@@ -99,6 +99,10 @@ const HINTERGRUND_KARTE = 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkar
 // gezeichnet (weiter draussen zu dicht; die Suche beginnt ebenfalls bei Zoom 16)
 const NAMEN_PANE = 'strassennamen'
 const ECKEN_PANE = 'eckenRunden'                   // «Ecke runden»: Ecken der gewählten Fläche (Plan), über allem anklickbar
+const GRIFF_PANE = 'inselGriff'                     // «Mittelinsel (Standard)»: Griff zum Ziehen
+// Vierfachpfeil im Kreis (Griff der Mittelinsel)
+const GRIFF_SVG = '<svg viewBox="0 0 26 26" width="26" height="26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="#ffffff" ' +
+  'stroke="#3f6212" stroke-width="2"/><path d="M13 4l3 3h-2v4h4V9l3 4-3 4v-2h-4v4h2l-3 3-3-3h2v-4H8v2l-3-4 3-4v2h4V7h-2z" fill="#3f6212"/></svg>'
 const NAMEN_ZOOM = 16
 // Übergänge: nur Marker im Sichtbereich mit diesem Rand (Anteil je Seite) zeichnen; nach jedem Verschieben nachgeführt
 const MARKER_RAND = 0.5
@@ -193,7 +197,11 @@ export default function Karte(props: {
   // «Ecke runden»: Vorschau beim Ziehen des Reglers (Ring, passt der Radius, Text an der Ecke)
   rundenVorschau?: { ring: P[]; passt: boolean; text: string; p: P } | null
   // «Mittelinsel (Standard)»: Vorschau vor dem Einfügen (Inselteile, Furt, Signalmast, Mitte, Teilstreifen beim Teilen)
-  inselVorschau?: { ringe: P[][]; furt: P[] | null; mast: P | null; mitte: P; teile: [P, P][] } | null
+  inselVorschau?: { ringe: P[][]; furt: P[] | null; mast: P | null; mitte: P; teile: [P, P][]; text?: string } | null
+  // «Mittelinsel (Standard)»: Griffe in der Inselmitte (ziehbar), Ziehen (Vorschau) und Loslassen (Übernahme)
+  inselGriffe?: { gruppe: string; m: P; text: string }[]
+  onInselZug?: (gruppe: string, p: P, frei: boolean) => void
+  onInselLos?: (gruppe: string, p: P, frei: boolean) => void
   fixpunkte: Fixpunkt[]
   flaechenPlan: FlaechePlan[]                        // Flächen (Plan) von Hand, über der AV-Ebene
   fixVorschlaege: { p: P; text: string }[]           // vorgeschlagene Fixpunkte (blass; Tooltip, Klick übernimmt)
@@ -265,11 +273,15 @@ export default function Karte(props: {
     // «Ecke runden»: Ecken der gewählten Fläche (Plan) in einem eigenen Pane über allen Ebenen und Markern (markerPane 600), unter
     // den Tooltips (650); anklickbar auch im Werkzeugmodus (index.css: .karte-werkzeug)
     map.createPane(ECKEN_PANE).style.zIndex = '620'
+    // «Mittelinsel (Standard)»: Griffe über den Flächen, Markern und der Vorschau (Pane der Ecken 620), unter den Tooltips (650);
+    // beim «Ecke runden» (Werkzeugmodus) sind sie nicht anklickbar
+    map.createPane(GRIFF_PANE).style.zIndex = '630'
     const eb: Record<string, L.LayerGroup> = {
       av: L.layerGroup().addTo(map), plan: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
       nr: L.layerGroup().addTo(map),
       hind: L.layerGroup().addTo(map), fix: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
       standort: L.layerGroup().addTo(map), ecken: L.layerGroup().addTo(map), inselVorschau: L.layerGroup().addTo(map),
+      griffe: L.layerGroup().addTo(map),
     }
     L.control.layers({ 'Luftbild (SWISSIMAGE)': luftbild, 'Landeskarte (swisstopo)': landeskarte }, { 'Amtliche Vermessung': eb.av,
       'Flächen (Plan)': eb.plan,
@@ -359,6 +371,8 @@ export default function Karte(props: {
         fillColor: `url(#${PLAN_MUSTER}${fp.art})`, fillOpacity: 1, interactive: !werkzeug })
         .bindTooltip(`<b>${esc(planTitel(fp.id))}: ${esc(PLAN_NAME[fp.art])} (Plan, von Hand)</b>, ` +
           `${planFlaecheM2(fp.ring).toFixed(1).replace('.', ',')} m²${fp.standard ? `<br>${esc(standardTeilText(fp))}` : ''}` +
+          (fp.standard && flaechenPlan.some(x => x.standard?.gruppe === fp.standard!.gruppe && standardAngepasst(x)) ?
+            `<br>Form ${standardAngepasst(fp) ? '' : 'eines anderen Teils '}von Hand angepasst: kein Griff zum Ziehen (nur die Standardform ist ziehbar)` : '') +
           '<br>ersetzt in der Rechnung die AV darunter<br><i>Klick: wählen und bearbeiten</i>',
         { sticky: true })
         .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(fp.id) })
@@ -593,25 +607,77 @@ export default function Karte(props: {
     if (!map.hasLayer(v.tip)) v.tip.openOn(map)
   }, [vorschau, kartenRef])
 
-  // «Mittelinsel (Standard)»: Vorschau vor dem Einfügen (leichte Ebene im Pane der Ecken, nicht anklickbar: Klicks gehen an die
-  // Karte und verschieben die Insel). Inselteile gestrichelt in der Farbe der Plan-Inseln, Furt grau, Mast als Punkt, Mitte als
-  // Kreuz, beim Teilen die Achsen der beiden Teilstreifen gelb gestrichelt
+  // «Mittelinsel (Standard)»: Vorschau vor dem Einfügen bzw. beim Ziehen am Griff (leichte Ebene im Pane der Ecken, nicht
+  // anklickbar: Klicks gehen an die Karte). Inselteile gestrichelt in der Farbe der Plan-Inseln, Furt grau, Mast als Punkt, Mitte als
+  // Kreis, Teilstreifen gelb gestrichelt, Lagehinweise als Text an der Mitte. Einmal angelegt und danach nur nachgeführt
+  // (setLatLngs, wie die Rundungsvorschau), damit die Vorschau dem Ziehen ohne Neuaufbau folgt
   const inselV = props.inselVorschau ?? null
+  const inselVRef = useRef<{ ringe: L.Polygon[]; furt: L.Polygon; teile: L.Polyline[]; mast: L.CircleMarker; mitte: L.CircleMarker
+    tip: L.Tooltip; text: HTMLElement } | null>(null)
+  useEffect(() => {
+    const eb = ebenenRef.current, map = kartenRef.current
+    if (!eb || !map) return
+    let v = inselVRef.current
+    if (!v) {
+      const o = { pane: ECKEN_PANE, interactive: false }
+      const text = L.DomUtil.create('span')
+      v = inselVRef.current = {
+        ringe: [0, 1].map(() => L.polygon([], { ...o, color: PLAN_FARBEN.insel.linie, weight: 2, dashArray: '5 4', fillColor: PLAN_FARBEN.insel.flaeche,
+          fillOpacity: 0.5 }).addTo(eb.inselVorschau)),
+        furt: L.polygon([], { ...o, color: '#6b7280', weight: 1, dashArray: '2 3', fillColor: '#9ca3af', fillOpacity: 0.35 }).addTo(eb.inselVorschau),
+        teile: [0, 1].map(() => L.polyline([], { ...o, color: '#ca8a04', weight: 4, dashArray: '6 4' }).addTo(eb.inselVorschau)),
+        mast: L.circleMarker([0, 0], { ...o, radius: 4, color: '#ffffff', weight: 1.5, fillColor: '#000000', fillOpacity: 1 }),
+        mitte: L.circleMarker([0, 0], { ...o, radius: 3, color: '#111827', weight: 1, fillColor: '#ffffff', fillOpacity: 1 }),
+        tip: L.tooltip({ permanent: true, direction: 'bottom', offset: [0, 12], pane: 'tooltipPane', className: 'insel-hinweis' }).setContent(text),
+        text,
+      }
+    }
+    const x = v
+    x.ringe.forEach((r, i) => r.setLatLngs(inselV?.ringe[i]?.map(ll) ?? []))
+    x.furt.setLatLngs(inselV?.furt?.map(ll) ?? [])
+    x.teile.forEach((t, i) => t.setLatLngs(inselV?.teile[i]?.map(ll) ?? []))
+    const punkt = (m: L.CircleMarker, p: P | null | undefined) => {
+      if (p) { m.setLatLng(ll(p)); if (!eb.inselVorschau.hasLayer(m)) m.addTo(eb.inselVorschau) } else eb.inselVorschau.removeLayer(m)
+    }
+    punkt(x.mast, inselV?.mast); punkt(x.mitte, inselV?.mitte)
+    if (inselV?.text) {
+      x.text.textContent = inselV.text
+      x.tip.setLatLng(ll(inselV.mitte))
+      if (!map.hasLayer(x.tip)) x.tip.openOn(map)
+    } else if (map.hasLayer(x.tip)) map.closeTooltip(x.tip)
+  }, [inselV, kartenRef])
+
+  // «Mittelinsel (Standard)»: Griff in der Inselmitte (Standardform, nicht von Hand angepasst; App.inselGriffe). Ziehen: Mitte
+  // entlang der Achse, mit Umschalttaste frei; Vorschau beim Ziehen (onInselZug), Übernahme beim Loslassen (onInselLos). Leaflet-
+  // Marker: Ziehen mit Maus und Finger (L.Draggable). Im Werkzeugmodus nicht anklickbar wie die übrigen Ebenen
   useEffect(() => {
     const eb = ebenenRef.current
     if (!eb) return
-    eb.inselVorschau.clearLayers()
-    if (!inselV) return
-    const o = { pane: ECKEN_PANE, interactive: false }
-    for (const r of inselV.ringe) L.polygon(r.map(ll), { ...o, color: PLAN_FARBEN.insel.linie, weight: 2, dashArray: '5 4',
-      fillColor: PLAN_FARBEN.insel.flaeche, fillOpacity: 0.5 }).addTo(eb.inselVorschau)
-    if (inselV.furt) L.polygon(inselV.furt.map(ll), { ...o, color: '#6b7280', weight: 1, dashArray: '2 3', fillColor: '#9ca3af', fillOpacity: 0.35 })
-      .addTo(eb.inselVorschau)
-    for (const [a, b] of inselV.teile) L.polyline([ll(a), ll(b)], { ...o, color: '#ca8a04', weight: 4, dashArray: '6 4' }).addTo(eb.inselVorschau)
-    if (inselV.mast) L.circleMarker(ll(inselV.mast), { ...o, radius: 4, color: '#ffffff', weight: 1.5, fillColor: '#000000', fillOpacity: 1 })
-      .addTo(eb.inselVorschau)
-    L.circleMarker(ll(inselV.mitte), { ...o, radius: 3, color: '#111827', weight: 1, fillColor: '#ffffff', fillOpacity: 1 }).addTo(eb.inselVorschau)
-  }, [inselV])
+    eb.griffe.clearLayers()
+    for (const g of props.inselGriffe ?? []) {
+      const mk = L.marker(ll(g.m), { pane: GRIFF_PANE, draggable: !werkzeug, interactive: !werkzeug, keyboard: false,
+        icon: L.divIcon({ className: 'insel-griff', html: GRIFF_SVG, iconSize: [26, 26], iconAnchor: [13, 13] }) })
+        .bindTooltip(g.text, { direction: 'top', offset: [0, -14] })
+      let frei = false
+      // Umschalttaste schon beim Drücken: Leaflet startet dann kein Ziehen, sondern den Box-Zoom (Ziehen mit Umschalttaste). Über
+      // dem Griff ist der Box-Zoom darum aus (beim Verlassen bzw. Entfernen des Griffs wieder an); «frei» gilt erst, wenn die Taste
+      // im Zug gedrückt wird, bzw. mit dem Schalter «frei verschieben» (App)
+      const map = kartenRef.current
+      const boxAus = () => map?.boxZoom.disable(), boxAn = () => map?.boxZoom.enable()
+      mk.on('mouseover', boxAus).on('mouseout', boxAn).on('remove', boxAn)
+      mk.on('dragstart', () => mk.closeTooltip())
+      mk.on('drag', (e: L.LeafletEvent) => {
+        const oe = (e as L.LeafletEvent & { originalEvent?: { shiftKey?: boolean } }).originalEvent
+        frei = !!oe?.shiftKey
+        const q = mk.getLatLng()
+        cb.current.onInselZug?.(g.gruppe, lv95(q.lat, q.lng), frei)
+      })
+      // zurück an die bisherige Mitte: übernimmt die App die Verschiebung, zeichnet sie den Griff an der neuen Mitte neu; lehnt
+      // sie ab (Teilstreifen zu kurz), bleibt er dort, wo die Insel ist
+      mk.on('dragend', () => { const q = mk.getLatLng(); mk.setLatLng(ll(g.m)); cb.current.onInselLos?.(g.gruppe, lv95(q.lat, q.lng), frei) })
+      mk.addTo(eb.griffe)
+    }
+  }, [props.inselGriffe, werkzeug])
 
   // «Ecke runden»: Angebot als Popup an der Ecke. Inhalt aus DOM-Knoten mit textContent (kein HTML aus Daten); Klicks im Popup
   // gehen nicht an die Karte. Schliessen (Knopf, Kreuz, Klick anderswo) meldet «abbrechen»; die App entfernt das Angebot dann

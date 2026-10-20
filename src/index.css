@@ -112,6 +112,10 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .karte-werkzeug .leaflet-interactive:not(.ecke-runden) { pointer-events: none !important; }
 .karte-werkzeug .ecke-runden { cursor: pointer; }
 .runden-angebot { font-size: 12px; }
+/* «Mittelinsel (Standard)»: Griff zum Ziehen (Karte.tsx) und Lagehinweise an der Vorschau */
+.insel-griff { cursor: move; background: none; border: none; }
+.insel-griff svg { display: block; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35)); }
+.leaflet-tooltip.insel-hinweis { white-space: normal; max-width: 260px; font-size: 12px; }
 .runden-knoepfe { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
 /* Strassennamen (OSM) auf der Karte: weiss mit dunklem Halo, mittig über dem Punkt, nicht anklickbar (Pane ohne pointer-events) */
 .strassenname { pointer-events: none; }

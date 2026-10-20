@@ -34,7 +34,7 @@
 
 import { type P, add, dot, einheit, sub, dist, links, kreuz, imPolygon } from '../geo'
 import type { AvFlaeche } from '../daten/av'
-import type { FlaechePlan, FurtSeite, PlanStandard, StandardTeil } from '../fall'
+import type { FlaechePlan, FurtSeite, PlanStandard, StandardTeil, StreifenHand } from '../fall'
 import { flaeche, schnitt, vereinigung, type Multi } from './poly'
 
 /** Vorgaben nach E1 (Masterplan Fussverkehr Stadt Bern, Standards) */
@@ -322,4 +322,104 @@ export function furtQuert(plan: FlaechePlan[] | undefined, p0: P, p1: P): { grup
       return { gruppe: g.gruppe, ids: g.ids }
   }
   return null
+}
+
+// ---------------------------------------------------------------- Verschieben per Drag-and-drop (Nutzerwunsch 20.10.2026)
+// Eine eingefügte Mittelinsel (alle Teile einer Gruppe in der Standardform, standardAngepasst falsch) lässt sich auf der Karte am
+// Griff in der Inselmitte ziehen. Standard: die Mitte gleitet entlang der Achse (Projektion auf die Gerade durch die bisherige Mitte
+// in Richtung standard.achse); frei (Schalter «frei verschieben» bzw. Umschalttaste während des Ziehens): die Mitte folgt dem
+// Zeiger, die Ausrichtung bleibt. Beim Loslassen werden die
+// Teile aus den gespeicherten Massen an der neuen Mitte neu gebildet (inselGeometrie, wie beim Einfügen), gleiche Ids und
+// Reihenfolge, Kennzeichnung mit der neuen Mitte. Teilstreifen, die beim Einfügen an dieser Insel geteilt wurden (erkannt an der
+// Lage: Ende TEIL_ABSTAND_M vor einer Inselkante auf der Achse, Achse parallel, das andere Ende weiter aussen), gehen mit: ihre
+// inneren Enden kommen wieder TEIL_ABSTAND_M vor die neuen Inselkanten, auf ihrer eigenen Achse (Schlüssel und Eingaben bleiben).
+// Würde ein Teilstreifen dabei kürzer als TEIL_MIN_HAND_M bzw. kehrte er sich um, bleibt alles, wie es war (Meldung).
+const ENDE_TOL_M = 0.05
+
+/** Neue Mitte beim Ziehen: auf die Achse projiziert bzw. frei */
+export function zugMitte(st: { m: P; achse: P }, ziel: P, frei: boolean): P {
+  return frei ? [ziel[0], ziel[1]] : aufAchse(ziel, st.m, st.achse)
+}
+
+/** Teile einer Mittelinsel (Gruppe) in Standardform? (Griff nur dann) -> Kennzeichnung des ersten Teils, sonst null */
+export function standardZiehbar(plan: FlaechePlan[] | undefined, gruppe: string): PlanStandard | null {
+  const teile = (plan ?? []).filter(x => x.standard?.gruppe === gruppe)
+  if (!teile.length || teile.some(standardAngepasst)) return null
+  return teile[0].standard!
+}
+
+/** Teilstreifen an den Inselkanten der Mittelinsel st (beim Einfügen geteilt): je Seite Streifen-Nummer und inneres Ende */
+export interface InselTeilstreifen { a: { id: string; ende: 'p0' | 'p1' } | null; b: { id: string; ende: 'p0' | 'p1' } | null }
+export function teilstreifenAnInsel(streifen: StreifenHand[], st: PlanStandard): InselTeilstreifen {
+  const g = standardGeometrie(st)
+  const ziel = [add(g.kanten[0], st.achse, -TEIL_ABSTAND_M), add(g.kanten[1], st.achse, TEIL_ABSTAND_M)]
+  // Korrektur 20.10.2026 (Prüfbefund): nach einem freien Zug liegt die Inselmitte seitlich neben der Achse der Teilstreifen. Darum
+  // zählt die Lage entlang der Achse: Zielpunkt auf die eigene Achse des Teilstreifens projiziert (ENDE_TOL_M), die Inselmitte
+  // höchstens eine halbe Streifenbreite seitlich der Achse (sonst ein anderer, paralleler Streifen); bei mehreren der nächste
+  const suche = (k: 0 | 1) => {
+    const aussen = k === 0 ? -1 : 1
+    let best: [{ id: string; ende: 'p0' | 'p1' }, number] | null = null
+    for (const s of streifen) {
+      const v = sub(s.p1, s.p0), l = Math.hypot(v[0], v[1])
+      if (!(l > 0) || Math.abs(dot(v, st.achse)) / l < 0.999) continue
+      const a: P = [v[0] / l, v[1] / l]
+      const seitlich = Math.abs(kreuz(sub(st.m, s.p0), a))
+      if (seitlich > s.breite / 2 + 1e-9) continue
+      const z = aufAchse(ziel[k], s.p0, a)
+      for (const ende of ['p0', 'p1'] as const) {
+        const andere = ende === 'p0' ? s.p1 : s.p0
+        if (dist(s[ende], z) <= ENDE_TOL_M && aussen * dot(sub(andere, s[ende]), st.achse) > 0 && (!best || seitlich < best[1]))
+          best = [{ id: s.id, ende }, seitlich]
+      }
+    }
+    return best ? best[0] : null
+  }
+  return { a: suche(0), b: suche(1) }
+}
+
+/** Streifen von Hand, deren Achse in die Insel (Kopf bzw. erhöhte Fläche) reicht (Proben alle 0,1 m) */
+export function streifenInInsel(streifen: StreifenHand[], g: InselGeometrie): string[] {
+  const ringe = [g.insel, ...(g.kopf ? [g.kopf] : [])]
+  return streifen.filter(s => {
+    const L = dist(s.p0, s.p1), n = Math.max(2, Math.ceil(L / 0.1))
+    for (let k = 0; k <= n; k++) if (ringe.some(r => imPolygon(add(s.p0, sub(s.p1, s.p0), k / n), [r]))) return true
+    return false
+  }).map(s => s.id)
+}
+
+/** Mittelinsel gruppe an die neue Mitte m verschieben (Regeln oben) -> neue Listen und die mitgeführten Teilstreifen, sonst Grund */
+export function inselVerschieben(plan: FlaechePlan[], streifen: StreifenHand[], gruppe: string, m: P):
+  { plan: FlaechePlan[]; streifen: StreifenHand[]; teilIds: string[]; abAchseM: number | null; inInsel: string[] } | { grund: string } {
+  const st = standardZiehbar(plan, gruppe)
+  if (!st) return { grund: 'Nur eine Mittelinsel in der Standardform lässt sich ziehen (Form von Hand angepasst bzw. nicht gefunden).' }
+  const neuSt: PlanStandard = { ...st, m: [m[0], m[1]] }
+  const g = standardGeometrie(neuSt)
+  const neuPlan = plan.map(fp => {
+    if (fp.standard?.gruppe !== gruppe) return fp
+    const ring = teilRing(g, fp.standard.teil)
+    return ring ? { ...fp, ring, standard: { ...fp.standard, m: [m[0], m[1]] as P } } : fp
+  })
+  const ts = teilstreifenAnInsel(streifen, st)
+  const neuStreifen = streifen.map(s => ({ ...s }))
+  const teilIds: string[] = []
+  for (const [k, t] of [[0, ts.a], [1, ts.b]] as const) {
+    if (!t) continue
+    const s = neuStreifen.find(x => x.id === t.id)!
+    const andere = t.ende === 'p0' ? s.p1 : s.p0
+    const a = einheit(sub(s.p1, s.p0))
+    // neues inneres Ende: TEIL_ABSTAND_M vor der neuen Inselkante, auf der Achse des Teilstreifens
+    const z = add(g.kanten[k], st.achse, k === 0 ? -TEIL_ABSTAND_M : TEIL_ABSTAND_M)
+    const neu = aufAchse(z, s.p0, a)
+    const aussen = k === 0 ? -1 : 1
+    const laenge = aussen * dot(sub(andere, neu), st.achse)
+    if (laenge < TEIL_MIN_HAND_M - 1e-9)
+      return { grund: `Verschiebung zu weit: ein Teilstreifen würde kürzer als ${f2(TEIL_MIN_HAND_M)} m – Insel weniger weit ziehen.` }
+    s[t.ende] = neu
+    teilIds.push(s.id)
+  }
+  // Abstand der neuen Mitte von der Achse der Teilstreifen (frei verschoben: Hinweis), ohne Teilstreifen null
+  const t0 = streifen.find(x => x.id === teilIds[0])
+  const abAchseM = t0 ? Math.abs(kreuz(sub(m, t0.p0), einheit(sub(t0.p1, t0.p0)))) : null
+  // Streifen von Hand, die danach in die Insel reichen (z. B. Teilstreifen nicht erkannt bzw. nur einer): Hinweis
+  return { plan: neuPlan, streifen: neuStreifen, teilIds, abAchseM, inInsel: streifenInInsel(neuStreifen, g) }
 }

@@ -91,7 +91,16 @@ export function Anleitung() {
           Wartebereich). Einen Streifen von Hand teilt die Rechnung nicht selbst: das Werkzeug teilt ihn auf Wunsch (Vorgabe) gleich
           in zwei Teilstreifen, Enden {f2(TEIL_ABSTAND_M)} m vor den Inselkanten; Eingaben je Zufahrt gehen an den Teil, an dem ihr
           erster Sichtpunkt liegt. «Teilung zurücknehmen» beim Streifen (bzw. «Mittelinsel löschen und Teilung zurücknehmen»)
-          stellt den ungeteilten Streifen samt seinen Eingaben wieder her, solange die Teilstreifen seither nicht geändert wurden.</li>
+          stellt den ungeteilten Streifen samt seinen Eingaben wieder her, solange die Teilstreifen seither nicht geändert wurden.
+          {' '}<b>Mittelinsel ziehen:</b> eine eingefügte Mittelinsel in der Standardform hat in der Mitte einen Griff (Kreis mit
+          Vierfachpfeil; ausserhalb der Werkzeuge, mit Maus bzw. Finger). Ziehen verschiebt sie entlang der Streifenachse; frei (Ausrichtung
+          bleibt) mit dem Schalter «frei verschieben» unter «Flächen (Plan)» bei der Mittelinsel (auch auf Touch) oder der Umschalttaste
+          während des Ziehens (erst nach dem Anfassen drücken: mit gedrückter Taste beginnt kein Ziehen). Beim Ziehen zeigt eine
+          Vorschau die neue Lage mit Lagehinweisen (ragt ins Trottoir, zu wenig Fahrbahn daneben, Achse quert die Furt, ein Streifen
+          von Hand reicht in die Insel). Beim Loslassen bildet die App die Teile an der neuen Mitte neu und führt die
+          an der Insel geteilten Teilstreifen nach ({f2(TEIL_ABSTAND_M)} m vor den Inselkanten, Eingaben bleiben); danach wird neu
+          gerechnet. «Verschiebung zurücknehmen» unter «Flächen (Plan)» stellt die letzte Verschiebung zurück, solange seither nichts
+          anderes geändert wurde. Eine von Hand veränderte Insel hat keinen Griff.</li>
         <li><b>Vermassung ab Fixpunkt:</b> Werkzeug «Fixpunkt» (unter «Eingaben von Hand» bzw. «Fixpunkt setzen» in «Lage und
           Masse») und auf der Karte eine Gebäudeecke bzw. einen Punkt der AV anklicken: die App fängt den nächsten Stützpunkt der
           AV-Bodenbedeckung im Umkreis von {FANG_PX} Bildschirmpunkten (höchstens {FANG_MAX_M} m), sonst bleibt es ein freier Punkt.
