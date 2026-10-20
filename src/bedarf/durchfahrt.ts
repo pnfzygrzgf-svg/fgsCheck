@@ -18,6 +18,15 @@ export function f3Klasse(d: number): F3Klasse {
   return null
 }
 
+/**
+ * Durchfahrt d [m] nach der Grundprüfung bfu (B5-2c): «3,5 m oder mindestens 4,5 m». Toleranz um 3,50 m bis zum oberen Rand des
+ * schmalen Bands von F3 (3,75 m, Arbeitshilfe Kanton BE), darunter bzw. bis 4,50 m nicht erfüllt.
+ */
+export function bfuDurchfahrtOk(d: number): boolean {
+  const W = KATALOG['B5-2c'].werte
+  return (d >= W.d - 1e-9 && d <= W.dTol + 1e-9) || d >= W.dBreit - 1e-9
+}
+
 const f2 = (x: number) => x.toFixed(2).replace('.', ',')
 
 /**

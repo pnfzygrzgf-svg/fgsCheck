@@ -10,6 +10,7 @@ import { KATALOG } from './bedarf/katalog'
 import { REICHWEITE_SICHT_M } from './rechner/ohneVortritt'
 
 const F3 = KATALOG.F3.werte, F3B = KATALOG['F3-B'].werte
+const B5 = KATALOG['B5-T'].werte, B5S = KATALOG['B5-1'].werte
 import { f2 } from './texte'
 
 const host = (u: string) => new URL(u).host
@@ -145,6 +146,27 @@ export function Anleitung() {
           ab. Die Mittelinsel (Standard) prüft die Durchfahrt daneben nach den Bändern der Arbeitshilfe Kanton BE (unter {f2(F3.min)} m zu
           schmal, zwischen {f2(F3.schmalMax)} und {f2(F3.breitMin)} m Überholkonflikt Lastwagen–Velo, mit Radstreifen nach den Berner
           Standards {f2(F3B.min)} bis {f2(F3B.max)} m).</li>
+        <li><b>Grundprüfung (Big Five, bfu):</b> oben im Abschnitt «Bedarf und Querungstyp» prüft ein Kasten die fünf Punkte der
+          bfu-Fachdokumentation MS.013-2025 und das Tempo als Vorbedingung, mit eigenen Regeln nach den Werten der bfu: Tempo
+          (signalisiert und V85 höchstens {B5.vMax} km/h; ohne V85 offen), ① Sicht nach V85 ({B5S.v30}/{B5S.v40}/{B5S.v50}/{B5S.v60} m bei
+          30/40/50/60 km/h, im Knoten nach Kurvenradius bis 20 m {B5S.r5}/{B5S.r10}/{B5S.r15}/{B5S.r20} m) und Erkennungsdistanz, ② Schutzinsel
+          (über 8,50 m Fahrbahn empfohlen, Tiefe mindestens 1,50 m, besser 2,00 m, Durchfahrt 3,50 m oder ab 4,50 m), ③ höchstens ein
+          Fahrstreifen je Richtung ohne Insel, ④ Beleuchtung, ⑤ mindestens 100 Querende in den 5 Spitzenstunden. Jeder Punkt ist
+          erfüllt (✓), nicht erfüllt (✗ rot Pflicht, ! gelb Empfehlung), offen (?) oder ein Hinweis (i), mit Ist und Soll. Die
+          Grundprüfung gilt nur für Fussgängerstreifen ohne Lichtsignal und läuft unabhängig von den Ebenen; wo die Norm anders
+          wertet, steht ein Normhinweis. Darunter ihre Eingaben; das vollständige Befundblatt und die übrigen Eingaben stehen
+          aufklappbar unter «Erweiterte Prüfung». Im Bericht steht die Grundprüfung vor dem Befundblatt. Unter den weiteren
+          bfu-Punkten prüft sie auch die Fahrbahnhaltestelle (Schutzinsel, Durchfahrt rund 3,50 m). Ist ein Soll unsicher (Stufe 60 km/h
+          ohne Angabe innerorts, Kurvenradius von Hand ohne Zuordnung zur Zufahrt), gilt ein Bereich: verletzt nur darunter, erfüllt nur
+          darüber, sonst offen.</li>
+        <li><b>Feldhilfen:</b> der Knopf «?» bei jedem Eingabefeld klappt darunter eine Erklärung auf: was gemeint ist (in eigenen
+          Worten, wo nötig mit Beispiel), wozu das Feld dient (die Prüfungen, die es im Fall braucht, mit Ergebnis und Quelle, direkt aus dem
+          Regelkatalog; Grundprüfung zuerst, dann nach Stärke, höchstens fünf, der Rest unter «weitere anzeigen»; Felder wie der
+          Querungstyp, die nur bestimmen, welche Prüfungen gelten, nennen das als Ablauf) und was ein leeres Feld bedeutet (keine Pflicht, die betroffenen Prüfungen bleiben offen; bei vorbelegten
+          Feldern steht, woher der Vorschlag kommt). Felder, die im Fall nicht wirken können, sind ausgeblendet (z. B. Angaben zur
+          Insel ohne Insel, LSA-Zeiten ohne Lichtsignal, Trottoirüberfahrt nur an einer Einmündung); ihre Werte bleiben im Fall,
+          «alle Felder zeigen» blendet sie wieder ein. Beim Tempo-Regime gilt eine Hauptstrasse ausserhalb der Zone als Strecke, auch
+          mit Tempo 30; ältere Fälle mit dem früheren Zusatzfeld dazu laden weiter. Im Bericht stehen keine Feldhilfen.</li>
         <li><b>Bericht und Fall-Datei:</b> «Bericht drucken / als PDF» öffnet eine Druckansicht (Kartenbild, Tabellen, Eingaben,
           Quellen). «Fall speichern» sichert alle Eingaben als JSON-Datei, «Fall laden» stellt sie wieder her.</li>
       </ol>

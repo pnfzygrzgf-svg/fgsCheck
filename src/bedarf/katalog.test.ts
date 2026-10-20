@@ -1,6 +1,7 @@
 // Tests Bedarfsmodul E0: Konsistenz des Regelkatalogs. Jede Regel hat Quelle (mit Ausgabe), Stärke und Ebene; Nummern eindeutig;
 // jede Regel mit Befund hat eine Implementierung und ist im Baum erreichbar (kommt in den Testfällen als Eintrag vor); Schutz gegen
-// eingefügten Normtext (kurze eigene Texte, keine langen gemeinsamen Wortfolgen mit Normauszügen).
+// eingefügten Normtext (kurze eigene Texte, keine langen gemeinsamen Wortfolgen mit Normauszügen). Die Grundprüfung (Gruppe B5)
+// hat ihre Implementierung in grundpruefung.ts (Abdeckung der Fälle in grundpruefung.test.ts), nicht im Baum.
 //
 // Normtext-Abgleich nur lokal: FGS_NORMTEXT = Verzeichnis(se) mit Textauszügen der Normen (pdftotext), getrennt mit «:»; die
 // Auszüge liegen ausserhalb des Repos. Ohne Variable übersprungen.
@@ -9,13 +10,16 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
 import { KATALOG, REGEL_IDS, WERKE, type RegelId } from './katalog'
 import { REGELN } from './regeln'
+import { GRUND_IDS } from './grundpruefung'
 import { beurteile } from './entscheid'
 import { fall, TESTFAELLE } from './testfaelle'
 import { EBENEN, STAERKEN, type RegelDef } from './typen'
 import { FELDER } from './eingaben'
 
 const defs = REGEL_IDS.map(id => [id, KATALOG[id] as RegelDef] as const)
-const mitBefund = defs.filter(([, d]) => d.art === 'befund' || d.art === 'weiche').map(([id]) => id)
+/** Regeln mit Befund im Entscheidbaum (ohne Grundprüfung B5) bzw. der Grundprüfung */
+const mitBefund = defs.filter(([, d]) => (d.art === 'befund' || d.art === 'weiche') && d.gruppe !== 'B5').map(([id]) => id)
+const grundIds = defs.filter(([, d]) => d.gruppe === 'B5').map(([id]) => id)
 /** Höchstlänge eigener Kurztexte (Schutz gegen eingefügten Normtext) */
 const MAX_ERGEBNIS = 140
 const MAX_SONST = 260
@@ -25,10 +29,12 @@ describe('Regelkatalog', () => {
     expect(new Set(defs.map(([, d]) => d.id)).size).toBe(defs.length)
     for (const [id, d] of defs) expect(d.id).toBe(id)
   })
-  it('Zählung: 150 Nummern (147 aus der E0-Liste + D6-3b, F3-B, F3-M), davon 6 ohne eigenen Befund', () => {
-    expect(defs.length).toBe(150)
+  it('Zählung: 150 Nummern im Baum (147 aus der E0-Liste + D6-3b, F3-B, F3-M), davon 7 ohne eigenen Befund (C2c gestrichen 20.10.2026), und 15 der Grundprüfung', () => {
+    expect(defs.length).toBe(165)
+    expect(grundIds.length).toBe(15)
+    expect(defs.filter(([, d]) => d.gruppe !== 'B5').length).toBe(150)
     expect(defs.filter(([, d]) => d.art !== 'befund' && d.art !== 'weiche').map(([id]) => id).sort())
-      .toEqual(['B2', 'C-E', 'D-E', 'D2b', 'E-E', 'H5'].sort())
+      .toEqual(['B2', 'C-E', 'C2c', 'D-E', 'D2b', 'E-E', 'H5'].sort())
   })
   it('jede Regel mit Befund hat Ebene, Stärke, Ergebnis und mindestens eine Quelle mit Werk, Ziffer und Ausgabe', () => {
     for (const [id, d] of defs) {
@@ -50,8 +56,16 @@ describe('Regelkatalog', () => {
     for (const [id, d] of defs) if (d.ebene === 'Norm')
       expect(d.quellen.some(q => /^(40|640)/.test(q.werk)) || d.quellen.some(q => q.werk === 'ENTSCHEID'), id).toBe(true)
   })
-  it('Implementierung: genau die Regeln mit Befund (befund, weiche)', () => {
+  it('Implementierung: genau die Regeln mit Befund (befund, weiche) im Baum, die Grundprüfung B5 in grundpruefung.ts', () => {
     expect(Object.keys(REGELN).sort()).toEqual([...mitBefund].sort())
+    expect([...GRUND_IDS].sort()).toEqual([...grundIds].sort())
+    for (const [id, d] of defs) if (d.gruppe === 'B5') {
+      expect(d.art, id).toBe('befund')
+      expect(d.quellen.every(q => q.werk === 'BFU'), id).toBe(true)
+    }
+  })
+  it('Grundprüfung B5 erscheint nie im Befundblatt des Baums (keine Doppelungen)', () => {
+    for (const t of TESTFAELLE) for (const x of beurteile(fall(t.abw), { ebenen: t.ebenen }).alle) expect(x.id.startsWith('B5'), x.id).toBe(false)
   })
   it('Eingaben der Regeln sind bekannte Felder', () => {
     for (const [id, d] of defs) for (const f of d.eingaben) expect(Object.keys(FELDER), `${id}: ${f}`).toContain(f.split('.')[0])

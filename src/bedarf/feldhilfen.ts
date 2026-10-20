@@ -1,0 +1,823 @@
+// ── Bedarfsmodul: Feldhilfen der Eingabemaske (Nutzerentscheid 20.10.2026) ──
+//
+// Je Feld der Maske (felder.ts) drei Teile, im Panel hinter dem Knopf «?»:
+//   «Was ist gemeint»: eigene Erklärung in Alltagssprache (FELD_HILFEN.was), wo nötig mit Beispiel.
+//   «Wozu»: automatisch aus dem Regelkatalog (katalog.ts): jede Regel, deren Eingaben das Feld enthalten, mit Ergebnis (Kurztext) und
+//           Quelle als Kurztext (WERK_KURZ). Objekt-Felder (insel, haltestelle …) listet der Katalog oft als Ganzes; welche
+//           Unterfelder die Regel liest, steht in UNTERFELDER (geprüft im Wächter feldhilfen.test.ts gegen die Regeln selbst).
+//           Felder, die den Ablauf steuern (welche Prüfblöcke laufen, Empfehlung), haben zusätzlich FELD_HILFEN.ablauf.
+//   «Leer lassen»: Vorgabetext (die genannten Prüfungen bleiben offen) bzw. eigener Text, wo leer etwas anderes heisst; bei
+//           vorbelegten Feldern, woher der Vorschlag kommt (FELD_HILFEN.vorschlag; die Herkunft im Fall zeigt die Maske).
+// Sichtbarkeit (SICHTBAR): Bedingungen als Daten, wann ein Feld im aktuellen Fall überhaupt wirken kann; sonst blendet die Maske
+// es aus (Werte bleiben im Fall). Der Wächter prüft an allen Testfällen, dass ausgeblendete Felder das Ergebnis nicht ändern.
+// «Wozu» gekürzt (Nutzerentscheid 20.10.2026): GELTUNG je Regel (Bedingung als Daten, offene Eingaben zählen als möglich) lässt nur
+// Regeln zu, die im Fall greifen können; Felder, die eine Regel nur als Geltungsbedingung liest (Schalter, z. B. Querungstyp,
+// Lichtsignal, Insel vorhanden), zeigen die Regel nicht, sondern ihren Ablauf-Satz mit der Zahl der geschalteten Prüfungen.
+// Reihenfolge: Grundprüfung zuerst, dann nach Stärke; im Panel höchstens 5, der Rest aufklappbar.
+// Kein Normtext: nur Ziffern, Zahlen und eigene Erklärungen.
+
+import { KATALOG, REGEL_IDS, WERKE, type RegelId, type WerkId } from './katalog'
+import { FELD_DEF, istObjektFeld } from './felder'
+import type { BedarfEingaben, FeldName } from './eingaben'
+import type { Ebene, RegelDef } from './typen'
+import { regelName } from './regelname'
+
+/** Werke als Kurztext für «Wozu» (statt SR-Nummer bzw. vollem Titel) */
+export const WERK_KURZ: Record<WerkId, string> = {
+  '40241': 'VSS 40 241', '40240': 'VSS 40 240', '40242': 'VSS 40 242', '40837': 'VSS 40 837', '40213': 'VSS 40 213',
+  '640075': 'SN 640 075', '640850a': 'SN 640 850a', '640852': 'SN 640 852', '640070': 'SN 640 070',
+  VOT30: 'Tempo-30-Zonen-Verordnung', SSV: 'Signalisationsverordnung', VRV: 'Verkehrsregelnverordnung',
+  MP: 'Masterplan Fussverkehr Bern', MPV: 'Masterplan Veloinfrastruktur Bern', HBLSA: 'Handbuch Lichtsignalanlagen Bern',
+  AHBE: 'Arbeitshilfe Kanton Bern', BFU: 'bfu MS.013 (2025)', BFU2016: 'bfu MS.013 (2016)', HA: 'Richtlinie Hindernisfreie Architektur',
+  VCS: 'VCS', ENTSCHEID: 'Projektentscheid fgsCheck',
+}
+
+/** Quellen einer Regel als Kurztext, z. B. «Tempo-30-Zonen-Verordnung Art. 4 Abs. 2» */
+export const quelleKurz = (id: RegelId): string =>
+  (KATALOG[id] as RegelDef).quellen.map(q => `${WERK_KURZ[q.werk as WerkId] ?? WERKE[q.werk as WerkId].name} ${q.ziffer}`).join('; ')
+
+/**
+ * Unterfelder, die eine Regel liest, wo der Katalog nur das Objekt nennt (z. B. «insel»). Fehlt eine Regel hier, obwohl sie ein
+ * Objekt als Ganzes nennt, schlägt der Wächter an.
+ */
+const IV = ['insel.vorhanden', 'insel.art'] as const
+export const UNTERFELDER: Partial<Record<RegelId, readonly string[]>> = {
+  D1: IV, D2: IV, D2a: IV, D2c: IV, D3a: IV, 'D5-3': IV, 'D6-2': IV, 'D6-2b': IV, 'D6-4': IV, D7: IV, E3: IV, E3a: IV, F2d: IV, F3: IV,
+  G4b: IV, 'B5-2a': IV, 'B5-2c': IV, 'B5-3': IV, 'B5-W3': ['haltestelle.art', ...IV],
+  D4a: ['haltestelle.lage'], D4b: ['haltestelle.art', 'haltestelle.verdeckt', ...IV], D4c: ['haltestelle.lage'],
+  D4d: ['haltestelle.art', 'haltestelle.lage', 'haltestelle.ueberholenUnterbunden'], 'D4-R': ['haltestelle.art', ...IV],
+  F2: ['insel.vorhanden', 'insel.breite'], F2b: ['insel.vorhanden', 'insel.breite'], F2c: ['insel.vorhanden', 'insel.breite'],
+  'F2-K': ['insel.vorhanden', 'insel.breite'], F2e: [...IV, 'insel.vertikal', 'insel.kopfErhoeht'], F2f: [...IV, 'insel.kopfUeberstand'],
+  F2g: [...IV, 'insel.pfostenH'], 'F2-B': ['insel.vorhanden', 'insel.furt'], 'F3-M': [...IV, 'insel.breite'], 'F3-B': ['insel.vorhanden'],
+  'B5-2b': [...IV, 'insel.breite'],
+  F7a: ['randabschluss.art', 'randabschluss.hoeheMm', 'randabschluss.breiteM'], F7b: ['randabschluss.art'],
+  G3b: ['fusswegAchse.rechtwinkligUneinsehbar', 'fusswegAchse.versatz', 'fusswegAchse.umlaufschranke'],
+  G7: ['hvl.vorhanden', 'hvl.laengeM', 'hvl.beidseits'], G7b: ['hvl.vorhanden'],
+  H1: ['kurve.fuenfBedingungen', 'kurve.radius'], H2: ['kurve.fuenfBedingungen', 'kurve.radius'],
+  H3a: ['kurve.fuenfBedingungen', 'kurve.radius'], H3b: ['kurve.fuenfBedingungen', 'kurve.radius'], H4: ['kurve.radius'],
+  'B5-1': ['kurve.radius'], 'B5-1b': ['kurve.radius'],
+  'I6-B': ['insel.vorhanden'], 'I7-B2': ['insel.vorhanden'], 'I7-B3': ['insel.vorhanden'], I8: ['insel.vorhanden'],
+}
+
+export interface FeldHilfe {
+  /** Was ist gemeint: eigene Erklärung, 1–2 Sätze, wo nötig mit Beispiel */
+  was: string
+  /** eigener Text zu «Leer lassen», wo ein leeres Feld nicht einfach «offen» heisst */
+  leer?: string
+  /** woher die Vorbelegung kommt (genau die Felder, die vorbelegung.ts setzt) */
+  vorschlag?: string
+  /** steuert den Ablauf (Prüfblöcke, Empfehlung) über die Regeln hinaus */
+  ablauf?: string
+  /** Feld ohne eigene Regel, nur für Vorbelegung bzw. Ablauf (Wächter) */
+  nurAblauf?: true
+}
+
+const MIT_SLASH = 'mehrere Werte mit / trennen'
+
+export const FELD_HILFEN: Record<string, FeldHilfe> = {
+  // ── Rahmen ──
+  typ: {
+    was: 'Welche Querung beurteilt wird, die bestehende oder die geplante. Davon hängt ab, welche Prüfungen überhaupt laufen.',
+    ablauf: 'Wählt die Prüfblöcke: Streifenmasse beim Fussgängerstreifen (auch mit Lichtsignal), Position, Ausrüstung und Sicht nur ' +
+      'beim Fussgängerstreifen, eigene Regeln für Trottoirüberfahrt, Mehrzweckstreifen und Querung ohne Vortritt; die Grundprüfung ' +
+      'gilt nur für den Fussgängerstreifen ohne Lichtsignal.',
+    leer: 'Leer: nur die Empfehlung des Querungstyps; Streifen, Position, Ausrüstung und Sicht werden nicht geprüft. Die ' +
+      'Grundprüfung rechnet dann wie bei einem Fussgängerstreifen.',
+    vorschlag: 'aus der Querungsart der Streifen (je Streifen unter «Querung») und dem Lichtsignal; Trottoirüberfahrt und ' +
+      'Mehrzweckstreifen nur von Hand.',
+  },
+  innerorts: {
+    was: 'Ja, wenn die Querung innerhalb der Ortstafeln liegt. Ausserorts endet die erweiterte Prüfung; die Grundprüfung läuft weiter ' +
+      '(bei 60 km/h mit 100 m Sichtweite statt 75 m).',
+    vorschlag: 'bei einem Tempo bis 50 km/h «ja» als Annahme.',
+  },
+  vSig: {
+    was: 'Die erlaubte Höchstgeschwindigkeit an der Querung laut Tafel bzw. generell innerorts, z. B. 50 oder 30 km/h.',
+    vorschlag: 'aus OSM (Tempo der geraden Zufahrten); ohne Angabe 50 km/h als Annahme.',
+  },
+  tempoRegime: {
+    was: 'Strecke: gewöhnliche Strasse ohne Zonentafel. Zone: die Querung liegt in einer signalisierten Tempo-30-Zone bzw. ' +
+      'Begegnungszone. Eine Hauptstrasse, die nicht zur Zone gehört, ist eine Strecke, auch mit Tempo 30. In der Tempo-30-Zone ist ' +
+      'ein Fussgängerstreifen nur mit besonderem Grund erlaubt, in der Begegnungszone nie.',
+  },
+  v85: {
+    was: 'Das Tempo, das 85 von 100 Fahrzeugen nicht überschreiten, aus einer Messung. Beispiel: signalisiert 50 km/h, gemessen ' +
+      'V85 = 56 km/h.',
+    leer: 'Leer: die Prüfungen rechnen mit dem signalisierten Tempo und weisen das als Annahme aus; die Grundprüfung meldet das ' +
+      'Tempo dann als offen.',
+  },
+  v85Nachweis: {
+    was: 'Ja, wenn die V85 aus einer Messung stammt. Dann rechnet die Sichtprüfung des Fussgängerstreifens mit dieser V85 statt ' +
+      'mit dem signalisierten Tempo (liegt sie darüber, muss sie es; liegt sie darunter, darf sie es).',
+  },
+  anzeichenSchneller: {
+    was: 'Ja, wenn Hinweise bestehen, dass schneller als erlaubt gefahren wird (z. B. lange gerade Strasse, Beobachtung, Klagen). ' +
+      'Dann gehört eine Messung der V85 dazu; ohne sie bleibt die Sichtprüfung offen.',
+  },
+  strassentyp: {
+    was: 'Verkehrsorientiert: Strasse vor allem für den Durchgangsverkehr (Haupt- und Sammelstrassen). Siedlungsorientiert: ' +
+      'Strasse vor allem für Anwohnende, Aufenthalt und Quartier.',
+    ablauf: 'Ist kein Fussgängerstreifen angezeigt, wählt er die Empfehlung: Furt auf verkehrsorientierten, Querung ohne Vortritt ' +
+      'mit Seitenraum, Einengung oder Anhebung auf siedlungsorientierten Strassen.',
+  },
+  ohneBaulich: {
+    was: 'Ja, wenn die Querung ohne Vortritt weder Nase noch Einengung noch Anhebung hat, also einfach über die Fahrbahn führt. ' +
+      'Dann gelten strengere Bedingungen (beidseits abgesenkt, Warteflächen, freie Sicht, wenig Verkehr).',
+    ablauf: 'Schaltet die Bedingungen für die Querung ganz ohne bauliche Hilfe ein.',
+  },
+  neuanlage: {
+    was: 'Ja, wenn die Lichtsignalanlage neu gebaut wird (nicht Bestand). Für neue Anlagen begrenzt Bern die Länge der Querung.',
+  },
+  kantonsstrasse: {
+    was: 'Ja, wenn die Strasse eine Kantonsstrasse ist. Dafür nennt die Arbeitshilfe des Kantons Bern eigene Streifenbreiten.',
+    ablauf: 'Schaltet die Streifenbreite nach der Arbeitshilfe des Kantons Bern ein (Ebene Kanton BE).',
+  },
+
+  // ── Nachfrage ──
+  fg5h: {
+    was: 'Anzahl Personen, die hier in den fünf Stunden mit den meisten Querenden eines durchschnittlichen Tags queren (die Stunden ' +
+      'müssen nicht aufeinander folgen), aus einer Zählung. Beispiel: zusammen 180 Personen. Eine Zählung geht der Schätzklasse vor.',
+    leer: 'Leer: es gilt die Schätzklasse; fehlt auch sie, bleiben die Prüfungen zur Zahl der Querenden offen.',
+  },
+  fgKlasse: {
+    was: 'Grobe Schätzung, wenn keine Zählung vorliegt: unter 100, 100 bis 500 oder über 500 Querende, zusammengezählt über die ' +
+      'fünf Stunden mit den meisten Querenden eines Durchschnittstags. Der Befund weist sie als Schätzung aus.',
+    leer: 'Leer: zählt nur ohne Zählung; fehlt beides, bleiben die Prüfungen zur Zahl der Querenden offen.',
+  },
+  fgSehrHoch: {
+    was: 'Ja, wenn die Querenden den Fahrverkehr regelmässig stark aufhalten (z. B. Ströme vor einem Bahnhof). Dann ist ein ' +
+      'Lichtsignal zu prüfen.',
+  },
+  netz: {
+    was: 'Welche Bedeutung der Weg im Fusswegnetz der Stadt Bern hat (Richtplan Fussverkehr). In Bern kann das Netz einen ' +
+      'Fussgängerstreifen begründen, auch bei wenig Verkehr oder in einer Tempo-30-Zone.',
+  },
+  netzQualifiziert: {
+    was: 'Ja, wenn die Querung Teil einer behördlich erarbeiteten Fusswegnetzplanung ist (z. B. Richtplan). Dann ist ein ' +
+      'Fussgängerstreifen auch bei weniger als 100 Querenden möglich.',
+  },
+  beduerfnis: {
+    was: 'Ankreuzen, wenn eine Schule, ein Kindergarten, ein Heim oder eine Haltestelle nahe liegt bzw. ein Schulweg hier quert. ' +
+      'Ein solcher Grund erlaubt einen Streifen auch in einer Tempo-30-Zone bzw. bei wenig Querenden.',
+    leer: 'Leer: offen, die genannten Prüfungen bleiben offen. Gibt es keinen solchen Grund, «keines» ankreuzen.',
+  },
+  nachfrage: {
+    was: 'Gebündelt: die Leute queren an einer Stelle. Verteilt: sie queren überall entlang einer längeren Strecke (z. B. ' +
+      'Einkaufsstrasse); dann passt kein einzelner Fussgängerstreifen.',
+  },
+  wunschlinieM: {
+    was: 'Wie weit die Querung neben der Linie liegt, auf der die Leute am liebsten queren würden (z. B. zwischen zwei Wegen oder ' +
+      'Eingängen), in Metern.',
+  },
+  'fusswegAchse.rechtwinkligUneinsehbar': {
+    was: 'Ja, wenn ein Fussweg genau in der Achse des Streifens rechtwinklig ankommt und von der Fahrbahn aus nicht einsehbar ist: ' +
+      'Kinder können dann ungebremst auf die Fahrbahn laufen.',
+  },
+  'fusswegAchse.versatz': { was: 'Ja, wenn der Fussweg seitlich versetzt zum Streifen ankommt, sodass niemand geradeaus auf die Fahrbahn läuft.' },
+  'fusswegAchse.umlaufschranke': { was: 'Ja, wenn eine Umlaufschranke (versetzte Gitter) am Wegende zum Abbremsen zwingt.' },
+
+  // ── Verkehr ──
+  dtv: {
+    was: 'Durchschnittlicher täglicher Verkehr: Motorfahrzeuge pro Tag in beiden Richtungen im Jahresmittel, z. B. aus einer ' +
+      'Verkehrszählung von Kanton oder Stadt.',
+    ablauf: 'Unter 3000 Fahrzeugen nennt die Empfehlung auch die Querung ohne bauliche Massnahme.',
+  },
+  starkBelastet: {
+    was: 'Ja, wenn die Strasse nach eigener Einschätzung stark befahren ist (die Norm nennt keine Zahl). Dann ist ein Lichtsignal ' +
+      'zu prüfen.',
+  },
+  mivKlasse: {
+    was: 'Wie viel Autoverkehr an einer Nase bzw. Einengung durchfährt: wenig, mittel oder viel. Davon hängt in Bern die nötige ' +
+      'Restbreite ab.',
+  },
+  zweirichtung: {
+    was: 'Ja, wenn in beide Richtungen gefahren wird; nein bei einer Einbahnstrasse.',
+    vorschlag: 'aus den Zufahrten der Rechnung (OSM, Einbahn).',
+  },
+  nRichtung: {
+    was: `Wie viele Fahrstreifen jede Richtung an der Querung hat, z. B. 2 / 1 (${MIT_SLASH}). Busstreifen zählen mit, Radstreifen ` +
+      'nicht; bei Einbahn eine Zahl.',
+    vorschlag: 'aus OSM (lanes); ohne Angabe aus der Fahrbahnbreite geschätzt.',
+  },
+  radstreifen: {
+    was: 'Ja, wenn ein Radstreifen (gelbe Linie mit Velosymbol) an der Querung vorbeiführt. Wichtig für die Breite neben einer Insel.',
+    vorschlag: 'aus OSM (Velostreifen an den Zufahrten).',
+    ablauf: 'Mit Radstreifen und Insel gelten die Breiten für Insel und Durchfahrt nach Kanton bzw. Stadt Bern.',
+  },
+  busspur: { was: 'Ja, wenn ein eigener Fahrstreifen für Busse gequert wird. Er zählt bei den Fahrstreifen je Richtung mit.' },
+  busDurchmarkiert: { was: 'Ja, wenn die gelben Balken auch über den Busstreifen durchgehen.' },
+  tram: {
+    was: 'Ob ein Tram die Querung kreuzt: auf eigenem Gleiskörper (von der Fahrbahn abgetrennt) oder auf der Fahrbahn im Verkehr.',
+    vorschlag: 'aus OSM: kein Gleis am Streifen ergibt «kein Tram»; quert ein Gleis, bleibt das Feld offen und ist von Hand zu wählen.',
+    ablauf: 'Mit Tram gelten die Regeln zu Insel, Balken auf dem Gleis und Lichtsignal beim Tram.',
+  },
+  tramHaltestellenbereich: {
+    was: 'Ja, wenn die Querung bei einer Tramhaltestelle liegt, wo das Tram ohnehin hält bzw. langsam fährt. Sonst ist ein ' +
+      'Lichtsignal zu prüfen.',
+  },
+  balkenAufGleis: { was: 'Ja, wenn die gelben Balken auch auf dem Gleiskörper des Trams markiert sind.' },
+
+  // ── Lage ──
+  lage: {
+    was: 'Wo die Querung liegt. «mit Vortritt»: über die Strasse, die an der Kreuzung Vortritt hat; «ohne Vortritt»: über eine ' +
+      'Zufahrt, die Vortritt gewähren muss (z. B. Kein Vortritt, Stop).',
+    ablauf: 'An einer einmündenden Seitenstrasse prüft die App zusätzlich, ob eine Trottoirüberfahrt möglich wäre.',
+  },
+  knotenArmeOhneQuerung: { was: 'Anzahl Arme der Kreuzung, über die keine Querung führt (0 = über alle Arme). Fehlende Querungen zwingen zu Umwegen.' },
+  knotenLsa: { was: 'Ja, wenn die Kreuzung für den Fahrverkehr mit Lichtsignalen geregelt ist. Dann ist zu prüfen, ob alle Arme mit Lichtsignal gequert werden.' },
+  alleZufahrtsstreifenBelastet: {
+    was: 'Ja, wenn an dieser Zufahrt alle Fahrstreifen Vortritt gewähren müssen (z. B. Stop über die ganze Breite). Dann braucht es ' +
+      'auch bei zwei Fahrstreifen keine Insel.',
+  },
+  fahrbahnB: {
+    was: 'Breite der Fahrbahn entlang der Querung von Bordstein zu Bordstein, mit Park- und Radstreifen. Beispiel: 7,00 m für zwei ' +
+      'Fahrstreifen.',
+    vorschlag: 'aus den Bordkanten der Rechnung (AV bzw. Flächen von Hand) entlang der Streifenachse.',
+  },
+  querdistanzL: {
+    was: `Wie weit man ohne Halt über die Fahrbahn geht, je Teilquerung Bord bis Bord bzw. bis zur Insel (${MIT_SLASH}). Zählt nur ` +
+      'bei der Querung ohne Vortritt mit einer Sichtweite von Hand; sonst rechnet der Sichtrechner selbst.',
+    vorschlag: 'aus den Bordkanten der Rechnung je Teilstreifen.',
+  },
+  abstandFgsM: { was: 'Entfernung bis zum nächsten Fussgängerstreifen über dieselbe Strasse, in Metern. Liegen Streifen zu dicht, wird der einzelne weniger beachtet.' },
+  abstandLsaM: { was: 'Entfernung bis zum nächsten Lichtsignal für den Fahrverkehr, in Metern. Kurz nach einem Lichtsignal rechnen Fahrende kaum mit einem Streifen ohne Signal.' },
+  verzweigung: { was: 'Ja, wenn die Querung an einer Kreuzung bzw. Einmündung liegt; dort sind kurze Abstände zwischen Streifen üblich.' },
+  verzweigungErkennbar: { was: 'Ja, wenn die nahe Kreuzung mit Lichtsignal für die Fahrenden deutlich als Kreuzung erkennbar ist; dann ist ein kürzerer Abstand möglich.' },
+  haltestelleAngrenzend: { was: 'Ja, wenn eine Bus- oder Tramhaltestelle direkt an die Querung grenzt; dann ist ein kurzer Abstand zum nächsten Streifen üblich.' },
+  'haltestelle.art': {
+    was: 'Ob eine Bushaltestelle an der Querung liegt: der Bus hält auf der Fahrbahn oder in einer Bucht daneben.',
+    leer: 'Leer: die Prüfungen zur Haltestelle bleiben offen. «keine» wählen, wenn keine Bushaltestelle in der Nähe ist.',
+  },
+  'haltestelle.lage': {
+    was: 'Wo die Querung im Verhältnis zum haltenden Bus liegt. Üblich ist hinter dem Haltebereich, damit der abfahrende Bus nicht ' +
+      'auf Querende warten muss; mitten durch den Haltebereich ist ausgeschlossen.',
+  },
+  'haltestelle.verdeckt': { was: 'Ja, wenn ein haltender Bus die Querenden für andere Fahrzeuge verdeckt.' },
+  'haltestelle.ueberholenUnterbunden': { was: 'Ja, wenn eine Insel oder Sicherheitslinie verhindert, dass Fahrzeuge am haltenden Bus vorbei auf die Querung fahren.' },
+  rueckversatzM: {
+    was: 'Wie weit die Querung an der Zufahrt ohne Vortritt von der Strasse mit Vortritt zurückversetzt ist, in Metern (z. B. 5 m: ' +
+      'ein einbiegendes Auto hat davor Platz).',
+  },
+  laengsparkierung: {
+    was: 'Ja, wenn neben der Querung parallel zur Fahrbahn parkiert wird. Dann muss das Trottoir bis an die Parkreihe vorgezogen sein, ' +
+      'damit Querende gesehen werden.',
+    ablauf: 'Bestimmt, ob die Empfehlung einen vorgezogenen Seitenraum nennt.',
+    vorschlag: 'aus der Parkierung an den Zufahrten (OSM bzw. Parkfelder).',
+  },
+  seitenraumVorParklinieM: {
+    was: 'Wie weit die Trottoirkante an der Querung über die Linie der parkierten Autos hinaus in die Fahrbahn reicht, in Metern ' +
+      '(+ davor, − dahinter). Beispiel: +0,20 m.',
+  },
+  einengung: {
+    was: 'Ja, wenn das Trottoir an der Querung vorgezogen ist (Nase) oder die Fahrbahn sonst verengt ist, damit der Weg über die Fahrbahn kürzer wird.',
+    ablauf: 'Mit Nase bzw. Einengung prüft die App deren Restbreite und Länge.',
+  },
+  restbreiteM: { was: 'Wie breit die Fahrbahn an der engsten Stelle bleibt, in Metern; davon hängt ab, ob sich zwei Fahrzeuge noch kreuzen können.' },
+  einengungLaengeM: { was: 'Wie lang die Einengung entlang der Fahrbahn ist, in Metern.' },
+  mzsBreiteM: { was: 'Breite des Mehrzweckstreifens in der Fahrbahnmitte (überfahrbar, zum Warten beim Queren und zum Abbiegen), in Metern.' },
+  mzsMitFgs: {
+    was: 'Ja, wenn über den Mehrzweckstreifen ein Fussgängerstreifen markiert ist.',
+    ablauf: 'Mit Streifen prüft die App den Mehrzweckstreifen wie einen Fussgängerstreifen, sonst wie eine Querung ohne Vortritt.',
+  },
+  'kurve.radius': {
+    was: 'Radius der Kurve bzw. des Abbiegens unmittelbar vor der Querung, in Metern. In engen Kurven fahren die Autos langsamer, ' +
+      'die nötige Sichtweite richtet sich dann nach dem Radius.',
+    leer: 'Leer: keine Kurve vor der Querung; die Sichtweite richtet sich nach dem Tempo. Ist «Sicht nach Kurvenradius anwendbar» ' +
+      'bejaht, bleibt die Sicht ohne Radius offen.',
+  },
+  'kurve.fuenfBedingungen': {
+    was: 'Ja, wenn alle Voraussetzungen erfüllt sind, unter denen die Sichtweite nach dem Kurvenradius statt nach dem Tempo gilt ' +
+      '(VSS 40 241 Tab. 2).',
+    vorschlag: '«nein» als Annahme, bis die Voraussetzungen bestätigt sind (Sicht nach Tempo).',
+  },
+  sichtVorh: {
+    was: `Wie weit Fahrende je Zufahrt auf die Wartefläche am Streifen sehen, in Metern (${MIT_SLASH}). Nur nötig, wenn das ` +
+      'Ergebnis des Sichtrechners nicht passt.',
+    leer: 'Leer: der Befund übernimmt das Ergebnis des Sichtrechners je Zufahrt (frei bzw. verdeckt). Das ist der Normalfall.',
+  },
+  erkennungM: {
+    was: 'Aus welcher Entfernung Fahrende den Streifen (Markierung bzw. Tafel) erkennen, in Metern. Pflicht ist mindestens die ' +
+      'nötige Sichtweite, empfohlen das Doppelte (auch in der Grundprüfung).',
+  },
+
+  // ── Insel ──
+  'insel.vorhanden': {
+    was: 'Ja, wenn die Querung über eine Insel in der Fahrbahnmitte führt, auf der man warten kann.',
+    ablauf: 'Eine gebaute Insel nennt die Empfehlung als vorhandene Schutzinsel.',
+    vorschlag: '«ja», wenn die Streifen an einer Insel geteilt sind, sonst «nein».',
+  },
+  'insel.art': {
+    was: 'Gebaut: erhöhte Insel mit Randsteinen. Nur markiert: aufgemalte Fläche ohne Schutz; sie gilt nicht als Schutzinsel, und ' +
+      'bei der Querung ohne Vortritt zählt dann die ganze Fahrbahn als Querdistanz.',
+    vorschlag: '«gebaut» als Annahme bei einer Insel der AV bzw. von Hand, gebaut bei der Mittelinsel (Standard).',
+  },
+  'insel.breite': {
+    was: 'Wie tief die Insel in Gehrichtung ist, also wie viel Platz man beim Warten hat, quer zur Fahrbahn gemessen. Beispiel: ' +
+      '2,00 m reichen für ein Velo oder einen Kinderwagen.',
+    vorschlag: 'aus der Lücke zwischen den Teilstreifen, quer zur Fahrbahn; bei der Mittelinsel (Standard) ihre Tiefe.',
+  },
+  'insel.kopfUeberstand': {
+    was: 'Wie weit die Inselspitze auf jeder Seite über den Rand des Streifens hinausragt, in Metern (zwei Werte mit /).',
+    vorschlag: 'aus der Mittelinsel (Standard), wenn sie gezeichnet ist.',
+  },
+  'insel.vertikal': {
+    was: 'Ja, wenn auf der Insel ein senkrechtes Element steht (z. B. Signal oder Pfosten), das sie auch nachts und bei Schnee sichtbar macht.',
+    vorschlag: 'aus der Mittelinsel (Standard), wenn sie gezeichnet ist.',
+  },
+  'insel.kopfErhoeht': { was: 'Ja, wenn die Inselspitzen erhöht sind (Randstein), sodass man sie nicht einfach überfährt.' },
+  'insel.pfostenH': { was: 'Höhe der Pfosten bzw. Poller auf der Insel, in Metern; zu hohe Pfosten verdecken kleine Kinder.' },
+  'insel.furt': {
+    was: 'Breite des abgesenkten Durchgangs durch die Insel für Rollstuhl und Rollator, in Metern (0 = keiner).',
+    vorschlag: 'aus der Mittelinsel (Standard), wenn sie gezeichnet ist.',
+  },
+  inselMoeglich: {
+    was: 'Ja, wenn hier eine Insel Platz hätte (genug Fahrbahnbreite, keine Zufahrten im Weg). Ohne Platz rät die App eher zu ' +
+      'einem Lichtsignal.',
+    ablauf: 'Bestimmt, ob die Empfehlung eine Schutzinsel nennt oder auf ein Lichtsignal ausweicht.',
+    leer: 'Leer: offen bleibt, ob ohne Insel ein Lichtsignal nötig ist, und eine Empfehlung mit Insel gilt als vorläufig.',
+  },
+  durchfahrt: {
+    was: `Wie breit die Fahrbahn auf jeder Seite der Insel bleibt, Bord bis Insel quer gemessen (${MIT_SLASH}). Zu schmal behindert ` +
+      'Lastwagen; mittlere Breiten verleiten zum knappen Überholen von Velos.',
+    vorschlag: 'aus den Teilquerungen Bord bis Insel, quer zur Fahrbahn.',
+  },
+
+  // ── Ausrüstung ──
+  fgsMitLsa: {
+    was: 'Ja, wenn die Querung mit einem Lichtsignal (Ampel) für Fussgänger geregelt ist.',
+    ablauf: 'Mit Lichtsignal prüft die App die LSA-Zeiten; die Grundprüfung bfu und die Sichtregeln des Fussgängerstreifens ' +
+      'ohne Signal gelten dann nicht.',
+    vorschlag: 'aus der Eingabe am Streifen bzw. aus OSM (Lichtsignal am Streifen).',
+  },
+  streifenBreite: {
+    was: 'Wie breit der Fussgängerstreifen in Gehrichtung gesehen ist, also wie lang die gelben Balken sind. Beispiel: 4,00 m.',
+    vorschlag: 'aus der Breite der gezeichneten Streifen.',
+  },
+  randAbstand: {
+    was: `Lücke zwischen dem äussersten gelben Balken und der Trottoirkante, je Ende in Metern (${MIT_SLASH}).`,
+    vorschlag: 'aus den Streifenenden und den Bordkanten der Rechnung.',
+  },
+  achsWinkel: {
+    was: 'Winkel zwischen Streifen und Fahrbahnrand in Grad; 90 = rechtwinklig. Schräge Streifen sind länger und für Sehbehinderte ' +
+      'schwer zu finden.',
+    vorschlag: 'aus der Fahrtrichtung der geraden Zufahrten zur Streifenachse.',
+  },
+  signal411: { was: 'Ja, wenn die blaue Tafel mit dem Fussgänger (Signal 4.11) am Streifen steht.' },
+  signal411Insel: { was: 'Ja, wenn die blaue Tafel zusätzlich auf der Insel steht.' },
+  beleuchtung: { was: 'Ja, wenn Streifen und Warteflächen nachts eigens öffentlich beleuchtet sind.' },
+  schattenfrei: { was: 'Ja, wenn die Beleuchtung keine Schatten (z. B. von Bäumen oder Masten) auf Streifen und Wartefläche wirft.' },
+  'hvl.vorhanden': { was: 'Ja, wenn vor dem Streifen eine gelbe Linie am Fahrbahnrand das Halten verbietet, damit haltende Autos Wartende nicht verdecken.' },
+  'hvl.laengeM': { was: 'Länge dieser Linie entlang des Fahrbahnrands vor dem Streifen, in Metern.' },
+  'hvl.beidseits': { was: 'Bei einer Einbahnstrasse: ja, wenn die Linie links und rechts der Fahrbahn markiert ist.' },
+  hvlBedarfM: {
+    was: 'Wie lang die Linie sein müsste, damit haltende Autos die Sicht auf die Wartefläche nicht verdecken, in Metern (z. B. am ' +
+      'Sichtfeld auf der Karte abgelesen).',
+  },
+  haltenSichtrelevantUeber5m: {
+    was: 'Ja, wenn haltende Autos auch mehr als 5 m vor dem Streifen die Sicht auf Wartende versperren (in den ersten 5 m ist ' +
+      'Halten ohnehin verboten).',
+    vorschlag: 'aus dem Sichtrechner: Auto-Parkfelder im Sichtfeld weiter als 5 m vom Streifen.',
+  },
+  haltenSonstVerboten: { was: 'Ja, wenn das Halten dort schon anders verboten oder unmöglich ist (z. B. Signal, Poller); dann braucht es keine eigene Linie.' },
+  reklameUnter20m: { was: 'Ja, wenn auf die Fahrbahn gerichtete Werbung (Plakat, Bildschirm) näher als 20 m beim Streifen steht; sie lenkt Fahrende ab.' },
+  reklameAusnahme: { was: 'Ja, wenn diese Werbung nach der Signalisationsverordnung ausnahmsweise bewilligt ist.' },
+  annaeherungUeberfahrbar: {
+    was: 'Ja, wenn Fahrzeuge die Fläche überfahren können, auf der man vor dem Queren wartet (z. B. ohne Randstein oder als ' +
+      'Parkfeld). Besser ist eine geschützte Wartefläche.',
+  },
+  einAusfahrtNah: { was: 'Ja, wenn direkt beim Streifen eine Ein- oder Ausfahrt (Garage, Parkplatz, Hof) liegt; Fahrzeuge kreuzen dann die Wartefläche.' },
+  blinklicht: {
+    was: 'Ob ein Licht vor dem Streifen warnt: ein gelbes Blinklicht nach der Signalisationsverordnung oder ein anderes Warnlicht ' +
+      '(z. B. eigene Leuchten). Andere Warnlichter sind nicht zulässig.',
+  },
+  'randabschluss.art': {
+    was: 'Wie die Trottoirkante an der Querung ausgebildet ist. Eine niedrige Kante können Rollstühle überwinden, Blinde mit dem ' +
+      'Stock aber noch ertasten.',
+  },
+  'randabschluss.hoeheMm': { was: 'Höhe der Kante über der Fahrbahn an der Querung, in Millimetern (z. B. 30 mm).' },
+  'randabschluss.breiteM': { was: 'Bei einer schrägen Kante: wie breit die Schräge ist, in Metern (z. B. 0,15 m).' },
+  quergefaelle: { was: 'Neigung der Fahrbahn quer zur Fahrtrichtung, in Prozent. Bei starkem Gefälle eignet sich eine schräge Kante nicht.' },
+  absenkung: { was: 'Wie steil das Trottoir zur Querung hin abgesenkt ist, in Prozent (0 = keine Absenkung). Zu steil ist für Rollstühle schwierig.' },
+  taktil: {
+    was: 'Ja, wenn am Trottoirrand eine weisse, mit dem Stock ertastbare Markierung die Querung anzeigt. Ohne Absenkung und ohne ' +
+      'diese Markierung finden Sehbehinderte die Querung nicht.',
+  },
+  leitlinie: { was: 'Ja, wenn eine ertastbare Linie Sehbehinderte über eine schräge oder lange Querung führt.' },
+  querungLang: { was: 'Ja, wenn die Querung so lang ist, dass Sehbehinderte die Richtung verlieren können (eigene Einschätzung, die Norm nennt keine Zahl).' },
+  absenkungBeidseits: { was: 'Ja, wenn das Trottoir auf beiden Seiten der Querung abgesenkt ist.' },
+  aufstellflaeche: { was: 'Ja, wenn es auf beiden Seiten genug Platz zum Warten gibt, ohne den Gehweg zu versperren.' },
+  parkierungSichtbehindernd: {
+    was: 'Ja, wenn parkierte Autos die Sicht zwischen Wartenden und Fahrenden verdecken.',
+    vorschlag: 'aus dem Sichtrechner: Auto-Parkfelder im Sichtfeld.',
+  },
+
+  // ── LSA-Zeiten ──
+  'lsaZeiten.L': { was: 'Gehstrecke über die ganze Fahrbahn von Bordkante zu Bordkante, in Metern; daraus folgen die nötigen Grün- und Gelbzeiten.' },
+  'lsaZeiten.teile': { was: 'Bei einer Insel: Länge der beiden Teile bis zur Insel und ab der Insel, in Metern (zwei Werte mit /).' },
+  'lsaZeiten.inselB': { was: 'Inseltiefe in Gehrichtung, in Metern, wie bei der Insel; hier für die Zeit, die man über die Insel braucht.' },
+  'lsaZeiten.gelb': { was: 'Dauer des gelben Lichts für Fussgänger nach dem Grün, in Sekunden.' },
+  'lsaZeiten.freigabe': { was: 'Dauer des Grüns für Fussgänger, in Sekunden.' },
+  'lsaZeiten.phasengleich': { was: 'Ja, wenn beide Teilquerungen an der Insel zur gleichen Zeit Grün haben, man also ohne Halt durchgehen kann.' },
+  'lsaZeiten.beideRichtungenImZyklus': { was: 'Bei getrenntem Grün an der Insel: ja, wenn man in beide Richtungen innerhalb eines Signalumlaufs ganz queren kann.' },
+  'lsaZeiten.wartezeit': { was: 'Wie lange Fussgänger auf Grün warten, in Sekunden (wie in der Signalplanung ausgewiesen).' },
+  'lsaZeiten.vorstart': { was: 'Wie viele Sekunden die Fussgänger vor den abbiegenden Fahrzeugen Grün erhalten, damit sie schon auf der Fahrbahn sind (negativ = später).' },
+  'lsaZeiten.abbiegerKonflikt': {
+    was: 'Ja, wenn abbiegende Fahrzeuge während des Fussgängergrüns über die Querung fahren dürfen.',
+    ablauf: 'Dann prüft die App den Vorsprung der Fussgänger vor den Abbiegenden.',
+  },
+  'lsaZeiten.inselGeraet': { was: 'Ja, wenn auf der Insel ein Taster und ein Zusatzgerät (z. B. Tonsignal für Sehbehinderte) stehen.' },
+  'lsaZeiten.inselNurAnmeldung': { was: 'Ja, wenn Fussgänger nur Grün erhalten, nachdem jemand den Taster gedrückt hat.' },
+
+  // ── Trottoirüberfahrt ──
+  'q3.bebaut': { was: 'Ja, wenn die Einmündung im bebauten Siedlungsgebiet liegt.' },
+  'q3.gewerbe': { was: 'Ja, wenn die Umgebung vor allem Industrie oder Gewerbe ist; dort passt keine Trottoirüberfahrt.' },
+  'q3.anschlussGewerbe': { was: 'Ja, wenn die Seitenstrasse zu Betrieben mit Lieferverkehr oder zu landwirtschaftlich genutztem Land führt.' },
+  'q3.ueber': { was: 'Welche Fahrbahn die Trottoirüberfahrt quert. Möglich ist sie nur über die einmündende Seitenstrasse, nie über die Hauptstrasse.' },
+  'q3.vSigHaupt': { was: 'Signalisiertes Tempo auf der Strasse, entlang der das Trottoir durchläuft, in km/h.' },
+  'q3.vSigEinm': { was: 'Signalisiertes Tempo in der einmündenden Seitenstrasse, in km/h (für die Berner Tabelle).' },
+  'q3.nEinm': { was: 'Wie viele Fahrstreifen die Seitenstrasse je Richtung hat.' },
+  'q3.nHaupt': { was: 'Wie viele Fahrstreifen die Hauptstrasse je Richtung hat.' },
+  'q3.trottoirBeidseits': { was: 'Ja, wenn das Trottoir entlang der Hauptstrasse vor und nach der Einmündung weitergeht.' },
+  'q3.winkel': { was: 'Winkel zwischen Seiten- und Hauptstrasse in Grad; 90 = rechtwinklig.' },
+  'q3.knotensichtOk': { was: 'Ja, wenn Ausfahrende aus der Seitenstrasse genug weit sehen (Knotensicht nach VSS 40 273, z. B. mit SichtweitenCheck geprüft).' },
+  'q3.hvl5m': { was: 'Ja, wenn beidseits der Einmündung auf je 5 m Halteverbotslinien markiert sind.' },
+  'q3.gegenueberEinm': { was: 'Ja, wenn gegenüber auf der anderen Seite der Hauptstrasse ebenfalls eine Strasse einmündet.' },
+  'q3.belastungSchwach': { was: 'Ja, wenn auf allen Strassen dieser Kreuzung nur wenig Verkehr ist.' },
+  'q3.veloSchule': { was: 'Ja, wenn die Seitenstrasse eine wichtige Veloroute ist oder zu einer Schule führt.' },
+  'q3.einmSiedlungsorientiert': { was: 'Ja, wenn die Seitenstrasse vor allem dem Quartier dient (siedlungsorientiert, nicht Durchgangsverkehr).' },
+  'q3.zoneEinm': { was: 'Ob die Seitenstrasse zu einer Tempo-30-Zone oder Begegnungszone gehört; dort gilt meist Rechtsvortritt statt Trottoirüberfahrt.' },
+  'q3.eingangstor': { was: 'Ja, wenn die Trottoirüberfahrt bewusst den Eingang in die Zone markiert.' },
+  'q3.hauptInZone': { was: 'Ja, wenn auch die Hauptstrasse innerorts in der Tempo-30-Zone liegt.' },
+  'q3.wartezeitEinmS': { was: 'Wie lange Fahrzeuge aus der Seitenstrasse im Mittel auf eine Lücke warten, in Sekunden.' },
+  'q3.lkwGelegentlich': { was: 'Ja, wenn in der Seitenstrasse nur ab und zu Lastwagen fahren.' },
+  'q3.linienbus': { was: 'Ja, wenn ein Linienbus durch die Seitenstrasse fährt.' },
+  'q3.lsaKnoten': { was: 'Ja, wenn die Einmündung mit Lichtsignalen geregelt ist.' },
+  'q3.kreisel': { was: 'Ja, wenn die Einmündung an einem Kreisel liegt.' },
+  'q3.breiteM': { was: 'Wie breit die durchgehende Trottoirfläche über die Seitenstrasse ist, in Metern.' },
+  'q3.anrampung': {
+    was: 'Die Schräge, über die Fahrzeuge auf Trottoirhöhe fahren: Neigung in Prozent und Länge in Metern, z. B. 12 / 0,80.',
+    leer: 'Leer: keine Rampe angegeben; die Prüfung der Rampe entfällt.',
+  },
+  'q3.dtvEinm': { was: 'Motorfahrzeuge pro Tag in der Seitenstrasse (für die Berner Tabelle).' },
+  'q3.mivEinmHoch': { was: 'Ja, wenn in der Seitenstrasse viel gefahren wird (eigene Einschätzung, die Norm nennt keine Zahl).' },
+}
+
+// ── Sichtbarkeit ──
+
+/** Wert eines Felds bzw. Unterfelds in den Eingaben (vorbelegt oder von Hand); offen = null */
+type Wert = string | number | boolean | null
+export type Bedingung =
+  | { feld: string; ist: readonly Wert[] }
+  | { feld: string; gesetzt: true }
+  /** Zahl über der Schwelle; offen zählt als möglich (nur GELTUNG) */
+  | { feld: string; ueber: number }
+  | { ebene: 'bern' | 'kantonBE' }
+  | { alle: readonly Bedingung[] }
+  | { eines: readonly Bedingung[] }
+
+const typ = (...t: Wert[]): Bedingung => ({ feld: 'typ', ist: t })
+const ja = (feld: string): Bedingung => ({ feld, ist: [true] })
+const BERN: Bedingung = { ebene: 'bern' }
+const KANTON: Bedingung = { ebene: 'kantonBE' }
+const FGS = typ('fgs')
+/** Fussgängerstreifen bzw. Querungstyp offen: Grundprüfung, Sicht und Erkennungsdistanz */
+const FGS_ODER_OFFEN = typ(null, 'fgs')
+/** Mehrzweckstreifen mit Fussgängerstreifen: geprüft wie ein Fussgängerstreifen (entscheid.ts) */
+const MZS_FGS: Bedingung = { alle: [typ('mehrzweck'), ja('mzsMitFgs')] }
+/** Streifenmasse F1 (entscheid.ts Schritt 6) */
+const F1_TYPEN: Bedingung = { eines: [typ('fgs', 'lsa'), MZS_FGS] }
+/** Befunde aus D gelten dem Fussgängerstreifen (entscheid.ts FGS_ARTIG) */
+const FGS_ARTIG: Bedingung = { eines: [typ(null, 'fgs', 'lsa'), MZS_FGS] }
+const LSA: Bedingung = { eines: [typ('lsa'), ja('fgsMitLsa')] }
+const Q3_BLOCK: Bedingung = { eines: [{ feld: 'lage', ist: ['einmuendung'] }, typ('trottoirueberfahrt')] }
+const KNOTEN: Bedingung = { feld: 'lage', ist: ['knoten_berechtigt', 'knoten_belastet'] }
+const INSEL = ja('insel.vorhanden')
+const INSEL_BAULICH: Bedingung = { alle: [INSEL, { feld: 'insel.art', ist: ['baulich'] }] }
+const OHNE_BAULICH: Bedingung = { alle: [typ('ohne_vortritt'), ja('ohneBaulich')] }
+const HVL_G7: Bedingung = { alle: [FGS, ja('haltenSichtrelevantUeber5m')] }
+const alle = (...b: Bedingung[]): Bedingung => ({ alle: b })
+
+/**
+ * Wann ein Feld zählt (fehlt: immer). Abgeleitet aus dem Ablauf in entscheid.ts und grundpruefung.ts und aus den Regeln, die ohne
+ * die Bedingung nicht anwendbar sind (null). Leitlinie: ein ausgeblendetes Feld darf weder einen Befund noch «offen» noch die
+ * Empfehlung ändern (Wächter an allen Testfällen).
+ */
+export const SICHTBAR: Partial<Record<string, Bedingung>> = {
+  // Rahmen
+  v85Nachweis: FGS,
+  ohneBaulich: typ('ohne_vortritt'),
+  neuanlage: alle(typ('lsa'), BERN),
+  kantonsstrasse: alle(F1_TYPEN, KANTON),
+  // Nachfrage
+  netz: BERN,
+  'fusswegAchse.rechtwinkligUneinsehbar': FGS, 'fusswegAchse.versatz': FGS, 'fusswegAchse.umlaufschranke': FGS,
+  // Verkehr
+  mivKlasse: alle(ja('einengung'), BERN),
+  // F2-K (Kanton BE) und F3-B (Bern) lesen den Radstreifen erst mit Insel
+  radstreifen: alle(INSEL, { eines: [KANTON, BERN] }),
+  busDurchmarkiert: alle(ja('busspur'), F1_TYPEN),
+  tramHaltestellenbereich: { feld: 'tram', ist: ['eigentrassee', 'fahrbahn'] },
+  balkenAufGleis: alle({ feld: 'tram', ist: ['eigentrassee'] }, FGS_ARTIG),
+  // Lage
+  knotenArmeOhneQuerung: KNOTEN,
+  knotenLsa: KNOTEN,
+  alleZufahrtsstreifenBelastet: { feld: 'lage', ist: ['knoten_belastet'] },
+  querdistanzL: { feld: 'sichtVorh', gesetzt: true },
+  abstandFgsM: FGS, verzweigung: FGS, haltestelleAngrenzend: FGS,
+  abstandLsaM: alle(FGS, { feld: 'fgsMitLsa', ist: [false, null] }),
+  verzweigungErkennbar: alle(FGS, { feld: 'fgsMitLsa', ist: [false, null] }),
+  'haltestelle.lage': alle(FGS_ARTIG, { feld: 'haltestelle.art', ist: ['fahrbahn', 'bucht'] }),
+  'haltestelle.verdeckt': { feld: 'haltestelle.art', ist: ['fahrbahn'] },
+  'haltestelle.ueberholenUnterbunden': alle(FGS_ARTIG, { feld: 'haltestelle.art', ist: ['fahrbahn'] }),
+  rueckversatzM: alle(FGS, KNOTEN),
+  seitenraumVorParklinieM: ja('laengsparkierung'),
+  restbreiteM: alle(ja('einengung'), BERN),
+  einengungLaengeM: ja('einengung'),
+  mzsBreiteM: typ('mehrzweck'),
+  mzsMitFgs: typ('mehrzweck'),
+  'kurve.radius': FGS_ODER_OFFEN,
+  'kurve.fuenfBedingungen': FGS_ODER_OFFEN,
+  erkennungM: FGS_ODER_OFFEN,
+  // Insel
+  'insel.art': INSEL, 'insel.breite': INSEL, 'insel.furt': INSEL, durchfahrt: INSEL,
+  'insel.kopfUeberstand': INSEL_BAULICH, 'insel.vertikal': INSEL_BAULICH, 'insel.kopfErhoeht': INSEL_BAULICH, 'insel.pfostenH': INSEL_BAULICH,
+  // Ausrüstung
+  streifenBreite: F1_TYPEN, randAbstand: F1_TYPEN,
+  signal411: FGS, signal411Insel: alle(FGS, INSEL_BAULICH),
+  beleuchtung: FGS_ODER_OFFEN, schattenfrei: alle(FGS, ja('beleuchtung')),
+  'hvl.vorhanden': FGS, haltenSichtrelevantUeber5m: FGS,
+  haltenSonstVerboten: HVL_G7,
+  'hvl.laengeM': alle(HVL_G7, ja('hvl.vorhanden')),
+  'hvl.beidseits': alle(HVL_G7, ja('hvl.vorhanden'), { feld: 'zweirichtung', ist: [false] }),
+  hvlBedarfM: alle(HVL_G7, ja('hvl.vorhanden')),
+  reklameUnter20m: FGS, reklameAusnahme: alle(FGS, ja('reklameUnter20m')),
+  annaeherungUeberfahrbar: FGS_ODER_OFFEN,
+  einAusfahrtNah: FGS, blinklicht: FGS,
+  'randabschluss.hoeheMm': { feld: 'randabschluss.art', ist: ['vertikal', 'schraeg'] },
+  'randabschluss.breiteM': { feld: 'randabschluss.art', ist: ['schraeg'] },
+  quergefaelle: { feld: 'randabschluss.art', ist: ['schraeg'] },
+  absenkungBeidseits: OHNE_BAULICH, aufstellflaeche: OHNE_BAULICH, parkierungSichtbehindernd: OHNE_BAULICH,
+  // LSA-Zeiten
+  'lsaZeiten.L': LSA, 'lsaZeiten.teile': LSA, 'lsaZeiten.gelb': LSA, 'lsaZeiten.freigabe': LSA, 'lsaZeiten.wartezeit': LSA,
+  'lsaZeiten.abbiegerKonflikt': LSA,
+  'lsaZeiten.vorstart': alle(LSA, ja('lsaZeiten.abbiegerKonflikt')),
+  'lsaZeiten.inselB': alle(LSA, { feld: 'lsaZeiten.teile', gesetzt: true }),
+  'lsaZeiten.phasengleich': alle(LSA, { feld: 'lsaZeiten.teile', gesetzt: true }),
+  'lsaZeiten.beideRichtungenImZyklus': alle(LSA, { feld: 'lsaZeiten.teile', gesetzt: true }, { feld: 'lsaZeiten.phasengleich', ist: [false] }),
+  'lsaZeiten.inselGeraet': alle(LSA, INSEL),
+  'lsaZeiten.inselNurAnmeldung': alle(LSA, INSEL, { feld: 'lsaZeiten.inselGeraet', ist: [false] }, BERN),
+  // Trottoirüberfahrt (übrige q3-Felder: Q3_BLOCK, unten ergänzt)
+  'q3.breiteM': typ('trottoirueberfahrt'), 'q3.anrampung': typ('trottoirueberfahrt'),
+  'q3.vSigEinm': alle(Q3_BLOCK, BERN), 'q3.dtvEinm': alle(Q3_BLOCK, BERN),
+  'q3.eingangstor': alle(Q3_BLOCK, { feld: 'q3.zoneEinm', ist: ['t30', 'bgz'] }),
+  'q3.hauptInZone': alle(Q3_BLOCK, { feld: 'q3.zoneEinm', ist: ['t30', 'bgz'] }),
+  'q3.belastungSchwach': alle(Q3_BLOCK, ja('q3.gegenueberEinm')),
+}
+for (const pfad of FELD_DEF.keys()) if (pfad.startsWith('q3.') && !SICHTBAR[pfad]) SICHTBAR[pfad] = Q3_BLOCK
+
+/** Wert eines Pfads in den Eingaben (Unterfeld aus dem Objekt); offen bzw. Objekt fehlt: null */
+export function wertVon(e: BedarfEingaben, pfad: string): unknown {
+  const [f, u] = pfad.split('.')
+  const x = e[f as FeldName]?.wert ?? null
+  if (u === undefined) return x
+  // Haltestelle «keine»: Objekt ohne Art (eingabenBilden), nicht offen
+  if (pfad === 'haltestelle.art' && x !== null && (x as { art: unknown }).art === null) return 'keine'
+  return x !== null && typeof x === 'object' && !Array.isArray(x) ? (x as unknown as Record<string, unknown>)[u] ?? null : null
+}
+
+export interface SichtKontext { e: BedarfEingaben; ebenen: { bern: boolean; kantonBE: boolean; richtlinie?: boolean } }
+
+export function erfuellt(b: Bedingung, k: SichtKontext): boolean {
+  if ('alle' in b) return b.alle.every(x => erfuellt(x, k))
+  if ('eines' in b) return b.eines.some(x => erfuellt(x, k))
+  if ('ebene' in b) return k.ebenen[b.ebene]
+  const w = wertVon(k.e, b.feld)
+  if ('gesetzt' in b) return w !== null
+  if ('ueber' in b) return w === null || (typeof w === 'number' && w > b.ueber)
+  return b.ist.includes(w as Wert)
+}
+
+/**
+ * Blöcke ohne Pflicht-Unterfeld (q3, lsaZeiten) entstehen nur aus Unterfeldern, die im Fall zählen: ein ausgeblendeter Wert (z. B.
+ * Breite der Trottoirüberfahrt bei anderem Typ, Tempo der Seitenstrasse ohne Ebene Bern) lässt den Block nicht laufen (sonst
+ * «offen» statt «nicht geprüft»). Ändert e (Befundblatt nach eingabenBilden).
+ */
+export function ausgeblendeteBloeckeLeeren(e: BedarfEingaben, ebenen: SichtKontext['ebenen']): void {
+  for (const o of ['q3', 'lsaZeiten'] as const) {
+    const x = e[o].wert as unknown as Record<string, unknown> | null
+    if (!x) continue
+    const k: SichtKontext = { e, ebenen }
+    if (!Object.keys(x).some(u => x[u] !== null && x[u] !== undefined && sichtbar(`${o}.${u}`, k))) e[o] = { wert: null, quelle: null }
+  }
+}
+
+/** Feld zählt im aktuellen Fall (sonst blendet die Maske es aus; der Wert bleibt im Fall) */
+export const sichtbar = (pfad: string, k: SichtKontext): boolean => {
+  const b = SICHTBAR[pfad]
+  return !b || erfuellt(b, k)
+}
+
+const wertName = (feld: string, x: Wert): string => {
+  if (x === null) return 'offen'
+  if (typeof x === 'boolean') return x ? 'ja' : 'nein'
+  const a = FELD_DEF.get(feld)?.art
+  return (a && (a.art === 'wahl' || a.art === 'liste') ? a.optionen.find(o => o[0] === x)?.[1] : undefined) ?? String(x)
+}
+const feldText = (pfad: string): string => FELD_DEF.get(pfad)?.name ?? pfad
+
+/** Bedingung als Lesetext, z. B. «Art der Querung: Fussgängerstreifen» */
+export function bedingungText(b: Bedingung): string {
+  if ('alle' in b) return b.alle.map(x => ('eines' in x && x.eines.length > 1 ? `(${bedingungText(x)})` : bedingungText(x))).join(' und ')
+  if ('eines' in b) return b.eines.map(bedingungText).join(' oder ')
+  if ('ebene' in b) return b.ebene === 'bern' ? 'Ebene Bern an' : 'Ebene Kanton BE an'
+  if ('gesetzt' in b) return `${feldText(b.feld)} eingegeben`
+  if ('ueber' in b) return `${feldText(b.feld)} über ${b.ueber} oder offen`
+  return `${feldText(b.feld)}: ${b.ist.map(x => wertName(b.feld, x)).join(' oder ')}`
+}
+
+// ── Wozu: Regeln je Feld aus dem Katalog ──
+
+/** Eingaben einer Regel als Pfade der Maske: Objekt-Einträge über UNTERFELDER, abgeleitete Felder (fgQuelle) ohne Pfad */
+export function regelPfade(id: RegelId): string[] {
+  const def = KATALOG[id] as RegelDef
+  const p: string[] = []
+  for (const e of def.eingaben) {
+    if (FELD_DEF.has(e)) p.push(e)
+    else if (istObjektFeld(e)) p.push(...(UNTERFELDER[id] ?? []).filter(u => u.startsWith(`${e}.`)))
+  }
+  return [...new Set(p)]
+}
+
+// ── Geltung je Regel: wann sie im Fall greifen kann (offene Eingaben zählen als möglich) ──
+
+/** Feld offen oder einer der Werte */
+const kann = (feld: string, ...w: Wert[]): Bedingung => ({ feld, ist: [null, ...w] })
+const T = (...t: Wert[]): Bedingung => kann('typ', ...t)
+const MZS_FGS_K = alle(T('mehrzweck'), kann('mzsMitFgs', true))
+/** Befunde aus D bzw. Streifenmasse F1: Fussgängerstreifen (auch mit Lichtsignal), Mehrzweckstreifen mit Streifen */
+const FGS_ARTIG_K: Bedingung = { eines: [T('fgs', 'lsa'), MZS_FGS_K] }
+const FGS_K = T('fgs')
+const NICHT_LSA_K = alle(T('fgs', 'furt', 'ohne_vortritt', 'trottoirueberfahrt', 'mehrzweck'), kann('fgsMitLsa', false))
+const LSA_K: Bedingung = { eines: [T('lsa'), kann('fgsMitLsa', true)] }
+const GRUND_K = alle(T('fgs'), kann('fgsMitLsa', false))
+const NICHT_TUE = T('fgs', 'lsa', 'furt', 'ohne_vortritt', 'mehrzweck')
+/** Pfad E (Querung ohne Vortritt): Typ ohne Vortritt, Mehrzweck ohne Streifen oder Fussgängerstreifen nicht angezeigt (C1, C2) */
+const E_K = alle(NICHT_TUE, { eines: [T('furt', 'ohne_vortritt'), alle(T('mehrzweck'), kann('mzsMitFgs', false)),
+  kann('tempoRegime', 't30_zone'), { feld: 'vSig', ueber: 60 }, { feld: 'v85', ueber: 60 }] })
+const Q3_K: Bedingung = { eines: [kann('lage', 'einmuendung'), T('trottoirueberfahrt')] }
+const KNOTEN_K = kann('lage', 'knoten_berechtigt', 'knoten_belastet')
+const INSEL_K = kann('insel.vorhanden', true)
+const BAULICH_K = alle(INSEL_K, kann('insel.art', 'baulich'))
+const ZONE_K = alle(NICHT_TUE, kann('tempoRegime', 't30_zone'))
+
+/**
+ * Geltung je Regel (fehlt: immer): Ablauf in entscheid.ts bzw. grundpruefung.ts (Blöcke nach Typ, Lichtsignal, Lage) und die
+ * Fälle, in denen eine Regel nicht anwendbar ist (null) bzw. nie verletzt sein kann. Ebenen kommen aus dem Katalog (Bern, Kanton BE,
+ * Richtlinie). Wächter: kein Eintrag im Befund bzw. in der Grundprüfung ausserhalb der Geltung.
+ */
+export const GELTUNG: Partial<Record<RegelId, Bedingung>> = {
+  A3: kann('innerorts', true),
+  B4: KNOTEN_K,
+  C1: NICHT_TUE, C2: ZONE_K, C2b: ZONE_K, 'C2-B': ZONE_K, C3: NICHT_TUE, C3b: NICHT_TUE, C3c: NICHT_TUE, C4: NICHT_TUE, 'C4-B': NICHT_TUE,
+  // D1, D1b, D2, D2a, D3a bestimmen die Empfehlung auch bei anderen Typen
+  D1: NICHT_LSA_K, D2: kann('zweirichtung', true), D2a: kann('zweirichtung', true), D2c: FGS_ARTIG_K,
+  D3a: alle(kann('tram', 'eigentrassee'), NICHT_LSA_K), D3b: alle(FGS_ARTIG_K, kann('tram', 'eigentrassee')),
+  D3c: alle(FGS_ARTIG_K, kann('tram', 'eigentrassee', 'fahrbahn')),
+  D4a: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn', 'bucht')), D4c: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn', 'bucht')),
+  D4b: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn')), 'D4-R': alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn')),
+  D4d: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn'), kann('haltestelle.lage', 'fgs_nach_halt')),
+  'D5-1': kann('strassentyp', 'verkehrsorientiert'), 'D5-2': alle(KNOTEN_K, NICHT_LSA_K), 'D5-3': NICHT_LSA_K,
+  'D5-5': kann('tram', 'eigentrassee', 'fahrbahn'),
+  'D6-1': FGS_ARTIG_K, 'D6-2': FGS_ARTIG_K, 'D6-2b': FGS_ARTIG_K, 'D6-3': alle(FGS_ARTIG_K, NICHT_LSA_K),
+  'D6-3b': alle(FGS_ARTIG_K, NICHT_LSA_K), 'D6-4': alle(FGS_ARTIG_K, NICHT_LSA_K), 'D6-5': T('lsa'),
+  D7: alle(T('mehrzweck'), kann('mzsMitFgs', true)),
+  E1: E_K, E2: E_K, E3: E_K, E3a: E_K, E1b: alle(E_K, kann('strassentyp', 'verkehrsorientiert')), E2a: alle(E_K, T('furt')),
+  E2d: alle(E_K, T('ohne_vortritt'), kann('ohneBaulich', true)), E2e: alle(E_K, T('ohne_vortritt'), kann('ohneBaulich', true)),
+  E2b: kann('laengsparkierung', true), E2c: kann('laengsparkierung', true),
+  'Q3-4': T('trottoirueberfahrt'),
+  F1a: FGS_ARTIG_K, F1b: FGS_ARTIG_K, F1c: FGS_ARTIG_K, F1d: FGS_ARTIG_K, 'F1-K': alle(FGS_ARTIG_K, kann('kantonsstrasse', true)),
+  F1e: alle(FGS_ARTIG_K, kann('busspur', true)),
+  F2: INSEL_K, F2b: INSEL_K, F2c: INSEL_K, F2d: INSEL_K, 'F2-B': INSEL_K, F2e: BAULICH_K, F2f: BAULICH_K, F2g: BAULICH_K, F3: BAULICH_K,
+  'F3-M': alle(INSEL_K, kann('insel.art', 'markiert')), 'F3-B': alle(INSEL_K, kann('radstreifen', true)),
+  'F2-K': alle(INSEL_K, kann('radstreifen', true)),
+  F4a: alle(kann('einengung', true), kann('mivKlasse', 'tief', 'mittel')), F4b: kann('einengung', true),
+  F4c: alle(kann('einengung', true), T('fgs')),
+  F5a: T('trottoirueberfahrt'), F5b: T('trottoirueberfahrt'), F6a: T('mehrzweck'), F6b: T('mehrzweck'), F6c: T('mehrzweck'),
+  F7b: kann('randabschluss.art', 'schraeg'),
+  G1: FGS_K, G2: alle(FGS_K, kann('fgsMitLsa', false)), G3b: FGS_K, G4: FGS_K, G4b: alle(FGS_K, BAULICH_K), G5: FGS_K, G5b: FGS_K,
+  G6: alle(FGS_K, kann('lage', 'knoten_belastet')), 'G6-B': alle(FGS_K, KNOTEN_K),
+  G7: alle(FGS_K, kann('haltenSichtrelevantUeber5m', true)), G7b: alle(FGS_K, kann('hvl.vorhanden', true)), G8a: FGS_K,
+  G8b: alle(FGS_K, kann('beleuchtung', true)), G9: FGS_K, G10a: FGS_K, G10b: FGS_K,
+  H1: FGS_K, H1b: FGS_K, H2: FGS_K, H3a: FGS_K, H3b: FGS_K, H4: FGS_K,
+  I5: alle(LSA_K, kann('lsaZeiten.abbiegerKonflikt', true)), 'I7-B2': alle(LSA_K, kann('insel.vorhanden', false)),
+  'I7-B3': alle(LSA_K, INSEL_K), I8: alle(LSA_K, INSEL_K),
+  'B5-2a': alle(GRUND_K, { eines: [kann('insel.vorhanden', false), kann('insel.art', 'markiert')] }),
+  'B5-2b': alle(GRUND_K, BAULICH_K), 'B5-2c': alle(GRUND_K, BAULICH_K), 'B5-W3': alle(GRUND_K, kann('haltestelle.art', 'fahrbahn')),
+}
+for (const id of REGEL_IDS) {
+  const g = KATALOG[id].gruppe
+  const block = g === 'Q3' ? Q3_K : g === 'I' ? LSA_K : g === 'B5' ? GRUND_K : null
+  if (block && !GELTUNG[id]) GELTUNG[id] = block
+  else if (block && g !== 'B5' && g !== 'I') GELTUNG[id] = alle(block, GELTUNG[id]!)
+}
+
+/**
+ * Felder, die in der Geltung einer Regel stehen, aber die geprüfte Grösse sind (sonst gilt jedes Feld der Geltung als Schalter):
+ * E3/E3a prüfen die Sicht nach dem Tempo, F4a die Restbreite nach der Verkehrsmenge, B5-W3 die Fahrbahnhaltestelle selbst,
+ * Q3-4 die Lage an der Einmündung, C2/C2b/C2-B die Zone.
+ */
+export const GEPRUEFT: Partial<Record<RegelId, readonly string[]>> = {
+  E3: ['v85', 'vSig'], E3a: ['v85', 'vSig'], F4a: ['mivKlasse'], 'B5-W3': ['haltestelle.art'], 'Q3-4': ['lage'],
+  // die Zone ist die geprüfte Grösse des Rechtsverbots (Nachprüfung 20.10.2026)
+  C2: ['tempoRegime'], C2b: ['tempoRegime'], 'C2-B': ['tempoRegime'],
+}
+
+/** Felder einer Bedingung */
+export const felderIn = (b: Bedingung | undefined): string[] => !b ? [] : 'alle' in b ? b.alle.flatMap(felderIn)
+  : 'eines' in b ? b.eines.flatMap(felderIn) : 'feld' in b ? [b.feld] : []
+
+/** Schalter einer Regel: Felder ihrer Geltung, ausser der geprüften Grösse (GEPRUEFT) */
+export const schalter = (id: RegelId): string[] =>
+  [...new Set(felderIn(GELTUNG[id]))].filter(f => !(GEPRUEFT[id] ?? []).includes(f))
+
+/** Regel greift im Fall (Ebene an und Geltung erfüllt); Grundprüfung unabhängig von den Ebenen */
+export function gilt(id: RegelId, k: SichtKontext): boolean {
+  const d = KATALOG[id] as RegelDef
+  if (d.gruppe !== 'B5') {
+    if (d.ebene === 'Bern' && !k.ebenen.bern) return false
+    if (d.ebene === 'Kanton BE' && !k.ebenen.kantonBE) return false
+    if (d.ebene === 'Richtlinie' && k.ebenen.richtlinie === false) return false
+  }
+  const g = GELTUNG[id]
+  return !g || erfuellt(g, k)
+}
+
+export interface Bezug {
+  id: RegelId
+  /** Ergebnis der Regel (Kurztext aus dem Katalog) */
+  text: string
+  quelle: string
+  ebene: Ebene
+  /** Grundprüfung bfu (Gruppe B5) */
+  grund: boolean
+}
+
+const istBefund = (id: RegelId): boolean => ['befund', 'weiche'].includes((KATALOG[id] as RegelDef).art)
+let bezugCache: Map<string, Bezug[]> | null = null
+/** Regeln mit Befund (befund, weiche), die das Feld als geprüfte Grösse lesen (nicht als Schalter), Reihenfolge des Katalogs */
+export function bezuege(pfad: string): Bezug[] {
+  if (!bezugCache) {
+    bezugCache = new Map()
+    for (const id of REGEL_IDS) {
+      const d = KATALOG[id] as RegelDef
+      if (!istBefund(id)) continue
+      const sch = schalter(id)
+      for (const p of regelPfade(id)) if (!sch.includes(p)) bezugCache.set(p, [...(bezugCache.get(p) ?? []),
+        { id, text: d.ergebnis, quelle: quelleKurz(id), ebene: d.ebene!, grund: d.gruppe === 'B5' }])
+    }
+  }
+  return bezugCache.get(pfad) ?? []
+}
+
+const RANG: Record<string, number> = { hart: 0, hart_bericht: 1, weich: 2, hinweis: 3 }
+/**
+ * «Wozu» im Fall: nur Regeln, die in mindestens einer Querung greifen können (kontexte; leer = alle), Grundprüfung zuerst, dann
+ * nach Stärke (hart, mit Bericht, weich, Hinweis), sonst Reihenfolge des Katalogs.
+ */
+export function bezuegeImFall(pfad: string, kontexte: readonly SichtKontext[]): Bezug[] {
+  const r = (b: Bezug) => (b.grund ? -1 : RANG[(KATALOG[b.id] as RegelDef).staerke ?? 'hinweis'])
+  return bezuege(pfad).filter(b => !kontexte.length || kontexte.some(k => gilt(b.id, k)))
+    .map((b, i) => ({ b, i })).sort((x, y) => r(x.b) - r(y.b) || x.i - y.i).map(x => x.b)
+}
+/** Höchstzahl der Einträge unter «Wozu»; der Rest aufklappbar */
+export const WOZU_MAX = 5
+/** «Wozu» geteilt: sichtbar (höchstens WOZU_MAX) und weitere (hinter «weitere anzeigen») */
+export const wozuTeilen = (bz: readonly Bezug[]): { sichtbar: Bezug[]; weitere: Bezug[] } =>
+  ({ sichtbar: bz.slice(0, WOZU_MAX), weitere: bz.slice(WOZU_MAX) })
+
+/** Regeln, für die das Feld ein Schalter ist (Ablauf-Satz: «bestimmt, ob N Prüfungen gelten») */
+export const schaltet = (pfad: string): RegelId[] => REGEL_IDS.filter(id => istBefund(id) && schalter(id).includes(pfad))
+/** Geschaltete Regeln, die im Fall greifen können (Ablauf-Satz der Maske nennt sie) */
+export const schaltetImFall = (pfad: string, kontexte: readonly SichtKontext[]): RegelId[] =>
+  schaltet(pfad).filter(id => !kontexte.length || kontexte.some(k => gilt(id, k)))
+
+/**
+ * Satz zu den geschalteten Regeln im Fall (höchstens WOZU_MAX, mit Kurztitel), z. B. «Schaltet im Fall diese Prüfungen ein: Insel bei
+ * breiter Fahrbahn (D2), Verzicht auf Insel bei wenig Verkehr (D2a).»
+ */
+export function schalterText(pfad: string, kontexte: readonly SichtKontext[]): string | null {
+  const ids = schaltetImFall(pfad, kontexte)
+  if (!ids.length) return null
+  const rest = ids.length - WOZU_MAX
+  return `Schaltet im Fall ${ids.length === 1 ? 'diese Prüfung' : 'diese Prüfungen'} ein: ${ids.slice(0, WOZU_MAX).map(regelName).join(', ')}` +
+    `${rest > 0 ? ` und ${rest} weitere` : ''}.`
+}
+
+/** Text «Leer lassen» (ohne die Herkunft im Fall, die die Maske ergänzt) */
+export function leerText(pfad: string): string {
+  const h = FELD_HILFEN[pfad]
+  if (h?.leer) return h.leer
+  const n = bezuege(pfad).length
+  return `Leer: offen; ${n === 1 ? 'die genannte Prüfung meldet' : 'die genannten Prüfungen melden'} «offen» und ` +
+    'zählen nie als erfüllt. Keine Pflicht, aber jede Angabe macht das Ergebnis vollständiger.'
+}

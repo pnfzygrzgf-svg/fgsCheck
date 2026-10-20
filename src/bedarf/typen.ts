@@ -21,8 +21,8 @@ export const STAERKEN: readonly Staerke[] = ['hart', 'hart_bericht', 'weich', 'h
  */
 export type RegelArt = 'befund' | 'weiche' | 'aggregat' | 'verweis' | 'gestrichen'
 
-/** Gruppen des Entscheidbaums (Skizze Abschnitt 3) */
-export type Gruppe = 'A' | 'B' | 'C' | 'D' | 'E' | 'Q3' | 'F' | 'G' | 'H' | 'I'
+/** Gruppen des Entscheidbaums (Skizze Abschnitt 3); B5 = Grundprüfung nach bfu (Big Five, eigenes Modul grundpruefung.ts) */
+export type Gruppe = 'A' | 'B' | 'C' | 'D' | 'E' | 'Q3' | 'F' | 'G' | 'H' | 'I' | 'B5'
 
 /** Werk einer Quelle (Kürzel aus WERKE in katalog.ts) mit Ziffer, Kapitel, Seite oder Tabelle */
 export interface QuelleRef { werk: string; ziffer: string }
@@ -30,6 +30,8 @@ export interface QuelleRef { werk: string; ziffer: string }
 /** Eintrag im Regelkatalog (Daten, keine Logik) */
 export interface RegelDef {
   id: string
+  /** Kurztitel in Alltagssprache (worum es geht, nicht das Ergebnis); in der Oberfläche statt der Nummer allein */
+  titel: string
   gruppe: Gruppe
   art: RegelArt
   /** null nur bei aggregat, verweis, gestrichen */

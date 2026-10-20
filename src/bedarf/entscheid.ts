@@ -119,7 +119,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     // Bei einer beurteilten Trottoirüberfahrt regelt 40 242 Z. 15 Zone und Verkehrsmenge: C und E laufen dann stumm, nur für
     // die Empfehlung einer Alternative (Korrektur N1)
     const tue = typ === 'trottoirueberfahrt'
-    reihe(['C1', 'C2', 'C2b', 'C2c', 'C2-B', 'C3', 'C3b', 'C3c', 'C4', 'C4-B'], tue)
+    reihe(['C1', 'C2', 'C2b', 'C2-B', 'C3', 'C3b', 'C3c', 'C4', 'C4-B'], tue)
     // C3/C4 (weich) verletzt: zulässig nur mit Begründung, Querung ohne Vortritt als Alternative (Korrektur S2)
     zul = k.hat('C1') || k.hat('C2') ? 'nicht_angezeigt'
       : k.istOffen('C1') || k.istOffen('C2') ? 'offen'

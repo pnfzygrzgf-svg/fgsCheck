@@ -106,7 +106,6 @@ export interface Werte {
   innerorts: boolean
   vSig: number
   tempoRegime: TempoRegime
-  zoneVerkehrsorientiert: boolean
   v85: number
   v85Nachweis: boolean
   anzeichenSchneller: boolean
@@ -220,7 +219,7 @@ export type BedarfEingaben = { [K in FeldName]: Feld<Werte[K]> }
 type Art = 'bool' | 'zahl' | 'zahlen' | 'objekt' | readonly string[]
 const BED: readonly Beduerfnis[] = ['schule', 'kindergarten', 'heim', 'haltestelle', 'schulweg']
 export const FELDER: { readonly [K in FeldName]: Art } = {
-  innerorts: 'bool', vSig: 'zahl', tempoRegime: ['strecke', 't30_zone', 'begegnungszone'], zoneVerkehrsorientiert: 'bool',
+  innerorts: 'bool', vSig: 'zahl', tempoRegime: ['strecke', 't30_zone', 'begegnungszone'],
   v85: 'zahl', v85Nachweis: 'bool', anzeichenSchneller: 'bool', dtv: 'zahl', fg5h: 'zahl', fgKlasse: ['<100', '100-500', '>500'],
   fgQuelle: ['zaehlung', 'schaetzung'], fgSehrHoch: 'bool', netz: ['basisnetz', 'publikumsintensiv', 'feinverteiler', 'keins'],
   netzQualifiziert: 'bool', beduerfnis: 'objekt', strassentyp: ['verkehrsorientiert', 'siedlungsorientiert'], starkBelastet: 'bool',

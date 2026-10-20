@@ -32,7 +32,7 @@ import { streifenTitel, zufahrtLang, zufahrtNr, zufahrtText, entfallenNr, entfal
 /** Zufahrt-Namen je Streifen (benennung.zufahrtNamen, in der App gerechnet) */
 type Namen = Map<string, ZufahrtNamen>
 import { ausserhalbText, nichtAbgedecktText, type Ausserhalb } from './abdeckung'
-import { BefundblattAnzeige, eingabenText } from './BedarfPanel'
+import { BefundblattAnzeige, GrundpruefungAnzeige, eingabenText } from './BedarfPanel'
 import type { BefundBlatt } from './bedarf/befundblatt'
 import { bedarfLeer } from './bedarf/fallBedarf'
 import { AHS_40240 } from './bedarf/tabellen'
@@ -550,7 +550,9 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
           <h2>Bedarf und Querungstyp</h2>
           <p className="klein">Beurteilung nach VSS 40 241, 40 240 und weiteren Grundlagen (Ziffern und eigene Kurztexte, kein Normtext).
             Rot: Pflichtverletzung bzw. nur mit verkehrstechnischem Bericht; gelb: Empfehlung; offen: Eingabe fehlt (zählt nie als
-            erfüllt). Ebenen Bern und Kanton BE gesondert. Die Sicht stammt aus dem Sichtrechner (Abschnitt Ergebnis).</p>
+            erfüllt). Ebenen Bern und Kanton BE gesondert. Die Sicht stammt aus dem Sichtrechner (Abschnitt Ergebnis). Vorne die
+            Grundprüfung nach bfu MS.013-2025 (Big Five, mit ausdrücklichem «erfüllt»), darunter das vollständige Befundblatt.</p>
+          {blaetter.map(b => <GrundpruefungAnzeige key={`grund-${b.gruppe}`} g={b.grund} titel={blaetter.length > 1 ? b.titel : undefined} druck />)}
           {blaetter.map(b => <BefundblattAnzeige key={b.gruppe} b={b} mehrere={blaetter.length > 1} druck />)}
           <h3>Eingaben und Quellen{blaetter.length > 1 ? ` (vorbelegt nach ${blaetter[0].titel})` : ''}</h3>
           <ul className="klein">{eingabenText(blaetter[0]).map(g => <li key={g.gruppe}><b>{g.gruppe}:</b>
@@ -606,7 +608,8 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
             <li>Auto-Parkfeld näher als 5 m am Streifen: VRV Art. 18 Abs. 2e.</li>
             {rechnung.streifen.some(s => s.querung) && <li>Querung ohne Vortritt: VSS 40 240:2025, Z. 8.2, Sichtweite max(v · L / 1,2 m/s;
               Anhaltesichtweite {Object.entries(AHS_40240).map(([t, sw]) => `${t} km/h: ${sw} m`).join(', ')}) je Teilquerung.</li>}
-            {mitBedarf && <li>Bedarf und Querungstyp: Regelkatalog des Bedarfsmoduls (Ziffer und Ausgabe je Befund).</li>}
+            {mitBedarf && <li>Bedarf und Querungstyp: Regelkatalog des Bedarfsmoduls (Ziffer und Ausgabe je Befund); Grundprüfung nach
+              bfu MS.013-2025, Fachdokumentation Fussgängerstreifen, Ziff. 2.1 bis 2.3.</li>}
           </ul>
         </section>
 

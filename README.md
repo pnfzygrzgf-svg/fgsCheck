@@ -258,6 +258,16 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   vorbelegt aus der Rechnung in `vorbelegung.ts`, Befundblatt aus `befundblatt.ts` auch im Bericht), Querung ohne Vortritt je
   Streifen mit der Sichtweite nach VSS 40 240 Z. 8.2 im Sichtrechner (`src/rechner/ohneVortritt.ts`); Fall-Dateien mit
   Bedarf-Eingaben (Block `bedarf`, je Unterfeld geprüft in `fallBedarf.ts`) bzw. mit einer Querung ohne Vortritt haben die Version 3.
+  Grundprüfung nach bfu MS.013-2025 (Big Five) in `grundpruefung.ts`: eigene Regeln der Gruppe B5 im Katalog (Tempo als
+  Vorbedingung, Sicht und Erkennungsdistanz, Schutzinsel, Zweistreifigkeit, Beleuchtung, Fussgängerfrequenz, dazu DTV und
+  Annäherungsbereich), Stärke nach dem Wortlaut der bfu, Normhinweis, wo die Norm anders wertet; je Punkt erfüllt, verletzt,
+  offen oder Hinweis, nur für Fussgängerstreifen ohne Lichtsignal und unabhängig von den Ebenen. Im Panel oben mit ihren
+  Eingaben (`GRUND_FELDER` in `felder.ts`), Befundblatt und übrige Eingaben aufklappbar als «Erweiterte Prüfung»; im Bericht
+  vor dem Befundblatt. Die Regeln B5 erscheinen nicht im Befundblatt; das Fallformat bleibt unverändert.
+  Seit der Korrekturrunde zusätzlich die Fahrbahnhaltestelle (bfu Ziff. 2.3) und unsichere Soll-Werte als Bereich (Stufe 60 km/h
+  ohne Angabe innerorts, Kurvenradius von Hand): verletzt nur sicher darunter, erfüllt nur sicher darüber, sonst offen.
+  Feldhilfen in `feldhilfen.ts` (Knopf «?» je Feld im Panel): eigene Erklärung, Prüfungen mit Quelle automatisch aus dem Katalog,
+  Bedeutung eines leeren Felds und Sichtbarkeitsbedingungen als Daten (`SICHTBAR`), geprüft vom Wächter `feldhilfen.test.ts`.
 
 ## Datenschutz
 

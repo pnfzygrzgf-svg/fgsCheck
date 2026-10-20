@@ -15,6 +15,9 @@ import { eingabenBilden, ebenenWirksam, type Gebildet } from './fallBedarf'
 import { querungen, vorbelegen, streifenTyp, type QuerungGruppe, type Vorbelegt } from './vorbelegung'
 import { FELD_DEFS, GRUPPEN, feldName, gruppeVon, gruppenName, type GruppeId } from './felder'
 import { ahs } from './tabellen'
+import { grundpruefung, type Grundpruefung } from './grundpruefung'
+import { ausgeblendeteBloeckeLeeren } from './feldhilfen'
+import { regelName, regelTitel } from './regelname'
 import type { Querungstyp } from './eingaben'
 import type { StreifenErgebnis, ZufahrtErgebnis } from '../rechner/typen'
 import type { Fall } from '../fall'
@@ -61,6 +64,8 @@ export interface BefundBlatt {
   annahmen: string[]
   /** Hinweise zur Vorbelegung und Bildung */
   hinweise: string[]
+  /** Grundprüfung nach bfu (Big Five), unabhängig von den Ebenen */
+  grund: Grundpruefung
 }
 
 const leer = (): Liste => ({ verletzungen: [], bericht: [], empfehlungen: [], hinweise: [], offen: [] })
@@ -91,22 +96,25 @@ export function typText(b: Befund): string {
 }
 /** Elemente nach «mit» (Dativ) */
 const DATIV: Record<string, string> = { 'vorgezogener Seitenraum': 'vorgezogenem Seitenraum' }
-const feldOderRegel = (x: string): string => (x in KATALOG ? x : feldName(x))
+const feldOderRegel = (x: string): string => (x in KATALOG ? regelName(x) : feldName(x))
 
 const ZUL: Record<string, string> = {
   zulaessig: 'Fussgängerstreifen zulässig', mit_begruendung: 'Fussgängerstreifen zulässig mit Begründung',
   nicht_angezeigt: 'Fussgängerstreifen nicht angezeigt', offen: 'Zulässigkeit offen',
 }
 
+/** Regel mit Kurztitel, Nummer und Fundstelle, z. B. «Insel bei breiter Fahrbahn (D2, VSS 40 241 Z. 24)» */
+const regelVerweis = (id: string): string => `${regelTitel(id)} (${id}, ${kurzQuelle(id)})`
+
 /** Begründung in einer Zeile: Zulässigkeit, Regeln für den Typ mit Fundstelle */
 export function begruendung(b: Befund): string {
   const teile: string[] = []
   if (b.zulaessigkeit) {
     const ids = b.alle.filter(x => x.zustand === 'verletzt' && ['C1', 'C2', 'C2b', 'C3', 'C3b', 'C4'].includes(x.id)).map(x => x.id)
-    teile.push(`${ZUL[b.zulaessigkeit]}${ids.length ? ` (${ids.map(id => `${id} ${kurzQuelle(id)}`).join('; ')})` : ''}`)
+    teile.push(`${ZUL[b.zulaessigkeit]}${ids.length ? ` (${ids.map(regelVerweis).join('; ')})` : ''}`)
   }
   const gr = b.empfehlung.grundlage.filter(id => !['C1', 'C2'].includes(id))
-  if (gr.length) teile.push(`Typ nach ${gr.map(id => `${id} ${kurzQuelle(id)}`).join('; ')}`)
+  if (gr.length) teile.push(`Typ nach ${gr.map(regelVerweis).join('; ')}`)
   else if (b.empfehlung.typ === 'Q1') teile.push(b.empfehlung.elemente.includes('Schutzinsel') ? 'Schutzinsel vorhanden; keine Regel verlangt ein Lichtsignal'
     : 'keine Regel verlangt Insel oder Lichtsignal')
   return teile.join('. ')
@@ -159,6 +167,8 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     typHinweis.push(`Querungstyp im Bedarf (${TYP_TEXT[handTyp]}) widerspricht der Querungsart der Streifen: es gilt ${TYP_TEXT[vorTyp.wert as string]}`)
   }
   const ebenen = ebenenWirksam(fall.bedarf, opt.vorgabe)
+  // ausgeblendete Unterfelder lösen die Blöcke Trottoirüberfahrt bzw. LSA-Zeiten nicht aus (Feldhilfen, SICHTBAR)
+  ausgeblendeteBloeckeLeeren(gebildet.eingaben, ebenen)
   const befund = beurteile(gebildet.eingaben, { ebenen: { bern: ebenen.bern, kantonBE: ebenen.kantonBE, richtlinie: ebenen.richtlinie } })
   const hinweise = [...typHinweis, ...vorbelegt.hinweise, ...gebildet.hinweise]
 
@@ -256,7 +266,19 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     return `${feldName(m[1])}: ${m[2]}${h && h.zustand === 'vorbelegt' ? ` (${h.text})` : ''}`
   }).filter(Boolean)
 
+  // Grundprüfung bfu: Sicht des Sichtrechners je Zufahrt der Fussgängerstreifen (nicht ohne Vortritt, nicht mit Lichtsignal); ein
+  // Fussgängerstreifen ohne geprüfte Zufahrt lässt die Sicht offen; Teilstreifen teils mit, teils ohne Vortritt: gilt nicht
+  const arten = new Set(g.streifen.map(streifenTyp).filter(t => t !== 'kein'))
+  const grund = grundpruefung(gebildet.eingaben, {
+    sicht: sicht.filter(x => x.regel === 'H1').map(x => ({
+      name: g.streifen.length > 1 ? `${titel(x.fgsId)}, ${x.name}` : x.name, tempo: x.tempo, soll: x.soll, quelle: x.quelle, frei: x.frei,
+      status: x.status, abbiegend: x.zufahrt.startsWith('a'), ...(x.bisM !== undefined ? { bisM: x.bisM } : {}) })),
+    ohneZufahrt: g.streifen.filter(s => streifenTyp(s) === 'fgs' && s.lsa !== 'ja' && !s.zufahrten.length).map(s => titel(s.fgsId)),
+    gemischt: arten.has('fgs') && [...arten].some(t => OHNE_VORTRITT.includes(t)),
+  })
+
   return {
+    grund,
     gruppe: g.id, streifen: g.streifen.map(s => s.fgsId), titel: g.streifen.map(s => titel(s.fgsId)).join(' und '),
     befund, gebildet, vorbelegt, ebenen, sicht, sichtVonHand, typText: typText(befund),
     zulText: befund.zulaessigkeit ? ZUL[befund.zulaessigkeit] : '', begruendung: begruendung(befund), offen, nichtGeprueft, annahmen,

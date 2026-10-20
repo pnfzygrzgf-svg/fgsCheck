@@ -44,7 +44,7 @@ export function bedarfLesen(roh: unknown): [BedarfBlock | null, string[]] {
   for (const k of Object.keys(roh)) if (!['felder', 'ebenen'].includes(k)) h.push(`Bedarf: Schlüssel «${k}» unbekannt, übergangen`)
   if (roh.felder !== undefined && !istObjekt(roh.felder)) h.push('Bedarf: Felder ungültig (kein Objekt), übergangen')
   else for (const [pfad, v] of Object.entries(roh.felder ?? {})) {
-    if (VERBOTEN.includes(pfad)) continue
+    if (VERBOTEN.includes(pfad) || pfad === ZONE_GESTRICHEN) continue
     const d = FELD_DEF.get(pfad)
     if (!d) { h.push(`Bedarf-Feld «${pfad}» unbekannt, übergangen`); continue }
     if (!istObjekt(v)) { h.push(`Bedarf-Feld «${pfad}» ungültig (kein Objekt), übergangen`); continue }
@@ -54,6 +54,7 @@ export function bedarfLesen(roh: unknown): [BedarfBlock | null, string[]] {
     for (const k of Object.keys(v)) if (k !== 'wert' && k !== 'quelle') h.push(`Bedarf-Feld «${pfad}»: Schlüssel «${k}» unbekannt, übergangen`)
     b.felder[pfad] = { wert: structuredClone(v.wert), quelle: v.quelle as Quelle }
   }
+  zoneAltLesen(roh.felder, b, h)
   if (roh.ebenen !== undefined) {
     if (!istObjekt(roh.ebenen)) h.push('Bedarf: Ebenen ungültig (kein Objekt), übergangen')
     else {
@@ -67,6 +68,21 @@ export function bedarfLesen(roh: unknown): [BedarfBlock | null, string[]] {
     }
   }
   return [bedarfLeer(b) ? null : b, h]
+}
+
+/** Feld «zoneVerkehrsorientiert» (gestrichen, Nutzerentscheid 20.10.2026): eine Hauptstrasse ausserhalb der Zone ist im
+ * Tempo-Regime eine Strecke */
+const ZONE_GESTRICHEN = 'zoneVerkehrsorientiert'
+/**
+ * Alte Fälle mit dem gestrichenen Feld: Wert verworfen. War es «ja» bei Tempo-Regime «Tempo-30-Zone» von Hand, gilt die Strasse
+ * als Strecke (Quelle Annahme, mit Hinweis), damit die Beurteilung gleich bleibt (bisher C2c statt C2). Sonst ohne Wirkung, still.
+ */
+function zoneAltLesen(felder: unknown, b: BedarfBlock, h: string[]): void {
+  if (!istObjekt(felder) || !istObjekt(felder[ZONE_GESTRICHEN])) return
+  if (felder[ZONE_GESTRICHEN].wert !== true || b.felder.tempoRegime?.wert !== 't30_zone') return
+  b.felder.tempoRegime = { wert: 'strecke', quelle: 'annahme' }
+  h.push('Bedarf: Feld «verkehrsorientierte Strasse in der Zone» gestrichen; die Hauptstrasse ausserhalb der Zone gilt als Strecke ' +
+    '(Tempo-Regime «Strecke» als Annahme)')
 }
 
 /** Vorbelegter Wert aus der Rechnung (vorbelegung.ts): Wert, Quelle und Herkunft als Text */

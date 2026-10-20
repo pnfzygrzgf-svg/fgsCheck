@@ -187,7 +187,32 @@ details.bedarf > summary .klein { display: block; margin-top: 2px; }
 .bedarf-maske select { max-width: 150px; font-size: 12px; }
 .bedarf-zahl { width: 90px; }
 .bedarf-liste label { display: inline-block; margin-right: 6px; }
+/* Feldhilfen: Knopf «?» je Feld, Erklärung als eigene Zeile unter dem Feld (kein Tooltip, auch auf Touch lesbar) */
+.hilfe-knopf { padding: 0 5px !important; margin-left: 2px; border-radius: 9px; line-height: 1.4; font-weight: 700; }
+.bedarf-hilfe td { background: #f8fafc; border-left: 3px solid var(--border); }
+.feld-hilfe p { margin: 2px 0; }
+.feld-hilfe ul { margin: 1px 0 3px; padding-left: 16px; }
 .befundblatt.druck { border: 1px solid #9ca3af; break-inside: auto; }
+/* Grundprüfung bfu (Big Five): Zustand als Symbol und Text, Farbe nur zusätzlich (Druck ohne Hintergrundfarben lesbar) */
+.grundpruefung { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin: 8px 0; background: #ffffff; font-size: 12px; }
+.grund-punkte { list-style: none; margin: 4px 0; padding-left: 0; }
+.grund-punkte > li { border-left: 4px solid #94a3b8; padding: 2px 0 2px 8px; margin: 4px 0; }
+.grund-teile { list-style: none; margin: 1px 0 0; padding-left: 4px; }
+.grund-teile > li { margin: 1px 0; }
+.grund-symbol { display: inline-block; min-width: 1.1em; text-align: center; font-weight: 700; }
+.grund-punkte > li.gruen { border-color: #16a34a; }
+.grund-punkte > li.rot { border-color: #dc2626; }
+.grund-punkte > li.gelb { border-color: #eab308; }
+.grund-punkte > li.blau { border-color: #0ea5e9; }
+.grundpruefung li.gruen > .grund-symbol { color: #15803d; }
+.grundpruefung li.rot > .grund-symbol { color: #b91c1c; }
+.grundpruefung li.gelb > .grund-symbol { color: #a16207; }
+.grundpruefung li.blau > .grund-symbol { color: #0369a1; }
+.grundpruefung li.grau > .grund-symbol { color: var(--text-muted); }
+.bedarf-erweitert { margin: 8px 0; border-top: 1px dashed var(--border); padding-top: 4px; }
+.bedarf-maske tr.bedarf-block th { text-align: left; padding-top: 6px; color: var(--text-muted); }
+.grundpruefung.druck { border: 1px solid #9ca3af; font-size: 9.5pt; break-inside: avoid; }
+.grundpruefung.druck, .grundpruefung.druck * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .befundblatt.druck .befund-liste { font-size: 9.5pt; }
 .befundblatt.druck .befund-liste, .befundblatt.druck .befund-liste * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 

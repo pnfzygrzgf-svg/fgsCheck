@@ -26,7 +26,7 @@ export const Q3_OK: Q3 = {
 
 /** Grundfall S0 (Abschnitt 3): FGS innerorts, Tempo 50, DTV 8000, 7,00 m, ein Fahrstreifen je Richtung, keine Insel */
 export const S0: Werte = {
-  innerorts: true, vSig: 50, tempoRegime: 'strecke', zoneVerkehrsorientiert: false, v85: 48, v85Nachweis: true,
+  innerorts: true, vSig: 50, tempoRegime: 'strecke', v85: 48, v85Nachweis: true,
   anzeichenSchneller: false, dtv: 8000, fg5h: 250, fgKlasse: '100-500', fgQuelle: 'zaehlung', fgSehrHoch: false,
   netz: 'basisnetz', netzQualifiziert: false, beduerfnis: [], strassentyp: 'verkehrsorientiert', starkBelastet: false,
   nachfrage: 'punktuell', wunschlinieM: 0, lage: 'strecke', knotenArmeOhneQuerung: 0, knotenLsa: false, fahrbahnB: 7,
@@ -103,7 +103,8 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'C1', name: 'vSig 70, ohne V85', abw: { vSig: 70, v85: null }, erwartet: { C1: 'hart' } },
   { regel: 'C2', name: 'T30-Zone ohne Bedürfnis', abw: { tempoRegime: 't30_zone', vSig: 30 }, erwartet: { C2: 'hart', E1: 'hinweis', D2c: '-' } },
   { regel: 'C2b', name: 'T30-Zone mit Schule', abw: { tempoRegime: 't30_zone', vSig: 30, beduerfnis: ['schule'] }, erwartet: { C2b: 'hinweis', C2: '-' }, empfehlung: 'Q1' },
-  { regel: 'C2c', name: 'verkehrsorientiert in der Zone', abw: { tempoRegime: 't30_zone', vSig: 30, zoneVerkehrsorientiert: true }, erwartet: { C2c: 'hinweis', C2: '-' } },
+  // C2c gestrichen (Nutzerentscheid 20.10.2026): Hauptstrasse mit Tempo 30 ausserhalb der Zone ist eine Strecke
+  { regel: 'C2', name: 'Tempo 30 auf einer Hauptstrasse ausserhalb der Zone (Strecke)', abw: { tempoRegime: 'strecke', vSig: 30 }, erwartet: { C2: '-', C2b: '-' }, empfehlung: 'Q1' },
   { regel: 'C2-B', name: 'T30-Zone Basisnetz, Bern', abw: { tempoRegime: 't30_zone', vSig: 30 }, ebenen: BERN, erwartet: { C2: 'hart', 'C2-B': 'hinweis' } },
   { regel: 'C3', name: 'FG 99, kein Netz', abw: { fg5h: 99, netz: 'keins' }, erwartet: { C3: 'weich' } },
   { regel: 'C3', name: 'FG 100', abw: { fg5h: 100, netz: 'keins' }, erwartet: { C3: '-' } },

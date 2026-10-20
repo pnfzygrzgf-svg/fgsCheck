@@ -91,6 +91,16 @@ describe('Vorbelegung aus der Rechnung (synthetischer Fall)', () => {
     const b = befundblatt(gi[0], { ...f, bedarf: HAND }, BERN)
     expect(b.befund.masse.find(m => m.groesse === 'Inselbreite (quer)')).toMatchObject({ ist: '2,00', zustand: 'erfuellt' })
     expect(ids(b.befund.lokal.empfehlungen)).toContain('F3')
+    // Grundprüfung bfu: Inseltiefe 2,00 m erfüllt, Durchfahrt 3,00 m weder rund 3,50 m noch ab 4,50 m (gelb)
+    const insel = b.grund.punkte.find(p => p.nr === '2')!
+    expect(insel.teile.map(t => [t.id, t.zustand])).toEqual([['B5-2b', 'erfuellt'], ['B5-2c', 'verletzt']])
+    expect(insel).toMatchObject({ zustand: 'verletzt', staerke: 'weich' })
+    // gemischte Querung: ein Teilstreifen ohne Vortritt → Grundprüfung gilt nicht (Satz)
+    const fid2 = ri.streifen[1].fgsId
+    const fm = { ...f, streifen: { ...f.streifen, [fid2]: { typ: 'furt' as const } }, bedarf: HAND }
+    const [bm] = befundblaetter(rechneFall(OSM, AV, [], 12, fm, null), fm, BERN)
+    expect(bm.grund.gilt).toBe(false)
+    expect(bm.grund.grund).toContain('teils Fussgängerstreifen, teils ohne Vortritt')
   })
 })
 
@@ -119,8 +129,8 @@ describe('Befundblatt', () => {
     expect(b.typText).toBe('Fussgängerstreifen')
     expect(b.zulText).toBe('Fussgängerstreifen zulässig')
     expect(ids(b.befund.norm.hinweise)).toEqual(expect.arrayContaining(['C3c', 'D2c']))
-    expect(b.annahmen.join(' ')).toContain('Fussgänger, Schätzklasse (5 Spitzenstunden): Schätzung')
-    expect(b.annahmen.join(' ')).toContain('innerorts: Annahme (Tempo 50 km/h: innerorts angenommen)')
+    expect(b.annahmen.join(' ')).toContain('Querende, geschätzt (5 Spitzenstunden): Schätzung')
+    expect(b.annahmen.join(' ')).toContain('Innerorts (innerhalb der Ortstafeln): Annahme (Tempo 50 km/h: innerorts angenommen)')
     // Bern: Inseltabelle bei über 30 km/h und 5 001 bis 10 000 Fz/Tag «Ja» (weich), LSA «Ja oder nein» (Hinweis)
     expect(ids(b.befund.lokal.empfehlungen)).toContain('D6-2')
     expect(ids(b.befund.lokal.hinweise)).toContain('D6-3b')
@@ -210,6 +220,26 @@ describe('Befundblatt', () => {
     expect(e3[0].detail).toContain('darüber nicht geprüft')
     expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toMatchObject({ zustand: 'offen' })
     expect(b.offen.some(o => o.feld === 'sichtVorh')).toBe(true)
+  })
+  it('Grundprüfung bfu im Befundblatt: Sicht aus dem Sichtrechner je Zufahrt, verdeckt hart; nicht bei Lichtsignal bzw. Furt; keine B5 im Befund', () => {
+    const r = rechneFall(OSM, AV, [], 12, fallMit(), null)
+    const [b] = befundblaetter(r, fallMit(x => { x.bedarf = HAND }), OHNE_EBENEN)
+    expect(b.grund.gilt).toBe(true)
+    const s1 = b.grund.punkte.find(p => p.nr === '1')!.teile.find(t => t.id === 'B5-1')!
+    expect(s1).toMatchObject({ zustand: 'erfuellt', ist: '2 von 2 Zufahrten frei', soll: '≥ 55 m' })
+    expect(b.grund.punkte.find(p => p.nr === 'T')!.zustand).toBe('offen')          // V85 fehlt
+    expect(b.befund.alle.some(x => x.id.startsWith('B5'))).toBe(false)
+    const park = (x: Fall) => x.hindernisse.push({ id: 'p1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-12, 2, -7, 4), quelle: 'hand' })
+    const fp = fallMit(x => { park(x); x.bedarf = HAND })
+    const [bp] = befundblaetter(rechneFall(OSM, AV, [], 12, fp, null), fp, OHNE_EBENEN)
+    expect(bp.grund.punkte.find(p => p.nr === '1')).toMatchObject({ zustand: 'verletzt', staerke: 'hart' })
+    const fid = r.streifen[0].fgsId
+    for (const e of [{ lsa: 'ja' as const }, { typ: 'furt' as const }]) {
+      const f = fallMit(x => { x.streifen[fid] = e; x.bedarf = HAND })
+      const [bx] = befundblaetter(rechneFall(OSM, AV, [], 12, f, null), f, OHNE_EBENEN)
+      expect(bx.grund.gilt).toBe(false)
+      expect(bx.grund.grund).toContain('gilt nur für Fussgängerstreifen ohne Lichtsignalanlage')
+    }
   })
   it('Typ-Text mit Elementen und Dativ', () => {
     const b = befundblaetter(rechneFall(OSM, AV, [], 12, fallMit(), null), fallMit(), OHNE_EBENEN)[0].befund

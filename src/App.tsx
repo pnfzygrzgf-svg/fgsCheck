@@ -34,6 +34,7 @@ import { koordText, vorzeichenText, vermassungTabelle, fixpunktMasse, type Verma
 import { streifenTitel, zufahrtNamen, zufahrtLang, zufahrtNr, zufahrtText, entfallenLang, entfallenNr, wegNamen, zufahrtHerkunft16, NUMMERN_TEXT, nachNr,
   type ZufahrtNamen } from './benennung'
 import { planTitel, planFlaecheM2, planAlsAv, avMitPlan, PLAN_NAME, eckeRunden, eckeAmPunkt, eckeRadiusMax, echteEcken, eckeGrenze, eckeGrenzeText, RUNDEN_R_VORGABE, RUNDEN_R_BEREICH, ECK_GROSS_M } from './rechner/planflaechen'
+import { mitTiteln } from './bedarf/regelname'
 import { inselGeometrie, inselLage, inselMasse, masseFehler, masseHinweise, streifenTeilen, standardText, standardTeilText, inselFlaechen,
   fahrbahnMitte, teilLuecke, inselPruefen, zufahrtTeil, zugMitte, standardZiehbar, standardGruppen, inselVerschieben,
   standardGeometrie, furtQuert, naechsteGruppe, aufAchse, balkenAusUmriss, E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M,
@@ -836,7 +837,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     if (zugBoden) {
       const pr = inselPruefen({ m, achse: st.achse, balken: st.balken }, st, zugBoden.av, (p, q) => zugBoden.fb.sehne(p, q),
         inselOpt)
-      hinweise.push(...pr.hinweise.filter(h => !h.startsWith('In der Furt')))
+      hinweise.push(...pr.hinweise.filter(h => !h.startsWith('In der Furt')).map(h => mitTiteln(h)))
       if (pr.furtFahrbahn && !(planListe ?? []).some(x => x.standard?.gruppe === gruppe && x.standard.teil === 'furt'))
         hinweise.push('In der Furt liegt eine Verkehrsinsel der AV: für die Furt auf Fahrbahnniveau die Mittelinsel dort neu einfügen.')
     }
@@ -892,7 +893,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         teil2: structuredClone(r.streifen.find(x => x.id === teilung.neuId)!) })
     setMeldung(`Mittelinsel um ${f2(dist(m, st.m))} m ${frei ? 'frei ' : 'entlang der Achse '}verschoben` +
       (r.teilIds.length ? `; Teilstreifen ${r.teilIds.map(id => streifenTitel(id, fall.streifenHand)).join(' und ')} an die Inselkanten nachgeführt` : '') +
-      `.${a.hinweise.length ? ` ${a.hinweise.join(' ')}` : ''} Zurück mit «Verschiebung zurücknehmen» unter «Flächen (Plan)».`)
+      `.${a.hinweise.length ? ` ${mitTiteln(a.hinweise.join(' '))}` : ''} Zurück mit «Verschiebung zurücknehmen» unter «Flächen (Plan)».`)
   }, [planListe, fall, zugAuswerten, teilung, aendern, inselFrei])
   const verschiebungZurueck = () => {
     const v = verschiebung
@@ -1348,7 +1349,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             {f2(Math.max(0, inselPruefung.restM[1]))} m</>}.</p>
         : <p className="klein">Noch nicht platziert.</p>}
       {inselFehler && <p className="klein warnung">{inselFehler}</p>}
-      {inselHinweise.map(h => <p key={h} className="klein warnung">{h}</p>)}
+      {inselHinweise.map(h => <p key={h} className="klein warnung">{mitTiteln(h)}</p>)}
       <div><button onClick={mittelinselEinfuegen} disabled={!inselOrt || !!inselFehler}>Mittelinsel einfügen</button>{' '}
         <button className="zweit" onClick={() => { setInselOrt(null); setWerkzeug(null) }}>Abbrechen</button></div>
     </div>

@@ -86,6 +86,11 @@ function wartestufe(w: number, insel: boolean): 'A/B' | 'C' | 'D' | 'E' | 'F' {
 }
 
 const istKnoten = (lage: string): boolean => lage.startsWith('knoten')
+/**
+ * Lesereihenfolge (Nachprüfung 20.10.2026): eine Regel meldet «offen» nur, wenn sie greifen kann. Bekannte Schalter, die sie
+ * ausschliessen, werden darum vor offenen Feldern gelesen (k.o): Lichtsignal bekannt, Typ bekannt, Insel bzw. Radstreifen «nein».
+ */
+const lsaBekannt = (k: Kontext): boolean => k.o('typ') === 'lsa' || k.o('fgsMitLsa') === true
 
 export const REGELN: Record<BefundId, RegelFn> = {
   // ── A ──
@@ -110,13 +115,9 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const v = k.v85e()
     return ja(v > max, { ist: `V85 ${v} km/h`, soll: `≤ ${max}` })
   },
-  C2: k => {
-    if (k.w('tempoRegime') !== 't30_zone') return null
-    if (k.w('zoneVerkehrsorientiert')) return ja(false)
-    return ja(!k.bed())
-  },
-  C2b: k => (k.w('tempoRegime') !== 't30_zone' ? null : ja(!k.w('zoneVerkehrsorientiert') && k.bed())),
-  C2c: k => (k.w('tempoRegime') !== 't30_zone' ? null : ja(k.w('zoneVerkehrsorientiert'))),
+  // C2c gestrichen (Nutzerentscheid 20.10.2026): eine Hauptstrasse ausserhalb der Zone ist im Tempo-Regime eine Strecke
+  C2: k => (k.w('tempoRegime') !== 't30_zone' ? null : ja(!k.bed())),
+  C2b: k => (k.w('tempoRegime') !== 't30_zone' ? null : ja(k.bed())),
   'C2-B': k => (k.w('tempoRegime') !== 't30_zone' ? null : ja(['basisnetz', 'publikumsintensiv'].includes(k.w('netz')))),
   C3: k => {
     const s = K.C3.werte.fgMin
@@ -133,6 +134,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
 
   // ── D ──
   D1: k => {
+    if (lsaBekannt(k)) return null
     const n = k.nMax()
     const x = { ist: `${n} je Richtung`, soll: `≤ ${K.D1.werte.nMax} je Richtung ohne Insel` }
     if (n <= K.D1.werte.nMax || k.insBaulich()) return ja(false, x)
@@ -154,7 +156,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     return ja(k.w('dtv') < W.dtvMin)
   },
   D2c: k => ja(!k.insBaulich() && !k.hat('D1') && !k.hat('D2') && !k.hat('D2a')),
-  D3a: k => (k.w('tram') !== 'eigentrassee' ? null : ja(!k.insBaulich() && !k.mitLsa())),
+  D3a: k => (lsaBekannt(k) || k.w('tram') !== 'eigentrassee' ? null : ja(!k.insBaulich() && !k.mitLsa())),
   D3b: k => (k.w('tram') !== 'eigentrassee' ? null : ja(k.w('balkenAufGleis'))),
   D3c: k => (k.w('tram') === 'keins' ? null : ja(!k.w('tramHaltestellenbereich'))),
   D4a: k => ja(k.w('haltestelle').lage === 'im_bereich'),
@@ -178,7 +180,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     return ja(true, { soll: `${a} m`, detail: `Richtwert ${a} m Abstand zur Haltestelle` })
   },
   'D5-1': k => (k.w('strassentyp') !== 'verkehrsorientiert' ? null : ja(k.w('starkBelastet'))),
-  'D5-2': k => (!istKnoten(k.w('lage')) || k.mitLsa() ? null : ja(k.w('knotenLsa'))),
+  'D5-2': k => (lsaBekannt(k) || !istKnoten(k.w('lage')) || k.mitLsa() ? null : ja(k.w('knotenLsa'))),
   'D5-3': k => (k.mitLsa() ? null : ja(k.nMax() >= K['D5-3'].werte.nAb && !k.insBaulich())),
   'D5-4': k => ja(k.hat('H1') || k.hat('E3')),
   'D5-5': k => (k.w('tram') === 'keins' ? null : ja(!k.w('tramHaltestellenbereich'))),
@@ -204,7 +206,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const t = bernTabelle(BERN_LSA, k.w('vSig'), k.w('dtv'))
     return ja(t === 'ja_nein', { ist: tabText(t) })
   },
-  'D6-4': k => ja(k.nMax() > K['D6-4'].werte.nMax && !k.insBaulich() && !k.mitLsa()),
+  'D6-4': k => (lsaBekannt(k) ? null : ja(k.nMax() > K['D6-4'].werte.nMax && !k.insBaulich() && !k.mitLsa())),
   'D6-5': k => {
     if (k.o('typ') !== 'lsa') return null
     if (!k.w('neuanlage')) return ja(false)
@@ -349,7 +351,9 @@ export const REGELN: Record<BefundId, RegelFn> = {
   },
   'F2-B': k => (!k.w('insel').vorhanden ? null : ja(!(k.s('insel', 'furt') > 0))),
   'F2-K': k => {
-    if (!k.w('radstreifen') || !k.w('insel').vorhanden) return null
+    // ohne Insel bzw. ohne Radstreifen nicht anwendbar, auch wenn das andere Feld offen ist
+    if (k.o('insel')?.vorhanden === false || k.o('radstreifen') === false) return null
+    if (!k.w('insel').vorhanden || !k.w('radstreifen')) return null
     return ja(k.s('insel', 'breite') < K['F2-K'].werte.min, { ist: fmt(k.s('insel', 'breite')) })
   },
   F3: k => {
@@ -375,6 +379,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     return ja(weich || hinweis, { staerke: weich ? 'weich' : 'hinweis', ist: fmtListe(d), soll: `≥ ${fmt(W.d)} (markierte Insel)`, detail: teile.join('; ') || undefined })
   },
   'F3-B': k => {
+    if (k.o('insel')?.vorhanden === false || k.o('radstreifen') === false) return null
     if (!k.w('insel').vorhanden || !k.w('radstreifen')) return null
     const d = k.w('durchfahrt'), W = K['F3-B'].werte
     const schmal = d.some(x => x < W.min), breit = d.some(x => x > W.max)
@@ -394,7 +399,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     return ja(l < W.min || l > W.max, { ist: fmt(l), soll: `${fmt(W.min)} bis ${fmt(W.max)}` })
   },
   F4c: k => {
-    if (!k.w('einengung') || k.o('typ') !== 'fgs') return null
+    if (k.o('typ') !== 'fgs' || !k.w('einengung')) return null
     const l = k.w('einengungLaengeM'), W = K.F4c.werte
     return ja(l < W.min, { ist: fmt(l), soll: `≥ ${fmt(W.min)} (Bern, mit FGS)` })
   },
@@ -531,7 +536,8 @@ export const REGELN: Record<BefundId, RegelFn> = {
     return ja(E >= S && E < f * S, { ist: fmt(E, 0), soll: `≥ ${fmt(f * S, 0)} (Soll)` })
   },
   H4: k => {
-    const r = k.w('kurve').radius
+    // ohne Kurve (bzw. ohne Angabe zur Kurve) nicht anwendbar, nicht offen
+    const r = k.o('kurve')?.radius ?? null
     if (r === null) return null
     if (r >= K.H4.werte.rMax) return ja(false)
     const [sw] = sichtweiteKurve(r)
