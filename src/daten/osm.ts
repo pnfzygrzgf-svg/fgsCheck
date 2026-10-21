@@ -79,8 +79,16 @@ export function overpassAbgebrochen(data: { remark?: unknown }): boolean {
   return typeof data.remark === 'string' && /runtime error|timed out|out of memory/i.test(data.remark)
 }
 
+/** Haltestellen (Bus, Tram) in der Abfrage: Umkreis um den Ladeort (Vorbelegung Bedarfsmodul: Haltestelle bis 50 m um Streifen, die
+ * höchstens rund 30 m vom Ladeort liegen, abdeckung.NACHLADEN_M) */
+export const HALT_OSM_RADIUS_M = 150
+/** Strassenlampen (highway=street_lamp) in der Abfrage: Umkreis um den Ladeort (Hinweis zur Beleuchtung bis 25 m um den Streifen) */
+export const LAMPEN_RADIUS_M = 100
+
 export function overpassAbfrage(lat: number, lon: number, radius: number): string {
-  const um = `around:${radius},${lat.toFixed(7)},${lon.toFixed(7)}`
+  const ort = `${lat.toFixed(7)},${lon.toFixed(7)}`
+  const um = `around:${radius},${ort}`
+  const uh = `around:${Math.min(radius, HALT_OSM_RADIUS_M)},${ort}`, ul = `around:${Math.min(radius, LAMPEN_RADIUS_M)},${ort}`
   return `[out:json][timeout:25];(` +
     `way(${um})["highway"~"^(${HW_ALLE.join('|')})$"];` +
     `way(${um})["railway"="tram"];` +
@@ -93,7 +101,12 @@ export function overpassAbfrage(lat: number, lon: number, radius: number): strin
     `)->.n;` +
     `rel(bw.w)["type"="restriction"]->.r;` +
     `(way(bn.n)["highway"~"^(footway|path|cycleway|steps|bridleway)$"];way(${um})["footway"="crossing"];)->.f;` +
-    `.w out body geom;.n out body;.r out body;.f out body geom;`
+    // Haltestellen und Strassenlampen (Vorbelegung bzw. Hinweise des Bedarfsmoduls): eigene Menge, damit sie keine Fusswege nach
+    // sich ziehen (.f folgt nur den Übergangsknoten .n); die Rechnung übergeht sie (osmParsen)
+    `(node(${uh})["highway"="bus_stop"];node(${uh})["railway"="tram_stop"];` +
+    `node(${uh})["public_transport"~"^(platform|stop_position)$"][~"^(bus|trolleybus|tram)$"~"^yes$"];` +
+    `node(${ul})["highway"="street_lamp"];)->.h;` +
+    `.w out body geom;.n out body;.r out body;.f out body geom;.h out body;`
 }
 
 interface RohElement {
@@ -267,6 +280,25 @@ async function overpassFetch(query: string, signal?: AbortSignal): Promise<Abruf
     }
   }
   throw new AbrufFehler('Overpass nicht erreichbar (' + (letzter || 'Netzwerkfehler') + ')')
+}
+
+/** Tags der Strassen (HW_ALLE) aus der Rohantwort nach Weg-Id (Vorbelegung Bedarfsmodul: Zone, Beleuchtung der Zufahrten) */
+export function wegTags(roh: unknown): Map<number, Record<string, string>> {
+  const m = new Map<number, Record<string, string>>()
+  for (const e of (roh as { elements?: RohElement[] } | null)?.elements ?? [])
+    if (e.type === 'way' && e.tags && HW_ALLE.includes(e.tags.highway ?? '') && !m.has(e.id)) m.set(e.id, e.tags)
+  return m
+}
+
+/** Strassenlampen (highway=street_lamp) aus der Rohantwort in LV95, ohne Doppel */
+export function strassenlampen(roh: unknown): P[] {
+  const aus: P[] = [], gesehen = new Set<number>()
+  for (const e of (roh as { elements?: RohElement[] } | null)?.elements ?? []) {
+    if (e.type !== 'node' || e.tags?.highway !== 'street_lamp' || e.lat == null || e.lon == null || gesehen.has(e.id)) continue
+    gesehen.add(e.id)
+    aus.push(lv95(e.lat, e.lon))
+  }
+  return aus
 }
 
 /** Rohantwort (für Cache und Worker) */

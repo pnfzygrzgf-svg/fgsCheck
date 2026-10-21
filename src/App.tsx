@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
   OHNE_VORTRITT_FARBE,
@@ -6,10 +6,14 @@ import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FAR
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
 import { ladeOsmRoh, osmParsen, ladeUebergaenge, markierung, istFgs, overpassSperre, strassennamen, namenKarte, knotenLage, type OsmKnoten,
-  type StrassenMitte } from './daten/osm'
+  type StrassenMitte, wegTags, strassenlampen, LAMPEN_RADIUS_M } from './daten/osm'
 import { istAbbruch } from './daten/holen'
 import { baumQuelleFuer, type BaumQuelle, type KatasterBaum } from './daten/baumkataster'
 import { parkQuelleFuer, istParkId, type ParkQuelle, type KatasterFeld } from './daten/parkkataster'
+import { bernZustaendig, GEODATEN_BERN, GEOPORTAL_BERN } from './daten/geoportal'
+import { ladeHaltestellenBern, haltestellenStand, type BernHalte } from './daten/haltestellen'
+import { ladeVerkehrsdatenBern, type VdLinie } from './daten/verkehrsdaten'
+import type { GeoVorbelegung } from './bedarf/vorbelegung'
 import { lv95, wgs, dist, sub, einheit as einheitP, imPolygon, type P } from './geo'
 import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, aufnehmen, vereinigen, vereinigenNamen } from './ausschnitt'
 import type { ZufahrtErgebnis, StreifenErgebnis } from './rechner/typen'
@@ -35,12 +39,15 @@ import { streifenTitel, zufahrtNamen, zufahrtLang, zufahrtNr, zufahrtText, entfa
   type ZufahrtNamen } from './benennung'
 import { planTitel, planFlaecheM2, planAlsAv, avMitPlan, PLAN_NAME, eckeRunden, eckeAmPunkt, eckeRadiusMax, echteEcken, eckeGrenze, eckeGrenzeText, RUNDEN_R_VORGABE, RUNDEN_R_BEREICH, ECK_GROSS_M } from './rechner/planflaechen'
 import { mitTiteln } from './bedarf/regelname'
+import { durchfahrtAnzeige } from './bedarf/durchfahrt'
 import { inselGeometrie, inselLage, inselMasse, masseFehler, masseHinweise, streifenTeilen, standardText, standardTeilText, inselFlaechen,
   fahrbahnMitte, teilLuecke, inselPruefen, zufahrtTeil, zugMitte, standardZiehbar, standardGruppen, inselVerschieben,
   standardGeometrie, furtQuert, naechsteGruppe, aufAchse, balkenAusUmriss, E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M,
   INSEL_BEREICH, INSEL_TIEFE_MIN_M, type InselLage } from './rechner/standardinsel'
 import { Fahrbahn } from './rechner/flaechen'
 import { BedarfAbschnitt } from './BedarfPanel'
+import Trenner from './Trenner'
+import { ladeBreite } from './panelbreite'
 import { befundblaetter } from './bedarf/befundblatt'
 import { ebenenVorgabe, ebenenWirksam } from './bedarf/fallBedarf'
 import { radstreifenAusRechnung } from './bedarf/vorbelegung'
@@ -49,6 +56,9 @@ import { fangen, fangRadiusM, FANG_PX, fixpunktVorschlaege, fixpunktName, fixMas
   type FixVorschlag } from './fixpunkt'
 
 interface QuellenStand { name: string; objekte?: string; ms?: number; bytes?: number; server?: string; fehler?: string }
+/** Geoportal Stadt Bern für die Vorbelegung des Bedarfsmoduls (Haltestellen, Verkehrsdaten); nr = Ladevorgang (wie ParkStand) */
+interface BernGeo { nr: number; halte: BernHalte; vd: { laedt: true } | { linien: VdLinie[] } | { fehler: string } }
+const HALT_QUELLE = `${GEODATEN_BERN}, Haltestellen`, VD_QUELLE = `${GEODATEN_BERN}, Flächendeckende Verkehrsdaten`
 interface ParkStand { quelle: ParkQuelle; nr: number; lat: number; lon: number; felder: KatasterFeld[] | null; laedt?: boolean; fehler?: string }
 interface Daten { osm: unknown; av: GeoJson; sosf: GeoJson | null; nid: number | null; bfs: (number | null)[]; luftbild: LuftbildRoh | null; flugjahr: string
   ort: P }                                         // Ort in LV95 (Luftbild nachladen)
@@ -142,6 +152,9 @@ function FixLegende({ blass = false }: { blass?: boolean }) {
 
 export default function App({ onStartseite }: { onStartseite?: () => void } = {}) {
   const kartenRef = useRef<L.Map | null>(null)
+  // Breite des rechten Bereichs (Trenner, gespeichert in localStorage; CSS-Variable --panel-breite)
+  const [panelBreite, setPanelBreite] = useState(() => ladeBreite(window.innerWidth))
+  const trennerFertig = useCallback(() => { requestAnimationFrame(() => kartenRef.current?.invalidateSize()) }, [])
   const workerRef = useRef<Worker | null>(null)
   const abbruchRef = useRef<AbortController | null>(null)
   const auftrag = useRef(0)
@@ -233,6 +246,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // amtliche Parkfelder: nr = Nummer des Ladevorgangs (ladeNr), damit ein alter Abruf keine Felder in einen neuen Fall schreibt
   const ladeNr = useRef(0)
   const [parkKat, setParkKat] = useState<ParkStand | null>(null)
+  const [bernGeo, setBernGeo] = useState<BernGeo | null>(null)
   const setzeQuelle = (k: string, s: QuellenStand) => setQuellen(q => ({ ...q, [k]: s }))
   // Eingabe der Rechnung: nur die geladenen Felder und die Quellenangabe. Der Ladezustand (laedt, fehler) löst keine Rechnung
   // aus; nach erfolgreichem Laden ändern sich felder (und im selben Schritt fall.quellen) -> genau eine neue Rechnung.
@@ -463,7 +477,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     abbruchRef.current = ctrl
     auftrag.current++
     setRechnung(null); setAuswahl(null); setAv(null); setDaten(null); setWerkzeug(null); setZeichnung([]); setBearbeiten(null)
-    setKataster(null); setParkKat(null); setWechsel(null); setLadeFehler(false)
+    setKataster(null); setParkKat(null); setBernGeo(null); setWechsel(null); setLadeFehler(false)
     const nr = ++ladeNr.current
     const erinnert = !fallNeu && nid !== null ? fallErinnern(nid) : null
     // Fall aus dem Browser, dessen Streifen von Hand nur um den gespeicherten Ort abgedeckt sind (Ort nach dem Verschieben an die
@@ -506,11 +520,41 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       if (bq) setKataster({ quelle: bq, baeume: null, lat, lon })
       const pq = parkQuelleFuer(bfs)
       if (pq) setParkKat({ quelle: pq, nr, lat, lon, felder: null })
+      // Berner Dienste nur, wenn die AV-Fläche am Ladeort in der Stadt Bern liegt (Korrektur M4; nicht jede Gemeinde im Ausschnitt)
+      const bernHier = bernZustaendig([e, n], avF)
+      if (bernHier) setBernGeo({ nr, halte: { laedt: true }, vd: { laedt: true } })
       setMeldung('Rechnung läuft …')
       // das Luftbild zieht der Effekt «Luftbild nachladen» nach (nur am OSM-Übergang und wenn die Suche nicht abgeschaltet ist)
       setDaten({ osm: ro.daten, av: ra.daten, sosf: rs ? rs.daten : null, nid, bfs, luftbild: null, flugjahr: '', ort: [e, n] })
       setFall(f => f ? { ...f, quellen: { osm: ro.quelle, av: `${ra.quelle}, Kanton ${[...new Set(avF.map(x => x.kanton))].join(', ')}`,
         geladen: new Date().toISOString().slice(0, 10) } } : f)
+      // Bedarfsmodul (Vorbelegung): Haltestellen und Verkehrsdaten aus dem Geoportal der Stadt Bern, nicht blockierend (ohne sie
+      // bleiben die Felder offen bzw. die Haltestellen kommen aus OSM)
+      if (bernHier) {
+        const hier = () => ladeNr.current === nr && !ctrl.signal.aborted
+        const HN = `Haltestellen Stadt Bern (${GEOPORTAL_BERN}, ±${PARK_RADIUS_M} m)`, VN = `Verkehrsdaten Stadt Bern (${GEOPORTAL_BERN}, ±${PARK_RADIUS_M} m)`
+        setzeQuelle('haltestellen', { name: HN }); setzeQuelle('verkehrsdaten', { name: VN })
+        ladeHaltestellenBern(lat, lon, PARK_RADIUS_M, ctrl.signal).then(r => {
+          if (!hier()) return
+          setBernGeo(g => (g && g.nr === nr ? { ...g, halte: { halte: r.daten } } : g))
+          setzeQuelle('haltestellen', { name: HN, objekte: `${r.daten.length} Haltekanten`, ms: r.ms, bytes: r.bytes, server: r.quelle })
+          setFall(f => (f ? { ...f, quellen: { ...f.quellen, haltestellen: HALT_QUELLE } } : f))
+        }, err => {
+          if (istAbbruch(err) || !hier()) return
+          setBernGeo(g => (g && g.nr === nr ? { ...g, halte: { fehler: (err as Error).message } } : g))
+          setzeQuelle('haltestellen', { name: HN, fehler: `${(err as Error).message} (Haltestellen aus OSM)` })
+        })
+        ladeVerkehrsdatenBern(lat, lon, PARK_RADIUS_M, ctrl.signal).then(r => {
+          if (!hier()) return
+          setBernGeo(g => (g && g.nr === nr ? { ...g, vd: { linien: r.daten } } : g))
+          setzeQuelle('verkehrsdaten', { name: VN, objekte: `${r.daten.length} Strassenabschnitte`, ms: r.ms, bytes: r.bytes, server: r.quelle })
+          setFall(f => (f ? { ...f, quellen: { ...f.quellen, verkehrsdaten: VD_QUELLE } } : f))
+        }, err => {
+          if (istAbbruch(err) || !hier()) return
+          setBernGeo(g => (g && g.nr === nr ? { ...g, vd: { fehler: (err as Error).message } } : g))
+          setzeQuelle('verkehrsdaten', { name: VN, fehler: `${(err as Error).message} (DTV bleibt offen)` })
+        })
+      }
     } catch (err) {
       if (ctrl.signal.aborted || istAbbruch(err)) return
       setMeldung(`Laden fehlgeschlagen: ${(err as Error).message} (Details unter «Geladene Quellen»)`)
@@ -837,7 +881,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     if (zugBoden) {
       const pr = inselPruefen({ m, achse: st.achse, balken: st.balken }, st, zugBoden.av, (p, q) => zugBoden.fb.sehne(p, q),
         inselOpt)
-      hinweise.push(...pr.hinweise.filter(h => !h.startsWith('In der Furt')).map(h => mitTiteln(h)))
+      hinweise.push(...pr.hinweise.filter(h => !h.startsWith('In der Furt')).map(h => mitTiteln(durchfahrtAnzeige(h))))
       if (pr.furtFahrbahn && !(planListe ?? []).some(x => x.standard?.gruppe === gruppe && x.standard.teil === 'furt'))
         hinweise.push('In der Furt liegt eine Verkehrsinsel der AV: für die Furt auf Fahrbahnniveau die Mittelinsel dort neu einfügen.')
     }
@@ -1252,8 +1296,23 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const f = m ? (av ?? []).find(x => x.art === 'Strasse_Weg' && imPolygon(m, x.ringe)) : undefined
     return f ? ebenenVorgabe([f.bfs], f.kanton ? [f.kanton] : []) : ebenenVorgabe(daten?.bfs ?? [], kantone)
   }, [rechnung, av, daten, kantone])
+  // Geodaten für die Vorbelegung (Haltestellen, Verkehrsdaten, OSM-Tags der Wege, Strassenlampen) um den Ladeort
+  // Berner Daten nur, wenn der Streifen auf einer AV-Fläche der Stadt Bern liegt (Korrektur M4, wie die Ebenen-Vorgabe)
+  const streifenBern = useMemo(() => bernZustaendig(rechnung?.streifen[0]?.m ?? daten?.ort, av ?? []), [rechnung, daten, av])
+  const geoVor = useMemo<GeoVorbelegung>(() => {
+    if (!daten) return {}
+    const halte = streifenBern && bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.halte : null
+    const vd = streifenBern && bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.vd : null
+    return {
+      haltestellen: haltestellenStand(halte, daten.osm, daten.ort, PARK_RADIUS_M),
+      verkehrsdaten: vd && 'linien' in vd ? { linien: vd.linien, bereich: { mitte: daten.ort, radiusM: PARK_RADIUS_M, form: 'quadrat' } }
+        : vd && 'fehler' in vd ? { fehler: vd.fehler } : null,
+      osmTags: wegTags(daten.osm),
+      lampen: { punkte: strassenlampen(daten.osm), bereich: { mitte: daten.ort, radiusM: LAMPEN_RADIUS_M, form: 'kreis' } },
+    }
+  }, [daten, bernGeo, streifenBern])
   const blaetter = useMemo(() => (fall && rechnung && rechnung.streifen.length ? befundblaetter(rechnung, fall, { vorgabe: bedarfVorgabe,
-    titel, zufahrt: (fid, z) => zufahrtText(zNamen.get(fid), z) }) : []), [fall, rechnung, bedarfVorgabe, titel, zNamen])
+    titel, zufahrt: (fid, z) => zufahrtText(zNamen.get(fid), z), geo: geoVor }) : []), [fall, rechnung, bedarfVorgabe, titel, zNamen, geoVor])
   const gewaehlteZ: ZufahrtErgebnis | null = useMemo(() => alleZ.find(z => zufahrtKey(z) === auswahl) ?? null, [alleZ, auswahl])
   const vorschlagOsm = (rechnung?.vorschlaege ?? []).filter(v => v.hindernis.quelle === 'osm')
   const katBaeume = (rechnung?.vorschlaege ?? []).filter(v => v.hindernis.quelle === 'kataster' && v.hindernis.art === 'baum')
@@ -1349,7 +1408,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             {f2(Math.max(0, inselPruefung.restM[1]))} m</>}.</p>
         : <p className="klein">Noch nicht platziert.</p>}
       {inselFehler && <p className="klein warnung">{inselFehler}</p>}
-      {inselHinweise.map(h => <p key={h} className="klein warnung">{mitTiteln(h)}</p>)}
+      {inselHinweise.map(h => <p key={h} className="klein warnung">{mitTiteln(durchfahrtAnzeige(h))}</p>)}
       <div><button onClick={mittelinselEinfuegen} disabled={!inselOrt || !!inselFehler}>Mittelinsel einfügen</button>{' '}
         <button className="zweit" onClick={() => { setInselOrt(null); setWerkzeug(null) }}>Abbrechen</button></div>
     </div>
@@ -1396,7 +1455,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   )
 
   return (
-    <div className="app">
+    <div className="app" style={{ '--panel-breite': `${panelBreite}px` } as CSSProperties}>
       <Karte mitte={START} av={av} kantone={kantone} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? LEER_HIND} streifenHand={fall?.streifenHand ?? LEER_HAND}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} rundenR={rundenR}
@@ -1408,6 +1467,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         onUebergang={pruefen} onZufahrt={setAuswahl}
         onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => setBearbeiten(b => (b === id ? null : id))}
         onAusschnitt={ausschnitt} hinweis={suchHinweis} kartenRef={kartenRef} />
+      <Trenner breite={panelBreite} setze={setPanelBreite} onFertig={trennerFertig} />
       <aside className="panel">
         <h1>{onStartseite
           ? <button type="button" className="logo-knopf" onClick={() => wechseln('Zur Startseite: der bisherige Fall wird verlassen.',
@@ -1825,7 +1885,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         </p>
         <p className="klein">
           Luftbild und Streifen-Erkennung {LUFTBILD_QUELLE}{daten?.flugjahr ? ` (Flugjahr ${daten.flugjahr})` : ''} · Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '…'}, geodienste.ch ·
-          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}.
+          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}.
         </p>
         <p className="klein">Die App ersetzt keine Beurteilung vor Ort. Eingaben bleiben im Browser bzw. in der Fall-Datei.</p>
         </details>
@@ -1836,7 +1896,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <Bericht fall={fall} rechnung={rechnung} rechnungZeit={rechnungZeit} kantone={kantone} flugjahr={daten?.flugjahr ?? ''}
           luftbildStand={daten?.luftbild ? 'da' : fall.luftbild !== false && quellen.luftbild && !quellen.luftbild.fehler ? 'laedt' : 'fehlt'}
           zusatzQuellen={[...(fall.baumkataster && kataster?.baeume ? [`Baumkataster: ${kataster.quelle.quellenangabe} (WFS map.bern.ch)`] : []),
-            ...(parkAn && parkKat?.felder ? [`Amtliche Parkfelder: ${parkKat.quelle.quellenangabe} (WFS map.bern.ch)`] : [])]}
+            ...(parkAn && parkKat?.felder ? [`Amtliche Parkfelder: ${parkKat.quelle.quellenangabe} (WFS map.bern.ch)`] : []),
+            ...(fall.quellen.haltestellen ? [`Haltestellen (Vorbelegung Bedarf): ${HALT_QUELLE} (${GEOPORTAL_BERN}, ArcGIS REST map.bern.ch)`] : []),
+            ...(fall.quellen.verkehrsdaten ? [`Verkehrsmenge DTV (Vorbelegung Bedarf): ${VD_QUELLE}, DTV = 16·Nt + 8·Nn (${GEOPORTAL_BERN}, ` +
+              'ArcGIS REST map.bern.ch)'] : [])]}
           ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} />
       )}
     </div>

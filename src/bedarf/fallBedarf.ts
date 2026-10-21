@@ -6,7 +6,7 @@
 // einzeln (Art, Wertebereich, Auswahl), und eine Handeingabe ersetzt nur das betroffene Unterfeld der Vorbelegung.
 // Ein Feld ohne Wert ist «offen» (Entscheid E0-2).
 
-import { FELD_DEF, OBJEKTE, istObjektFeld, unterfelder, wertGueltig, bereichText, type ObjektFeld } from './felder'
+import { FELD_DEF, OBJEKTE, feldName, istObjektFeld, unterfelder, wertGueltig, bereichText, type ObjektFeld } from './felder'
 import { FELDNAMEN, leereEingaben, type BedarfEingaben, type Feld, type FeldName, type Quelle } from './eingaben'
 
 /** Handeingabe eines Felds bzw. Unterfelds */
@@ -144,7 +144,7 @@ export function eingabenBilden(vor: Vorbelegung, block: BedarfBlock | null | und
     if (!gesetzt.length) continue
     const fehlt = OBJEKTE[f].pflicht.filter(u => !werte.get(u))
     if (fehlt.length) {
-      hinweise.push(`${f}: ${fehlt.map(u => `«${FELD_DEF.get(`${f}.${u}`)!.name}»`).join(', ')} fehlt; die übrigen Angaben dazu bleiben offen`)
+      hinweise.push(`${feldName(f)}: ${fehlt.map(u => `«${FELD_DEF.get(`${f}.${u}`)!.name}»`).join(', ')} fehlt; die übrigen Angaben dazu bleiben offen`)
       continue
     }
     const obj: Record<string, unknown> = {}

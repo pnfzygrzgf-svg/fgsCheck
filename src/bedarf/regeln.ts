@@ -21,6 +21,8 @@ const ja = (verletzt: boolean, x: Omit<Ergebnis, 'verletzt'> = {}): Ergebnis => 
 export const fmt = (n: number, d = 2): string => n.toFixed(d).replace('.', ',')
 const fmtListe = (xs: number[], d = 2): string => xs.map(x => fmt(x, d)).join(' / ')
 const tabText = (t: Bern3a): string => (t === 'ja' ? 'Ja' : t === 'nein' ? 'Nein' : 'Ja oder nein')
+/** Ist der Berner Tabellen: Tempo und DTV mit dem Tabellenwert («Tempo 50 km/h, DTV 8000: Ja») */
+const tabIst = (v: number, dtv: number, t: Bern3a): string => `Tempo ${v} km/h, DTV ${dtv} Fz/Tag: ${tabText(t)}`
 
 // ── Hilfen über mehrere Regeln ──
 
@@ -106,7 +108,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
   // ── B ──
   B1: k => ja(k.w('nachfrage') === 'flaechig'),
   B3: k => ja(k.w('lage') === 'einmuendung'),
-  B4: k => (istKnoten(k.w('lage')) ? ja(k.w('knotenArmeOhneQuerung') > 0, { ist: String(k.w('knotenArmeOhneQuerung')) }) : null),
+  B4: k => (istKnoten(k.w('lage')) ? ja(k.w('knotenArmeOhneQuerung') > 0, { ist: `${k.w('knotenArmeOhneQuerung')} Arm(e) ohne Querung` }) : null),
 
   // ── C ──
   C1: k => {
@@ -125,7 +127,11 @@ export const REGELN: Record<BefundId, RegelFn> = {
     return ja(!k.w('netzQualifiziert') && !k.bed(), { ist: fgIst(k), soll: `≥ ${s}` })
   },
   C3b: k => (!fgUnter(k, K.C3b.werte.fgMin) ? ja(false) : ja(k.w('netzQualifiziert') || k.bed(), { ist: fgIst(k) })),
-  C3c: k => ja(k.o('fgQuelle') === 'schaetzung' || (k.o('fg5h') === null && k.o('fgKlasse') !== null)),
+  // Runde 2 (Korrektur A4): ohne Zählung und ohne Schätzklasse offen, nicht «ohne Befund»
+  C3c: k => {
+    if (k.o('fg5h') === null && k.o('fgKlasse') === null) throw new Offen(['fg5h', 'fgKlasse'])
+    return ja(k.o('fgQuelle') === 'schaetzung' || k.o('fg5h') === null)
+  },
   C4: k => {
     const dtv = k.w('dtv')
     return ja(dtv < K.C4.werte.dtvMin, { ist: String(dtv), soll: `≥ ${K.C4.werte.dtvMin}` })
@@ -158,7 +164,6 @@ export const REGELN: Record<BefundId, RegelFn> = {
   D2c: k => ja(!k.insBaulich() && !k.hat('D1') && !k.hat('D2') && !k.hat('D2a')),
   D3a: k => (lsaBekannt(k) || k.w('tram') !== 'eigentrassee' ? null : ja(!k.insBaulich() && !k.mitLsa())),
   D3b: k => (k.w('tram') !== 'eigentrassee' ? null : ja(k.w('balkenAufGleis'))),
-  D3c: k => (k.w('tram') === 'keins' ? null : ja(!k.w('tramHaltestellenbereich'))),
   D4a: k => ja(k.w('haltestelle').lage === 'im_bereich'),
   D4b: k => (k.w('haltestelle').art !== 'fahrbahn' ? null : ja(k.s('haltestelle', 'verdeckt') && !k.insBaulich())),
   D4c: k => ja(k.w('haltestelle').lage === 'fgs_vor_halt'),
@@ -182,29 +187,37 @@ export const REGELN: Record<BefundId, RegelFn> = {
   'D5-1': k => (k.w('strassentyp') !== 'verkehrsorientiert' ? null : ja(k.w('starkBelastet'))),
   'D5-2': k => (lsaBekannt(k) || !istKnoten(k.w('lage')) || k.mitLsa() ? null : ja(k.w('knotenLsa'))),
   'D5-3': k => (k.mitLsa() ? null : ja(k.nMax() >= K['D5-3'].werte.nAb && !k.insBaulich())),
-  'D5-4': k => ja(k.hat('H1') || k.hat('E3')),
+  // Runde 2 (Korrektur A2): nicht anwendbar, wenn weder H1 noch E3 ausgewertet ist; offen, solange eine davon offen ist
+  'D5-4': k => {
+    const h = k.ergebnisse.get('H1'), e = k.ergebnisse.get('E3')
+    if (!h && !e) return null
+    if (k.hat('H1') || k.hat('E3')) return ja(true)
+    const fehlt = [...new Set([...(k.offenFelder.get('H1') ?? []), ...(k.offenFelder.get('E3') ?? [])])]
+    if (fehlt.length) throw new Offen(fehlt)
+    return ja(false)
+  },
   'D5-5': k => (k.w('tram') === 'keins' ? null : ja(!k.w('tramHaltestellenbereich'))),
   'D5-6': k => ja(k.w('fgSehrHoch')),
   'D6-1': k => ja(kTempo(k.w('vSig')) === 'k20', { ist: `${k.w('vSig')} km/h` }),
   'D6-2': k => {
     if (k.insBaulich()) return ja(false)
     const t = bernTabelle(BERN_INSEL, k.w('vSig'), k.w('dtv'))
-    return ja(t === 'ja', { ist: tabText(t) })
+    return ja(t === 'ja', { ist: tabIst(k.w('vSig'), k.w('dtv'), t) })
   },
   'D6-2b': k => {
     if (k.insBaulich()) return ja(false)
     const t = bernTabelle(BERN_INSEL, k.w('vSig'), k.w('dtv'))
-    return ja(t === 'ja_nein', { ist: tabText(t) })
+    return ja(t === 'ja_nein', { ist: tabIst(k.w('vSig'), k.w('dtv'), t) })
   },
   'D6-3': k => {
     if (k.mitLsa()) return ja(false)
     const t = bernTabelle(BERN_LSA, k.w('vSig'), k.w('dtv'))
-    return ja(t === 'ja', { ist: tabText(t) })
+    return ja(t === 'ja', { ist: tabIst(k.w('vSig'), k.w('dtv'), t) })
   },
   'D6-3b': k => {
     if (k.mitLsa()) return ja(false)
     const t = bernTabelle(BERN_LSA, k.w('vSig'), k.w('dtv'))
-    return ja(t === 'ja_nein', { ist: tabText(t) })
+    return ja(t === 'ja_nein', { ist: tabIst(k.w('vSig'), k.w('dtv'), t) })
   },
   'D6-4': k => (lsaBekannt(k) ? null : ja(k.nMax() > K['D6-4'].werte.nMax && !k.insBaulich() && !k.mitLsa())),
   'D6-5': k => {
@@ -292,7 +305,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
   },
   'Q3-B': k => {
     const t = BERN_Q3[kTempo(k.s('q3', 'vSigEinm'))][k.s('q3', 'dtvEinm') < Q3_DTV_GRENZE ? 0 : 1]
-    return ja(true, { ist: tabText(t) })
+    return ja(true, { ist: tabText(t) })   // ist geht in den Zusatz der Empfehlung (Bern-Tabelle: …), bleibt kurz
   },
 
   // ── F ──
@@ -429,16 +442,16 @@ export const REGELN: Record<BefundId, RegelFn> = {
   F6c: k => {
     if (k.o('typ') !== 'mehrzweck') return null
     const v = k.v85e(), W = K.F6c.werte
-    return ja(v > W.vMax, { ist: `V85 ${v} km/h`, soll: `≤ ${W.vMax} (allenfalls ${W.vGrenze})` })
+    return ja(v > W.vMax, { ist: `V85 ${v} km/h`, soll: `≤ ${W.vMax} km/h (allenfalls ${W.vGrenze})` })
   },
   F7a: k => {
     const r = k.w('randabschluss'), W = K.F7a.werte
     if (r.art === 'hoch') return ja(true, { ist: 'hoher Randabschluss' })
     const h = k.s('randabschluss', 'hoeheMm')
-    if (r.art === 'vertikal') return ja(Math.abs(h - W.vertikal) > W.tol, { ist: `${h} vertikal`, soll: `${W.vertikal} ± ${W.tol}` })
+    if (r.art === 'vertikal') return ja(Math.abs(h - W.vertikal) > W.tol, { ist: `${h} mm vertikal`, soll: `${W.vertikal} ± ${W.tol} mm` })
     const b = k.s('randabschluss', 'breiteM')
     return ja(Math.abs(h - W.schraeg) > W.tol || b < W.bMin || b > W.bMax,
-      { ist: `${h} schräg auf ${fmt(b)} m`, soll: `${W.schraeg} ± ${W.tol} auf ${fmt(W.bMin)} bis ${fmt(W.bMax)} m` })
+      { ist: `${h} mm schräg auf ${fmt(b)} m`, soll: `${W.schraeg} ± ${W.tol} mm auf ${fmt(W.bMin)} bis ${fmt(W.bMax)} m` })
   },
   F7b: k => (k.w('randabschluss').art !== 'schraeg' ? null : ja(k.w('quergefaelle') > K.F7b.werte.max, { ist: `${k.w('quergefaelle')} %` })),
   F7c: k => {
@@ -471,9 +484,12 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const d = k.w('wunschlinieM'), W = K.G3.werte
     return ja(d > W.max, { ist: fmt(d, 1), soll: `≤ ${W.max}` })
   },
+  // Korrektur S8: nur verlangen, was nötig ist; mündet der Weg nicht direkt und verdeckt, sind Versatz und Schranke ohne Belang
   G3b: k => {
-    const f = k.w('fusswegAchse')
-    return ja(f.rechtwinkligUneinsehbar && !f.versatz && !f.umlaufschranke)
+    const f = k.o('fusswegAchse')
+    if (f === null) throw new Offen(['fusswegAchse.rechtwinkligUneinsehbar'])
+    if (!f.rechtwinkligUneinsehbar) return ja(false)
+    return ja(!k.s('fusswegAchse', 'versatz') && !k.s('fusswegAchse', 'umlaufschranke'))
   },
   G4: k => (k.w('signal411') ? ja(false) : ja(k.w('lage') !== 'knoten_belastet')),
   G4b: k => (!k.insBaulich() ? null : ja(!k.w('signal411Insel'))),
@@ -533,7 +549,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
   },
   H3b: k => {
     const S = hSollSicher(k), E = k.w('erkennungM'), f = K.H3b.werte.faktor
-    return ja(E >= S && E < f * S, { ist: fmt(E, 0), soll: `≥ ${fmt(f * S, 0)} (Soll)` })
+    return ja(E >= S && E < f * S, { ist: fmt(E, 0), soll: `≥ ${fmt(f * S, 0)} (doppelte Sichtweite)` })
   },
   H4: k => {
     // ohne Kurve (bzw. ohne Angabe zur Kurve) nicht anwendbar, nicht offen

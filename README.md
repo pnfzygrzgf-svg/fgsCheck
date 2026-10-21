@@ -240,7 +240,8 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
 - `src/fall.ts` – Fall-Datei (JSON) lesen, prüfen, schreiben; Eingaben für die Rechnung
 - `src/rechner/` – Rechnung (siehe oben), `worker.ts` (Web Worker), `index.ts` (Einstieg)
 - `src/App.tsx`, `src/Karte.tsx` – Panel und Leaflet-Karte (mit Knopf «Zum eigenen Standort»), `src/ausschnitt.ts` –
-  abgesuchte Ausschnitte der Übergangssuche, `src/Ortssuche.tsx` – Ortssuche über der Karte
+  abgesuchte Ausschnitte der Übergangssuche, `src/Ortssuche.tsx` – Ortssuche über der Karte; `src/Trenner.tsx` und
+  `src/panelbreite.ts` – ziehbarer Trenner zwischen Karte und Panel (360 px bis 70 % der Fensterbreite, in localStorage gespeichert)
 - `src/Einstieg.tsx` – Startseite oder Prüfung je nach Anker `#pruefen` (Zurück-Taste des Browsers geht; die Prüfung lädt
   erst beim Wechsel), `src/Startseite.tsx` – Startseite mit Beschreibung, Querverweisen und Datenspeicherung
 - `src/Bericht.tsx` – Bericht (Druckansicht, Kartenbild aus WMS + SVG), `src/Hilfe.tsx` – «So funktioniert's», Datenschutz,
@@ -258,6 +259,10 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   vorbelegt aus der Rechnung in `vorbelegung.ts`, Befundblatt aus `befundblatt.ts` auch im Bericht), Querung ohne Vortritt je
   Streifen mit der Sichtweite nach VSS 40 240 Z. 8.2 im Sichtrechner (`src/rechner/ohneVortritt.ts`); Fall-Dateien mit
   Bedarf-Eingaben (Block `bedarf`, je Unterfeld geprüft in `fallBedarf.ts`) bzw. mit einer Querung ohne Vortritt haben die Version 3.
+  Vorbelegung aus Geodaten (`vorbelegung.ts`, `src/daten/haltestellen.ts`, `verkehrsdaten.ts`, `geoportal.ts`): Bushaltestelle
+  (Geoportal Stadt Bern bzw. OSM, «keine» ohne Haltestelle im Umkreis von 50 m, sonst Hinweis), Strecke oder Zone (OSM-Tags der
+  Zufahrten), DTV (Bern: Geoportal, 16·Nt + 8·Nn; ohne Eintrag Annahme 500) und ein Hinweis zur Beleuchtung (OSM, ohne Wert); jede
+  Angabe nennt ihre Herkunft, eine Handeingabe überschreibt sie.
   Grundprüfung nach bfu MS.013-2025 (Big Five) in `grundpruefung.ts`: eigene Regeln der Gruppe B5 im Katalog (Tempo als
   Vorbedingung, Sicht und Erkennungsdistanz, Schutzinsel, Zweistreifigkeit, Beleuchtung, Fussgängerfrequenz, dazu DTV und
   Annäherungsbereich), Stärke nach dem Wortlaut der bfu, Normhinweis, wo die Norm anders wertet; je Punkt erfüllt, verletzt,
@@ -268,6 +273,16 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   ohne Angabe innerorts, Kurvenradius von Hand): verletzt nur sicher darunter, erfüllt nur sicher darüber, sonst offen.
   Feldhilfen in `feldhilfen.ts` (Knopf «?» je Feld im Panel): eigene Erklärung, Prüfungen mit Quelle automatisch aus dem Katalog,
   Bedeutung eines leeren Felds und Sichtbarkeitsbedingungen als Daten (`SICHTBAR`), geprüft vom Wächter `feldhilfen.test.ts`.
+  Themen und Verbindlichkeit in `themen.ts`: jede Regel hat genau ein Thema (`thema` im Katalog, Liste `THEMEN`; die Punkte der
+  Grundprüfung führen die bfu-Namen, ihr Thema steht daneben); das Befundblatt ordnet die Einträge nach Thema und Stärke, nennt je Eintrag die
+  Verbindlichkeit in Worten aus Ebene und Stärke (`verbindlichkeit`, z. B. «Pflicht (Norm)») und zählt in der Prüfübersicht
+  die geprüften Regeln (in Ordnung = `Befund.erfuellt`, offen, Befunde, Hinweise; nicht anwendbare zählen nicht).
+  Seit der Korrekturrunde heisst «in Ordnung» «ohne Befund» und gilt nicht für die zweite Stufe eines Regelpaars, deren erste
+  verletzt oder offen ist (`PAARE`); Weichen zählen nicht, «nicht geprüft» nennt den Grund. Verbindlichkeit als «Muss», «Soll» bzw.
+  «Hinweis» mit Ebene. Grundprüfung und Befundblatt zeigen eine Zeile je Punkt bzw. Eintrag (`kompakt.ts`), offene Angaben als
+  Frage je Feld (`FRAGEN` in `feldhilfen.ts`), Klick springt zum Feld.
+  Zuoberst im Abschnitt und im Bericht steht je Querung eine Zusammenfassung in drei Sätzen nach festen Vorlagen (`zusammenfassung.ts`:
+  Zulässigkeit und Empfehlung, Grundprüfung und wichtigste Befunde mit den Kurzformen `kurzsatz` des Katalogs, fehlende Angaben als Fragen).
 
 ## Datenschutz
 
@@ -285,7 +300,7 @@ IP-Adresse):
 | wms.geo.admin.ch, api3.geo.admin.ch | Luftbild ±30 m um den Übergang, Kartenbild des Berichts; Flugjahr der 1-km-Kachel |
 | geodienste.ch (AV-WFS) | Rechteck ±150 m um den Übergang (BBOX) |
 | Overpass: overpass.osm.ch, ersatzweise overpass-api.de, overpass.kumi.systems, overpass.private.coffee | Kartenausschnitt (Übergänge und Strassennamen) mit Rand (Suche, automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m |
-| map.bern.ch (nur Stadt Bern) | Rechteck ±150 m (amtliche Parkfelder, Baumkataster) |
+| map.bern.ch (nur Stadt Bern) | Rechteck ±150 m (amtliche Parkfelder, Baumkataster, Haltestellen, Verkehrsdaten) |
 | GoatCounter | Seitenaufruf ohne Cookies: Seitenpfad, Referrer, Bildschirmbreite, Browser und Betriebssystem, Sprache, Land (aus der IP-Adresse, die nicht gespeichert wird); zählt nicht auf localhost |
 
 Beim Planen ohne OSM-Übergang gelten die Ausschnitte um den Ladeort an den gezeichneten Streifen statt um den Übergang.
@@ -301,7 +316,7 @@ gesendet; die Dienste erhalten wie sonst nur den Kartenausschnitt dort. GitHub P
 | geodienste.ch, AV-WFS | Betriebsbestimmungen KGK: Fair Use WFS 10 Abfragen/min bei 1 MB; Web-Apps bis 10 000 Nutzende/Tag gelten als Fair Use; Quellenangabe nach den Bedingungen des Kantons | 2 Abfragen je Klick (Bodenbedeckung, Einzelobjekte), Antwort rund 0,5 MB (bis 0,7 MB); Abbruch beim nächsten Klick; Quellenangabe «Amtliche Vermessung, Kanton …, geodienste.ch» |
 | geo.admin.ch (WMTS, WMS, API) | Nutzung kostenlos ohne Registrierung, Fair Use (Web-Apps bis 20 000 Nutzende/Tag), keine Bots mit hoher Abfragedichte; Quellenangabe nach Datensatz | Kacheln nach Kartenansicht; je Klick 1 WMS-Bild (600 × 600 px) und 1 API-Abfrage; Bericht 1 WMS-Bild; Ortssuche 1 Abfrage nach 300 ms Tipp-Pause (ab 3 Zeichen, alte abgebrochen); «© swisstopo» |
 | Overpass | öffentliche Instanzen: unter rund 10 000 Abfragen und 1 GB pro Tag, bei 429 warten | 1 Abfrage je Suche bzw. Klick; automatische Suche erst 800 ms nach dem Verschieben, höchstens eine laufend, mindestens 2 s Abstand, schon abgesuchte Ausschnitte ohne neue Abfrage, Abfrage höchstens 4 km²; Ausweichserver nur bei Fehler, Wartezeit nach 429/5xx (Retry-After), danach Sperre für alle Abfragen (höchstens 120 s), höchstens 60 s gesamt |
-| map.bern.ch | Open Data Stadt Bern: freie Nutzung, Quellenangabe Pflicht | nur in Bern, 8 Abfragen (je Flächen-Typ) je Ort, Baumkataster auf Wunsch; «Geodaten Stadt Bern, …» |
+| map.bern.ch | Open Data Stadt Bern: freie Nutzung, Quellenangabe Pflicht | nur in Bern, 8 Abfragen (je Flächen-Typ) je Ort, Baumkataster auf Wunsch, dazu je 1 Abfrage Haltestellen und Verkehrsdaten (ArcGIS REST, zwischengespeichert); «Geodaten Stadt Bern, …» |
 
 Quellen der Bestimmungen: [geodienste.ch, Nutzungsbedingungen](https://www.geodienste.ch/terms-of-use);
 [BGDI/geo.admin.ch, Allgemeine Nutzungsbedingungen](https://www.geo.admin.ch/de/allgemeine-nutzungsbedingungen-bgdi);
@@ -317,6 +332,7 @@ Quellen der Bestimmungen: [geodienste.ch, Nutzungsbedingungen](https://www.geodi
 - Strassennetz und Übergänge: © OpenStreetMap-Mitwirkende, ODbL (Overpass API)
 - Baumkataster (optional, Bern): Geodaten Stadt Bern, Baumkataster
 - Amtliche Parkfelder (Bern, abschaltbar): Geodaten Stadt Bern, Parkplätze öffentlich
+- Haltestellen und Verkehrsdaten (Bern, Vorbelegung Bedarf): Geodaten Stadt Bern, Haltestellen bzw. Flächendeckende Verkehrsdaten
 - Polygon-Operationen: polygon-clipping (MIT)
 - Kartenbild im Bericht: SWISSIMAGE © swisstopo (WMS, mit Flugjahr)
 - Sichtweiten: VSS 40 241, Tab. 1 und Tab. 2; bfu 2.457.01 (nur die Zahlenwerte)

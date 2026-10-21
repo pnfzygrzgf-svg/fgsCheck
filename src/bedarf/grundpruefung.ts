@@ -18,7 +18,7 @@ import { Kontext, Offen } from './kontext'
 import { bfuDurchfahrtOk } from './durchfahrt'
 import { QUELLEN_ANNAHME, type BedarfEingaben } from './eingaben'
 import { feldName } from './felder'
-import type { RegelDef, Staerke } from './typen'
+import type { RegelDef, Staerke, Thema } from './typen'
 
 export type GrundZustand = 'erfuellt' | 'verletzt' | 'offen' | 'hinweis'
 
@@ -43,7 +43,10 @@ export interface GrundTeil {
 export interface GrundPunkt {
   /** T = Tempo (Vorbedingung), 1 bis 5 = Big Five */
   nr: 'T' | '1' | '2' | '3' | '4' | '5'
+  /** Name nach bfu (Sichtverhältnisse, Fussgängerschutzinsel …) */
   titel: string
+  /** Thema der erweiterten Prüfung (themen.ts), klein daneben */
+  thema: Thema
   zustand: GrundZustand
   staerke: Staerke | null
   teile: GrundTeil[]
@@ -312,7 +315,7 @@ const GRUND: Record<GrundId, GrundFn> = {
     if (k.o('insel')?.art !== 'baulich' || !k.insBaulich()) return null
     const d = k.w('durchfahrt'), W = K['B5-2c'].werte
     const schlecht = d.map((x, i) => [x, i] as const).filter(([x]) => !bfuDurchfahrtOk(x))
-    const x = { ist: `${d.map(v => fmt(v)).join(' / ')} m`, soll: `${fmt(W.d)} m (bis ${fmt(W.dTol)} m) oder ≥ ${fmt(W.dBreit)} m`,
+    const x = { ist: `${d.map(v => fmt(v)).join(' / ')} m`, soll: `${fmt(W.d)} m (bis ${fmt(W.dTol)} m) oder mindestens ${fmt(W.dBreit)} m`,
       detail: schlecht.length ? schlecht.map(([v, i]) => `Seite ${i + 1}: ${fmt(v)} m`).join('; ') : undefined }
     return schlecht.length ? verletzt({ ...x, normHinweis: hinweisDurchfahrt(schlecht.map(([v]) => v)) }) : ok(x)
   },
@@ -382,13 +385,14 @@ const NAME: Record<GrundId, string> = {
   'B5-W3': 'Fahrbahnhaltestelle',
 }
 
-const PUNKTE: { nr: GrundPunkt['nr']; titel: string; teile: GrundId[]; notizen?: GrundId[] }[] = [
-  { nr: 'T', titel: 'Tempo', teile: ['B5-T'] },
-  { nr: '1', titel: 'Sichtverhältnisse', teile: ['B5-1', 'B5-1b'], notizen: ['B5-1c'] },
-  { nr: '2', titel: 'Fussgängerschutzinsel', teile: ['B5-2a', 'B5-2b', 'B5-2c'] },
-  { nr: '3', titel: 'Zweistreifigkeit', teile: ['B5-3'] },
-  { nr: '4', titel: 'Beleuchtung', teile: ['B5-4'], notizen: ['B5-4b'] },
-  { nr: '5', titel: 'Fussgängerfrequenz', teile: ['B5-5'], notizen: ['B5-5b'] },
+/** Punkte: Name nach bfu (Nutzerentscheid Runde 2: bfu-Namen führen), Thema der erweiterten Prüfung daneben */
+const PUNKTE: { nr: GrundPunkt['nr']; thema: Thema; titel: string; teile: GrundId[]; notizen?: GrundId[] }[] = [
+  { nr: 'T', thema: 'zulaessigkeit', titel: 'Tempo', teile: ['B5-T'] },
+  { nr: '1', thema: 'sicht', titel: 'Sichtverhältnisse', teile: ['B5-1', 'B5-1b'], notizen: ['B5-1c'] },
+  { nr: '2', thema: 'insel', titel: 'Fussgängerschutzinsel', teile: ['B5-2a', 'B5-2b', 'B5-2c'] },
+  { nr: '3', thema: 'fahrstreifen', titel: 'Zweistreifigkeit', teile: ['B5-3'] },
+  { nr: '4', thema: 'beleuchtung', titel: 'Beleuchtung', teile: ['B5-4'], notizen: ['B5-4b'] },
+  { nr: '5', thema: 'nachfrage', titel: 'Fussgängerfrequenz', teile: ['B5-5'], notizen: ['B5-5b'] },
 ]
 const WEITERE: GrundId[] = ['B5-W1', 'B5-W2', 'B5-W3']
 
@@ -442,7 +446,7 @@ export function grundpruefung(e: BedarfEingaben, o: GrundOptionen = {}): Grundpr
     const staerke = verl.length ? verl.map(t => t.staerke!).sort((a, b) => RANG[b] - RANG[a])[0] : null
     const zustand: GrundZustand = verl.length ? 'verletzt' : teile.some(t => t.zustand === 'offen') ? 'offen'
       : teile.some(t => t.zustand === 'hinweis') ? 'hinweis' : 'erfuellt'
-    return { nr: p.nr, titel: p.titel, zustand, staerke, teile, notizen }
+    return { nr: p.nr, titel: p.titel, thema: p.thema, zustand, staerke, teile, notizen }
   })
   const weitere = WEITERE.map(id => teil(id, k, o)).filter((x): x is GrundTeil => x !== null)
   const annahmen = [...k.annahmen]

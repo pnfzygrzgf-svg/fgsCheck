@@ -153,7 +153,7 @@ describe('Eingaben bilden: Vorbelegung, Hand, Objekte', () => {
     expect(g.eingaben.insel.wert).toEqual(INSEL_KEINE)
     expect(g.eingaben.haltestelle.wert).toEqual({ art: null, lage: null, verdeckt: null, ueberholenUnterbunden: null })
     expect(g.eingaben.hvl.wert).toBeNull()
-    expect(g.hinweise).toEqual(['hvl: «Halteverbotslinie» fehlt; die übrigen Angaben dazu bleiben offen'])
+    expect(g.hinweise).toEqual(['Halteverbotslinie: «Halteverbotslinie» fehlt; die übrigen Angaben dazu bleiben offen'])
   })
   it('Fussgänger: Zählung vor Schätzklasse (Quelle Schätzung); Anrampung als Paar; Liste «keines»', () => {
     const k = eingabenBilden({}, { felder: { fgKlasse: { wert: '<100', quelle: 'schaetzung' }, 'q3.anrampung': { wert: [12, 0.8], quelle: 'hand' },

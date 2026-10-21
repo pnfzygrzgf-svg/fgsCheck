@@ -12,7 +12,7 @@ import { FELD_DEFS, feldName, gruppeVon } from './felder'
 import { begruendung, typText, type BefundBlatt } from './befundblatt'
 import { wertVon, type SichtKontext } from './feldhilfen'
 import { mitTiteln, nummernOhneTitel, regelName, regelTitel } from './regelname'
-import { BedarfAbschnitt, BefundblattAnzeige, FeldHilfe, GrundpruefungAnzeige } from '../BedarfPanel'
+import { BedarfAbschnitt, BefundblattAnzeige, FeldHilfe, GrundpruefungAnzeige, ZusammenfassungAnzeige, listeNeu } from '../BedarfPanel'
 import { leererFall } from '../fall'
 import type { RegelDef } from './typen'
 
@@ -84,7 +84,7 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
     for (const t of TESTFAELLE) for (const typ of TYPEN) for (const eb of [{ bern: false, kantonBE: false }, { bern: true, kantonBE: true }]) {
       const b = blatt(typ === undefined ? t.abw : { ...t.abw, typ }, eb)
       for (const html of [renderToStaticMarkup(<BefundblattAnzeige b={b} />), renderToStaticMarkup(<BefundblattAnzeige b={b} druck />),
-        renderToStaticMarkup(<GrundpruefungAnzeige g={b.grund} druck />)]) {
+        renderToStaticMarkup(<GrundpruefungAnzeige g={b.grund} druck />), renderToStaticMarkup(<ZusammenfassungAnzeige b={b} />)]) {
         n++
         for (const x of nummernOhneTitel(text(html))) fehler.add(`${t.regel} ${t.name}: ${x}`)
       }
@@ -107,6 +107,57 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
       }
     }
     expect([...fehler].slice(0, 20)).toEqual([])
+  })
+  it('Runde 2: Prüfübersicht, Themen, Verbindlichkeit (Muss/Soll), eine Zeile je Eintrag; Bericht ohne Liste der ohne Befund geprüften Regeln', () => {
+    const b = blatt({}, { bern: true, kantonBE: true })
+    const panel = text(renderToStaticMarkup(<BefundblattAnzeige b={b} />)).replace(/ :/g, ':')
+    const druck = text(renderToStaticMarkup(<BefundblattAnzeige b={b} druck />)).replace(/ :/g, ':')
+    for (const t of [panel, druck]) {
+      expect(t).toContain('Geprüft: 49 Regeln · ohne Befund 46 · offen 0 · Befunde 1 · Hinweise 2')
+      expect(t).toContain('Insel: 4 geprüft, 2 ohne Befund, 1 Befund, 1 Hinweis')
+      expect(t).toContain('Ohne Vortritt und Mehrzweckstreifen: nicht anwendbar')
+      expect(t).toContain('Insel nach Berner Tabelle · Soll (Standard Stadt Bern), Abweichung begründen · Schutzinsel vorgesehen (Tabelle Tempo × DTV) (Ist Tempo 50 km/h, DTV 8000 Fz/Tag: Ja)')
+      expect(t).toContain('Insel grundsätzlich anstreben · Hinweis (Norm) · Insel immer anstreben')
+      expect(t).toContain('verbindlich im Rechtssinn ist nur die Ebene Recht')
+      expect(t).not.toMatch(/Soll –|Pflicht|In Ordnung/)
+    }
+    expect(panel).toContain('Geprüft, ohne Befund: Insel bei breiter Fahrbahn (D2), Verzicht auf Insel bei wenig Verkehr (D2a)')
+    expect(druck).not.toContain('Geprüft, ohne Befund:')
+    // Thema Insel vor Lichtsignal, im Thema Soll vor Hinweis
+    expect(panel.indexOf('Insel nach Berner Tabelle ·')).toBeLessThan(panel.indexOf('Insel grundsätzlich anstreben ·'))
+    expect(panel.indexOf('Insel grundsätzlich anstreben ·')).toBeLessThan(panel.indexOf('Lichtsignal prüfen nach Berner Tabelle ·'))
+  })
+  it('Verdichtung: Grundprüfung eine Zeile je Punkt, Quelle einmal im Kopf, Nummern und Fundstellen nur in den Details; offene Angaben als Frage', () => {
+    const b = blatt({ beleuchtung: null, erkennungM: null }, { bern: false, kantonBE: false })
+    const html = renderToStaticMarkup(<GrundpruefungAnzeige g={b.grund} />)
+    const t = text(html).replace(/ :/g, ':')
+    const tabelle = text(html.slice(0, html.indexOf('<details'))).replace(/ :/g, ':')
+    expect(tabelle).toContain('Grundprüfung nach bfu MS.013-2025, Ziff. 2.1–2.3 (Big Five)')
+    expect(tabelle).toMatch(/① Sichtverhältnisse \(Sicht\) ✓ erfüllt .*\(Erkennungsdistanz nicht angegeben\)/)
+    expect(tabelle).toContain('④ Beleuchtung ? offen → Ist die Querung nachts beleuchtet?')
+    expect(tabelle).not.toMatch(/B5-|bfu MS\.013:2025 Ziff/)
+    expect(t).toContain('Doppelte Erkennungsdistanz (B5-1b)')
+  })
+  it('Korrektur S7: Weichen stehen nicht als Einträge im Thema, sondern als Zeile «Zum Ablauf»; Trottoirüberfahrt «nicht anwendbar» ohne B3 darunter', () => {
+    const b = blatt({ lage: null }, { bern: false, kantonBE: false })
+    expect(b.befund.alle.some(x => x.id === 'B3' && x.zustand === 'offen')).toBe(true)
+    const t = text(renderToStaticMarkup(<BefundblattAnzeige b={b} />)).replace(/ :/g, ':')
+    expect(t).not.toMatch(/Querung über eine Seitenstrasse ·/)
+    const e = blatt({ lage: 'einmuendung' }, { bern: false, kantonBE: false })
+    const te = text(renderToStaticMarkup(<BefundblattAnzeige b={e} />)).replace(/ :/g, ':')
+    expect(te).toContain('Zum Ablauf (nicht gezählt) i Querung über eine Seitenstrasse · Hinweis (Norm) · Trottoirüberfahrt zusätzlich prüfen')
+    // Fundstelle in den Details (Panel) bzw. als kleine Zeile (Bericht)
+    expect(te).toMatch(/Querung über eine Seitenstrasse \(B3\) · VSS 40 240:2025-07 Z. 16/)
+    const td = text(renderToStaticMarkup(<BefundblattAnzeige b={e} druck />)).replace(/ :/g, ':')
+    expect(td).toMatch(/Querung über eine Seitenstrasse \(B3\) · VSS 40 240:2025-07 Z. 16/)
+    // im Thema Trottoirüberfahrt steht B3 nicht
+    const thema = te.slice(te.indexOf('Trottoirüberfahrt ('), te.indexOf('Zum Ablauf'))
+    expect(thema).not.toContain('Querung über eine Seitenstrasse')
+  })
+  it('Korrektur S4: vorbelegte Liste ohne Häkchen ist eine Handeingabe «keines», ohne Vorbelegung offen', () => {
+    expect(listeNeu([], true)).toEqual([])
+    expect(listeNeu([], false)).toBeNull()
+    expect(listeNeu(['schule'], true)).toEqual(['schule'])
   })
   it('Gegenprobe: eine nackte Nummer im gerenderten Text wird erkannt', () => {
     expect(nummernOhneTitel(text(renderToStaticMarkup(<p>Offen: <b>D1</b>, G2</p>)))).toHaveLength(2)

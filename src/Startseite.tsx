@@ -66,7 +66,7 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
           <li>Eingaben merkt sich der Browser je Übergang (lokaler Speicher), nur wenn etwas eingegeben wurde; «Eingaben
             verwerfen» löscht sie. Von geplanten Streifen ohne OSM-Übergang merkt er nur den zuletzt bearbeiteten Fall («Letzten
             geplanten Fall wiederherstellen»); sichern Sie ihn mit «Fall speichern». Die Fall-Datei und der PDF-Bericht werden
-            lokal gespeichert, ohne Upload.</li>
+            lokal gespeichert, ohne Upload. Auch die gewählte Breite des rechten Bereichs merkt sich der Browser.</li>
           <li>Für Karte und Rechnung fragt die App den Kartenausschnitt bei swisstopo, geodienste.ch, OpenStreetMap
             (Overpass) und in Bern bei map.bern.ch ab; gesendet werden nur Koordinaten des Ausschnitts. Den Suchbegriff der
             Ortssuche erhält swisstopo; der eigene Standort bleibt im Browser.</li>

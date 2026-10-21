@@ -7,6 +7,7 @@ import { ECK_GROSS_M, RUNDEN_R_VORGABE, RUNDEN_R_BEREICH } from './rechner/planf
 import { E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M, INSEL_TIEFE_MIN_M } from './rechner/standardinsel'
 import { AHS_40240 } from './bedarf/tabellen'
 import { KATALOG } from './bedarf/katalog'
+import { THEMEN } from './bedarf/themen'
 import { REICHWEITE_SICHT_M } from './rechner/ohneVortritt'
 
 const F3 = KATALOG.F3.werte, F3B = KATALOG['F3-B'].werte
@@ -28,7 +29,8 @@ export function Anleitung() {
           Standort-Knopf unter den Zoom-Knöpfen zum eigenen Standort springen. Die Übergänge im Ausschnitt erscheinen nach dem
           Verschieben bzw. Zoomen von selbst, mit den Strassennamen aus OSM (ab Massstab 1:10 000; weiter draussen: «Zum Suchen
           näher heranzoomen»). Oben
-          rechts in der Ebenenwahl lässt sich der Hintergrund umschalten: Luftbild oder Landeskarte (mit Strassennamen).</li>
+          rechts in der Ebenenwahl lässt sich der Hintergrund umschalten: Luftbild oder Landeskarte (mit Strassennamen). Der Trenner
+          zwischen Karte und rechtem Bereich lässt sich ziehen (bzw. mit den Pfeiltasten verschieben); die Breite bleibt gespeichert.</li>
         <li><b>Übergang wählen:</b> einen Punkt anklicken. Gelb: Fussgängerstreifen in OSM, gelb gestrichelt: vermutlich, violett: Lichtsignal, grau: kein
           Fussgängerstreifen. Die App lädt Amtliche Vermessung, OSM und das Luftbild und rechnet im Browser. Den Streifen sucht sie im Luftbild, sonst bildet sie ihn aus OSM und AV. Um den Übergang
           stehen danach die genaueren Strassennamen aus diesem Abruf (Ebene «Strassennamen (OSM)»).</li>
@@ -123,14 +125,40 @@ export function Anleitung() {
           Ziffern und eigene Kurztexte). Die Eingaben stehen nach Blöcken (Rahmen, Nachfrage, Verkehr, Lage, Insel, Ausrüstung,
           LSA-Zeiten, Trottoirüberfahrt): vorbelegt ist, was die Rechnung schon kennt (Querungsart der Streifen, Lichtsignal, Tempo,
           innerorts als Annahme bis 50 km/h, Fahrbahnbreite und Querdistanzen nach den Bordkanten, Fahrstreifen nach OSM, Insel aus der
-          Teilung bzw. der Mittelinsel (Standard), Radstreifen, Tram nach OSM), mit Quelle; eine Eingabe von Hand überschreibt den Wert
+          Teilung bzw. der Mittelinsel (Standard), Radstreifen, Tram nach OSM), mit Quelle. Aus Geodaten kommen dazu die Bushaltestelle
+          («keine», wenn im Umkreis von 50 m um den Streifen keine liegt; sonst ein Hinweis mit Name und Abstand), Strecke oder Zone
+          (nur mit Zonenangabe in OSM), in der Stadt Bern der DTV aus den Verkehrsdaten des Geoportals (Strassen ohne Eintrag:
+          500 als Annahme) und ein Hinweis zur Beleuchtung nach OSM (das Feld bleibt offen); jede Angabe nennt ihre Herkunft (Geoportal
+          Stadt Bern bzw. OSM). Eine Eingabe von Hand überschreibt den Wert
           («zurück» stellt die Vorbelegung wieder her), wählbar als von Hand, Schätzung oder Annahme. Fussgänger lassen sich als
           Schätzklasse (unter 100, 100 bis 500, über 500 in den 5 Spitzenstunden) angeben; eine Zählung geht vor. Leere Felder sind
-          «offen» und zählen nie als erfüllt. Das Befundblatt nennt den empfohlenen Querungstyp mit kurzer Begründung und Ziffern, rot
-          die Pflichtverletzungen und was nur mit verkehrstechnischem Bericht geht, gelb die Empfehlungen, die Hinweise, offene Punkte
-          nach fehlender Eingabe, nicht geprüfte Blöcke und die Masse Soll/Ist. Die Ebenen Bern (Masterplan, Handbuch LSA) und Kanton BE
-          (Arbeitshilfe) stehen gesondert und lassen sich schalten; vorgegeben sind sie nach der Gemeinde bzw. dem Kanton der AV am
-          Streifen. Die Sicht übernimmt das Befundblatt aus dem Sichtrechner (frei bzw. verdeckt je Zufahrt), ausser eine vorhandene
+          «offen» und zählen nie als erfüllt. Das Befundblatt nennt den empfohlenen Querungstyp mit kurzer Begründung und Ziffern, die
+          Einträge nach Thema, offene Angaben nach Block der Maske, nicht geprüfte Blöcke und die Masse Soll/Ist. Die Ebenen Bern
+          (Masterplan, Handbuch LSA) und Kanton BE (Arbeitshilfe) lassen sich schalten; vorgegeben sind sie nach der Gemeinde bzw. dem
+          Kanton der AV am Streifen. <b>Zusammenfassung:</b> zuoberst steht je Querung ein Absatz in drei Sätzen: ob ein
+          Fussgängerstreifen zulässig ist und welche Querung empfohlen wird, das Wichtigste aus Grundprüfung und Befunden (Muss vor Soll,
+          höchstens zwei genannt) und welche Angaben noch fehlen. Die Sätze folgen festen Vorlagen aus den Befunden, ohne eigene
+          Wertung; die Fragen darin springen wie überall zum Feld. <b>Ablauf:</b> Vorbelegt ist, was die Rechnung kennt; alles Übrige von Hand
+          eingeben. Offene Angaben erscheinen als Frage («Ist die Querung nachts beleuchtet?»); ein Klick auf die Frage springt zum
+          Feld und öffnet dazu die Aufklapper. Findet die App einen Anhaltspunkt ohne Wert (z. B. eine Strassenlampe in OSM), steht er beim offenen Feld. Der Knopf «?» bei jedem Feld erklärt es (was gemeint ist, welche Prüfungen es braucht,
+          was leer bedeutet). <b>Eine Zeile je Punkt bzw. Eintrag:</b> Symbol, Kurztitel, Verbindlichkeit und ein Satz mit Ist und
+          Soll; Regelnummer, Fundstelle und Normhinweis stehen hinter «Details» (im Bericht klein darunter). <b>Themen:</b> jede Regel
+          gehört zu genau einem Thema in Alltagssprache ({THEMEN.map(t => t.name).join(', ')}); die Punkte der Grundprüfung führen die
+          Namen der bfu, ihr Thema steht klein daneben. Im Thema stehen zuerst die Muss-Regeln, dann was nur mit Bericht abweichen
+          darf, die Soll-Regeln, die Hinweise und zuletzt das Offene. <b>Verbindlichkeit in Worten</b> nach dem Wortlaut der Quelle und
+          der Ebene: «Muss (Norm)», «Muss (Norm), Abweichung nur mit verkehrstechnischem Bericht», «Soll (Norm), Abweichung
+          begründen», «Hinweis (Richtlinie)»; Ebenen Recht, Norm, Standard Stadt Bern, Arbeitshilfe Kanton Bern, Richtlinie, bei
+          Projektentscheiden «Projektentscheid fgsCheck». Norm, Standard und Arbeitshilfe sind keine Gesetze; verbindlich im
+          Rechtssinn ist nur die Ebene Recht. Ein Symbol (✗, !, i, ?) steht davor, die Farbe ist nur Zusatz. <b>Prüfübersicht:</b>
+          «Geprüft: … Regeln · ohne Befund … · offen … · Befunde … · Hinweise …», aufklappbar je Thema mit den Regeln, die geprüft
+          und ohne Befund sind. Geprüft heisst: die Regel greift im Fall; ohne Befund: geprüft und nicht verletzt (nicht bei der
+          zweiten Stufe einer Regel, deren erste Stufe verletzt oder offen ist, z. B. Regelbreite nach Mindestbreite); Befunde: Muss
+          bzw. Soll nicht erfüllt; offen: Angabe fehlt. Nicht gezählt werden Verzweigungen des Ablaufs (z. B. «Querung ausserorts»).
+          «Nicht geprüft» heisst, die Regel könnte gelten, aber eine Angabe fehlt oder der Ablauf endet vorher (z. B. «Ortslage
+          fehlt», «Baum endet: Begegnungszone», «Querungstyp fehlt», Ebene ausgeschaltet); «nicht anwendbar», sie gilt im Fall nicht.
+          Eine frei geprüfte Sicht zählt nur als ohne Befund, wenn das Soll nach dem richtigen Tempo gerechnet ist (bei Anzeichen für
+          schnelleres Fahren nach der gemessenen V85). Von Hand gestrichene Zufahrten nennt die Übersicht. Im Bericht steht die
+          Übersicht mit den Themenzeilen, ohne die Liste. Die Sicht übernimmt das Befundblatt aus dem Sichtrechner (frei bzw. verdeckt je Zufahrt), ausser eine vorhandene
           Sichtweite ist von Hand eingegeben. <b>Querung ohne Vortritt:</b> je Streifen unter «Querung» Furt (Insel ohne Balken) bzw.
           Nase, Einengung oder ohne bauliche Massnahme wählen: der Streifen erscheint ohne Balken (weiss gestrichelt), geprüft wird mit
           der Sichtweite nach VSS 40 240 Z. 8.2, max(v · L / 1,2 m/s; Anhaltesichtweite {Object.entries(AHS_40240).map(([t, sw]) =>
@@ -152,7 +180,7 @@ export function Anleitung() {
           30/40/50/60 km/h, im Knoten nach Kurvenradius bis 20 m {B5S.r5}/{B5S.r10}/{B5S.r15}/{B5S.r20} m) und Erkennungsdistanz, ② Schutzinsel
           (über 8,50 m Fahrbahn empfohlen, Tiefe mindestens 1,50 m, besser 2,00 m, Durchfahrt 3,50 m oder ab 4,50 m), ③ höchstens ein
           Fahrstreifen je Richtung ohne Insel, ④ Beleuchtung, ⑤ mindestens 100 Querende in den 5 Spitzenstunden. Jeder Punkt ist
-          erfüllt (✓), nicht erfüllt (✗ rot Pflicht, ! gelb Empfehlung), offen (?) oder ein Hinweis (i), mit Ist und Soll. Die
+          in einer Zeile erfüllt (✓), nicht erfüllt (✗ Muss, ! Soll), offen (?) oder ein Hinweis (i), mit einem Satz bzw. der offenen Frage; die Muss-Regel des Punkts bestimmt den Zustand, eine offene oder nicht erfüllte Soll-Regel steht in Klammern. Nummern, Fundstellen, Normhinweise und feste Hinweise stehen unter «Details». Die
           Grundprüfung gilt nur für Fussgängerstreifen ohne Lichtsignal und läuft unabhängig von den Ebenen; wo die Norm anders
           wertet, steht ein Normhinweis. Darunter ihre Eingaben; das vollständige Befundblatt und die übrigen Eingaben stehen
           aufklappbar unter «Erweiterte Prüfung». Im Bericht steht die Grundprüfung vor dem Befundblatt. Unter den weiteren
@@ -209,7 +237,7 @@ export function Datenschutz() {
           Übergang (Streifen von Hand verschoben bzw. in einer Fall-Datei weit vom Übergang), merkt die App ihn unter
           «fgsCheck.fall.ort» und entfernt danach den Eintrag des Übergangs. «Eingaben verwerfen» bzw. das Löschen aller Eingaben entfernt den Eintrag des
           Übergangs; alle Einträge löschen Sie über die Website-Daten dieser Seite in den Browser-Einstellungen. An keinen Dienst
-          gehen Eingaben oder Ergebnisse.</li>
+          gehen Eingaben oder Ergebnisse. Die Breite des rechten Bereichs (Trenner) steht unter «fgsCheck.panelBreite».</li>
         <li>Der Browser holt die Daten direkt bei diesen Diensten; sie sehen dabei technisch die IP-Adresse und Browserangaben:
           <ul>
             <li>swisstopo (geo.admin.ch): Kartenkacheln (Luftbild bzw. Landeskarte) des sichtbaren Ausschnitts (wmts.geo.admin.ch),
@@ -221,7 +249,7 @@ export function Datenschutz() {
               Übergang bzw. die geplanten Streifen; Server {erster}
               (Swiss OpenStreetMap Association), bei Störung ersatzweise {weitere.join(', ')}.</li>
             <li>map.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern: Rechteck ±150 m für amtliche Parkfelder bzw. den
-              Baumkataster.</li>
+              Baumkataster, Haltestellen und Verkehrsdaten.</li>
           </ul>
           Der eigene Standort (Standort-Knopf) wird nur im Browser ermittelt und auf der Karte gezeigt, nicht gespeichert und
           nicht gesendet; die Dienste erhalten wie sonst nur den Kartenausschnitt.</li>

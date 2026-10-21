@@ -24,6 +24,15 @@ export type RegelArt = 'befund' | 'weiche' | 'aggregat' | 'verweis' | 'gestriche
 /** Gruppen des Entscheidbaums (Skizze Abschnitt 3); B5 = Grundprüfung nach bfu (Big Five, eigenes Modul grundpruefung.ts) */
 export type Gruppe = 'A' | 'B' | 'C' | 'D' | 'E' | 'Q3' | 'F' | 'G' | 'H' | 'I' | 'B5'
 
+/**
+ * Thema einer Regel in Alltagssprache (Runde 2, Nutzerentscheid 20.10.2026): ordnet Befundblatt und Prüfübersicht. Namen,
+ * Umfang und Anzeigereihenfolge in themen.ts (THEMEN); die Themen der Grundprüfung (Sicht, Insel, Fahrstreifen und Verkehr,
+ * Beleuchtung, Nachfrage) heissen dort gleich.
+ */
+export type Thema =
+  | 'zulaessigkeit' | 'nachfrage' | 'sicht' | 'insel' | 'fahrstreifen' | 'lage' | 'ausruestung' | 'beleuchtung' | 'lichtsignal'
+  | 'trottoirueberfahrt' | 'ohneVortritt'
+
 /** Werk einer Quelle (Kürzel aus WERKE in katalog.ts) mit Ziffer, Kapitel, Seite oder Tabelle */
 export interface QuelleRef { werk: string; ziffer: string }
 
@@ -33,6 +42,8 @@ export interface RegelDef {
   /** Kurztitel in Alltagssprache (worum es geht, nicht das Ergebnis); in der Oberfläche statt der Nummer allein */
   titel: string
   gruppe: Gruppe
+  /** Thema (Pflicht): genau eines je Regel, Anzeige nach Thema */
+  thema: Thema
   art: RegelArt
   /** null nur bei aggregat, verweis, gestrichen */
   ebene: Ebene | null
@@ -46,6 +57,12 @@ export interface RegelDef {
   bedingung: string
   /** Ergebnis: eigener Kurztext, kein Normtext */
   ergebnis: string
+  /**
+   * Kurzform für die Zusammenfassung (Runde 3, zusammenfassung.ts): Stichwort in Alltagssprache, das sich in eine Aufzählung fügt
+   * («Streifen zu schmal (2,80 m statt mindestens 3,00 m)»); Platzhalter {ist}, {soll} (mit Einheit, «≥» als «mindestens») und
+   * {w:Schlüssel} (Schwelle aus werte). Fehlt sie, bildet die Zusammenfassung Kurztitel mit Ist und Soll.
+   */
+  kurzsatz?: string
   quellen: readonly QuelleRef[]
   bemerkung?: string
   /** Hinweis auf die Norm, der im Befund mitgeht (z. B. bei Regeln aus Berner Unterlagen) */
@@ -148,6 +165,15 @@ export interface Befund {
   annahmen: string[]
   /** ausgewertete Regeln (auch ohne Befund) */
   ausgewertet: string[]
+  /**
+   * angewendete Regeln ohne Eintrag: Bedingung geprüft und nicht verletzt (Prüfübersicht «in Ordnung»). Nicht darin: Regeln, die
+   * hier nicht anwendbar sind (Ergebnis null), und Regeln, die nur still für die Empfehlung ausgewertet wurden
+   */
+  erfuellt: string[]
+  /** Regeln ausgeschalteter Ebenen, die mit eingeschalteter Ebene anwendbar wären (Prüfübersicht «nicht geprüft (Ebene ausgeschaltet)») */
+  ebeneAus: string[]
+  /** fehlende Felder je offener Regel, auch still ausgewerteter (für die Fragen hinter «vorläufig»; Korrektur M3) */
+  offenFelder: Record<string, string[]>
   /** offene Einträge nach fehlendem Feld gruppiert (häufigstes Feld zuerst) */
   offenGruppen: { feld: string; regeln: string[] }[]
   /** Blöcke, die mangels Eingaben nicht ausgewertet wurden (je ein Hinweis statt vieler offener Regeln) */

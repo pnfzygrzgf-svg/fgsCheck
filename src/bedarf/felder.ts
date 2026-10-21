@@ -230,7 +230,7 @@ export const OBJEKTE: { readonly [K in ObjektFeld]: { pflicht: readonly string[]
   insel: { pflicht: ['vorhanden'] },
   haltestelle: { pflicht: ['art'] },
   hvl: { pflicht: ['vorhanden'] },
-  fusswegAchse: { pflicht: ['rechtwinkligUneinsehbar', 'versatz', 'umlaufschranke'] },
+  fusswegAchse: { pflicht: ['rechtwinkligUneinsehbar'] },
   randabschluss: { pflicht: ['art'] },
   kurve: { pflicht: ['fuenfBedingungen'] },
   lsaZeiten: { pflicht: [] },

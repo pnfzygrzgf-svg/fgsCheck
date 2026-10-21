@@ -53,7 +53,7 @@ export const UNTERFELDER: Partial<Record<RegelId, readonly string[]>> = {
   F7a: ['randabschluss.art', 'randabschluss.hoeheMm', 'randabschluss.breiteM'], F7b: ['randabschluss.art'],
   G3b: ['fusswegAchse.rechtwinkligUneinsehbar', 'fusswegAchse.versatz', 'fusswegAchse.umlaufschranke'],
   G7: ['hvl.vorhanden', 'hvl.laengeM', 'hvl.beidseits'], G7b: ['hvl.vorhanden'],
-  H1: ['kurve.fuenfBedingungen', 'kurve.radius'], H2: ['kurve.fuenfBedingungen', 'kurve.radius'],
+  H1: ['kurve.fuenfBedingungen', 'kurve.radius'], 'D5-4': ['kurve.fuenfBedingungen', 'kurve.radius', ...IV], H2: ['kurve.fuenfBedingungen', 'kurve.radius'],
   H3a: ['kurve.fuenfBedingungen', 'kurve.radius'], H3b: ['kurve.fuenfBedingungen', 'kurve.radius'], H4: ['kurve.radius'],
   'B5-1': ['kurve.radius'], 'B5-1b': ['kurve.radius'],
   'I6-B': ['insel.vorhanden'], 'I7-B2': ['insel.vorhanden'], 'I7-B3': ['insel.vorhanden'], I8: ['insel.vorhanden'],
@@ -99,6 +99,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     was: 'Strecke: gewöhnliche Strasse ohne Zonentafel. Zone: die Querung liegt in einer signalisierten Tempo-30-Zone bzw. ' +
       'Begegnungszone. Eine Hauptstrasse, die nicht zur Zone gehört, ist eine Strecke, auch mit Tempo 30. In der Tempo-30-Zone ist ' +
       'ein Fussgängerstreifen nur mit besonderem Grund erlaubt, in der Begegnungszone nie.',
+    vorschlag: 'aus OSM (zone:maxspeed bzw. maxspeed der geraden Zufahrten); Tempo 30 ohne Zonenangabe bleibt offen.',
   },
   v85: {
     was: 'Das Tempo, das 85 von 100 Fahrzeugen nicht überschreiten, aus einer Messung. Beispiel: signalisiert 50 km/h, gemessen ' +
@@ -160,6 +161,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     was: 'Ankreuzen, wenn eine Schule, ein Kindergarten, ein Heim oder eine Haltestelle nahe liegt bzw. ein Schulweg hier quert. ' +
       'Ein solcher Grund erlaubt einen Streifen auch in einer Tempo-30-Zone bzw. bei wenig Querenden.',
     leer: 'Leer: offen, die genannten Prüfungen bleiben offen. Gibt es keinen solchen Grund, «keines» ankreuzen.',
+    vorschlag: '«Haltestelle» als Annahme, wenn eine Haltestelle höchstens 50 m vom Streifen liegt (Geoportal Stadt Bern bzw. OSM).',
   },
   nachfrage: {
     was: 'Gebündelt: die Leute queren an einer Stelle. Verteilt: sie queren überall entlang einer längeren Strecke (z. B. ' +
@@ -181,6 +183,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     was: 'Durchschnittlicher täglicher Verkehr: Motorfahrzeuge pro Tag in beiden Richtungen im Jahresmittel, z. B. aus einer ' +
       'Verkehrszählung von Kanton oder Stadt.',
     ablauf: 'Unter 3000 Fahrzeugen nennt die Empfehlung auch die Querung ohne bauliche Massnahme.',
+    vorschlag: 'in der Stadt Bern aus den Verkehrsdaten des Geoportals; Strassen ohne Eintrag 500 als Annahme; sonst offen.',
   },
   starkBelastet: {
     was: 'Ja, wenn die Strasse nach eigener Einschätzung stark befahren ist (die Norm nennt keine Zahl). Dann ist ein Lichtsignal ' +
@@ -247,6 +250,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   'haltestelle.art': {
     was: 'Ob eine Bushaltestelle an der Querung liegt: der Bus hält auf der Fahrbahn oder in einer Bucht daneben.',
     leer: 'Leer: die Prüfungen zur Haltestelle bleiben offen. «keine» wählen, wenn keine Bushaltestelle in der Nähe ist.',
+    vorschlag: '«keine», wenn im Umkreis von 50 m um den Streifen keine Haltestelle liegt (Geoportal Stadt Bern bzw. OSM); sonst offen mit Hinweis.',
   },
   'haltestelle.lage': {
     was: 'Wo die Querung im Verhältnis zum haltenden Bus liegt. Üblich ist hinter dem Haltebereich, damit der abfahrende Bus nicht ' +
@@ -682,7 +686,6 @@ export const GELTUNG: Partial<Record<RegelId, Bedingung>> = {
   // D1, D1b, D2, D2a, D3a bestimmen die Empfehlung auch bei anderen Typen
   D1: NICHT_LSA_K, D2: kann('zweirichtung', true), D2a: kann('zweirichtung', true), D2c: FGS_ARTIG_K,
   D3a: alle(kann('tram', 'eigentrassee'), NICHT_LSA_K), D3b: alle(FGS_ARTIG_K, kann('tram', 'eigentrassee')),
-  D3c: alle(FGS_ARTIG_K, kann('tram', 'eigentrassee', 'fahrbahn')),
   D4a: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn', 'bucht')), D4c: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn', 'bucht')),
   D4b: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn')), 'D4-R': alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn')),
   D4d: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn'), kann('haltestelle.lage', 'fgs_nach_halt')),
@@ -820,4 +823,180 @@ export function leerText(pfad: string): string {
   const n = bezuege(pfad).length
   return `Leer: offen; ${n === 1 ? 'die genannte Prüfung meldet' : 'die genannten Prüfungen melden'} «offen» und ` +
     'zählen nie als erfüllt. Keine Pflicht, aber jede Angabe macht das Ergebnis vollständiger.'
+}
+
+// ── Fragen je Feld (Runde 2, Verdichtung): offene Angaben als Frage in Alltagssprache statt Feldname ──
+// Je Feld der Maske eine eigene Frage (Wächter: jedes Feld hat eine, mit Fragezeichen); dazu Objekt-Felder und Sonderfälle, wie sie
+// als fehlende Felder im Befund erscheinen. Klick auf die Frage springt im Panel zum Feld (feldZiel).
+export const FRAGEN: Readonly<Record<string, string>> = {
+  // Rahmen
+  typ: 'Welche Art Querung wird beurteilt?',
+  innerorts: 'Liegt die Querung innerhalb der Ortstafeln?',
+  vSig: 'Welches Tempo ist hier signalisiert?',
+  tempoRegime: 'Liegt die Strasse in einer Tempo-30- oder Begegnungszone?',
+  v85: 'Wie schnell fahren hier 85 % der Fahrzeuge (V85)?',
+  v85Nachweis: 'Ist das gefahrene Tempo (V85) gemessen?',
+  anzeichenSchneller: 'Gibt es Anzeichen, dass hier schneller als erlaubt gefahren wird?',
+  strassentyp: 'Ist es eine Durchgangsstrasse oder eine Quartierstrasse?',
+  ohneBaulich: 'Ist die Querung ganz ohne bauliche Hilfe (ohne Nase, Einengung, Anhebung)?',
+  neuanlage: 'Wird das Lichtsignal neu gebaut?',
+  kantonsstrasse: 'Ist es eine Kantonsstrasse?',
+  // Nachfrage
+  fg5h: 'Wie viele Personen queren hier in den 5 Spitzenstunden?',
+  fgKlasse: 'Wie viele Personen queren hier ungefähr in den 5 Spitzenstunden?',
+  fgSehrHoch: 'Queren hier so viele Personen, dass sie den Verkehr aufhalten?',
+  netz: 'Gehört die Querung zum Berner Fusswegnetz, und zu welcher Stufe?',
+  netzQualifiziert: 'Ist die Querung Teil einer amtlichen Fusswegnetzplanung?',
+  beduerfnis: 'Gibt es einen besonderen Grund für Vortritt (Schule, Kindergarten, Heim, Haltestelle, Schulweg)?',
+  nachfrage: 'Queren die Leute an einer Stelle gebündelt oder verteilt über die Strecke?',
+  wunschlinieM: 'Wie weit liegt die Querung neben der Linie, auf der die Leute queren möchten?',
+  'fusswegAchse.rechtwinkligUneinsehbar': 'Mündet ein Fussweg direkt und verdeckt auf den Streifen?',
+  'fusswegAchse.versatz': 'Kommt der verdeckt mündende Fussweg seitlich versetzt zum Streifen an?',
+  'fusswegAchse.umlaufschranke': 'Hat der verdeckt mündende Fussweg am Ende eine Umlaufschranke?',
+  // Verkehr
+  dtv: 'Wie viele Fahrzeuge fahren hier pro Tag (DTV)?',
+  starkBelastet: 'Ist die Strasse stark befahren?',
+  mivKlasse: 'Wie viel Autoverkehr fährt an der Einengung?',
+  zweirichtung: 'Gibt es Gegenverkehr (keine Einbahnstrasse)?',
+  nRichtung: 'Wie viele Fahrstreifen gibt es je Richtung (mit Busstreifen)?',
+  radstreifen: 'Gibt es an der Querung einen Radstreifen?',
+  busspur: 'Gibt es an der Querung einen Busstreifen?',
+  busDurchmarkiert: 'Sind die Balken auch über den Busstreifen markiert?',
+  tram: 'Fährt hier ein Tram, und auf eigenem Gleis oder auf der Fahrbahn?',
+  tramHaltestellenbereich: 'Liegt die Querung bei einer Tramhaltestelle?',
+  balkenAufGleis: 'Sind die Balken auch auf den Gleisen markiert?',
+  // Lage
+  lage: 'Liegt die Querung auf der Strecke, an einer Kreuzung, an einer Einmündung oder am Kreisel?',
+  knotenArmeOhneQuerung: 'Wie viele Arme der Kreuzung haben keine Querung?',
+  knotenLsa: 'Hat die Kreuzung ein Lichtsignal für den Verkehr?',
+  alleZufahrtsstreifenBelastet: 'Müssen an dieser Zufahrt alle Fahrstreifen den Vortritt gewähren?',
+  fahrbahnB: 'Wie breit ist die Fahrbahn von Bordstein zu Bordstein?',
+  querdistanzL: 'Wie lang ist jede Teilquerung?',
+  abstandFgsM: 'Wie weit ist der nächste Fussgängerstreifen entfernt?',
+  abstandLsaM: 'Wie weit ist das nächste Lichtsignal entfernt?',
+  verzweigung: 'Liegt die Querung an einer Kreuzung oder Einmündung?',
+  verzweigungErkennbar: 'Ist die Kreuzung mit Lichtsignal gut als Kreuzung erkennbar?',
+  haltestelleAngrenzend: 'Grenzt eine Bus- oder Tramhaltestelle direkt an die Querung?',
+  'haltestelle.art': 'Hält an der Querung ein Bus – auf der Fahrbahn oder in einer Bucht?',
+  'haltestelle.lage': 'Liegt die Querung, in Fahrtrichtung des Busses gesehen, hinter, vor oder mitten im Haltebereich?',
+  'haltestelle.verdeckt': 'Verdeckt ein haltender Bus die Querenden?',
+  'haltestelle.ueberholenUnterbunden': 'Ist das Überholen des haltenden Busses verhindert?',
+  rueckversatzM: 'Wie weit liegt die Querung von der Kreuzung zurück?',
+  laengsparkierung: 'Wird an der Querung längs parkiert?',
+  seitenraumVorParklinieM: 'Wie weit ist das Trottoir über die Parkreihe vorgezogen?',
+  einengung: 'Gibt es an der Querung eine Nase oder Einengung?',
+  restbreiteM: 'Wie breit ist die Fahrbahn an der engsten Stelle?',
+  einengungLaengeM: 'Wie lang ist die Einengung?',
+  mzsBreiteM: 'Wie breit ist der Mehrzweckstreifen?',
+  mzsMitFgs: 'Führt ein Fussgängerstreifen über den Mehrzweckstreifen?',
+  'kurve.radius': 'Wie eng ist die Kurve vor der Querung (Radius)?',
+  'kurve.fuenfBedingungen': 'Sind alle Bedingungen für die Sicht nach dem Kurvenradius erfüllt (siehe «?»)?',
+  sichtVorh: 'Wie weit sieht man je Zufahrt auf die Wartefläche (von Hand gemessen)?',
+  erkennungM: 'Ab welcher Distanz erkennen Fahrende den Streifen?',
+  // Insel
+  'insel.vorhanden': 'Gibt es eine Insel in der Fahrbahnmitte?',
+  'insel.art': 'Ist die Insel gebaut oder nur aufgemalt?',
+  'insel.breite': 'Wie tief ist die Insel in Gehrichtung?',
+  'insel.kopfUeberstand': 'Wie weit ragt die Inselspitze über den Streifen hinaus?',
+  'insel.vertikal': 'Steht auf der Insel ein Pfosten oder Signal?',
+  'insel.kopfErhoeht': 'Sind die Inselspitzen erhöht?',
+  'insel.pfostenH': 'Wie hoch sind die Pfosten auf der Insel?',
+  'insel.furt': 'Wie breit ist der Rollstuhldurchgang durch die Insel?',
+  inselMoeglich: 'Hat es Platz für eine Insel?',
+  durchfahrt: 'Wie breit ist die Fahrbahn neben der Insel (je Seite)?',
+  // Ausrüstung
+  fgsMitLsa: 'Hat die Querung ein Lichtsignal für Fussgänger?',
+  streifenBreite: 'Wie breit ist der Streifen (Länge der Balken)?',
+  randAbstand: 'Wie gross ist die Lücke zwischen Balken und Trottoirkante?',
+  achsWinkel: 'In welchem Winkel quert der Streifen die Fahrbahn?',
+  signal411: 'Steht am Streifen die blaue Tafel Fussgängerstreifen?',
+  signal411Insel: 'Steht die blaue Tafel auch auf der Insel?',
+  beleuchtung: 'Ist die Querung nachts beleuchtet?',
+  schattenfrei: 'Bleiben Streifen und Wartefläche nachts ohne Schatten?',
+  'hvl.vorhanden': 'Gibt es vor dem Streifen eine Halteverbotslinie?',
+  'hvl.laengeM': 'Wie lang ist die Halteverbotslinie?',
+  'hvl.beidseits': 'Ist bei der Einbahnstrasse links und rechts eine Halteverbotslinie markiert?',
+  hvlBedarfM: 'Wie lang muss die Halteverbotslinie für die Sicht sein?',
+  haltenSichtrelevantUeber5m: 'Stören haltende Autos weiter als 5 m vor dem Streifen die Sicht?',
+  haltenSonstVerboten: 'Ist das Halten dort schon anders verboten?',
+  reklameUnter20m: 'Steht Werbung näher als 20 m beim Streifen?',
+  reklameAusnahme: 'Ist die Werbung nahe am Streifen als Ausnahme bewilligt?',
+  annaeherungUeberfahrbar: 'Können Fahrzeuge über die Wartefläche vor dem Streifen fahren?',
+  einAusfahrtNah: 'Liegt direkt beim Streifen eine Ein- oder Ausfahrt?',
+  blinklicht: 'Gibt es am Streifen ein Blinklicht, und welches?',
+  'randabschluss.art': 'Welcher Randstein liegt an der Querung (senkrecht, schräg, hoch)?',
+  'randabschluss.hoeheMm': 'Wie hoch ist der Randstein an der Querung?',
+  'randabschluss.breiteM': 'Wie breit ist die Schräge des Randsteins?',
+  quergefaelle: 'Wie stark fällt die Fahrbahn quer ab?',
+  absenkung: 'Wie steil ist die Absenkung des Trottoirs?',
+  taktil: 'Gibt es eine ertastbare Markierung für Sehbehinderte?',
+  leitlinie: 'Führt eine ertastbare Leitlinie über die Querung?',
+  querungLang: 'Ist die Querung so lang, dass Sehbehinderte die Richtung verlieren können?',
+  absenkungBeidseits: 'Ist das Trottoir auf beiden Seiten abgesenkt?',
+  aufstellflaeche: 'Gibt es auf beiden Seiten Platz zum Warten?',
+  parkierungSichtbehindernd: 'Verdecken parkierte Autos die Sicht?',
+  // LSA-Zeiten
+  'lsaZeiten.L': 'Wie lang ist die Querung von Bord zu Bord?',
+  'lsaZeiten.teile': 'Wie lang sind die Teilquerungen an der Insel?',
+  'lsaZeiten.inselB': 'Wie tief ist die Insel in Gehrichtung?',
+  'lsaZeiten.gelb': 'Wie lange dauert das Gelb für Fussgänger?',
+  'lsaZeiten.freigabe': 'Wie lange dauert das Grün für Fussgänger?',
+  'lsaZeiten.phasengleich': 'Sind beide Teilquerungen gleichzeitig grün?',
+  'lsaZeiten.beideRichtungenImZyklus': 'Kommt man im selben Umlauf in beide Richtungen über die Strasse?',
+  'lsaZeiten.wartezeit': 'Wie lange wartet man auf Grün?',
+  'lsaZeiten.vorstart': 'Wie viele Sekunden vor den Abbiegenden erhalten Fussgänger Grün?',
+  'lsaZeiten.abbiegerKonflikt': 'Fahren Abbiegende während Fussgängergrün?',
+  'lsaZeiten.inselGeraet': 'Gibt es auf der Insel einen Taster mit Signal für Sehbehinderte (Ton, Vibration)?',
+  'lsaZeiten.inselNurAnmeldung': 'Gibt es Grün nur auf Tastendruck?',
+  // Trottoirüberfahrt
+  'q3.bebaut': 'Liegt die Einmündung im bebauten Gebiet?',
+  'q3.gewerbe': 'Liegt die Einmündung in einem Industrie- oder Gewerbegebiet?',
+  'q3.anschlussGewerbe': 'Führt die Seitenstrasse zu Betrieben oder zu Landwirtschaftsland?',
+  'q3.ueber': 'Quert die Überfahrt die Seitenstrasse oder die Hauptstrasse?',
+  'q3.vSigHaupt': 'Welches Tempo gilt auf der Hauptstrasse?',
+  'q3.vSigEinm': 'Welches Tempo gilt in der Seitenstrasse?',
+  'q3.nEinm': 'Wie viele Fahrstreifen je Richtung hat die Seitenstrasse?',
+  'q3.nHaupt': 'Wie viele Fahrstreifen je Richtung hat die Hauptstrasse?',
+  'q3.trottoirBeidseits': 'Gibt es vor und nach der Einmündung ein Trottoir?',
+  'q3.winkel': 'In welchem Winkel mündet die Seitenstrasse ein?',
+  'q3.knotensichtOk': 'Sieht man beim Ausfahren genügend weit?',
+  'q3.hvl5m': 'Gilt je 5 m beidseits der Einmündung ein Halteverbot?',
+  'q3.gegenueberEinm': 'Mündet gegenüber eine weitere Strasse ein?',
+  'q3.belastungSchwach': 'Hat es auf allen Armen wenig Verkehr?',
+  'q3.veloSchule': 'Führt hier eine wichtige Veloroute oder ein Schulweg durch?',
+  'q3.einmSiedlungsorientiert': 'Ist die Seitenstrasse eine Quartierstrasse?',
+  'q3.zoneEinm': 'Liegt die Seitenstrasse in einer Tempo-30- oder Begegnungszone?',
+  'q3.eingangstor': 'Ist die Überfahrt als Eingang in die Zone gestaltet?',
+  'q3.hauptInZone': 'Liegt auch die Hauptstrasse in der Zone?',
+  'q3.wartezeitEinmS': 'Wie lange wartet man im Mittel beim Ausfahren?',
+  'q3.lkwGelegentlich': 'Fahren Lastwagen nur ab und zu?',
+  'q3.linienbus': 'Fährt ein Linienbus durch die Seitenstrasse?',
+  'q3.lsaKnoten': 'Hat die Einmündung ein Lichtsignal?',
+  'q3.kreisel': 'Liegt die Einmündung an einem Kreisel?',
+  'q3.breiteM': 'Wie breit ist die Trottoirüberfahrt?',
+  'q3.anrampung': 'Wie steil und wie lang ist die Rampe der Überfahrt?',
+  'q3.dtvEinm': 'Wie viele Fahrzeuge fahren pro Tag in der Seitenstrasse?',
+  'q3.mivEinmHoch': 'Hat die Seitenstrasse viel Verkehr?',
+  // Objekt-Felder und Sonderfälle (fehlende Felder im Befund)
+  fgQuelle: 'Sind die Querenden gezählt oder geschätzt?',
+  insel: 'Gibt es eine Insel in der Fahrbahnmitte?',
+  haltestelle: 'Hält an der Querung ein Bus – auf der Fahrbahn oder in einer Bucht?',
+  hvl: 'Gibt es vor dem Streifen eine Halteverbotslinie?',
+  fusswegAchse: 'Mündet ein Fussweg direkt auf den Streifen?',
+  randabschluss: 'Welcher Randstein liegt an der Querung?',
+  kurve: 'Liegt vor der Querung eine Kurve?',
+  lsaZeiten: 'Wie sind die Grün- und Gelbzeiten für Fussgänger?',
+  q3: 'Wie ist die Einmündung beschaffen (Angaben im Block «Trottoirüberfahrt»: Gebiet, Tempo, Fahrstreifen, Sicht beim Ausfahren …)?',
+  Zufahrten: 'Hinweis: im Sichtrechner ist für diesen Streifen keine Zufahrt geprüft (Zufahrten prüfen bzw. Sichtweite von Hand eingeben).',
+}
+
+/** Frage zu einem Feld bzw. fehlenden Feld (unbekannt: Feldname mit Fragezeichen) */
+export const frageVon = (feld: string): string => FRAGEN[feld] ?? `${FELD_DEF.get(feld)?.name ?? feld}?`
+
+/** Feld der Maske, zu dem eine Frage springt (Objekt-Feld: erstes Unterfeld; Zählung bzw. Schätzung: Zählung); null: kein Feld */
+export function feldZiel(feld: string): string | null {
+  if (FELD_DEF.has(feld)) return feld
+  if (feld === 'fgQuelle') return 'fg5h'
+  const unter = [...FELD_DEF.keys()].find(p => p.startsWith(`${feld}.`))
+  return unter ?? null
 }

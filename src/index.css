@@ -36,7 +36,7 @@ html, body, #root { margin: 0; height: 100%; background: var(--bg); }
   border-radius: 8px; padding: 4px 8px; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.2); align-self: center; text-align: center; }
 .ortssuche-fehler, .kartenhinweis.fehler { color: var(--fehler); }
 .standort-knopf a { display: flex !important; align-items: center; justify-content: center; color: var(--text-strong); }
-.panel { width: 400px; max-width: 45vw; overflow-y: auto; padding: 12px 16px; background: #ffffff; border-left: 1px solid var(--border); }
+.panel { width: var(--panel-breite, 560px); max-width: 70vw; overflow-y: auto; padding: 12px 16px; background: #ffffff; border-left: 1px solid var(--border); }
 h1 { font-size: 20px; margin: 4px 0 8px; color: var(--text-strong); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 h1 .logo { flex-shrink: 0; display: block; }
 /* Logo in der App: Knopf «Zur Startseite» (tastaturbedienbar) */
@@ -56,7 +56,12 @@ th { font-weight: 600; color: var(--text-muted); font-size: 12px; }
 .legende li { margin: 3px 0; }
 .farbe { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.3); }
 .farbe.rund { border-radius: 50%; margin-left: 2px; }
+/* Trenner zwischen Karte und Bereich (Trenner.tsx): ziehbar, mit Pfeiltasten bedienbar; unter 700 px und im Druck ausgeblendet */
+.trenner { flex: none; width: 7px; cursor: col-resize; background: var(--border); touch-action: none; }
+.trenner:hover, .trenner:focus-visible { background: var(--accent); outline: none; }
+@media print { .trenner { display: none; } }
 @media (max-width: 700px) {
+  .trenner { display: none; }
   .app { flex-direction: column; }
   .kartenrahmen { height: 60%; flex: none; }
   .panel { width: 100%; max-width: none; border-left: none; border-top: 1px solid var(--border); }
@@ -167,6 +172,7 @@ details.bedarf > summary .klein { display: block; margin-top: 2px; }
 .befundblatt { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin: 8px 0; background: #ffffff; }
 .befundblatt h3 { margin-top: 2px; }
 .befund-typ { margin: 2px 0 4px; }
+.bedarf-zusammenfassung { margin: 6px 0 8px; line-height: 1.45; }
 .befund-liste { border-left: 4px solid #94a3b8; padding: 2px 0 2px 8px; margin: 6px 0; font-size: 12px; }
 .befund-liste ul { margin: 2px 0; padding-left: 16px; }
 .befund-liste.rot { border-color: #dc2626; }
@@ -175,7 +181,6 @@ details.bedarf > summary .klein { display: block; margin-top: 2px; }
 .befund-liste.gelb > b { color: #a16207; }
 .befund-liste.blau { border-color: #0ea5e9; }
 .befund-liste.grau { border-color: #94a3b8; color: var(--text-muted); }
-.befund-lokal { border-top: 1px dashed var(--border); margin-top: 6px; padding-top: 4px; font-size: 12px; }
 .befund-masse { font-size: 12px; }
 .befund-masse tr.verletzt td { color: #b91c1c; }
 .befund-masse tr.offen td { color: var(--text-muted); }
@@ -215,6 +220,50 @@ details.bedarf > summary .klein { display: block; margin-top: 2px; }
 .grundpruefung.druck, .grundpruefung.druck * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .befundblatt.druck .befund-liste { font-size: 9.5pt; }
 .befundblatt.druck .befund-liste, .befundblatt.druck .befund-liste * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+/* Runde 2: Prüfübersicht und Einträge nach Thema; Symbol und Verbindlichkeitswort tragen die Bedeutung, Farbe nur zusätzlich */
+.pruef-uebersicht { border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; margin: 6px 0; font-size: 12px; background: #f8fafc; }
+.pruef-uebersicht > summary { cursor: pointer; }
+.pruef-themen { margin: 4px 0; padding-left: 16px; }
+.pruef-themen > li { margin: 2px 0; }
+.befund-thema { margin: 6px 0; font-size: 12px; }
+.befund-thema > ul { list-style: none; margin: 2px 0; padding-left: 0; }
+.befund-thema > ul > li { border-left: 4px solid #94a3b8; padding: 1px 0 1px 8px; margin: 3px 0; }
+.befund-thema > ul > li.rot { border-color: #dc2626; }
+.befund-thema > ul > li.gelb { border-color: #eab308; }
+.befund-thema > ul > li.blau { border-color: #0ea5e9; }
+.befund-thema > ul > li.grau { color: var(--text-muted); }
+.befund-thema li.rot > .grund-symbol { color: #b91c1c; }
+.befund-thema li.gelb > .grund-symbol { color: #a16207; }
+.befund-thema li.blau > .grund-symbol { color: #0369a1; }
+.befundblatt.druck .befund-thema, .pruef-uebersicht.druck { font-size: 9.5pt; }
+.pruef-uebersicht.druck { background: #ffffff; break-inside: avoid; }
+.befundblatt.druck .befund-thema, .befundblatt.druck .befund-thema * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+/* Runde 2, Verdichtung: eine Zeile je Punkt bzw. Eintrag, Fragen als Sprung zum Feld, Details aufklappbar */
+.grund-kopf { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.grund-zaehlung { color: var(--text-muted); }
+.grund-tabelle { border-collapse: collapse; width: 100%; margin: 4px 0; font-size: 12px; }
+.grund-tabelle th, .grund-tabelle td { text-align: left; vertical-align: top; padding: 2px 4px; border-top: 1px solid var(--border); }
+.grund-tabelle th { font-weight: 600; white-space: nowrap; }
+.grund-tabelle td.grund-wort { white-space: nowrap; }
+.grund-tabelle tr { border-left: 4px solid #94a3b8; }
+.grund-tabelle tr.gruen { border-left-color: #16a34a; }
+.grund-tabelle tr.rot { border-left-color: #dc2626; }
+.grund-tabelle tr.gelb { border-left-color: #eab308; }
+.grund-tabelle tr.blau { border-left-color: #0ea5e9; }
+.grund-tabelle tr.gruen .grund-symbol { color: #15803d; }
+.grund-tabelle tr.rot .grund-symbol { color: #b91c1c; }
+.grund-tabelle tr.gelb .grund-symbol { color: #a16207; }
+.grund-tabelle tr.blau .grund-symbol { color: #0369a1; }
+.grund-details > summary, .eintrag-details > summary, .bedarf-begruendung > summary { cursor: pointer; }
+.frage-knopf { background: none; border: none; padding: 0; color: var(--accent); text-decoration: underline; font: inherit; cursor: pointer; text-align: left; }
+.frage-knopf:hover { filter: none; text-decoration-thickness: 2px; }
+.befund-thema .eintrag-details > summary { list-style-position: outside; }
+.befund-thema .eintrag-details > span { display: block; margin: 1px 0 2px; }
+.legende { color: var(--text-muted); }
+@media (max-width: 480px) { .grund-tabelle th { white-space: normal; } }
+/* Druck: Einträge nicht trennen, Themenkopf beim Eintrag halten */
+.befundblatt.druck .befund-thema > ul > li, .grund-tabelle tr { break-inside: avoid; page-break-inside: avoid; }
+.befundblatt.druck .thema-kopf { display: block; break-after: avoid; page-break-after: avoid; }
 
 /* E4: Bericht (Druckansicht) – auf dem Bildschirm über der App, gedruckt allein (A4 hoch) */
 .bericht { position: fixed; inset: 0; z-index: 2000; overflow-y: auto; background: #e2e8f0; }

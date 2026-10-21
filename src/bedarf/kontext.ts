@@ -31,6 +31,8 @@ export class Kontext {
   readonly genutzt = new Set<FeldName>()
   readonly annahmen = new Set<string>()
   readonly ergebnisse = new Map<string, Stand>()
+  /** fehlende Felder offener Regeln (D5-4 übernimmt die von H1 bzw. E3) */
+  readonly offenFelder = new Map<string, string[]>()
 
   constructor(readonly e: BedarfEingaben, private readonly ebenen: Readonly<Record<Ebene, boolean>>) {}
 

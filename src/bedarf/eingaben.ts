@@ -48,7 +48,8 @@ export interface Haltestelle {
 /** Halteverbotslinie; beidseits: auf Einbahnstrassen auf beiden Seiten */
 export interface Hvl { vorhanden: boolean; laengeM: number | null; beidseits: boolean | null }
 /** Fussweg in der Achse des Streifens (G3b) */
-export interface FusswegAchse { rechtwinkligUneinsehbar: boolean; versatz: boolean; umlaufschranke: boolean }
+/** Fussweg in der Achse: versatz und umlaufschranke zählen nur, wenn der Weg direkt und verdeckt mündet (Korrektur S8) */
+export interface FusswegAchse { rechtwinkligUneinsehbar: boolean; versatz: boolean | null; umlaufschranke: boolean | null }
 export interface Randabschluss { art: 'vertikal' | 'schraeg' | 'hoch'; hoeheMm: number | null; breiteM: number | null }
 /** Kurve vor dem Streifen bzw. Knotenradius; fuenfBedingungen: Voraussetzungen von 40 241 Tab. 2 alle erfüllt */
 export interface Kurve { radius: number | null; fuenfBedingungen: boolean }

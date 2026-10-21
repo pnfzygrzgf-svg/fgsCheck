@@ -40,12 +40,21 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
   const k = new Kontext(e, ebenen)
   const alle: Eintrag[] = []
   const ausgewertet: string[] = []
+  const erfuellt: string[] = []
+  const ebeneAus: string[] = []
+  /** Regel einer ausgeschalteten Ebene: wäre sie mit eingeschalteter Ebene anwendbar? (Schattenrechnung ohne Wirkung auf den Befund;
+   * Korrektur S6: nur dann «nicht geprüft (Ebene ausgeschaltet)») */
+  const wuerdeGelten = (id: BefundId): boolean => {
+    const ks = new Kontext(e, { Recht: true, Norm: true, Bern: true, 'Kanton BE': true, Richtlinie: true })
+    for (const [a, b] of k.ergebnisse) ks.ergebnisse.set(a, b)
+    try { return REGELN[id](ks) !== null } catch (x) { if (x instanceof Offen) return true; throw x }
+  }
   const masse = new Map<string, { einheit: string; ist?: string; soll: string[]; verletzt: boolean; offen: boolean; regeln: string[] }>()
 
   /** Regel auswerten; stumm: nur für die Empfehlung (kein Eintrag, keine Masse) */
   const pruefe = (id: BefundId, stumm = false): void => {
     const def: RegelDef = KATALOG[id]
-    if (def.ebene && !ebenen[def.ebene]) return
+    if (def.ebene && !ebenen[def.ebene]) { if (!stumm && wuerdeGelten(id)) ebeneAus.push(id); return }
     ausgewertet.push(id)
     let r: ReturnType<(typeof REGELN)[BefundId]> | 'offen'
     let fehlend: string[] = []
@@ -55,9 +64,11 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
       if (!(x instanceof Offen)) throw x
       r = 'offen'
       fehlend = x.felder
+      k.offenFelder.set(id, fehlend)
     }
     k.ergebnisse.set(id, r)
     if (stumm || r === null) return
+    if (r !== 'offen' && !r.verletzt) erfuellt.push(id)
     if (def.groesse) {
       const m = masse.get(def.groesse) ?? { einheit: def.einheit ?? '', soll: [], verletzt: false, offen: false, regeln: [] }
       m.regeln.push(id)
@@ -130,7 +141,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     const mzsFgs = typ === 'mehrzweck' && k.o('mzsMitFgs') === true
     if (zul !== 'nicht_angezeigt') {
       const stumm = !(FGS_ARTIG.includes(typ) || mzsFgs)
-      reihe(['D1', 'D1b', 'D2', 'D2a', 'D2c', 'D3a', 'D3b', 'D3c', 'D4a', 'D4b', 'D4c', 'D4d', 'D4-R',
+      reihe(['D1', 'D1b', 'D2', 'D2a', 'D2c', 'D3a', 'D3b', 'D4a', 'D4b', 'D4c', 'D4d', 'D4-R',
         'D6-1', 'D6-2', 'D6-2b', 'D6-3', 'D6-3b', 'D6-4', 'D6-5'], stumm)
     }
 
@@ -214,7 +225,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
   }
   return {
     beurteilt: ende !== 'ausserorts' && ende !== 'offen', ende, zulaessigkeit: zul, empfehlung: empf,
-    norm, lokal, alle, masse: massZeilen, annahmen, ausgewertet, offenGruppen: gruppen(alle), nichtGeprueft,
+    norm, lokal, alle, masse: massZeilen, annahmen, ausgewertet, erfuellt, ebeneAus, offenFelder: Object.fromEntries(k.offenFelder), offenGruppen: gruppen(alle), nichtGeprueft,
   }
 }
 
@@ -224,7 +235,7 @@ const Q3_IDS: BefundId[] = ['Q3-1', 'Q3-2', 'Q3-3', 'Q3-5', 'Q3-6', 'Q3-7', 'Q3-
 /** offene Einträge nach fehlendem Feld (Korrektur S6) */
 function gruppen(alle: Eintrag[]): Befund['offenGruppen'] {
   const m = new Map<string, string[]>()
-  for (const x of alle) if (x.zustand === 'offen') for (const f of x.fehlend ?? []) m.set(f, [...(m.get(f) ?? []), x.id])
+  for (const x of alle) if (x.zustand === 'offen') for (const f of x.fehlend ?? []) if (!(m.get(f) ?? []).includes(x.id)) m.set(f, [...(m.get(f) ?? []), x.id])
   return [...m].map(([feld, regeln]) => ({ feld, regeln })).sort((a, b) => b.regeln.length - a.regeln.length)
 }
 

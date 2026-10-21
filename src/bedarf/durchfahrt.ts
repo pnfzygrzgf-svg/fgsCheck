@@ -53,3 +53,13 @@ export function durchfahrtHinweise(d: number[], opt: { radstreifen?: boolean | n
   if (h.length) h.push(KATALOG.F3.normHinweis)
   return h
 }
+
+/**
+ * Hinweis zur Durchfahrt für die Anzeige (Runde 2): statt «(F3, Arbeitshilfe Kanton BE)» die Fundstelle der Regel, damit der Satz
+ * nicht den Regeltitel wiederholt («Durchfahrt neben der Insel … (Durchfahrt neben der Insel (F3) …)»). Der Wortlaut von
+ * durchfahrtHinweise bleibt (geprüft in rechner/standardinsel.test.ts).
+ */
+export function durchfahrtAnzeige(h: string): string {
+  const q = (id: 'F3' | 'F3-B') => KATALOG[id].quellen.map(x => `${x.werk === 'AHBE' ? 'Arbeitshilfe Kanton BE' : 'Masterplan Veloinfrastruktur Bern'} ${x.ziffer}`).join('; ')
+  return h.replace('(F3, Arbeitshilfe Kanton BE)', `(${q('F3')})`).replace('(F3-B, Standards Veloinfrastruktur Bern)', `(${q('F3-B')})`)
+}

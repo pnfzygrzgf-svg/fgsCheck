@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { retryAfterMs, sperreNachAntwort, overpassSperre, sperreZuruecksetzen, SPERRE_STANDARD_MS, SPERRE_MAX_MS, strassennamen,
-  strassenMitten, namenKarte, uebergaengeAbfrage, osmParsen, type Strassenname, type StrassenMitte } from './osm'
+  strassenMitten, namenKarte, uebergaengeAbfrage, osmParsen, overpassAbfrage, strassenlampen, wegTags, type Strassenname,
+  type StrassenMitte } from './osm'
 import { lv95, wgs, type P } from '../geo'
 
 describe('Overpass: Sperre nach 429 bzw. Retry-After', () => {
@@ -100,5 +101,36 @@ describe('Strassennamen vor dem Klick (Wegmitten aus der Übergangssuche)', () =
     const nach = namenKarte(mitten, genau, O, 60)
     expect(nach.filter(s => s.name === 'Hauptstrasse').map(xy)).toEqual([[-20, 0], [150, 0]])
     expect(nach.filter(s => s.name === 'Querweg').map(xy)).toEqual([[100, 60]])
+  })
+})
+
+describe('Umkreis-Abfrage: Haltestellen und Strassenlampen (Vorbelegung Bedarfsmodul)', () => {
+  const O: P = [2600000, 1200000]
+  it('eigene Menge .h mit kleinerem Umkreis, ohne Fusswege nach sich zu ziehen; Ausgabe zuletzt', () => {
+    const q = overpassAbfrage(46.95, 7.44, 300)
+    expect(q).toContain('node(around:150,46.9500000,7.4400000)["highway"="bus_stop"]')
+    expect(q).toContain('node(around:150,46.9500000,7.4400000)["railway"="tram_stop"]')
+    expect(q).toContain('["public_transport"~"^(platform|stop_position)$"][~"^(bus|trolleybus|tram)$"~"^yes$"]')
+    expect(q).toContain('node(around:100,46.9500000,7.4400000)["highway"="street_lamp"];)->.h;')
+    expect(q).toContain('way(bn.n)')
+    expect(q).not.toContain('bn.h')
+    expect(q.endsWith('.f out body geom;.h out body;')).toBe(true)
+    expect(overpassAbfrage(46.95, 7.44, 80)).toContain('node(around:80,46.9500000,7.4400000)["highway"="bus_stop"]')
+  })
+  it('Haltestellen und Lampen ändern die Daten der Rechnung nicht; Lampen und Weg-Tags aus der Rohantwort', () => {
+    const [la, lo] = wgs(O[0] + 3, O[1] + 4)
+    const weg = { type: 'way', id: 1, tags: { highway: 'residential', lit: 'yes' }, nodes: [1, 2], geometry: [{ lat: la, lon: lo }, { lat: la, lon: lo + 0.001 }] }
+    const basis = [weg, { type: 'node', id: 5, lat: la, lon: lo, tags: { highway: 'crossing' } }]
+    const mit = [...basis, { type: 'node', id: 7, lat: la, lon: lo, tags: { highway: 'bus_stop' } },
+      { type: 'node', id: 8, lat: la, lon: lo, tags: { highway: 'street_lamp' } }, { type: 'node', id: 8, lat: la, lon: lo, tags: { highway: 'street_lamp' } },
+      { type: 'node', id: 5, lat: la, lon: lo, tags: { highway: 'crossing' } }]
+    const parse = (e: unknown[]) => osmParsen({ elements: e } as unknown as Parameters<typeof osmParsen>[0])
+    expect(parse(mit)).toEqual(parse(basis))
+    const l = strassenlampen({ elements: mit })
+    expect(l.length).toBe(1)
+    expect(l[0][0]).toBeCloseTo(O[0] + 3, 1); expect(l[0][1]).toBeCloseTo(O[1] + 4, 1)
+    expect(wegTags({ elements: mit }).get(1)).toEqual({ highway: 'residential', lit: 'yes' })
+    expect(wegTags({ elements: [{ type: 'way', id: 2, tags: { highway: 'footway' } }] }).size).toBe(0)
+    expect(strassenlampen(null)).toEqual([])
   })
 })

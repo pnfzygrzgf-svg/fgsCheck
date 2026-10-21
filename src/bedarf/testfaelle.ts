@@ -128,7 +128,7 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'D3a', name: 'Eigentrassee ohne Insel', abw: { tram: 'eigentrassee' }, erwartet: { D3a: 'hart_bericht' } },
   { regel: 'D3a', name: 'Eigentrassee mit LSA', abw: { tram: 'eigentrassee', fgsMitLsa: true }, erwartet: { D3a: '-' } },
   { regel: 'D3b', name: 'Balken auf dem Gleis', abw: { tram: 'eigentrassee', balkenAufGleis: true }, erwartet: { D3b: 'weich' } },
-  { regel: 'D3c', name: 'Tram auf der Fahrbahn ausserhalb Haltestelle', abw: { tram: 'fahrbahn' }, erwartet: { D3c: 'hinweis', 'D5-5': 'hinweis' } },
+  { regel: 'D5-5', name: 'Tram auf der Fahrbahn ausserhalb Haltestelle', abw: { tram: 'fahrbahn' }, erwartet: { D3c: '-', 'D5-5': 'hinweis' } },
   { regel: 'D4a', name: 'im Haltestellenbereich', abw: { haltestelle: { ...HALT_FB, lage: 'im_bereich' } }, erwartet: { D4a: 'hart' } },
   { regel: 'D4b', name: 'Bus verdeckt, keine Insel', abw: { haltestelle: { ...HALT_FB, verdeckt: true } }, erwartet: { D4b: 'hart' } },
   { regel: 'D4b', name: 'Bus verdeckt, mit Insel', abw: { haltestelle: { ...HALT_FB, verdeckt: true }, insel: INSEL_OK }, erwartet: { D4b: '-' } },
