@@ -7,9 +7,9 @@
 // Radstreifen (wie die Vermassung); nRichtung = Fahrstreifen je Richtung aus OSM lanes, Busstreifen zählen, Radstreifen nicht.
 // E0 hat keine Oberfläche; E1 hängt diesen Block an die Fall-Datei (Block bedarf).
 
-/** Herkunft eines Werts */
-export type Quelle = 'av' | 'osm' | 'geoportal' | 'luftbild' | 'hand' | 'annahme' | 'schaetzung' | 'rechnung'
-export const QUELLEN: readonly Quelle[] = ['av', 'osm', 'geoportal', 'luftbild', 'hand', 'annahme', 'schaetzung', 'rechnung']
+/** Herkunft eines Werts; bestaetigt = vorgeschlagene Annahme von Hand bestätigt (Korrektur M2, gilt als Handeingabe, keine Annahme) */
+export type Quelle = 'av' | 'osm' | 'geoportal' | 'luftbild' | 'hand' | 'bestaetigt' | 'annahme' | 'schaetzung' | 'rechnung'
+export const QUELLEN: readonly Quelle[] = ['av', 'osm', 'geoportal', 'luftbild', 'hand', 'bestaetigt', 'annahme', 'schaetzung', 'rechnung']
 /** Quellen, die der Befund als Annahme ausweist */
 export const QUELLEN_ANNAHME: readonly Quelle[] = ['annahme', 'schaetzung']
 
@@ -213,7 +213,10 @@ export interface Werte {
 
 export type FeldName = keyof Werte
 /** Wert mit Quelle; wert null = offen */
-export interface Feld<T> { wert: T | null; quelle: Quelle | null }
+export interface Feld<T> { wert: T | null; quelle: Quelle | null
+  /** Runde 4: Abstand entlang der Strasse ist die Länge der ganzen Strasse (sie endet beidseits ohne Fortsetzung; nur aus der
+   * Vorbelegung, eine Handeingabe trägt es nicht): G1/G2 dann als Hinweis, kein weiterer Streifen bzw. kein Lichtsignal möglich */
+  ganzeStrasse?: true }
 export type BedarfEingaben = { [K in FeldName]: Feld<Werte[K]> }
 
 /** Art je Feld für die Prüfung beim Lesen (wie fall.ts: Ungültiges wird offen, mit Hinweis) */

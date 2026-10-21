@@ -7,6 +7,10 @@
 // Inhalt wie netz_osm.json des Berner Projekts (fgs_netz.aufbereiten): Wege der Klassen HW_ALLE mit Knoten-IDs,
 // Abbiegeverbote (type=restriction, Rollen from/via/to), Übergangsknoten (fgs_netz.ist_uebergang), Tramgleise; dazu
 // Ampeln (highway=traffic_signals) für die LSA-Einordnung (fgs_sicht_pruefen.Lichtsignale).
+// Für die Vorbelegung des Bedarfsmoduls zusätzlich (eigene Mengen, ohne Fusswege nach sich zu ziehen; die Rechnung übergeht sie):
+// Haltestellen und Strassenlampen, seit Automatik Paket C (21.10.2026) Schulen, Kindergärten und Heime (Umkreis
+// SCHULEN_OSM_RADIUS_M, Flächen nur mit Mittelpunkt) sowie Vortrittszeichen (highway=give_way|stop) und Verkehrsschilder
+// (traffic_sign) im ganzen Umkreis. Gemessen 21.10.2026 an der Mühlemattstrasse (300 m): 271 kB ohne, 277 kB mit beidem.
 
 import { holeText, istAbbruch, AbrufFehler, type Abruf } from './holen'
 import { lv95, dist, type P } from '../geo'
@@ -84,11 +88,15 @@ export function overpassAbgebrochen(data: { remark?: unknown }): boolean {
 export const HALT_OSM_RADIUS_M = 150
 /** Strassenlampen (highway=street_lamp) in der Abfrage: Umkreis um den Ladeort (Hinweis zur Beleuchtung bis 25 m um den Streifen) */
 export const LAMPEN_RADIUS_M = 100
+/** Schulen, Kindergärten und Heime (amenity bzw. social_facility) in der Abfrage: Umkreis um den Ladeort (besonderer Grund bis 150 m
+ * um den Streifen; 50 m Rand für den Abstand Streifen–Ladeort, sonst wäre der Umkreis nie ganz geladen und «keines» nie möglich) */
+export const SCHULEN_OSM_RADIUS_M = 200
 
 export function overpassAbfrage(lat: number, lon: number, radius: number): string {
   const ort = `${lat.toFixed(7)},${lon.toFixed(7)}`
   const um = `around:${radius},${ort}`
   const uh = `around:${Math.min(radius, HALT_OSM_RADIUS_M)},${ort}`, ul = `around:${Math.min(radius, LAMPEN_RADIUS_M)},${ort}`
+  const us = `around:${Math.min(radius, SCHULEN_OSM_RADIUS_M)},${ort}`
   return `[out:json][timeout:25];(` +
     `way(${um})["highway"~"^(${HW_ALLE.join('|')})$"];` +
     `way(${um})["railway"="tram"];` +
@@ -106,7 +114,13 @@ export function overpassAbfrage(lat: number, lon: number, radius: number): strin
     `(node(${uh})["highway"="bus_stop"];node(${uh})["railway"="tram_stop"];` +
     `node(${uh})["public_transport"~"^(platform|stop_position)$"][~"^(bus|trolleybus|tram)$"~"^yes$"];` +
     `node(${ul})["highway"="street_lamp"];)->.h;` +
-    `.w out body geom;.n out body;.r out body;.f out body geom;.h out body;`
+    // Schulen, Kindergärten, Heime (Knoten, Wege, Relationen) und Vortrittszeichen bzw. Schilder: eigene Mengen .s und .v, nach
+    // den Wegen ausgegeben (ein Weg, der zugleich Strasse ist, kommt so zuerst mit Geometrie); Flächen mit ihren Grenzen (bb: Abstand
+    // zum Rand statt zum Mittelpunkt, Korrektur S9; wenige Zahlen je Fläche statt der ganzen Geometrie)
+    `(nwr(${us})["amenity"~"^(school|kindergarten|social_facility|nursing_home)$"];` +
+    `nwr(${us})["social_facility"~"^(nursing_home|group_home)$"];)->.s;` +
+    `(node(${um})["highway"~"^(give_way|stop)$"];node(${um})["traffic_sign"];)->.v;` +
+    `.w out body geom;.n out body;.r out body;.f out body geom;.h out body;.v out body;node.s;out body;(way.s;rel.s;);out tags bb;`
 }
 
 interface RohElement {
@@ -297,6 +311,28 @@ export function strassenlampen(roh: unknown): P[] {
     if (e.type !== 'node' || e.tags?.highway !== 'street_lamp' || e.lat == null || e.lon == null || gesehen.has(e.id)) continue
     gesehen.add(e.id)
     aus.push(lv95(e.lat, e.lon))
+  }
+  return aus
+}
+
+/** Vortrittszeichen bzw. Verkehrsschild nach OSM: give_way (Kein Vortritt), stop, sonst nur traffic_sign (schild) */
+export interface VortrittZeichen {
+  id: number; art: 'give_way' | 'stop' | 'schild'; p: P
+  /** direction bzw. traffic_sign:direction (forward, backward, Grad …), null ohne Angabe */
+  richtung: string | null
+  /** traffic_sign (z. B. CH:3.02), null ohne */
+  zeichen: string | null
+}
+/** Vortrittszeichen und Verkehrsschilder (Knoten) aus der Rohantwort in LV95, ohne Doppel */
+export function vortrittsZeichen(roh: unknown): VortrittZeichen[] {
+  const aus: VortrittZeichen[] = [], gesehen = new Set<number>()
+  for (const e of (roh as { elements?: RohElement[] } | null)?.elements ?? []) {
+    if (e.type !== 'node' || e.lat == null || e.lon == null || gesehen.has(e.id)) continue
+    const t = e.tags ?? {}
+    const art = t.highway === 'give_way' ? 'give_way' : t.highway === 'stop' ? 'stop' : t.traffic_sign ? 'schild' : null
+    if (!art) continue
+    gesehen.add(e.id)
+    aus.push({ id: e.id, art, p: lv95(e.lat, e.lon), richtung: t.direction ?? t['traffic_sign:direction'] ?? null, zeichen: t.traffic_sign ?? null })
   }
   return aus
 }

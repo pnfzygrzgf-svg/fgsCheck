@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { retryAfterMs, sperreNachAntwort, overpassSperre, sperreZuruecksetzen, SPERRE_STANDARD_MS, SPERRE_MAX_MS, strassennamen,
-  strassenMitten, namenKarte, uebergaengeAbfrage, osmParsen, overpassAbfrage, strassenlampen, wegTags, type Strassenname,
+  strassenMitten, namenKarte, uebergaengeAbfrage, osmParsen, overpassAbfrage, strassenlampen, wegTags, vortrittsZeichen,
+  type Strassenname,
   type StrassenMitte } from './osm'
 import { lv95, wgs, type P } from '../geo'
 
@@ -114,7 +115,7 @@ describe('Umkreis-Abfrage: Haltestellen und Strassenlampen (Vorbelegung Bedarfsm
     expect(q).toContain('node(around:100,46.9500000,7.4400000)["highway"="street_lamp"];)->.h;')
     expect(q).toContain('way(bn.n)')
     expect(q).not.toContain('bn.h')
-    expect(q.endsWith('.f out body geom;.h out body;')).toBe(true)
+    expect(q).toContain('.f out body geom;.h out body;')
     expect(overpassAbfrage(46.95, 7.44, 80)).toContain('node(around:80,46.9500000,7.4400000)["highway"="bus_stop"]')
   })
   it('Haltestellen und Lampen ändern die Daten der Rechnung nicht; Lampen und Weg-Tags aus der Rohantwort', () => {
@@ -132,5 +133,54 @@ describe('Umkreis-Abfrage: Haltestellen und Strassenlampen (Vorbelegung Bedarfsm
     expect(wegTags({ elements: mit }).get(1)).toEqual({ highway: 'residential', lit: 'yes' })
     expect(wegTags({ elements: [{ type: 'way', id: 2, tags: { highway: 'footway' } }] }).size).toBe(0)
     expect(strassenlampen(null)).toEqual([])
+  })
+})
+
+describe('Umkreis-Abfrage: Schulen, Heime und Vortrittszeichen (Automatik Paket C)', () => {
+  const O: P = [2600000, 1200000]
+  it('eigene Mengen .s (150 m, Knoten mit Lage, Flächen mit Mittelpunkt) und .v (ganzer Umkreis), nach den Wegen ausgegeben', () => {
+    const q = overpassAbfrage(46.95, 7.44, 300)
+    expect(q).toContain('nwr(around:200,46.9500000,7.4400000)["amenity"~"^(school|kindergarten|social_facility|nursing_home)$"]')
+    expect(q).toContain('nwr(around:200,46.9500000,7.4400000)["social_facility"~"^(nursing_home|group_home)$"];)->.s;')
+    expect(q).toContain('(node(around:300,46.9500000,7.4400000)["highway"~"^(give_way|stop)$"];node(around:300,46.9500000,7.4400000)["traffic_sign"];)->.v;')
+    expect(q.endsWith('.v out body;node.s;out body;(way.s;rel.s;);out tags bb;')).toBe(true)
+    expect(q.indexOf('.w out body geom;')).toBeLessThan(q.indexOf('node.s;out body;'))
+    expect(q).not.toContain('bn.s')
+    expect(q).not.toContain('bn.v')
+    expect(overpassAbfrage(46.95, 7.44, 80)).toContain('nwr(around:80,46.9500000,7.4400000)["amenity"')
+  })
+  it('Schulen, Heime und Vortrittszeichen ändern die Daten der Rechnung, die Weg-Tags und die Strassennamen nicht', () => {
+    const [la, lo] = wgs(O[0] + 3, O[1] + 4)
+    const weg = { type: 'way', id: 1, tags: { highway: 'residential', name: 'Beispielweg' }, nodes: [1, 2],
+      geometry: [{ lat: la, lon: lo }, { lat: la, lon: lo + 0.001 }] }
+    const basis = [weg, { type: 'node', id: 5, lat: la, lon: lo, tags: { highway: 'crossing', traffic_sign: 'CH:4.11' } }]
+    const mit = [...basis,
+      { type: 'node', id: 5, lat: la, lon: lo, tags: { highway: 'crossing', traffic_sign: 'CH:4.11' } },
+      { type: 'node', id: 6, lat: la, lon: lo, tags: { highway: 'give_way', direction: 'forward' } },
+      { type: 'node', id: 7, lat: la, lon: lo, tags: { highway: 'stop' } },
+      { type: 'node', id: 8, lat: la, lon: lo, tags: { amenity: 'school', name: 'Beispielschule' } },
+      { type: 'way', id: 9, tags: { amenity: 'kindergarten', name: 'Beispielhaus' }, center: { lat: la, lon: lo } },
+      { type: 'way', id: 1, tags: { highway: 'residential', name: 'Beispielweg' }, center: { lat: la, lon: lo } },
+      { type: 'relation', id: 10, tags: { amenity: 'social_facility', social_facility: 'nursing_home', type: 'multipolygon' }, center: { lat: la, lon: lo } }]
+    const parse = (e: unknown[]) => osmParsen({ elements: e } as unknown as Parameters<typeof osmParsen>[0])
+    expect(parse(mit)).toEqual(parse(basis))
+    expect(wegTags({ elements: mit })).toEqual(wegTags({ elements: basis }))
+    expect(strassennamen({ elements: mit }, O, 300)).toEqual(strassennamen({ elements: basis }, O, 300))
+  })
+  it('Vortrittszeichen: give_way, stop, sonst Schild mit traffic_sign; Richtung; ohne Doppel', () => {
+    const [la, lo] = wgs(O[0] + 10, O[1])
+    const roh = { elements: [
+      { type: 'node', id: 1, lat: la, lon: lo, tags: { highway: 'give_way', direction: 'backward' } },
+      { type: 'node', id: 1, lat: la, lon: lo, tags: { highway: 'give_way', direction: 'backward' } },
+      { type: 'node', id: 2, lat: la, lon: lo, tags: { highway: 'stop', traffic_sign: 'CH:3.01' } },
+      { type: 'node', id: 3, lat: la, lon: lo, tags: { traffic_sign: 'CH:3.02', 'traffic_sign:direction': 'forward' } },
+      { type: 'node', id: 4, lat: la, lon: lo, tags: { highway: 'crossing' } },
+      { type: 'way', id: 5, tags: { highway: 'give_way' } },
+    ] }
+    const v = vortrittsZeichen(roh)
+    expect(v.map(z => [z.id, z.art, z.richtung, z.zeichen])).toEqual([[1, 'give_way', 'backward', null], [2, 'stop', null, 'CH:3.01'],
+      [3, 'schild', 'forward', 'CH:3.02']])
+    expect(v[0].p[0]).toBeCloseTo(O[0] + 10, 1)
+    expect(vortrittsZeichen(null)).toEqual([])
   })
 })

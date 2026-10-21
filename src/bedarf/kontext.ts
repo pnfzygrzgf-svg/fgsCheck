@@ -22,6 +22,10 @@ export interface Ergebnis {
   detail?: string
   /** fallbezogener Normhinweis (ergänzt bzw. ersetzt den des Katalogs) */
   normHinweis?: string
+  /** fallbezogener Ergebnistext statt dem des Katalogs (Runde 4: G1/G2 bei ganzer Strasse) */
+  text?: string
+  /** Masse-Zeile nicht als verletzt werten (Hinweis statt Befund; Runde 4) */
+  ohneMassBefund?: true
 }
 
 export type Stand = Ergebnis | 'offen' | null
@@ -80,6 +84,8 @@ export class Kontext {
     const i = this.w('insel')
     return i.vorhanden && this.s('insel', 'art') === 'markiert'
   }
+  /** Abstand ist die Länge der ganzen Strasse (Vorbelegung, Runde 4) */
+  ganzeStrasse(f: 'abstandFgsM' | 'abstandLsaM'): boolean { return this.e[f]?.ganzeStrasse === true && this.e[f].wert !== null }
   /** besonderes Vortrittsbedürfnis (Schule, Kindergarten, Heim, Haltestelle, Schulweg) */
   bed(): boolean { return this.w('beduerfnis').length > 0 }
   /** Querung mit LSA (Typ lsa oder Lichtsignal am Streifen) */

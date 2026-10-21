@@ -8,6 +8,10 @@ import { E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M, INSEL_TIEFE_MIN_M }
 import { AHS_40240 } from './bedarf/tabellen'
 import { KATALOG } from './bedarf/katalog'
 import { THEMEN } from './bedarf/themen'
+import { Fragment } from 'react'
+import { WERKE } from './bedarf/katalog'
+import { WERK_IDS, WERK_INFO, regelnJeWerk, werkAnker } from './bedarf/quellen'
+import { begriffeAlphabetisch } from './bedarf/begriffe'
 import { REICHWEITE_SICHT_M } from './rechner/ohneVortritt'
 
 const F3 = KATALOG.F3.werte, F3B = KATALOG['F3-B'].werte
@@ -129,13 +133,24 @@ export function Anleitung() {
           («keine», wenn im Umkreis von 50 m um den Streifen keine liegt; sonst ein Hinweis mit Name und Abstand), Strecke oder Zone
           (nur mit Zonenangabe in OSM), in der Stadt Bern der DTV aus den Verkehrsdaten des Geoportals (Strassen ohne Eintrag:
           500 als Annahme) und ein Hinweis zur Beleuchtung nach OSM (das Feld bleibt offen); jede Angabe nennt ihre Herkunft (Geoportal
-          Stadt Bern bzw. OSM). Eine Eingabe von Hand überschreibt den Wert
+          Stadt Bern bzw. OSM). In der Stadt Bern lädt die App dafür zusätzlich den Richtplan Fussverkehr, die Strassenhierarchie und
+          Strassentypen, die signalisierte Höchstgeschwindigkeit, Volksschulen und Kindergärten, die taktil-visuellen Markierungen, den
+          Nutzungszonenplan und die ÖV-Linien aus dem Geoportal, überall aus OSM Schulen, Heime und Vortrittszeichen in der Nähe. Daraus
+          belegt sie Tempo, Strecke oder Zone (Tempo 30 ohne Zonenangabe nach der Strassenhierarchie, als Annahme), Strassentyp,
+          besonderen Grund für Vortritt, Fusswegnetz, ertastbare Markierungen, Gewerbe und bebautes Gebiet, Linienbus, Tramhalt und an
+          einer Kreuzung die Vortrittsrolle vor; was die Daten nicht klären, bleibt offen. Ein Verbot (Tempo-30-Zone ohne besonderen
+          Grund, Begegnungszone), das nur auf Annahmen beruht, bleibt offen, bis die Annahme mit «Vorschlag bestätigen» übernommen oder
+          von Hand geändert ist. Eine Eingabe von Hand überschreibt den Wert
           («zurück» stellt die Vorbelegung wieder her), wählbar als von Hand, Schätzung oder Annahme. Fussgänger lassen sich als
           Schätzklasse (unter 100, 100 bis 500, über 500 in den 5 Spitzenstunden) angeben; eine Zählung geht vor. Leere Felder sind
           «offen» und zählen nie als erfüllt. Das Befundblatt nennt den empfohlenen Querungstyp mit kurzer Begründung und Ziffern, die
           Einträge nach Thema, offene Angaben nach Block der Maske, nicht geprüfte Blöcke und die Masse Soll/Ist. Die Ebenen Bern
           (Masterplan, Handbuch LSA) und Kanton BE (Arbeitshilfe) lassen sich schalten; vorgegeben sind sie nach der Gemeinde bzw. dem
-          Kanton der AV am Streifen. <b>Zusammenfassung:</b> zuoberst steht je Querung ein Absatz in drei Sätzen: ob ein
+          Kanton der AV am Streifen. <b>Quellen und Begriffe:</b> unten in dieser Hilfe stehen alle Werke, auf die sich die
+          Prüfungen stützen (was sie sind, wie verbindlich, wie viele Prüfungen sie nennen), und die Fachbegriffe in Alltagssprache; in den
+          Details eines Eintrags führt der Name des Werks dorthin, Begriffe lassen sich mit «?» erklären. Im Bericht stehen nur die Werke und
+          Begriffe des Falls. <b>Offene Felder:</b> klein darunter steht, wofür die Angabe fehlt («fehlt für 2 Muss-Prüfungen», «fehlt für
+          1 Soll-Prüfung») bzw. «entscheidet über die Zulässigkeit». <b>Zusammenfassung:</b> zuoberst steht je Querung ein Absatz in drei Sätzen: ob ein
           Fussgängerstreifen zulässig ist und welche Querung empfohlen wird, das Wichtigste aus Grundprüfung und Befunden (Muss vor Soll,
           höchstens zwei genannt) und welche Angaben noch fehlen. Die Sätze folgen festen Vorlagen aus den Befunden, ohne eigene
           Wertung; die Fragen darin springen wie überall zum Feld. <b>Ablauf:</b> Vorbelegt ist, was die Rechnung kennt; alles Übrige von Hand
@@ -198,6 +213,8 @@ export function Anleitung() {
         <li><b>Bericht und Fall-Datei:</b> «Bericht drucken / als PDF» öffnet eine Druckansicht (Kartenbild, Tabellen, Eingaben,
           Quellen). «Fall speichern» sichert alle Eingaben als JSON-Datei, «Fall laden» stellt sie wieder her.</li>
       </ol>
+      <QuellenHilfe />
+      <BegriffeHilfe />
       <p><b>Grenzen</b></p>
       <ul>
         <li>Amtliche Vermessung frei über geodienste.ch: 19 Kantone ganz, Wallis teilweise (z. B. ohne Sitten und Brig) und
@@ -217,6 +234,37 @@ export function Anleitung() {
           {' '}{2 * NACHLADEN_M} m), rechnet die App um den zuletzt gezeichneten bzw. verschobenen Streifen und meldet die übrigen.</li>
         <li>Grundlage sind Daten mit eigenem Stand (Luftbild-Flugjahr, OSM, AV). Die App ersetzt keine Beurteilung vor Ort.</li>
       </ul>
+    </details>
+  )
+}
+
+/** Quellenverzeichnis des Bedarfsmoduls (Runde 4): je Werk Ausgabe, Ebene, Beschreibung und Zahl der Prüfungen, die es nennen; nur
+ * Werke mit mindestens einer Prüfung (WERKE bleibt für den Katalog vollständig) */
+export function QuellenHilfe() {
+  const n = regelnJeWerk()
+  return (
+    <details id="hilfe-quellen" className="hilfe-teil">
+      <summary>Quellen der Prüfungen</summary>
+      <p>Worauf sich die Prüfungen im Abschnitt «Bedarf und Querungstyp» stützen. Ebene: Recht ist verbindlich; Normen, Standards,
+        Arbeitshilfen und Richtlinien sind Fachgrundlagen, kein Gesetz. Regeln: wie viele Regeln das Werk als Quelle nennen (ohne
+        Verzweigungen des Ablaufs).</p>
+      <div className="tabelle-rahmen"><table className="quellen-tabelle">
+        <thead><tr><th>Werk</th><th>Ausgabe</th><th>Ebene</th><th>Beschreibung</th><th>Regeln</th></tr></thead>
+        <tbody>{WERK_IDS.filter(w => (n.get(w) ?? 0) > 0).map(w => <tr key={w} id={werkAnker(w)}>
+          <td><b>{WERKE[w].name}</b><div>{WERKE[w].titel}</div></td><td>{WERKE[w].ausgabe}</td><td>{WERK_INFO[w].ebene}</td>
+          <td>{WERK_INFO[w].was} {WERK_INFO[w].gilt}</td><td className="zahl-zelle">{n.get(w) ?? 0}</td></tr>)}</tbody>
+      </table></div>
+    </details>
+  )
+}
+
+/** Begriffe des Bedarfsmoduls (Runde 4), alphabetisch, je eine eigene Erklärung */
+export function BegriffeHilfe() {
+  return (
+    <details id="hilfe-begriffe" className="hilfe-teil">
+      <summary>Begriffe</summary>
+      <dl className="begriffe-liste">{begriffeAlphabetisch().map(b => <Fragment key={b.id}><dt id={`begriff-${b.id}`}>{b.name}</dt>
+        <dd>{b.text}</dd></Fragment>)}</dl>
     </details>
   )
 }
@@ -249,7 +297,8 @@ export function Datenschutz() {
               Übergang bzw. die geplanten Streifen; Server {erster}
               (Swiss OpenStreetMap Association), bei Störung ersatzweise {weitere.join(', ')}.</li>
             <li>map.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern: Rechteck ±150 m für amtliche Parkfelder bzw. den
-              Baumkataster, Haltestellen und Verkehrsdaten.</li>
+              Baumkataster, Haltestellen, Verkehrsdaten, Richtplan Fussverkehr, Strassenhierarchie und Strassentypen, signalisierte
+              Höchstgeschwindigkeit, Volksschulen und Kindergärten (±200 m), taktil-visuelle Markierungen, Nutzungszonen und ÖV-Linien.</li>
           </ul>
           Der eigene Standort (Standort-Knopf) wird nur im Browser ermittelt und auf der Karte gezeigt, nicht gespeichert und
           nicht gesendet; die Dienste erhalten wie sonst nur den Kartenausschnitt.</li>

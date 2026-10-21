@@ -49,7 +49,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     for (const [a, b] of k.ergebnisse) ks.ergebnisse.set(a, b)
     try { return REGELN[id](ks) !== null } catch (x) { if (x instanceof Offen) return true; throw x }
   }
-  const masse = new Map<string, { einheit: string; ist?: string; soll: string[]; verletzt: boolean; offen: boolean; regeln: string[] }>()
+  const masse = new Map<string, { einheit: string; ist?: string; soll: string[]; verletzt: boolean; offen: boolean; nichtAnwendbar?: boolean; regeln: string[] }>()
 
   /** Regel auswerten; stumm: nur für die Empfehlung (kein Eintrag, keine Masse) */
   const pruefe = (id: BefundId, stumm = false): void => {
@@ -66,6 +66,21 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
       fehlend = x.felder
       k.offenFelder.set(id, fehlend)
     }
+    // Korrektur M2: ein hartes Verbot, das nur mit Tatsachen gilt, beruht hier auf einer Annahme bzw. Schätzung → offen, bis sie
+    // bestätigt ist («Vorschlag bestätigen» macht den Wert zur Handeingabe mit Quelle «bestätigt»)
+    let bestaetigen = false
+    if (def.nurMitBestaetigung && r !== 'offen' && r !== null && r.verletzt) {
+      const unbestaetigt = (def.nurMitBestaetigung === true ? def.eingaben : def.nurMitBestaetigung).filter(f => {
+        const x = e[f as keyof BedarfEingaben]
+        return x && x.wert !== null && x.quelle !== null && QUELLEN_ANNAHME.includes(x.quelle)
+      })
+      if (unbestaetigt.length) {
+        r = 'offen'
+        fehlend = unbestaetigt
+        bestaetigen = true
+        k.offenFelder.set(id, fehlend)
+      }
+    }
     k.ergebnisse.set(id, r)
     if (stumm || r === null) return
     if (r !== 'offen' && !r.verletzt) erfuellt.push(id)
@@ -76,21 +91,28 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
       else {
         if (m.ist === undefined && r.ist !== undefined) m.ist = r.ist
         if (r.soll !== undefined && !m.soll.includes(r.soll)) m.soll.push(r.soll)
-        if (r.verletzt) m.verletzt = true
+        if (r.verletzt && !r.ohneMassBefund) m.verletzt = true
+        if (r.ohneMassBefund) m.nichtAnwendbar = true
       }
       masse.set(def.groesse, m)
     }
     if (r !== 'offen' && !r.verletzt) return
     const ein: Eintrag = {
       id, ebene: def.ebene!, staerke: (r !== 'offen' && r.staerke) || def.staerke!, zustand: r === 'offen' ? 'offen' : 'verletzt',
-      text: def.ergebnis, quelle: quellText(id),
+      text: (r !== 'offen' && r.text) || def.ergebnis, quelle: quellText(id),
     }
     if (r !== 'offen') {
       if (r.ist !== undefined) ein.ist = r.ist
       if (r.soll !== undefined) ein.soll = r.soll
       if (r.detail) ein.detail = r.detail
       if (def.einheit && (r.ist !== undefined || r.soll !== undefined)) ein.einheit = def.einheit
-    } else ein.fehlend = fehlend
+    } else {
+      ein.fehlend = fehlend
+      if (bestaetigen) {
+        ein.bestaetigen = true
+        ein.detail = 'beruht auf einer Annahme der Vorbelegung: Vorschlag bestätigen bzw. von Hand ändern'
+      }
+    }
     const nh = (r !== 'offen' && r.normHinweis) || def.normHinweis
     if (nh) ein.normHinweis = nh
     alle.push(ein)
@@ -133,7 +155,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     reihe(['C1', 'C2', 'C2b', 'C2-B', 'C3', 'C3b', 'C3c', 'C4', 'C4-B'], tue)
     // C3/C4 (weich) verletzt: zulässig nur mit Begründung, Querung ohne Vortritt als Alternative (Korrektur S2)
     zul = k.hat('C1') || k.hat('C2') ? 'nicht_angezeigt'
-      : k.istOffen('C1') || k.istOffen('C2') ? 'offen'
+      : k.istOffen('C1') || k.istOffen('C2') || k.istOffen('A2') ? 'offen'
         : ['C2b', 'C3', 'C3b', 'C4'].some(id => k.hat(id)) ? 'mit_begruendung' : 'zulaessig'
     if (!tue && zul !== 'nicht_angezeigt' && (k.hat('C3') || k.hat('C4'))) empf.zusatz.push('Querung ohne Vortritt prüfen (C3, C4)')
 
@@ -192,11 +214,17 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
         }
       }
     }
-    // I: nur mit LSA-Zeiten (Korrektur S6)
+    // I: nur mit LSA-Zeiten (Korrektur S6). Ausgelöst nur durch eine Zeit (Gelb, Grün bzw. Wartezeit), nicht durch die aus der
+    // Vorbelegung kopierten Längen (L, Teilquerungen, Inseltiefe; Nutzerentscheid 21.10.2026)
     if (typ === 'lsa' || k.o('fgsMitLsa') === true) {
-      if (k.o('lsaZeiten') === null) nichtGeprueft.push({ block: 'I', grund: 'LSA-Zeiten fehlen' })
+      const z = k.o('lsaZeiten')
+      if (z === null || (z.gelb == null && z.freigabe == null && z.wartezeit == null)) nichtGeprueft.push({ block: 'I', grund: 'LSA-Zeiten fehlen' })
       else reihe(['I1', 'I2', 'I3a', 'I3b', 'I4', 'I5', 'I6', 'I6-B', 'I7-B1', 'I7-B2', 'I7-B3', 'I7-B4', 'I8'])
     }
+
+    // Runde 4 (Kann): Begegnungszone offen (A2 offen, z. B. nur angenommen): keine Empfehlung eines Typs, bis die Zone geklärt ist
+    // (in der Begegnungszone gilt flächiges Queren, sonst ein Typ nach C bis E); Trottoirüberfahrt unverändert
+    if (!tue && k.istOffen('A2')) Object.assign(empf, { typ: 'keiner', elemente: [], grundlage: [] })
 
     // Vorbehalt: harte Regel offen (Korrektur S2): aus C oder D, bei einer Trottoirüberfahrt aus Q3
     const hartOffen = (id: string): boolean => k.istOffen(id) && ['hart', 'hart_bericht'].includes(KATALOG[id as RegelId].staerke ?? '')
@@ -216,7 +244,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
   }
   const massZeilen: MassZeile[] = [...masse].filter(([, m]) => m.ist !== undefined || m.offen).map(([groesse, m]) => ({
     groesse, einheit: m.einheit, soll: m.soll.join('; '), ist: m.ist ?? '–',
-    zustand: m.verletzt ? 'verletzt' : m.offen ? 'offen' : 'erfuellt', regeln: m.regeln,
+    zustand: m.verletzt ? 'verletzt' : m.offen ? 'offen' : m.nichtAnwendbar && !m.soll.length ? 'nicht_anwendbar' : 'erfuellt', regeln: m.regeln,
   }))
   const annahmen = [...k.annahmen]
   for (const f of k.genutzt) {

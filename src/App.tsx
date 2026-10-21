@@ -6,11 +6,13 @@ import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FAR
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
 import { ladeOsmRoh, osmParsen, ladeUebergaenge, markierung, istFgs, overpassSperre, strassennamen, namenKarte, knotenLage, type OsmKnoten,
-  type StrassenMitte, wegTags, strassenlampen, LAMPEN_RADIUS_M } from './daten/osm'
+  type StrassenMitte, wegTags, strassenlampen, vortrittsZeichen, LAMPEN_RADIUS_M } from './daten/osm'
 import { istAbbruch } from './daten/holen'
 import { baumQuelleFuer, type BaumQuelle, type KatasterBaum } from './daten/baumkataster'
 import { parkQuelleFuer, istParkId, type ParkQuelle, type KatasterFeld } from './daten/parkkataster'
-import { bernZustaendig, GEODATEN_BERN, GEOPORTAL_BERN } from './daten/geoportal'
+import { bernZustaendig, bernErgebnis, GEODATEN_BERN, GEOPORTAL_BERN, type BernLaden } from './daten/geoportal'
+import { BERN_C_KEYS, BERN_DIENSTE_C, bernDienstName, bernDienstBericht, type BernDienstKey, type BernDatenC, type BernDienst } from './daten/bernDienste'
+import { schulenStand } from './daten/schulen'
 import { ladeHaltestellenBern, haltestellenStand, type BernHalte } from './daten/haltestellen'
 import { ladeVerkehrsdatenBern, type VdLinie } from './daten/verkehrsdaten'
 import type { GeoVorbelegung } from './bedarf/vorbelegung'
@@ -57,7 +59,9 @@ import { fangen, fangRadiusM, FANG_PX, fixpunktVorschlaege, fixpunktName, fixMas
 
 interface QuellenStand { name: string; objekte?: string; ms?: number; bytes?: number; server?: string; fehler?: string }
 /** Geoportal Stadt Bern für die Vorbelegung des Bedarfsmoduls (Haltestellen, Verkehrsdaten); nr = Ladevorgang (wie ParkStand) */
-interface BernGeo { nr: number; halte: BernHalte; vd: { laedt: true } | { linien: VdLinie[] } | { fehler: string } }
+interface BernGeo { nr: number; halte: BernHalte; vd: { laedt: true } | { linien: VdLinie[] } | { fehler: string }
+  /** weitere Dienste (Automatik Paket C, daten/bernDienste.ts) */
+  c: { [K in BernDienstKey]?: BernLaden<BernDatenC[K]> } }
 const HALT_QUELLE = `${GEODATEN_BERN}, Haltestellen`, VD_QUELLE = `${GEODATEN_BERN}, Flächendeckende Verkehrsdaten`
 interface ParkStand { quelle: ParkQuelle; nr: number; lat: number; lon: number; felder: KatasterFeld[] | null; laedt?: boolean; fehler?: string }
 interface Daten { osm: unknown; av: GeoJson; sosf: GeoJson | null; nid: number | null; bfs: (number | null)[]; luftbild: LuftbildRoh | null; flugjahr: string
@@ -522,7 +526,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       if (pq) setParkKat({ quelle: pq, nr, lat, lon, felder: null })
       // Berner Dienste nur, wenn die AV-Fläche am Ladeort in der Stadt Bern liegt (Korrektur M4; nicht jede Gemeinde im Ausschnitt)
       const bernHier = bernZustaendig([e, n], avF)
-      if (bernHier) setBernGeo({ nr, halte: { laedt: true }, vd: { laedt: true } })
+      if (bernHier) setBernGeo({ nr, halte: { laedt: true }, vd: { laedt: true }, c: Object.fromEntries(BERN_C_KEYS.map(k => [k, { laedt: true }])) })
       setMeldung('Rechnung läuft …')
       // das Luftbild zieht der Effekt «Luftbild nachladen» nach (nur am OSM-Übergang und wenn die Suche nicht abgeschaltet ist)
       setDaten({ osm: ro.daten, av: ra.daten, sosf: rs ? rs.daten : null, nid, bfs, luftbild: null, flugjahr: '', ort: [e, n] })
@@ -554,6 +558,26 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           setBernGeo(g => (g && g.nr === nr ? { ...g, vd: { fehler: (err as Error).message } } : g))
           setzeQuelle('verkehrsdaten', { name: VN, fehler: `${(err as Error).message} (DTV bleibt offen)` })
         })
+        // weitere Dienste (Automatik Paket C): je Dienst getrennt, Fehler nur in «Geladene Quellen»
+        const dienstLaden = <K extends BernDienstKey>(k: K) => {
+          const d: BernDienst<BernDatenC[K]> = BERN_DIENSTE_C[k]
+          const rad = d.radiusM ?? PARK_RADIUS_M
+          const name = bernDienstName(k, rad)
+          setzeQuelle(k, { name })
+          d.laden(lat, lon, rad, ctrl.signal).then(r => {
+            if (!hier()) return
+            const stand: BernLaden<BernDatenC[K]> = { daten: r.daten, ...(r.hinweis ? { hinweis: r.hinweis } : {}) }
+            setBernGeo(g => (g && g.nr === nr ? { ...g, c: { ...g.c, [k]: stand } } : g))
+            setzeQuelle(k, { name, objekte: d.objekte(r.daten) + (r.hinweis ? ` (${r.hinweis})` : ''), ms: r.ms, bytes: r.bytes,
+              server: r.quelle })
+            setFall(f => (f ? { ...f, quellen: { ...f.quellen, [k]: d.quelle } } : f))
+          }, err => {
+            if (istAbbruch(err) || !hier()) return
+            setBernGeo(g => (g && g.nr === nr ? { ...g, c: { ...g.c, [k]: { fehler: (err as Error).message } } } : g))
+            setzeQuelle(k, { name, fehler: `${(err as Error).message} (${d.ohne})` })
+          })
+        }
+        for (const k of BERN_C_KEYS) dienstLaden(k)
       }
     } catch (err) {
       if (ctrl.signal.aborted || istAbbruch(err)) return
@@ -1303,14 +1327,28 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     if (!daten) return {}
     const halte = streifenBern && bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.halte : null
     const vd = streifenBern && bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.vd : null
+    const c = streifenBern && bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.c : null
+    const bq = { mitte: daten.ort, radiusM: PARK_RADIUS_M, form: 'quadrat' as const }
     return {
       haltestellen: haltestellenStand(halte, daten.osm, daten.ort, PARK_RADIUS_M),
       verkehrsdaten: vd && 'linien' in vd ? { linien: vd.linien, bereich: { mitte: daten.ort, radiusM: PARK_RADIUS_M, form: 'quadrat' } }
         : vd && 'fehler' in vd ? { fehler: vd.fehler } : null,
       osmTags: wegTags(daten.osm),
       lampen: { punkte: strassenlampen(daten.osm), bereich: { mitte: daten.ort, radiusM: LAMPEN_RADIUS_M, form: 'kreis' } },
+      // Automatik Paket A + B (bedarf/automatik.ts): geparstes OSM-Netz, AV, Ladeort und Umkreis der OSM-Abfrage
+      osm: daten.osm ? osmParsen(daten.osm as Parameters<typeof osmParsen>[0]) : null,
+      av: av ?? null, ladeort: daten.ort, osmRadiusM: OSM_RADIUS_M,
+      // Automatik Paket C: weitere Berner Dienste (nur am Berner Streifen) und OSM-Erweiterungen (überall); nur Daten, Regeln in vorbelegung.ts
+      richtplan: c ? bernErgebnis(c.richtplan, bq) : null,
+      strassenhierarchie: c ? bernErgebnis(c.strassenhierarchie, bq) : null,
+      vsig: c ? bernErgebnis(c.vsig, bq) : null,
+      schulen: schulenStand(c?.schulen ?? null, daten.osm, daten.ort, BERN_DIENSTE_C.schulen.radiusM ?? PARK_RADIUS_M),
+      taktil: c ? bernErgebnis(c.taktil, bq) : null,
+      nutzungszonen: c ? bernErgebnis(c.nutzungszonen, bq) : null,
+      oevLinien: c ? bernErgebnis(c.oevLinien, bq) : null,
+      vortritt: { zeichen: vortrittsZeichen(daten.osm), bereich: { mitte: daten.ort, radiusM: OSM_RADIUS_M, form: 'kreis' } },
     }
-  }, [daten, bernGeo, streifenBern])
+  }, [daten, bernGeo, streifenBern, av])
   const blaetter = useMemo(() => (fall && rechnung && rechnung.streifen.length ? befundblaetter(rechnung, fall, { vorgabe: bedarfVorgabe,
     titel, zufahrt: (fid, z) => zufahrtText(zNamen.get(fid), z), geo: geoVor }) : []), [fall, rechnung, bedarfVorgabe, titel, zNamen, geoVor])
   const gewaehlteZ: ZufahrtErgebnis | null = useMemo(() => alleZ.find(z => zufahrtKey(z) === auswahl) ?? null, [alleZ, auswahl])
@@ -1885,7 +1923,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         </p>
         <p className="klein">
           Luftbild und Streifen-Erkennung {LUFTBILD_QUELLE}{daten?.flugjahr ? ` (Flugjahr ${daten.flugjahr})` : ''} · Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '…'}, geodienste.ch ·
-          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}.
+          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}.
         </p>
         <p className="klein">Die App ersetzt keine Beurteilung vor Ort. Eingaben bleiben im Browser bzw. in der Fall-Datei.</p>
         </details>
@@ -1899,7 +1937,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             ...(parkAn && parkKat?.felder ? [`Amtliche Parkfelder: ${parkKat.quelle.quellenangabe} (WFS map.bern.ch)`] : []),
             ...(fall.quellen.haltestellen ? [`Haltestellen (Vorbelegung Bedarf): ${HALT_QUELLE} (${GEOPORTAL_BERN}, ArcGIS REST map.bern.ch)`] : []),
             ...(fall.quellen.verkehrsdaten ? [`Verkehrsmenge DTV (Vorbelegung Bedarf): ${VD_QUELLE}, DTV = 16·Nt + 8·Nn (${GEOPORTAL_BERN}, ` +
-              'ArcGIS REST map.bern.ch)'] : [])]}
+              'ArcGIS REST map.bern.ch)'] : []),
+            ...BERN_C_KEYS.filter(k => fall.quellen[k]).map(bernDienstBericht)]}
           ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} />
       )}
     </div>

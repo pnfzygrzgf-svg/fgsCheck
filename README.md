@@ -263,6 +263,44 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   (Geoportal Stadt Bern bzw. OSM, «keine» ohne Haltestelle im Umkreis von 50 m, sonst Hinweis), Strecke oder Zone (OSM-Tags der
   Zufahrten), DTV (Bern: Geoportal, 16·Nt + 8·Nn; ohne Eintrag Annahme 500) und ein Hinweis zur Beleuchtung (OSM, ohne Wert); jede
   Angabe nennt ihre Herkunft, eine Handeingabe überschreibt sie.
+  Automatik Paket A + B (`automatik.ts`, Schwellen in `AUTO`): weitere Felder aus den schon geladenen Daten – Lage (Kreisel,
+  Einmündung, Strecke; an einer Kreuzung Hinweis), Verzweigung, Abstände zum nächsten markierten Übergang bzw. Lichtsignal entlang
+  der Strasse, Knoten mit Lichtsignal und Arme ohne Querung (OSM-Netz), Rückversatz, Länge der Einengung, Trottoir vor der
+  Parkreihe und Kopfüberstand der Insel (AV), Haltestelle angrenzend, Art, Lage und Verdeckung, Tramhaltestelle, Busstreifen,
+  Tram (AV bzw. OSM), Strassentyp (OSM), Ein-/Ausfahrt, innerorts und Strecke aus OSM-Tags bzw. Tempo, Kurvenradius und
+  Halteverbotslinie aus dem Sichtrechner, Annahmen mit Schwellen (stark befahren, Autoverkehr, lange Querung, Einengung) und
+  Übernahmen in LSA-Zeiten und Trottoirüberfahrt. Der vorbelegte Wert steht im Feld mit Quellen-Chip; eine abweichende Eingabe
+  wird Handeingabe, eine Handangabe «offen» verwirft die Vorbelegung (`{ wert: null, quelle: 'hand' }` im Block `bedarf`, ältere
+  Versionen übergehen sie). «Sichtweite je Zufahrt» zeigt ohne Handeingabe das Ergebnis des Sichtrechners (Zustand «rechner»,
+  zählt nicht als offen); der Sichtrechner liefert dazu je gerade Zufahrt `freiBisM` (zusätzliches Ausgabefeld, Status und Soll
+  unverändert), das die Grundprüfung bei verdeckter Sicht nutzt.
+  Datenschicht «Automatik Paket C» (nur Daten, in `GeoVorbelegung` durchgereicht; in Bern geladen, wenn die AV-Fläche am Ladeort
+  in der Stadt Bern liegt, je Dienst eine Abfrage pro Layer im Rechteck ±150 m, Fehler je Dienst getrennt, Liste in
+  `src/daten/bernDienste.ts`, Quellenangabe «Geodaten Stadt Bern» in Fusszeile, Fall-Datei und Bericht):
+  `richtplanFussverkehr.ts` liest aus dem Richtplan Fussverkehr das Basisnetz (Linien) und die publikumsattraktiven Bereiche (Flächen);
+  `strassenhierarchie.ts` liest die Strassenhierarchie (Typ_id: Quartier-, Quartierverbindungsstrasse, Basisnetz …) und die
+  Strassentypen (Strgatt_id: SS_30, SS_50, VS_50_60, HVS_50_60, HVS_80) als Linien;
+  `vsig.ts` liest die signalisierte Höchstgeschwindigkeit (V_sig) je Strassenabschnitt;
+  `schulen.ts` liest Volksschulen und Kindergärten (Geoportal, ohne Kindertagesstätten) und überall aus OSM Schulen, Kindergärten
+  und Heime (amenity bzw. social_facility, Umkreis 200 m, eigene Menge der Overpass-Abfrage; Geoportal ebenfalls ±200 m, damit der
+  Umkreis von 150 m um den Streifen ganz geladen ist);
+  `taktil.ts` liest die taktil-visuellen Markierungen (Felder als Punkte, Linien inkl. Leitlinie auf dem Streifen);
+  `nutzungszonen.ts` liest die Grundzonen des Nutzungszonenplans (Flächen, Gewerbe = 1004 Industrie und Gewerbe sowie 1018
+  Gewerbegebiet Matte, Bauzone ohne Schutzzonen, Landwirtschaft, Wald und Gewässer, vereinfacht abgefragt);
+  `oevLinien.ts` liest die ÖV-Linien mit Verkehrsmittel (Bus, Trolleybus, Tram …), auf den Ausschnitt zugeschnitten;
+  `osm.ts` lädt zusätzlich Vortrittszeichen (give_way, stop) und Verkehrsschilder (traffic_sign) im Umkreis, die die Rechnung
+  übergeht; `geoHilfen.ts` enthält die Geometrie-Hilfen dazu (Punkt in Fläche, Abstand zu Linie bzw. Fläche, Schnitt mit einer
+  Achse, nächste Linie, Zuschneiden).
+  Regeln «Automatik Paket C» (`automatikC.ts`, Schwellen in `AUTO_C`; Vortrittsrolle in `automatik.ts`): signalisiertes Tempo aus
+  V_sig (Vorrang vor OSM), Strecke oder Zone bei Tempo 30 ohne Zonenangabe aus der Strassenhierarchie (Annahme), Strassentyp aus
+  Strassenhierarchie und Strassentypen (Vorrang vor der OSM-Annahme, Widerspruch offen), besonderer Grund (Volksschule bzw.
+  Kindergarten, Heim nach OSM, Haltestelle; nichts im ganz geladenen Umkreis von 150 m «keines» als Annahme), Fusswegnetz,
+  Netzplanung, Nachfrage und Gehlinie aus dem Richtplan Fussverkehr, ertastbare Markierung und Leitlinie aus den taktil-visuellen
+  Markierungen, Gewerbe und bebautes Gebiet aus dem Nutzungszonenplan, Linienbus und Tramhalt aus den ÖV-Linien, Vortrittsrolle an
+  der Kreuzung aus Vortrittszeichen nach OSM. Fehlen Daten bzw. fällt ein Dienst aus, bleibt das Feld offen (mit Hinweis).
+  Harte Verbote des Rechts (A2 Begegnungszone, C2 Tempo-30-Zone ohne besonderen Grund; Kennzeichen `nurMitBestaetigung` im Katalog)
+  gelten nur mit Tatsachen bzw. bestätigten Werten: beruhen sie auf einer Annahme, bleiben sie offen («Annahme bestätigen»); der Knopf
+  «Vorschlag bestätigen» am Feld übernimmt die Annahme als Handeingabe mit der Quelle «bestätigt» (`bestaetigt`).
   Grundprüfung nach bfu MS.013-2025 (Big Five) in `grundpruefung.ts`: eigene Regeln der Gruppe B5 im Katalog (Tempo als
   Vorbedingung, Sicht und Erkennungsdistanz, Schutzinsel, Zweistreifigkeit, Beleuchtung, Fussgängerfrequenz, dazu DTV und
   Annäherungsbereich), Stärke nach dem Wortlaut der bfu, Normhinweis, wo die Norm anders wertet; je Punkt erfüllt, verletzt,
@@ -283,6 +321,15 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Frage je Feld (`FRAGEN` in `feldhilfen.ts`), Klick springt zum Feld.
   Zuoberst im Abschnitt und im Bericht steht je Querung eine Zusammenfassung in drei Sätzen nach festen Vorlagen (`zusammenfassung.ts`:
   Zulässigkeit und Empfehlung, Grundprüfung und wichtigste Befunde mit den Kurzformen `kurzsatz` des Katalogs, fehlende Angaben als Fragen).
+  Runde 4: Quellenverzeichnis in `quellen.ts` (je Werk des Werkverzeichnisses zwei eigene Sätze: was es ist und wie verbindlich nach
+  der Ebene; Hilfe mit Tabelle und Zahl der Prüfungen je Werk, Bericht nur mit den Werken des Falls, in den Details der Werkname als
+  Verweis), Begriffsliste in `begriffe.ts` (eigene Erklärungen; Hilfe alphabetisch, Bericht nur die Begriffe des Falls, dezente
+  Verweise in Feldhilfen und Details) und an offenen Feldern der Zusatz, wofür die Angabe fehlt («fehlt für 2 Muss-Prüfungen»,
+  «entscheidet über die Zulässigkeit»; `feldbedarf.ts`). «Vorschlag bestätigen» steht nur an Feldern, deren Annahme im Fall ein
+  Verbot offen hält. Abstände entlang der Strasse: endet die Strasse ohne Fortsetzung (Querstrasse, Sackgasse), gilt diese Richtung
+  als ganz durchsucht, nur ein Namenswechsel begrenzt die Suche (`FORTSETZUNG_GRAD` in `automatik.ts`); enden beide Richtungen, gilt
+  die Länge der ganzen Strasse mit dem Kennzeichen `ganzeStrasse` (G1/G2 dann als Hinweis, nicht anwendbar). Ist offen, ob die Querung in einer Begegnungszone liegt (nur bei Tempo 20 bzw. unbekanntem
+  Tempo ohne Zonenangabe; ab Tempo 30 ist die Regel nicht anwendbar), folgt die Empfehlung eines Typs erst nach der Klärung.
 
 ## Datenschutz
 

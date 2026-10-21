@@ -74,7 +74,10 @@ export interface Fall {
   ort: { lat: number; lon: number; uebergang: number | null; bezeichnung?: string; markierung?: Markierung }
   quellen: { osm?: string; av?: string; baumkataster?: string; parkkataster?: string; luftbild?: string; geladen?: string
     /** Geoportal Stadt Bern für die Vorbelegung des Bedarfsmoduls (seit 20.10.2026) */
-    haltestellen?: string; verkehrsdaten?: string }
+    haltestellen?: string; verkehrsdaten?: string
+    /** weitere Dienste des Geoportals Stadt Bern (Automatik Paket C, seit 21.10.2026) */
+    richtplan?: string; strassenhierarchie?: string; vsig?: string; schulen?: string; taktil?: string; nutzungszonen?: string
+    oevLinien?: string }
   streifenHand: StreifenHand[]
   hindernisse: Hindernis[]
   zufahrten: Record<string, ZufahrtHand>          // Schlüssel «Streifen|Kennung»
@@ -191,7 +194,8 @@ export function planStandardPruefen(x: unknown): PlanStandard | null {
     kopf: x.kopf, seite: x.seite as FurtSeite, m: [x.m[0], x.m[1]], achse: [x.achse[0], x.achse[1]], balken: [x.balken[0], x.balken[1]] }
 }
 
-const QUELLEN_SCHLUESSEL = ['osm', 'av', 'baumkataster', 'parkkataster', 'luftbild', 'geladen', 'haltestellen', 'verkehrsdaten'] as const
+const QUELLEN_SCHLUESSEL = ['osm', 'av', 'baumkataster', 'parkkataster', 'luftbild', 'geladen', 'haltestellen', 'verkehrsdaten',
+  'richtplan', 'strassenhierarchie', 'vsig', 'schulen', 'taktil', 'nutzungszonen', 'oevLinien'] as const
 
 /** Fall aus JSON lesen und prüfen -> [Fall, Hinweise]. Ausnahme nur bei fremder Datei, Version oder ungültigem Ort; ungültige
  * Listen bzw. Objekte und einzelne ungültige Einträge werden übergangen und gemeldet. Auch für den Browser-Speicher (fallErinnern). */

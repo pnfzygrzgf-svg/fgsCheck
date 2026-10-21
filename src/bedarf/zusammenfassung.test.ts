@@ -143,7 +143,7 @@ describe('Vorlagen', () => {
     const z = zf({})
     expect(z.antwort).toBe('Ein Fussgängerstreifen ist hier zulässig.')
     expect(z.wichtig).toBe('Grundprüfung bfu: 4 von 5 Punkten erfüllt, Fussgängerschutzinsel mit Hinweis. Übrige Prüfungen ohne Befund (1 Hinweis).')
-    expect(zf({ typ: 'lsa', fgsMitLsa: true }).wichtig).toBe('Keine Befunde: 28 von 29 Prüfungen ohne Befund, 1 Hinweis.')
+    expect(zf({ typ: 'lsa', fgsMitLsa: true }).wichtig).toBe('Keine Befunde: 27 von 28 Prüfungen ohne Befund, 1 Hinweis.')
     expect(z.fehlt).toBeNull()
   })
   it('Grundfall mit offenen Feldern: Fragen, Muss zuerst, höchstens zwei ausgeschrieben, Rest als Zahl', () => {
@@ -332,7 +332,7 @@ describe('Zusammenfassung an Befundblättern mit Rechnung', () => {
     expect(fehler).toEqual([])
   })
   it('ohne Handeingaben: vorläufig, Fragen springen zum Feld; Sicht verdeckt: Muss aus dem Sichtrechner genannt', () => {
-    const z0 = zusammenfassungBlatt(blatt(szenarien[0][1]))
+    const z0 = zusammenfassungBlatt(blatt(fallMit(x => { x.bedarf = { felder: { tempoRegime: { wert: null, quelle: 'hand' } } } })))
     expect(z0.antwort).toBe('Vorläufig: Ob ein Fussgängerstreifen hier zulässig ist, hängt von fehlenden Angaben ab.')
     expect(z0.fehlt!.felder.length).toBeGreaterThanOrEqual(1)
     for (const q of z0.fehlt!.felder) expect(feldZiel(q), q).not.toBeNull()

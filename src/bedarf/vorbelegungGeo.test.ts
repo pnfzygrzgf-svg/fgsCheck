@@ -128,8 +128,10 @@ describe('Vorbelegung: Strecke oder Zone (OSM-Tags der Zufahrten)', () => {
     const t30 = vor({ osmTags: new Map([[1, { ...TAGS, maxspeed: '30' }]]) })
     expect(t30.werte.tempoRegime).toBeUndefined()
     expect(t30.feldHinweise!.tempoRegime).toContain('ohne Angabe zur Zone')
-    expect(vor({ osmTags: new Map() }).werte.tempoRegime).toBeUndefined()
-    expect(vor({}).werte.tempoRegime).toBeUndefined()
+    // Automatik Paket A: ohne Zonenangabe gilt ab 40 km/h die Strecke (Tempo aus der Rechnung, OSM maxspeed)
+    expect(vor({ osmTags: new Map() }).werte.tempoRegime).toEqual({ wert: 'strecke', quelle: 'osm',
+      text: 'Tempo 50 km/h: Strecke (eine Zone hat höchstens 30 km/h)' })
+    expect(vor({}).werte.tempoRegime).toMatchObject({ wert: 'strecke', quelle: 'osm' })
   })
 })
 

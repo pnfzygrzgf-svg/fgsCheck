@@ -185,6 +185,25 @@ function schluessel(ergebnisse: ZufahrtErgebnis[], art: string, grad: number): s
 
 interface StreifenX extends Streifen { netzQuelle?: string; strasse?: string }
 
+/** Schlüssel eines Konflikts (gleiches Objekt in zwei Läufen der Konfliktsuche) */
+const konfliktKey = (k: Konflikt) => `${k.klasse}|${k.id ?? ''}|${k.layer}|${k.abstand.toFixed(3)}`
+/**
+ * Frei bis (Automatik Paket B, 21.10.2026): zusätzliches Ausgabefeld, ändert weder Status noch Soll. Ohne Konflikt die geprüfte
+ * Länge sw; sonst die Länge entlang der Sichtpunkte bis zum letzten Sichtpunkt, dessen Sichtfeld (Sichtpunkte 0 bis k) noch keinen
+ * der gemeldeten Konflikte trifft (Suche halbierend, das Sichtfeld wächst mit k). Abgerundet auf ganze Meter.
+ */
+function freiBis(sp: P[], konflikte: Konflikt[], sf: (p: P[]) => Multi, kf: (f: Multi, p: P[]) => Konflikt[], sw: number): number {
+  if (!konflikte.length || sp.length < 2) return Math.floor(sw + 1e-6)
+  const ziel = new Set(konflikte.map(konfliktKey))
+  const trifft = (n: number) => { const pre = sp.slice(0, n); return kf(sf(pre), pre).some(k => ziel.has(konfliktKey(k))) }
+  if (trifft(1)) return 0
+  let lo = 1, hi = sp.length                      // lo: frei, hi: trifft (das ganze Sichtfeld enthält die Konflikte)
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (trifft(mid)) hi = mid; else lo = mid }
+  let l = 0
+  for (let i = 1; i < lo; i++) l += dist(sp[i - 1], sp[i])
+  return Math.floor(l + 1e-6)
+}
+
 /** pruefen: alle Teilstreifen -> Ergebnisse */
 export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
   const { netz, fahrbahn, gebaeude } = kx
@@ -732,6 +751,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   } else if (hatGerade && !geradeEntfaellt) {
     const feld = sf(sichtpunkte)
     const konflikte = kf(feld, sichtpunkte)
+    const freiBisM = freiBis(sichtpunkte, konflikte, sf, kf, sw)
     ergebnisse.push({
       fgsId: fid, zufahrt: schluessel([...bisher, ...ergebnisse], art, gradD), kennung: kennungG, richtung: gradD, art,
       strasse: zf.name || null, ueberStrasse: null, knotenM: null, tempo, tempoQuelle: tempoQ,
@@ -749,6 +769,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       osmKnoten: mitKnoten ? String(su!.K) : null, ersterKnotenM: mitKnoten ? Math.round((su!.dist - h) * 10) / 10 : null,
       netzHinweis: [...new Set(netzHinweis)], punkteVerschoben: nVerschoben, sichtpunkte, feld, spur: weg, annahmen,
       ...(fso ? { fahrstreifenOsmN: fso.n } : {}),
+      freiBisM,
     })
   } else if (!hatGerade) {
     const ende = sg !== null && sg.endeM !== null ? `Spur endet nach ${sg.endeM.toFixed(1)} m (${sg.endeGrund})` : ''

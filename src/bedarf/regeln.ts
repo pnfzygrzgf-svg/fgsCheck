@@ -17,6 +17,10 @@ export type RegelFn = (k: Kontext) => Ergebnis | null
 
 const K = KATALOG
 const ja = (verletzt: boolean, x: Omit<Ergebnis, 'verletzt'> = {}): Ergebnis => ({ verletzt, ...x })
+/** Runde 4: die Strasse endet beidseits ohne Fortsetzung, der Abstand ist ihre ganze Länge: Hinweis statt Befund, Abstand nicht
+ * anwendbar (Masse-Zeile mit «ganze Strasse», ohne Soll) */
+const ganzeStrasse = (d: number, text: string): Ergebnis => ({ verletzt: true, staerke: 'hinweis', ohneMassBefund: true,
+  ist: `${fmt(d, 0)} (ganze Strasse)`, text: `${text} (sie endet beidseits ohne Fortsetzung): Abstand nicht anwendbar` })
 /** Zahl mit Dezimalkomma */
 export const fmt = (n: number, d = 2): string => n.toFixed(d).replace('.', ',')
 const fmtListe = (xs: number[], d = 2): string => xs.map(x => fmt(x, d)).join(' / ')
@@ -97,7 +101,15 @@ const lsaBekannt = (k: Kontext): boolean => k.o('typ') === 'lsa' || k.o('fgsMitL
 export const REGELN: Record<BefundId, RegelFn> = {
   // ── A ──
   A1: k => ja(!k.w('innerorts')),
-  A2: k => ja(k.w('tempoRegime') === 'begegnungszone'),
+  // Runde 4: eine Begegnungszone hat Tempo 20; Strecke bzw. Tempo-30-Zone oder ein bekanntes Tempo ab 30 ohne Zonenangabe: nicht
+  // anwendbar (nicht offen); offen nur bei Tempo 20 bzw. unbekanntem Tempo ohne Zonenangabe
+  A2: k => {
+    const t = k.o('tempoRegime')
+    if (t !== null) return t === 'begegnungszone' ? ja(true) : null
+    const v = k.o('vSig')
+    if (v !== null && v >= 30) return null
+    throw new Offen(['tempoRegime'])
+  },
   A3: k => {
     if (!k.w('innerorts')) return null
     const v = k.v85e()
@@ -469,6 +481,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
   // ── G ──
   G1: k => {
     const d = k.w('abstandFgsM'), W = K.G1.werte
+    if (k.ganzeStrasse('abstandFgsM')) return ganzeStrasse(d, 'Kein weiterer Fussgängerstreifen auf dieser Strasse möglich')
     const x = { ist: fmt(d, 0), soll: `≥ ${W.min}` }
     if (d >= W.min) return ja(false, x)
     return ja(!k.w('verzweigung') && !k.w('haltestelleAngrenzend'), x)
@@ -476,6 +489,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
   G2: k => {
     if (k.mitLsa()) return null
     const d = k.w('abstandLsaM'), W = K.G2.werte
+    if (k.ganzeStrasse('abstandLsaM')) return ganzeStrasse(d, 'Kein Lichtsignal auf dieser Strasse')
     const x = { ist: fmt(d, 0), soll: `≥ ${W.min}` }
     if (d >= W.min) return ja(false, x)
     return ja(!k.w('verzweigungErkennbar'), x)

@@ -32,7 +32,7 @@ import { streifenTitel, zufahrtLang, zufahrtNr, zufahrtText, entfallenNr, entfal
 /** Zufahrt-Namen je Streifen (benennung.zufahrtNamen, in der App gerechnet) */
 type Namen = Map<string, ZufahrtNamen>
 import { ausserhalbText, nichtAbgedecktText, type Ausserhalb } from './abdeckung'
-import { BefundblattAnzeige, GrundpruefungAnzeige, ZusammenfassungAnzeige, eingabenText } from './BedarfPanel'
+import { BefundblattAnzeige, GrundpruefungAnzeige, VerzeichnisBericht, ZusammenfassungAnzeige, eingabenText } from './BedarfPanel'
 import type { BefundBlatt } from './bedarf/befundblatt'
 import { bedarfLeer } from './bedarf/fallBedarf'
 import { AHS_40240 } from './bedarf/tabellen'
@@ -562,6 +562,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
           <h3>Eingaben und Quellen{blaetter.length > 1 ? ` (vorbelegt nach ${blaetter[0].titel})` : ''}</h3>
           <ul className="klein">{eingabenText(blaetter[0]).map(g => <li key={g.gruppe}><b>{g.gruppe}:</b>
             {g.hand.length > 0 && <> von Hand: {g.hand.join('; ')}.</>}{g.vorbelegt.length > 0 && <> Vorbelegt: {g.vorbelegt.join('; ')}.</>}</li>)}</ul>
+          <VerzeichnisBericht blaetter={blaetter} />
         </section>}
         <section className="bericht-block">
           <h2>Ergebnis</h2>

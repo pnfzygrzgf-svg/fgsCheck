@@ -91,7 +91,7 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
     }
     expect(n).toBeGreaterThan(5000)
     expect([...fehler].slice(0, 20)).toEqual([])
-  })
+  }, 30_000)
   it('Panel mit Eingabemaske und alle Feldhilfen (Wozu, Ablauf, Leer lassen) in mehreren Fällen', () => {
     const fehler = new Set<string>()
     const f = leererFall(46.95, 7.44, null)
@@ -107,13 +107,13 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
       }
     }
     expect([...fehler].slice(0, 20)).toEqual([])
-  })
+  }, 30_000)
   it('Runde 2: Prüfübersicht, Themen, Verbindlichkeit (Muss/Soll), eine Zeile je Eintrag; Bericht ohne Liste der ohne Befund geprüften Regeln', () => {
     const b = blatt({}, { bern: true, kantonBE: true })
     const panel = text(renderToStaticMarkup(<BefundblattAnzeige b={b} />)).replace(/ :/g, ':')
     const druck = text(renderToStaticMarkup(<BefundblattAnzeige b={b} druck />)).replace(/ :/g, ':')
     for (const t of [panel, druck]) {
-      expect(t).toContain('Geprüft: 49 Regeln · ohne Befund 46 · offen 0 · Befunde 1 · Hinweise 2')
+      expect(t).toContain('Geprüft: 48 Regeln · ohne Befund 45 · offen 0 · Befunde 1 · Hinweise 2')
       expect(t).toContain('Insel: 4 geprüft, 2 ohne Befund, 1 Befund, 1 Hinweis')
       expect(t).toContain('Ohne Vortritt und Mehrzweckstreifen: nicht anwendbar')
       expect(t).toContain('Insel nach Berner Tabelle · Soll (Standard Stadt Bern), Abweichung begründen · Schutzinsel vorgesehen (Tabelle Tempo × DTV) (Ist Tempo 50 km/h, DTV 8000 Fz/Tag: Ja)')

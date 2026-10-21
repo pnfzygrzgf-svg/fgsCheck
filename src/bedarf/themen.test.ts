@@ -177,7 +177,7 @@ describe('Befundblatt nach Thema und Prüfübersicht (alle Testfälle mal Varian
   })
   it('Beispiel Grundfall S0 (Fussgängerstreifen, Tempo 50, DTV 8000, ohne Insel)', () => {
     const u = ue({})
-    expect([u.geprueft, u.ohneBefund, u.offen, u.befunde, u.hinweise, u.nichtGeprueft, u.nichtAnwendbar]).toEqual([43, 42, 0, 0, 1, 7, 86])
+    expect([u.geprueft, u.ohneBefund, u.offen, u.befunde, u.hinweise, u.nichtGeprueft, u.nichtAnwendbar]).toEqual([42, 41, 0, 0, 1, 7, 87])   // Runde 4: Begegnungszone (A2) bei Strecke nicht anwendbar
     expect(zaehlText(u.themen.find(z => z.thema.id === 'insel')!)).toBe('3 geprüft, 2 ohne Befund, 1 Hinweis')
     // Korrektur S6: «Ebene ausgeschaltet» nur für Regeln, die mit eingeschalteter Ebene gälten (D6-2 ja, C2-B auf der Strecke nicht)
     const b0 = beurteile(fall({}))
@@ -187,8 +187,8 @@ describe('Befundblatt nach Thema und Prüfübersicht (alle Testfälle mal Varian
     expect(u.nichtGeprueftWegen.has('C2-B')).toBe(false)
     expect(b0.annahmen).toEqual(beurteile(fall({}), { ebenen: { bern: false, kantonBE: false } }).annahmen)
     const ub = ue({}, { bern: true, kantonBE: true })
-    expect([ub.geprueft, ub.ohneBefund, ub.offen, ub.befunde, ub.hinweise, ub.nichtGeprueft]).toEqual([49, 46, 0, 1, 2, 1])
+    expect([ub.geprueft, ub.ohneBefund, ub.offen, ub.befunde, ub.hinweise, ub.nichtGeprueft]).toEqual([48, 45, 0, 1, 2, 1])
     const uo = ue({ dtv: null, fg5h: null, fgKlasse: null }, { bern: true, kantonBE: true })
-    expect([uo.geprueft, uo.ohneBefund, uo.offen, uo.befunde, uo.hinweise]).toEqual([50, 40, 9, 0, 1])
+    expect([uo.geprueft, uo.ohneBefund, uo.offen, uo.befunde, uo.hinweise]).toEqual([49, 39, 9, 0, 1])
   })
 })

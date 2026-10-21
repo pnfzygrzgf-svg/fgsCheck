@@ -61,6 +61,10 @@ export interface ZufahrtErgebnis {
   geprueftBisM?: number
   fahrstreifenOsmN?: number | null  // Fahrstreifen dieser Richtung nach OSM (lanes, Busstreifen nach Regel), nur gerade Zufahrten mit
                                   // OSM-Weg (seit E1 Bedarfsmodul: Vorbelegung «Fahrstreifen je Richtung»; die Rechnung nutzt ihn nicht)
+  /** Sichtfeld frei bis hier [m ab dem Streifenrand, entlang der Sichtpunkte, abgerundet] (Automatik Paket B, 21.10.2026; nur gerade
+   * Zufahrten, zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll): frei = geprüfte Länge (Soll bzw. geprueftBisM), verdeckt =
+   * Länge bis zum ersten Sichtpunkt, dessen Sichtfeld einen der gemeldeten Konflikte trifft. Darüber hinaus nicht gerechnet */
+  freiBisM?: number
   deckung?: string                // Abbiegezufahrt, die ab dem Knoten von der geraden Zufahrt gedeckt ist (nur mit GEDECKT_RECHNEN,
                                   // seit 14.10.2026 standardmässig aus): Text wie beim Entfallen «Knoten … m vor dem Streifen; …»
 }

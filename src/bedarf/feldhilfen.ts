@@ -89,17 +89,17 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   innerorts: {
     was: 'Ja, wenn die Querung innerhalb der Ortstafeln liegt. Ausserorts endet die erweiterte Prüfung; die Grundprüfung läuft weiter ' +
       '(bei 60 km/h mit 100 m Sichtweite statt 75 m).',
-    vorschlag: 'bei einem Tempo bis 50 km/h «ja» als Annahme.',
+    vorschlag: 'aus OSM (CH:urban, Zone bzw. Begegnungszone «ja», CH:rural «nein»); sonst bei einem Tempo bis 50 km/h «ja» als Annahme (in Bern gestützt durch eine Bauzone im Nutzungszonenplan).',
   },
   vSig: {
     was: 'Die erlaubte Höchstgeschwindigkeit an der Querung laut Tafel bzw. generell innerorts, z. B. 50 oder 30 km/h.',
-    vorschlag: 'aus OSM (Tempo der geraden Zufahrten); ohne Angabe 50 km/h als Annahme.',
+    vorschlag: 'in der Stadt Bern aus der signalisierten Höchstgeschwindigkeit des Geoportals (Vorrang vor OSM, Abweichung mit Hinweis); sonst aus OSM (Tempo der geraden Zufahrten), ohne Angabe 50 km/h als Annahme.',
   },
   tempoRegime: {
     was: 'Strecke: gewöhnliche Strasse ohne Zonentafel. Zone: die Querung liegt in einer signalisierten Tempo-30-Zone bzw. ' +
       'Begegnungszone. Eine Hauptstrasse, die nicht zur Zone gehört, ist eine Strecke, auch mit Tempo 30. In der Tempo-30-Zone ist ' +
       'ein Fussgängerstreifen nur mit besonderem Grund erlaubt, in der Begegnungszone nie.',
-    vorschlag: 'aus OSM (zone:maxspeed bzw. maxspeed der geraden Zufahrten); Tempo 30 ohne Zonenangabe bleibt offen.',
+    vorschlag: 'aus OSM (zone:maxspeed bzw. maxspeed); ab 40 km/h Strecke, weil eine Zone höchstens 30 km/h hat; Tempo 20 ohne Zonenangabe Begegnungszone als Annahme. Tempo 30 ohne jede Zonenangabe in OSM in Bern nach der Strassenhierarchie als Annahme: Quartierstrasse Zone, Basisnetz Strecke, sonst offen.',
   },
   v85: {
     was: 'Das Tempo, das 85 von 100 Fahrzeugen nicht überschreiten, aus einer Messung. Beispiel: signalisiert 50 km/h, gemessen ' +
@@ -120,14 +120,17 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
       'Strasse vor allem für Anwohnende, Aufenthalt und Quartier.',
     ablauf: 'Ist kein Fussgängerstreifen angezeigt, wählt er die Empfehlung: Furt auf verkehrsorientierten, Querung ohne Vortritt ' +
       'mit Seitenraum, Einengung oder Anhebung auf siedlungsorientierten Strassen.',
+    vorschlag: 'in Bern aus der Strassenhierarchie des Geoportals: Basisnetz verkehrsorientiert, Quartierstrasse siedlungsorientiert, Quartierverbindungsstrasse bzw. Widerspruch zum Strassentyp offen. Sonst als Annahme aus OSM: trunk bis tertiary verkehrsorientiert, residential und living_street siedlungsorientiert.',
   },
   ohneBaulich: {
     was: 'Ja, wenn die Querung ohne Vortritt weder Nase noch Einengung noch Anhebung hat, also einfach über die Fahrbahn führt. ' +
       'Dann gelten strengere Bedingungen (beidseits abgesenkt, Warteflächen, freie Sicht, wenig Verkehr).',
     ablauf: 'Schaltet die Bedingungen für die Querung ganz ohne bauliche Hilfe ein.',
+    vorschlag: 'nur bei der Querung ohne Vortritt, als Annahme: keine Insel und keine Einengung «ja», Insel bzw. Einengung «nein».',
   },
   neuanlage: {
     was: 'Ja, wenn die Lichtsignalanlage neu gebaut wird (nicht Bestand). Für neue Anlagen begrenzt Bern die Länge der Querung.',
+    vorschlag: '«nein» bei Streifen aus OSM und AV bzw. Luftbild und bei Streifen an einem markierten OSM-Übergang (Bestand); «ja» als Annahme bei Streifen von Hand ohne markierten OSM-Übergang.',
   },
   kantonsstrasse: {
     was: 'Ja, wenn die Strasse eine Kantonsstrasse ist. Dafür nennt die Arbeitshilfe des Kantons Bern eigene Streifenbreiten.',
@@ -152,24 +155,28 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   netz: {
     was: 'Welche Bedeutung der Weg im Fusswegnetz der Stadt Bern hat (Richtplan Fussverkehr). In Bern kann das Netz einen ' +
       'Fussgängerstreifen begründen, auch bei wenig Verkehr oder in einer Tempo-30-Zone.',
+    vorschlag: 'aus dem Richtplan Fussverkehr (Geoportal Stadt Bern): Basisnetz-Linie quert die Fahrbahn bis 15 m vom Streifen «Basisnetz»; Streifen in einem publikumsattraktiven Bereich «publikumsintensiv». Sonst offen mit Hinweis (Feinverteiler sind nicht kartiert).',
   },
   netzQualifiziert: {
     was: 'Ja, wenn die Querung Teil einer behördlich erarbeiteten Fusswegnetzplanung ist (z. B. Richtplan). Dann ist ein ' +
       'Fussgängerstreifen auch bei weniger als 100 Querenden möglich.',
+    vorschlag: '«ja», wenn die Querung im Basisnetz bzw. in einem publikumsattraktiven Bereich des Richtplans Fussverkehr liegt (Geoportal Stadt Bern); sonst offen.',
   },
   beduerfnis: {
     was: 'Ankreuzen, wenn eine Schule, ein Kindergarten, ein Heim oder eine Haltestelle nahe liegt bzw. ein Schulweg hier quert. ' +
       'Ein solcher Grund erlaubt einen Streifen auch in einer Tempo-30-Zone bzw. bei wenig Querenden.',
     leer: 'Leer: offen, die genannten Prüfungen bleiben offen. Gibt es keinen solchen Grund, «keines» ankreuzen.',
-    vorschlag: '«Haltestelle» als Annahme, wenn eine Haltestelle höchstens 50 m vom Streifen liegt (Geoportal Stadt Bern bzw. OSM).',
+    vorschlag: 'Volksschule bzw. Kindergarten bis 150 m (Geoportal Stadt Bern), Heim bis 150 m (OSM, Annahme), Haltestelle bis 50 m; ausserhalb Berns Schule bzw. Kindergarten nach OSM als Annahme. Nichts im ganz geladenen Umkreis: in Bern «keines» als Annahme, sonst offen. Schulweg nur von Hand.',
   },
   nachfrage: {
     was: 'Gebündelt: die Leute queren an einer Stelle. Verteilt: sie queren überall entlang einer längeren Strecke (z. B. ' +
       'Einkaufsstrasse); dann passt kein einzelner Fussgängerstreifen.',
+    vorschlag: '«gebündelt» als Annahme, wenn eine Basisnetz-Linie des Richtplans Fussverkehr die Fahrbahn an der Querung quert; im publikumsattraktiven Bereich und sonst offen.',
   },
   wunschlinieM: {
     was: 'Wie weit die Querung neben der Linie liegt, auf der die Leute am liebsten queren würden (z. B. zwischen zwei Wegen oder ' +
       'Eingängen), in Metern.',
+    vorschlag: 'als Annahme: Abstand von der Streifenachse zur Basisnetz-Linie quer zur Strasse (Richtplan Fussverkehr, Geoportal Stadt Bern) bis 15 m; bis 30 m nur ein Hinweis.',
   },
   'fusswegAchse.rechtwinkligUneinsehbar': {
     was: 'Ja, wenn ein Fussweg genau in der Achse des Streifens rechtwinklig ankommt und von der Fahrbahn aus nicht einsehbar ist: ' +
@@ -188,10 +195,12 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   starkBelastet: {
     was: 'Ja, wenn die Strasse nach eigener Einschätzung stark befahren ist (die Norm nennt keine Zahl). Dann ist ein Lichtsignal ' +
       'zu prüfen.',
+    vorschlag: 'als Annahme: DTV ab 10 000 oder mindestens zwei Fahrstreifen je Richtung «ja», sonst «nein» (nur mit DTV).',
   },
   mivKlasse: {
     was: 'Wie viel Autoverkehr an einer Nase bzw. Einengung durchfährt: wenig, mittel oder viel. Davon hängt in Bern die nötige ' +
       'Restbreite ab.',
+    vorschlag: 'als Annahme aus dem DTV: unter 3 000 wenig, bis 10 000 mittel, darüber viel.',
   },
   zweirichtung: {
     was: 'Ja, wenn in beide Richtungen gefahren wird; nein bei einer Einbahnstrasse.',
@@ -207,16 +216,17 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     vorschlag: 'aus OSM (Velostreifen an den Zufahrten).',
     ablauf: 'Mit Radstreifen und Insel gelten die Breiten für Insel und Durchfahrt nach Kanton bzw. Stadt Bern.',
   },
-  busspur: { was: 'Ja, wenn ein eigener Fahrstreifen für Busse gequert wird. Er zählt bei den Fahrstreifen je Richtung mit.' },
+  busspur: { was: 'Ja, wenn ein eigener Fahrstreifen für Busse gequert wird. Er zählt bei den Fahrstreifen je Richtung mit.', vorschlag: '«ja» aus den OSM-Tags der Zufahrten (busway, lanes:bus, bus:lanes, psv); ohne solche Tags «nein» als Annahme (OSM ist lückenhaft).' },
   busDurchmarkiert: { was: 'Ja, wenn die gelben Balken auch über den Busstreifen durchgehen.' },
   tram: {
     was: 'Ob ein Tram die Querung kreuzt: auf eigenem Gleiskörper (von der Fahrbahn abgetrennt) oder auf der Fahrbahn im Verkehr.',
-    vorschlag: 'aus OSM: kein Gleis am Streifen ergibt «kein Tram»; quert ein Gleis, bleibt das Feld offen und ist von Hand zu wählen.',
+    vorschlag: 'aus OSM: kein Gleis am Streifen ergibt «kein Tram»; quert ein Gleis, aus der AV (Bahn bzw. Insel: eigener Gleiskörper; Strasse: Fahrbahn) bzw. OSM embedded; sonst offen.',
     ablauf: 'Mit Tram gelten die Regeln zu Insel, Balken auf dem Gleis und Lichtsignal beim Tram.',
   },
   tramHaltestellenbereich: {
     was: 'Ja, wenn die Querung bei einer Tramhaltestelle liegt, wo das Tram ohnehin hält bzw. langsam fährt. Sonst ist ein ' +
       'Lichtsignal zu prüfen.',
+    vorschlag: 'aus OSM: Tramhaltestelle bis 30 m «ja», keine bis 50 m «nein». Haltestellen des Geoportals mit den ÖV-Linien: Halt bis 30 m mit Tramlinie am Haltepunkt «ja» als Annahme, kein Halt bis 50 m mit Tramlinie «nein»; sonst offen mit Hinweis.',
   },
   balkenAufGleis: { was: 'Ja, wenn die gelben Balken auch auf dem Gleiskörper des Trams markiert sind.' },
 
@@ -225,9 +235,10 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     was: 'Wo die Querung liegt. «mit Vortritt»: über die Strasse, die an der Kreuzung Vortritt hat; «ohne Vortritt»: über eine ' +
       'Zufahrt, die Vortritt gewähren muss (z. B. Kein Vortritt, Stop).',
     ablauf: 'An einer einmündenden Seitenstrasse prüft die App zusätzlich, ob eine Trottoirüberfahrt möglich wäre.',
+    vorschlag: 'aus dem OSM-Netz: Kreisel bis 20 m «am Kreisel»; Knoten bis 20 m, an dem die gequerte Strasse endet, «Einmündung»; kein Knoten «Strecke». Kreuzung: Kein Vortritt bzw. Stop (OSM) auf einem Arm der gequerten Strasse «ohne Vortritt», auf der Querstrasse «mit Vortritt»; sonst offen.',
   },
-  knotenArmeOhneQuerung: { was: 'Anzahl Arme der Kreuzung, über die keine Querung führt (0 = über alle Arme). Fehlende Querungen zwingen zu Umwegen.' },
-  knotenLsa: { was: 'Ja, wenn die Kreuzung für den Fahrverkehr mit Lichtsignalen geregelt ist. Dann ist zu prüfen, ob alle Arme mit Lichtsignal gequert werden.' },
+  knotenArmeOhneQuerung: { was: 'Anzahl Arme der Kreuzung, über die keine Querung führt (0 = über alle Arme). Fehlende Querungen zwingen zu Umwegen.', vorschlag: 'als Annahme aus dem OSM-Netz: Arme des Knotens ohne markierten Übergang innert 25 m (OSM-Übergänge oft unvollständig).' },
+  knotenLsa: { was: 'Ja, wenn die Kreuzung für den Fahrverkehr mit Lichtsignalen geregelt ist. Dann ist zu prüfen, ob alle Arme mit Lichtsignal gequert werden.', vorschlag: 'aus OSM: Lichtsignal bis 30 m vom Knoten «ja»; keines bis 50 m «nein» als Annahme; dazwischen offen mit Hinweis.' },
   alleZufahrtsstreifenBelastet: {
     was: 'Ja, wenn an dieser Zufahrt alle Fahrstreifen Vortritt gewähren müssen (z. B. Stop über die ganze Breite). Dann braucht es ' +
       'auch bei zwei Fahrstreifen keine Insel.',
@@ -242,25 +253,27 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
       'bei der Querung ohne Vortritt mit einer Sichtweite von Hand; sonst rechnet der Sichtrechner selbst.',
     vorschlag: 'aus den Bordkanten der Rechnung je Teilstreifen.',
   },
-  abstandFgsM: { was: 'Entfernung bis zum nächsten Fussgängerstreifen über dieselbe Strasse, in Metern. Liegen Streifen zu dicht, wird der einzelne weniger beachtet.' },
-  abstandLsaM: { was: 'Entfernung bis zum nächsten Lichtsignal für den Fahrverkehr, in Metern. Kurz nach einem Lichtsignal rechnen Fahrende kaum mit einem Streifen ohne Signal.' },
-  verzweigung: { was: 'Ja, wenn die Querung an einer Kreuzung bzw. Einmündung liegt; dort sind kurze Abstände zwischen Streifen üblich.' },
+  abstandFgsM: { was: 'Entfernung bis zum nächsten Fussgängerstreifen über dieselbe Strasse, in Metern. Liegen Streifen zu dicht, wird der einzelne weniger beachtet.', vorschlag: 'aus OSM: nächster markierter Übergang entlang derselben Strasse, ohne die eigene Querung; ohne Fund die durchsuchte Länge (bis Namenswechsel bzw. Datenende) als Mindestwert (Annahme), nur ab 50 m.' },
+  abstandLsaM: { was: 'Entfernung bis zum nächsten Lichtsignal für den Fahrverkehr, in Metern. Kurz nach einem Lichtsignal rechnen Fahrende kaum mit einem Streifen ohne Signal.', vorschlag: 'aus OSM: nächstes Lichtsignal entlang derselben Strasse, ohne die eigene Querung; ohne Fund die durchsuchte Länge (bis Namenswechsel bzw. Datenende) als Mindestwert (Annahme), nur ab 125 m.' },
+  verzweigung: { was: 'Ja, wenn die Querung an einer Kreuzung bzw. Einmündung liegt; dort sind kurze Abstände zwischen Streifen üblich.', vorschlag: 'aus dem Sichtrechner bzw. OSM-Netz: Knoten oder Kreisel bis 20 m vom Streifen «ja», sonst «nein».' },
   verzweigungErkennbar: { was: 'Ja, wenn die nahe Kreuzung mit Lichtsignal für die Fahrenden deutlich als Kreuzung erkennbar ist; dann ist ein kürzerer Abstand möglich.' },
-  haltestelleAngrenzend: { was: 'Ja, wenn eine Bus- oder Tramhaltestelle direkt an die Querung grenzt; dann ist ein kurzer Abstand zum nächsten Streifen üblich.' },
+  haltestelleAngrenzend: { was: 'Ja, wenn eine Bus- oder Tramhaltestelle direkt an die Querung grenzt; dann ist ein kurzer Abstand zum nächsten Streifen üblich.', vorschlag: '«ja», wenn eine Haltestelle höchstens 20 m vom Streifen liegt; «nein», wenn im Umkreis von 50 m keine liegt (Geoportal Stadt Bern bzw. OSM); dazwischen offen.' },
   'haltestelle.art': {
     was: 'Ob eine Bushaltestelle an der Querung liegt: der Bus hält auf der Fahrbahn oder in einer Bucht daneben.',
     leer: 'Leer: die Prüfungen zur Haltestelle bleiben offen. «keine» wählen, wenn keine Bushaltestelle in der Nähe ist.',
-    vorschlag: '«keine», wenn im Umkreis von 50 m um den Streifen keine Haltestelle liegt (Geoportal Stadt Bern bzw. OSM); sonst offen mit Hinweis.',
+    vorschlag: '«keine», wenn im Umkreis von 50 m um den Streifen keine Haltestelle liegt (Geoportal Stadt Bern bzw. OSM); Busbucht aus OSM (bus_bay), Fahrbahnhaltestelle als Annahme, wenn der Haltepunkt auf der Fahrbahn liegt; sonst offen mit Hinweis.',
   },
   'haltestelle.lage': {
     was: 'Wo die Querung im Verhältnis zum haltenden Bus liegt. Üblich ist hinter dem Haltebereich, damit der abfahrende Bus nicht ' +
       'auf Querende warten muss; mitten durch den Haltebereich ist ausgeschlossen.',
+    vorschlag: 'als Annahme aus der Lage des Haltepunkts: der Halt bedient die Fahrtrichtung, für die er rechts liegt; Haltebereich ± 15 m um den Haltepunkt.',
   },
-  'haltestelle.verdeckt': { was: 'Ja, wenn ein haltender Bus die Querenden für andere Fahrzeuge verdeckt.' },
+  'haltestelle.verdeckt': { was: 'Ja, wenn ein haltender Bus die Querenden für andere Fahrzeuge verdeckt.', vorschlag: '«ja» als Annahme bei einer Fahrbahnhaltestelle, wenn die Querung weniger als 18 m hinter dem Haltepunkt liegt.' },
   'haltestelle.ueberholenUnterbunden': { was: 'Ja, wenn eine Insel oder Sicherheitslinie verhindert, dass Fahrzeuge am haltenden Bus vorbei auf die Querung fahren.' },
   rueckversatzM: {
     was: 'Wie weit die Querung an der Zufahrt ohne Vortritt von der Strasse mit Vortritt zurückversetzt ist, in Metern (z. B. 5 m: ' +
       'ein einbiegendes Auto hat davor Platz).',
+    vorschlag: 'aus der AV: Fahrbahnrand der Querstrasse bis zur Streifenkante, gemessen 12 bis 18 m neben dem Knoten.',
   },
   laengsparkierung: {
     was: 'Ja, wenn neben der Querung parallel zur Fahrbahn parkiert wird. Dann muss das Trottoir bis an die Parkreihe vorgezogen sein, ' +
@@ -271,13 +284,15 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   seitenraumVorParklinieM: {
     was: 'Wie weit die Trottoirkante an der Querung über die Linie der parkierten Autos hinaus in die Fahrbahn reicht, in Metern ' +
       '(+ davor, − dahinter). Beispiel: +0,20 m.',
+    vorschlag: 'aus der AV: Bordkante am Streifen gegen die Bordkante 15 bis 25 m entlang der Zufahrt, minus Parkstreifen.',
   },
   einengung: {
     was: 'Ja, wenn das Trottoir an der Querung vorgezogen ist (Nase) oder die Fahrbahn sonst verengt ist, damit der Weg über die Fahrbahn kürzer wird.',
     ablauf: 'Mit Nase bzw. Einengung prüft die App deren Restbreite und Länge.',
+    vorschlag: 'als Annahme: «ja», wenn die Fahrbahn an der Querung mindestens 1 m schmaler ist als an den Zufahrten (nur ohne Insel).',
   },
-  restbreiteM: { was: 'Wie breit die Fahrbahn an der engsten Stelle bleibt, in Metern; davon hängt ab, ob sich zwei Fahrzeuge noch kreuzen können.' },
-  einengungLaengeM: { was: 'Wie lang die Einengung entlang der Fahrbahn ist, in Metern.' },
+  restbreiteM: { was: 'Wie breit die Fahrbahn an der engsten Stelle bleibt, in Metern; davon hängt ab, ob sich zwei Fahrzeuge noch kreuzen können.', vorschlag: 'bei einer Einengung die Fahrbahnbreite an der Querung.' },
+  einengungLaengeM: { was: 'Wie lang die Einengung entlang der Fahrbahn ist, in Metern.', vorschlag: 'aus der AV: Länge, auf der die Fahrbahn schmaler ist als die Zufahrt minus 0,5 m.' },
   mzsBreiteM: { was: 'Breite des Mehrzweckstreifens in der Fahrbahnmitte (überfahrbar, zum Warten beim Queren und zum Abbiegen), in Metern.' },
   mzsMitFgs: {
     was: 'Ja, wenn über den Mehrzweckstreifen ein Fussgängerstreifen markiert ist.',
@@ -288,6 +303,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
       'die nötige Sichtweite richtet sich dann nach dem Radius.',
     leer: 'Leer: keine Kurve vor der Querung; die Sichtweite richtet sich nach dem Tempo. Ist «Sicht nach Kurvenradius anwendbar» ' +
       'bejaht, bleibt die Sicht ohne Radius offen.',
+    vorschlag: 'aus dem Sichtrechner: kleinster Abbiegeradius bzw. Kreiselring (geschätzt: Annahme); ohne Abbieger zeigt das Feld das Ergebnis des Sichtrechners.',
   },
   'kurve.fuenfBedingungen': {
     was: 'Ja, wenn alle Voraussetzungen erfüllt sind, unter denen die Sichtweite nach dem Kurvenradius statt nach dem Tempo gilt ' +
@@ -313,7 +329,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   'insel.art': {
     was: 'Gebaut: erhöhte Insel mit Randsteinen. Nur markiert: aufgemalte Fläche ohne Schutz; sie gilt nicht als Schutzinsel, und ' +
       'bei der Querung ohne Vortritt zählt dann die ganze Fahrbahn als Querdistanz.',
-    vorschlag: '«gebaut» als Annahme bei einer Insel der AV bzw. von Hand, gebaut bei der Mittelinsel (Standard).',
+    vorschlag: '«gebaut» bei einer Verkehrsinsel der AV unter der Lücke, als Annahme bei einer Insel von Hand, gebaut bei der Mittelinsel (Standard).',
   },
   'insel.breite': {
     was: 'Wie tief die Insel in Gehrichtung ist, also wie viel Platz man beim Warten hat, quer zur Fahrbahn gemessen. Beispiel: ' +
@@ -322,7 +338,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   },
   'insel.kopfUeberstand': {
     was: 'Wie weit die Inselspitze auf jeder Seite über den Rand des Streifens hinausragt, in Metern (zwei Werte mit /).',
-    vorschlag: 'aus der Mittelinsel (Standard), wenn sie gezeichnet ist.',
+    vorschlag: 'aus dem Umriss der AV-Insel bzw. der Mittelinsel (Standard), wenn sie gezeichnet ist.',
   },
   'insel.vertikal': {
     was: 'Ja, wenn auf der Insel ein senkrechtes Element steht (z. B. Signal oder Pfosten), das sie auch nachts und bei Schnee sichtbar macht.',
@@ -376,6 +392,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   hvlBedarfM: {
     was: 'Wie lang die Linie sein müsste, damit haltende Autos die Sicht auf die Wartefläche nicht verdecken, in Metern (z. B. am ' +
       'Sichtfeld auf der Karte abgelesen).',
+    vorschlag: 'aus dem Sichtrechner: so weit vor dem Streifen liegen Auto-Parkfelder im Sichtfeld (0 ohne solche).',
   },
   haltenSichtrelevantUeber5m: {
     was: 'Ja, wenn haltende Autos auch mehr als 5 m vor dem Streifen die Sicht auf Wartende versperren (in den ersten 5 m ist ' +
@@ -389,7 +406,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     was: 'Ja, wenn Fahrzeuge die Fläche überfahren können, auf der man vor dem Queren wartet (z. B. ohne Randstein oder als ' +
       'Parkfeld). Besser ist eine geschützte Wartefläche.',
   },
-  einAusfahrtNah: { was: 'Ja, wenn direkt beim Streifen eine Ein- oder Ausfahrt (Garage, Parkplatz, Hof) liegt; Fahrzeuge kreuzen dann die Wartefläche.' },
+  einAusfahrtNah: { was: 'Ja, wenn direkt beim Streifen eine Ein- oder Ausfahrt (Garage, Parkplatz, Hof) liegt; Fahrzeuge kreuzen dann die Wartefläche.', vorschlag: '«ja» als Annahme, wenn ein Zufahrtsweg (OSM service) höchstens 10 m vom Streifen einmündet; sonst offen.' },
   blinklicht: {
     was: 'Ob ein Licht vor dem Streifen warnt: ein gelbes Blinklicht nach der Signalisationsverordnung oder ein anderes Warnlicht ' +
       '(z. B. eigene Leuchten). Andere Warnlichter sind nicht zulässig.',
@@ -405,9 +422,11 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   taktil: {
     was: 'Ja, wenn am Trottoirrand eine weisse, mit dem Stock ertastbare Markierung die Querung anzeigt. Ohne Absenkung und ohne ' +
       'diese Markierung finden Sehbehinderte die Querung nicht.',
+    vorschlag: 'in Bern aus den taktil-visuellen Markierungen des Geoportals: Feld bis 3 m von einem Streifenende «ja»; kein Feld «nein» als Annahme. Das OSM-Tag tactile_paving erscheint nur als Hinweis.',
   },
-  leitlinie: { was: 'Ja, wenn eine ertastbare Linie Sehbehinderte über eine schräge oder lange Querung führt.' },
-  querungLang: { was: 'Ja, wenn die Querung so lang ist, dass Sehbehinderte die Richtung verlieren können (eigene Einschätzung, die Norm nennt keine Zahl).' },
+  leitlinie: { was: 'Ja, wenn eine ertastbare Linie Sehbehinderte über eine schräge oder lange Querung führt.',
+    vorschlag: 'in Bern aus den taktil-visuellen Markierungen des Geoportals: Leitlinie auf dem Streifen «ja»; keine «nein» als Annahme.' },
+  querungLang: { was: 'Ja, wenn die Querung so lang ist, dass Sehbehinderte die Richtung verlieren können (eigene Einschätzung, die Norm nennt keine Zahl).', vorschlag: 'als Annahme: «ja», wenn eine Teilquerung länger als 12 m ist.' },
   absenkungBeidseits: { was: 'Ja, wenn das Trottoir auf beiden Seiten der Querung abgesenkt ist.' },
   aufstellflaeche: { was: 'Ja, wenn es auf beiden Seiten genug Platz zum Warten gibt, ohne den Gehweg zu versperren.' },
   parkierungSichtbehindernd: {
@@ -416,9 +435,9 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   },
 
   // ── LSA-Zeiten ──
-  'lsaZeiten.L': { was: 'Gehstrecke über die ganze Fahrbahn von Bordkante zu Bordkante, in Metern; daraus folgen die nötigen Grün- und Gelbzeiten.' },
-  'lsaZeiten.teile': { was: 'Bei einer Insel: Länge der beiden Teile bis zur Insel und ab der Insel, in Metern (zwei Werte mit /).' },
-  'lsaZeiten.inselB': { was: 'Inseltiefe in Gehrichtung, in Metern, wie bei der Insel; hier für die Zeit, die man über die Insel braucht.' },
+  'lsaZeiten.L': { was: 'Gehstrecke über die ganze Fahrbahn von Bordkante zu Bordkante, in Metern; daraus folgen die nötigen Grün- und Gelbzeiten.', vorschlag: 'wie die Fahrbahnbreite.' },
+  'lsaZeiten.teile': { was: 'Bei einer Insel: Länge der beiden Teile bis zur Insel und ab der Insel, in Metern (zwei Werte mit /).', vorschlag: 'wie die Länge jeder Teilquerung (zwei Teile).' },
+  'lsaZeiten.inselB': { was: 'Inseltiefe in Gehrichtung, in Metern, wie bei der Insel; hier für die Zeit, die man über die Insel braucht.', vorschlag: 'wie die Inseltiefe.' },
   'lsaZeiten.gelb': { was: 'Dauer des gelben Lichts für Fussgänger nach dem Grün, in Sekunden.' },
   'lsaZeiten.freigabe': { was: 'Dauer des Grüns für Fussgänger, in Sekunden.' },
   'lsaZeiten.phasengleich': { was: 'Ja, wenn beide Teilquerungen an der Insel zur gleichen Zeit Grün haben, man also ohne Halt durchgehen kann.' },
@@ -433,13 +452,15 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   'lsaZeiten.inselNurAnmeldung': { was: 'Ja, wenn Fussgänger nur Grün erhalten, nachdem jemand den Taster gedrückt hat.' },
 
   // ── Trottoirüberfahrt ──
-  'q3.bebaut': { was: 'Ja, wenn die Einmündung im bebauten Siedlungsgebiet liegt.' },
-  'q3.gewerbe': { was: 'Ja, wenn die Umgebung vor allem Industrie oder Gewerbe ist; dort passt keine Trottoirüberfahrt.' },
+  'q3.bebaut': { was: 'Ja, wenn die Einmündung im bebauten Siedlungsgebiet liegt.',
+    vorschlag: 'in Bern «ja» als Annahme, wenn am Streifen eine Bauzone des Nutzungszonenplans liegt (Geoportal); Schutzzonen, Landwirtschaft und Wald zählen nicht.' },
+  'q3.gewerbe': { was: 'Ja, wenn die Umgebung vor allem Industrie oder Gewerbe ist; dort passt keine Trottoirüberfahrt.',
+    vorschlag: 'in Bern aus dem Nutzungszonenplan (Geoportal): Industrie- und Gewerbezone bzw. Gewerbegebiet Matte am Streifen «ja», andere Zone «nein».' },
   'q3.anschlussGewerbe': { was: 'Ja, wenn die Seitenstrasse zu Betrieben mit Lieferverkehr oder zu landwirtschaftlich genutztem Land führt.' },
-  'q3.ueber': { was: 'Welche Fahrbahn die Trottoirüberfahrt quert. Möglich ist sie nur über die einmündende Seitenstrasse, nie über die Hauptstrasse.' },
+  'q3.ueber': { was: 'Welche Fahrbahn die Trottoirüberfahrt quert. Möglich ist sie nur über die einmündende Seitenstrasse, nie über die Hauptstrasse.', vorschlag: '«die Seitenstrasse» als Annahme, wenn die Lage eine Einmündung ist.' },
   'q3.vSigHaupt': { was: 'Signalisiertes Tempo auf der Strasse, entlang der das Trottoir durchläuft, in km/h.' },
-  'q3.vSigEinm': { was: 'Signalisiertes Tempo in der einmündenden Seitenstrasse, in km/h (für die Berner Tabelle).' },
-  'q3.nEinm': { was: 'Wie viele Fahrstreifen die Seitenstrasse je Richtung hat.' },
+  'q3.vSigEinm': { was: 'Signalisiertes Tempo in der einmündenden Seitenstrasse, in km/h (für die Berner Tabelle).', vorschlag: 'wie das signalisierte Tempo.' },
+  'q3.nEinm': { was: 'Wie viele Fahrstreifen die Seitenstrasse je Richtung hat.', vorschlag: 'wie die Fahrstreifen je Richtung (grösster Wert).' },
   'q3.nHaupt': { was: 'Wie viele Fahrstreifen die Hauptstrasse je Richtung hat.' },
   'q3.trottoirBeidseits': { was: 'Ja, wenn das Trottoir entlang der Hauptstrasse vor und nach der Einmündung weitergeht.' },
   'q3.winkel': { was: 'Winkel zwischen Seiten- und Hauptstrasse in Grad; 90 = rechtwinklig.' },
@@ -449,21 +470,22 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   'q3.belastungSchwach': { was: 'Ja, wenn auf allen Strassen dieser Kreuzung nur wenig Verkehr ist.' },
   'q3.veloSchule': { was: 'Ja, wenn die Seitenstrasse eine wichtige Veloroute ist oder zu einer Schule führt.' },
   'q3.einmSiedlungsorientiert': { was: 'Ja, wenn die Seitenstrasse vor allem dem Quartier dient (siedlungsorientiert, nicht Durchgangsverkehr).' },
-  'q3.zoneEinm': { was: 'Ob die Seitenstrasse zu einer Tempo-30-Zone oder Begegnungszone gehört; dort gilt meist Rechtsvortritt statt Trottoirüberfahrt.' },
+  'q3.zoneEinm': { was: 'Ob die Seitenstrasse zu einer Tempo-30-Zone oder Begegnungszone gehört; dort gilt meist Rechtsvortritt statt Trottoirüberfahrt.', vorschlag: 'aus «Strecke oder Zone».' },
   'q3.eingangstor': { was: 'Ja, wenn die Trottoirüberfahrt bewusst den Eingang in die Zone markiert.' },
   'q3.hauptInZone': { was: 'Ja, wenn auch die Hauptstrasse innerorts in der Tempo-30-Zone liegt.' },
   'q3.wartezeitEinmS': { was: 'Wie lange Fahrzeuge aus der Seitenstrasse im Mittel auf eine Lücke warten, in Sekunden.' },
   'q3.lkwGelegentlich': { was: 'Ja, wenn in der Seitenstrasse nur ab und zu Lastwagen fahren.' },
-  'q3.linienbus': { was: 'Ja, wenn ein Linienbus durch die Seitenstrasse fährt.' },
-  'q3.lsaKnoten': { was: 'Ja, wenn die Einmündung mit Lichtsignalen geregelt ist.' },
-  'q3.kreisel': { was: 'Ja, wenn die Einmündung an einem Kreisel liegt.' },
+  'q3.linienbus': { was: 'Ja, wenn ein Linienbus durch die Seitenstrasse fährt.',
+    vorschlag: 'in Bern aus den ÖV-Linien des Geoportals: Bus- bzw. Trolleybuslinie in der gequerten Strasse «ja», keine «nein».' },
+  'q3.lsaKnoten': { was: 'Ja, wenn die Einmündung mit Lichtsignalen geregelt ist.', vorschlag: 'wie «Kreuzung mit Lichtsignal».' },
+  'q3.kreisel': { was: 'Ja, wenn die Einmündung an einem Kreisel liegt.', vorschlag: 'aus OSM: Kreisel bis 20 m bzw. Einmündung ohne Kreisel.' },
   'q3.breiteM': { was: 'Wie breit die durchgehende Trottoirfläche über die Seitenstrasse ist, in Metern.' },
   'q3.anrampung': {
     was: 'Die Schräge, über die Fahrzeuge auf Trottoirhöhe fahren: Neigung in Prozent und Länge in Metern, z. B. 12 / 0,80.',
     leer: 'Leer: keine Rampe angegeben; die Prüfung der Rampe entfällt.',
   },
-  'q3.dtvEinm': { was: 'Motorfahrzeuge pro Tag in der Seitenstrasse (für die Berner Tabelle).' },
-  'q3.mivEinmHoch': { was: 'Ja, wenn in der Seitenstrasse viel gefahren wird (eigene Einschätzung, die Norm nennt keine Zahl).' },
+  'q3.dtvEinm': { was: 'Motorfahrzeuge pro Tag in der Seitenstrasse (für die Berner Tabelle).', vorschlag: 'wie der DTV.' },
+  'q3.mivEinmHoch': { was: 'Ja, wenn in der Seitenstrasse viel gefahren wird (eigene Einschätzung, die Norm nennt keine Zahl).', vorschlag: 'als Annahme: DTV ab 3 000 «ja».' },
 }
 
 // ── Sichtbarkeit ──

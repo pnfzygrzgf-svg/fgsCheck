@@ -12,6 +12,8 @@
 // Sichtrechners. Frei auf einer kürzeren Strecke als nötig bzw. verdeckt auf einer längeren Strecke ist offen, nicht erfüllt bzw.
 // verletzt. Unsichere Soll-Werte (Stufe 60 ohne Angabe innerorts, Kurvenradius von Hand ohne Zuordnung der Zufahrt) als Bereich:
 // verletzt nur unter der unteren, erfüllt nur ab der oberen Grenze, dazwischen offen.
+// Automatik Paket B (21.10.2026): verdeckte gerade Zufahrten mit «frei bis» (Sichtrechner) gelten als erfüllt, wenn die freie Länge
+// das nötige Soll erreicht, als verletzt, wenn sie darunter liegt; dazwischen offen.
 
 import { KATALOG, quellText, type GrundId } from './katalog'
 import { Kontext, Offen } from './kontext'
@@ -76,6 +78,8 @@ export interface GrundSicht {
   frei: boolean
   status: string
   bisM?: number
+  /** Sichtfeld frei bis hier (gerade Zufahrten, Sichtrechner; bei verdeckt die freie Länge) */
+  freiBisM?: number
   /** Abbiegezufahrt: Soll des Sichtrechners gilt (Kurvenradius bzw. Tempo der Querstrasse), V85 der Querung nicht */
   abbiegend?: boolean
 }
@@ -189,16 +193,19 @@ function sollQuerung(k: Kontext): SollQ | null {
 
 /** Sicht je Zufahrt aus dem Sichtrechner gegen das Soll nach bfu */
 function sichtRechner(k: Kontext, zs: GrundSicht[], ohneZufahrt: string[]): Roh {
-  const v85 = k.o('v85'), io = k.o('innerorts')
+  const v85 = k.o('v85'), io = k.o('innerorts'), vSigQ = k.o('vSig')
   type Z = { z: GrundSicht; unten: number | null; oben: number | null; zustand: GrundZustand; text: string; kurz?: number; v85?: boolean; fehlt?: string }
   const liste: Z[] = zs.map(z => {
-    let unten = z.soll, oben = z.soll, nachV85 = false, fehlt: string | undefined
+    let unten = z.soll, oben = z.soll, nachV85 = false, fehlt: string | undefined, hoeher = ''
     if (!z.abbiegend) {
-      // gerade Zufahrt: Stufe nach V85; geometrische Grenze bzw. Kurvenregel des Sichtrechners (bis Knoten, Wegende, Gebäude,
-      // Kreiselring) bleibt Obergrenze, das Soll ist dann min(Tab. 1 nach V85, Soll des Sichtrechners)
+      // gerade Zufahrt: Stufe nach V85, ohne V85 nach max(signalisiert, Tempo des Sichtrechners) (Korrektur M3: liegt das
+      // signalisierte Tempo höher, z. B. Geoportal bzw. von Hand, nie «erfüllt» mit dem tieferen); geometrische Grenze bzw. Kurvenregel
+      // des Sichtrechners (bis Knoten, Wegende, Gebäude, Kreiselring) bleibt Obergrenze, das Soll ist dann min(Tab. 1, Soll des Sichtrechners)
       if (v85 === null) k.annahmen.add(ANNAHME_V85)
       else nachV85 = true
-      const t = sollBereich(v85 ?? z.tempo, io)
+      const tempo = v85 ?? Math.max(z.tempo, vSigQ ?? 0)
+      if (v85 === null && tempo > z.tempo + 1e-9) hoeher = `; signalisiert ${tempo} km/h, der Sichtrechner rechnet mit ${z.tempo} km/h: Sicht nach dem höheren Tempo neu rechnen`
+      const t = sollBereich(tempo, io)
       if (!t) return { z, unten: null, oben: null, zustand: 'offen', text: `${z.name}: über 60 km/h keine Sichtweite` }
       if (z.quelle === 'VSS Tab. 1') { unten = t.unten; oben = t.oben } else { unten = Math.min(t.unten, z.soll); oben = Math.min(t.oben, z.soll) }
       fehlt = oben > unten ? t.offenWegen : undefined
@@ -212,7 +219,13 @@ function sichtRechner(k: Kontext, zs: GrundSicht[], ohneZufahrt: string[]): Roh 
     const x = { z, unten, oben, v85: nachV85, fehlt }
     if (z.frei) {
       if (bis >= oben - EPS) return { ...x, zustand: 'erfuellt', text: `${z.name}: frei` }
-      return { ...x, zustand: 'offen', kurz: bis, text: `${z.name}: frei bis ${m0(bis)}, nötig ${unten === oben ? m0(oben) : `${zahl(unten)} bis ${m0(oben)}`} (nicht geprüft)` }
+      return { ...x, zustand: 'offen', kurz: bis, text: `${z.name}: frei bis ${m0(bis)}, nötig ${unten === oben ? m0(oben) : `${zahl(unten)} bis ${m0(oben)}`} (nicht geprüft)${hoeher}` }
+    }
+    if (z.freiBisM !== undefined) {
+      const f = z.freiBisM
+      if (f >= oben - EPS) return { ...x, zustand: 'erfuellt', text: `${z.name}: frei bis ${m0(f)}, verdeckt erst danach` }
+      if (f < unten - EPS) return { ...x, zustand: 'verletzt', text: `${z.name}: ${z.status}, frei nur bis ${m0(f)}` }
+      return { ...x, zustand: 'offen', text: `${z.name}: ${z.status}, frei bis ${m0(f)}, nötig ${unten === oben ? m0(oben) : `${zahl(unten)} bis ${m0(oben)}`}${hoeher}` }
     }
     if (z.soll <= unten + EPS) return { ...x, zustand: 'verletzt', text: `${z.name}: ${z.status} innerhalb ${m0(z.soll)}` }
     return { ...x, zustand: 'offen', text: `${z.name}: ${z.status} innerhalb ${m0(z.soll)}; ob ${m0(unten)} frei sind, nicht getrennt geprüft` }

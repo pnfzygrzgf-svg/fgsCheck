@@ -22,7 +22,9 @@ export function imBereich(p: P, rand: number, b: Bereich): boolean {
 }
 
 export type HaltArt = 'bus' | 'tram' | 'bus_tram' | 'oev'
-export interface OevHalt { id: string; name: string; p: P; art: HaltArt }
+export interface OevHalt { id: string; name: string; p: P; art: HaltArt
+  /** nur OSM (Automatik Paket B): Tags und Knoten-Id (bus_bay, stop_position auf der Fahrbahn) */
+  tags?: Record<string, string>; osmId?: number }
 /** Haltestellen für die Vorbelegung: Punkte, Herkunft (Text), Quelle und abgedeckter Bereich; zusatz: z. B. Ausfall des Geoportals */
 export interface HaltestellenStand { quelle: 'geoportal' | 'osm'; herkunft: string; halte: OevHalt[]; bereich: Bereich; zusatz?: string }
 export type HaltestellenErgebnis = HaltestellenStand | { fehler: string }
@@ -72,7 +74,7 @@ export function haltestellenAusOsm(roh: unknown): OevHalt[] {
     const art = osmHaltArt(e.tags ?? {})
     if (!art) continue
     gesehen.add(e.id)
-    aus.push({ id: `osm:${e.id}`, name: e.tags?.name?.trim() || 'ohne Namen', p: lv95(e.lat, e.lon), art })
+    aus.push({ id: `osm:${e.id}`, name: e.tags?.name?.trim() || 'ohne Namen', p: lv95(e.lat, e.lon), art, tags: { ...(e.tags ?? {}) }, osmId: e.id })
   }
   return aus
 }

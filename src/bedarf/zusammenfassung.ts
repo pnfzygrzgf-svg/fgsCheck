@@ -58,6 +58,8 @@ export interface Zusammenfassung {
 
 /** Schwelle für den Text: ganz ohne, sonst zwei Nachkommastellen mit Komma */
 const zahlText = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace('.', ','))
+/** ganze Zahl bzw. eine Nachkommastelle (Grenze in «knapp unter …») */
+const zahl1 = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ','))
 /** Klammerzusatz am Ende weg, auch verschachtelt («verdeckt (Parkfeld (auto))» → «verdeckt»; «2,00 m (mindestens 1,50 m)» → «2,00 m») */
 function ohneKlammer(t: string): string {
   const s = t.trim()
@@ -97,7 +99,8 @@ function listeLesbar(t: string, id: string, aufrunden = false, grenzeRoh?: numbe
     const v = Number(s.replace(',', '.'))
     // Korrektur Schlussrunde: das Ist kommt schon gerundet (eine Nachkommastelle bzw. ganze Meter); liegt es auf bzw. höchstens 0,05 m
     // über der Mindestsicht eines verletzten Befunds, war der Rohwert darunter (54,96 → «55,0»): «knapp unter 55 m»
-    if (grenze !== undefined && Number.isFinite(v) && v >= grenze - 1e-9 && v <= grenze + 0.05 + 1e-9) return `knapp unter ${zahlText(grenze)}`
+    // Grenze mit einer Nachkommastelle wie das Soll («knapp unter 77,8 m», nicht «77,80»)
+    if (grenze !== undefined && Number.isFinite(v) && v >= grenze - 1e-9 && v <= grenze + 0.05 + 1e-9) return `knapp unter ${zahl1(grenze)}`
     // Ist abgerundet, Soll aufgerundet: das Runden macht aus «54,6 statt mindestens 55» nie «55 statt mindestens 55»
     return Number.isFinite(v) ? String(aufrunden ? Math.ceil(v - 1e-9) : Math.floor(v + 1e-9)) : s
   }

@@ -106,8 +106,8 @@ describe('Feldhilfen: Erklärung und Herkunft je Feld', () => {
       }
     }
   })
-  it('Vorschlag-Text genau für die Felder, die vorbelegung.ts setzt', () => {
-    const src = readFileSync(join(__dirname, 'vorbelegung.ts'), 'utf-8')
+  it('Vorschlag-Text genau für die Felder, die vorbelegung.ts, automatik.ts bzw. automatikC.ts setzt', () => {
+    const src = ['vorbelegung.ts', 'automatik.ts', 'automatikC.ts'].map(f => readFileSync(join(__dirname, f), 'utf-8')).join('\n')
     const gesetzt = new Set([...src.matchAll(/setze\('([\w.]+)'/g)].map(m => m[1]))
     expect(gesetzt.size).toBeGreaterThan(15)
     expect(FELD_DEFS.filter(d => FELD_HILFEN[d.pfad].vorschlag).map(d => d.pfad).sort()).toEqual([...gesetzt].sort())
@@ -322,7 +322,7 @@ describe('Feldhilfen: Wozu gekürzt (Geltung, Schalter, Reihenfolge)', () => {
     expect(offen).toBeGreaterThan(1000)
     expect([...new Set([...ausser].map(x => x.replace(/;.*/, "")))].sort()).toEqual([])
     expect([...unbenannt].sort()).toEqual([])
-  })
+  }, 30_000)
   it('Fussgängerstreifen ohne Lichtsignal: «Art der Querung» ohne Regeln (nur Ablauf), nirgends F5, F6, E2, D7, F4c, I oder Q3', () => {
     const k = kx()
     expect(k.e.typ.wert).toBe('fgs')

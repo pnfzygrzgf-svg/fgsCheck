@@ -71,6 +71,10 @@ export interface RegelDef {
   werte?: Readonly<Record<string, number>>
   /** Grösse für die Tabelle Masse Soll/Ist (Regeln mit gleicher Grösse bilden eine Zeile) */
   groesse?: string
+  /** hartes Verbot (Recht) gilt nur mit Tatsachen bzw. bestätigten Werten: beruht es auf einer Annahme bzw. Schätzung, bleibt die Regel
+   * offen («Annahme bestätigen»; Korrektur M2, Nutzerentscheid 21.10.2026). true: alle Eingaben zählen; Liste: nur diese Felder (A2:
+   * Strecke/Zone, das Tempo grenzt nur die Anwendbarkeit ein; Runde 4) */
+  nurMitBestaetigung?: true | readonly string[]
   einheit?: string
 }
 
@@ -94,6 +98,8 @@ export interface Eintrag {
   detail?: string
   /** bei offen: fehlende Eingaben */
   fehlend?: string[]
+  /** offen, weil das Verbot nur auf Annahmen beruht (Korrektur M2): fehlend sind dann die zu bestätigenden Felder */
+  bestaetigen?: boolean
   normHinweis?: string
 }
 
@@ -116,7 +122,8 @@ export interface MassZeile {
   einheit: string
   soll: string
   ist: string
-  zustand: 'erfuellt' | 'verletzt' | 'offen'
+  /** nicht_anwendbar: Wert ohne Soll, die Regel greift nicht (Runde 4: Abstand bei ganzer Strasse); nie «erfüllt» ohne Soll */
+  zustand: 'erfuellt' | 'verletzt' | 'offen' | 'nicht_anwendbar'
   regeln: string[]
 }
 

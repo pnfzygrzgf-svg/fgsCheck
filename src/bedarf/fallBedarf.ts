@@ -5,12 +5,18 @@
 // Objekt-Felder (insel, haltestelle …) speichert die Datei je Unterfeld («insel.breite»): so prüft fallLesen jedes Unterfeld
 // einzeln (Art, Wertebereich, Auswahl), und eine Handeingabe ersetzt nur das betroffene Unterfeld der Vorbelegung.
 // Ein Feld ohne Wert ist «offen» (Entscheid E0-2).
+// Automatik Paket A (21.10.2026): eine Handeingabe kann ein Feld auch bewusst offen setzen ({ wert: null, quelle: 'hand' }): die
+// Vorbelegung gilt dann nicht. Ältere Apps übergehen solche Einträge still (wie bisher jeden Eintrag ohne Wert), darum bleibt die
+// Fall-Version. Zustand «rechner»: das Feld hat keinen Wert, der Sichtrechner rechnet es aber je Zufahrt (Sichtweite, Kurvenradius);
+// es zählt nicht als offen, die Maske zeigt das Ergebnis des Sichtrechners.
 
 import { FELD_DEF, OBJEKTE, feldName, istObjektFeld, unterfelder, wertGueltig, bereichText, type ObjektFeld } from './felder'
 import { FELDNAMEN, leereEingaben, type BedarfEingaben, type Feld, type FeldName, type Quelle } from './eingaben'
 
 /** Handeingabe eines Felds bzw. Unterfelds */
 export interface HandFeld { wert: unknown; quelle: Quelle }
+/** Handeingabe «bewusst offen» (verwirft die Vorbelegung) */
+export const istHandOffen = (h: HandFeld | undefined | null): boolean => !!h && (h.wert === null || h.wert === undefined)
 /** Ebenen von Hand geschaltet (fehlt: Vorgabe nach dem Ort; Recht und Norm sind immer an) */
 export interface BedarfEbenen { bern?: boolean; kantonBE?: boolean; richtlinie?: boolean }
 export interface BedarfBlock {
@@ -19,10 +25,11 @@ export interface BedarfBlock {
   ebenen?: BedarfEbenen
 }
 /** Quellen, die die Maske für Handeingaben anbietet (die übrigen bringt die Vorbelegung bzw. eine spätere Etappe) */
-export const HAND_QUELLEN: readonly Quelle[] = ['hand', 'schaetzung', 'annahme']
+export const HAND_QUELLEN: readonly Quelle[] = ['hand', 'bestaetigt', 'schaetzung', 'annahme']
 export const QUELLE_TEXT: Record<Quelle, string> = {
-  av: 'AV', osm: 'OSM', geoportal: 'Geoportal', luftbild: 'Luftbild', hand: 'von Hand', annahme: 'Annahme', schaetzung: 'Schätzung',
-  rechnung: 'Rechnung',
+  av: 'AV', osm: 'OSM', geoportal: 'Geoportal Stadt Bern', luftbild: 'Luftbild', hand: 'von Hand', bestaetigt: 'bestätigt', annahme: 'Annahme',
+  schaetzung: 'Schätzung',
+  rechnung: 'Sichtrechner',
 }
 
 const istObjekt = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
@@ -48,7 +55,11 @@ export function bedarfLesen(roh: unknown): [BedarfBlock | null, string[]] {
     const d = FELD_DEF.get(pfad)
     if (!d) { h.push(`Bedarf-Feld «${pfad}» unbekannt, übergangen`); continue }
     if (!istObjekt(v)) { h.push(`Bedarf-Feld «${pfad}» ungültig (kein Objekt), übergangen`); continue }
-    if (v.wert === null || v.wert === undefined) continue
+    if (v.wert === null || v.wert === undefined) {
+      // bewusst offen (Automatik Paket A): nur mit Quelle «von Hand»; sonst wie bisher still übergangen
+      if (v.quelle === 'hand' && Object.keys(v).every(k => k === 'wert' || k === 'quelle')) b.felder[pfad] = { wert: null, quelle: 'hand' }
+      continue
+    }
     if (!wertGueltig(d.art, v.wert)) { h.push(`Bedarf-Feld «${pfad}»: Wert ${JSON.stringify(v.wert)} ungültig, übergangen`); continue }
     if (!(HAND_QUELLEN as readonly unknown[]).includes(v.quelle)) { h.push(`Bedarf-Feld «${pfad}»: Quelle ${JSON.stringify(v.quelle)} ungültig, übergangen`); continue }
     for (const k of Object.keys(v)) if (k !== 'wert' && k !== 'quelle') h.push(`Bedarf-Feld «${pfad}»: Schlüssel «${k}» unbekannt, übergangen`)
@@ -86,11 +97,13 @@ function zoneAltLesen(felder: unknown, b: BedarfBlock, h: string[]): void {
 }
 
 /** Vorbelegter Wert aus der Rechnung (vorbelegung.ts): Wert, Quelle und Herkunft als Text */
-export interface VorWert { wert: unknown; quelle: Quelle; text: string }
+export interface VorWert { wert: unknown; quelle: Quelle; text: string
+  /** Runde 4: Wert ist die Länge der ganzen Strasse (abstandFgsM, abstandLsaM; eingaben.Feld.ganzeStrasse) */
+  ganzeStrasse?: true }
 export type Vorbelegung = Record<string, VorWert>
 
 /** Herkunft eines Pfads für die Anzeige: von Hand (überschreibt) bzw. vorbelegt bzw. offen */
-export interface Herkunft { zustand: 'hand' | 'vorbelegt' | 'offen'; quelle: Quelle | null; text: string; vorbelegt?: VorWert
+export interface Herkunft { zustand: 'hand' | 'vorbelegt' | 'rechner' | 'offen'; quelle: Quelle | null; text: string; vorbelegt?: VorWert
   /** Wert der Handeingabe */
   wert?: unknown }
 
@@ -114,28 +127,31 @@ function objektWert(o: ObjektFeld, u: string, x: unknown): unknown {
  * auf null. Quelle eines Objekts: von Hand, sobald ein Unterfeld von Hand kommt, sonst die Quelle der Vorbelegung des ersten
  * Unterfelds. fgQuelle folgt aus Zählung (fg5h) bzw. Schätzklasse (fgKlasse).
  */
-export function eingabenBilden(vor: Vorbelegung, block: BedarfBlock | null | undefined): Gebildet {
+export function eingabenBilden(vor: Vorbelegung, block: BedarfBlock | null | undefined, rechner: Readonly<Record<string, string>> = {}): Gebildet {
   const e = leereEingaben() as Record<FeldName, Feld<unknown>>
   const herkunft = new Map<string, Herkunft>()
   const hinweise: string[] = []
   const hand = block?.felder ?? {}
-  const wert = (pfad: string): { wert: unknown; quelle: Quelle; hand: boolean } | null => {
+  const wert = (pfad: string): { wert: unknown; quelle: Quelle; hand: boolean; ganzeStrasse?: true } | null => {
     const hf = hand[pfad]
     if (hf && hf.wert !== null && hf.wert !== undefined) return { wert: hf.wert, quelle: hf.quelle, hand: true }
+    if (hf) return null                                   // bewusst offen von Hand: keine Vorbelegung
     const v = vor[pfad]
-    if (v && v.wert !== null && v.wert !== undefined) return { wert: v.wert, quelle: v.quelle, hand: false }
+    if (v && v.wert !== null && v.wert !== undefined) return { wert: v.wert, quelle: v.quelle, hand: false, ...(v.ganzeStrasse ? { ganzeStrasse: true as const } : {}) }
     return null
   }
   for (const [pfad] of FELD_DEF) {
     const hf = hand[pfad], v = vor[pfad]
-    herkunft.set(pfad, hf ? { zustand: 'hand', quelle: hf.quelle, text: QUELLE_TEXT[hf.quelle], vorbelegt: v, wert: hf.wert }
-      : v ? { zustand: 'vorbelegt', quelle: v.quelle, text: v.text, vorbelegt: v } : { zustand: 'offen', quelle: null, text: 'offen' })
+    herkunft.set(pfad, hf ? { zustand: 'hand', quelle: hf.quelle, text: istHandOffen(hf) ? 'von Hand offen' : QUELLE_TEXT[hf.quelle], vorbelegt: v,
+      wert: hf.wert ?? null }
+      : v ? { zustand: 'vorbelegt', quelle: v.quelle, text: v.text, vorbelegt: v }
+        : rechner[pfad] ? { zustand: 'rechner', quelle: 'rechnung', text: rechner[pfad] } : { zustand: 'offen', quelle: null, text: 'offen' })
   }
   for (const f of FELDNAMEN) {
     if (f === 'fgQuelle') continue
     if (!istObjektFeld(f)) {
       const x = wert(f)
-      if (x) e[f] = { wert: structuredClone(x.wert), quelle: x.quelle }
+      if (x) e[f] = { wert: structuredClone(x.wert), quelle: x.quelle, ...(x.ganzeStrasse ? { ganzeStrasse: true as const } : {}) }
       continue
     }
     const us = unterfelder(f)
@@ -175,14 +191,19 @@ export function handPruefen(pfad: string, wert: unknown, quelle: Quelle = 'hand'
   return null
 }
 
-/** Handeingabe setzen bzw. entfernen (wert null): neuer Block, leer -> undefined. Ein ungültiger Wert (handPruefen) ändert nichts */
-export function handSetzen(b: BedarfBlock | undefined, pfad: string, wert: unknown, quelle: Quelle): BedarfBlock | undefined {
-  if (handPruefen(pfad, wert, quelle)) return b
+/** Handeingabe setzen bzw. entfernen (wert null): neuer Block, leer -> undefined. Ein ungültiger Wert (handPruefen) ändert nichts.
+ * offen: das Feld bewusst offen setzen (verwirft die Vorbelegung; Automatik Paket A) */
+export function handSetzen(b: BedarfBlock | undefined, pfad: string, wert: unknown, quelle: Quelle, offen = false): BedarfBlock | undefined {
+  if (!FELD_DEF.has(pfad) || (!offen && handPruefen(pfad, wert, quelle))) return b
   const neu: BedarfBlock = { felder: { ...(b?.felder ?? {}) }, ...(b?.ebenen ? { ebenen: { ...b.ebenen } } : {}) }
-  if (wert === null || wert === undefined) delete neu.felder[pfad]
+  if (offen) neu.felder[pfad] = { wert: null, quelle: 'hand' }
+  else if (wert === null || wert === undefined) delete neu.felder[pfad]
   else neu.felder[pfad] = { wert, quelle }
   return bedarfLeer(neu) ? undefined : neu
 }
+
+/** Gleicher Wert (Handeingabe gegen Vorbelegung): Zahlen, Listen, Text, ja/nein */
+export const gleicherWert = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
 
 /** Ebene schalten (null: wieder Vorgabe nach dem Ort) */
 export function ebeneSetzen(b: BedarfBlock | undefined, k: keyof BedarfEbenen, an: boolean | null): BedarfBlock | undefined {

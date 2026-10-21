@@ -108,10 +108,20 @@ describe('Vorbelegung aus der Rechnung (synthetischer Fall)', () => {
 describe('Befundblatt', () => {
   it('ohne Handeingaben: Zulässigkeit offen, Empfehlung vorläufig; Nachfrage ganz ohne Eingabe: nicht geprüft', () => {
     const r = rechneFall(OSM, AV, [], 12, fallMit(), null)
-    const [b] = befundblaetter(r, fallMit(), OHNE_EBENEN)
+    // Automatik Paket A: Tempo 50 ergibt «Strecke» (Tatsache), damit ist die Zulässigkeit nicht mehr offen; mit Strecke/Zone bewusst
+    // offen (Handangabe) wie bisher
+    expect(befundblaetter(r, fallMit(), OHNE_EBENEN)[0].befund.zulaessigkeit).toBe('zulaessig')
+    const f0 = fallMit(x => { x.bedarf = { felder: { tempoRegime: { wert: null, quelle: 'hand' } } } })
+    const [b] = befundblaetter(r, f0, OHNE_EBENEN)
     expect(b.befund.zulaessigkeit).toBe('offen')
     expect(b.befund.empfehlung.vorlaeufig).toBe(true)
+    // Runde 4: Tempo 50 bekannt → keine Begegnungszone möglich (A2 nicht anwendbar), Empfehlung wie bisher vorläufig
     expect(b.typText).toMatch(/^Fussgängerstreifen \(vorläufig/)
+    expect(b.befund.alle.some(x => x.id === 'A2')).toBe(false)
+    // Tempo 20 ohne Zonenangabe: A2 offen → Empfehlung ausgesetzt (Kann A2)
+    const [b20] = befundblaetter(r, fallMit(x => { x.bedarf = { felder: { tempoRegime: { wert: null, quelle: 'hand' }, vSig: { wert: 20, quelle: 'hand' } } } }), OHNE_EBENEN)
+    expect(b20.typText).toBe('Empfehlung folgt, sobald die Begegnungszone geklärt ist')
+    expect(b20.befund.empfehlung).toMatchObject({ typ: 'keiner', elemente: [], grundlage: [], vorlaeufig: true })
     expect(b.nichtGeprueft.map(x => x.block)).toContain('Nachfrage')
     expect(b.offen.some(o => o.feld === 'tempoRegime' && o.gruppe === 'rahmen')).toBe(true)
     expect(b.ebenen).toEqual({ bern: false, kantonBE: false, richtlinie: true })
