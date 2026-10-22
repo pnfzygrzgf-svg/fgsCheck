@@ -57,7 +57,7 @@ describe('Vorbelegung: Bushaltestelle (Umkreis 50 m um den Streifen)', () => {
     for (const d of [49, 50]) {
       const v = vor({ haltestellen: hst([halt(80, 'Fernplatz'), halt(d)]) })
       expect(v.werte['haltestelle.art']).toBeUndefined()
-      expect(v.feldHinweise!['haltestelle.art']).toBe(`Haltestelle «Beispielplatz, Kante A», ${d} m (Geoportal Stadt Bern): Fahrbahnhaltestelle oder Busbucht wählen`)
+      expect(v.feldHinweise!['haltestelle.art']).toBe(`Haltestelle «Beispielplatz, Kante A» (${d} m): Bitte angeben, ob der Bus auf der Fahrbahn oder in einer Bucht hält ⟦Geoportal Stadt Bern⟧`)
       expect(v.hinweise).toContain(`Bushaltestelle an der Querung: ${v.feldHinweise!['haltestelle.art']}`)
       expect(v.werte.beduerfnis).toMatchObject({ wert: ['haltestelle'], quelle: 'geoportal' })
       expect(v.werte.beduerfnis.text).toContain('Haltestelle an der Querung als Grund für Vortritt')
@@ -69,7 +69,7 @@ describe('Vorbelegung: Bushaltestelle (Umkreis 50 m um den Streifen)', () => {
   it('Tramhaltestelle (OSM) nennt die Art; Ausfall des Geoportals steht in der Herkunft', () => {
     const v = vor({ haltestellen: { quelle: 'osm', herkunft: 'OSM', halte: [{ ...halt(10), art: 'tram' }], bereich: BEREICH,
       zusatz: 'Geoportal Stadt Bern nicht erreichbar (HTTP 503)' } })
-    expect(v.feldHinweise!['haltestelle.art']).toMatch(/^Tramhaltestelle «Beispielplatz, Kante A», 10 m \(OSM; Geoportal Stadt Bern nicht erreichbar \(HTTP 503\)\)/)
+    expect(v.feldHinweise!['haltestelle.art']).toMatch(/^Tramhaltestelle «Beispielplatz, Kante A» \(10 m\): .*⟦OSM; Geoportal Stadt Bern nicht erreichbar \(HTTP 503\)⟧/)
     const k = vor({ haltestellen: hst([], 'Geoportal Stadt Bern nicht erreichbar (HTTP 503)') })
     expect(k.werte['haltestelle.art']?.text).toBe('keine Haltestelle im Umkreis von 50 m (Geoportal Stadt Bern; Geoportal Stadt Bern nicht erreichbar (HTTP 503))')
   })
@@ -102,14 +102,14 @@ describe('Vorbelegung: Bushaltestelle (Umkreis 50 m um den Streifen)', () => {
 
 describe('Vorbelegung: Strecke oder Zone (OSM-Tags der Zufahrten)', () => {
   it('Tags eines Wegs', () => {
-    expect(zoneAusTags({ maxspeed: '30', 'zone:maxspeed': 'CH:zone30' })).toEqual({ wert: 't30_zone', text: 'Tempo-30-Zone (OSM zone:maxspeed=CH:zone30)' })
-    expect(zoneAusTags({ 'maxspeed:type': 'CH:zone20' })).toEqual({ wert: 'begegnungszone', text: 'Begegnungszone (OSM maxspeed:type=CH:zone20)' })
+    expect(zoneAusTags({ maxspeed: '30', 'zone:maxspeed': 'CH:zone30' })).toEqual({ wert: 't30_zone', text: 'Tempo-30-Zone (OSM) ⟦zone:maxspeed=CH:zone30⟧' })
+    expect(zoneAusTags({ 'maxspeed:type': 'CH:zone20' })).toEqual({ wert: 'begegnungszone', text: 'Begegnungszone (OSM) ⟦maxspeed:type=CH:zone20⟧' })
     expect(zoneAusTags({ highway: 'living_street' })).toMatchObject({ wert: 'begegnungszone' })
-    expect(zoneAusTags({ maxspeed: '50', 'source:maxspeed': 'CH:urban' })).toEqual({ wert: 'strecke', text: 'Strecke (OSM source:maxspeed=CH:urban)' })
+    expect(zoneAusTags({ maxspeed: '50', 'source:maxspeed': 'CH:urban' })).toEqual({ wert: 'strecke', text: 'Strecke (OSM) ⟦source:maxspeed=CH:urban⟧' })
     expect(zoneAusTags({ maxspeed: 'CH:urban' })).toMatchObject({ wert: 'strecke' })
-    expect(zoneAusTags({ maxspeed: '50' })).toEqual({ wert: 'strecke', text: 'Strecke (OSM maxspeed=50 ohne Zonenangabe)' })
-    expect(zoneAusTags({ maxspeed: '30' })).toEqual({ wert: null, text: 'Tempo 30 in OSM ohne Angabe zur Zone (weder zone:maxspeed noch maxspeed:type)' })
-    expect(zoneAusTags({ maxspeed: '30', 'maxspeed:type': 'CH:zone30' })).toEqual({ wert: 't30_zone', text: 'Tempo-30-Zone (OSM maxspeed:type=CH:zone30)' })
+    expect(zoneAusTags({ maxspeed: '50' })).toEqual({ wert: 'strecke', text: 'Strecke (OSM: Tempo 50 ohne Zonenangabe) ⟦maxspeed=50⟧' })
+    expect(zoneAusTags({ maxspeed: '30' })).toEqual({ wert: null, text: 'Tempo 30 in OSM ohne Zonenangabe ⟦weder zone:maxspeed noch maxspeed:type⟧' })
+    expect(zoneAusTags({ maxspeed: '30', 'maxspeed:type': 'CH:zone30' })).toEqual({ wert: 't30_zone', text: 'Tempo-30-Zone (OSM) ⟦maxspeed:type=CH:zone30⟧' })
     expect(zoneAusTags({ highway: 'residential' })).toEqual({ wert: null, text: '' })
   })
   it('Zufahrten: gleich -> Wert; widersprüchlich bzw. teils ohne Angabe -> offen mit Hinweis; ohne Wege nichts', () => {
@@ -117,17 +117,17 @@ describe('Vorbelegung: Strecke oder Zone (OSM-Tags der Zufahrten)', () => {
     expect(zoneAusOsm([z30, z30])).toMatchObject({ wert: 't30_zone' })
     expect(zoneAusOsm([z30, { maxspeed: '50' }])).toMatchObject({ wert: null, text: expect.stringContaining('widersprüchlich') })
     expect(zoneAusOsm([z30, null])).toMatchObject({ wert: null, text: expect.stringContaining('nur ein Teil der Zufahrten') })
-    expect(zoneAusOsm([{ maxspeed: '30' }])).toMatchObject({ wert: null, text: expect.stringContaining('Tempo 30 in OSM ohne Angabe zur Zone') })
+    expect(zoneAusOsm([{ maxspeed: '30' }])).toMatchObject({ wert: null, text: expect.stringContaining('Tempo 30 in OSM ohne Zonenangabe') })
     expect(zoneAusOsm([])).toEqual({ wert: null, text: '' })
   })
   it('in der Vorbelegung über die Weg-Ids der geraden Zufahrten', () => {
     expect(vor({ osmTags: new Map([[1, TAGS]]) }).werte.tempoRegime).toEqual({ wert: 'strecke', quelle: 'osm',
-      text: 'Strecke (OSM maxspeed=50 ohne Zonenangabe)' })
+      text: 'Strecke (OSM: Tempo 50 ohne Zonenangabe) ⟦maxspeed=50⟧' })
     expect(vor({ osmTags: new Map([[1, { ...TAGS, maxspeed: '30', 'zone:maxspeed': 'CH:zone30' }]]) }).werte.tempoRegime)
       .toMatchObject({ wert: 't30_zone', quelle: 'osm' })
     const t30 = vor({ osmTags: new Map([[1, { ...TAGS, maxspeed: '30' }]]) })
     expect(t30.werte.tempoRegime).toBeUndefined()
-    expect(t30.feldHinweise!.tempoRegime).toContain('ohne Angabe zur Zone')
+    expect(t30.feldHinweise!.tempoRegime).toContain('ohne Zonenangabe')
     // Automatik Paket A: ohne Zonenangabe gilt ab 40 km/h die Strecke (Tempo aus der Rechnung, OSM maxspeed)
     expect(vor({ osmTags: new Map() }).werte.tempoRegime).toEqual({ wert: 'strecke', quelle: 'osm',
       text: 'Tempo 50 km/h: Strecke (eine Zone hat höchstens 30 km/h)' })
@@ -194,22 +194,21 @@ describe('Vorbelegung: DTV (Geoportal Stadt Bern)', () => {
 })
 
 describe('Vorbelegung: Beleuchtung nur als Hinweis (Feld bleibt offen)', () => {
+  const SLG = 'Beleuchtung der Querenden vor Ort prüfen (Richtlinie SLG 202 der Schweizer Licht Gesellschaft)'
   const lampen = (...d: number[]) => ({ punkte: d.map(x => lv(RAND_X + x, 0)), bereich: { mitte: O, radiusM: 100, form: 'kreis' as const } })
   it('Lampe 14 und 15 m: an der Querung; 16 m: nächste Lampe; über 25 m: keine', () => {
     for (const d of [14, 15]) expect(vor({ lampen: lampen(d, 40) }).feldHinweise!.beleuchtung)
-      .toBe(`Strassenlampe ${d} m vom Streifen (OSM); Beleuchtung der Querenden nach SLG 202 vor Ort prüfen`)
-    expect(vor({ lampen: lampen(16) }).feldHinweise!.beleuchtung).toBe('nächste Strassenlampe 16 m vom Streifen (OSM); Beleuchtung der ' +
-      'Querenden nach SLG 202 vor Ort prüfen')
-    expect(vor({ lampen: lampen(26) }).feldHinweise!.beleuchtung).toBe('keine Lampe in OSM innerhalb 25 m (OSM oft unvollständig)')
+      .toBe(`Strassenlampe ${d} m vom Streifen (OSM); ${SLG}`)
+    expect(vor({ lampen: lampen(16) }).feldHinweise!.beleuchtung).toBe(`nächste Strassenlampe 16 m vom Streifen (OSM); ${SLG}`)
+    expect(vor({ lampen: lampen(26) }).feldHinweise!.beleuchtung).toBe('eine Lampe nahe der Querung ist in OSM nicht eingetragen (OSM oft unvollständig)')
     for (const d of [14, 16, 26]) expect(vor({ lampen: lampen(d) }).werte.beleuchtung).toBeUndefined()
   })
   it('lit=yes bzw. lit=no an den Zufahrten; keine Daten: kein Hinweis', () => {
     expect(vor({ osmTags: new Map([[1, { ...TAGS, lit: 'yes' }]]) }).feldHinweise!.beleuchtung)
-      .toBe('Strasse in OSM als beleuchtet markiert (lit=yes); vor Ort prüfen')
+      .toBe('laut OSM ist die Strasse beleuchtet ⟦lit=yes⟧; vor Ort prüfen')
     const nein = vor({ osmTags: new Map([[1, { ...TAGS, lit: 'no' }]]), lampen: lampen(5) })
     // «vor Ort prüfen» nur einmal (Nachprüfung)
-    expect(nein.feldHinweise!.beleuchtung).toBe('Strasse in OSM als unbeleuchtet markiert (lit=no); Strassenlampe 5 m vom ' +
-      'Streifen (OSM); Beleuchtung der Querenden nach SLG 202 vor Ort prüfen')
+    expect(nein.feldHinweise!.beleuchtung).toBe(`laut OSM ist die Strasse nicht beleuchtet ⟦lit=no⟧; Strassenlampe 5 m vom Streifen (OSM); ${SLG}`)
     expect(nein.werte.beleuchtung).toBeUndefined()
     expect(vor({ osmTags: new Map([[1, TAGS]]) }).feldHinweise!.beleuchtung).toBeUndefined()
     expect(vor({ lampen: { punkte: [], bereich: { mitte: lv(90, 0), radiusM: 100, form: 'kreis' } } }).feldHinweise!.beleuchtung).toBeUndefined()

@@ -173,7 +173,8 @@ describe('Ebenen und offene Eingaben', () => {
   it('C3 verletzt: zulässig nur mit Begründung, Querung ohne Vortritt als Zusatz', () => {
     const b = beurteile(fall({ fg5h: 60, netz: 'keins' }))
     expect(b.zulaessigkeit).toBe('mit_begruendung')
-    expect(b.empfehlung.zusatz).toContain('Querung ohne Vortritt prüfen (C3, C4)')
+    // Runde 5 (F8): nur die verletzte Regel als Grund (DTV 8000: C4 nicht verletzt)
+    expect(b.empfehlung.zusatz).toContain('Querung ohne Vortritt prüfen (C3)')
   })
   it('wenige Eingaben: offene Einträge nach fehlendem Feld gruppiert', () => {
     const b = beurteile(eingabenAus({ innerorts: true, vSig: 50, typ: 'fgs' }), BERN)
@@ -191,6 +192,13 @@ describe('Ebenen und offene Eingaben', () => {
   it('Masse Soll/Ist: Streifen, Sicht, Erkennung als Zeilen; verletzt bei F1a', () => {
     const b = beurteile(fall({ streifenBreite: 2.9 }))
     expect(b.masse.find(m => m.groesse === 'Streifenbreite')).toMatchObject({ ist: '2,90', zustand: 'verletzt', regeln: ['F1a', 'F1b'] })
-    expect(b.masse.map(m => m.groesse)).toEqual(expect.arrayContaining(['Erkennungsdistanz', 'Abstand zum nächsten FGS', 'DTV']))
+    expect(b.masse.map(m => m.groesse)).toEqual(expect.arrayContaining(['Erkennungsdistanz', 'Abstand zum nächsten Fussgängerstreifen', 'DTV']))
+  })
+  it('Runde 5: Ausnahme beim Wert (G1 an der Verzweigung), V85 nur angenommen', () => {
+    const g = beurteile(fall({ abstandFgsM: 22, verzweigung: true }))
+    expect(g.masse.find(m => m.groesse === 'Abstand zum nächsten Fussgängerstreifen')).toMatchObject({ zustand: 'ausnahme', zusatz: 'an der Verzweigung zulässig' })
+    const v = beurteile(fall({ v85: null }))
+    expect(v.masse.find(m => m.groesse === 'V85')).toMatchObject({ zustand: 'annahme' })
+    expect(v.masse.find(m => m.groesse === 'V85')!.ist).toContain('nicht gemessen')
   })
 })

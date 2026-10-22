@@ -159,6 +159,7 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'E1b', name: 'wie E1, stark belastet', abw: { vSig: 60, v85: 65, starkBelastet: true }, erwartet: { E1b: 'hinweis' } },
   { regel: 'E2', name: 'T30-Zone ohne Bedürfnis, siedlungsorientiert', abw: { tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert' },
     erwartet: { C2: 'hart', E2: 'hinweis' }, empfehlung: 'ohne_vortritt' },
+  { regel: 'E1c', name: 'Furt ohne Insel (Runde 5)', abw: { typ: 'furt', strassentyp: 'verkehrsorientiert', insel: INSEL_KEINE }, erwartet: { E1c: 'hinweis' } },
   { regel: 'E2a', name: 'Furt auf siedlungsorientierter Strasse', abw: { typ: 'furt', strassentyp: 'siedlungsorientiert' }, erwartet: { E2a: 'hart' } },
   { regel: 'E2b', name: 'Längsparkierung ohne Seitenraum', abw: { laengsparkierung: true, seitenraumVorParklinieM: -2 }, erwartet: { E2b: 'hart' } },
   { regel: 'E2b', name: 'Längsparkierung, Seitenraum fehlt', abw: { laengsparkierung: true, seitenraumVorParklinieM: null }, erwartet: { E2b: 'offen' } },

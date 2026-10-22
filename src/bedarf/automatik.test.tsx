@@ -104,7 +104,7 @@ describe('Paket A: Anzeige (renderToStaticMarkup)', () => {
   it('vorbelegter Wert im Feld (Klasse vorbelegt) mit Quellen-Chip und Herkunft als Tooltip', () => {
     expect(html).toMatch(/<input[^>]*class="zahl bedarf-zahl vorbelegt"[^>]*value="50"/)
     expect(html).toMatch(/<select[^>]*class="vorbelegt"/)
-    expect(html).toContain('class="quelle-chip q-osm" title="Signalisiertes Tempo: Tempo der geraden Zufahrten (OSM maxspeed)">OSM</span>')
+    expect(html).toContain('class="quelle-chip q-osm" title="Signalisiertes Tempo: Tempo der geraden Zufahrten (OSM)">OSM</span>')
     expect(html).toContain('quelle-chip q-annahme')
     expect(html).toContain('offen (Vorbelegung verwerfen)')
   })
@@ -162,8 +162,12 @@ describe('Paket A: Tempo-Regime, innerorts (A3)', () => {
 describe('Paket A: Kopien und Annahmen mit Schwellen (A4, A8)', () => {
   it('LSA-Zeiten und Trottoirüberfahrt übernehmen Fahrbahn, Teilquerungen, Inseltiefe, Tempo, Fahrstreifen, DTV, Zone', () => {
     const { w } = auto({}, { fahrbahnB: vw(8, 'rechnung'), querdistanzL: vw([4, 3.5], 'rechnung'), 'insel.vorhanden': vw(true, 'av'),
-      'insel.breite': vw(2, 'av'), vSig: vw(30), nRichtung: vw([1, 2]), dtv: vw(4000, 'geoportal'), tempoRegime: vw('t30_zone') })
+      'insel.breite': vw(2, 'av'), vSig: vw(30), nRichtung: vw([1, 2]), dtv: vw(4000, 'geoportal'), tempoRegime: vw('t30_zone'),
+      'q3.ueber': vw('einmuendend', 'annahme') })
     expect([w['lsaZeiten.L'].wert, w['lsaZeiten.teile'].wert, w['lsaZeiten.inselB'].wert]).toEqual([8, [4, 3.5], 2])
+    // Runde 5 (F3): Werte der gequerten Strasse nur bei einer Querung über die Seitenstrasse in die Trottoirüberfahrt
+    const ohne = auto({}, { vSig: vw(30), dtv: vw(4000, 'geoportal'), tempoRegime: vw('t30_zone') }).w
+    expect([ohne['q3.vSigEinm'], ohne['q3.dtvEinm'], ohne['q3.zoneEinm']]).toEqual([undefined, undefined, undefined])
     expect([w['q3.vSigEinm'].wert, w['q3.nEinm'].wert, w['q3.dtvEinm'].wert, w['q3.zoneEinm'].wert]).toEqual([30, 2, 4000, 't30'])
     expect(w['q3.dtvEinm'].quelle).toBe('geoportal')
     expect(auto({}, { querdistanzL: vw([8], 'rechnung') }).w['lsaZeiten.teile']).toBeUndefined()
@@ -175,7 +179,7 @@ describe('Paket A: Kopien und Annahmen mit Schwellen (A4, A8)', () => {
     expect(auto({}, { nRichtung: vw([1, 1]) }).w.starkBelastet).toBeUndefined()
   })
   it('Autoverkehr an der Einengung: 2 999 wenig, 3 000 und 10 000 mittel, 10 001 viel; Seitenstrasse viel ab 3 000', () => {
-    const kl = (d: number) => auto({}, { dtv: vw(d) }).w
+    const kl = (d: number) => auto({}, { dtv: vw(d), 'q3.ueber': vw('einmuendend', 'annahme') }).w
     expect([2999, 3000, 10000, 10001].map(d => kl(d).mivKlasse.wert)).toEqual(['tief', 'mittel', 'mittel', 'hoch'])
     expect([kl(2999)['q3.mivEinmHoch'].wert, kl(3000)['q3.mivEinmHoch'].wert]).toEqual([false, true])
     expect(kl(3000).mivKlasse.quelle).toBe('annahme')
@@ -186,22 +190,26 @@ describe('Paket A: Kopien und Annahmen mit Schwellen (A4, A8)', () => {
   })
   it('Einengung: Fahrbahn 1,0 m schmaler als die Zufahrt ja, 0,99 m nein; Restbreite = Fahrbahn; ohne bauliche Hilfe nur ohne Vortritt', () => {
     const fb = vw(8, 'rechnung', 'Bordkanten')
-    const e = (zb: number, typ = 'fgs') => auto({}, { fahrbahnB: fb, typ: vw(typ, 'hand'), 'insel.vorhanden': vw(false, 'rechnung') },
-      mitZufahrten(() => ({ fahrbahnM: zb }))).w
-    expect(e(9).einengung).toMatchObject({ wert: true, quelle: 'annahme' })
-    expect(e(9).restbreiteM).toMatchObject({ wert: 8, quelle: 'rechnung' })
+    const a = (zb: number, typ = 'fgs') => auto({}, { fahrbahnB: fb, typ: vw(typ, 'hand'), 'insel.vorhanden': vw(false, 'rechnung') },
+      mitZufahrten(() => ({ fahrbahnM: zb })))
+    const e = (zb: number, typ = 'fgs') => a(zb, typ).w
+    // Runde 5 (F7): eine schmalere Stelle ist nur ein Hinweis (kein Wert, keine Restbreite); «keine Einengung» bleibt Annahme
+    expect(e(9).einengung).toBeUndefined()
+    expect(a(9).fh.einengung).toContain('vielleicht eine Nase bzw. Einengung')
+    expect(e(9).restbreiteM).toBeUndefined()
     expect(e(8.99).einengung.wert).toBe(false)
     expect(e(8.99).restbreiteM).toBeUndefined()
     expect(e(8.99).ohneBaulich).toBeUndefined()
     expect(e(8.99, 'ohne_vortritt').ohneBaulich).toMatchObject({ wert: true, quelle: 'annahme' })
-    expect(e(9, 'ohne_vortritt').ohneBaulich).toMatchObject({ wert: false })
+    expect(e(9, 'ohne_vortritt').ohneBaulich).toBeUndefined()
   })
   it('Länge der Einengung aus der AV (Fahrbahn schmaler als Zufahrt − 0,5 m)', () => {
     const avE = [av('Strasse_Weg', rechteck(-5, -4, 5, 4)), av('Strasse_Weg', rechteck(-300, -5, -5, 5)), av('Strasse_Weg', rechteck(5, -5, 300, 5))]
-    const { w } = auto({ av: avE }, { fahrbahnB: vw(8, 'rechnung') }, mitZufahrten(() => ({ fahrbahnM: 10 })))
-    expect(w.einengungLaengeM.quelle).toBe('av')
-    expect(w.einengungLaengeM.wert).toBeGreaterThanOrEqual(9.5)
-    expect(w.einengungLaengeM.wert).toBeLessThanOrEqual(10.5)
+    const { w, fh } = auto({ av: avE }, { fahrbahnB: vw(8, 'rechnung') }, mitZufahrten(() => ({ fahrbahnM: 10 })))
+    expect(w.einengungLaengeM).toBeUndefined()
+    const lg = Number(/auf etwa (\d+,\d) m Länge \(AV\)/.exec(fh.einengung)![1].replace(',', '.'))
+    expect(lg).toBeGreaterThanOrEqual(9.5)
+    expect(lg).toBeLessThanOrEqual(10.5)
   })
 })
 
@@ -285,7 +293,7 @@ describe('Paket A/B: Lage, Verzweigung, Knoten, Abstände (A7, B1, B2)', () => {
     const xs = (d: number) => RAND_X + d
     const b20 = blatt(tKnoten(xs(19.9)), avT(xs(19.9)))
     expect(b20.vorbelegt.werte.lage).toBeUndefined()
-    expect(b20.vorbelegt.feldHinweise!.lage).toMatch(/^Kreuzung: Knoten 20 m vom Streifen mit 3 Armen \(OSM\); Vortrittsrolle wählen/)
+    expect(b20.vorbelegt.feldHinweise!.lage).toMatch(/^Kreuzung 20 m entfernt \(OSM\)\. Bitte wählen: Führt die Querung über die Strasse mit Vortritt/)
     expect(b20.vorbelegt.werte.verzweigung).toMatchObject({ wert: true, quelle: 'rechnung' })
     const b21 = blatt(tKnoten(xs(20.2)), avT(xs(20.2)))
     expect(b21.vorbelegt.werte.lage).toMatchObject({ wert: 'strecke', quelle: 'osm' })
@@ -444,7 +452,7 @@ describe('Paket B: Sichtrechner frei bis, Halteverbotslinie, Kurvenradius, H4, G
     expect(b.vorbelegt.werte.hvlBedarfM.wert).toBeGreaterThan(12 - RAND_X - 1)
     expect(b.vorbelegt.werte.hvlBedarfM.wert).toBeLessThanOrEqual(12.5)
     expect(befundblaetter(r0, fallMit(), OHNE)[0].vorbelegt.werte.hvlBedarfM.wert).toBe(0)
-    expect(b.vorbelegt.rechner!.sichtVorh).toMatch(/verdeckt, Auto-Parkfeld \d+(,\d)? m vor dem Streifen, frei bis \d+ m, Soll 55 m/)
+    expect(b.vorbelegt.rechner!.sichtVorh).toMatch(/verdeckt, Parkfeld \d+(,\d)? m vor dem Streifen, frei bis \d+ m, Soll 55 m/)
   })
   it('Kurvenradius: ohne Abbieger Zustand «rechner»; H4 mit dem Radius des Sichtrechners nicht, mit Radius von Hand wie bisher', () => {
     const b0 = befundblaetter(r0, fallMit(), OHNE)[0]
@@ -482,7 +490,7 @@ describe('Paket B: Trottoir vor der Parkreihe (AV)', () => {
     expect(sv(2.5).w.seitenraumVorParklinieM).toMatchObject({ wert: -0.5, quelle: 'annahme' })
     expect(sv(1.5, 'Parkierung von Hand').w.seitenraumVorParklinieM).toMatchObject({ wert: 0.5, quelle: 'av' })
     expect(sv(2.2).w.seitenraumVorParklinieM).toBeUndefined()
-    expect(sv(2.2).fh.seitenraumVorParklinieM).toContain('von Hand prüfen')
+    expect(sv(2.2).fh.seitenraumVorParklinieM).toContain('bitte vor Ort messen')
     expect(auto({ av: avS }).w.seitenraumVorParklinieM).toBeUndefined()
   })
   it('Schwellen als Daten', () => {

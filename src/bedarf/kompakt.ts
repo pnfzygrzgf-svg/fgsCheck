@@ -12,6 +12,7 @@ import { KATALOG } from './katalog'
 import type { GrundPunkt, GrundTeil, Grundpruefung } from './grundpruefung'
 import type { Befund, Eintrag, RegelDef } from './typen'
 import { mitEinheit } from './themen'
+import { lesetext } from './lesetext'
 
 const DEF = KATALOG as Readonly<Record<string, RegelDef>>
 
@@ -34,6 +35,8 @@ export interface GrundZeile {
   zusatz?: string
   /** fehlende Felder der bestimmenden Regel (als Fragen anzuzeigen) */
   fragen: string[]
+  /** Wort statt dem des Zustands (Runde 5: Tempo «voraussichtlich erfüllt») */
+  wort?: string
 }
 
 const muss = (t: GrundTeil): boolean => DEF[t.id]?.staerke === 'hart'
@@ -48,7 +51,7 @@ const sollWort = (s: string): string => s.replace(/^≥ /, 'mindestens ').replac
 const istWort = (s: string): string => s.replace(/^(\d+) von \1 Zufahrten frei/, (_, n: string) => (n === '1' ? 'die Zufahrt frei' : n === '2' ? 'beide Zufahrten frei' : `alle ${n} Zufahrten frei`))
   .replace(/^(\d+) je Richtung/, (_, n: string) => `${n} Fahrstreifen je Richtung`)
 /** erfüllt ohne Soll (das Ist sagt genug) */
-const OHNE_SOLL = ['B5-T', 'B5-3']
+const OHNE_SOLL = ['B5-T', 'B5-3', 'B5-1']
 /** feste Sätze, wo Ist allein zu knapp ist */
 const ERFUELLT_SATZ: Partial<Record<string, string>> = { 'B5-4': 'öffentliche Beleuchtung vorhanden', 'B5-W2': 'Wartefläche nicht überfahrbar' }
 
@@ -56,6 +59,8 @@ const ERFUELLT_SATZ: Partial<Record<string, string>> = { 'B5-4': 'öffentliche B
 export function teilSatz(t: GrundTeil): string {
   const ist = t.ist !== undefined ? istWort(t.ist) : '', soll = t.soll !== undefined ? sollWort(t.soll) : ''
   if (t.zustand === 'erfuellt' && ERFUELLT_SATZ[t.id]) return ERFUELLT_SATZ[t.id]!
+  // Sicht erfüllt: das Soll als «nötig» in Klammern (Runde 5, Stelle 21)
+  if (t.zustand === 'erfuellt' && t.id === 'B5-1' && ist && soll) return `${ist} (nötig: ${soll.replace(/mindestens |≥ /g, '')})`
   if (t.zustand === 'hinweis') return [ist, soll || t.detail || ''].filter(Boolean).join(': ')
   // offen ohne Ist und ohne fehlende Angabe (z. B. über 60 km/h keine Sichtweite): der Grund als Satz
   if (t.zustand === 'offen') return ist || (t.fehlend?.length ? '' : t.detail ?? '')
@@ -63,8 +68,10 @@ export function teilSatz(t: GrundTeil): string {
 }
 
 /** Zusatz einer nebensächlichen Teilregel (Soll bzw. Hinweis): «Erkennungsdistanz nicht angegeben» */
+/** offene Nebenregel als Satz (Runde 5): «offen: ab wo der Streifen erkennbar ist» */
+const OFFEN_SATZ: Partial<Record<string, string>> = { 'B5-1b': 'offen: ab wo der Streifen erkennbar ist' }
 function zusatzVon(t: GrundTeil): string | null {
-  if (t.zustand === 'offen') return `${t.name} nicht angegeben`
+  if (t.zustand === 'offen') return OFFEN_SATZ[t.id] ?? `${t.name} nicht angegeben`
   if (t.zustand === 'verletzt') return `${t.name}: Soll nicht erfüllt${t.ist ? `, ${istWort(t.ist)}` : ''}`
   return null
 }
@@ -76,7 +83,7 @@ export function fragenFelder(felder: readonly string[]): string[] {
 }
 
 /** Annahme der Grundprüfung, wenn V85 fehlt (grundpruefung.ANNAHME_V85) */
-const ANNAHME_V85 = 'V85 fehlt: Sichtweite nach dem signalisierten Tempo (Annahme)'
+const ANNAHME_V85 = 'Tempo wie signalisiert (V85 nicht gemessen)'
 
 /**
  * Zeile eines Punkts (Aggregation D1). Muss-Regel verletzt bzw. offen bestimmt den Zustand (offen: mit nicht erfüllten Soll-Regeln im
@@ -84,10 +91,17 @@ const ANNAHME_V85 = 'V85 fehlt: Sichtweite nach dem signalisierten Tempo (Annahm
  * offene Soll-Regeln im Zusatz. Sicht (①) ohne V85: Zusatz «Annahme: signalisiertes Tempo» (S2). zusatzAussen: weiterer Zusatz
  * (z. B. Hinweis der Vorbelegung zur Beleuchtung, S3).
  */
-export function punktZeile(p: GrundPunkt, annahmen: readonly string[] = [], zusatzAussen?: string): GrundZeile {
+export function punktZeile(p: GrundPunkt, annahmen: readonly string[] = [], zusatzAussen?: string, tempoHinweis?: string): GrundZeile {
   const m = p.teile.filter(muss), rest = p.teile.filter(t => !muss(t))
   const sortiert = (xs: GrundTeil[]) => [...xs].sort((a, b) => RANG[zz(b)] - RANG[zz(a)])
-  const extra = [p.nr === '1' && annahmen.includes(ANNAHME_V85) ? 'Annahme: signalisiertes Tempo' : '', zusatzAussen ?? '']
+  // Tempo bis 50 km/h ohne Antwort zu Anzeichen für schnelleres Fahren: «voraussichtlich erfüllt» (Runde 5, Stelle 16)
+  const t0 = p.teile[0]
+  if (p.nr === 'T' && t0?.zustand === 'offen' && t0.fehlend?.length === 1 && t0.fehlend[0] === 'anzeichenSchneller')
+    return { nr: p.nr, zustand: 'offen', wort: 'voraussichtlich erfüllt', satz: `${t0.ist}; V85 messen nur bei Verdacht auf schnelleres Fahren`,
+      fragen: ['anzeichenSchneller'] }
+  // Sicht nach dem signalisierten Tempo: unter Vorbehalt (Runde 5, Muster 2)
+  const extra = [p.nr === '1' && annahmen.includes(ANNAHME_V85) ? 'unter Vorbehalt: angenommen, dass nicht schneller als signalisiert gefahren wird' : '',
+    p.nr === '1' ? tempoHinweis ?? '' : '', zusatzAussen ?? '']
   const mitZusatz = (z: GrundZeile, teile: (string | null)[]): GrundZeile => {
     const zusatz = [...teile, ...extra].filter((x): x is string => !!x).filter((x, i, a) => a.indexOf(x) === i).join('; ')
     return zusatz ? { ...z, zusatz } : z
@@ -129,11 +143,14 @@ export function weitereZeile(ws: readonly GrundTeil[]): GrundZeile | null {
 export function grundKopf(g: Grundpruefung, feldHinweise: Readonly<Record<string, string>> = {}):
   { zeilen: GrundZeile[]; weitere: GrundZeile | null; zaehlung: string } {
   // Hinweise der Vorbelegung zu Feldern, die eine Zeile offen lassen (z. B. Beleuchtung: Lampe in OSM, vor Ort prüfen; S3)
-  const aussen = (p: GrundPunkt) => (p.nr === '4' && p.zustand === 'offen' && feldHinweise.beleuchtung ? feldHinweise.beleuchtung : undefined)
-  const zeilen = g.punkte.map(p => punktZeile(p, g.annahmen, aussen(p)))
-  const n = (z: ZeilenZustand) => zeilen.filter(x => x.zustand === z).length
-  const reihe: ZeilenZustand[] = ['verletzt', 'soll', 'erfuellt', 'hinweis', 'offen']
-  const zaehlung = reihe.filter(z => n(z)).map(z => `${ZUSTAND_ANZEIGE[z].wort} ${n(z)}`).join(' · ')
+  const aussen = (p: GrundPunkt) => (p.nr === '4' && p.zustand === 'offen' && feldHinweise.beleuchtung ? lesetext(feldHinweise.beleuchtung) : undefined)
+  const zeilen = g.punkte.map(p => punktZeile(p, g.annahmen, aussen(p), g.tempoHinweis))
+  // Runde 5 (Stelle 19): gezählt werden nur die fünf Punkte (Tempo und «Weitere» getrennt)
+  const fuenf = zeilen.filter(x => x.nr !== 'T')
+  const n = (z: ZeilenZustand) => fuenf.filter(x => x.zustand === z).length
+  const WORT_ZAHL: Record<ZeilenZustand, string> = { verletzt: 'nicht erfüllt', soll: 'Soll nicht erfüllt', erfuellt: '', hinweis: 'Hinweis', offen: 'offen' }
+  const zaehlung = [`${n('erfuellt')} von ${fuenf.length} erfüllt`,
+    ...(['verletzt', 'soll', 'offen', 'hinweis'] as const).filter(z => n(z)).map(z => `${n(z)} ${WORT_ZAHL[z]}`)].join(' · ')
   return { zeilen, weitere: weitereZeile(g.weitere), zaehlung }
 }
 

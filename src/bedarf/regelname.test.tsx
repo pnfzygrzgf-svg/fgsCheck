@@ -31,11 +31,11 @@ describe('Kurztitel der Regeln', () => {
       expect(s.has(d.titel), `${id}: ${d.titel} doppelt in ${d.gruppe}`).toBe(false)
       je.set(d.gruppe, s.add(d.titel))
     }
-    expect(REGEL_IDS.length).toBe(165)
+    expect(REGEL_IDS.length).toBe(166)
   })
   it('Namen und Texte: «Titel (Nummer)», einzelne Nummern in Texten ergänzt, Standard E1 bleibt', () => {
     expect(regelName('D2')).toBe('Insel bei breiter Fahrbahn (D2)')
-    expect(regelTitel('B5-3')).toBe('Zweistreifigkeit')
+    expect(regelTitel('B5-3')).toBe('Ein Fahrstreifen je Richtung')
     expect(mitTiteln('wegen D1, F2-K')).toBe('wegen Mehrere Fahrstreifen je Richtung (D1), Inseltiefe mit Radstreifen (Kanton BE) (F2-K)')
     expect(mitTiteln('Insel bei breiter Fahrbahn (D2, VSS 40 241 Z. 24)')).toBe('Insel bei breiter Fahrbahn (D2, VSS 40 241 Z. 24)')
     expect(mitTiteln('Mittelinsel Standard E1: Tiefe 2,00 m')).toBe('Mittelinsel Standard E1: Tiefe 2,00 m')
@@ -113,19 +113,18 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
     const panel = text(renderToStaticMarkup(<BefundblattAnzeige b={b} />)).replace(/ :/g, ':')
     const druck = text(renderToStaticMarkup(<BefundblattAnzeige b={b} druck />)).replace(/ :/g, ':')
     for (const t of [panel, druck]) {
-      expect(t).toContain('Geprüft: 48 Regeln · ohne Befund 45 · offen 0 · Befunde 1 · Hinweise 2')
+      expect(t).toContain('48 Regeln betreffen diese Querung: 45 ohne Befund, 1 Befund, 2 Hinweise, 0 noch offen')
       expect(t).toContain('Insel: 4 geprüft, 2 ohne Befund, 1 Befund, 1 Hinweis')
       expect(t).toContain('Ohne Vortritt und Mehrzweckstreifen: nicht anwendbar')
       expect(t).toContain('Insel nach Berner Tabelle · Soll (Standard Stadt Bern), Abweichung begründen · Schutzinsel vorgesehen (Tabelle Tempo × DTV) (Ist Tempo 50 km/h, DTV 8000 Fz/Tag: Ja)')
-      expect(t).toContain('Insel grundsätzlich anstreben · Hinweis (Norm) · Insel immer anstreben')
-      expect(t).toContain('verbindlich im Rechtssinn ist nur die Ebene Recht')
+      expect(t).toContain('Insel wünschenswert · Hinweis (Norm) · Eine Insel macht das Queren sicherer; hier ist sie nicht verlangt')
       expect(t).not.toMatch(/Soll –|Pflicht|In Ordnung/)
     }
     expect(panel).toContain('Geprüft, ohne Befund: Insel bei breiter Fahrbahn (D2), Verzicht auf Insel bei wenig Verkehr (D2a)')
     expect(druck).not.toContain('Geprüft, ohne Befund:')
     // Thema Insel vor Lichtsignal, im Thema Soll vor Hinweis
-    expect(panel.indexOf('Insel nach Berner Tabelle ·')).toBeLessThan(panel.indexOf('Insel grundsätzlich anstreben ·'))
-    expect(panel.indexOf('Insel grundsätzlich anstreben ·')).toBeLessThan(panel.indexOf('Lichtsignal prüfen nach Berner Tabelle ·'))
+    expect(panel.indexOf('Insel nach Berner Tabelle ·')).toBeLessThan(panel.indexOf('Insel wünschenswert ·'))
+    expect(panel.indexOf('Insel wünschenswert ·')).toBeLessThan(panel.indexOf('Lichtsignal prüfen nach Berner Tabelle ·'))
   })
   it('Verdichtung: Grundprüfung eine Zeile je Punkt, Quelle einmal im Kopf, Nummern und Fundstellen nur in den Details; offene Angaben als Frage', () => {
     const b = blatt({ beleuchtung: null, erkennungM: null }, { bern: false, kantonBE: false })
@@ -133,7 +132,7 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
     const t = text(html).replace(/ :/g, ':')
     const tabelle = text(html.slice(0, html.indexOf('<details'))).replace(/ :/g, ':')
     expect(tabelle).toContain('Grundprüfung nach bfu MS.013-2025, Ziff. 2.1–2.3 (Big Five)')
-    expect(tabelle).toMatch(/① Sichtverhältnisse \(Sicht\) ✓ erfüllt .*\(Erkennungsdistanz nicht angegeben\)/)
+    expect(tabelle).toMatch(/① Sichtverhältnisse \(Sicht\) ✓ erfüllt .*offen: ab wo der Streifen erkennbar ist/)
     expect(tabelle).toContain('④ Beleuchtung ? offen → Ist die Querung nachts beleuchtet?')
     expect(tabelle).not.toMatch(/B5-|bfu MS\.013:2025 Ziff/)
     expect(t).toContain('Doppelte Erkennungsdistanz (B5-1b)')

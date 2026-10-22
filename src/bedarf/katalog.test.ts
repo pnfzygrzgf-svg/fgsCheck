@@ -29,10 +29,10 @@ describe('Regelkatalog', () => {
     expect(new Set(defs.map(([, d]) => d.id)).size).toBe(defs.length)
     for (const [id, d] of defs) expect(d.id).toBe(id)
   })
-  it('Zählung: 150 Nummern im Baum (147 aus der E0-Liste + D6-3b, F3-B, F3-M), davon 8 ohne eigenen Befund (C2c gestrichen 20.10.2026, D3c Verweis auf D5-5 seit Runde 2), und 15 der Grundprüfung', () => {
-    expect(defs.length).toBe(165)
+  it('Zählung: 151 Nummern im Baum (147 aus der E0-Liste + D6-3b, F3-B, F3-M, E1c seit Runde 5), davon 8 ohne eigenen Befund (C2c gestrichen 20.10.2026, D3c Verweis auf D5-5 seit Runde 2), und 15 der Grundprüfung', () => {
+    expect(defs.length).toBe(166)
     expect(grundIds.length).toBe(15)
-    expect(defs.filter(([, d]) => d.gruppe !== 'B5').length).toBe(150)
+    expect(defs.filter(([, d]) => d.gruppe !== 'B5').length).toBe(151)
     expect(defs.filter(([, d]) => d.art !== 'befund' && d.art !== 'weiche').map(([id]) => id).sort())
       .toEqual(['B2', 'C-E', 'C2c', 'D-E', 'D2b', 'D3c', 'E-E', 'H5'].sort())
   })

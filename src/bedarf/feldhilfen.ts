@@ -56,7 +56,7 @@ export const UNTERFELDER: Partial<Record<RegelId, readonly string[]>> = {
   H1: ['kurve.fuenfBedingungen', 'kurve.radius'], 'D5-4': ['kurve.fuenfBedingungen', 'kurve.radius', ...IV], H2: ['kurve.fuenfBedingungen', 'kurve.radius'],
   H3a: ['kurve.fuenfBedingungen', 'kurve.radius'], H3b: ['kurve.fuenfBedingungen', 'kurve.radius'], H4: ['kurve.radius'],
   'B5-1': ['kurve.radius'], 'B5-1b': ['kurve.radius'],
-  'I6-B': ['insel.vorhanden'], 'I7-B2': ['insel.vorhanden'], 'I7-B3': ['insel.vorhanden'], I8: ['insel.vorhanden'],
+  E1c: IV, 'I6-B': ['insel.vorhanden'], 'I7-B2': ['insel.vorhanden'], 'I7-B3': ['insel.vorhanden'], I8: ['insel.vorhanden'],
 }
 
 export interface FeldHilfe {
@@ -89,11 +89,11 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   innerorts: {
     was: 'Ja, wenn die Querung innerhalb der Ortstafeln liegt. Ausserorts endet die erweiterte Prüfung; die Grundprüfung läuft weiter ' +
       '(bei 60 km/h mit 100 m Sichtweite statt 75 m).',
-    vorschlag: 'aus OSM (CH:urban, Zone bzw. Begegnungszone «ja», CH:rural «nein»); sonst bei einem Tempo bis 50 km/h «ja» als Annahme (in Bern gestützt durch eine Bauzone im Nutzungszonenplan).',
+    vorschlag: 'aus OSM (Angabe innerorts, Zone bzw. Begegnungszone «ja», ausserorts «nein»); sonst bei einem Tempo der gequerten Strasse bis 50 km/h «ja» als Annahme, ohne gerade Zufahrt nach dem Tempo der einmündenden Strasse bzw. in Bern nach einer Bauzone im Nutzungszonenplan.',
   },
   vSig: {
     was: 'Die erlaubte Höchstgeschwindigkeit an der Querung laut Tafel bzw. generell innerorts, z. B. 50 oder 30 km/h.',
-    vorschlag: 'in der Stadt Bern aus der signalisierten Höchstgeschwindigkeit des Geoportals (Vorrang vor OSM, Abweichung mit Hinweis); sonst aus OSM (Tempo der geraden Zufahrten), ohne Angabe 50 km/h als Annahme.',
+    vorschlag: 'in der Stadt Bern aus der signalisierten Höchstgeschwindigkeit des Geoportals (Vorrang vor OSM; der Sichtrechner rechnet mit demselben Tempo); sonst aus OSM (Tempo der geraden Zufahrten), ohne Angabe 50 km/h als Annahme.',
   },
   tempoRegime: {
     was: 'Strecke: gewöhnliche Strasse ohne Zonentafel. Zone: die Querung liegt in einer signalisierten Tempo-30-Zone bzw. ' +
@@ -164,9 +164,10 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   },
   beduerfnis: {
     was: 'Ankreuzen, wenn eine Schule, ein Kindergarten, ein Heim oder eine Haltestelle nahe liegt bzw. ein Schulweg hier quert. ' +
-      'Ein solcher Grund erlaubt einen Streifen auch in einer Tempo-30-Zone bzw. bei wenig Querenden.',
+      'Ein solcher Grund erlaubt einen Streifen auch in einer Tempo-30-Zone bzw. bei wenig Querenden. In Bern gilt auch die ' +
+      'Zugehörigkeit zum Fusswegnetz als Begründung (nur mit der Ebene Bern).',
     leer: 'Leer: offen, die genannten Prüfungen bleiben offen. Gibt es keinen solchen Grund, «keines» ankreuzen.',
-    vorschlag: 'Volksschule bzw. Kindergarten bis 150 m (Geoportal Stadt Bern), Heim bis 150 m (OSM, Annahme), Haltestelle bis 50 m; ausserhalb Berns Schule bzw. Kindergarten nach OSM als Annahme. Nichts im ganz geladenen Umkreis: in Bern «keines» als Annahme, sonst offen. Schulweg nur von Hand.',
+    vorschlag: 'Volksschule bzw. Kindergarten bis 150 m (Geoportal Stadt Bern), Heim bis 150 m (OSM, Annahme), Haltestelle bis 50 m; ausserhalb Berns Schule bzw. Kindergarten nach OSM als Annahme. In Bern «Fusswegnetz» im Basisnetz bzw. publikumsattraktiven Bereich; nichts gefunden: «keines» als Annahme. Schulweg nur von Hand.',
   },
   nachfrage: {
     was: 'Gebündelt: die Leute queren an einer Stelle. Verteilt: sie queren überall entlang einer längeren Strecke (z. B. ' +
@@ -176,7 +177,6 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   wunschlinieM: {
     was: 'Wie weit die Querung neben der Linie liegt, auf der die Leute am liebsten queren würden (z. B. zwischen zwei Wegen oder ' +
       'Eingängen), in Metern.',
-    vorschlag: 'als Annahme: Abstand von der Streifenachse zur Basisnetz-Linie quer zur Strasse (Richtplan Fussverkehr, Geoportal Stadt Bern) bis 15 m; bis 30 m nur ein Hinweis.',
   },
   'fusswegAchse.rechtwinkligUneinsehbar': {
     was: 'Ja, wenn ein Fussweg genau in der Achse des Streifens rechtwinklig ankommt und von der Fahrbahn aus nicht einsehbar ist: ' +
@@ -216,7 +216,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     vorschlag: 'aus OSM (Velostreifen an den Zufahrten).',
     ablauf: 'Mit Radstreifen und Insel gelten die Breiten für Insel und Durchfahrt nach Kanton bzw. Stadt Bern.',
   },
-  busspur: { was: 'Ja, wenn ein eigener Fahrstreifen für Busse gequert wird. Er zählt bei den Fahrstreifen je Richtung mit.', vorschlag: '«ja» aus den OSM-Tags der Zufahrten (busway, lanes:bus, bus:lanes, psv); ohne solche Tags «nein» als Annahme (OSM ist lückenhaft).' },
+  busspur: { was: 'Ja, wenn ein eigener Fahrstreifen für Busse gequert wird. Er zählt bei den Fahrstreifen je Richtung mit.', vorschlag: '«ja» aus den Angaben zu Busstreifen an den Zufahrten in OSM; ohne solche Angaben «nein» als Annahme (OSM ist lückenhaft).' },
   busDurchmarkiert: { was: 'Ja, wenn die gelben Balken auch über den Busstreifen durchgehen.' },
   tram: {
     was: 'Ob ein Tram die Querung kreuzt: auf eigenem Gleiskörper (von der Fahrbahn abgetrennt) oder auf der Fahrbahn im Verkehr.',
@@ -289,10 +289,10 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   einengung: {
     was: 'Ja, wenn das Trottoir an der Querung vorgezogen ist (Nase) oder die Fahrbahn sonst verengt ist, damit der Weg über die Fahrbahn kürzer wird.',
     ablauf: 'Mit Nase bzw. Einengung prüft die App deren Restbreite und Länge.',
-    vorschlag: 'als Annahme: «ja», wenn die Fahrbahn an der Querung mindestens 1 m schmaler ist als an den Zufahrten (nur ohne Insel).',
+    vorschlag: 'als Annahme «nein», wenn die Fahrbahn an der Querung nicht mindestens 1 m schmaler ist als an den Zufahrten (nur ohne Insel); ist sie schmaler, nur ein Hinweis.',
   },
-  restbreiteM: { was: 'Wie breit die Fahrbahn an der engsten Stelle bleibt, in Metern; davon hängt ab, ob sich zwei Fahrzeuge noch kreuzen können.', vorschlag: 'bei einer Einengung die Fahrbahnbreite an der Querung.' },
-  einengungLaengeM: { was: 'Wie lang die Einengung entlang der Fahrbahn ist, in Metern.', vorschlag: 'aus der AV: Länge, auf der die Fahrbahn schmaler ist als die Zufahrt minus 0,5 m.' },
+  restbreiteM: { was: 'Wie breit die Fahrbahn an der engsten Stelle bleibt, in Metern; davon hängt ab, ob sich zwei Fahrzeuge noch kreuzen können.', },
+  einengungLaengeM: { was: 'Wie lang die Einengung entlang der Fahrbahn ist, in Metern.', },
   mzsBreiteM: { was: 'Breite des Mehrzweckstreifens in der Fahrbahnmitte (überfahrbar, zum Warten beim Queren und zum Abbiegen), in Metern.' },
   mzsMitFgs: {
     was: 'Ja, wenn über den Mehrzweckstreifen ein Fussgängerstreifen markiert ist.',
@@ -458,7 +458,8 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     vorschlag: 'in Bern aus dem Nutzungszonenplan (Geoportal): Industrie- und Gewerbezone bzw. Gewerbegebiet Matte am Streifen «ja», andere Zone «nein».' },
   'q3.anschlussGewerbe': { was: 'Ja, wenn die Seitenstrasse zu Betrieben mit Lieferverkehr oder zu landwirtschaftlich genutztem Land führt.' },
   'q3.ueber': { was: 'Welche Fahrbahn die Trottoirüberfahrt quert. Möglich ist sie nur über die einmündende Seitenstrasse, nie über die Hauptstrasse.', vorschlag: '«die Seitenstrasse» als Annahme, wenn die Lage eine Einmündung ist.' },
-  'q3.vSigHaupt': { was: 'Signalisiertes Tempo auf der Strasse, entlang der das Trottoir durchläuft, in km/h.' },
+  'q3.vSigHaupt': { was: 'Signalisiertes Tempo auf der Strasse, entlang der das Trottoir durchläuft, in km/h.',
+    vorschlag: 'bei einer Querung über die Seitenstrasse das Tempo der abbiegenden Zufahrten aus dem Sichtrechner.' },
   'q3.vSigEinm': { was: 'Signalisiertes Tempo in der einmündenden Seitenstrasse, in km/h (für die Berner Tabelle).', vorschlag: 'wie das signalisierte Tempo.' },
   'q3.nEinm': { was: 'Wie viele Fahrstreifen die Seitenstrasse je Richtung hat.', vorschlag: 'wie die Fahrstreifen je Richtung (grösster Wert).' },
   'q3.nHaupt': { was: 'Wie viele Fahrstreifen die Hauptstrasse je Richtung hat.' },
@@ -716,7 +717,7 @@ export const GELTUNG: Partial<Record<RegelId, Bedingung>> = {
   'D6-1': FGS_ARTIG_K, 'D6-2': FGS_ARTIG_K, 'D6-2b': FGS_ARTIG_K, 'D6-3': alle(FGS_ARTIG_K, NICHT_LSA_K),
   'D6-3b': alle(FGS_ARTIG_K, NICHT_LSA_K), 'D6-4': alle(FGS_ARTIG_K, NICHT_LSA_K), 'D6-5': T('lsa'),
   D7: alle(T('mehrzweck'), kann('mzsMitFgs', true)),
-  E1: E_K, E2: E_K, E3: E_K, E3a: E_K, E1b: alle(E_K, kann('strassentyp', 'verkehrsorientiert')), E2a: alle(E_K, T('furt')),
+  E1: E_K, E2: E_K, E3: E_K, E3a: E_K, E1b: alle(E_K, kann('strassentyp', 'verkehrsorientiert')), E2a: alle(E_K, T('furt')), E1c: alle(E_K, T('furt')),
   E2d: alle(E_K, T('ohne_vortritt'), kann('ohneBaulich', true)), E2e: alle(E_K, T('ohne_vortritt'), kann('ohneBaulich', true)),
   E2b: kann('laengsparkierung', true), E2c: kann('laengsparkierung', true),
   'Q3-4': T('trottoirueberfahrt'),
@@ -843,8 +844,8 @@ export function leerText(pfad: string): string {
   const h = FELD_HILFEN[pfad]
   if (h?.leer) return h.leer
   const n = bezuege(pfad).length
-  return `Leer: offen; ${n === 1 ? 'die genannte Prüfung meldet' : 'die genannten Prüfungen melden'} «offen» und ` +
-    'zählen nie als erfüllt. Keine Pflicht, aber jede Angabe macht das Ergebnis vollständiger.'
+  return `Leer: offen; ${n === 1 ? 'die genannte Prüfung meldet «offen» und zählt' : 'die genannten Prüfungen melden «offen» und zählen'} ` +
+    'nie als erfüllt. Keine Pflicht, aber jede Angabe macht das Ergebnis vollständiger.'
 }
 
 // ── Fragen je Feld (Runde 2, Verdichtung): offene Angaben als Frage in Alltagssprache statt Feldname ──
@@ -864,12 +865,12 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   neuanlage: 'Wird das Lichtsignal neu gebaut?',
   kantonsstrasse: 'Ist es eine Kantonsstrasse?',
   // Nachfrage
-  fg5h: 'Wie viele Personen queren hier in den 5 Spitzenstunden?',
+  fg5h: 'Wie viele Personen queren in den 5 Spitzenstunden (gezählt oder geschätzt)?',
   fgKlasse: 'Wie viele Personen queren hier ungefähr in den 5 Spitzenstunden?',
   fgSehrHoch: 'Queren hier so viele Personen, dass sie den Verkehr aufhalten?',
   netz: 'Gehört die Querung zum Berner Fusswegnetz, und zu welcher Stufe?',
   netzQualifiziert: 'Ist die Querung Teil einer amtlichen Fusswegnetzplanung?',
-  beduerfnis: 'Gibt es einen besonderen Grund für Vortritt (Schule, Kindergarten, Heim, Haltestelle, Schulweg)?',
+  beduerfnis: 'Gibt es einen besonderen Grund für Vortritt (Schule, Kindergarten, Heim, Haltestelle, Schulweg, Fusswegnetz)?',
   nachfrage: 'Queren die Leute an einer Stelle gebündelt oder verteilt über die Strecke?',
   wunschlinieM: 'Wie weit liegt die Querung neben der Linie, auf der die Leute queren möchten?',
   'fusswegAchse.rechtwinkligUneinsehbar': 'Mündet ein Fussweg direkt und verdeckt auf den Streifen?',

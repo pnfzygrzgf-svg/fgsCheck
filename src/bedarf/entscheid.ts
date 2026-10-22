@@ -49,7 +49,8 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     for (const [a, b] of k.ergebnisse) ks.ergebnisse.set(a, b)
     try { return REGELN[id](ks) !== null } catch (x) { if (x instanceof Offen) return true; throw x }
   }
-  const masse = new Map<string, { einheit: string; ist?: string; soll: string[]; verletzt: boolean; offen: boolean; nichtAnwendbar?: boolean; regeln: string[] }>()
+  const masse = new Map<string, { einheit: string; ist?: string; soll: string[]; verletzt: boolean; offen: boolean; nichtAnwendbar?: boolean
+    ausnahme?: string; annahme?: boolean; regeln: string[] }>()
 
   /** Regel auswerten; stumm: nur für die Empfehlung (kein Eintrag, keine Masse) */
   const pruefe = (id: BefundId, stumm = false): void => {
@@ -93,6 +94,8 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
         if (r.soll !== undefined && !m.soll.includes(r.soll)) m.soll.push(r.soll)
         if (r.verletzt && !r.ohneMassBefund) m.verletzt = true
         if (r.ohneMassBefund) m.nichtAnwendbar = true
+        if (r.ausnahme && !r.verletzt) m.ausnahme = r.ausnahme
+        if (r.annahme) m.annahme = true
       }
       masse.set(def.groesse, m)
     }
@@ -157,7 +160,9 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     zul = k.hat('C1') || k.hat('C2') ? 'nicht_angezeigt'
       : k.istOffen('C1') || k.istOffen('C2') || k.istOffen('A2') ? 'offen'
         : ['C2b', 'C3', 'C3b', 'C4'].some(id => k.hat(id)) ? 'mit_begruendung' : 'zulaessig'
-    if (!tue && zul !== 'nicht_angezeigt' && (k.hat('C3') || k.hat('C4'))) empf.zusatz.push('Querung ohne Vortritt prüfen (C3, C4)')
+    // Runde 5 (F8): nur die verletzten Regeln als Grund
+    if (!tue && zul !== 'nicht_angezeigt' && (k.hat('C3') || k.hat('C4')))
+      empf.zusatz.push(`Querung ohne Vortritt prüfen (${['C3', 'C4'].filter(id => k.hat(id)).join(', ')})`)
 
     // 4. D Querungstyp mit Vortritt
     const mzsFgs = typ === 'mehrzweck' && k.o('mzsMitFgs') === true
@@ -169,7 +174,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
 
     // 5. E Querungstyp ohne Vortritt
     const pfadE = zul === 'nicht_angezeigt' || (typ !== null && OHNE_VORTRITT.includes(typ)) || (typ === 'mehrzweck' && !mzsFgs)
-    if (pfadE) reihe(['E1', 'E1b', 'E2', 'E2a', 'E2d', 'E2e', 'E3', 'E3a'], tue)
+    if (pfadE) reihe(['E1', 'E1b', 'E1c', 'E2', 'E2a', 'E2d', 'E2e', 'E3', 'E3a'], tue)
 
     // 6. Prüfung der beurteilten Anlage
     if (typ === null) k.annahmen.add('Querungstyp der Anlage fehlt: nur Empfehlung, keine Prüfung von Streifen, Position und Sicht')
@@ -244,7 +249,8 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
   }
   const massZeilen: MassZeile[] = [...masse].filter(([, m]) => m.ist !== undefined || m.offen).map(([groesse, m]) => ({
     groesse, einheit: m.einheit, soll: m.soll.join('; '), ist: m.ist ?? '–',
-    zustand: m.verletzt ? 'verletzt' : m.offen ? 'offen' : m.nichtAnwendbar && !m.soll.length ? 'nicht_anwendbar' : 'erfuellt', regeln: m.regeln,
+    zustand: m.verletzt ? 'verletzt' : m.offen ? 'offen' : m.nichtAnwendbar && !m.soll.length ? 'nicht_anwendbar' : m.ausnahme ? 'ausnahme'
+      : m.annahme ? 'annahme' : 'erfuellt', regeln: m.regeln, ...(m.ausnahme && !m.verletzt && !m.offen ? { zusatz: m.ausnahme } : {}),
   }))
   const annahmen = [...k.annahmen]
   for (const f of k.genutzt) {

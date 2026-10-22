@@ -112,8 +112,10 @@ export const REGELN: Record<BefundId, RegelFn> = {
   },
   A3: k => {
     if (!k.w('innerorts')) return null
+    const gemessen = k.o('v85') !== null
     const v = k.v85e()
-    return ja(v > K.A3.werte.v85Max, { ist: String(v), soll: `≤ ${K.A3.werte.v85Max}` })
+    return ja(v > K.A3.werte.v85Max, { ist: gemessen ? String(v) : `${v} (signalisiert, nicht gemessen)`, soll: `≤ ${K.A3.werte.v85Max}`,
+      ...(gemessen ? {} : { annahme: true as const }) })
   },
   A4: k => (k.o('v85') !== null ? ja(false) : ja(k.w('anzeichenSchneller'))),
 
@@ -126,12 +128,27 @@ export const REGELN: Record<BefundId, RegelFn> = {
   C1: k => {
     const vSig = k.w('vSig'), max = K.C1.werte.vMax
     if (vSig > max) return ja(true, { ist: `${vSig} km/h signalisiert`, soll: `≤ ${max}` })
+    const gemessen = k.o('v85') !== null
     const v = k.v85e()
-    return ja(v > max, { ist: `V85 ${v} km/h`, soll: `≤ ${max}` })
+    return ja(v > max, { ist: gemessen ? `V85 ${v} km/h` : `${v} km/h signalisiert, V85 nicht gemessen`, soll: `≤ ${max}`,
+      ...(gemessen ? {} : { annahme: true as const }) })
   },
   // C2c gestrichen (Nutzerentscheid 20.10.2026): eine Hauptstrasse ausserhalb der Zone ist im Tempo-Regime eine Strecke
-  C2: k => (k.w('tempoRegime') !== 't30_zone' ? null : ja(!k.bed())),
-  C2b: k => (k.w('tempoRegime') !== 't30_zone' ? null : ja(k.bed())),
+  // Runde 5 (Korrektur nach Prüfung): mit bekanntem besonderem Grund ist C2 auch bei offener Zone nicht verletzbar (C2b statt C2);
+  // offen ist C2 nur nach den Feldern, die wirklich fehlen (Zone und/oder Grund)
+  C2: k => {
+    const tr = k.o('tempoRegime'), bd = k.o('beduerfnis')
+    if (bd !== null && k.bed()) return tr === null || tr === 't30_zone' ? ja(false) : null
+    if (tr === null) throw new Offen(bd === null ? ['tempoRegime', 'beduerfnis'] : ['tempoRegime'])
+    return tr !== 't30_zone' ? null : ja(!k.bed())
+  },
+  C2b: k => {
+    const tr = k.o('tempoRegime')
+    if (tr !== null) return tr !== 't30_zone' ? null : ja(k.bed())
+    if (k.o('beduerfnis') !== null && k.bed())
+      return ja(true, { detail: 'Zone noch offen: liegt die Strasse in einer Tempo-30-Zone, ist der Grund für Vortritt auszuweisen' })
+    throw new Offen(['tempoRegime'])
+  },
   'C2-B': k => (k.w('tempoRegime') !== 't30_zone' ? null : ja(['basisnetz', 'publikumsintensiv'].includes(k.w('netz')))),
   C3: k => {
     const s = K.C3.werte.fgMin
@@ -246,6 +263,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
   E1: k => ja(k.w('strassentyp') === 'verkehrsorientiert'),
   E1b: k => (k.w('strassentyp') !== 'verkehrsorientiert' ? null : ja(k.w('starkBelastet'))),
   E2: k => ja(k.w('strassentyp') === 'siedlungsorientiert'),
+  E1c: k => (k.o('typ') !== 'furt' ? null : ja(!k.insBaulich())),
   E2a: k => (k.o('typ') !== 'furt' ? null : ja(k.w('strassentyp') === 'siedlungsorientiert')),
   E2b: k => {
     if (!k.w('laengsparkierung')) return null
@@ -416,7 +434,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const kl = k.w('mivKlasse'), W = K.F4a.werte
     if (kl === 'hoch') return null
     const min = kl === 'tief' ? W.tief : W.mittel, r = k.w('restbreiteM')
-    return ja(r < min, { ist: fmt(r), soll: `≥ ${fmt(min)} (MIV ${kl})` })
+    return ja(r < min, { ist: fmt(r), soll: `≥ ${fmt(min)} (bei ${kl === 'tief' ? 'wenig' : 'mittlerem'} Autoverkehr)` })
   },
   F4b: k => {
     if (!k.w('einengung')) return null
@@ -484,7 +502,10 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (k.ganzeStrasse('abstandFgsM')) return ganzeStrasse(d, 'Kein weiterer Fussgängerstreifen auf dieser Strasse möglich')
     const x = { ist: fmt(d, 0), soll: `≥ ${W.min}` }
     if (d >= W.min) return ja(false, x)
-    return ja(!k.w('verzweigung') && !k.w('haltestelleAngrenzend'), x)
+    // Runde 5 (Stelle 31): die Ausnahme steht beim Wert (Masse: «zulässig», nicht «erfüllt»)
+    if (k.w('verzweigung')) return ja(false, { ...x, ausnahme: 'an der Verzweigung zulässig' })
+    if (k.w('haltestelleAngrenzend')) return ja(false, { ...x, ausnahme: 'bei der Haltestelle zulässig' })
+    return ja(true, x)
   },
   G2: k => {
     if (k.mitLsa()) return null

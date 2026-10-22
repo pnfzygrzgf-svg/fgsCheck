@@ -8,6 +8,8 @@
 import type { BefundBlatt } from './befundblatt'
 import { eintragSatz, grundKopf } from './kompakt'
 import { frageVon } from './feldhilfen'
+import { feldName } from './felder'
+import { lesetext } from './lesetext'
 import { zusammenfassungBlatt, zusammenfassungText } from './zusammenfassung'
 
 export interface Begriff {
@@ -23,7 +25,7 @@ export interface Begriff {
 export const BEGRIFFE: readonly Begriff[] = [
   { id: 'v85', name: 'V85 (gefahrenes Tempo)', muster: ['V85'],
     text: 'Das Tempo, das 85 von 100 Fahrzeugen nicht überschreiten, aus einer Messung. Es zeigt, wie schnell tatsächlich gefahren wird, nicht was erlaubt ist.' },
-  { id: 'dtv', name: 'DTV (Fahrzeuge pro Tag)', muster: ['DTV', 'Fahrzeuge pro Tag'],
+  { id: 'dtv', name: 'DTV (Fahrzeuge pro Tag)', muster: ['DTV', 'Fahrzeuge pro Tag', 'Fz/Tag'],
     text: 'Durchschnittlicher täglicher Verkehr: wie viele Motorfahrzeuge an einem mittleren Tag vorbeifahren, beide Richtungen zusammen.' },
   { id: 'lsa', name: 'Lichtsignalanlage (LSA)', muster: ['LSA', 'Lichtsignal(?:anlagen?|e|s)?'],
     text: 'Ampel: regelt mit Rot, Gelb und Grün, wer fahren bzw. gehen darf; an einer Querung mit eigenem Signal für Fussgänger.' },
@@ -92,6 +94,23 @@ export const BEGRIFFE: readonly Begriff[] = [
     text: 'Die Stunden mit den meisten Querenden; gezählt werden die fünf stärksten eines Tages, auch wenn sie nicht aufeinander folgen.' },
   { id: 'knoten', name: 'Knoten (Kreuzung, Einmündung)', muster: ['Knoten', 'Kreuzung(?:en)?', 'Einmündung(?:en)?'],
     text: 'Ort, an dem sich Strassen treffen: an einer Kreuzung geht es in mehrere Richtungen weiter, an einer Einmündung endet eine Strasse an einer anderen.' },
+  // Runde 5 (Muster 5): Abkürzungen und Quellen, die gedruckt werden
+  { id: 'osm', name: 'OSM (OpenStreetMap)', muster: ['OSM', 'OpenStreetMap'],
+    text: 'Freie Weltkarte, von Freiwilligen erfasst. fgsCheck liest daraus Strassen, Übergänge und Tempoangaben; sie kann lückenhaft sein.' },
+  { id: 'av', name: 'AV (amtliche Vermessung)', muster: ['AV', 'AV-\\p{L}+'],
+    text: 'Amtlicher Plan der Kantone mit Fahrbahn, Trottoir, Inseln und Gebäuden. fgsCheck misst daraus Breiten und Bordkanten.' },
+  { id: 'sichtrechner', name: 'Sichtrechner', muster: ['Sichtrechners?'],
+    text: 'Teil von fgsCheck, der je Zufahrt prüft, ob man die Wartefläche weit genug sieht (Parkfelder, Bäume, Gebäude im Sichtfeld).' },
+  { id: 'geoportal', name: 'Geoportal Stadt Bern', muster: ['Geoportals?'],
+    text: 'Kartendienst der Stadt Bern; fgsCheck liest daraus u. a. Tempo, Verkehrsmengen, Schulen und das Fusswegnetz.' },
+  { id: 'fgs', name: 'FGS (Fussgängerstreifen)', muster: ['FGS'],
+    text: 'Abkürzung für Fussgängerstreifen: gelb markierte Querung, auf der Fussgänger Vortritt haben.' },
+  { id: 'miv', name: 'MIV (Autoverkehr)', muster: ['MIV'],
+    text: 'Motorisierter Individualverkehr: Autos und Motorräder, ohne Bus und Tram.' },
+  { id: 'slg', name: 'SLG 202 (Beleuchtung)', muster: ['SLG(?: 202)?'],
+    text: 'Richtlinie der Schweizer Licht Gesellschaft zur Beleuchtung von Fussgängerstreifen: wie hell Streifen und Wartefläche sein sollen.' },
+  { id: 'abbieger', name: 'Abbiegende Zufahrt', muster: ['Abbieger', 'Abbiegende[nr]?', 'abbiegende[nr]? Zufahrt(?:en)?'],
+    text: 'Fahrzeuge, die aus der Querstrasse in die gequerte Strasse einbiegen und so auf den Streifen zufahren.' },
   { id: 'teilquerung', name: 'Teilquerung', muster: ['Teilquerung(?:en)?'],
     text: 'Ein Stück einer Querung bis zu einer Insel; über eine Insel quert man in zwei Teilquerungen.' },
   { id: 'einengung', name: 'Einengung (Trottoirnase)', muster: ['Einengung(?:en)?', 'Trottoirnasen?', 'Nase'],
@@ -109,8 +128,10 @@ export const begriffeAlphabetisch = (): Begriff[] =>
 
 /** Texte eines Befundblatts, wie Bericht und Panel sie zeigen (Zusammenfassung, Grundprüfung, Einträge, Empfehlung, Annahmen) */
 export function blattTexte(b: BefundBlatt): string[] {
+  // Runde 5 (Stelle 51): auch Masse, Eingaben, Annahmen und Hinweise, wie der Bericht sie druckt
   const t: string[] = [zusammenfassungText(zusammenfassungBlatt(b, 'bericht')), b.typText, b.begruendung, ...b.befund.empfehlung.zusatz,
-    ...b.annahmen]
+    ...b.annahmen, ...b.grund.annahmen, ...b.hinweise, ...b.befund.masse.flatMap(m => [m.groesse, m.ist, m.soll, m.zusatz ?? '']),
+    ...[...b.gebildet.herkunft].flatMap(([p, h]) => (h.zustand === 'offen' ? [] : [feldName(p), lesetext(h.text)]))]
   if (b.grund.gilt) {
     const k = grundKopf(b.grund)
     for (const z of [...k.zeilen, ...(k.weitere ? [k.weitere] : [])]) t.push(z.satz, z.zusatz ?? '', ...z.fragen.map(frageVon))

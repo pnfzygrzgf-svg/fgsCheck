@@ -27,7 +27,7 @@ import {
   type Fs, fahrstreifenmitte, fahrstreifenArm, fahrstreifenUebernehmen, fsHinweis, querschnittAmKnoten, fahrbahnOsm,
   wegeAbschnitte, hochBei, abzugAusOsm, abzugAnnahme, fahrstreifenTags, BREITE_ERSATZ, LAGE_ERSATZ,
 } from './fahrstreifen'
-import { sichtweiteTab1, sichtweiteKurve, radiusRunden, tempoStart, tempoEntlang, SICHTWEITE } from './tempo'
+import { sichtweiteTab1, sichtweiteKurve, radiusRunden, tempoStart, tempoEntlang, amtlichEntlang, SICHTWEITE, type TempoAmtlich } from './tempo'
 import { type Streifen, randAmUmriss, umrissRing } from './streifen'
 import { type Multi, linieImPolygon, segmentieren, vereinigung, linienLaenge, abstandLinie, abstandPunkt } from './poly'
 import { type Zufahrt, type Entfallen, entfallen } from './zufahrten'
@@ -270,6 +270,8 @@ export function eckradiusAv(fahrbahn: Fahrbahn, j: P, dEigen: P, dArm: P, inseln
 // ---------------------------------------------------------------- Abbiegezufahrt
 export interface AbbiegeKontext {
   vonHand?: VonHand
+  /** amtliches Tempo (pruefen.Kontext.tempoAmtlich) */
+  tempoAmtlich?: TempoAmtlich | null
   hindernisse?: HindernisDaten | null
   brueckenumriss?: { enthaelt(p: P): boolean } | null
   flaechenR2?: Flaechen | null
@@ -330,6 +332,12 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const [tB, trefferB] = tempoEntlang(netz, arm, tempoB, 0)
   tempoB = tB
   if (trefferB) tempoQB = 'OSM maxspeed'
+  // amtliches Tempo der Querstrasse (Eingabe, z. B. V_sig) vor OSM; Hand geht vor
+  const amtlB = amtlichEntlang(k.tempoAmtlich, arm, tempoB, 0)
+  if (amtlB) {
+    if (amtlB[0] !== tempoB && tempoQB !== 'Ersatz') annahmen.push(`Tempo Querstrasse ${amtlB[0]} km/h laut ${amtlB[1]} (OSM: ${tempoB} km/h)`)
+    ;[tempoB, tempoQB] = amtlB
+  }
   const tempoHandB = k.vonHand?.tempo?.(fid, 'abbiegend', grad) ?? k.vonHand?.tempoKennung?.(fid, kennungArm(a)) ?? null
   if (tempoHandB) { tempoB = tempoHandB; tempoQB = 'Korrektur' }
   if (tempoQB === 'Ersatz') annahmen.push(`Tempo Querstrasse ${tempoB} km/h angenommen (in OSM keine Höchstgeschwindigkeit erfasst)`)

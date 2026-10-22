@@ -19,7 +19,6 @@ import { KATALOG, quellText, type GrundId } from './katalog'
 import { Kontext, Offen } from './kontext'
 import { bfuDurchfahrtOk } from './durchfahrt'
 import { QUELLEN_ANNAHME, type BedarfEingaben } from './eingaben'
-import { feldName } from './felder'
 import type { RegelDef, Staerke, Thema } from './typen'
 
 export type GrundZustand = 'erfuellt' | 'verletzt' | 'offen' | 'hinweis'
@@ -64,6 +63,8 @@ export interface Grundpruefung {
   /** weitere bfu-Punkte (DTV, Annäherungsbereich, Fahrbahnhaltestelle) */
   weitere: GrundTeil[]
   annahmen: string[]
+  /** Tempo des Sichtrechners weicht vom signalisierten Tempo ab (Runde 5, F2; Befundblatt): Hinweis in der Zeile ① */
+  tempoHinweis?: string
 }
 
 /** Sicht je Zufahrt aus dem Sichtrechner (Befundblatt, nur Fussgängerstreifen ohne Lichtsignal) */
@@ -143,7 +144,7 @@ export function sollBereich(v: number, innerorts: boolean | null): Bereich | nul
 const bereichText = (u: number, o: number | null): string =>
   (o === null ? `≥ ${zahl(u)} m (gerade Zufahrten offen)` : u === o ? `≥ ${zahl(u)} m` : `${zahl(u)} bis ${zahl(o)} m`)
 
-const ANNAHME_V85 = 'V85 fehlt: Sichtweite nach dem signalisierten Tempo (Annahme)'
+export const ANNAHME_V85 = 'Tempo wie signalisiert (V85 nicht gemessen)'
 const OFFEN_INNERORTS = 'Stufe 60 km/h: Soll 75 m (innerorts) bzw. 100 m (ausserorts), Angabe innerorts fehlt'
 /** Normhinweise zur Sicht (B5-1): Radius unter 20 m führt die erweiterte Prüfung als Hinweis (H4), bei 20 m gilt H2 */
 const hinweisKnoten = (r: number): string => (r >= 20 - EPS
@@ -232,8 +233,10 @@ function sichtRechner(k: Kontext, zs: GrundSicht[], ohneZufahrt: string[]): Roh 
   })
   const leer = ohneZufahrt.map(n => `${n}: keine Zufahrt geprüft`)
   const mit = liste.filter(x => x.unten !== null)
-  const solls = [...new Set(mit.map(x => bereichText(x.unten!, x.oben)))]
-  const sollText = solls.length ? solls.join('; ') : undefined
+  // Runde 5 (Stelle 21): Soll getrennt nach geraden und abbiegenden Zufahrten
+  const sollVon = (ab: boolean) => [...new Set(mit.filter(x => !!x.z.abbiegend === ab).map(x => bereichText(x.unten!, x.oben)))].join('; ')
+  const sG = sollVon(false), sA = sollVon(true)
+  const sollText = sG && sA ? `${sG} geradeaus, ${sA} für Abbiegende` : sG || (sA ? `${sA} für Abbiegende` : '') || undefined
   const frei = liste.filter(x => x.zustand === 'erfuellt').length
   const kurz = liste.filter(x => x.kurz !== undefined)
   const n = liste.length + ohneZufahrt.length
@@ -272,9 +275,17 @@ const GRUND: Record<GrundId, GrundFn> = {
     if (vSig !== null && vSig > max) return verletzt({ ist: `${zahl(vSig)} km/h signalisiert`, soll: `≤ ${max} km/h` })
     if (v85 !== null && v85 > max) return verletzt({ ist: `V85 ${zahl(v85)} km/h`, soll: `≤ ${max} km/h` })
     if (vSig === null) throw new Offen(['vSig'])
-    if (v85 === null) return { zustand: 'offen', ist: `${zahl(vSig)} km/h signalisiert, V85 fehlt`, soll: `≤ ${max} km/h`, fehlend: ['v85'],
-      detail: 'V85 messen (vor der Anordnung, besonders bei Verdacht auf schnelleres Fahren)',
-      normHinweis: 'Norm: VSS 40 241:2019 Z. 13 rechnet ohne Messung mit dem signalisierten Tempo (C1).' }
+    const nh = 'Norm: VSS 40 241:2019 Z. 13 rechnet ohne Messung mit dem signalisierten Tempo (C1).'
+    if (v85 === null) {
+      // Runde 5 (Stelle 16): bis 50 km/h signalisiert entscheidet die Frage nach Anzeichen für schnelleres Fahren, nicht die Messung
+      const anz = k.o('anzeichenSchneller')
+      if (vSig <= max - 10 + EPS && anz === false) return ok({ ist: `${zahl(vSig)} km/h signalisiert, keine Anzeichen für schnelleres Fahren`,
+        soll: `≤ ${max} km/h`, detail: 'V85 nicht gemessen (ohne Verdacht nicht nötig)', normHinweis: nh })
+      if (vSig <= max - 10 + EPS && anz === null) return { zustand: 'offen', ist: `signalisiert ${zahl(vSig)} km/h`, soll: `≤ ${max} km/h`,
+        fehlend: ['anzeichenSchneller'], detail: 'voraussichtlich erfüllt; V85 messen nur bei Verdacht auf schnelleres Fahren', normHinweis: nh }
+      return { zustand: 'offen', ist: `${zahl(vSig)} km/h signalisiert, V85 fehlt`, soll: `≤ ${max} km/h`, fehlend: ['v85'],
+        detail: 'V85 messen (vor der Anordnung, besonders bei Verdacht auf schnelleres Fahren)', normHinweis: nh }
+    }
     return ok({ ist: `${zahl(vSig)} km/h signalisiert, V85 ${zahl(v85)} km/h`, soll: `≤ ${max} km/h` })
   },
 
@@ -311,7 +322,7 @@ const GRUND: Record<GrundId, GrundFn> = {
     if (k.insBaulich()) return null
     const B = k.w('fahrbahnB'), W = K['B5-2a'].werte
     const markiert = k.inselMarkiert()
-    const x = { ist: `Fahrbahn ${fmt(B)} m${markiert ? ', Insel nur markiert' : ', keine Insel'}`, soll: `Insel erwägen, besonders über ${fmt(W.bMax)} m`,
+    const x = { ist: `Fahrbahn ${fmt(B)} m${markiert ? ', Insel nur markiert' : ', keine Insel'}`, soll: `eine Insel macht das Queren sicherer (bfu: besonders über ${fmt(W.bMax)} m)`,
       detail: markiert ? 'eine nur markierte Insel gilt nicht als Schutzinsel' : undefined,
       normHinweis: B >= W.bMax - EPS ? 'Norm: ab 8,50 m Fahrbahn bei Gegenverkehr und DTV ab 3000 verlangt VSS 40 241:2019 Z. 24 die Insel, Abweichung nur mit Bericht (D2).' : undefined }
     return B > W.bMax + EPS ? verletzt({ ...x, staerke: 'weich' }) : { zustand: 'hinweis', ...x }
@@ -403,7 +414,7 @@ const PUNKTE: { nr: GrundPunkt['nr']; thema: Thema; titel: string; teile: GrundI
   { nr: 'T', thema: 'zulaessigkeit', titel: 'Tempo', teile: ['B5-T'] },
   { nr: '1', thema: 'sicht', titel: 'Sichtverhältnisse', teile: ['B5-1', 'B5-1b'], notizen: ['B5-1c'] },
   { nr: '2', thema: 'insel', titel: 'Fussgängerschutzinsel', teile: ['B5-2a', 'B5-2b', 'B5-2c'] },
-  { nr: '3', thema: 'fahrstreifen', titel: 'Zweistreifigkeit', teile: ['B5-3'] },
+  { nr: '3', thema: 'fahrstreifen', titel: 'Ein Fahrstreifen je Richtung', teile: ['B5-3'] },
   { nr: '4', thema: 'beleuchtung', titel: 'Beleuchtung', teile: ['B5-4'], notizen: ['B5-4b'] },
   { nr: '5', thema: 'nachfrage', titel: 'Fussgängerfrequenz', teile: ['B5-5'], notizen: ['B5-5b'] },
 ]
@@ -467,7 +478,8 @@ export function grundpruefung(e: BedarfEingaben, o: GrundOptionen = {}): Grundpr
     // Kurve: die Grundprüfung liest nur den Radius; ohne Radius ist die Annahme zu den Kurven-Voraussetzungen ohne Belang
     if (f === 'kurve' && (e.kurve.wert?.radius ?? null) === null) continue
     const q = e[f].quelle
-    if (q && QUELLEN_ANNAHME.includes(q)) annahmen.push(`${feldName(f)}: ${q === 'annahme' ? 'Annahme' : 'Schätzung'}`)
+    // Schlüssel wie im Befund (entscheid.ts); das Befundblatt setzt Wert und Herkunft ein (Runde 5)
+    if (q && QUELLEN_ANNAHME.includes(q)) annahmen.push(`${f}: ${q === 'annahme' ? 'Annahme' : 'Schätzung'}`)
   }
   return { gilt: true, punkte, weitere, annahmen }
 }

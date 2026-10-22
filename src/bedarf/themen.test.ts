@@ -27,13 +27,13 @@ const ue = (abw: Abw, eb: { bern?: boolean; kantonBE?: boolean } = {}) => {
 }
 
 describe('Themen', () => {
-  it('höchstens 11 Themen, eindeutig; jede der 165 Regeln hat genau ein bekanntes Thema; kein Thema leer (auch nicht in der erweiterten Prüfung)', () => {
+  it('höchstens 11 Themen, eindeutig; jede der 166 Regeln hat genau ein bekanntes Thema; kein Thema leer (auch nicht in der erweiterten Prüfung)', () => {
     expect(THEMEN.length).toBeLessThanOrEqual(11)
     expect(new Set(THEMEN.map(t => t.id)).size).toBe(THEMEN.length)
     expect(new Set(THEMEN.map(t => t.name)).size).toBe(THEMEN.length)
     const ids = new Set(THEMEN.map(t => t.id))
     for (const id of REGEL_IDS) expect(ids.has(DEF[id].thema), id).toBe(true)
-    expect(REGEL_IDS.length).toBe(165)
+    expect(REGEL_IDS.length).toBe(166)
     for (const t of THEMEN) {
       expect(REGEL_IDS.filter(id => DEF[id].thema === t.id).length, t.name).toBeGreaterThan(0)
       expect(ERWEITERT_IDS.filter(id => DEF[id].thema === t.id).length, t.name).toBeGreaterThan(0)
@@ -43,7 +43,7 @@ describe('Themen', () => {
   it('Grundprüfung: bfu-Namen führen (Nutzerentscheid), das Thema der erweiterten Prüfung gehört dazu; ihre Regeln im selben Thema', () => {
     const g = grundpruefung(fall({}))
     expect(g.gilt).toBe(true)
-    expect(g.punkte.map(p => p.titel)).toEqual(['Tempo', 'Sichtverhältnisse', 'Fussgängerschutzinsel', 'Zweistreifigkeit', 'Beleuchtung', 'Fussgängerfrequenz'])
+    expect(g.punkte.map(p => p.titel)).toEqual(['Tempo', 'Sichtverhältnisse', 'Fussgängerschutzinsel', 'Ein Fahrstreifen je Richtung', 'Beleuchtung', 'Fussgängerfrequenz'])
     expect(g.punkte.map(p => themaName(p.thema))).toEqual(['Zulässigkeit', 'Sicht', 'Insel', 'Fahrstreifen und Verkehr', 'Beleuchtung', 'Nachfrage'])
     for (const p of g.punkte) for (const t of [...p.teile, ...p.notizen]) expect(themaVon(t.id), t.id).toBe(p.thema)
     // Korrektur Themen: C2-B Zulässigkeit, C4-B neben C4, E1b Lichtsignal, G9 Sicht
@@ -162,7 +162,7 @@ describe('Befundblatt nach Thema und Prüfübersicht (alle Testfälle mal Varian
     for (const id of ['A1', 'B3', 'D1b', 'E1', 'E2', 'H2']) expect(ERWEITERT_IDS).not.toContain(id)
     const o = ue({ innerorts: null })
     expect(o.geprueft).toBe(0)
-    expect(o.gruende[0]).toEqual({ grund: 'Ortslage fehlt', n: 112 })
+    expect(o.gruende[0]).toEqual({ grund: 'Ortslage fehlt', n: 113 })
     expect(zaehlText(o.themen.find(z => z.thema.id === 'sicht')!)).toBe('nicht geprüft (Ortslage fehlt)')
     expect(zaehlText(ue({ tempoRegime: 'begegnungszone', vSig: 20 }).themen.find(z => z.thema.id === 'sicht')!)).toBe('nicht geprüft (Baum endet: Begegnungszone)')
     expect(zaehlText(ue({ innerorts: false }).themen.find(z => z.thema.id === 'insel')!)).toBe('nicht geprüft (Baum endet: ausserorts)')
@@ -177,7 +177,7 @@ describe('Befundblatt nach Thema und Prüfübersicht (alle Testfälle mal Varian
   })
   it('Beispiel Grundfall S0 (Fussgängerstreifen, Tempo 50, DTV 8000, ohne Insel)', () => {
     const u = ue({})
-    expect([u.geprueft, u.ohneBefund, u.offen, u.befunde, u.hinweise, u.nichtGeprueft, u.nichtAnwendbar]).toEqual([42, 41, 0, 0, 1, 7, 87])   // Runde 4: Begegnungszone (A2) bei Strecke nicht anwendbar
+    expect([u.geprueft, u.ohneBefund, u.offen, u.befunde, u.hinweise, u.nichtGeprueft, u.nichtAnwendbar]).toEqual([42, 41, 0, 0, 1, 7, 88])   // Runde 4: Begegnungszone (A2) bei Strecke nicht anwendbar
     expect(zaehlText(u.themen.find(z => z.thema.id === 'insel')!)).toBe('3 geprüft, 2 ohne Befund, 1 Hinweis')
     // Korrektur S6: «Ebene ausgeschaltet» nur für Regeln, die mit eingeschalteter Ebene gälten (D6-2 ja, C2-B auf der Strecke nicht)
     const b0 = beurteile(fall({}))

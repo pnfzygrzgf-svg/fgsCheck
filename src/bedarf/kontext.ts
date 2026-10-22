@@ -22,6 +22,10 @@ export interface Ergebnis {
   detail?: string
   /** fallbezogener Normhinweis (ergänzt bzw. ersetzt den des Katalogs) */
   normHinweis?: string
+  /** Masse-Zeile: Wert unterschreitet das Soll, die Regel lässt das hier zu (Runde 5: «an der Verzweigung zulässig») */
+  ausnahme?: string
+  /** Masse-Zeile: Ist beruht auf einer Annahme (z. B. V85 = signalisiertes Tempo; Runde 5) */
+  annahme?: true
   /** fallbezogener Ergebnistext statt dem des Katalogs (Runde 4: G1/G2 bei ganzer Strasse) */
   text?: string
   /** Masse-Zeile nicht als verletzt werten (Hinweis statt Befund; Runde 4) */
@@ -86,8 +90,8 @@ export class Kontext {
   }
   /** Abstand ist die Länge der ganzen Strasse (Vorbelegung, Runde 4) */
   ganzeStrasse(f: 'abstandFgsM' | 'abstandLsaM'): boolean { return this.e[f]?.ganzeStrasse === true && this.e[f].wert !== null }
-  /** besonderes Vortrittsbedürfnis (Schule, Kindergarten, Heim, Haltestelle, Schulweg) */
-  bed(): boolean { return this.w('beduerfnis').length > 0 }
+  /** besonderes Vortrittsbedürfnis (Schule, Kindergarten, Heim, Haltestelle, Schulweg; Fusswegnetz nur mit der Ebene Bern, C2-B) */
+  bed(): boolean { return this.w('beduerfnis').filter(b => b !== 'fusswegnetz' || this.an('Bern')).length > 0 }
   /** Querung mit LSA (Typ lsa oder Lichtsignal am Streifen) */
   mitLsa(): boolean { return this.o('typ') === 'lsa' || this.w('fgsMitLsa') }
 

@@ -113,9 +113,9 @@ describe('Runde 4: Quellenverzeichnis', () => {
     const b20 = blatt(fallMit(x => { x.bedarf = { felder: { tempoRegime: { wert: null, quelle: 'hand' }, vSig: { wert: 20, quelle: 'hand' } } } }))
     expect(b20.befund.empfehlung.typ).toBe('keiner')
     const d20 = text(renderToStaticMarkup(<BefundblattAnzeige b={b20} druck />))
-    expect(d20).toContain('Empfehlung: folgt, sobald die Begegnungszone geklärt ist (siehe Zusammenfassung)')
+    expect(d20).toContain('Empfehlung folgt, sobald geklärt ist, ob die Querung in einer Begegnungszone liegt (siehe Zusammenfassung)')
     expect(d20).not.toContain('Empfohlen:')
-    expect(text(druck)).toContain('Empfohlen: Fussgängerstreifen')      // Tempo 50: Begegnungszone nicht möglich
+    expect(text(druck)).toContain('Falls zulässig: Fussgängerstreifen')      // Tempo 50: Begegnungszone nicht möglich (Runde 5: Zone offen)
   })
 })
 
@@ -245,7 +245,7 @@ describe('Runde 4: Abstand bei beidseitigem Strassenende (ganze Strasse)', () =>
       expect(g2.text).toBe('Kein Lichtsignal auf dieser Strasse (sie endet beidseits ohne Fortsetzung): Abstand nicht anwendbar')
       expect(eintragSatz(g1)).toBe(`${g1.text} (Ist ${L} m (ganze Strasse))`)
       expect(b.norm.empfehlungen.concat(b.norm.verletzungen, b.norm.bericht).some(x => ['G1', 'G2'].includes(x.id))).toBe(false)
-      const mz = b.masse.find(m => m.groesse === 'Abstand zum nächsten FGS')!
+      const mz = b.masse.find(m => m.groesse === 'Abstand zum nächsten Fussgängerstreifen')!
       expect(mz).toMatchObject({ ist: `${L} (ganze Strasse)`, soll: '', zustand: 'nicht_anwendbar' })
       expect(b.masse.find(m => m.groesse === 'Abstand zur nächsten LSA')).toMatchObject({ soll: '', zustand: 'nicht_anwendbar' })
     }
@@ -258,7 +258,7 @@ describe('Runde 4: Abstand bei beidseitigem Strassenende (ganze Strasse)', () =>
     const b: BefundBlatt = { ...bOffen, befund }
     for (const html of [renderToStaticMarkup(<BefundblattAnzeige b={b} />), renderToStaticMarkup(<BefundblattAnzeige b={b} druck />)]) {
       const zeile = /<tr class="nicht_anwendbar">.*?<\/tr>/.exec(html)?.[0] ?? ''
-      expect(text(zeile)).toContain('Abstand zum nächsten FGS')
+      expect(text(zeile)).toContain('Abstand zum nächsten Fussgängerstreifen')
       expect(text(zeile)).toContain('– 40 m (ganze Strasse) i nicht anwendbar')
       expect(zeile).not.toContain('erfüllt')
     }

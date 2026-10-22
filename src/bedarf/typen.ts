@@ -122,8 +122,12 @@ export interface MassZeile {
   einheit: string
   soll: string
   ist: string
-  /** nicht_anwendbar: Wert ohne Soll, die Regel greift nicht (Runde 4: Abstand bei ganzer Strasse); nie «erfüllt» ohne Soll */
-  zustand: 'erfuellt' | 'verletzt' | 'offen' | 'nicht_anwendbar'
+  /** nicht_anwendbar: Wert ohne Soll, die Regel greift nicht (Runde 4: Abstand bei ganzer Strasse); nie «erfüllt» ohne Soll.
+   * Runde 5: ausnahme = unter dem Soll, die Regel lässt es hier zu (Text in ausnahme); annahme = erfüllt nur nach einer Annahme;
+   * vorbehalt = erfüllt unter Vorbehalt einer offenen Frage (vorbehalt: Text) */
+  zustand: 'erfuellt' | 'verletzt' | 'offen' | 'nicht_anwendbar' | 'ausnahme' | 'annahme' | 'vorbehalt'
+  /** Text zu ausnahme bzw. vorbehalt */
+  zusatz?: string
   regeln: string[]
 }
 

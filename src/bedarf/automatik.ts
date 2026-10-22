@@ -10,6 +10,8 @@
 // (geo.strassentyp, gebildet in vorbelegung.ts) hat Vorrang vor der OSM-Annahme, auch wenn er offen bleibt (Hinweis). Die übrigen
 // Regeln des Pakets C stehen in automatikC.ts.
 
+import { tag } from './lesetext'
+import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
 import { type P, add, sub, dot, dist, einheit, rechts, links, lv95, imPolygon, abstandStrecke, segSchnitt } from '../geo'
 import type { StreifenErgebnis, ZufahrtErgebnis } from '../rechner/typen'
 import type { Fall } from '../fall'
@@ -284,7 +286,7 @@ export function automatik(x: AutoEingang): void {
   }
   if (n) {
     if (kreiselD !== null) {
-      setze('lage', 'kreisel', 'osm', `Kreisel ${ganz(kreiselD)} m vom Streifen (OSM junction=roundabout)`)
+      setze('lage', 'kreisel', 'osm', `Kreisel ${ganz(kreiselD)} m vom Streifen (OSM)${tag('junction=roundabout')}`)
       setze('q3.kreisel', true, 'osm', 'Kreisel am Streifen (OSM)')
     } else if (knoten) {
       const k = knoten
@@ -302,8 +304,8 @@ export function automatik(x: AutoEingang): void {
         // Paket C: Vortrittszeichen (OSM) auf einem Arm bis 20 m vom Knoten entscheiden die Rolle; ohne Zeichen bleibt sie offen
         const rolle = vortrittRolle(k, strasse, geo.vortritt ?? null)
         if (rolle?.lage) setze('lage', rolle.lage, 'osm', rolle.text)
-        else feldHinweis('lage', `Kreuzung: Knoten ${ganz(k.d)} m vom Streifen mit ${k.arme.length} Armen (OSM); Vortrittsrolle wählen – über die ` +
-          'Strasse mit Vortritt bzw. über die Zufahrt ohne Vortritt' + (rolle ? ` (${rolle.text})` : ''))
+        else feldHinweis('lage', `Kreuzung ${ganz(k.d)} m entfernt (OSM). Bitte wählen: Führt die Querung über die Strasse mit Vortritt oder ` +
+          `über die einmündende Strasse ohne Vortritt?${tag(`Knoten mit ${k.arme.length} Armen`)}` + (rolle ? ` (${rolle.text})` : ''))
       }
     } else {
       setze('lage', 'strecke', 'osm', `kein Knoten und kein Kreisel innerhalb ${AUTO.knotenM} m vom Streifen (OSM-Netz)`)
@@ -312,8 +314,8 @@ export function automatik(x: AutoEingang): void {
   // A7 Verzweigung: Knoten bis 20 m (OSM-Netz bzw. Sichtrechner)
   if (n) {
     const d = kreiselD ?? knoten?.d ?? null
-    if (d !== null) setze('verzweigung', true, 'rechnung', `Sichtrechner/OSM-Netz: ${kreiselD !== null ? 'Kreisel' : 'Knoten'} ${ganz(d)} m vom Streifen`)
-    else setze('verzweigung', false, 'rechnung', `Sichtrechner/OSM-Netz: kein Knoten innerhalb ${AUTO.knotenM} m vom Streifen`)
+    if (d !== null) setze('verzweigung', true, 'rechnung', `${kreiselD !== null ? 'Kreisel' : 'Knoten'} ${ganz(d)} m vom Streifen (OSM-Netz)`)
+    else setze('verzweigung', false, 'rechnung', `kein Knoten innerhalb ${AUTO.knotenM} m vom Streifen (OSM-Netz)`)
   } else if (zuf.length || einmRechnung.length) {
     const d = knotenRechnungM()
     if (d !== null && d <= AUTO.knotenM + 1e-9) setze('verzweigung', true, 'rechnung', `Sichtrechner: Knoten ${ganz(d)} m vom Streifen`)
@@ -347,6 +349,9 @@ export function automatik(x: AutoEingang): void {
       // die Reichweite der Daten) als Annahme, und nur, wenn sie die Schwelle von G1 bzw. G2 erreicht; sonst offen. Runde 4: endet die
       // Strasse in einer Richtung ohne Fortsetzung (Querstrasse, Sackgasse), ist diese Richtung ganz durchsucht und begrenzt nicht
       const name = [...new Set([...gequert].map(id => n.wege.get(id)?.w.tags.name?.trim()).filter(Boolean))].join(' bzw. ')
+      // Runde 5 (Stelle 38): Lichtsignal am nahen Knoten (wie knotenLsa) für den Hinweis ohne Fund
+      const knotenAmpelM = knoten ? (() => { const d = ampeln.map(a => dist(ll2p(a), knoten!.p)).sort((a, b) => a - b)[0] ?? Infinity
+        return d <= AUTO.knotenLsaJaM + 1e-9 ? d : null })() : null
       const ohneFund = (pfad: string, was: string, schwelle: number, weiter: string, endeUnklar?: (k: number) => boolean) => {
         if (reichweite === null || reichweite <= 0) return
         const su = sucheAuswerten(ab, max, endeUnklar)
@@ -364,6 +369,9 @@ export function automatik(x: AutoEingang): void {
             `${ganz(su.durchsucht)} m${enden.length ? ` (in der anderen Richtung endet sie nach ${enden[0]} m ohne Fortsetzung)` : ''}`
         if (su.durchsucht >= schwelle - 1e-9) setze(pfad, Math.floor(su.durchsucht), 'annahme', `${bis} ${was} gefunden (OSM): mindestens ` +
           `${ganz(Math.floor(su.durchsucht))} m angenommen`)
+        else if (pfad === 'abstandLsaM' && knotenAmpelM !== null) feldHinweis(pfad, `Das Lichtsignal der Kreuzung (${ganz(knotenAmpelM)} m vom ` +
+          `Knoten) regelt die Querstrasse; entlang ${name ? `der ${name}` : 'der gequerten Strasse'} ist keines bekannt (OSM, ${ganz(su.durchsucht)} m ` +
+          'durchsucht). Abstand bei Bedarf von Hand eingeben')
         else feldHinweis(pfad, `${bis} ${was} gefunden (OSM), weniger als ${schwelle} m durchsucht: Abstand von Hand eingeben`)
       }
       if (dF !== null) setze('abstandFgsM', Math.round(dF), 'osm', `nächster markierter Übergang ${ganz(dF)} m entlang der Strasse (OSM)`)
@@ -377,7 +385,7 @@ export function automatik(x: AutoEingang): void {
       const ampeln = osm.ampeln.filter(a => !(a.id === eigenId || (a.tags.crossing && abstandQuerung(ll2p(a), st) <= AUTO.eigenFgsM)))
       const dA = ampeln.map(a => dist(ll2p(a), k.p)).sort((a, b) => a - b)[0] ?? Infinity
       if (dA <= AUTO.knotenLsaJaM + 1e-9) {
-        setze('knotenLsa', true, 'osm', `Lichtsignal ${ganz(dA)} m vom Knoten (OSM highway=traffic_signals)`)
+        setze('knotenLsa', true, 'osm', `Lichtsignal ${ganz(dA)} m vom Knoten (OSM)${tag('highway=traffic_signals')}`)
         setze('q3.lsaKnoten', true, 'osm', `Lichtsignal ${ganz(dA)} m vom Knoten (OSM)`)
       } else if (dA > AUTO.knotenLsaNeinM) {
         setze('knotenLsa', false, 'annahme', `kein Lichtsignal in OSM innerhalb ${AUTO.knotenLsaNeinM} m vom Knoten (OSM oft unvollständig)`)
@@ -437,7 +445,7 @@ export function automatik(x: AutoEingang): void {
         const p = add(A, sub(B, A), sx[0])
         const art = av?.artBei(p) ?? null
         if (art === 'Bahn' || art === 'Verkehrsinsel') { arten.add('eigentrassee:av'); texte.push(`Gleis in der AV-Fläche ${art === 'Bahn' ? 'Bahn' : 'Verkehrsinsel'}`) }
-        else if (t.tags.embedded === 'yes' || t.tags.embedded === 'partial') { arten.add('fahrbahn:osm'); texte.push(`Gleis in der Fahrbahn (OSM embedded=${t.tags.embedded})`) }
+        else if (t.tags.embedded === 'yes' || t.tags.embedded === 'partial') { arten.add('fahrbahn:osm'); texte.push(`Gleis in der Fahrbahn (OSM)${tag(`embedded=${t.tags.embedded}`)}`) }
         else if (art === 'Strasse_Weg') { arten.add('fahrbahn:av'); texte.push('Gleis in der AV-Fläche Strasse/Weg') }
         else arten.add('offen')
       }
@@ -459,10 +467,10 @@ export function automatik(x: AutoEingang): void {
     const k = klassen.filter(h => RANG.includes(h.replace(/_link$/, ''))).map(h => h.replace(/_link$/, ''))
       .sort((a, b) => RANG.indexOf(a) - RANG.indexOf(b))[0]
     if (k && ['trunk', 'primary', 'secondary', 'tertiary'].includes(k))
-      setze('strassentyp', 'verkehrsorientiert', 'annahme', `OSM highway=${k}: verkehrsorientiert angenommen`)
+      setze('strassentyp', 'verkehrsorientiert', 'annahme', `Hauptstrasse laut OSM: verkehrsorientiert angenommen${tag(`highway=${k}`)}`)
     else if (k && ['residential', 'living_street'].includes(k))
-      setze('strassentyp', 'siedlungsorientiert', 'annahme', `OSM highway=${k}: siedlungsorientiert angenommen`)
-    else if (k === 'unclassified') feldHinweis('strassentyp', 'OSM highway=unclassified: Durchgangs- oder Quartierstrasse von Hand wählen')
+      setze('strassentyp', 'siedlungsorientiert', 'annahme', `Wohnstrasse laut OSM: siedlungsorientiert angenommen${tag(`highway=${k}`)}`)
+    else if (k === 'unclassified') feldHinweis('strassentyp', `OSM ohne Einstufung der Strasse: Durchgangs- oder Quartierstrasse von Hand wählen${tag('highway=unclassified')}`)
   }
 
   // ── B8 Tags des eigenen Übergangs (nur Hinweise), Ein-/Ausfahrt ──
@@ -472,11 +480,11 @@ export function automatik(x: AutoEingang): void {
     if (eigen) {
       const t = eigen.tags
       if (t['crossing:island'] === 'yes' && w['insel.vorhanden']?.wert === false)
-        feldHinweis('insel.vorhanden', 'OSM am Übergang: crossing:island=yes (Insel) – die Streifen sind aber nicht geteilt; prüfen')
-      if (t.flashing_lights && t.flashing_lights !== 'no') feldHinweis('blinklicht', `OSM am Übergang: flashing_lights=${t.flashing_lights}; Art des Blinklichts wählen`)
-      else if (t.flashing_lights === 'no') feldHinweis('blinklicht', 'OSM am Übergang: flashing_lights=no')
-      if (t.tactile_paving) feldHinweis('taktil', `OSM am Übergang: tactile_paving=${t.tactile_paving}; vor Ort prüfen`)
-      if (t.button_operated) feldHinweis('lsaZeiten.inselNurAnmeldung', `OSM am Übergang: button_operated=${t.button_operated} (Taster)`)
+        feldHinweis('insel.vorhanden', `laut OSM hat der Übergang eine Insel, die Streifen sind aber nicht geteilt: prüfen${tag('crossing:island=yes')}`)
+      if (t.flashing_lights && t.flashing_lights !== 'no') feldHinweis('blinklicht', `laut OSM mit Blinklicht: Art des Blinklichts wählen${tag(`flashing_lights=${t.flashing_lights}`)}`)
+      else if (t.flashing_lights === 'no') feldHinweis('blinklicht', `laut OSM ohne Blinklicht${tag('flashing_lights=no')}`)
+      if (t.tactile_paving) feldHinweis('taktil', `laut OSM ${t.tactile_paving === 'no' ? 'keine' : 'mit'} ertastbaren Platten am Übergang: vor Ort prüfen${tag(`tactile_paving=${t.tactile_paving}`)}`)
+      if (t.button_operated) feldHinweis('lsaZeiten.inselNurAnmeldung', `laut OSM mit Taster${tag(`button_operated=${t.button_operated}`)}`)
     }
   }
   if (n) {
@@ -489,7 +497,7 @@ export function automatik(x: AutoEingang): void {
         if (d <= AUTO.einfahrtM + 1e-9 && (best === null || d < best)) best = d
       })
     }
-    if (best !== null) setze('einAusfahrtNah', true, 'annahme', `Zufahrtsweg (OSM highway=service) mündet ${ganz(best)} m vom Streifen`)
+    if (best !== null) setze('einAusfahrtNah', true, 'annahme', `Zufahrtsweg (OSM) mündet ${ganz(best)} m vom Streifen${tag('highway=service')}`)
   }
 
   // ── A6 Busstreifen (OSM-Tags der Zufahrten) ──
@@ -498,9 +506,9 @@ export function automatik(x: AutoEingang): void {
   if (tags || busRechnung) {
     const wege = [...new Set([...gerade.map(z => wegId(z.osmWeg)), ...gequert])].filter((v): v is number => v !== null)
     const bus = wege.map(id => ({ id, tag: busTag(tags?.get(id) ?? {}) })).filter(b => b.tag)
-    if (bus.length) setze('busspur', true, 'osm', `Busstreifen nach OSM (${bus[0].tag})`)
+    if (bus.length) setze('busspur', true, 'osm', `Busstreifen nach OSM${tag(bus[0].tag)}`)
     else if (busRechnung) setze('busspur', true, 'osm', 'Busstreifen nach OSM (Fahrstreifen der Zufahrt)')
-    else if (wege.length) setze('busspur', false, 'annahme', 'kein Busstreifen-Tag in OSM an den Zufahrten (OSM lückenhaft)')
+    else if (wege.length) setze('busspur', false, 'annahme', 'kein Busstreifen in OSM an den Zufahrten (OSM lückenhaft)')
   }
 
   // ── A6 Neuanlage ──
@@ -519,8 +527,9 @@ export function automatik(x: AutoEingang): void {
   if (radien.length) {
     const z = radien.reduce((a, b) => (b.kurvenradiusM! < a.kurvenradiusM! ? b : a))
     const geschaetzt = /geschätzt/.test(z.radiusQuelle ?? '')
-    const was = z.art === 'abbiegend' ? `Abbiegen${z.strasse ? ` aus ${z.strasse}` : ''}` : 'Kreisel'
-    setze('kurve.radius', z.kurvenradiusM, geschaetzt ? 'annahme' : 'rechnung', `Sichtrechner: ${was}, R ${f1(z.kurvenradiusM!)} m (${z.radiusQuelle ?? 'Rechnung'})`)
+    const was = z.art === 'abbiegend' ? `Abbiegeradius${z.strasse ? ` aus der ${z.strasse}` : ''}` : 'Radius im Kreisel'
+    const wie = geschaetzt ? 'aus den Fahrbahnbreiten geschätzt' : `aus ${(z.radiusQuelle ?? 'der Rechnung').replace(/^geschätzt \((.*)\)$/, '$1 geschätzt')}`
+    setze('kurve.radius', z.kurvenradiusM, geschaetzt ? 'annahme' : 'rechnung', `${was} ${f1(z.kurvenradiusM!)} m, ${wie} (Sichtrechner)`)
   } else if (zuf.length) rechner['kurve.radius'] = 'Sichtrechner: keine abbiegende Zufahrt und kein Kreisel; gerade Zufahrten nach Tempo'
 
   // ── A9 Halteverbotslinie nach Sichtbedarf ──
@@ -563,16 +572,20 @@ export function automatik(x: AutoEingang): void {
   }
   // Einengung: Fahrbahn an der Querung um mindestens 1 m schmaler als die Zufahrten (nur ohne Insel, Zufahrten mit gemessener Breite)
   const breiten = gerade.filter(z => (z.art === 'beide' || z.art === 'einbahn') && z.fahrbahnM !== null).map(z => z.fahrbahnM!)
-  let einengung: boolean | null = null
+  let einengung = null as boolean | null
   if (fb && st.length === 1 && breiten.length && breiten.length === gerade.length) {
     const zb = Math.min(...breiten), B0 = fb.wert as number
-    einengung = B0 <= zb - AUTO.einengungM + 1e-9
-    setze('einengung', einengung, 'annahme', `Fahrbahn an der Querung ${f1(B0)} m, Zufahrt ${f1(zb)} m: ${einengung ? 'Einengung' : 'keine Einengung'} ` +
-      `angenommen (Schwelle ${f1(AUTO.einengungM)} m schmaler)`)
-    if (einengung) {
-      setze('restbreiteM', B0, fb.quelle, `Fahrbahnbreite an der Querung (${fb.text})`)
+    // Runde 5 (F7): aus dem Breitenvergleich nur «keine Einengung» als Annahme; eine schmalere Stelle ist nur ein Hinweis (kein Wert, kein
+    // Befund F4 aus einer geometrischen Annahme)
+    const schmaler = B0 <= zb - AUTO.einengungM + 1e-9
+    if (!schmaler) {
+      einengung = false
+      setze('einengung', false, 'annahme', `Fahrbahn an der Querung ${f1(B0)} m, Zufahrt ${f1(zb)} m: keine Einengung angenommen ` +
+        `(Schwelle ${f1(AUTO.einengungM)} m schmaler)`)
+    } else {
       const lg = einengungLaenge(av, st, zb - AUTO.einengungLaengeTolM)
-      if (lg !== null) setze('einengungLaengeM', lg, 'av', `AV: Fahrbahn schmaler als ${f1(zb - AUTO.einengungLaengeTolM)} m auf ${f1(lg)} m Länge`)
+      feldHinweis('einengung', `Fahrbahn an der Querung ${f1(B0)} m, Zufahrt ${f1(zb)} m (Rechnung): vielleicht eine Nase bzw. Einengung` +
+        `${lg !== null ? ` auf etwa ${f1(lg)} m Länge (AV)` : ''}; vor Ort prüfen`)
     }
   }
   if (w.typ?.wert === 'ohne_vortritt') {
@@ -588,8 +601,8 @@ export function automatik(x: AutoEingang): void {
       const v = r1(Math.max(-5, Math.min(5, Math.min(...sv))))
       // Parkstreifen in der Rechnung meist angenommen (Breite aus der Regel, nicht gemessen): dann Annahme
       const handPark = mitPark.every(z => /von Hand/.test(z.abzugQuelle ?? ''))
-      if (Math.abs(v) < AUTO.seitenraumTolM) feldHinweis('seitenraumVorParklinieM', `AV: Bordkante am Streifen etwa auf der Parklinie ` +
-        `(${f1(v)} m, innerhalb ± ${f1(AUTO.seitenraumTolM)} m Messgenauigkeit): von Hand prüfen`)
+      if (Math.abs(v) < AUTO.seitenraumTolM) feldHinweis('seitenraumVorParklinieM', 'Das Trottoir endet nach Plan (AV) etwa auf der Linie der ' +
+        `Parkfelder; bitte vor Ort messen, ob es vorsteht${tag(`${f1(v)} m, Messgenauigkeit ± ${f1(AUTO.seitenraumTolM)} m`)}`)
       else setze('seitenraumVorParklinieM', v, handPark ? 'av' : 'annahme',
         `AV: Bordkante am Streifen gegen die Bordkante 15 bis 25 m entlang der Zufahrt, minus Parkstreifen${handPark ? ' (von Hand)' : ' (Breite angenommen)'}`)
     }
@@ -600,16 +613,26 @@ export function automatik(x: AutoEingang): void {
   if (L?.length === 2) setze('lsaZeiten.teile', L, w.querdistanzL!.quelle, `wie Länge jeder Teilquerung (${w.querdistanzL!.text})`)
   const ib = w['insel.breite']
   if (ib && w['insel.vorhanden']?.wert === true) setze('lsaZeiten.inselB', ib.wert, ib.quelle, `wie Inseltiefe (${ib.text})`)
+  // Runde 5 (F3): Werte der gequerten Strasse sind nur dann die der Seitenstrasse, wenn die Querung über die einmündende Strasse führt
+  // (Lage Einmündung); die Hauptstrasse ist dann die Querstrasse der abbiegenden Zufahrten (Tempo des Sichtrechners)
+  const ueberSeite = w['q3.ueber']?.wert === 'einmuendend'
   const vs = w.vSig
-  if (vs) setze('q3.vSigEinm', vs.wert, vs.quelle, `wie signalisiertes Tempo (${vs.text})`)
-  if (nR) setze('q3.nEinm', Math.max(...nR), w.nRichtung!.quelle, `wie Fahrstreifen je Richtung (${w.nRichtung!.text})`)
-  if (dtv !== undefined) {
+  if (vs && ueberSeite) setze('q3.vSigEinm', vs.wert, vs.quelle, `wie signalisiertes Tempo (${vs.text})`)
+  const abb = zuf.filter(z => z.art === 'abbiegend' && z.tempoQuelle !== 'Ersatz')
+  if (ueberSeite && abb.length) {
+    const vH = Math.max(...abb.map(z => z.tempo))
+    const q: Quelle = abb.some(z => z.tempoQuelle === 'Korrektur') ? 'hand' : abb.every(z => z.tempoQuelle === TEMPO_QUELLE_AMTLICH) ? 'geoportal' : 'osm'
+    const namen = [...new Set(abb.map(z => z.strasse).filter(Boolean))].join(', ')
+    setze('q3.vSigHaupt', vH, q, `Tempo der Hauptstrasse${namen ? ` (${namen})` : ''} ${vH} km/h (Sichtrechner, ${q === 'geoportal' ? 'Geoportal' : q === 'hand' ? 'von Hand' : 'OSM'})`)
+  }
+  if (nR && ueberSeite) setze('q3.nEinm', Math.max(...nR), w.nRichtung!.quelle, `wie Fahrstreifen je Richtung (${w.nRichtung!.text})`)
+  if (dtv !== undefined && ueberSeite) {
     setze('q3.dtvEinm', dtv, w.dtv!.quelle, `wie DTV (${w.dtv!.text})`)
     const hoch = dtv >= AUTO.mivEinmHoch
     setze('q3.mivEinmHoch', hoch, 'annahme', `DTV ${ganz(dtv)} ${hoch ? 'ab' : 'unter'} ${ganz(AUTO.mivEinmHoch)}: ${hoch ? 'viel' : 'wenig'} Verkehr angenommen`)
   }
   const tr = w.tempoRegime
-  if (tr) setze('q3.zoneEinm', tr.wert === 't30_zone' ? 't30' : tr.wert === 'begegnungszone' ? 'bgz' : 'keine', tr.quelle, `wie Strecke oder Zone (${tr.text})`)
+  if (tr && ueberSeite) setze('q3.zoneEinm', tr.wert === 't30_zone' ? 't30' : tr.wert === 'begegnungszone' ? 'bgz' : 'keine', tr.quelle, `wie Strecke oder Zone (${tr.text})`)
 }
 
 /** Art eines Vortrittszeichens: highway=give_way|stop bzw. Signal CH:3.02 (Kein Vortritt) / CH:3.01 (Stop) in traffic_sign */

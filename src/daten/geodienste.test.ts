@@ -47,7 +47,7 @@ describe('Abfragen: Layer, Felder, Rundung und Vereinfachung', () => {
   it('Felder: nur Sachfelder, bei Schulen ohne Adresse, Telefon, E-Mail', () => {
     expect(u(hierarchieUrl(LAT, LON, 150)).searchParams.get('outFields')).toBe('Objectid,Typ_id,Strassenhierarchie,Strassenname')
     expect(u(strassentypenUrl(LAT, LON, 150)).searchParams.get('outFields')).toBe('Objectid,Strgatt_id,Strassentyp,Strassenname')
-    expect(u(vsigUrl(LAT, LON, 150)).searchParams.get('outFields')).toBe('Objectid,V_sig,Strassenname')
+    expect(u(vsigUrl(LAT, LON, 150)).searchParams.get('outFields')).toBe('Objectid,V_sig,V_afu,V_afu_manuell,Strassenname')
     expect(u(oevLinienUrl(LAT, LON, 150)).searchParams.get('outFields')).toBe('Objectid,Verkehrsmittel_typ,Nummer_linie')
     for (const s of [volksschulenUrl, kindergaertenUrl].map(f => u(f(LAT, LON, 150)).searchParams.get('outFields')!))
       expect(s).not.toMatch(/Email|Telefon|Strasse|Hausnummer|URL/)

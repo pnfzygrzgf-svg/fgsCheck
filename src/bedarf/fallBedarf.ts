@@ -160,7 +160,7 @@ export function eingabenBilden(vor: Vorbelegung, block: BedarfBlock | null | und
     if (!gesetzt.length) continue
     const fehlt = OBJEKTE[f].pflicht.filter(u => !werte.get(u))
     if (fehlt.length) {
-      hinweise.push(`${feldName(f)}: ${fehlt.map(u => `«${FELD_DEF.get(`${f}.${u}`)!.name}»`).join(', ')} fehlt; die übrigen Angaben dazu bleiben offen`)
+      hinweise.push(`${feldName(f)}: bitte zuerst ${fehlt.map(u => `«${FELD_DEF.get(`${f}.${u}`)!.name}»`).join(', ')} angeben; bis dahin bleiben die übrigen Angaben dazu offen`)
       continue
     }
     const obj: Record<string, unknown> = {}

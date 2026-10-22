@@ -8,6 +8,7 @@
 //     Portierung: Abweichungen nur dort, wo Bern Daten hat, die offen fehlen.
 //   B «App»:   wie in der App, Klick auf den nächsten OSM-Übergang, Streifen aus OSM + AV, OSM live (Cache).
 // Ergebnis: Zusammenfassung auf der Konsole; mit FGS_REFERENZ_SCHREIBEN=1 zusätzlich ../referenz_bern/vergleich.json.
+// Runde 5: liegt im Cache cache/vsig_<Nr>.json (V_sig des Geoportals Stadt Bern, ±200 m), rechnet Lauf B damit wie die App.
 
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -24,6 +25,7 @@ import type { Entfallen } from './rechner/zufahrten'
 import type { VonHand } from './rechner/pruefen'
 import type { Hindernis } from './rechner/hindernisse'
 import { NEBENAST_GRAD } from './rechner/netz'
+import { vsigAusGeoportal, vsigTempo } from './daten/vsig'
 
 const DIR = process.env.FGS_REFERENZ ? resolve(process.env.FGS_REFERENZ) : resolve(__dirname, '../../referenz_bern')
 const REF = join(DIR, 'referenz.json')
@@ -250,10 +252,14 @@ describe.skipIf(!da)('Referenz Bern (nur lokal)', () => {
         const m: P = s.mitte
         const lbMeta = lesen(join(DIR, 'cache_luftbild', `${s.fgs_id}.json`))
         const lbPfad = join(DIR, 'cache_luftbild', `${s.fgs_id}.rgb`)
+        const vsRoh = lesen(join(DIR, 'cache', `vsig_${s.fgs_id}.json`))
         for (const lauf of ['B', 'B2']) {
           if (lauf === 'B2' && (!lbMeta || !existsSync(lbPfad))) { fehler.push(`Nr. ${s.fgs_id}: Luftbild-Cache fehlt`); continue }
           try {
             const k = kontextBauen(osm, av, sosf, hind)
+            // Runde 5 (Nutzerentscheid 21.10.2026): V_sig des Geoportals als Tempo der Zufahrten wie in der App, wenn der Cache die Linien
+            // hat (cache/vsig_<Nr>.json, GeoJSON des Diensts im Rechteck ±200 m um die Streifenmitte); ohne Datei wie bisher OSM
+            if (vsRoh) k.tempoAmtlich = vsigTempo({ linien: vsigAusGeoportal(vsRoh), bereich: { mitte: m, radiusM: 200, form: 'quadrat' } })
             // nächster Übergangsknoten (wie ein Klick) zur Streifenmitte
             let nid = s.osm_knoten.id, bd = Infinity
             for (const [id, u] of k.netz!.U) { const dd = dist(u.p, m); if (dd < bd) { bd = dd; nid = id } }
@@ -268,6 +274,7 @@ describe.skipIf(!da)('Referenz Bern (nur lokal)', () => {
                 ms: Math.round(performance.now() - t0), ms_erkennung: Math.round(e.ms), bytes: lbMeta.bytes, flugjahr: lbMeta.flugjahr }
               if (e.befund === 'erkannt' && lb.streifen.length) {
                 const k2 = kontextBauen(osm, av, sosf, hind)
+                k2.tempoAmtlich = k.tempoAmtlich
                 r = rechneStreifen(osm, av, lb.streifen, k2)
                 quelle = 'luftbild'
               }

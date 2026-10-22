@@ -2,8 +2,9 @@
 //
 // Portierung von sichtweite_tab1, tempo_stufe, sichtweite_kurve, radius_runden, tempo_start und Achsen.tempo_entlang
 // (fgs_sicht_pruefen.py). Das Berner Projekt nimmt das Tempo aus dem amtlichen Tempo-Datensatz (Tempo-Achsen) und
-// OSM-maxspeed nur als Ersatz; die App hat nur OSM: Tempo = maxspeed des OSM-Wegs unter der Spur (Mehrheit entlang der
-// Spur innerhalb der Sichtweite, wie tempo_entlang), ohne Angabe 50 km/h mit Hinweis.
+// OSM-maxspeed nur als Ersatz. Die App: Tempo = maxspeed des OSM-Wegs unter der Spur (Mehrheit entlang der Spur innerhalb der
+// Sichtweite, wie tempo_entlang), ohne Angabe 50 km/h mit Hinweis; ein amtliches Tempo (TempoAmtlich, in Bern V_sig des Geoportals)
+// geht als Eingabe OSM vor, eine Eingabe von Hand geht beiden vor.
 // Nur die Zahlenwerte der Tabellen, kein Normtext.
 
 import { type P, dot, einheit, sub, add, dist } from '../geo'
@@ -17,6 +18,13 @@ export const SICHTWEITE: Record<number, number> = { 20: 25, 30: 25, 40: 40, 50: 
 export const KURVE_SICHTWEITE: [number, number, string][] = [[5, 10, 'bfu'], [10, 15, 'bfu'], [15, 20, 'bfu'], [20, 24, 'bfu'],
   [25, 35, 'VSS Tab. 2'], [30, 40, 'VSS Tab. 2'], [35, 45, 'VSS Tab. 2'], [40, 50, 'VSS Tab. 2']]
 export const TEMPO_ERSATZ = 50
+/** Quelle eines amtlichen Tempos (Eingabe der Rechnung, z. B. V_sig des Geoportals Stadt Bern; Nutzerentscheid 21.10.2026) */
+export const TEMPO_QUELLE_AMTLICH = 'Geoportal'
+/**
+ * Amtliches Tempo bei einem Punkt der Spur (km/h, Fahrtrichtung richtung) bzw. null ohne Angabe. Die Rechnung bekommt es nur als
+ * Eingabe (die Ableitung, z. B. aus den V_sig-Linien, steht in daten/vsig.ts); es geht OSM vor, eine Eingabe von Hand geht ihm vor.
+ */
+export type TempoAmtlich = (p: P, richtung: P) => number | null
 const TEMPO_SUCHRADIUS = 5.0
 const ACHSE_MAX_WINKEL = 35 * Math.PI / 180
 const TEMPO_PENDEL_GROSSE_SW = true
@@ -101,9 +109,10 @@ export function tempoBei(netz: OsmNetz, p: P, richtung: P, radius = TEMPO_SUCHRA
 /**
  * Achsen.tempo_entlang: das Tempo, das auf dem grössten Teil der Spur innerhalb der Sichtweite gilt (alle 2 m; Gleichstand
  * -> höheres), bis dreimal neu gerechnet; Pendel -> Ergebnis über die grösste Sichtweite der Schleife.
- * -> [tempo, Treffer entlang der Spur, Pendel]
+ * -> [tempo, Treffer entlang der Spur, Pendel]. bei: Tempo je Punkt (Vorgabe: OSM-maxspeed; amtliches Tempo: amtlichEntlang)
  */
-export function tempoEntlang(netz: OsmNetz, weg: P[], tempoStart0: number, h: number): [number, boolean, number[] | null] {
+export function tempoEntlang(netz: OsmNetz | null, weg: P[], tempoStart0: number, h: number,
+  bei: (q: P, r: P) => number | null = (q, r) => (netz ? tempoBei(netz, q, r) : null)): [number, boolean, number[] | null] {
   let tempo = tempoStart0, treffer = false
   const folge = [tempoStart0], ergebnis = new Map<number, number>()
   let pendel: number[] | null = null
@@ -113,7 +122,7 @@ export function tempoEntlang(netz: OsmNetz, weg: P[], tempoStart0: number, h: nu
     const abst: number[] = []
     for (let k = 0; k <= Math.floor(sw / 2); k++) abst.push(h + k * 2)
     for (const [q, tRueck] of punkteAufSpur(weg, abst)) {
-      const v = tempoBei(netz, q, tRueck)
+      const v = bei(q, tRueck)
       if (v) zaehl.set(v, (zaehl.get(v) ?? 0) + 2)
     }
     if (!zaehl.size) break
@@ -133,4 +142,14 @@ export function tempoEntlang(netz: OsmNetz, weg: P[], tempoStart0: number, h: nu
     tempo = neu
   }
   return [tempo, treffer, pendel]
+}
+
+/**
+ * Amtliches Tempo entlang der Spur (wie tempoEntlang, Tempo je Punkt aus TempoAmtlich, auf die Stufen von Tab. 1): [Tempo, Quelle]
+ * bzw. null ohne Treffer (dann bleibt das Tempo aus OSM)
+ */
+export function amtlichEntlang(amtlich: TempoAmtlich | null | undefined, weg: P[], tempo0: number, h: number): [number, string] | null {
+  if (!amtlich) return null
+  const [t, treffer] = tempoEntlang(null, weg, tempo0, h, (q, r) => { const v = amtlich(q, r); return v ? tempoStufe(v) : null })
+  return treffer ? [t, TEMPO_QUELLE_AMTLICH] : null
 }

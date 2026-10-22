@@ -19,7 +19,8 @@ export type TempoRegime = 'strecke' | 't30_zone' | 'begegnungszone'
 export type FgKlasse = '<100' | '100-500' | '>500'
 export type FgQuelle = 'zaehlung' | 'schaetzung'
 export type Netz = 'basisnetz' | 'publikumsintensiv' | 'feinverteiler' | 'keins'
-export type Beduerfnis = 'schule' | 'kindergarten' | 'heim' | 'haltestelle' | 'schulweg'
+/** fusswegnetz: Zugehörigkeit zum Fusswegnetz (Bern, C2-B; Runde 5), zählt nur mit der Ebene Bern */
+export type Beduerfnis = 'schule' | 'kindergarten' | 'heim' | 'haltestelle' | 'schulweg' | 'fusswegnetz'
 export type Strassentyp = 'verkehrsorientiert' | 'siedlungsorientiert'
 export type Nachfrage = 'punktuell' | 'flaechig'
 export type Lage = 'strecke' | 'knoten_berechtigt' | 'knoten_belastet' | 'einmuendung' | 'kreisel'
@@ -221,7 +222,7 @@ export type BedarfEingaben = { [K in FeldName]: Feld<Werte[K]> }
 
 /** Art je Feld für die Prüfung beim Lesen (wie fall.ts: Ungültiges wird offen, mit Hinweis) */
 type Art = 'bool' | 'zahl' | 'zahlen' | 'objekt' | readonly string[]
-const BED: readonly Beduerfnis[] = ['schule', 'kindergarten', 'heim', 'haltestelle', 'schulweg']
+const BED: readonly Beduerfnis[] = ['schule', 'kindergarten', 'heim', 'haltestelle', 'schulweg', 'fusswegnetz']
 export const FELDER: { readonly [K in FeldName]: Art } = {
   innerorts: 'bool', vSig: 'zahl', tempoRegime: ['strecke', 't30_zone', 'begegnungszone'],
   v85: 'zahl', v85Nachweis: 'bool', anzeichenSchneller: 'bool', dtv: 'zahl', fg5h: 'zahl', fgKlasse: ['<100', '100-500', '>500'],

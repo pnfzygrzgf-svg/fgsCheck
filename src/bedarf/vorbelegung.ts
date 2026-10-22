@@ -31,6 +31,8 @@ import { E1_KURZ } from '../rechner/standardinsel'
 import { imBereich, HALT_TEXT, type Bereich, type HaltestellenErgebnis, type OevHalt } from '../daten/haltestellen'
 import type { VerkehrsdatenErgebnis, VdLinie } from '../daten/verkehrsdaten'
 import { automatik, avInselBei, kopfUeberstandAv, type AutoGeo } from './automatik'
+import { tag } from './lesetext'
+import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
 import { automatikC, strassentypBern, tempoAusHierarchie, vsigVorbelegen, zoneNachVsig } from './automatikC'
 import { GEOPORTAL_BERN, type BernErgebnis } from '../daten/geoportal'
 import type { RichtplanDaten } from '../daten/richtplanFussverkehr'
@@ -52,6 +54,9 @@ export function querungen(streifen: StreifenErgebnis[]): QuerungGruppe[] {
 const f2 = (x: number) => x.toFixed(2).replace('.', ',')
 const r2 = (x: number) => Math.round(x * 100) / 100
 const einheit = (v: P): P => { const l = Math.hypot(v[0], v[1]); return l > 0 ? [v[0] / l, v[1] / l] : [1, 0] }
+
+/** Teilstreifen an einer Insel: länger als das gilt als unplausibel (Runde 5, F5) */
+export const TEIL_MAX_M = 12
 
 /** Querungsart eines gerechneten Streifens: Fussgängerstreifen, ohne Vortritt (Furt bzw. übrige) oder «kein FGS» (nicht geprüft) */
 export const streifenTyp = (s: StreifenErgebnis): 'fgs' | 'furt' | 'ohne_vortritt' | 'kein' =>
@@ -115,24 +120,31 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   const mitLsa = st.some(s => s.lsa === 'ja')
   if (typen.length === 1 && typen[0] === 'fgs') setze('typ', mitLsa ? 'lsa' : 'fgs', 'rechnung', mitLsa
     ? 'Streifen als Fussgängerstreifen mit Lichtsignal gerechnet' : 'Streifen als Fussgängerstreifen gerechnet')
-  else if (typen.length === 1 && typen[0] !== 'kein') setze('typ', typen[0], 'hand', 'Querungsart der Streifen von Hand: ohne Vortritt')
+  else if (typen.length === 1 && typen[0] !== 'kein') setze('typ', typen[0], 'hand', `Querungsart von Hand: ${typen[0] === 'furt' ? 'Furt' : 'ohne Vortritt'}`)
   else if (typen.length > 1) hinweise.push('Die Teilstreifen haben verschiedene Querungsarten: Querungstyp offen')
   else hinweise.push('Streifen als «kein FGS» nicht geprüft: Querungstyp offen')
 
   // Lichtsignal (Streifen-Eingabe bzw. OSM)
   const lsaJa = st.filter(s => s.lsa === 'ja')
   const lsaHand = st.some(s => s.lsaQuelle === 'von Hand')
-  setze('fgsMitLsa', lsaJa.length > 0, lsaHand ? 'hand' : 'osm', lsaJa.length ? `Lichtsignal: ${lsaJa[0].lsaQuelle ?? 'OSM'}` :
-    lsaHand ? 'Lichtsignal von Hand: nein' : 'kein Lichtsignal in OSM am Streifen')
+  // Runde 5 (Stelle 40): eine Ampel in der Nähe ist eine Annahme, keine OSM-Tatsache; Knotennummer nur im Tooltip
+  const lq = lsaJa[0]?.lsaQuelle ?? ''
+  const ampelNah = /^Ampel in der Nähe/.test(lq), knotenNr = /Knoten (\d+)/.exec(lq)?.[1]
+  setze('fgsMitLsa', lsaJa.length > 0, lsaHand ? 'hand' : ampelNah ? 'annahme' : 'osm', !lsaJa.length
+    ? (lsaHand ? 'Lichtsignal von Hand: nein' : 'kein Lichtsignal in OSM am Streifen')
+    : lsaHand ? 'Lichtsignal von Hand' : ampelNah ? `Ampel in der Nähe (OSM): als Lichtsignal der Querung angenommen${knotenNr ? tag(`Knoten ${knotenNr}`) : ''}`
+      : `Lichtsignal am Übergang (OSM)${knotenNr ? tag(`Knoten ${knotenNr}`) : ''}`)
 
   // Tempo der geraden Zufahrten
   const gerade = st.flatMap(s => s.zufahrten.filter(z => z.art !== 'abbiegend'))
+  // (Runde 5, Nutzerentscheid 21.10.2026: in Bern rechnet der Sichtrechner mit V_sig des Geoportals, Quelle «Geoportal»)
   if (gerade.length) {
     const v = Math.max(...gerade.map(z => z.tempo))
-    const q: Quelle = gerade.some(z => z.tempoQuelle === 'Korrektur') ? 'hand' : gerade.some(z => z.tempoQuelle === 'Ersatz') ? 'annahme' : 'osm'
+    const tz = gerade.filter(z => z.tempo === v)
+    const q: Quelle = tz.some(z => z.tempoQuelle === 'Korrektur') ? 'hand' : tz.some(z => z.tempoQuelle === 'Ersatz') ? 'annahme'
+      : tz.every(z => z.tempoQuelle === TEMPO_QUELLE_AMTLICH) ? 'geoportal' : 'osm'
     setze('vSig', v, q, q === 'hand' ? 'Tempo der Zufahrten (von Hand)' : q === 'annahme' ? 'Tempo 50 km/h angenommen (OSM ohne Angabe)'
-      : 'Tempo der geraden Zufahrten (OSM maxspeed)')
-    if (v <= 50) setze('innerorts', true, 'annahme', `Tempo ${v} km/h: innerorts angenommen`)
+      : q === 'geoportal' ? `Tempo der geraden Zufahrten (${GEOPORTAL_BERN}, signalisierte Höchstgeschwindigkeit)` : 'Tempo der geraden Zufahrten (OSM)')
   }
 
   // Bordkanten entlang der Achse: L je Teilquerung, B über die ganze Querung
@@ -143,7 +155,13 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
     const ns = einheit(sub(s.p1, s.p0))
     return dot(sub(s.rand[1], s.rand[0]), ns)
   })
-  if (alleAv && L.every(x => x > 0)) {
+  // Runde 5 (F5): Teilstreifen an einer Insel länger als TEIL_MAX_M sind unplausibel (z. B. schräg über eine Einmündung); dann keine
+  // Masse aus ihnen (Fahrbahnbreite, Teilquerungen, Durchfahrt), nur ein Hinweis. Die Rechnung selbst bleibt unverändert
+  const teilLang = st.length > 1 && L.some(x => x > TEIL_MAX_M) ? Math.max(...L) : null
+  if (teilLang !== null) hinweise.push(`Streifen ungewöhnlich lang (bis ${Math.round(teilLang)} m je Teil): Fahrbahnbreite, Teilquerungen und ` +
+    'Durchfahrt nicht vorbelegt, Masse prüfen')
+  if (teilLang !== null) { /* unplausibel lange Teilstreifen: keine Masse vorbelegen (Hinweis oben) */ }
+  else if (alleAv && L.every(x => x > 0)) {
     const ps = st.flatMap(s => s.rand).map(proj)
     const B = Math.max(...ps) - Math.min(...ps)
     setze('fahrbahnB', r2(B), 'rechnung', `Bordkanten der Rechnung (AV${fall.flaechenPlan?.length ? ' bzw. Flächen (Plan)' : ''}) entlang der Achse` +
@@ -247,7 +265,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
       if (k) setze('insel.kopfUeberstand', k, 'av', 'AV-Inselumriss entlang der Fahrbahn über die Streifenränder hinaus, je Seite')
     } else if (!angenommen) setze('insel.art', 'baulich', 'annahme', `${text}: baulich angenommen`)
     // Durchfahrt neben der Insel: Teilquerungen (Bord bis Insel), quer zur Fahrbahn
-    if (alleAv) {
+    if (alleAv && teilLang === null) {
       const seiten = sortiert.map(s => {
         const ns = einheit(sub(s.p1, s.p0))
         return dot(sub(s.rand[1], s.rand[0]), ns) * sinW
@@ -273,6 +291,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   }
   // Paket C: Tempo aus V_sig (Geoportal) vor OSM; eine OSM-Strecke nur aus maxspeed bzw. eine OSM-Zone passt dann ggf. nicht mehr
   vsigVorbelegen(st, geo.vsig, w, setze, hinweise)
+  innerortsAusTempo(st, w, setze, feldHinweise, tags)
   const vsigZone = zoneNachVsig(w, setze)
   if (vsigZone) zoneText = `${vsigZone}: Strecke oder Zone von Hand wählen`
   // Strecke aus dem Tempo (Automatik Paket A): ab 40 km/h keine Zone (eine Zone hat höchstens 30 km/h); 20 km/h ohne Zonenangabe:
@@ -313,6 +332,37 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   return { werte: w, hinweise, feldHinweise, rechner }
 }
 
+/** Kurzname einer Quelle in Herkunftstexten */
+const QUELLE_KURZ: Partial<Record<Quelle, string>> = { geoportal: 'Geoportal', osm: 'OSM', hand: 'von Hand', annahme: 'angenommen', rechnung: 'Rechnung' }
+
+/**
+ * Innerorts als Annahme (Runde 5, F1): nicht schon aus den OSM-Tags der geraden Zufahrten bzw. widersprüchlich. Signalisiertes Tempo
+ * der gequerten Strasse bis 50 km/h (Sichtrechner bzw. Geoportal); ohne es (nur Abbieger, z. B. Querung über die Seitenstrasse)
+ * OSM-Tags bzw. Tempo der einmündenden Strassen bis 50 km/h. Die Bauzone (Nutzungszonenplan, automatikC) stützt bzw. ergänzt das.
+ */
+function innerortsAusTempo(st: StreifenErgebnis[], w: Vorbelegung, setze: Setze, feldHinweise: Record<string, string>,
+  tags: ReadonlyMap<number, Record<string, string>> | null): void {
+  if (w.innerorts || feldHinweise.innerorts) return
+  const vs = w.vSig
+  // das Ersatztempo 50 km/h (OSM ohne Angabe) ist kein Hinweis auf innerorts (Korrektur nach Prüfung Runde 5)
+  if (vs && typeof vs.wert === 'number' && vs.quelle !== 'annahme') {
+    if (vs.wert <= 50) setze('innerorts', true, 'annahme', `Tempo ${vs.wert} km/h (${QUELLE_KURZ[vs.quelle] ?? vs.quelle}): innerorts angenommen`)
+    return
+  }
+  const abb = st.flatMap(s => s.zufahrten.filter(z => z.art === 'abbiegend'))
+  if (!abb.length) return
+  if (tags) {
+    const io = innerortsAusOsm(abb.map(z => wegId(z.osmWeg)).map(id => (id === null ? null : tags.get(id) ?? null)))
+    if (io.wert !== null) { setze('innerorts', io.wert, 'osm', `${io.text} an der einmündenden Strasse`); return }
+  }
+  const mit = abb.filter(z => z.tempoQuelle !== 'Ersatz')
+  if (mit.length && mit.every(z => z.tempo <= 50)) {
+    const v = Math.max(...mit.map(z => z.tempo))
+    const q = mit.every(z => z.tempoQuelle === TEMPO_QUELLE_AMTLICH) ? 'Geoportal' : mit.some(z => z.tempoQuelle === 'Korrektur') ? 'von Hand' : 'OSM'
+    setze('innerorts', true, 'annahme', `Tempo der einmündenden Strasse ${v} km/h (${q}): innerorts angenommen`)
+  }
+}
+
 // ── Geodaten (Abschnitt 18 der Regeln) ──
 type Setze = (pfad: string, wert: unknown, quelle: Quelle, text: string) => void
 type FeldHinweis = (pfad: string, text: string) => void
@@ -346,7 +396,8 @@ function haltestelleVorbelegen(st: StreifenErgebnis[], h: HaltestellenErgebnis |
   if (naechste.length) {
     const { x, d } = naechste[0] as { x: OevHalt; d: number }
     const wo = `${HALT_TEXT[x.art]} «${x.name}», ${ganz(d)} m (${h.herkunft}${zusatz})`
-    feldHinweis('haltestelle.art', `${wo}: Fahrbahnhaltestelle oder Busbucht wählen${x.art === 'tram' ? ' (bzw. «keine», wenn dort nur das Tram hält)' : ''}`)
+    feldHinweis('haltestelle.art', `${HALT_TEXT[x.art]} «${x.name}» (${ganz(d)} m): Bitte angeben, ob der Bus auf der Fahrbahn oder in einer Bucht ` +
+      `hält${x.art === 'tram' ? ' (bzw. «keine», wenn dort nur das Tram hält)' : ''}${tag(`${h.herkunft}${zusatz}`)}`)
     // Korrektur nach Prüfung (M5): die Haltestelle ist eine Tatsache aus den Daten, keine Annahme (nicht unter «Annahmen»)
     setze('beduerfnis', ['haltestelle'], h.quelle, `${wo}: Haltestelle an der Querung als Grund für Vortritt`)
     return
@@ -367,14 +418,14 @@ function haltestelleVorbelegen(st: StreifenErgebnis[], h: HaltestellenErgebnis |
 export function zoneAusTags(t: Record<string, string>): { wert: TempoRegime | null; text: string } {
   for (const k of ['zone:maxspeed', 'maxspeed:type', 'maxspeed', 'source:maxspeed']) {
     const v = (t[k] ?? '').trim()
-    if (/^CH:zone30$/.test(v)) return { wert: 't30_zone', text: `Tempo-30-Zone (OSM ${k}=${v})` }
-    if (/^CH:(zone20|living_street)$/.test(v)) return { wert: 'begegnungszone', text: `Begegnungszone (OSM ${k}=${v})` }
-    if (/^CH:(urban|rural|trunk|motorway)$/.test(v)) return { wert: 'strecke', text: `Strecke (OSM ${k}=${v})` }
+    if (/^CH:zone30$/.test(v)) return { wert: 't30_zone', text: `Tempo-30-Zone (OSM)${tag(`${k}=${v}`)}` }
+    if (/^CH:(zone20|living_street)$/.test(v)) return { wert: 'begegnungszone', text: `Begegnungszone (OSM)${tag(`${k}=${v}`)}` }
+    if (/^CH:(urban|rural|trunk|motorway)$/.test(v)) return { wert: 'strecke', text: `Strecke (OSM)${tag(`${k}=${v}`)}` }
   }
-  if (t.highway === 'living_street') return { wert: 'begegnungszone', text: 'Begegnungszone (OSM highway=living_street)' }
+  if (t.highway === 'living_street') return { wert: 'begegnungszone', text: `Begegnungszone (OSM)${tag('highway=living_street')}` }
   const v = Number((t.maxspeed ?? '').trim())
-  if (Number.isFinite(v) && v > 30) return { wert: 'strecke', text: `Strecke (OSM maxspeed=${v} ohne Zonenangabe)` }
-  if (Number.isFinite(v) && v > 0) return { wert: null, text: `Tempo ${v} in OSM ohne Angabe zur Zone (weder zone:maxspeed noch maxspeed:type)` }
+  if (Number.isFinite(v) && v > 30) return { wert: 'strecke', text: `Strecke (OSM: Tempo ${v} ohne Zonenangabe)${tag(`maxspeed=${v}`)}` }
+  if (Number.isFinite(v) && v > 0) return { wert: null, text: `Tempo ${v} in OSM ohne Zonenangabe${tag('weder zone:maxspeed noch maxspeed:type')}` }
   return { wert: null, text: '' }
 }
 
@@ -385,10 +436,10 @@ export function zoneAusTags(t: Record<string, string>): { wert: TempoRegime | nu
 export function innerortsAusTags(t: Record<string, string>): { wert: boolean | null; text: string } {
   for (const k of ['maxspeed:type', 'source:maxspeed', 'zone:maxspeed', 'maxspeed']) {
     const v = (t[k] ?? '').trim()
-    if (/^CH:(urban|zone30|zone20|living_street)$/.test(v)) return { wert: true, text: `innerorts (OSM ${k}=${v})` }
-    if (/^CH:(rural|trunk|motorway)$/.test(v)) return { wert: false, text: `ausserorts (OSM ${k}=${v})` }
+    if (/^CH:(urban|zone30|zone20|living_street)$/.test(v)) return { wert: true, text: `innerorts (OSM)${tag(`${k}=${v}`)}` }
+    if (/^CH:(rural|trunk|motorway)$/.test(v)) return { wert: false, text: `ausserorts (OSM)${tag(`${k}=${v}`)}` }
   }
-  if (t.highway === 'living_street') return { wert: true, text: 'innerorts (OSM highway=living_street)' }
+  if (t.highway === 'living_street') return { wert: true, text: `innerorts (OSM)${tag('highway=living_street')}` }
   return { wert: null, text: '' }
 }
 /** Innerorts aus den Wegen der geraden Zufahrten: ein eindeutiger Wert, sonst null (widersprüchlich: Text) */
@@ -525,16 +576,16 @@ export function beleuchtungHinweis(st: StreifenErgebnis[], wege: (number | null)
   const lit = new Set(wege.map(id => (id !== null ? tags?.get(id)?.lit : undefined)).filter((x): x is string => x === 'yes' || x === 'no'))
   // «vor Ort prüfen» nur einmal am Schluss (Nachprüfung)
   let pruefen = ''
-  if (lit.size === 2) { teile.push('Zufahrten in OSM teils als beleuchtet, teils als unbeleuchtet markiert (lit)'); pruefen = 'vor Ort prüfen' }
-  else if (lit.has('yes')) { teile.push('Strasse in OSM als beleuchtet markiert (lit=yes)'); pruefen = 'vor Ort prüfen' }
-  else if (lit.has('no')) { teile.push('Strasse in OSM als unbeleuchtet markiert (lit=no)'); pruefen = 'vor Ort prüfen' }
+  if (lit.size === 2) { teile.push(`laut OSM teils beleuchtet, teils nicht${tag('lit')}`); pruefen = 'vor Ort prüfen' }
+  else if (lit.has('yes')) { teile.push(`laut OSM ist die Strasse beleuchtet${tag('lit=yes')}`); pruefen = 'vor Ort prüfen' }
+  else if (lit.has('no')) { teile.push(`laut OSM ist die Strasse nicht beleuchtet${tag('lit=no')}`); pruefen = 'vor Ort prüfen' }
   if (lampen) {
     const d = Math.min(Infinity, ...lampen.punkte.map(p => Math.min(...st.map(s => abstandZumStreifen(p, s)))))
-    const slg = 'Beleuchtung der Querenden nach SLG 202 vor Ort prüfen'
+    const slg = 'Beleuchtung der Querenden vor Ort prüfen (Richtlinie SLG 202 der Schweizer Licht Gesellschaft)'
     if (d <= LAMPE_NAH_M + 1e-9) { teile.push(`Strassenlampe ${ganz(d)} m vom Streifen (OSM)`); pruefen = slg }
     else if (d <= LAMPE_SUCH_M + 1e-9) { teile.push(`nächste Strassenlampe ${ganz(d)} m vom Streifen (OSM)`); pruefen = slg }
     else if (streifenPunkte(st).every(p => imBereich(p, LAMPE_SUCH_M, lampen.bereich)))
-      teile.push(`keine Lampe in OSM innerhalb ${LAMPE_SUCH_M} m (OSM oft unvollständig)`)
+      teile.push(`eine Lampe nahe der Querung ist in OSM nicht eingetragen (OSM oft unvollständig)`)
   }
   return [...teile, ...(pruefen ? [pruefen] : [])].join('; ')
 }

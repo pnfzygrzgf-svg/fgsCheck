@@ -15,9 +15,11 @@
 import { beurteile } from './entscheid'
 import { KATALOG, WERKE, quellText, type RegelId, type WerkId } from './katalog'
 import type { Befund, Eintrag, Liste, MassZeile } from './typen'
-import { eingabenBilden, ebenenWirksam, type Gebildet } from './fallBedarf'
+import { eingabenBilden, ebenenWirksam, QUELLE_TEXT, type Gebildet } from './fallBedarf'
 import { querungen, vorbelegen, streifenTyp, type QuerungGruppe, type Vorbelegt, type GeoVorbelegung } from './vorbelegung'
-import { FELD_DEFS, GRUPPEN, feldName, gruppeVon, gruppenName, type GruppeId } from './felder'
+import { FELD_DEFS, FELD_DEF, GRUPPEN, feldName, gruppeVon, gruppenName, wertText, type GruppeId } from './felder'
+import { lesetext } from './lesetext'
+import { QUELLEN_ANNAHME } from './eingaben'
 import { ahs } from './tabellen'
 import { grundpruefung, type Grundpruefung } from './grundpruefung'
 import { ausgeblendeteBloeckeLeeren } from './feldhilfen'
@@ -83,7 +85,9 @@ export interface BefundBlatt {
 }
 
 /** Empfehlung ausgesetzt, solange offen ist, ob die Querung in einer Begegnungszone liegt (Runde 4) */
-export const A2_OFFEN_TEXT = 'Empfehlung folgt, sobald die Begegnungszone geklärt ist'
+export const A2_OFFEN_TEXT = 'Empfehlung folgt, sobald geklärt ist, ob die Querung in einer Begegnungszone liegt'
+/** Ohne Ortslage keine Empfehlung (Runde 5, Stelle 55) */
+export const OHNE_ORTSLAGE_TEXT = 'Noch keine Empfehlung: Es fehlt die Angabe, ob die Querung innerorts liegt'
 /** Detail eines Verbots, das auf einer Annahme bzw. Schätzung von Hand beruht (Runde 4; aus der Vorbelegung: entscheid.ts) */
 export const DETAIL_HAND_ANNAHME = 'beruht auf einer Annahme bzw. Schätzung: als Quelle «bestätigt» bzw. «von Hand» wählen oder den Wert ändern'
 
@@ -109,7 +113,7 @@ export function typText(b: Befund, mitVorbehalt = true): string {
     case 'ohne_vortritt': t = `Querung ohne Vortritt: ${el.join(', ')}; kein Fussgängerstreifen`; break
     case 'flaechig': t = `Flächige Querung: ${el.join(', ')}`; break
     default: t = b.ende === 'ausserorts' ? 'Ausserorts: nicht beurteilt' : b.alle.some(x => x.id === 'A2' && x.zustand === 'offen') ? A2_OFFEN_TEXT
-      : 'Nicht beurteilt: Eingaben fehlen (innerorts bzw. ausserorts)'
+      : OHNE_ORTSLAGE_TEXT
   }
   if (e.vorlaeufig && mitVorbehalt && t !== A2_OFFEN_TEXT) t += ` (vorläufig: offen ${e.offenWegen.length ? `wegen ${e.offenWegen.map(feldOderRegel).join(', ')}` : 'ist die Zulässigkeit'})`
   return t
@@ -127,23 +131,50 @@ const ZUL: Record<string, string> = {
 const regelVerweis = (id: string): string => `${regelTitel(id)} (${id}, ${kurzQuelle(id)})`
 
 /** Begründung in einer Zeile: Zulässigkeit, Regeln für den Typ mit Fundstelle */
-export function begruendung(b: Befund): string {
+export function begruendung(b: Befund, typ: Querungstyp | null = null): string {
   const teile: string[] = []
-  if (b.zulaessigkeit) {
-    const ids = b.alle.filter(x => x.zustand === 'verletzt' && ['C1', 'C2', 'C2b', 'C3', 'C3b', 'C4'].includes(x.id)).map(x => x.id)
-    teile.push(`${ZUL[b.zulaessigkeit]}${ids.length ? ` (${ids.map(regelVerweis).join('; ')})` : ''}`)
+  const verl = (ids: string[]) => [...new Set(b.alle.filter(x => x.zustand === 'verletzt' && ids.includes(x.id)).map(x => x.id))]
+  if (b.zulaessigkeit === 'offen') {
+    // Runde 5 (Stelle 6, F4): die wirklich offene Regel nennen, nicht die verletzten Soll-Regeln
+    const offen = b.alle.filter(x => x.zustand === 'offen' && ['A2', 'C1', 'C2'].includes(x.id))
+      .filter((x, i, a) => a.findIndex(y => y.id === x.id) === i)
+    teile.push(`Zulässigkeit offen, weil ${offen.length ? offen.map(x => `${offenWeil(x)}: ${regelVerweis(x.id)}`).join('; ')
+      : 'Angaben fehlen'}`)
+    const gegen = verl(['C3', 'C4'])
+    if (gegen.length) teile.push(`Zusätzlich spricht dagegen: ${gegen.map(regelVerweis).join('; ')}`)
+  } else if (b.zulaessigkeit) {
+    const ids = verl(['C1', 'C2', 'C2b', 'C3', 'C3b', 'C4'])
+    teile.push(`${ZUL[b.zulaessigkeit]}${ids.length ? `: ${ids.map(regelVerweis).join('; ')}` : ''}`)
   }
   const gr = b.empfehlung.grundlage.filter(id => !['C1', 'C2'].includes(id))
   if (gr.length) teile.push(`Typ nach ${gr.map(regelVerweis).join('; ')}`)
-  else if (b.empfehlung.typ === 'Q1') teile.push(b.empfehlung.elemente.includes('Schutzinsel') ? 'Schutzinsel vorhanden; keine Regel verlangt ein Lichtsignal'
-    : 'keine Regel verlangt Insel oder Lichtsignal')
+  // gewählte Anlage ohne Vortritt (Furt usw.): kein Satz zur Insel des Fussgängerstreifens (Runde 5, Fall 6)
+  else if (b.empfehlung.typ === 'Q1' && !(typ && OHNE_VORTRITT_ANLAGE.includes(typ))) teile.push(b.empfehlung.elemente.includes('Schutzinsel') ? 'Schutzinsel vorhanden; ein Lichtsignal ist nicht nötig'
+    : 'Insel oder Lichtsignal sind nicht nötig (keine Regel verlangt sie)')
   return teile.join('. ')
+}
+const OHNE_VORTRITT_ANLAGE: readonly string[] = ['furt', 'ohne_vortritt', 'mehrzweck']
+/** was bei offener Zulässigkeit fehlt (Begründung) */
+const OFFEN_WEIL: Record<string, string> = {
+  A2: 'nicht geklärt ist, ob eine Begegnungszone vorliegt', C1: 'das Tempo nicht geklärt ist',
+}
+/** Grund der offenen Zulässigkeit nach den fehlenden Feldern (C2: Zone und/oder besonderer Grund; Korrektur nach Prüfung Runde 5) */
+function offenWeil(x: Eintrag): string {
+  if (x.id !== 'C2') return OFFEN_WEIL[x.id]
+  const f = x.fehlend ?? []
+  const zone = 'noch offen ist, ob die Strasse in einer Tempo-30-Zone liegt', grund = 'noch kein besonderer Grund für Vortritt bestätigt ist'
+  return f.includes('tempoRegime') && f.includes('beduerfnis') ? `${zone}, und ${grund}` : f.includes('tempoRegime') ? zone : grund
 }
 
 function statusKurz(z: ZufahrtErgebnis): string {
   if (z.status === 'frei') return 'frei'
-  const arten = [...new Set(z.konflikte.map(k => k.layer))].slice(0, 3)
-  return `verdeckt${arten.length ? ` (${arten.join(', ')})` : ''}`
+  const arten = [...new Set(z.konflikte.map(konfliktName))].slice(0, 3)
+  return `verdeckt${arten.length ? ` durch ${arten.join(', ')}` : ''}`
+}
+/** Hindernis im Lesetext (Runde 5, Stelle 42): keine Layer- bzw. Rohnamen */
+export function konfliktName(k: { klasse: string; layer: string }): string {
+  if (k.klasse === 'auto') return /kataster|Parkfeld_|APK|_\(/i.test(k.layer) ? 'Parkfeld (Parkkataster)' : 'Parkfeld'
+  return KONFLIKT_TEXT[k.klasse] ?? 'Hindernis'
 }
 
 /** Liste und Gruppen neu aus «alle» (nach dem Ersetzen der Sicht) */
@@ -198,9 +229,30 @@ function tempoPruefen(e: Gebildet['eingaben'], regel: 'H1' | 'E3', tempo: number
   return null
 }
 
+/** Titel aus einer OSM-Nummer («Streifen 2066165582», «Streifen 5180148897-1»): im Lesetext durch die Strasse ersetzen (Runde 5, Stelle 41) */
+const istNummernTitel = (t: string): boolean => /^Streifen \d{4,}(-\d+)?$/.test(t)
+/** Name eines Streifens in Detailtexten: Streifen von Hand mit Titel; OSM-Streifen «Querung <Strasse>» bzw. an der Insel «Teil 1», «Teil 2» */
+function teilTitel(g: QuerungGruppe, titel: (id: string) => string): (id: string) => string {
+  return id => {
+    const t = titel(id)
+    if (!istNummernTitel(t)) return t
+    if (g.streifen.length > 1) return `Teil ${g.streifen.findIndex(s => s.fgsId === id) + 1}`
+    const s = g.streifen.find(x => x.fgsId === id)
+    return s?.strasse ? `Querung ${s.strasse}` : t
+  }
+}
+/** Titel des Blatts: «Querung Murtenstrasse (zwei Teile an der Insel)»; Streifen von Hand mit ihrem Titel */
+export function blattTitel(g: QuerungGruppe, titel: (id: string) => string): string {
+  const ts = g.streifen.map(s => titel(s.fgsId))
+  if (!ts.every(istNummernTitel)) return ts.join(' und ')
+  const str = [...new Set(g.streifen.map(s => s.strasse).filter(Boolean))].join(', ')
+  if (!str) return ts.join(' und ')
+  return `Querung ${str}${g.streifen.length === 2 ? ' (zwei Teile an der Insel)' : g.streifen.length > 2 ? ` (${g.streifen.length} Teile)` : ''}`
+}
+
 /** Befundblatt einer Querung */
 export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): BefundBlatt {
-  const titel = opt.titel ?? ((id: string) => id)
+  const titel = teilTitel(g, opt.titel ?? ((id: string) => id))
   const zName = opt.zufahrt ?? ((_: string, z: string) => z)
   const vorbelegt = vorbelegen(g, fall, opt.inseln ?? [], opt.geo)
   const rechnerAnzeige = { ...(vorbelegt.rechner ?? {}) }
@@ -288,7 +340,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
           quelle: z.sichtweiteQuelle, frei, status: statusKurz(z), ...(bis !== undefined ? { bisM: bis } : {}),
           ...(z.freiBisM !== undefined ? { freiBisM: z.freiBisM } : {}) })
         const soll = `${String(z.sichtweite).replace('.', ',')} m frei (${z.sichtweiteQuelle})`
-        const wo = `${titel(s.fgsId)}, ${zName(s.fgsId, z.zufahrt)}`
+        const wo = g.streifen.length > 1 ? `${titel(s.fgsId)}, ${zName(s.fgsId, z.zufahrt)}` : zName(s.fgsId, z.zufahrt)
         if (frei && bis === undefined) {
           // abbiegende Zufahrten: das Tempo des Sichtrechners ist das der Querstrasse, das Soll kommt aus ihr bzw. dem Kurvenradius
           // (wie in der Grundprüfung); signalisiertes Tempo und V85 der Querung gelten dort nicht (Nachprüfung)
@@ -344,11 +396,20 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       const erreicht0 = regeln.some(erreichtR)
       const offenR = neu.some(x => x.zustand === 'offen' && regeln.includes(x.id as 'H1' | 'E3'))
       const verletztR = neu.some(x => x.zustand === 'verletzt')
+      // Runde 5 (Stelle 14, Muster 3): gerade und abbiegende Zufahrten getrennt; frei, aber offen nur wegen der Frage nach schnellerem
+      // Fahren: «erfüllt unter Vorbehalt» (wie Kasten und Befundblatt)
+      const sollVon = (ab: boolean) => [...new Set(sicht.filter(x => x.zufahrt.startsWith('a') === ab).map(x => String(x.soll).replace('.', ',')))].join('; ')
+      const sG = sollVon(false), sA = sollVon(true)
+      const offenEintraege = neu.filter(x => x.zustand === 'offen' && regeln.includes(x.id as 'H1' | 'E3'))
+      const nurAnzeichen = offenR && !teil && !zahl && offenEintraege.every(x => (x.fehlend ?? []).every(f => f === 'anzeichenSchneller'))
+      const vSv = gebildet.eingaben.vSig.wert
       const mz: MassZeile = { groesse: 'Sichtweite (Sichtrechner)', einheit: 'm',
-        soll: [...new Set(sicht.map(x => String(x.soll).replace('.', ',')))].join('; '),
+        soll: sG && sA ? `${sG} geradeaus, ${sA} für Abbiegende` : sG || `${sA} für Abbiegende`,
         ist: (zahl ? `verdeckt (${zahl} von ${n} Zufahrten)` : teil ? `frei, ${teil} von ${n} Zufahrten nur bis ` +
           `${sicht.find(x => x.bisM !== undefined)!.bisM} m geprüft` : `frei (${zf(n)})`) + (erreicht0 ? '' : '; Sichtregel hier nicht geprüft'),
-        zustand: !erreicht0 ? 'offen' : verletztR ? 'verletzt' : offenR || teil ? 'offen' : 'erfuellt', regeln }
+        zustand: !erreicht0 ? 'offen' : verletztR ? 'verletzt' : nurAnzeichen ? 'vorbehalt' : offenR || teil ? 'offen' : 'erfuellt', regeln,
+        ...(nurAnzeichen && erreicht0 && !verletztR ? { zusatz: `gilt, wenn nicht schneller als ${vSv !== null ? `${vSv} km/h` : 'signalisiert'} gefahren ` +
+          'wird (Frage oben)' } : {}) }
       befund.masse.push(mz)
     }
     neuOrdnen(befund)
@@ -365,7 +426,14 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
   const mitEingabe = new Set<GruppeId>()
   for (const d of FELD_DEFS) if (gebildet.herkunft.get(d.pfad)?.zustand !== 'offen') mitEingabe.add(d.gruppe)
   const offen: OffenZeile[] = [], ohne = new Map<GruppeId, Set<string>>()
+  const mitZaehlung = befund.offenGruppen.some(o => o.feld === 'fg5h')
   for (const o of befund.offenGruppen) {
+    // Zählung und Schätzung der Querenden: eine Frage (Runde 5, Stelle 27)
+    if (o.feld === 'fgKlasse' && mitZaehlung) {
+      const z = offen.find(x => x.feld === 'fg5h')
+      if (z) for (const r of o.regeln) if (!z.regeln.includes(r)) z.regeln.push(r)
+      continue
+    }
     const gr = gruppeVon(o.feld)
     if (gr && !mitEingabe.has(gr)) { for (const r of o.regeln) ohne.set(gr, (ohne.get(gr) ?? new Set()).add(r)); continue }
     const best = befund.alle.some(x => x.bestaetigen && x.fehlend?.includes(o.feld))
@@ -379,14 +447,8 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       .map(gr => ({ block: gr.name, grund: `keine Eingaben (${ohne.get(gr.id)!.size} Regeln offen)` })),
   ]
 
-  // Annahmen mit Beschriftung und Herkunft
-  const annahmen = befund.annahmen.map(a => {
-    const m = /^(\w+): (Annahme|Schätzung)$/.exec(a)
-    if (!m) return a
-    if (m[1] === 'fgQuelle') return ''
-    const h = gebildet.herkunft.get(m[1]) ?? [...gebildet.herkunft].find(([p]) => p.startsWith(`${m[1]}.`))?.[1]
-    return `${feldName(m[1])}: ${m[2]}${h && h.zustand === 'vorbelegt' ? ` (${h.text})` : ''}`
-  }).filter(Boolean)
+  // Annahmen mit Wert und kurzer Herkunft (Runde 5, Stellen 18, 44, 45): Objekt-Felder je Unterfeld mit eigenem Namen
+  const annahmen = [...new Set(befund.annahmen.flatMap(a => annahmeZeilen(a, gebildet)))]
 
   // Grundprüfung bfu: Sicht des Sichtrechners je Zufahrt der Fussgängerstreifen (nicht ohne Vortritt, nicht mit Lichtsignal); ein
   // Fussgängerstreifen ohne geprüfte Zufahrt lässt die Sicht offen; Teilstreifen teils mit, teils ohne Vortritt: gilt nicht
@@ -400,13 +462,52 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     gemischt: arten.has('fgs') && [...arten].some(t => OHNE_VORTRITT.includes(t)),
   })
 
+  // Annahmen der Grundprüfung mit Wert und Herkunft (Runde 5, Stelle 18)
+  grund.annahmen = [...new Set(grund.annahmen.flatMap(a => annahmeZeilen(a, gebildet)))]
+  // Runde 5 (F2): rechnet der Sichtrechner an einer geraden Zufahrt mit einem anderen Tempo als dem signalisierten, steht das in der Zeile ①
+  const vS = gebildet.eingaben.vSig.wert, vSH = gebildet.herkunft.get('vSig')
+  const anders = g.streifen.flatMap(s => s.zufahrten.filter(z => z.art !== 'abbiegend' && vS !== null && z.tempo > vS))
+  if (grund.gilt && anders.length && vS !== null) {
+    const z = anders[0]
+    const q = z.tempoQuelle === 'Ersatz' ? 'Annahme' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : z.tempoQuelle === 'Geoportal' ? 'Geoportal' : 'OSM'
+    grund.tempoHinweis = `Soll gerechnet mit ${z.tempo} km/h (${q}); signalisiert ${vS} km/h${vSH?.quelle ? ` (${QUELLE_TEXT[vSH.quelle]})` : ''}: ` +
+      'Tempo der Zufahrten prüfen'
+  }
+
   return {
     grund, gestrichen: g.streifen.reduce((n, s) => n + s.entfallen.filter(x => x.grund === 'hand').length, 0),
-    gruppe: g.id, streifen: g.streifen.map(s => s.fgsId), titel: g.streifen.map(s => titel(s.fgsId)).join(' und '),
+    gruppe: g.id, streifen: g.streifen.map(s => s.fgsId), titel: blattTitel(g, opt.titel ?? ((id: string) => id)),
     befund, gebildet, vorbelegt, ebenen, sicht, sichtVonHand, typText: typText(befund),
-    zulText: befund.zulaessigkeit ? ZUL[befund.zulaessigkeit] : '', begruendung: begruendung(befund), offen, nichtGeprueft, annahmen,
-    hinweise: [...new Set(hinweise)],
+    zulText: befund.zulaessigkeit ? ZUL[befund.zulaessigkeit] : '', begruendung: begruendung(befund, gebildet.eingaben.typ.wert), offen, nichtGeprueft, annahmen,
+    hinweise: [...new Set(hinweise.map(lesetext))],
   }
+}
+
+/** Herkunft kurz (Muster 6): erste Aussage, ohne Belege und ohne das Schlusswort «… angenommen» */
+export function herkunftKurz(text: string): string {
+  let t = lesetext(text).split('; ')[0]
+  t = t.replace(/:\s*[^:]*angenommen$/, '').replace(/^Sichtrechner: /, '')
+  if (t.split(/\s+/).length > 15 && t.includes(': ')) t = t.slice(0, t.indexOf(': '))
+  return t
+}
+/**
+ * Annahme der Liste «Annahmen» als Zeilen «Feld: Wert – Herkunft» (Runde 5). Eintrag «feld: Annahme» des Befunds bzw. der Grundprüfung;
+ * Objekt-Felder (z. B. q3, kurve): die Unterfelder mit Annahme bzw. Schätzung. Andere Texte unverändert.
+ */
+export function annahmeZeilen(a: string, gebildet: Gebildet): string[] {
+  const m = /^([\w.]+): (Annahme|Schätzung)$/.exec(a)
+  if (!m) return [a]
+  if (m[1] === 'fgQuelle') return []
+  const pfade = gebildet.herkunft.has(m[1]) ? [m[1]] : [...gebildet.herkunft.keys()].filter(p => p.startsWith(`${m[1]}.`))
+  const zeilen = pfade.flatMap(p => {
+    const h = gebildet.herkunft.get(p)!
+    if (h.zustand !== 'vorbelegt' && h.zustand !== 'hand') return []
+    if (pfade.length > 1 && !(h.quelle && QUELLEN_ANNAHME.includes(h.quelle))) return []
+    const d = FELD_DEF.get(p)
+    const wert = h.zustand === 'hand' ? h.wert : h.vorbelegt?.wert
+    return [`${feldName(p)}: ${d ? wertText(d, wert) : m[2]}${h.zustand === 'vorbelegt' ? ` – ${herkunftKurz(h.text)}` : ` (${m[2]} von Hand)`}`]
+  })
+  return zeilen.length ? zeilen : [`${feldName(m[1])}: ${m[2]}`]
 }
 
 const KONFLIKT_TEXT: Record<string, string> = { auto: 'Auto-Parkfeld', velo: 'Zweirad-Parkfeld', motorrad: 'Zweirad-Parkfeld', gebaeude: 'Gebäude',
@@ -430,7 +531,7 @@ export function sichtAnzeige(g: QuerungGruppe, titel: (fgsId: string) => string,
         continue
       }
       const k = [...z.konflikte].sort((a, b) => a.abstand - b.abstand)[0]
-      teile.push(`${name}: verdeckt${k ? `, ${KONFLIKT_TEXT[k.klasse] ?? k.layer} ${m1(k.abstand)} vor dem Streifen` : ''}` +
+      teile.push(`${name}: verdeckt${k ? `, ${konfliktName(k)} ${m1(k.abstand)} vor dem Streifen` : ''}` +
         `${z.freiBisM !== undefined ? `, frei bis ${m1(z.freiBisM)}` : ''}, ${soll}`)
     }
   }

@@ -13,7 +13,8 @@ import { parkQuelleFuer, istParkId, type ParkQuelle, type KatasterFeld } from '.
 import { bernZustaendig, bernErgebnis, GEODATEN_BERN, GEOPORTAL_BERN, type BernLaden } from './daten/geoportal'
 import { BERN_C_KEYS, BERN_DIENSTE_C, bernDienstName, bernDienstBericht, type BernDienstKey, type BernDatenC, type BernDienst } from './daten/bernDienste'
 import { schulenStand } from './daten/schulen'
-import { ladeHaltestellenBern, haltestellenStand, type BernHalte } from './daten/haltestellen'
+import { ladeHaltestellenBern, haltestellenStand, type BernHalte, type Bereich } from './daten/haltestellen'
+import type { VsigLinie } from './daten/vsig'
 import { ladeVerkehrsdatenBern, type VdLinie } from './daten/verkehrsdaten'
 import type { GeoVorbelegung } from './bedarf/vorbelegung'
 import { lv95, wgs, dist, sub, einheit as einheitP, imPolygon, type P } from './geo'
@@ -59,6 +60,8 @@ import { fangen, fangRadiusM, FANG_PX, fixpunktVorschlaege, fixpunktName, fixMas
 
 interface QuellenStand { name: string; objekte?: string; ms?: number; bytes?: number; server?: string; fehler?: string }
 /** Geoportal Stadt Bern für die Vorbelegung des Bedarfsmoduls (Haltestellen, Verkehrsdaten); nr = Ladevorgang (wie ParkStand) */
+/** V_sig-Linien für den Sichtrechner (Worker) */
+type VsigRechnung = { linien: VsigLinie[]; bereich: Bereich }
 interface BernGeo { nr: number; halte: BernHalte; vd: { laedt: true } | { linien: VdLinie[] } | { fehler: string }
   /** weitere Dienste (Automatik Paket C, daten/bernDienste.ts) */
   c: { [K in BernDienstKey]?: BernLaden<BernDatenC[K]> } }
@@ -291,7 +294,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     }
   }, [])
 
-  const rechnen = useCallback(async (d: Daten, f: Fall, kat: typeof kataster, pk: typeof parkDaten) => {
+  const rechnen = useCallback(async (d: Daten, f: Fall, kat: typeof kataster, pk: typeof parkDaten, vs: VsigRechnung | null) => {
     const nr = ++auftrag.current
     const w = workerRef.current ?? neuerWorker()
     if (!w) return
@@ -309,7 +312,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       w.addEventListener('error', fe)
       w.postMessage({ id: nr, osm: d.osm, av: d.av, sosf: d.sosf, nid: d.nid, fall: f, luftbild: d.luftbild,
         kataster: kat && kat.baeume && f.baumkataster ? { baeume: kat.baeume, quellenangabe: kat.quelle.quellenangabe } : null,
-        park: pk && f.parkkataster !== false ? pk : null })
+        park: pk && f.parkkataster !== false ? pk : null, vsig: vs })
     })
     if (nr !== auftrag.current) return
     setRechnet(false)
@@ -367,11 +370,18 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     if (rechenRef.current?.k !== k) rechenRef.current = { k, f: fall }
     return rechenRef.current.f
   }, [fall])
+  // Tempo der Zufahrten in Bern aus V_sig (Geoportal Stadt Bern; Nutzerentscheid 21.10.2026): sobald die Linien geladen sind und der
+  // Streifen auf einer AV-Fläche der Stadt Bern liegt (wie die übrige Vorbelegung), rechnet der Sichtrechner neu; OSM bleibt Rückfall
+  const vsigStand = bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.c.vsig : null
+  const vsigBern = useMemo(() => bernZustaendig(rechnung?.streifen[0]?.m ?? daten?.ort, av ?? []), [rechnung, daten, av])
+  const vsigRechnung = useMemo<VsigRechnung | null>(() => (daten && vsigBern && vsigStand && 'daten' in vsigStand
+    ? { linien: vsigStand.daten.linien, bereich: { mitte: daten.ort, radiusM: BERN_DIENSTE_C.vsig.radiusM ?? PARK_RADIUS_M, form: 'quadrat' } }
+    : null), [daten, vsigBern, vsigStand])
   useEffect(() => {
     if (!daten || !rechenFall) return
-    const t = setTimeout(() => rechnen(daten, rechenFall, kataster, parkDaten), 200)
+    const t = setTimeout(() => rechnen(daten, rechenFall, kataster, parkDaten, vsigRechnung), 200)
     return () => clearTimeout(t)
-  }, [daten, rechenFall, kataster, parkDaten, rechnen])
+  }, [daten, rechenFall, kataster, parkDaten, vsigRechnung, rechnen])
 
   const aendern = useCallback((f: (x: Fall) => Fall) => setFall(x => (x ? f(structuredClone(x)) : x)), [])
 
@@ -2098,7 +2108,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
                   {z.deckung && <span className="klein"> (mitgeprüft)</span>}<div className="klein">{ART[z.art] ?? z.art}
                   {z.art === 'abbiegend' && z.ueberStrasse ? `, weiter auf ${z.ueberStrasse}` : ''}</div></td>
                 <td>{z.tempo}<div className={z.tempoQuelle === 'Ersatz' ? 'klein warnung' : 'klein'}>
-                  {z.tempoQuelle === 'Ersatz' ? 'Annahme' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : 'OSM'}</div></td>
+                  {z.tempoQuelle === 'Ersatz' ? 'Annahme' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : z.tempoQuelle === 'Geoportal' ? 'Geoportal' : 'OSM'}</div></td>
                 <td>{mText(z.sichtweite)} m<div className="klein">{z.sichtweiteQuelle}{z.kurvenradiusM != null ? `, R ${f1(z.kurvenradiusM)} m` : ''}</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
                 <td>{z.sichtpunktVomRandM != null ? `${f2(z.sichtpunktVomRandM)} m` : '–'}{z.lageQuelle === 'Hand' && <div className="klein">Fahrlinie von Hand</div>}</td>
@@ -2152,7 +2162,7 @@ function ZufahrtDetail({ z, name, nr, fall, aendern, spurZeichnen }: {
       <table className="zahlen"><tbody>
         <tr><td>Tempo</td><td>
           <select value={zh.tempo ?? ''} onChange={e => setze({ tempo: e.target.value ? Number(e.target.value) : undefined })}>
-            <option value="">{zh.tempo ? 'aus OSM' : `${z.tempo} km/h (${z.tempoQuelle === 'Ersatz' ? 'Annahme' : 'aus OSM'})`}</option>
+            <option value="">{zh.tempo ? 'aus den Daten' : `${z.tempo} km/h (${z.tempoQuelle === 'Ersatz' ? 'Annahme' : z.tempoQuelle === 'Geoportal' ? 'Geoportal' : 'aus OSM'})`}</option>
             {[20, 30, 40, 50, 60, 80].map(t => <option key={t} value={t}>{t} km/h (von Hand)</option>)}
           </select></td></tr>
         <tr><td>Sichtweite</td><td>{mText(z.sichtweite)} m ({z.sichtweiteQuelle}){z.geprueftBisM != null &&

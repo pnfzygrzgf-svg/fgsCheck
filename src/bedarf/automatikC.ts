@@ -131,6 +131,18 @@ export function ortAbstandText(o: SchulOrt, d: number): string {
   return d < 0.5 ? 'im Areal, Grenzrechteck' : `${ganz(d)} m, Rand des Areals, Grenzrechteck`
 }
 
+/**
+ * Name eines Abschnitts des Geoportals im Text (Runde 5, F3): die Linien stammen aus dem Achsschnitt mit der Querungsachse (gequerter
+ * Abschnitt). Heisst er im Geoportal anders als die gequerte Strasse in OSM, nennt der Text beide, damit kein falscher Eindruck entsteht.
+ */
+export function abschnittName(ls: readonly { strasse: string }[], st: StreifenErgebnis[]): string {
+  const namen = uniq(ls.map(l => l.strasse).filter(Boolean))
+  if (!namen.length) return ''
+  const osm = uniq(st.map(s => s.strasse).filter(Boolean))
+  if (!osm.length || namen.every(n => osm.includes(n))) return ` ${namen.join(', ')}`
+  return ` auf dem gequerten Abschnitt («${namen.join(', ')}» laut Geoportal, in OSM ${osm.join(', ')})`
+}
+
 // ── V_sig (Geoportal) vor OSM ──
 
 /**
@@ -150,18 +162,25 @@ export function vsigVorbelegen(st: StreifenErgebnis[], vsig: GeoVorbelegung['vsi
     return
   }
   const v = werte[werte.length - 1]
-  const namen = uniq(ls.map(l => l.strasse).filter(Boolean)).join(', ')
-  let text = `Tempo ${v} km/h${namen ? ` ${namen}` : ''} (${GEOPORTAL_BERN}, signalisierte Höchstgeschwindigkeit)` +
+  let text = `Tempo ${v} km/h${abschnittName(ls, st)} (${GEOPORTAL_BERN}, signalisierte Höchstgeschwindigkeit)` +
     (werte.length > 1 ? `; Grenze zweier Abschnitte (${werte.join(' bzw. ')} km/h): höherer Wert` : '')
+  // Tempo des Amts für Umwelt weicht ab (Korrektur nach Prüfung Runde 5): nur Hinweis «Tempo prüfen»
+  const afu = uniq(ls.filter(l => l.vSig !== null && l.vAfu != null && l.vAfu !== l.vSig).map(l => l.vAfu!))
+  if (afu.length) {
+    text += `; Amt für Umwelt: ${afu.join(' bzw. ')} km/h, Tempo prüfen`
+    hinweise.push(`Tempo prüfen: laut ${GEOPORTAL_BERN} signalisiert ${v} km/h, beim Amt für Umwelt ${afu.join(' bzw. ')} km/h`)
+  }
   const alt = w.vSig
   if (alt?.quelle === 'hand') {
     if (alt.wert !== v) hinweise.push(`Signalisiertes Tempo: von Hand ${alt.wert} km/h, laut ${GEOPORTAL_BERN} ${v} km/h`)
     return
   }
   if (alt && alt.wert !== v) {
-    text += `; OSM bzw. Annahme ${alt.wert} km/h`
-    hinweise.push(`Signalisiertes Tempo laut ${GEOPORTAL_BERN} ${v} km/h, nach OSM ${alt.wert} km/h: Wert des Geoportals übernommen; der ` +
-      'Sichtrechner rechnet mit dem Tempo aus OSM (Tempo der Zufahrten von Hand korrigieren)')
+    // Runde 5 (Nutzerentscheid 21.10.2026): der Sichtrechner rechnet in Bern selbst mit V_sig; eine Abweichung bleibt nur, wo die
+    // Linien entlang der Zufahrten ein anderes Tempo tragen als über der Querung bzw. wo sie fehlen
+    text += `; Sichtrechner ${alt.wert} km/h (${alt.quelle === 'geoportal' ? 'Geoportal entlang der Zufahrten' : 'OSM bzw. Annahme'})`
+    hinweise.push(`Signalisiertes Tempo über der Querung ${v} km/h (${GEOPORTAL_BERN}), der Sichtrechner rechnet entlang der Zufahrten mit ` +
+      `${alt.wert} km/h: Tempo der Zufahrten prüfen`)
   }
   setze('vSig', v, 'geoportal', text)
 }
@@ -195,13 +214,13 @@ function hierarchieAnQuerung(st: StreifenErgebnis[], sh: BernErgebnis<Strassenhi
   const h = laengs(d.hierarchie, a).filter(l => l.typ && l.typ !== 'nicht_befahrbar')
   const t = d.typen ? laengs(d.typen, a).filter(l => l.typ) : []
   return { typen: uniq(h.map(l => l.typ!)), codes: uniq(t.map(l => l.typ!)), klassen: uniq(t.map(l => l.klasse!)),
-    namen: uniq(h.map(l => l.strasse).filter(Boolean)).join(', ') }
+    namen: abschnittName(h, st).trim() }
 }
 /** Strassentyp in Worten (Kann-Punkt: kein Rohcode im Text) */
 const TYP_WORT: Record<StrassentypCode, string> = { SS_30: 'Sammelstrasse 30', SS_50: 'Sammelstrasse 50', VS_50_60: 'Verbindungsstrasse 50/60',
   HVS_50_60: 'Hauptverkehrsstrasse 50/60', HVS_80: 'Hauptverkehrsstrasse 80' }
 const typText = (h: HierarchieAnQuerung) => (h.codes.length ? `Strassentyp ${h.codes.map(c => TYP_WORT[c]).join(', ')} laut ${GEOPORTAL_BERN}` : '')
-const hierText = (h: HierarchieAnQuerung) => `${h.typen.map(x => HIERARCHIE_TEXT[x]).join(' bzw. ')}${h.namen ? ` (${h.namen})` : ''}`
+const hierText = (h: HierarchieAnQuerung) => `${h.typen.map(x => HIERARCHIE_TEXT[x]).join(' bzw. ')}${h.namen ? (h.namen.startsWith('auf ') ? ` ${h.namen}` : ` (${h.namen})`) : ''}`
 
 /**
  * Tempo 30 ohne Zonenangabe in OSM (Nutzerentscheid 21.10.2026), als Annahme: Quartierstrasse (auch ergänzend) Tempo-30-Zone,
@@ -259,7 +278,7 @@ export interface AutoEingangC {
 
 export function automatikC(x: AutoEingangC): void {
   grundVorbelegen(x)
-  netzVorbelegen(x)
+  if (netzVorbelegen(x)) fusswegnetzGrund(x)
   taktilVorbelegen(x)
   zonenVorbelegen(x)
   oevVorbelegen(x)
@@ -325,7 +344,7 @@ function grundVorbelegen(x: AutoEingangC): void {
   const fehlt: string[] = []
   if (!osm || !abgedeckt(pts, R, osm.bereich)) fehlt.push(`Heime nach OSM nicht im ganzen Umkreis von ${R} m geladen`)
   if (!(bern?.volksschulen && bern.kindergaerten && abgedeckt(pts, R, bern.bereich)))
-    fehlt.push(`Volksschulen bzw. Kindergärten (${GEOPORTAL_BERN}) nicht geladen${s.hinweis ? ` (${s.hinweis})` : ''}`)
+    fehlt.push(`Volksschulen bzw. Kindergärten (${GEOPORTAL_BERN}) nicht im ganzen Umkreis von ${R} m geladen${s.hinweis ? ` (${s.hinweis})` : ''}`)
   if (w['haltestelle.art']?.wert !== 'keine') fehlt.push('Haltestellen im Umkreis von 50 m nicht geklärt')
   if (!fehlt.length) setze('beduerfnis', [], 'annahme', `kein besonderer Grund im Umkreis von ${R} m (${GEOPORTAL_BERN}, OSM)`)
   else feldHinweis('beduerfnis', `keine Schule, kein Kindergarten und kein Heim im Umkreis von ${R} m gefunden, aber ${fehlt.join('; ')}: offen`)
@@ -337,13 +356,13 @@ function grundVorbelegen(x: AutoEingangC): void {
  * Nachfrage gebündelt (Annahme) nur beim Basisnetz-Treffer (Korrektur S4); kein Treffer: offen mit Hinweis (Feinverteiler nicht
  * kartiert). Gehlinie: Abstand zur Basisnetz-Linie bis 15 m (Annahme), bis 30 m nur Hinweis (Korrektur S8).
  */
-function netzVorbelegen(x: AutoEingangC): void {
+function netzVorbelegen(x: AutoEingangC): boolean {
   const { st, geo, setze, feldHinweis } = x
   const rp = geo.richtplan
-  if (!rp) return
-  if ('fehler' in rp) { feldHinweis('netz', `Richtplan Fussverkehr (${GEOPORTAL_BERN}) nicht erreichbar (${rp.fehler})`); return }
+  if (!rp) return false
+  if ('fehler' in rp) { feldHinweis('netz', `Richtplan Fussverkehr (${GEOPORTAL_BERN}) nicht erreichbar (${rp.fehler})`); return false }
   const a = querungsAchse(st)
-  if (!abgedeckt([a.A, a.B], AUTO_C.wunschM, rp.bereich)) { feldHinweis('netz', `Richtplan Fussverkehr nur bis ${rp.bereich.radiusM} m um den Ladeort geladen`); return }
+  if (!abgedeckt([a.A, a.B], AUTO_C.wunschM, rp.bereich)) { feldHinweis('netz', `Richtplan Fussverkehr nur bis ${rp.bereich.radiusM} m um den Ladeort geladen`); return false }
   const quelle = `Richtplan Fussverkehr, ${GEOPORTAL_BERN}`
   const wo = (x: number) => (Math.round(x) === 0 ? 'beim Streifen' : `${ganz(x)} m vom Streifen`)
   const d = rp.basisnetz ? rp.basisnetz.map(l => querAbstand(l.teile, a, AUTO_C.wunschM)).filter((v): v is number => v !== null)
@@ -365,10 +384,29 @@ function netzVorbelegen(x: AutoEingangC): void {
     feldHinweis('netzQualifiziert', t)
   } else feldHinweis('netz', `Richtplan Fussverkehr teilweise nicht erreichbar${rp.hinweis ? ` (${rp.hinweis})` : ''}`)
   // Korrektur S8: Gehlinie nur bis 15 m (Basisnetz-Treffer); darüber nur Hinweis
-  if (d !== null && basis) setze('wunschlinieM', Math.round(d), 'annahme', `Basisnetz-Linie quert die Fahrbahn ${wo(d)} (${quelle}): ` +
-    'Gehlinie dort angenommen')
-  else if (d !== null) feldHinweis('wunschlinieM', `Basisnetz-Linie quert die Fahrbahn ${ganz(d)} m von der Streifenachse (${quelle}): ` +
-    'Gehlinie prüfen')
+  // Runde 5 (F6): die Basisnetz-Linie ist eine schematische Netzlinie; daraus nur ein Hinweis, kein Wert (kein Befund G3 aus einer Annahme)
+  if (d !== null) feldHinweis('wunschlinieM', `die schematische Basisnetz-Linie quert die Fahrbahn ${wo(d)} (${quelle}): Abstand zur Gehlinie ` +
+    'vor Ort schätzen')
+  return basis
+}
+
+/**
+ * Fusswegnetz als besonderer Grund (Runde 5, Stelle 10; Masterplan Fussverkehr Bern, C2-B): quert eine Basisnetz-Linie die Fahrbahn
+ * an der Querung (Geoportal; der publikumsattraktive Bereich allein genügt nicht), kommt «Fusswegnetz (Bern)» zum besonderen Grund hinzu
+ * (ohne andere Funde: einziger Grund als Annahme, bestätigbar; ein «keines» aus der Vorbelegung wird ersetzt). Es zählt nur mit der
+ * Ebene Bern (Kontext.bed). Eine Handeingabe geht vor.
+ */
+function fusswegnetzGrund(x: AutoEingangC): void {
+  const { w, setze, feldHinweisWeg } = x
+  const satz = `Basisnetz (Richtplan Fussverkehr, ${GEOPORTAL_BERN}): Bern: Zugehörigkeit zum Fusswegnetz gilt als Begründung`
+  const b = w.beduerfnis
+  const alt = Array.isArray(b?.wert) ? (b!.wert as string[]) : []
+  if (b && alt.length) {
+    if (!alt.includes('fusswegnetz')) setze('beduerfnis', [...alt, 'fusswegnetz'], b.quelle, `${b.text}; ${satz}`)
+    return
+  }
+  setze('beduerfnis', ['fusswegnetz'], 'annahme', satz)
+  feldHinweisWeg('beduerfnis')
 }
 
 /**
@@ -426,6 +464,8 @@ function zonenVorbelegen(x: AutoEingangC): void {
     setze('q3.bebaut', true, 'annahme', `Bauzone am Streifen (${name(bau)}, ${quelle}): bebautes Gebiet angenommen`)
     const io = w.innerorts
     if (io?.wert === true && io.quelle === 'annahme') setze('innerorts', true, 'annahme', `${io.text}; Bauzone laut Nutzungszonenplan stützt das`)
+    // Runde 5 (F1): ohne Wert aus Tempo bzw. OSM (z. B. nur Abbieger): innerorts aus der Bauzone als Annahme
+    else if (!io) setze('innerorts', true, 'annahme', `Bauzone am Streifen (${name(bau)}, Nutzungszonenplan): innerorts angenommen`)
   } else feldHinweis('q3.bebaut', `keine Bauzone am Streifen (${namen}; ${quelle}): von Hand wählen`)
 }
 

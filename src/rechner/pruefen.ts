@@ -23,7 +23,7 @@ import {
   type Fs, type Fso, type FsoLage, fahrstreifenmitte, fahrstreifenOsm, fahrstreifenLage, fahrstreifenUebernehmen, fsHinweis,
   abzugAusOsm, abzugAnnahme, fahrbahnOsm, type Abzug, type AbzugQuelle, osmBreite, lageOsm, wegeAbschnitte, wegBei, hochBei, MEHRSTREIFIG_AB, MEHRSTREIFIG_EINBAHN,
 } from './fahrstreifen'
-import { sichtweiteTab1, sichtweiteKurve, radiusRunden, tempoStart, tempoEntlang, SICHTWEITE } from './tempo'
+import { sichtweiteTab1, sichtweiteKurve, radiusRunden, tempoStart, tempoEntlang, amtlichEntlang, SICHTWEITE, type TempoAmtlich } from './tempo'
 import {
   type Streifen, zufahrtenStreifen, raender, wartebereiche, annaeherungsbereich, annAmRand, umrissRing, randAmUmriss,
 } from './streifen'
@@ -86,6 +86,8 @@ export interface Kontext {
   hindernisse?: HindernisDaten | null
   brueckenumriss?: { enthaelt(p: P): boolean } | null     // AV-Einzelobjekte Bruecke_Passerelle (+0,5 m)
   flaechenR2?: Flaechen | null                           // AV uebrige_befestigte und Gebaeude (R2)
+  /** amtliches Tempo je Punkt der Spur (tempo.TempoAmtlich; Quelle «Geoportal»), Vorrang vor OSM, Hand geht vor */
+  tempoAmtlich?: TempoAmtlich | null
 }
 
 /** sichtfeld: Vereinigung der Sichtkeile (konvexe Hülle der Ziele mit zwei benachbarten Sichtpunkten) */
@@ -329,6 +331,12 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     const [t, treffer] = tempoEntlang(netz, wegRoh, tempoStreifen, h)
     tempo = t
     if (treffer) tempoQ = 'OSM maxspeed'
+  }
+  // amtliches Tempo (Eingabe, z. B. V_sig des Geoportals Stadt Bern) vor OSM; eine Eingabe von Hand geht vor (unten)
+  const amtl = amtlichEntlang(kx.tempoAmtlich, wegRoh, tempo, h)
+  if (amtl) {
+    if (amtl[0] !== tempo && tempoQ !== 'Ersatz') annahmen.push(`Tempo ${amtl[0]} km/h laut ${amtl[1]} (OSM: ${tempo} km/h)`)
+    ;[tempo, tempoQ] = amtl
   }
   let sw = swTab(tempo)
   const tempoHand = kx.vonHand?.tempo?.(fid, 'gerade', gradD) ??
@@ -784,7 +792,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   // ---- abbiegende Zufahrten
   if (su !== null && netz) {
     const kontext: AbbiegeKontext = {
-      vonHand: kx.vonHand, hindernisse: kx.hindernisse ?? null, brueckenumriss: kx.brueckenumriss ?? null,
+      vonHand: kx.vonHand, tempoAmtlich: kx.tempoAmtlich ?? null, hindernisse: kx.hindernisse ?? null, brueckenumriss: kx.brueckenumriss ?? null,
       flaechenR2: kx.flaechenR2 ?? null, netz, fahrbahn, inseln, kreisel, s, zf, su, kbe, d, h, hAlt, hatGerade, geradeEntfaellt, geradeGestrichen, swAlt, swEigen, tempo,
       swQuelle, fs, lageAb, vomRandAb, versatz, arS, alS, rd, art, verschiebung, refDa: ref.length > 0, streifenPoly,
       sichtfeld: sf, konflikte: kf,

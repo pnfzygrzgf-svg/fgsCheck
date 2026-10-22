@@ -70,8 +70,8 @@ describe('Paket C: Tempo (V_sig) und Strecke/Zone (Strassenhierarchie)', () => {
   it('V_sig über der Achse hat Vorrang vor OSM; Abweichung mit Hinweis; leerer V_sig bzw. Ausfall: OSM bleibt', () => {
     const v = vor({ vsig: VS([30]) })
     expect(v.werte.vSig).toMatchObject({ wert: 30, quelle: 'geoportal' })
-    expect(v.werte.vSig.text).toContain('OSM bzw. Annahme 50 km/h')
-    expect(v.hinweise.join(' ')).toContain('Signalisiertes Tempo laut Geoportal Stadt Bern 30 km/h, nach OSM 50 km/h')
+    expect(v.werte.vSig.text).toContain('Sichtrechner 50 km/h (OSM bzw. Annahme)')
+    expect(v.hinweise.join(' ')).toContain('Signalisiertes Tempo über der Querung 30 km/h (Geoportal Stadt Bern), der Sichtrechner rechnet entlang der Zufahrten mit 50 km/h')
     expect(vor({ vsig: VS([50]) }).werte.vSig).toMatchObject({ wert: 50, quelle: 'geoportal' })
     expect(vor({ vsig: VS([50]) }).hinweise.join(' ')).not.toContain('nach OSM')
     const leer = vor({ vsig: VS([null]) })
@@ -116,13 +116,13 @@ describe('Paket C: Tempo (V_sig) und Strecke/Zone (Strassenhierarchie)', () => {
     expect(vor({ ...s50, vsig: VS([30]), strassenhierarchie: SH([hier(1000)]) }).werte.tempoRegime).toMatchObject({ wert: 't30_zone', quelle: 'annahme' })
     const ohneH = vor({ ...s50, vsig: VS([30]) })
     expect(ohneH.werte.tempoRegime).toBeUndefined()
-    expect(ohneH.feldHinweise!.tempoRegime).toBe('Tempo 30 km/h laut Geoportal Stadt Bern, Strecke (OSM maxspeed=50 ohne Zonenangabe): Strecke oder Zone von Hand wählen')
+    expect(ohneH.feldHinweise!.tempoRegime).toBe('Tempo 30 km/h laut Geoportal Stadt Bern, Strecke (OSM: Tempo 50 ohne Zonenangabe) ⟦maxspeed=50⟧: Strecke oder Zone von Hand wählen')
   })
   it('ohne Berner Daten unverändert (ausserhalb Berns: OSM-Tempo, Hinweis aus den OSM-Tags)', () => {
     const t30 = { osmTags: new Map([[1, { ...HAUPT, maxspeed: '30' }]]) }
     const v = vor(t30)
     expect(v.werte.tempoRegime).toBeUndefined()
-    expect(v.feldHinweise!.tempoRegime).toContain('Tempo 30 in OSM ohne Angabe zur Zone')
+    expect(v.feldHinweise!.tempoRegime).toContain('Tempo 30 in OSM ohne Zonenangabe')
   })
 })
 
@@ -228,24 +228,26 @@ describe('Paket C: Fusswegnetz (Richtplan Fussverkehr)', () => {
     expect(v.werte.netz).toMatchObject({ wert: 'basisnetz', quelle: 'geoportal' })
     expect(v.werte.netzQualifiziert).toMatchObject({ wert: true, quelle: 'geoportal' })
     expect(v.werte.nachfrage).toMatchObject({ wert: 'punktuell', quelle: 'annahme' })
-    expect(v.werte.wunschlinieM).toMatchObject({ wert: 15, quelle: 'annahme' })
+    // Runde 5 (F6): Gehlinie aus der schematischen Netzlinie nur als Hinweis
+    expect(v.werte.wunschlinieM).toBeUndefined()
+    expect(v.feldHinweise!.wunschlinieM).toContain('schematische Basisnetz-Linie quert die Fahrbahn 15 m vom Streifen')
     const w = vor({ richtplan: RP([quer(15.3)]) })
     expect(w.werte.netz).toBeUndefined()
     // Korrektur S8: Gehlinie über 15 m nur als Hinweis
     expect(w.werte.wunschlinieM).toBeUndefined()
-    expect(w.feldHinweise!.wunschlinieM).toContain('15 m von der Streifenachse')
+    expect(w.feldHinweise!.wunschlinieM).toContain('15 m vom Streifen')
     expect(w.feldHinweise!.netz).toBe('nicht im kartierten Basisnetz (Geoportal Stadt Bern); Feinverteiler nicht kartiert')
     expect(w.feldHinweise!.netzQualifiziert).toBe(w.feldHinweise!.netz)
     expect(vor({ richtplan: RP([quer(30.5)]) }).feldHinweise!.wunschlinieM).toBeUndefined()
-    expect(vor({ richtplan: RP([quer(0)]) }).werte.wunschlinieM.wert).toBe(0)
+    expect(vor({ richtplan: RP([quer(0)]) }).feldHinweise!.wunschlinieM).toContain('beim Streifen')
     expect(vor({ richtplan: RP([quer(0)]) }).werte.netz.text).toBe('Basisnetz-Linie quert die Fahrbahn beim Streifen (Richtplan Fussverkehr, Geoportal Stadt Bern)')
   })
   it('Linie längs der Strasse zählt nicht; Linie endet quer an der Fahrbahn: zählt; schräg über die Achse: 0 m', () => {
     expect(vor({ richtplan: RP([LAENGS]) }).werte.netz).toBeUndefined()
     const ende = vor({ richtplan: RP([quer(10, 40, 0)]) })
     expect(ende.werte.netz?.wert).toBe('basisnetz')
-    expect(ende.werte.wunschlinieM.wert).toBe(10)
-    expect(vor({ richtplan: RP([[[lv(-8, -30), lv(8, 30)]]]) }).werte.wunschlinieM.wert).toBe(0)
+    expect(ende.feldHinweise!.wunschlinieM).toContain('10 m vom Streifen')
+    expect(vor({ richtplan: RP([[[lv(-8, -30), lv(8, 30)]]]) }).feldHinweise!.wunschlinieM).toContain('beim Streifen')
     const a = querungsAchse(g.streifen)
     expect(querAbstand(LAENGS, a, AUTO_C.wunschM)).toBeNull()
   })
@@ -390,7 +392,7 @@ describe('Paket C: Vortrittsrolle an der Kreuzung (OSM-Vortrittszeichen)', () =>
     for (const z of [null, [], [zeichen(20, xs, 200)]]) {
       const { w, fh } = auto(tKnoten(), z)
       expect(w.lage).toBeUndefined()
-      expect(fh.lage).toMatch(/^Kreuzung: Knoten .* Vortrittsrolle wählen/)
+      expect(fh.lage).toMatch(/^Kreuzung \d+ m entfernt \(OSM\)\. Bitte wählen/)
     }
     const beide = auto(tKnoten([[15, xs + 6, 0]]), [zeichen(15, xs + 6, 0), zeichen(30, xs, 12)])
     expect(beide.w.lage).toBeUndefined()
@@ -438,7 +440,7 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
   it('S3: V_sig 50 (Geoportal) gegen OSM «Tempo 30 ohne Zonenangabe»: Strecke (Geoportal) mit Hinweis auf OSM', () => {
     const v = vor({ osmTags: new Map([[1, { ...HAUPT, maxspeed: '30' }]]), vsig: VS([50]) })
     expect(v.werte.tempoRegime).toMatchObject({ wert: 'strecke', quelle: 'geoportal' })
-    expect(v.werte.tempoRegime.text).toContain('OSM widerspricht: Tempo 30 in OSM ohne Angabe zur Zone')
+    expect(v.werte.tempoRegime.text).toContain('OSM widerspricht: Tempo 30 in OSM ohne Zonenangabe')
     expect(v.feldHinweise!.tempoRegime).toBeUndefined()
   })
   it('M2: hartes Verbot nur aus Annahmen bleibt offen («Annahme bestätigen»); Tatsache bzw. bestätigt: verletzt', () => {
@@ -471,8 +473,8 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
     expect(bgz('bestaetigt').ende).toBe('begegnungszone')
     // Runde 4 (Kann): solange A2 offen ist, keine Empfehlung eines Typs (statt Fussgängerstreifen); Strecke als Tatsache: wie bisher
     expect(bgz('annahme').empfehlung).toMatchObject({ typ: 'keiner', elemente: [], grundlage: [], vorlaeufig: true })
-    expect(typText(bgz('annahme'), false)).toBe('Empfehlung folgt, sobald die Begegnungszone geklärt ist')
-    expect(typText(bgz('annahme'))).toBe('Empfehlung folgt, sobald die Begegnungszone geklärt ist')
+    expect(typText(bgz('annahme'), false)).toBe('Empfehlung folgt, sobald geklärt ist, ob die Querung in einer Begegnungszone liegt')
+    expect(typText(bgz('annahme'))).toBe('Empfehlung folgt, sobald geklärt ist, ob die Querung in einer Begegnungszone liegt')
     expect(bgz('osm').empfehlung.typ).toBe('flaechig')
     expect(beurteile(testfall({ tempoRegime: 'strecke' }), BERN).empfehlung.typ).not.toBe('keiner')
     // andere Regeln behalten Annahmen wie bisher (C2b Hinweis bei Zone als Annahme und Grund)
@@ -577,7 +579,7 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
     }
     const service = lage(o([weg(5, [[16, xs + 7, 0], [40, xs + 7, -3], [41, xs + 7, -20]], { highway: 'service' })]), [zeichen(40, xs + 7, -3)])
     expect(service.w.lage).toBeUndefined()
-    expect(service.fh.lage).toContain('Vortrittsrolle wählen')
+    expect(service.fh.lage).toContain('Bitte wählen')
     const rad = lage(o([weg(6, [[30, xs, 12], [42, xs - 3, 8], [43, xs - 30, 8]], { highway: 'cycleway' })]), [zeichen(42, xs - 3, 8)])
     expect(rad.w.lage).toBeUndefined()
   })

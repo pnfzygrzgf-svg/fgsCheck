@@ -22,6 +22,7 @@ import type { PlanArt, FlaechePlan } from '../fall'
 import { furtQuert, E1_KURZ } from './standardinsel'
 import { f1 } from '../texte'
 import type { Rechnung, StreifenErgebnis } from './typen'
+import type { TempoAmtlich } from './tempo'
 import { vonHandAusFall, streifenHerkunftText, type Fall } from '../fall'
 import { streifenTitel } from '../benennung'
 
@@ -165,7 +166,9 @@ export interface FallRechnung extends Rechnung {
  */
 export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], nid: number | null, fall: Fall,
   kataster: { baeume: KatasterBaum[]; quellenangabe: string } | null, bild: Bild | null = null,
-  park: { felder: KatasterFeld[]; quellenangabe: string } | null = null): FallRechnung {
+  park: { felder: KatasterFeld[]; quellenangabe: string } | null = null,
+  /** amtliches Tempo (z. B. V_sig des Geoportals Stadt Bern, daten/vsig.ts): Vorrang vor OSM, Hand geht vor */
+  tempoAmtlich: TempoAmtlich | null = null): FallRechnung {
   const t0 = performance.now()
   // Flächen (Plan) von Hand (planflaechen.ts): ersetzen die AV-Bodenbedeckung darunter, für die ganze Rechnung (ohne sie: av)
   const plan = avMitPlan(av0, fall.flaechenPlan)
@@ -262,6 +265,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const hindernisse: Hindernis[] = [...fall.hindernisse, ...kat.map(v => v.hindernis), ...katPark.map(v => v.hindernis)]
   const kx = kontextBauen(osm, av, sosf, hindernisse)
   kx.vonHand = vonHandAusFall(fall)
+  kx.tempoAmtlich = tempoAmtlich
   const erg = streifen.length ? pruefen(streifen, kx) : []
   const u = nid !== null ? osm.uebergaenge.find(x => x.id === nid) : undefined
   const mk = u ? markierung(u.tags) : null

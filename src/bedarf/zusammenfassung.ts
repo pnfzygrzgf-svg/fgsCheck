@@ -12,7 +12,7 @@
 //            Prüfungen ohne Befund (Prüfübersicht), nie «erfüllt» ohne Grundlage.
 //   Satz 3 – was fehlt: offene Angaben als Fragen (feldhilfen.FRAGEN), zuerst was die Zulässigkeit bzw. Empfehlung offen lässt
 //            (vorbehaltFelder), dann Muss-Regeln der Grundprüfung und des Baums, dann der Rest; höchstens zwei ausgeschrieben.
-// Länge: höchstens vier Sätze und 60 Wörter; zu lang → weniger Nennungen (STUFEN).
+// Länge: vier Sätze, Ziel 70, höchstens 85 Wörter (Runde 5); zu lang → kürzen nach STUFEN (Satz 4 bleibt immer, kurz).
 
 import { KATALOG } from './katalog'
 import type { Grundpruefung, GrundTeil } from './grundpruefung'
@@ -22,6 +22,10 @@ import type { Querungstyp } from './eingaben'
 import { fragenFelder, grundKopf, vorbehaltFelder, type ZeilenZustand } from './kompakt'
 import { istWeiche, mitEinheit, pruefUebersicht, themaVon, type UebersichtKontext } from './themen'
 import { frageVon } from './feldhilfen'
+import { QUELLEN_ANNAHME } from './eingaben'
+import { FELD_DEF, wertText } from './felder'
+import { lesetext } from './lesetext'
+import { ANNAHME_V85 } from './grundpruefung'
 
 const DEF = KATALOG as Readonly<Record<string, RegelDef>>
 
@@ -36,6 +40,13 @@ export interface ZfEingabe {
   /** Ebenen und Querungstyp der beurteilten Anlage (Prüfübersicht, Satz 1) */
   kontext?: UebersichtKontext
   ort?: ZfOrt
+  /** Runde 5: beurteilte Anlage geplant (true) bzw. Bestand (false) – Satz 1 bei Furt usw. */
+  geplant?: boolean | null
+  /** Runde 5 (Muster 2): Annahmen, an denen Befunde hängen (kurz, mit Wert) und gefundene Gründe für Vortritt (Satz 4) */
+  annahmen?: readonly string[]
+  gefunden?: readonly string[]
+  /** Runde 5 (Stelle 10): Frage je Feld statt der Standardfrage (z. B. «Bitte bestätigen: Tempo-30-Zone (angenommen)?») */
+  fragen?: Readonly<Record<string, string>>
 }
 
 export interface Zusammenfassung {
@@ -43,8 +54,10 @@ export interface Zusammenfassung {
   antwort: string
   /** Satz 2: Grundprüfung und wichtigste Befunde (ein bis zwei Sätze; leer, wenn nichts zu sagen ist) */
   wichtig: string
-  /** Satz 3: fehlende Angaben; null, wenn keine fehlt */
-  fehlt: { einleitung: string; felder: string[]; weitere: number } | null
+  /** Satz 3: fehlende Angaben; null, wenn keine fehlt. Runde 5 (Muster 9): zuerst die entscheidenden Angaben, nachsatz zählt den Rest */
+  fehlt: { einleitung: string; felder: string[]; weitere: number; nachsatz?: string; gesamt: number } | null
+  /** Satz 4 (Runde 5): Annahmen und gefundene Gründe; leer ohne */
+  hinweis: string
   /** Regeln, die Satz 1 als Grund nennt */
   grundIds: string[]
   /** in Satz 2 genannte Befunde (Regelnummern) und Zahl der übrigen */
@@ -185,7 +198,34 @@ function aufzaehlen(xs: readonly string[]): string {
 const MUSS: readonly Staerke[] = ['hart', 'hart_bericht']
 
 /** beurteilte Anlage, die kein Fussgängerstreifen ist (Satz 1 nennt sie) */
-const ANLAGE: Partial<Record<Querungstyp, string>> = { furt: 'die Fussgängerfurt', ohne_vortritt: 'die Querung ohne Vortritt', mehrzweck: 'der Mehrzweckstreifen' }
+const ANLAGE: Partial<Record<Querungstyp, [string, string]>> = { furt: ['die', 'Fussgängerfurt'], ohne_vortritt: ['die', 'Querung ohne Vortritt'],
+  mehrzweck: ['der', 'Mehrzweckstreifen'] }
+/** Regeln, die gegen einen Streifen sprechen (Muster 8): keine Massnahme zum Verbessern */
+const GEGEN = ['C3', 'C4']
+
+/**
+ * Satz 1 für eine gewählte Anlage ohne Vortritt (Runde 5, Fall 6): «Beurteilt wird die geplante Fussgängerfurt …», dann ihr Befund
+ * (Muss-Befunde der Typ-Regeln E, Furt ohne Insel) und die Alternative Fussgängerstreifen nach der Zulässigkeit
+ */
+function antwortAnlage(b: Befund, grundIds: string[], typ: Querungstyp, geplant: boolean | null | undefined): string {
+  const [art, name] = ANLAGE[typ]!
+  const adj = geplant === true ? (art === 'der' ? 'geplante ' : 'geplante ') : geplant === false ? 'bestehende ' : ''
+  const teile: string[] = [`Beurteilt wird ${art} ${adj}${name}`]
+  // Muss-Befunde zur Eignung der Anlage (Furt im Quartier); die Sicht nennt Satz 2
+  const hart = b.alle.filter(x => x.zustand === 'verletzt' && ['E2a'].includes(x.id) && MUSS.includes(x.staerke))
+  if (hart.length) { grundIds.push(hart[0].id); teile[0] += `; ${art === 'der' ? 'er' : 'sie'} passt hier nicht: ${kurzform(hart[0])}` }
+  if (b.alle.some(x => x.id === 'E1c' && x.zustand === 'verletzt')) {
+    grundIds.push('E1c')
+    teile[0] += '; ohne gebaute Schutzinsel ist sie keine Furt im Sinn der Norm'
+  }
+  const alt = b.zulaessigkeit === 'offen' ? 'ob stattdessen ein Fussgängerstreifen zulässig wäre, ist noch offen (erste Frage unten)'
+    : b.zulaessigkeit === 'nicht_angezeigt' ? `ein Fussgängerstreifen wäre hier nicht zulässig${(() => {
+      const g = b.alle.filter(x => x.zustand === 'verletzt' && ['C1', 'C2'].includes(x.id)); return g.length ? ` (${kurzform(g[0])})` : '' })()}` +
+      (typPhrase(b.empfehlung) && b.empfehlung.typ !== typ ? `, empfohlen wird ${typPhrase(b.empfehlung)}` : '')
+      : b.zulaessigkeit === 'mit_begruendung' ? 'ein Fussgängerstreifen wäre hier nur mit Begründung zulässig'
+        : b.zulaessigkeit === 'zulaessig' ? 'ein Fussgängerstreifen wäre hier ebenfalls zulässig' : ''
+  return `${teile[0]}${alt ? `; ${alt}` : ''}.`
+}
 /** Muss-Befunde zur Lage: «grundsätzlich zulässig, aber …» */
 const LAGE_ABER: Readonly<Record<string, string>> = {
   D4a: 'nicht im Haltestellenbereich', D4b: 'nur mit Insel oder mehr Abstand zur Haltestelle', G2: 'nicht so nah am Lichtsignal',
@@ -193,15 +233,15 @@ const LAGE_ABER: Readonly<Record<string, string>> = {
 }
 /** was die Empfehlung vorläufig macht (offenWegen) */
 function vorlaeufigWegen(e: Empfehlung): string {
-  if (e.offenWegen.includes('inselMoeglich')) return 'vorläufig: ob die Schutzinsel Platz hat, ist noch offen'
+  if (e.offenWegen.includes('inselMoeglich')) return 'vorläufig: ob die Schutzinsel Platz hat, ist offen'
   // Schutzinsel schon empfohlen: offen ist nicht, ob sie nötig ist
   if (e.offenWegen.some(x => ['D1', 'D2', 'D3a'].includes(x)) && !e.elemente.includes('Schutzinsel'))
-    return 'vorläufig: ob eine Schutzinsel nötig ist, hängt noch von fehlenden Angaben ab'
-  if (e.offenWegen.some(x => ['D4a', 'D4b'].includes(x))) return 'vorläufig: ob die Lage bei der Haltestelle passt, ist noch offen'
+    return 'vorläufig: ob eine Schutzinsel nötig ist, ist offen'
+  if (e.offenWegen.some(x => ['D4a', 'D4b'].includes(x))) return 'vorläufig: ob die Lage bei der Haltestelle passt, ist offen'
   return 'die Empfehlung ist vorläufig'
 }
 
-function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefined): string {
+function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefined, geplant?: boolean | null): string {
   const e = b.empfehlung, vorl = e.vorlaeufig
   if (b.ende === 'offen') return 'Noch nicht beurteilt: Es fehlt die Angabe, ob die Querung innerorts liegt.'
   if (b.ende === 'ausserorts') return 'Die Querung liegt ausserorts; fgsCheck beurteilt nur Querungen innerorts.'
@@ -233,27 +273,34 @@ function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefi
     if (e.typ === 'Q3') return `${vorl ? 'Vorläufig: ' : ''}Eine Trottoirüberfahrt ist hier zulässig.`
     return 'Vorläufig: Ob eine Trottoirüberfahrt hier zulässig ist, hängt von fehlenden Angaben ab.'
   }
-  const anlage = typ ? ANLAGE[typ] : undefined
-  const ist = anlage ? 'wäre' : 'ist'
-  const beurteilt = anlage ? `; beurteilt wird ${anlage}` : ''
+  if (typ && ANLAGE[typ]) return antwortAnlage(b, grundIds, typ, geplant)
+  const ist = 'ist', beurteilt = ''
   switch (b.zulaessigkeit) {
     case 'nicht_angezeigt': {
       const g = verletzt(['C1', 'C2']).map(x => kurzform(x))
       const st = e.typ === 'furt' ? ', weil es eine Durchgangsstrasse ist' : e.grundlage.includes('E2') ? ', weil es eine Quartierstrasse ist' : ''
-      return `Ein Fussgängerstreifen ist hier nicht zulässig${g.length ? `: ${aufzaehlen(g)}` : ''}; ${vorl ? 'vorläufig ' : ''}empfohlen wird ${typPhrase(e)}${st}${beurteilt}.`
+      return `Ein Fussgängerstreifen ist hier nicht zulässig${g.length ? `: ${aufzaehlen(g)}` : ''}; ${vorl ? 'vorläufig ' : ''}empfohlen wird ${typPhrase(e)}${st}.`
     }
-    case 'offen':
-      return `Vorläufig: Ob ein Fussgängerstreifen hier zulässig ${anlage ? 'wäre' : 'ist'}, hängt von fehlenden Angaben ab${beurteilt}.`
+    case 'offen': {
+      // Runde 5 (Muster 1): Satz 1 nennt den möglichen Typ und die entscheidende Frage
+      if (b.alle.some(x => x.id === 'A2' && x.zustand === 'offen'))
+        return 'Offen ist, ob die Querung in einer Begegnungszone liegt (erste Frage unten): dort braucht es keinen Fussgängerstreifen, ' +
+          'Fussgänger haben überall Vortritt; sonst kommt ein Fussgängerstreifen in Frage.'
+      const p = typPhrase(e)
+      return `Noch offen ist, ob hier ein Fussgängerstreifen zulässig ist (das entscheidet die erste Frage unten)${p ? `; falls ja, passt ${p}` : ''}.`
+    }
     default: {
       // Muss-Befund zur Lage: grundsätzlich zulässig, aber nicht an dieser Stelle
-      const lage = anlage ? [] : b.alle.filter(x => x.zustand === 'verletzt' && MUSS.includes(x.staerke) && themaVon(x.id) === 'lage' && LAGE_ABER[x.id])
+      const lage = b.alle.filter(x => x.zustand === 'verletzt' && MUSS.includes(x.staerke) && themaVon(x.id) === 'lage' && LAGE_ABER[x.id])
       if (lage.length) grundIds.push(lage[0].id)
       const zul = lage.length ? `grundsätzlich zulässig, aber ${LAGE_ABER[lage[0].id]}` : 'zulässig'
       const m = mitElementen(e)
       const mit = m ? `${lage.length ? ';' : ','} empfohlen ${m}` : ''
       const vorlText = vorl ? `; ${vorlaeufigWegen(e)}` : ''
       if (b.zulaessigkeit === 'mit_begruendung') {
-        const g = verletzt(['C2b', 'C3', 'C3b', 'C4']).map(x => kurzform(x))
+        // Zone noch offen, Grund bekannt (C2b ohne Zone): «falls Tempo-30-Zone: …» statt einer Zone, die nicht feststeht
+        const g = verletzt(['C2b', 'C3', 'C3b', 'C4']).map(x => (x.id === 'C2b' && x.detail?.startsWith('Zone noch offen')
+          ? 'falls Tempo-30-Zone, Grund für Vortritt ausweisen' : kurzform(x)))
         const sonst = e.zusatz.some(z => z.startsWith('Querung ohne Vortritt prüfen')) ? '; sonst eine Querung ohne Vortritt' : ''
         return `Ein Fussgängerstreifen ${ist} hier nur mit Begründung zulässig${g.length ? `: ${aufzaehlen(g)}` : ''}` +
           `${lage.length ? `; aber ${LAGE_ABER[lage[0].id]}` : ''}${m ? `; empfohlen ${m}` : ''}${sonst}${vorlText}${beurteilt}.`
@@ -295,7 +342,7 @@ function grundSatz(g: Grundpruefung, b: Befund, kurz: boolean, genannt: readonly
   return `Grundprüfung bfu: ${n} von ${punkte.length} Punkten erfüllt${teile.length ? `, ${teile.join(', ')}` : ''}.`
 }
 
-interface Nennung { id: string; text: string; muss: boolean }
+interface Nennung { id: string; text: string; muss: boolean; gegen?: boolean }
 
 /** Befunde für Satz 2: Muss vor Soll, je zuerst der Baum, dann die Grundprüfung (ohne gleichwertige verletzte Regel im Baum) */
 function befundListe(b: Befund, g: Grundpruefung, grundIds: readonly string[]): Nennung[] {
@@ -307,7 +354,8 @@ function befundListe(b: Befund, g: Grundpruefung, grundIds: readonly string[]): 
   const imBaum = new Set(b.alle.filter(x => x.zustand === 'verletzt' && (x.staerke !== 'hinweis' || grundIds.includes(x.id))).map(x => x.id))
   const teile: GrundTeil[] = g.gilt && b.ende === null ? [...g.punkte.flatMap(p => p.teile), ...g.weitere] : []
   const bfu = teile.filter(t => t.zustand === 'verletzt' && t.staerke !== 'hinweis' && !(GLEICH[t.id] ?? []).some(id => imBaum.has(id)))
-  const n = (x: Eintrag): Nennung => ({ id: x.id, text: mitEbene(kurzform(x, MUSS.includes(x.staerke)), x.ebene), muss: MUSS.includes(x.staerke) })
+  const n = (x: Eintrag): Nennung => ({ id: x.id, text: mitEbene(kurzform(x, MUSS.includes(x.staerke)), x.ebene), muss: MUSS.includes(x.staerke),
+    ...(GEGEN.includes(x.id) ? { gegen: true } : {}) })
   const nt = (t: GrundTeil): Nennung => ({ id: t.id, text: kurzform(t, MUSS.includes(t.staerke ?? 'hinweis')), muss: MUSS.includes(t.staerke ?? 'hinweis') })
   return [...baum.map(n).filter(x => x.muss), ...bfu.map(nt).filter(x => x.muss), ...baum.map(n).filter(x => !x.muss), ...bfu.map(nt).filter(x => !x.muss)]
 }
@@ -316,16 +364,21 @@ function befundListe(b: Befund, g: Grundpruefung, grundIds: readonly string[]): 
 function befundSatz(liste: readonly Nennung[], max: number, x: ZfEingabe, grundIds: readonly string[], mitGrund: boolean): { text: string; genannt: string[] } {
   const b = x.befund
   if (liste.length) {
-    const m = liste.filter(n => n.muss), s = liste.filter(n => !n.muss)
-    const km = Math.min(max, m.length), ks = Math.min(max - km, s.length)
+    const m = liste.filter(n => n.muss), s = liste.filter(n => !n.muss && !n.gegen), g = liste.filter(n => n.gegen)
+    const km = Math.min(max, m.length), ks = Math.min(max - km, s.length), kg = Math.min(Math.max(1, max - km - ks), g.length)
+    const wo = x.ort === 'bericht' ? 'siehe Befundblatt' : 'siehe unten'
+    // Runde 5 (Stelle 11): der Rest als Zahl mit Verweis, nie «ein weiterer Befund» ohne Inhalt
     const teil = (xs: readonly Nennung[], k: number): string => {
       const namen = xs.slice(0, k).map(n => n.text), rest = xs.length - k
-      if (rest) namen.push(k ? (rest === 1 ? 'ein weiterer Befund' : `${rest} weitere Befunde`) : (rest === 1 ? '1 Befund' : `${rest} Befunde`))
-      return aufzaehlen(namen)
+      const t = aufzaehlen(namen)
+      if (!rest) return t
+      return k ? `${t} (${rest} ${rest === 1 ? 'weiterer' : 'weitere'}, ${wo})` : `${rest} ${rest === 1 ? 'Befund' : 'Befunde'} (${wo})`
     }
+    // Muster 8: was gegen einen Streifen spricht, heisst so (keine Massnahme «zu verbessern»)
     const saetze = [m.length ? `Zu beheben: ${teil(m, km)}` : '', s.length ? `${m.length ? 'zu' : 'Zu'} verbessern: ${teil(s, ks)}` : ''].filter(Boolean)
-    const verweis = km + ks < liste.length && km + ks === 0 ? ` (${x.ort === 'bericht' ? 'siehe Befundblatt' : 'siehe unten'})` : ''
-    return { text: `${saetze.join('; ')}${verweis}.`, genannt: [...m.slice(0, km), ...s.slice(0, ks)].map(n => n.id) }
+    const gegen = g.length ? `Spricht eher gegen einen Streifen: ${teil(g, kg)}.` : ''
+    return { text: [saetze.length ? `${saetze.join('; ')}.` : '', gegen].filter(Boolean).join(' '),
+      genannt: [...m.slice(0, km), ...s.slice(0, ks), ...g.slice(0, kg)].map(n => n.id) }
   }
   const u = pruefUebersicht(b, x.kontext ?? {})
   const h = u.hinweise ? `${u.hinweise} ${u.hinweise === 1 ? 'Hinweis' : 'Hinweise'}` : ''
@@ -343,13 +396,21 @@ function befundSatz(liste: readonly Nennung[], max: number, x: ZfEingabe, grundI
 const sichtOhneFeld = (t: GrundTeil): string[] =>
   (t.zustand === 'offen' && !t.fehlend?.length && (t.id === 'B5-1' || t.id === 'B5-1b') && t.detail?.includes('Kurvenradius') ? ['kurve.radius'] : [])
 
+/** Felder, die über die Antwort (Satz 1) entscheiden: Ortslage, Zulässigkeit, Vorbehalt der Empfehlung (Runde 5, Muster 9) */
+function entscheidendeFelder(x: ZfEingabe): string[] {
+  const b = x.befund
+  const aus: string[] = []
+  if (b.ende === 'offen') aus.push(...(b.offenFelder.A1 ?? ['innerorts']))
+  if (b.empfehlung.vorlaeufig || b.zulaessigkeit === 'offen') aus.push(...vorbehaltFelder(b))
+  return fragenFelder(aus).filter(f => f !== 'Zufahrten')
+}
+
 /** fehlende Felder in der Reihenfolge der Dringlichkeit */
 function fehlendeFelder(x: ZfEingabe): string[] {
   const { befund: b, grund: g } = x
   const aus: string[] = []
   // 1. Zulässigkeit bzw. Empfehlung offen
-  if (b.ende === 'offen') aus.push(...(b.offenFelder.A1 ?? ['innerorts']))
-  if (b.empfehlung.vorlaeufig || b.zulaessigkeit === 'offen') aus.push(...vorbehaltFelder(b))
+  aus.push(...entscheidendeFelder(x))
   // 2. Muss-Regeln offen: Grundprüfung, dann Baum
   if (g.gilt) for (const t of [...g.punkte.flatMap(p => p.teile), ...g.weitere])
     if (t.zustand === 'offen' && DEF[t.id]?.staerke === 'hart') aus.push(...(t.fehlend ?? []), ...sichtOhneFeld(t))
@@ -364,52 +425,139 @@ function fehlendeFelder(x: ZfEingabe): string[] {
   return fragenFelder(aus).filter(f => f !== 'Zufahrten')
 }
 
-function fehltSatz(felder: readonly string[], max: number, ort: ZfOrt): Zusammenfassung['fehlt'] {
+function fehltSatz(felder: readonly string[], entscheidend: readonly string[], max: number, ort: ZfOrt): Zusammenfassung['fehlt'] {
   const n = felder.length
   if (!n) return null
-  if (!max) return { einleitung: `${n === 1 ? 'Eine Angabe fehlt' : `${n} Angaben fehlen`} noch (${ort === 'bericht' ? 'siehe Offene Angaben' : 'siehe unten'}).`, felder: [], weitere: 0 }
+  const wo = ort === 'bericht' ? 'siehe Offene Angaben' : 'siehe unten'
+  const ent = felder.filter(f => entscheidend.includes(f)), rest = n - ent.length
+  // Runde 5 (Muster 9): entscheidende Angaben getrennt von denen, die die Prüfung nur vervollständigen
+  if (ent.length) {
+    const k = Math.min(Math.max(max, 1), ent.length)
+    const nachsatz = rest ? `Für die vollständige Prüfung ${rest === 1 ? 'fehlt noch 1 weitere Angabe' : `fehlen noch ${rest} weitere Angaben`} (${wo}).` : undefined
+    if (!max) return { einleitung: `Für die Antwort ${ent.length === 1 ? 'entscheidet 1 Angabe' : `entscheiden ${ent.length} Angaben`} (${wo}).`, felder: [], weitere: 0,
+      ...(nachsatz ? { nachsatz } : {}), gesamt: n }
+    return { einleitung: 'Für die Antwort entscheidend:', felder: ent.slice(0, k), weitere: ent.length - k, ...(nachsatz ? { nachsatz } : {}), gesamt: n }
+  }
+  if (!max) return { einleitung: `Für die vollständige Prüfung ${n === 1 ? 'fehlt noch 1 Angabe' : `fehlen noch ${n} Angaben`} (${wo}).`, felder: [], weitere: 0, gesamt: n }
   const k = Math.min(max, n)
-  const einleitung = n === 1 ? 'Eine Angabe fehlt noch:' : n === 2 ? 'Zwei Angaben fehlen noch:' : `${n} Angaben fehlen noch, zuerst:`
-  return { einleitung, felder: felder.slice(0, k), weitere: n - k }
+  const einleitung = n === 1 ? 'Für die vollständige Prüfung fehlt noch eine Angabe:' : `Für die vollständige Prüfung fehlen noch ${n} Angaben, zuerst:`
+  return { einleitung, felder: felder.slice(0, k), weitere: n - k, gesamt: n }
 }
 
 // ── Gesamt ──
 
 /** Zusammenfassung als Text (Bericht, Tests): Fragen ausgeschrieben, «(und N weitere)» */
-export function zusammenfassungText(z: Pick<Zusammenfassung, 'antwort' | 'wichtig' | 'fehlt'>): string {
+export function zusammenfassungText(z: Pick<Zusammenfassung, 'antwort' | 'wichtig' | 'fehlt'> & { hinweis?: string },
+  fragen: Readonly<Record<string, string>> = {}): string {
   const f = z.fehlt
-  const s3 = f ? [f.einleitung, ...f.felder.map(frageVon)].join(' ') + (f.weitere ? ` (und ${f.weitere} weitere)` : '') : ''
-  return [z.antwort, z.wichtig, s3].filter(Boolean).join(' ')
+  const s3 = f ? [f.einleitung, ...f.felder.map(x => fragen[x] ?? frageVon(x))].join(' ') + (f.weitere ? ` (und ${f.weitere} weitere).` : '') +
+    (f.nachsatz ? ` ${f.nachsatz}` : '') : ''
+  return [z.antwort, z.wichtig, s3, z.hinweis ?? ''].filter(Boolean).join(' ')
+}
+
+/** Satz 4 (Runde 5, Muster 2): «Angenommen, bitte prüfen: Tempo-30-Zone, innerorts. Gefunden: Kindergarten «Florastrasse», 63 m.» */
+function hinweisSatz(x: ZfEingabe, kurz: boolean): string {
+  const a = (x.annahmen ?? []).slice(0, kurz ? 2 : 3), g = (x.gefunden ?? []).slice(0, kurz ? 1 : 2)
+  return [a.length ? `Angenommen, bitte prüfen: ${aufzaehlen(a)}.` : '', g.length ? `Als Grund für Vortritt gefunden: ${aufzaehlen(g)}.` : '']
+    .filter(Boolean).join(' ')
 }
 
 /** Wörter eines Texts (Zeichenfolgen mit Buchstabe oder Ziffer) */
 export const woerter = (t: string): number => t.split(/\s+/).filter(w => /[\p{L}\d]/u.test(w)).length
-export const MAX_WOERTER = 60
+/** harte Grenze; Ziel im Normalfall ZIEL_WOERTER (Korrektur nach Prüfung Runde 5) */
+export const MAX_WOERTER = 85
+export const ZIEL_WOERTER = 70
 
-/** Stufen der Kürzung: Befunde genannt, Fragen ausgeschrieben, Grundprüfung mit Namen */
-const STUFEN: readonly { befunde: number; fragen: number; grundKurz: boolean }[] = [
-  { befunde: 2, fragen: 2, grundKurz: false }, { befunde: 2, fragen: 1, grundKurz: false }, { befunde: 1, fragen: 1, grundKurz: false },
-  { befunde: 1, fragen: 1, grundKurz: true }, { befunde: 0, fragen: 1, grundKurz: true }, { befunde: 0, fragen: 0, grundKurz: true },
+/**
+ * Stufen der Kürzung (Korrektur nach Prüfung Runde 5): zuerst «Sonst keine Befunde.», dann der Nachsatz zu den übrigen Angaben, dann der
+ * Verweis «(das entscheidet die erste Frage unten)» (doppelt zu «Für die Antwort entscheidend»), dann weniger Befunde und Fragen und die
+ * kurze Grundprüfung. Satz 4 (Annahmen, gefundene Gründe) fällt nie ganz weg, nur auf die kurze Form. Gewählt wird die erste Stufe bis
+ * ZIEL_WOERTER, die noch einen Befund nennt, sonst die erste bis MAX_WOERTER, sonst die letzte.
+ */
+interface Stufe { befunde: number; fragen: number; grundKurz: boolean; hinweisKurz: boolean; ohneSonst: boolean; ohneNachsatz: boolean
+  ohneVerweis: boolean }
+const S0: Stufe = { befunde: 2, fragen: 2, grundKurz: false, hinweisKurz: false, ohneSonst: false, ohneNachsatz: false, ohneVerweis: false }
+const STUFEN: readonly Stufe[] = [
+  S0, { ...S0, ohneSonst: true }, { ...S0, ohneSonst: true, ohneNachsatz: true },
+  { ...S0, ohneSonst: true, ohneNachsatz: true, ohneVerweis: true },
+  { ...S0, ohneSonst: true, ohneNachsatz: true, ohneVerweis: true, fragen: 1 },
+  { ...S0, ohneSonst: true, ohneNachsatz: true, ohneVerweis: true, fragen: 1, befunde: 1, hinweisKurz: true },
+  { ...S0, ohneSonst: true, ohneNachsatz: true, ohneVerweis: true, fragen: 1, befunde: 1, hinweisKurz: true, grundKurz: true },
+  { ...S0, ohneSonst: true, ohneNachsatz: true, ohneVerweis: true, fragen: 1, befunde: 0, hinweisKurz: true, grundKurz: true },
+  { ...S0, ohneSonst: true, ohneNachsatz: true, ohneVerweis: true, fragen: 0, befunde: 0, hinweisKurz: true, grundKurz: true },
 ]
+/** Verweise in Satz 1 auf die Frage unten */
+const VERWEIS = / \((das entscheidet die )?erste Frage unten\)/
 
 /** Zusammenfassung einer Querung */
 export function zusammenfassung(x: ZfEingabe): Zusammenfassung {
   const grundIds: string[] = []
-  const s1 = antwort(x.befund, grundIds, x.kontext?.typ)
+  const s1 = antwort(x.befund, grundIds, x.kontext?.typ, x.geplant)
   const liste = befundListe(x.befund, x.grund, grundIds)
-  const felder = fehlendeFelder(x)
-  let z: Zusammenfassung | null = null
+  const felder = fehlendeFelder(x), entscheidend = entscheidendeFelder(x)
+  const varianten: Zusammenfassung[] = []
   for (const st of STUFEN) {
     const vorab = grundSatz(x.grund, x.befund, st.grundKurz, [])
     const bs = befundSatz(liste, st.befunde, x, grundIds, vorab.startsWith('Grundprüfung bfu:'))
-    const wichtig = [grundSatz(x.grund, x.befund, st.grundKurz, bs.genannt), bs.text].filter(Boolean).join(' ')
-    z = { antwort: s1, wichtig, fehlt: fehltSatz(felder, st.fragen, x.ort ?? 'panel'), grundIds, genannt: bs.genannt,
-      weitereBefunde: liste.length - bs.genannt.length, befunde: liste.map(n => n.id) }
-    if (woerter(zusammenfassungText(z)) <= MAX_WOERTER) break
+    const bsText = st.ohneSonst && bs.text === 'Sonst keine Befunde.' ? '' : bs.text
+    const wichtig = [grundSatz(x.grund, x.befund, st.grundKurz, bs.genannt), bsText].filter(Boolean).join(' ')
+    const f0 = fehltSatz(felder, entscheidend, st.fragen, x.ort ?? 'panel')
+    const fehlt = f0 && st.ohneNachsatz && f0.nachsatz && f0.felder.length ? (({ nachsatz: _n, ...r }) => { void _n; return r })(f0) : f0
+    // der Verweis in Satz 1 fällt nur weg, wenn Satz 3 die entscheidende Frage selbst nennt
+    const antwortS = st.ohneVerweis && fehlt?.einleitung === 'Für die Antwort entscheidend:' && fehlt.felder.length ? s1.replace(VERWEIS, '') : s1
+    varianten.push({ antwort: antwortS, wichtig, fehlt, hinweis: hinweisSatz(x, st.hinweisKurz),
+      grundIds, genannt: bs.genannt, weitereBefunde: liste.length - bs.genannt.length, befunde: liste.map(n => n.id) })
   }
-  return z!
+  const n = (z: Zusammenfassung) => woerter(zusammenfassungText(z, x.fragen))
+  // ein Befund bleibt genannt, solange die harte Grenze es erlaubt: das Ziel gilt nur für Stufen mit mindestens einem Befund
+  const mitBefund = varianten.filter((_z, i) => STUFEN[i].befunde > 0 || !liste.length)
+  return mitBefund.find(z => n(z) <= ZIEL_WOERTER) ?? varianten.find(z => n(z) <= MAX_WOERTER) ?? varianten[varianten.length - 1]
 }
 
 /** Zusammenfassung zu einem Befundblatt (Panel, Bericht) */
 export const zusammenfassungBlatt = (b: BefundBlatt, ort: ZfOrt = 'panel'): Zusammenfassung =>
-  zusammenfassung({ befund: b.befund, grund: b.grund, offen: b.offen, kontext: { ebenen: b.ebenen, typ: b.gebildet.eingaben.typ.wert }, ort })
+  zusammenfassung(zfEingabeBlatt(b, ort))
+
+/** Eingabe der Zusammenfassung aus einem Befundblatt: Annahmen, Funde und Fragen zum Bestätigen aus der Herkunft der Felder (Runde 5) */
+export function zfEingabeBlatt(b: BefundBlatt, ort: ZfOrt = 'panel'): ZfEingabe & { fragen: Record<string, string> } {
+  const h = b.gebildet.herkunft, e = b.gebildet.eingaben
+  const annahme = (f: string) => { const x = h.get(f); return x?.zustand === 'vorbelegt' && !!x.quelle && QUELLEN_ANNAHME.includes(x.quelle) }
+  const genutzt = new Set(b.befund.annahmen.map(a => /^([\w.]+): (Annahme|Schätzung)$/.exec(a)?.[1]).filter((v): v is string => !!v))
+  const annahmen: string[] = []
+  for (const f of ANNAHME_KURZ_REIHE) if (annahme(f) && genutzt.has(f)) {
+    const t = ANNAHME_KURZ[f](h.get(f)!.vorbelegt!.wert)
+    if (t) annahmen.push(t)
+  }
+  if (b.grund.gilt && b.grund.annahmen.includes(ANNAHME_V85)) annahmen.push('Tempo wie signalisiert (nicht gemessen)')
+  // gefundene Gründe für Vortritt (Schule, Kindergarten, Heim, Haltestelle, Fusswegnetz) aus der Vorbelegung
+  const gefunden: string[] = []
+  const bd = h.get('beduerfnis')
+  if (bd?.zustand === 'vorbelegt' && Array.isArray(bd.vorbelegt?.wert)) {
+    const w = bd.vorbelegt!.wert as string[]
+    for (const teil of lesetext(bd.text).replace(/: Haltestelle an der Querung als Grund für Vortritt/g, '').replace(/: Grund für Vortritt\b/g, '').split('; '))
+      if (/^(Volksschule|Kindergarten|Schule|Heim|Haltestelle|Bushaltestelle|Tramhaltestelle)/.test(teil))
+        gefunden.push(teil.replace(/ \((Geoportal Stadt Bern|OSM[^)]*)\)/g, '').replace(/ \(Geoportal Stadt Bern[^)]*\)/g, ''))
+    if (w.includes('fusswegnetz')) gefunden.push('Basisnetz des Fusswegnetzes (Bern)')
+  }
+  // Fragen zum Bestätigen (Stelle 10): vorbelegte Annahme, die eine offene Regel trägt
+  const fragen: Record<string, string> = {}
+  for (const o of b.offen) if (o.bestaetigen && annahme(o.feld)) {
+    const d = FELD_DEF.get(o.feld)
+    if (d) fragen[o.feld] = `Bitte bestätigen: ${wertText(d, h.get(o.feld)!.vorbelegt!.wert)} (angenommen)?`
+  }
+  return { befund: b.befund, grund: b.grund, offen: b.offen, kontext: { ebenen: b.ebenen, typ: e.typ.wert }, ort,
+    geplant: e.neuanlage.wert, annahmen, gefunden, fragen }
+}
+
+/** Annahmen für Satz 4: Reihenfolge und Kurzform mit Wert */
+const ANNAHME_KURZ_REIHE = ['tempoRegime', 'innerorts', 'beduerfnis', 'vSig', 'strassentyp', 'fgsMitLsa', 'nachfrage', 'dtv'] as const
+const ANNAHME_KURZ: Record<(typeof ANNAHME_KURZ_REIHE)[number], (w: unknown) => string> = {
+  tempoRegime: w => (w === 't30_zone' ? 'Tempo-30-Zone' : w === 'begegnungszone' ? 'Begegnungszone' : w === 'strecke' ? 'keine Zone (Strecke)' : ''),
+  innerorts: w => (w === true ? 'innerorts' : w === false ? 'ausserorts' : ''),
+  beduerfnis: w => (Array.isArray(w) && !w.length ? 'kein besonderer Grund für Vortritt' : ''),
+  vSig: w => (typeof w === 'number' ? `Tempo ${w} km/h` : ''),
+  strassentyp: w => (w === 'siedlungsorientiert' ? 'Quartierstrasse' : w === 'verkehrsorientiert' ? 'Durchgangsstrasse' : ''),
+  fgsMitLsa: w => (w === true ? 'Lichtsignal der nahen Ampel gilt für die Querung' : ''),
+  nachfrage: w => (w === 'punktuell' ? 'gebündeltes Queren' : w === 'flaechig' ? 'verteiltes Queren' : ''),
+  dtv: w => (typeof w === 'number' ? `${w} Fahrzeuge pro Tag` : ''),
+}

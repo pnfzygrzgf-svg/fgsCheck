@@ -169,6 +169,9 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
 - **Tempo und Sichtweite** (`rechner/tempo.ts`): OSM-maxspeed entlang der Spur (Mehrheit innerhalb der Sichtweite),
   ohne Angabe 50 km/h (als Annahme ausgewiesen); VSS 40 241 Tab. 1; im Knoten nach Kurvenradius (bfu 2.457.01 bzw.
   VSS Tab. 2); «bis Knoten», Spurende, Kreisel nach Ringradius.
+  In der Stadt Bern gilt die signalisierte Höchstgeschwindigkeit des Geoportals (V_sig) als Tempo der Zufahrt (Quelle
+  «Geoportal»; OSM nur Rückfall, Tempo von Hand geht vor): die Rechnung bekommt sie als Eingabe (`TempoAmtlich` in
+  `rechner/tempo.ts`), die Zuordnung der Linien zur Spur steht in `daten/vsig.ts` (`vsigTempo`).
 - **Fahrstreifenlage** (`rechner/fahrstreifen.ts`, `rechner/spur.ts`): AV-Querschnitte (Median), Bordkanten am Streifen,
   OSM-Fahrstreifen (`lanes`, `turn:lanes`, Busstreifen), mehrere Fahrstreifen ab 5,50 m je Richtung; Abzug Parkstreifen
   1,90 m, wo eingegebene Auto-Parkfelder am Rand liegen, Abzug Velostreifen aus `cycleway:*=lane` (1,50 m, angenommen);
@@ -330,6 +333,11 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   als ganz durchsucht, nur ein Namenswechsel begrenzt die Suche (`FORTSETZUNG_GRAD` in `automatik.ts`); enden beide Richtungen, gilt
   die Länge der ganzen Strasse mit dem Kennzeichen `ganzeStrasse` (G1/G2 dann als Hinweis, nicht anwendbar). Ist offen, ob die Querung in einer Begegnungszone liegt (nur bei Tempo 20 bzw. unbekanntem
   Tempo ohne Zonenangabe; ab Tempo 30 ist die Regel nicht anwendbar), folgt die Empfehlung eines Typs erst nach der Klärung.
+  Satz 1 der Zusammenfassung nennt bei offener Zulässigkeit den möglichen Typ («falls ja, passt …») und die
+  entscheidende Frage; Satz 3 trennt entscheidende von vervollständigenden Angaben; Satz 4 nennt Annahmen und gefundene Gründe für
+  Vortritt. Belege aus Datenbanken (OSM-Tags, Knotennummern) stehen in Herkunftstexten zwischen ⟦…⟧ und erscheinen nur im Tooltip
+  (`lesetext.ts`). Neue Regel E1c (Furt ohne Insel). Besonderer Grund «Fusswegnetz (Bern)», zählt nur mit der Ebene Bern. Teilstreifen
+  an einer Insel über 12 m (`TEIL_MAX_M`) belegen keine Masse vor. Der Bericht zeigt den Bedarfsteil, sobald eine Beurteilung vorliegt.
 
 ## Datenschutz
 

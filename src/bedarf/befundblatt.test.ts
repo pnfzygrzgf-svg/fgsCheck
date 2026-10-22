@@ -48,7 +48,7 @@ describe('Vorbelegung aus der Rechnung (synthetischer Fall)', () => {
     expect(v.typ).toMatchObject({ wert: 'fgs', quelle: 'rechnung' })
     expect(v.fgsMitLsa).toMatchObject({ wert: false, quelle: 'osm' })
     expect(v.vSig).toMatchObject({ wert: 50, quelle: 'osm' })
-    expect(v.innerorts).toMatchObject({ wert: true, quelle: 'annahme', text: 'Tempo 50 km/h: innerorts angenommen' })
+    expect(v.innerorts).toMatchObject({ wert: true, quelle: 'annahme', text: 'Tempo 50 km/h (OSM): innerorts angenommen' })
     expect(v.fahrbahnB).toMatchObject({ wert: 8, quelle: 'rechnung' })
     expect(v.querdistanzL).toMatchObject({ wert: [8], quelle: 'rechnung' })
   })
@@ -120,7 +120,7 @@ describe('Befundblatt', () => {
     expect(b.befund.alle.some(x => x.id === 'A2')).toBe(false)
     // Tempo 20 ohne Zonenangabe: A2 offen → Empfehlung ausgesetzt (Kann A2)
     const [b20] = befundblaetter(r, fallMit(x => { x.bedarf = { felder: { tempoRegime: { wert: null, quelle: 'hand' }, vSig: { wert: 20, quelle: 'hand' } } } }), OHNE_EBENEN)
-    expect(b20.typText).toBe('Empfehlung folgt, sobald die Begegnungszone geklärt ist')
+    expect(b20.typText).toBe('Empfehlung folgt, sobald geklärt ist, ob die Querung in einer Begegnungszone liegt')
     expect(b20.befund.empfehlung).toMatchObject({ typ: 'keiner', elemente: [], grundlage: [], vorlaeufig: true })
     expect(b.nichtGeprueft.map(x => x.block)).toContain('Nachfrage')
     expect(b.offen.some(o => o.feld === 'tempoRegime' && o.gruppe === 'rahmen')).toBe(true)
@@ -130,8 +130,10 @@ describe('Befundblatt', () => {
     expect(b.sicht.map(s => [s.regel, s.frei, s.soll])).toEqual([['H1', true, 55], ['H1', true, 55]])
     expect(b.befund.alle.some(x => x.id === 'H1' && x.zustand === 'verletzt')).toBe(false)
     expect(b.befund.alle.find(x => x.id === 'H1')).toMatchObject({ zustand: 'offen', fehlend: ['anzeichenSchneller'] })
-    // Korrektur M2: H1 offen → Masszeile offen, nicht erfüllt
-    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toMatchObject({ zustand: 'offen', soll: '55' })
+    // Korrektur M2: H1 offen → Masszeile nicht erfüllt; Runde 5 (Stelle 14): offen nur wegen der Frage nach schnellerem Fahren →
+    // «erfüllt unter Vorbehalt» mit der Bedingung beim Wert
+    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toMatchObject({ zustand: 'vorbehalt', soll: '55',
+      zusatz: 'gilt, wenn nicht schneller als 50 km/h gefahren wird (Frage oben)' })
   })
   it('mit Handeingaben (DTV 8 000, Schätzklasse 100–500, Basisnetz): FGS zulässig, Typ Q1; Schätzung ausgewiesen; Bern gesondert', () => {
     const f = fallMit(x => { x.bedarf = HAND })
@@ -142,8 +144,8 @@ describe('Befundblatt', () => {
     expect(b.typText).toBe('Fussgängerstreifen')
     expect(b.zulText).toBe('Fussgängerstreifen zulässig')
     expect(ids(b.befund.norm.hinweise)).toEqual(expect.arrayContaining(['C3c', 'D2c']))
-    expect(b.annahmen.join(' ')).toContain('Querende, geschätzt (5 Spitzenstunden): Schätzung')
-    expect(b.annahmen.join(' ')).toContain('Innerorts (innerhalb der Ortstafeln): Annahme (Tempo 50 km/h: innerorts angenommen)')
+    expect(b.annahmen.join(' ')).toContain('Querende, geschätzt (5 Spitzenstunden): 100 bis 500 (Schätzung von Hand)')
+    expect(b.annahmen.join(' ')).toContain('Innerorts (innerhalb der Ortstafeln): ja – Tempo 50 km/h (OSM)')
     // Bern: Inseltabelle bei über 30 km/h und 5 001 bis 10 000 Fz/Tag «Ja» (weich), LSA «Ja oder nein» (Hinweis)
     expect(ids(b.befund.lokal.empfehlungen)).toContain('D6-2')
     expect(ids(b.befund.lokal.hinweise)).toContain('D6-3b')

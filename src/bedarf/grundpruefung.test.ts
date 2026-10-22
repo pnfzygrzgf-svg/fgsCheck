@@ -71,7 +71,11 @@ describe('Tempo (Vorbedingung, B5-T)', () => {
     expect(teil(gp({ vSig: 50, v85: 61 }), 'B5-T')!.ist).toBe('V85 61 km/h')
   })
   it('V85 fehlt: offen mit «V85 messen» und Normhinweis; über 60 signalisiert trotzdem hart; vSig fehlt: offen bzw. hart nach V85', () => {
-    const t = teil(gp({ v85: null }), 'B5-T')!
+    // Runde 5 (Stelle 16): bis 50 km/h entscheidet die Frage nach Anzeichen; ohne Anzeichen erfüllt, unbekannt «voraussichtlich erfüllt» (offen)
+    expect(teil(gp({ v85: null, anzeichenSchneller: false }), 'B5-T')).toMatchObject({ zustand: 'erfuellt' })
+    expect(teil(gp({ v85: null, anzeichenSchneller: null }), 'B5-T')).toMatchObject({ zustand: 'offen', fehlend: ['anzeichenSchneller'] })
+    expect(teil(gp({ v85: null, vSig: 60, anzeichenSchneller: false }), 'B5-T')).toMatchObject({ zustand: 'offen', fehlend: ['v85'] })
+    const t = teil(gp({ v85: null, anzeichenSchneller: true }), 'B5-T')!
     expect(t.zustand).toBe('offen')
     expect(t.fehlend).toEqual(['v85'])
     expect(t.detail).toContain('V85 messen')
@@ -111,7 +115,7 @@ describe('① Sichtverhältnisse (B5-1, B5-1b)', () => {
     expect(z(gp({ v85: 55, sichtVorh: [70] }), 'B5-1')).toBe('hart')    // V85 55 → 75 m
     const ohne = gp({ v85: null, sichtVorh: [55] })
     expect(z(ohne, 'B5-1')).toBe('erfuellt')
-    expect(ohne.annahmen.join(' ')).toContain('V85 fehlt')
+    expect(ohne.annahmen.join(' ')).toContain('V85 nicht gemessen')
     expect(teil(gp({ v85: 61, sichtVorh: [100] }), 'B5-1')!.zustand).toBe('offen')   // über 60 keine Stufe
     expect(z(gp({ innerorts: false, v85: 60, vSig: 60, sichtVorh: [80] }), 'B5-1')).toBe('hart')   // ausserorts 100 m
   })
@@ -151,9 +155,9 @@ describe('① Sichtverhältnisse (B5-1, B5-1b)', () => {
     // Abbieger auf eine 60-km/h-Querstrasse (Tempo-Sichtweite): wie gerade Zufahrten, ohne V85 der Querung (Nachprüfung 20.10.2026)
     const ab = (innerorts: boolean | null) => gp({ innerorts, vSig: 50, v85: 48, sichtVorh: null },
       { sicht: [sicht({ tempo: 60, soll: 75, abbiegend: true, frei: true })] })
-    expect(teil(ab(null), 'B5-1')).toMatchObject({ zustand: 'offen', fehlend: ['innerorts'], soll: '75 bis 100 m' })
+    expect(teil(ab(null), 'B5-1')).toMatchObject({ zustand: 'offen', fehlend: ['innerorts'], soll: '75 bis 100 m für Abbiegende' })
     expect(z(ab(true), 'B5-1')).toBe('erfuellt')
-    expect(teil(ab(false), 'B5-1')).toMatchObject({ zustand: 'offen', soll: '≥ 100 m' })
+    expect(teil(ab(false), 'B5-1')).toMatchObject({ zustand: 'offen', soll: '≥ 100 m für Abbiegende' })
     // Knoten mit offenem Tempo der geraden Zufahrten: Soll mit Vermerk
     expect(teil(gp({ kurve: { radius: 12, fuenfBedingungen: false }, v85: null, vSig: null, sichtVorh: [80] }), 'B5-1')!.soll)
       .toBe('≥ 20 m (gerade Zufahrten offen)')
@@ -176,7 +180,7 @@ describe('① Sichtverhältnisse (B5-1, B5-1b)', () => {
     // nur bis zur Reichweite der Daten geprüft
     expect(z(r({}, [sicht({ bisM: 40 })]), 'B5-1')).toBe('offen')
     // V85 fehlt: Tempo der Zufahrt, als Annahme
-    expect(r({ v85: null }, [sicht()]).annahmen.join(' ')).toContain('V85 fehlt')
+    expect(r({ v85: null }, [sicht()]).annahmen.join(' ')).toContain('V85 nicht gemessen')
     // weder Sicht von Hand noch Sichtrechner: offen
     expect(teil(gp({ sichtVorh: null }), 'B5-1')).toMatchObject({ zustand: 'offen', fehlend: ['sichtVorh'] })
   })
@@ -299,9 +303,9 @@ describe('① Sicht aus dem Sichtrechner: geometrische Grenzen, Streifen ohne Zu
   it('Annahme «Kurve» nur, wenn ein Kurvenradius eingeht', () => {
     const e = fall({})
     const mitAnnahme = { ...e, kurve: { wert: { radius: null, fuenfBedingungen: false }, quelle: 'annahme' as const } }
-    expect(grundpruefung(mitAnnahme).annahmen.join(' ')).not.toContain('Kurve')
+    expect(grundpruefung(mitAnnahme).annahmen.join(' ')).not.toContain('kurve: Annahme')
     const mitRadius = { ...e, kurve: { wert: { radius: 12, fuenfBedingungen: false }, quelle: 'annahme' as const } }
-    expect(grundpruefung(mitRadius).annahmen.join(' ')).toContain('Kurve')
+    expect(grundpruefung(mitRadius).annahmen.join(' ')).toContain('kurve: Annahme')
   })
   it('fester Hinweis Erkennbarkeit unter ①', () => {
     expect(punkt(gp(), '1').notizen.map(t => [t.id, t.zustand])).toEqual([['B5-1c', 'hinweis']])

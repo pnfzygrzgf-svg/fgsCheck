@@ -32,9 +32,8 @@ import { streifenTitel, zufahrtLang, zufahrtNr, zufahrtText, entfallenNr, entfal
 /** Zufahrt-Namen je Streifen (benennung.zufahrtNamen, in der App gerechnet) */
 type Namen = Map<string, ZufahrtNamen>
 import { ausserhalbText, nichtAbgedecktText, type Ausserhalb } from './abdeckung'
-import { BefundblattAnzeige, GrundpruefungAnzeige, VerzeichnisBericht, ZusammenfassungAnzeige, eingabenText } from './BedarfPanel'
+import { BefundblattAnzeige, GrundpruefungAnzeige, VerzeichnisBericht, ZusammenfassungAnzeige, eingabenTabelle, querungTitel } from './BedarfPanel'
 import type { BefundBlatt } from './bedarf/befundblatt'
-import { bedarfLeer } from './bedarf/fallBedarf'
 import { AHS_40240 } from './bedarf/tabellen'
 
 const APP_URL = 'https://fgscheck.ch/'
@@ -427,7 +426,7 @@ function StreifenTabelle({ s, fall, ausserhalb, namen }: { s: StreifenErgebnis; 
                 <td><NrMarke nr={zufahrtNr(namen, z.zufahrt)} /><b>{zufahrtLang(namen, z.zufahrt)}</b>{z.deckung && <span className="klein"> (mitgeprüft)</span>}
                   {z.art === 'abbiegend' && z.ueberStrasse ? <div className="klein">weiter auf {z.ueberStrasse}</div> : null}</td>
                 <td>{ART[z.art] ?? z.art}</td>
-                <td>{z.tempo} km/h<div className="klein">{z.tempoQuelle === 'Ersatz' ? 'Annahme (ohne Angabe)' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : 'OSM'}</div></td>
+                <td>{z.tempo} km/h<div className="klein">{z.tempoQuelle === 'Ersatz' ? 'Annahme (ohne Angabe)' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : z.tempoQuelle === 'Geoportal' ? 'Geoportal Stadt Bern' : 'OSM'}</div></td>
                 <td>{mText(z.sichtweite)} m<div className="klein">{z.sichtweiteQuelle}{z.kurvenradiusM != null ? `, R ${f1(z.kurvenradiusM)} m` : ''}</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
                 <td><b>{statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}</td>
@@ -449,7 +448,7 @@ function StreifenTabelle({ s, fall, ausserhalb, namen }: { s: StreifenErgebnis; 
 export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjahr, luftbildStand, zusatzQuellen, ausserhalb = [], aendern,
   schliessen, namen = new Map(), blaetter = [] }: {
   namen?: Namen                  // Zufahrten nach Strasse und Herkunft (benennung.ts), je Streifen
-  blaetter?: BefundBlatt[]       // Bedarfsmodul E1: Befundblatt je Querung (gezeigt mit Eingaben zum Bedarf bzw. Querung ohne Vortritt)
+  blaetter?: BefundBlatt[]       // Bedarfsmodul: Befundblatt je Querung (gezeigt, sobald eine Beurteilung vorliegt; Runde 5)
   fall: Fall; rechnung: FallRechnung; rechnungZeit: Date | null; kantone: string[]; flugjahr: string; luftbildStand: LuftbildStand
   zusatzQuellen: string[]
   ausserhalb?: Ausserhalb[]      // Streifen von Hand ausserhalb der geladenen Daten (abdeckung.ts)
@@ -465,7 +464,8 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
   const strassen = [...new Set(rechnung.streifen.map(s => s.strasse).filter(Boolean))]
   const mk = rechnung.markierung ?? fall.ort.markierung
   const eingaben = eingabenListe(fall, rechnung, namen)
-  const mitBedarf = blaetter.length > 0 && (!bedarfLeer(fall.bedarf) || Object.values(fall.streifen).some(e => !!e.typ))
+  // Runde 5 (Lesetest Stelle 1): der Bedarfsteil steht im Bericht, sobald eine Beurteilung vorliegt (die Vorbelegung genügt)
+  const mitBedarf = blaetter.length > 0
   const hinweise = hinweisListe(rechnung, fall, luftbildStand, ausserhalb, namen)
   // Bezeichnung: lokal tippen, erst beim Verlassen des Felds (bzw. Enter, Escape) in den Fall übernehmen – sonst lösten
   // jeder Tastendruck eine neue Rechnung und das Speichern im Browser aus. Der Bericht zeigt den lokalen Wert sofort.
@@ -544,24 +544,22 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
 
         </td></tr>
         <tr className={rechnung.streifen.length > 0 ? 'bericht-neue-seite' : undefined}><td>
-        {/* Seite 1: Ort und Kartenbild; das Ergebnis beginnt im Druck oben auf Seite 2 (ohne Kartenbild ohne Umbruch). Mit Eingaben
-            zu Bedarf und Querungstyp (bzw. einem Streifen ohne Vortritt) steht das Befundblatt davor (Skizze: oberhalb des Sichtbefunds) */}
+        {/* Seite 1: Ort und Kartenbild; das Ergebnis beginnt im Druck oben auf Seite 2 (ohne Kartenbild ohne Umbruch). Liegt eine
+            Beurteilung zu Bedarf und Querungstyp vor (Runde 5: auch nur aus der Vorbelegung), steht sie davor (Skizze: oberhalb des Sichtbefunds) */}
         {mitBedarf && <section className="bericht-block">
           <h2>Bedarf und Querungstyp</h2>
-          {blaetter.map(b => <ZusammenfassungAnzeige key={`zf-${b.gruppe}`} b={b} druck titel={blaetter.length > 1 ? `Querung ${b.titel}` : undefined} />)}
-          <p className="klein">Beurteilung nach VSS 40 241, 40 240 und weiteren Grundlagen (Ziffern und eigene Kurztexte, kein Normtext).
-            Vorne die Grundprüfung nach bfu MS.013-2025 (Big Five, mit ausdrücklichem «erfüllt»), darunter das vollständige
-            Befundblatt: zuerst die Prüfübersicht (geprüfte Regeln je Thema: ohne Befund, offen, Befunde, Hinweise), dann die Einträge
-            nach Thema, je Eintrag eine Zeile mit der Verbindlichkeit nach dem Wortlaut der Quelle, z. B. «Muss (Norm)», «Soll (Standard
-            Stadt Bern), Abweichung begründen», «Hinweis (Richtlinie)»; offen: Angabe fehlt (zählt nie als erfüllt). Norm, Standard und
-            Arbeitshilfe sind keine Gesetze; verbindlich im Rechtssinn ist nur die Ebene Recht. Die Sicht stammt aus dem Sichtrechner
-            (Abschnitt Ergebnis).</p>
+          {blaetter.map(b => <ZusammenfassungAnzeige key={`zf-${b.gruppe}`} b={b} druck titel={blaetter.length > 1 ? querungTitel(b) : undefined} />)}
+          <p className="klein">Zuerst fünf Grundfragen der bfu, dann alle Einzelprüfungen nach Normen und Berner Standards. «Muss» und
+            «Soll» stehen so in der Quelle; als Gesetz verbindlich ist nur, was mit «Recht» bezeichnet ist. «Offen» heisst: eine Angabe
+            fehlt, es zählt nie als erfüllt. Die Sicht stammt aus dem Sichtrechner (Abschnitt Ergebnis).</p>
           {blaetter.map(b => <GrundpruefungAnzeige key={`grund-${b.gruppe}`} g={b.grund} titel={blaetter.length > 1 ? b.titel : undefined} druck
             feldHinweise={b.vorbelegt.feldHinweise} />)}
           {blaetter.map(b => <BefundblattAnzeige key={b.gruppe} b={b} mehrere={blaetter.length > 1} druck />)}
           <h3>Eingaben und Quellen{blaetter.length > 1 ? ` (vorbelegt nach ${blaetter[0].titel})` : ''}</h3>
-          <ul className="klein">{eingabenText(blaetter[0]).map(g => <li key={g.gruppe}><b>{g.gruppe}:</b>
-            {g.hand.length > 0 && <> von Hand: {g.hand.join('; ')}.</>}{g.vorbelegt.length > 0 && <> Vorbelegt: {g.vorbelegt.join('; ')}.</>}</li>)}</ul>
+          {/* Runde 5 (Stelle 50): Tabelle Feld · Wert · Quelle · Annahme; eine Begründung nur bei Annahmen */}
+          <table className="bericht-tabelle klein"><thead><tr><th>Angabe</th><th>Wert</th><th>Quelle</th><th>Annahme</th></tr></thead>
+            <tbody>{eingabenTabelle(blaetter[0]).map(z => <tr key={z.feld}><td>{z.feld}</td><td>{z.wert}</td><td>{z.quelle}</td>
+              <td>{z.annahme ? <>ja{z.grund ? `: ${z.grund}` : ''}</> : 'nein'}</td></tr>)}</tbody></table>
           <VerzeichnisBericht blaetter={blaetter} />
         </section>}
         <section className="bericht-block">

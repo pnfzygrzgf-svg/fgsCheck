@@ -70,7 +70,7 @@ export const FELD_DEFS: FeldDef[] = [
     ['publikumsintensiv', 'publikumsintensiv'], ['feinverteiler', 'Feinverteiler'], ['keins', 'nicht im Netz']) },
   { pfad: 'netzQualifiziert', gruppe: 'nachfrage', name: 'Teil einer amtlichen Fusswegnetzplanung', art: B },
   { pfad: 'beduerfnis', gruppe: 'nachfrage', name: 'Besonderer Grund für Vortritt', art: { art: 'liste', optionen: [['schule', 'Schule'],
-    ['kindergarten', 'Kindergarten'], ['heim', 'Heim'], ['haltestelle', 'Haltestelle'], ['schulweg', 'Schulweg']] } },
+    ['kindergarten', 'Kindergarten'], ['heim', 'Heim'], ['haltestelle', 'Haltestelle'], ['schulweg', 'Schulweg'], ['fusswegnetz', 'Fusswegnetz (Bern)']] } },
   { pfad: 'nachfrage', gruppe: 'nachfrage', name: 'Gequert wird gebündelt oder verteilt', art: w(['punktuell', 'gebündelt an einer Stelle'],
     ['flaechig', 'verteilt über die ganze Strecke']) },
   { pfad: 'wunschlinieM', gruppe: 'nachfrage', name: 'Abstand zur bevorzugten Gehlinie', art: m() },
@@ -219,7 +219,7 @@ export const FELD_DEF: ReadonlyMap<string, FeldDef> = new Map(FELD_DEFS.map(d =>
  * Felder der Grundprüfung bfu (Big Five, grundpruefung.ts): stehen in der Maske oben offen, alle übrigen unter «Erweiterte
  * Prüfung». Querungstyp und Lichtsignal entscheiden, ob die Grundprüfung gilt.
  */
-export const GRUND_FELDER: readonly string[] = ['typ', 'fgsMitLsa', 'innerorts', 'vSig', 'v85', 'sichtVorh', 'kurve.radius', 'erkennungM',
+export const GRUND_FELDER: readonly string[] = ['typ', 'fgsMitLsa', 'innerorts', 'vSig', 'anzeichenSchneller', 'v85', 'sichtVorh', 'kurve.radius', 'erkennungM',
   'insel.vorhanden', 'insel.art', 'insel.breite', 'durchfahrt', 'fahrbahnB', 'nRichtung', 'busspur', 'beleuchtung', 'fg5h', 'fgKlasse',
   'dtv', 'annaeherungUeberfahrbar', 'haltestelle.art']
 export const istGrundFeld = (pfad: string): boolean => GRUND_FELDER.includes(pfad)
@@ -292,3 +292,17 @@ export function wertGueltig(art: FeldArt, x: unknown): boolean {
 
 /** Pfad ohne Objektteil als Feldname (Prüfung in den Tests: jedes Feld der Eingaben hat eine Zeile bzw. Unterfelder) */
 export const feldVon = (pfad: string): FeldName => pfad.split('.')[0] as FeldName
+
+const zahlTextW = (x: number) => String(Math.round(x * 100) / 100).replace('.', ',')
+/** Wert eines Felds als Text (Maske, Bericht, Annahmen) */
+export function wertText(d: FeldDef, x: unknown): string {
+  if (x === null || x === undefined) return 'offen'
+  const a = d.art
+  switch (a.art) {
+    case 'bool': return x ? 'ja' : 'nein'
+    case 'zahl': return `${zahlTextW(x as number)}${a.einheit ? ` ${a.einheit}` : ''}`
+    case 'zahlen': return `${(x as number[]).map(zahlTextW).join(' / ')}${a.einheit ? ` ${a.einheit}` : ''}`
+    case 'wahl': return a.optionen.find(([k]) => k === x)?.[1] ?? String(x)
+    case 'liste': return (x as string[]).length ? (x as string[]).map(v => a.optionen.find(([k]) => k === v)?.[1] ?? v).join(', ') : 'keines'
+  }
+}
