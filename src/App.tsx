@@ -27,7 +27,11 @@ import { type Hindernis, BAUM_STAMM_M, LAENGS_BREITE_M } from './rechner/hindern
 import { linieKreis, RADIUS_HAND_M } from './rechner/spurhand'
 import { ART, ENTFALLEN_ERKLAERUNG, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, tempoHerkunft, f1, f2, mText, streifenStatus, TUE_OPTION,
   TUE_NUR_EINMUENDUNG, erkennungText, ERKENNUNG_TITEL } from './texte'
-import { TueHinweis } from './TueHinweis'
+import { KnotensichtBlock } from './tue/KnotensichtBlock'
+import { tueBreiteHand } from './tue/texte'
+import type { Knotensicht } from './tue/knotensicht'
+import { ladeNeigung } from './knotensicht/daten/hoehen'
+import type { HoehenVorgabe } from './knotensicht/rechner/typen'
 import Bericht from './Bericht'
 import { Anleitung, BegriffeListe, Datenschutz, Fusszeile, QuellenTabelle, RechnungGrundlagen } from './Hilfe'
 import { VerweisText } from './Verweise'
@@ -84,6 +88,8 @@ interface Daten { osm: unknown; av: GeoJson; sosf: GeoJson | null; nid: number |
 
 const START: [number, number] = [46.9420585, 7.4322619]      // Startansicht: Mühlemattstrasse, Bern
 const WORKER_MS = 30000
+/** Höhenprofile der Knotensicht (Trottoirüberfahrt) in den geladenen Quellen */
+const HOEHEN_NAME = 'Höhenmodell (swisstopo, swissALTI3D, Profile der Knotensicht)'
 // Automatische Übergangssuche nach dem Verschieben bzw. Zoomen: ab SUCHE_ZOOM (rund 1:10 000; weiter draussen wird der
 // Ausschnitt für eine Overpass-Abfrage zu gross; dazu Flächengrenze in ausschnitt.ts), SUCHE_PAUSE_MS nach dem letzten moveend,
 // zwischen zwei Abfragen mindestens SUCHE_ABSTAND_MS (Overpass Fair Use: höchstens eine laufende Suche, keine Abfragen-Flut
@@ -100,10 +106,10 @@ const STREIFEN_MIN_M = 1.0                      // Streifen von Hand: kürzeste 
 /** Anzeige der AV-Arten in der Legende (Schlüssel wie in AV_FARBEN) */
 const AV_NAME: Record<string, string> = { Strasse_Weg: 'Fahrbahn', Gebaeude: 'Gebäude' }
 
-const MIN_PUNKTE: Record<Exclude<Werkzeug, null>, number> = { parkfeld: 3, flaeche: 3, insel: 3, laengs: 2, hecke: 2, mauer: 2, streifen: 2,
+const MIN_PUNKTE: Record<Exclude<Werkzeug, null>, number> = { parkfeld: 3, flaeche: 3, insel: 3, laengs: 2, hecke: 2, mauer: 2, streifen: 2, tue: 2,
   spurB: 2, baum: 1, fixpunkt: 1, planflaeche: 3, eckeRunden: 1, mittelinsel: 1, seitenraum: 1 }
 const WERKZEUG_NAME: Record<Exclude<Werkzeug, null>, string> = { parkfeld: 'Parkfeld', flaeche: 'übriges Hindernis (Fläche)', insel: 'Insel',
-  laengs: 'Längsparkierung', hecke: 'Hecke', mauer: 'Mauer', streifen: 'Streifen planen', spurB: 'Fahrlinie selbst zeichnen', baum: 'Baum',
+  laengs: 'Längsparkierung', hecke: 'Hecke', mauer: 'Mauer', streifen: 'Streifen planen', tue: 'Trottoirüberfahrt', spurB: 'Fahrlinie selbst zeichnen', baum: 'Baum',
   fixpunkt: 'Fixpunkt', planflaeche: 'Fläche (Plan)', eckeRunden: 'Ecke runden', mittelinsel: 'Mittelinsel (Standard)',
   seitenraum: 'Vorgezogener Seitenraum' }
 /** Textfeld, übernommen erst beim Verlassen bzw. mit Enter (Escape: zurück); leer = kein eigener Text */
@@ -307,7 +313,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     }
   }, [])
 
-  const rechnen = useCallback(async (d: Daten, f: Fall, kat: typeof kataster, pk: typeof parkDaten, vs: VsigRechnung | null) => {
+  const rechnen = useCallback(async (d: Daten, f: Fall, kat: typeof kataster, pk: typeof parkDaten, vs: VsigRechnung | null,
+    hs: Record<string, HoehenVorgabe> | null) => {
     const nr = ++auftrag.current
     const w = workerRef.current ?? neuerWorker()
     if (!w) return
@@ -325,7 +332,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       w.addEventListener('error', fe)
       w.postMessage({ id: nr, osm: d.osm, av: d.av, sosf: d.sosf, nid: d.nid, fall: f, luftbild: d.luftbild,
         kataster: kat && kat.baeume && f.baumkataster ? { baeume: kat.baeume, quellenangabe: kat.quelle.quellenangabe } : null,
-        park: pk && f.parkkataster !== false ? pk : null, vsig: vs })
+        park: pk && f.parkkataster !== false ? pk : null, vsig: vs, avZentrum: d.ort, hoehen: hs })
     })
     if (nr !== auftrag.current) return
     setRechnet(false)
@@ -390,11 +397,43 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const vsigRechnung = useMemo<VsigRechnung | null>(() => (daten && vsigBern && vsigStand && 'daten' in vsigStand
     ? { linien: vsigStand.daten.linien, bereich: { mitte: daten.ort, radiusM: BERN_DIENSTE_C.vsig.radiusM ?? PARK_RADIUS_M, form: 'quadrat' } }
     : null), [daten, vsigBern, vsigStand])
+  // Trottoirüberfahrt (K3): Längsneigung der Knotensicht aus dem Höhenmodell (swisstopo, swissALTI3D), je «Knoten|Zufahrt»; nach dem
+  // Eintreffen rechnet der Worker die Knotensicht neu (Effekt «Längsneigung der Knotensicht» unten)
+  const [ksHoehen, setKsHoehen] = useState<{ nr: number; werte: Record<string, HoehenVorgabe> } | null>(null)
+  const hoehenWerte = ksHoehen && ksHoehen.nr === ladeNr.current ? ksHoehen.werte : null
   useEffect(() => {
     if (!daten || !rechenFall) return
-    const t = setTimeout(() => rechnen(daten, rechenFall, kataster, parkDaten, vsigRechnung), 200)
+    const t = setTimeout(() => rechnen(daten, rechenFall, kataster, parkDaten, vsigRechnung, hoehenWerte), 200)
     return () => clearTimeout(t)
-  }, [daten, rechenFall, kataster, parkDaten, vsigRechnung, rechnen])
+  }, [daten, rechenFall, kataster, parkDaten, vsigRechnung, hoehenWerte, rechnen])
+  // Nach einer Rechnung mit Knotensicht: Profile entlang der Fahrstreifenachsen, der Zufahrt und der Gehlinie (höchstens vier je
+  // Knoten und Zufahrt, nur einmal je Ladevorgang); ein Fehler des Dienstes gibt 0 % mit Hinweis (daten/hoehen der Kopie)
+  const hoehenLaeuft = useRef(new Set<string>())
+  useEffect(() => {
+    const ctrl = abbruchRef.current, nr = ladeNr.current
+    if (!rechnung || !ctrl || ctrl.signal.aborted) return
+    const offen = rechnung.streifen.map(s => s.knotensicht).filter((k): k is Knotensicht => !!k && !('fehler' in k))
+      .filter(k => !hoehenWerte?.[k.hoehenSchluessel] && !hoehenLaeuft.current.has(`${nr}|${k.hoehenSchluessel}`))
+    for (const k of offen) {
+      const lauf = `${nr}|${k.hoehenSchluessel}`
+      hoehenLaeuft.current.add(lauf)
+      const linien = (Object.entries(k.profile) as [keyof HoehenVorgabe, P[]][]).filter(([, l]) => l.length >= 2)
+      setzeQuelle('hoehen', { name: HOEHEN_NAME })
+      Promise.all(linien.map(([n, l]) => ladeNeigung(l, ctrl.signal).then(r => [n, r] as const))).then(res => {
+        if (ctrl.signal.aborted || ladeNr.current !== nr) return
+        const stand: HoehenVorgabe = Object.fromEntries(res.map(([n, [m]]) => [n, m]))
+        setKsHoehen(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [k.hoehenSchluessel]: stand } }))
+        const fehler = res.filter(([, [, a]]) => typeof a === 'string')
+        const ok = res.map(([, [, a]]) => a).filter((a): a is Exclude<typeof a, string> => typeof a !== 'string')
+        setzeQuelle('hoehen', { name: HOEHEN_NAME, objekte: `${res.length} Profile`, ...(ok.length ? { ms: Math.max(...ok.map(a => a.ms)),
+          bytes: ok.reduce((x, a) => x + a.bytes, 0), server: ok[0].quelle } : {}),
+          ...(fehler.length ? { fehler: `${fehler.length} Profil(e) nicht verfügbar (0 % angenommen)` } : {}) })
+      }, err => {
+        if (ctrl.signal.aborted || istAbbruch(err)) return
+        setzeQuelle('hoehen', { name: HOEHEN_NAME, fehler: `${(err as Error).message} (0 % angenommen)` })
+      })
+    }
+  }, [rechnung, hoehenWerte])
 
   const aendern = useCallback((f: (x: Fall) => Fall) => setFall(x => (x ? f(structuredClone(x)) : x)), [])
 
@@ -747,9 +786,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const id = neueId(werkzeug)
     if (werkzeug === 'spurB' && spurFuer) {
       aendern(f => { const z = f.zufahrten[spurFuer] ?? {}; f.zufahrten[spurFuer] = { ...z, spur: { art: 'B', linie: pts, radius: null } }; return f })
-    } else if (werkzeug === 'streifen') {
+    } else if (werkzeug === 'streifen' || werkzeug === 'tue') {
+      // «Trottoirüberfahrt» (Planen): derselbe Streifen von Hand, gleich mit der Wahl «Trottoirüberfahrt» am Streifen
+      const tue = werkzeug === 'tue'
       if (dist(pts[0], pts[1]) < STREIFEN_MIN_M) {
-        setMeldung('Streifen zu kurz: die beiden Wartebereiche auf den gegenüberliegenden Seiten der Fahrbahn anklicken.')
+        setMeldung(tue ? 'Trottoirüberfahrt zu kurz: beide Enden auf den gegenüberliegenden Seiten der einmündenden Strasse anklicken.'
+          : 'Streifen zu kurz: die beiden Wartebereiche auf den gegenüberliegenden Seiten der Fahrbahn anklicken.')
         setZeichnung([]); zeichnungRef.current = []
         return
       }
@@ -762,13 +804,18 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         streifen: fall.streifenHand } : null)
       if (art === 'dazu') {
         geaendert.current = NEU_GEZEICHNET
-        aendern(f => { f.streifenHand.push({ id: naechsteHandId(f), ...neu, herkunft: 'gezeichnet' }); return f })
+        aendern(f => {
+          const hid = naechsteHandId(f)
+          f.streifenHand.push({ id: hid, ...neu, herkunft: 'gezeichnet' })
+          if (tue) f.streifen[hid] = { typ: 'trottoirueberfahrt' }
+          return f
+        })
       } else {
         const reicht = fall && ort ? streifenAbstand(neu, ort) : null
         setWerkzeug(null); setSpurFuer(null)
         // die gezeichnete Achse bleibt sichtbar, bis der Wechsel bestätigt bzw. abgebrochen ist
         zeichnungRef.current = []; setZeichnung(art === 'bestaetigen' ? pts : [])
-        wechseln(planNeuText(reicht, !!fall?.streifenHand.length), 'neuen Fall beginnen', () => planFall(neu, reicht), true)
+        wechseln(planNeuText(reicht, !!fall?.streifenHand.length), 'neuen Fall beginnen', () => planFall(neu, reicht, tue), true)
         return
       }
     } else if (werkzeug === 'fixpunkt') {
@@ -1249,7 +1296,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     if (werkzeug === 'planflaeche') p = planFangen(p, null)
     const neu = [...zeichnungRef.current, p]
     zeichnungRef.current = neu
-    if (werkzeug === 'streifen' && neu.length === 2) { fertig(neu); return }
+    if ((werkzeug === 'streifen' || werkzeug === 'tue') && neu.length === 2) { fertig(neu); return }
     setZeichnung(neu)
   }, [werkzeug, fertig, av, fall, bearbeiten, rundenR, inselOrt, inselK, inselStreifen, inselNetz, inselFahrbahn, rechnung])
 
@@ -1371,11 +1418,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // ---------------------------------------------------------------- Planung: Streifen von Hand ohne OSM-Übergang (16.10.2026)
   /** Neuer Fall am gezeichneten Streifen (nur dieser Streifen, ohne OSM-Übergang); die Karte bleibt, wo sie ist. reicht: weitester
    * Punkt des Streifens vom bisherigen Ladeort (null ohne geladenen Ort) */
-  const planFall = (neu: { p0: P; p1: P; breite: number }, reicht: number | null) => {
+  const planFall = (neu: { p0: P; p1: P; breite: number }, reicht: number | null, tue = false) => {
     const [lat, lon] = wgs(...streifenMitte(neu))
     const f = leererFall(lat, lon, null)
     const id = naechsteHandId(f)
     f.streifenHand.push({ id, ...neu, herkunft: 'gezeichnet' })
+    if (tue) f.streifen[id] = { typ: 'trottoirueberfahrt' }
     const bisher = fall && hatEingaben(fall) ? fall.ort.uebergang : null
     setGewaehlt(null); setGespeichert(null); neuerFallImOrt(); reiterNeu()
     laden(lat, lon, null, f)
@@ -1711,7 +1759,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     <div className="werkzeughilfe">
       <b>{(WERKZEUGE.find(x => x[0] === werkzeug) ?? ['', 'Fahrlinie selbst zeichnen'])[1]}:</b>{' '}
       {(WERKZEUGE.find(x => x[0] === werkzeug) ?? ['', '', 'am Streifen beginnen, gegen die Fahrtrichtung klicken, Doppelklick beendet'])[2]}
-      {werkzeug === 'streifen' && (fall
+      {(werkzeug === 'streifen' || werkzeug === 'tue') && (fall
         ? <>; liegt der Streifen nicht ganz innert {NACHLADEN_M} m um den geladenen Ort{fall.streifenHand.length ? <> und auch mit
             den übrigen Streifen von Hand nicht ganz innert {NACHLADEN_M} m um einen gemeinsamen Ort</> : ''}, beginnt dort ein
             neuer Fall (AV, OSM und Kataster werden um ihn geladen)</>
@@ -1722,7 +1770,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <option value="auto">Auto</option><option value="velo">Velo/Motorrad</option></select></label>}
       {werkzeug === 'laengs' && <label> Breite <input type="number" step="0.1" min="1" max="6" value={breite}
         onChange={e => setBreite(Number(e.target.value) || LAENGS_BREITE_M)} /> m</label>}
-      {werkzeug === 'streifen' && <label> Breite <input type="number" step="0.5" min="1" max="15" value={streifenBreite}
+      {(werkzeug === 'streifen' || werkzeug === 'tue') && <label> Breite <input type="number" step="0.5" min="1" max="15" value={streifenBreite}
         onChange={e => setStreifenBreite(Number(e.target.value) || 4)} /> m</label>}
       {(werkzeug === 'hecke' || werkzeug === 'mauer' || werkzeug === 'flaeche') &&
         <label> <input type="checkbox" checked={sichtbehindernd} onChange={e => setSichtbehindernd(e.target.checked)} /> sichtbehindernd</label>}
@@ -2187,7 +2235,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <h3>Daten</h3>
         <p className="klein">
           Luftbild und Streifen-Erkennung {LUFTBILD_QUELLE}{daten?.flugjahr ? ` (Flugjahr ${daten.flugjahr})` : ''} · Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '…'}, geodienste.ch ·
-          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}.
+          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}{hoehenWerte ? ' · Höhenmodell swissALTI3D © swisstopo' : ''}.
         </p>
         <p className="klein">Die App ersetzt keine Beurteilung vor Ort. Eingaben bleiben im Browser bzw. in der Fall-Datei.</p>
         <h3>Quellen der Prüfungen</h3>
@@ -2215,7 +2263,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             ...(fall.quellen.haltestellen ? [`Haltestellen (Vorbelegung Bedarf): ${HALT_QUELLE} (${GEOPORTAL_BERN}, ArcGIS REST map.bern.ch)`] : []),
             ...(fall.quellen.verkehrsdaten ? [`Verkehrsmenge DTV (Vorbelegung Bedarf): ${VD_QUELLE}, DTV = 16·Nt + 8·Nn (${GEOPORTAL_BERN}, ` +
               'ArcGIS REST map.bern.ch)'] : []),
-            ...BERN_C_KEYS.filter(k => fall.quellen[k]).map(bernDienstBericht)]}
+            ...BERN_C_KEYS.filter(k => fall.quellen[k]).map(bernDienstBericht),
+            ...(hoehenWerte ? ['Längsneigung der Knotensicht: Höhenmodell swissALTI3D © swisstopo (Profile, api3.geo.admin.ch)'] : [])]}
           ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} />
       )}
     </div>
@@ -2359,7 +2408,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
         <label htmlFor={`querung-${s.fgsId}`}>Querung:</label> <select id={`querung-${s.fgsId}`} value={se.typ ?? ''} disabled={!!se.keinFgs} title={se.keinFgs ? '«kein FGS»: nicht geprüft' :
           'Fussgängerstreifen: Sichtweite nach VSS 40 241 Tab. 1. Ohne Vortritt (Furt bzw. Nase, Einengung, ohne Massnahme): Sichtweite ' +
           'nach VSS 40 240 Z. 8.2 je Teilquerung, auf der Karte ohne Balken. Trottoirüberfahrt: keine Sicht auf die Wartefläche, ' +
-          'massgebend ist die Knotensicht (SichtweitenCheck)'}
+          'massgebend ist die Knotensicht der Einbiegenden (hier gerechnet)'}
           onChange={e => setzeS({ typ: (STREIFEN_QUERUNGEN as string[]).includes(e.target.value) ? e.target.value as StreifenQuerung : undefined })}>
           <option value="">Fussgängerstreifen</option>
           <option value="furt">ohne Vortritt: Furt (Insel ohne Balken)</option>
@@ -2367,7 +2416,13 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           <option value="trottoirueberfahrt">{TUE_OPTION}{nichtEinmuendung ? ` – ${TUE_NUR_EINMUENDUNG}` : ''}</option>
         </select>
       </div>
-      {s.trottoirueberfahrt && <TueHinweis knoten={blatt?.vorbelegt.knoten ?? null} lage={nichtEinmuendung ? lage : null} />}
+      {s.trottoirueberfahrt && <KnotensichtBlock ks={s.knotensicht} lage={nichtEinmuendung ? lage : null}
+        breiteHand={tueBreiteHand(fall)} setzeBreite={m => aendern(f => {
+          const felder = { ...(f.bedarf?.felder ?? {}) }
+          if (m === null) delete felder['q3.breiteM']; else felder['q3.breiteM'] = { wert: m, quelle: 'hand' }
+          f.bedarf = { ...(f.bedarf ?? {}), felder }
+          return f
+        })} />}
       {s.querung && <p className="klein">Querung ohne Vortritt: Sichtweite nach <VerweisText text="VSS 40 240" />, Ziffer 8.2, max(v · L / 1,2 m/s; Anhaltesichtweite) mit
         L = {f1(s.querung.L)} m{s.querung.ganzeFahrbahn ? ' (Insel nur markiert: ganze Fahrbahn)' : ''}; kein Fussgängerstreifen.</p>}
       <p className="klein">Zuordnung OSM: {s.netzQuelle} · Bordkanten: {s.randQuelle === 'AV' ? 'AV' : 'angenommen'} ·

@@ -17,6 +17,7 @@ import { wgs, lv95, type P } from './geo'
 import Ortssuche from './Ortssuche'
 import { schildLage, zufahrtNr, zufahrtText, type ZufahrtNamen } from './benennung'
 import { ortZoom, type Ort } from './daten/ortssuche'
+import { KS_LAGE } from './tue/texte'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
@@ -74,6 +75,9 @@ export const STRICH_OHNE_VORTRITT = '6 4'
  * Annäherungsbereiche, in Karte und Bericht */
 export const TUE_RAND = '#64748b'
 export const STRICH_TUE = '4 3'
+/** Knotensicht an der Trottoirüberfahrt: Strich je Teil (Auto durchgezogen, Velo gestrichelt, Trottoir punktiert) und Namen */
+const KS_STRICH: Record<string, string | undefined> = { auto: undefined, velo: '6 4', trottoir: '2 3' }
+const KS_ART: Record<string, string> = { auto: 'Auto', velo: 'Velo', trottoir: 'Trottoir' }
 /** Strichmuster der Fahrlinie einer gedeckten Abbiegezufahrt (nur mit GEDECKT_RECHNEN), in Karte und Bericht gleich */
 export const STRICH_GEDECKT = '2 8'
 export const LUFTBILD_FARBE = '#f59e0b'
@@ -127,7 +131,7 @@ export function standortFehlerText(code: number): string {
   return 'Standort zurzeit nicht verfügbar (kein GPS- bzw. Netzempfang).'
 }
 
-export type Werkzeug = null | 'parkfeld' | 'laengs' | 'baum' | 'hecke' | 'mauer' | 'flaeche' | 'insel' | 'streifen' | 'spurB' | 'fixpunkt' |
+export type Werkzeug = null | 'parkfeld' | 'laengs' | 'baum' | 'hecke' | 'mauer' | 'flaeche' | 'insel' | 'streifen' | 'tue' | 'spurB' | 'fixpunkt' |
   'planflaeche' | 'eckeRunden' | 'mittelinsel' | 'seitenraum'
 /** Masslinie ab Fixpunkt (rechner/vermassung.fixpunktMasse): von, bis, Beschriftung */
 export interface Masslinie { von: P; bis: P; text: string }
@@ -479,6 +483,20 @@ export default function Karte(props: {
         // Trottoirüberfahrt: keine Wartefläche, kein Balken; Trottoirfarbe, grau gestrichelt
         L.polygon(s.umriss.map(ll), { color: TUE_RAND, weight: 2, dashArray: STRICH_TUE, fillColor: AV_FARBEN.Trottoir, fillOpacity: 0.85,
           interactive: false }).addTo(eb.sicht)
+        // Knotensicht (K4): Sichtdreiecke je Richtung (frei grün, verdeckt rot; Velo gestrichelt, Trottoir punktiert) und die
+        // Beobachtungspunkte der beiden Phasen
+        const ks = s.knotensicht
+        if (ks && !('fehler' in ks)) {
+          for (const d of ks.karte.dreiecke) for (const [ring, farbe, wie] of [[d.frei, STATUS_FARBE.frei, 'frei'], [d.verdeckt, STATUS_FARBE.verdeckt, 'verdeckt']] as const) {
+            if (ring.length < 3) continue
+            L.polygon(ring.map(ll), { color: farbe, weight: 1, dashArray: KS_STRICH[d.art], fillColor: farbe, fillOpacity: wie === 'frei' ? 0.1 : 0.2,
+              interactive: !cb.current.werkzeug })
+              .bindTooltip(`Knotensicht ${KS_ART[d.art]} ${KS_LAGE[d.lage] ?? d.lage}: ${wie}`, { sticky: true }).addTo(eb.sicht)
+          }
+          for (const [p, t] of [[ks.karte.D, 'Fahrbahn (vorderer Rand)'], [ks.karte.Dtrottoir, 'Trottoir (hinterer Rand)']] as const)
+            if (p) L.circleMarker(ll(p), { radius: 4, color: '#111827', weight: 1.5, fillColor: '#ffffff', fillOpacity: 1, interactive: !cb.current.werkzeug })
+              .bindTooltip(`Auge der Ausfahrenden, Sicht auf ${t}`).addTo(eb.sicht)
+        }
         continue
       }
       for (const a of s.ann) L.polygon(a.map(r => r.map(ll)), { color: '#0ea5e9', weight: 1, fillOpacity: 0.4, interactive: false }).addTo(eb.sicht)

@@ -1,7 +1,7 @@
 // Tests Trottoirüberfahrt am Streifen (23.10.2026): Wahl «Querung» = Trottoirüberfahrt setzt den Querungstyp im Bedarf, der Streifen
 // wird wie «kein FGS» angezeigt (keine Sicht auf die Wartefläche, keine Richtungsliste), seine Zufahrten dienen nur der Vorbelegung;
 // andere Streifen bleiben unverändert; Fall-Datei alt/neu;
-// Hinweis mit dem SichtweitenCheck. Künstliche Strassen (keine echten Daten): Hauptstrasse West–Ost, Querweg mündet bei x = -40 ein.
+// Block «Knotensicht» (Rechnung in tue/knotensicht.test.tsx). Künstliche Strassen (keine echten Daten): Hauptstrasse West–Ost, Querweg mündet bei x = -40 ein.
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { wgs, type P } from './geo'
@@ -12,8 +12,8 @@ import { inselLage, inselMasse, inselFlaechen, streifenTeilen, E1_TIEFE_M, E1_BR
 import { leererFall, fallLesen, fallSchreiben, fallVersion, type Fall } from './fall'
 import { befundblaetter } from './bedarf/befundblatt'
 import { TUE_WAHL_TEXT, streifenTyp } from './bedarf/vorbelegung'
-import { TueHinweis } from './TueHinweis'
-import { streifenStatus, sichtweitenCheckUrl, SICHTWEITENCHECK_URL } from './texte'
+import { KnotensichtBlock } from './tue/KnotensichtBlock'
+import { streifenStatus } from './texte'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number): [number, number] => wgs(O[0] + x, O[1] + y)
@@ -162,23 +162,11 @@ describe('Trottoirüberfahrt: Fall-Datei', () => {
   })
 })
 
-describe('Trottoirüberfahrt: Hinweis im Reiter Sichtprüfung (Render-Wächter)', () => {
+describe('Trottoirüberfahrt: Block im Reiter Sichtprüfung (Render-Wächter)', () => {
   const text = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
-  it('Knotensicht, SichtweitenCheck mit Knoten (neues Fenster, noopener), Frage im Bedarf; kein «Zebra», keine Regelnummer', () => {
-    const html = renderToStaticMarkup(<TueHinweis knoten={11} lage={null} />)
-    expect(html).toContain(`href="${SICHTWEITENCHECK_URL}?knoten=11"`)
-    expect(html).toContain('target="_blank"'); expect(html).toContain('rel="noopener noreferrer"')
-    const t = text(html)
-    expect(t).toContain('Massgebend ist die Knotensicht der Einbiegenden')
-    expect(t).toContain('SichtweitenCheck ↗')
-    expect(t).toContain('«Sicht beim Ausfahren genügt (Knotensicht)»')
-    expect(t).not.toMatch(/zebra/i); expect(t).not.toMatch(/\b(Q3-\w+|[A-H]\d+[a-z]?)\b/)
-    expect(t).not.toContain('nur an Einmündungen')
-  })
-  it('ohne Knoten: nur die Startseite; Lage keine Einmündung: Hinweis «nur an Einmündungen»', () => {
-    const html = renderToStaticMarkup(<TueHinweis knoten={null} lage="strecke" />)
-    expect(html).toContain(`href="${SICHTWEITENCHECK_URL}"`)
+  it('Lage laut Bedarf keine Einmündung: Hinweis «nur an Einmündungen»; kein Link auf den SichtweitenCheck mehr', () => {
+    const html = renderToStaticMarkup(<KnotensichtBlock ks={undefined} lage="strecke" breiteHand={null} setzeBreite={() => {}} />)
     expect(text(html)).toContain('Lage laut Bedarf: auf der Strecke (keine Kreuzung) – Trottoirüberfahrten gibt es nur an Einmündungen')
-    expect(sichtweitenCheckUrl(0)).toBe(SICHTWEITENCHECK_URL); expect(sichtweitenCheckUrl(1.5)).toBe(SICHTWEITENCHECK_URL)
+    expect(html).not.toContain('sichtweitencheck.ch'); expect(text(html)).not.toMatch(/zebra/i)
   })
 })

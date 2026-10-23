@@ -107,14 +107,9 @@ export const STATUS: Record<string, string> = {
 export const streifenStatus = (s: Pick<StreifenErgebnis, 'status' | 'trottoirueberfahrt'>): string =>
   s.trottoirueberfahrt ? 'Trottoirüberfahrt' : STATUS[s.status] ?? s.status
 
-// Trottoirüberfahrt am Streifen (23.10.2026): keine Sicht auf die Wartefläche, massgebend ist die Knotensicht (SichtweitenCheck)
+// Trottoirüberfahrt am Streifen (23.10.2026): keine Sicht auf die Wartefläche, massgebend ist die Knotensicht (tue/knotensicht.ts)
 export const TUE_OPTION = 'Trottoirüberfahrt (über eine Einmündung)'
 export const TUE_NUR_EINMUENDUNG = 'nur an Einmündungen'
-export const TUE_BERICHT = 'Trottoirüberfahrt – Knotensicht mit dem SichtweitenCheck prüfen'
-export const SICHTWEITENCHECK_URL = 'https://sichtweitencheck.ch/'
-/** Adresse des SichtweitenChecks; mit OSM-Knoten öffnet er die Prüfung an diesem Knoten (?knoten=<OSM-Id>) */
-export const sichtweitenCheckUrl = (knoten: number | null | undefined): string =>
-  knoten != null && Number.isInteger(knoten) && knoten > 0 ? `${SICHTWEITENCHECK_URL}?knoten=${knoten}` : SICHTWEITENCHECK_URL
 
 // Erkennungsdistanz (Sichtrechner, 23.10.2026): Texte für Sicht-Reiter, Bericht und Vorbelegung
 const ENDE_TEXT: Record<string, string> = { knoten: 'Fahrlinie endet am Knoten, weiter zurück nicht geprüft',

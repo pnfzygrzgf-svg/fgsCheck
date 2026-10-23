@@ -22,7 +22,7 @@ import { REICHWEITE_SICHT_M } from './rechner/ohneVortritt'
 
 const F3 = KATALOG.F3.werte, F3B = KATALOG['F3-B'].werte
 const B5 = KATALOG['B5-T'].werte, B5S = KATALOG['B5-1'].werte
-import { f2, TUE_OPTION, SICHTWEITENCHECK_URL } from './texte'
+import { f2, TUE_OPTION } from './texte'
 import { feldName } from './bedarf/felder'
 
 const host = (u: string) => new URL(u).host
@@ -245,12 +245,13 @@ export function Anleitung() {
             {V('Masterplan Veloinfrastruktur Stadt Bern')} {f2(F3B.min)} bis {f2(F3B.max)} m).</li>
             <li><b>Trottoirüberfahrt planen:</b>
               <ol>
-                <li>«Streifen planen» und die Wartebereiche auf beiden Trottoirs über die einmündende Strasse anklicken.</li>
-                <li>Beim Streifen unter «Querung» «{TUE_OPTION}» wählen: grau gestrichelt in Trottoirfarbe, ohne Sicht auf die
+                <li>Werkzeug «Trottoirüberfahrt» (Planen) und beide Enden über die einmündende Strasse anklicken – oder einen Streifen
+                  zeichnen und unter «Querung» «{TUE_OPTION}» wählen: grau gestrichelt in Trottoirfarbe, ohne Sicht auf die
                   Wartefläche; im Bedarf ist der Querungstyp damit gesetzt.</li>
                 <li>Im Reiter «Bedarf und Querungstyp» die Fragen im Thema Trottoirüberfahrt beantworten.</li>
-                <li>Die Knotensicht mit dem <a href={SICHTWEITENCHECK_URL} target="_blank" rel="noopener noreferrer">SichtweitenCheck ↗</a> prüfen
-                  und «{feldName('q3.knotensichtOk')}» beantworten.</li>
+                <li>Die Knotensicht der Einbiegenden rechnet die App selbst (Kern des SichtweitenCheck): je Richtung zwei Phasen
+                  (vom hinteren Rand der Überfahrt aufs Trottoir, vom vorderen Rand zur Fahrbahn); sie beantwortet
+                  «{feldName('q3.knotensichtOk')}», wenn beide Phasen ein klares Ergebnis haben.</li>
               </ol></li>
             <li><b>Grundprüfung (Big Five, bfu):</b> oben im Reiter «Bedarf und Querungstyp» prüft ein Kasten die fünf Punkte der
             {V('bfu-Fachdokumentation «Fussgängerstreifen»')} und das Tempo als Vorbedingung, mit eigenen Regeln nach den Werten der bfu: Tempo

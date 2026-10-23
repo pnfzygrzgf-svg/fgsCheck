@@ -1,4 +1,4 @@
-// Tests Werkzeuggruppe «Planen» (23.10.2026, Planen.tsx): Gruppe über der Reiterleiste in beiden Reitern mit allen sechs Knöpfen,
+// Tests Werkzeuggruppe «Planen» (23.10.2026, Planen.tsx): Gruppe über der Reiterleiste in beiden Reitern mit allen sieben Knöpfen (seit 23.10.2026 mit «Trottoirüberfahrt»),
 // ohne Ort nur «Streifen planen» in der Knopfzeile; «Eingaben von Hand» ohne Planen-Werkzeuge; Hilfe und geplante Elemente in der
 // Gruppe, Hilfe der Bestand-Werkzeuge unter «Eingaben von Hand».
 
@@ -7,13 +7,15 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { ReiterAnsicht } from './ReiterLeiste'
 import { BESTAND_WERKZEUGE, PLAN_WERKZEUGE, PlanenGruppe, StreifenPlanenOben, WERKZEUGE, WerkzeugKnoepfe, hilfeOrt } from './Planen'
 
-const PLAN_NAMEN = ['Streifen planen', 'Mittelinsel (Standard)', 'Vorgezogener Seitenraum', 'Fläche (Plan)', 'Ecke runden', 'Fixpunkt']
+const PLAN_NAMEN = ['Streifen planen', 'Trottoirüberfahrt', 'Mittelinsel (Standard)', 'Vorgezogener Seitenraum', 'Fläche (Plan)', 'Ecke runden', 'Fixpunkt']
 const BESTAND_NAMEN = ['Parkfeld', 'Längsparkierung', 'Baum', 'Hecke', 'Mauer', 'übriges Hindernis', 'Insel']
 const knoepfe = (html: string): string[] => [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map(m => m[1])
 const nichts = () => {}
+const gruppeTitel = (w: 'tue') => /title="([^"]*)"[^>]*>Trottoirüberfahrt</.exec(renderToStaticMarkup(<PlanenGruppe geladen werkzeug={null}
+  waehlen={nichts} hilfe={null} anzahl={0} offen={false} setOffen={nichts} geplant={null} />))?.[1] ?? w
 
 describe('Werkzeuggruppe Planen', () => {
-  it('Gruppe über der Reiterleiste, in beiden Reitern sichtbar, sechs Knöpfe in der Reihenfolge; aktiver Knopf hervorgehoben', () => {
+  it('Gruppe über der Reiterleiste, in beiden Reitern sichtbar, sieben Knöpfe in der Reihenfolge; aktiver Knopf hervorgehoben', () => {
     for (const aktiv of ['sicht', 'bedarf'] as const) {
       const html = renderToStaticMarkup(<ReiterAnsicht mitReitern aktiv={aktiv} waehlen={nichts} zustand={null}
         sicht={<p>SICHT</p>} bedarf={<p>BEDARF</p>}
@@ -30,6 +32,9 @@ describe('Werkzeuggruppe Planen', () => {
       expect(gruppe.match(/aria-pressed="true"/g)).toHaveLength(1)
     }
     expect(PLAN_WERKZEUGE.map(w => WERKZEUGE.find(x => x[0] === w)![1])).toEqual(PLAN_NAMEN)
+    // «Trottoirüberfahrt» direkt nach «Streifen planen», mit eigener Kurzhilfe
+    expect(PLAN_WERKZEUGE.indexOf('tue')).toBe(PLAN_WERKZEUGE.indexOf('streifen') + 1)
+    expect(gruppeTitel('tue')).toBe('Trottoirüberfahrt: über eine Einmündung: beide Enden anklicken; geprüft wird die Knotensicht der Einbiegenden')
     // gesperrt (Ecke runden ohne Fläche (Plan)): Knopf gesperrt, Grund als Tooltip
     const g = renderToStaticMarkup(<PlanenGruppe geladen werkzeug={null} waehlen={nichts} hilfe={null} anzahl={0} offen={false}
       setOffen={nichts} geplant={null} gesperrt={{ eckeRunden: 'zuerst eine Fläche (Plan)' }} />)

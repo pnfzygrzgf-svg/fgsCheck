@@ -1,6 +1,6 @@
 // ── Werkzeuggruppe «Planen» (23.10.2026) und die Werkzeuge für «Eingaben von Hand» ──
 //
-// Planen (Streifen, Mittelinsel, Seitenraum, Fläche (Plan), Ecke runden, Fixpunkt) steht über der Reiterleiste und ist damit in
+// Planen (Streifen, Trottoirüberfahrt, Mittelinsel, Seitenraum, Fläche (Plan), Ecke runden, Fixpunkt) steht über der Reiterleiste und ist damit in
 // beiden Reitern sichtbar, sobald ein Ort geladen ist; ohne Ort steht nur «Streifen planen» in der Knopfzeile (beginnt einen neuen
 // Fall). «Eingaben von Hand» behält die Korrekturen am Bestand. Reine Oberfläche: die Werkzeuge selbst bleiben in App.tsx.
 
@@ -24,6 +24,8 @@ export const WERKZEUGE: [W, string, string][] = [
     'bauliche Insel besser als «Fläche (Plan)» mit Art Insel (Planen)'],
   // die gezeichneten Streifen heissen «Streifen von Hand»
   ['streifen', 'Streifen planen', 'beide Wartebereiche anklicken (Achse quer über die Fahrbahn)'],
+  // Trottoirüberfahrt (23.10.2026): wie «Streifen planen», der Streifen bekommt gleich die Wahl «Trottoirüberfahrt»
+  ['tue', 'Trottoirüberfahrt', 'über eine Einmündung: beide Enden anklicken; geprüft wird die Knotensicht der Einbiegenden'],
   ['mittelinsel', 'Mittelinsel (Standard)', 'Schutzinsel mit Rollstuhlfurt nach Masterplan Fussverkehr Stadt Bern, Standards, E1, als ' +
     'Flächen (Plan) der Art Insel einfügen'],
   ['seitenraum', 'Vorgezogener Seitenraum', 'nahe einem Streifenende klicken: Fläche (Plan) Trottoir 0,20 m über die Parklinie ' +
@@ -39,7 +41,7 @@ export const WERKZEUGE: [W, string, string][] = [
 ]
 
 /** Gruppe Planen, in dieser Reihenfolge */
-export const PLAN_WERKZEUGE: W[] = ['streifen', 'mittelinsel', 'seitenraum', 'planflaeche', 'eckeRunden', 'fixpunkt']
+export const PLAN_WERKZEUGE: W[] = ['streifen', 'tue', 'mittelinsel', 'seitenraum', 'planflaeche', 'eckeRunden', 'fixpunkt']
 /** «Eingaben von Hand»: Korrekturen am Bestand */
 export const BESTAND_WERKZEUGE: W[] = ['parkfeld', 'laengs', 'baum', 'hecke', 'mauer', 'flaeche', 'insel']
 

@@ -37,6 +37,7 @@ import { imBereich, HALT_TEXT, type Bereich, type HaltestellenErgebnis, type Oev
 import type { VerkehrsdatenErgebnis, VdLinie } from '../daten/verkehrsdaten'
 import { automatik, avInselBei, kopfUeberstandAv, zufSicht, type AutoGeo } from './automatik'
 import { tag } from './lesetext'
+import { knotensichtVorbelegung } from '../tue/texte'
 import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
 import { automatikC, strassentypBern, tempoAusHierarchie, vsigVorbelegen, zoneNachVsig } from './automatikC'
 import { GEOPORTAL_BERN, type BernErgebnis } from '../daten/geoportal'
@@ -382,6 +383,11 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
     if (i >= 0) hinweise.splice(i, 1)
   }
   automatikC({ st, geo, w, setze, feldHinweis, feldHinweisWeg, hinweise })
+  // Trottoirüberfahrt (K4): die Knotensicht (tue/knotensicht.ts) beantwortet «Sicht beim Ausfahren», nur mit eindeutigem Ergebnis beider
+  // Phasen; sonst bleibt die Frage offen (Hinweis). Eine Handeingabe geht vor (fallBedarf)
+  const kv = knotensichtVorbelegung(g.streifen.flatMap(s => (s.knotensicht ? [s.knotensicht] : [])))
+  if (kv && 'hinweis' in kv) feldHinweis('q3.knotensichtOk', kv.hinweis)
+  else if (kv) setze('q3.knotensichtOk', kv.wert, kv.quelle, kv.text)
   if (st.some(s => s.tram === true) && !w.tram && !feldHinweise.tram)
     hinweise.push('Ein Tramgleis nach OSM quert die Querung: Art (Fahrbahn bzw. Eigentrassee) von Hand wählen')
   return { werte: w, hinweise, feldHinweise, rechner, ...(aus.knoten !== undefined ? { knoten: aus.knoten } : {}),
