@@ -273,7 +273,20 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Streifen mit der Sichtweite nach VSS 40 240 Z. 8.2 im Sichtrechner (`src/rechner/ohneVortritt.ts`); Fall-Dateien mit
   Bedarf-Eingaben (Block `bedarf`, je Unterfeld geprüft in `fallBedarf.ts`) bzw. mit einer Querung ohne Vortritt haben die Version 3.
   Ein Streifen lässt sich als Trottoirüberfahrt wählen (`StreifenEingabe.typ = 'trottoirueberfahrt'`): ohne Sicht auf die Wartefläche
-  (Zufahrten nur für die Vorbelegung des Bedarfs), setzt im Bedarf den Querungstyp und verweist für die Knotensicht auf den SichtweitenCheck (`?knoten=<OSM-Id>`).
+  (Zufahrten nur für die Vorbelegung des Bedarfs), setzt im Bedarf den Querungstyp und rechnet die Knotensicht der Einbiegenden (`src/tue/`, Werkzeug «Trottoirüberfahrt»
+  unter Planen bzw. Auswahl «Querung» am Streifen): zwei Phasen je Richtung, vom hinteren Rand der Überfahrt aufs Trottoir und von
+  der Bordkante zur Fahrbahn (VSS 40 242 Ziffer 14.4, Werte nach VSS 40 273 Tab. 1, Tab. 2 und Tab. 3). Zufahrt ist der Arm des
+  Knotens (bis 20 m), den die Querung quert, bei geteilten Streifen gemeinsam. Breite: von Hand (Bedarf), sonst AV (Trottoir quer
+  bzw. schmaleres angrenzendes Trottoir, begrenzt auf 2,00 bis 3,50 m nach VSS 40 242 Ziffer 16), sonst 2,00 m als Annahme; die
+  Gehlinie liegt 0,50 m vor dem hinteren Rand der Überfahrt. Tempo: von Hand («Tempo auf der Hauptstrasse»), sonst in der Stadt
+  Bern das signalisierte Tempo des Geoportals, sonst OSM. Längsneigung aus Höhenprofilen (swissALTI3D), ohne Profil 0 %.
+  Hindernisse wie in der Sichtprüfung: von Hand gezeichnete, Bäume aus dem Baumkataster und amtliche Parkfelder; Parkierung unter
+  einem vorgezogenen Seitenraum entfällt, Flächen (Plan) ersetzen die AV darunter. Weil Bäume aus dem Baumkataster zählen, kann
+  das Ergebnis vom SichtweitenCheck abweichen. Das Ergebnis belegt die Frage zur Sicht beim Ausfahren nur vor, wenn beide Phasen
+  ein klares Ergebnis haben; ein «nein» aus einer Annahme bleibt ein Vorschlag zum Bestätigen.
+  Der Rechenkern in `src/knotensicht/` ist eine wortgleiche Kopie aus dem SichtweitenCheck (Version, Commit und Prüfsummen in
+  `src/knotensicht/herkunft.json`, geprüft von `src/tue/herkunft.test.ts`). Nicht von Hand ändern: Änderungen gehören in den
+  SichtweitenCheck, danach `node scripts/knotensicht_holen.mjs <Pfad zu SichtweitenCheckWeb>`.
   Im Panel stehen Sichtprüfung und Bedarf in zwei Reitern (`src/ReiterLeiste.tsx`, Logik in `src/reiter.ts`: Vorgabe nach dem
   Fall, Pfeiltasten, Zustand der Zulässigkeit in Wort und Symbol, Teaserzeile im Reiter Sichtprüfung).
   Vorbelegung aus Geodaten (`vorbelegung.ts`, `src/daten/haltestellen.ts`, `verkehrsdaten.ts`, `geoportal.ts`): Bushaltestelle
@@ -393,6 +406,7 @@ IP-Adresse):
 | wmts.geo.admin.ch (swisstopo) | Kartenkacheln (Luftbild bzw. Landeskarte) des sichtbaren Ausschnitts |
 | api3.geo.admin.ch (swisstopo, SearchServer) | Ortssuche: der eingegebene Suchbegriff (Ort, Adresse, Strasse, PLZ) |
 | wms.geo.admin.ch, api3.geo.admin.ch | Luftbild ±30 m um den Übergang, Kartenbild des Berichts; Flugjahr der 1-km-Kachel |
+| api3.geo.admin.ch (swisstopo, Höhenprofil) | nur an einer Trottoirüberfahrt: bis vier Linien der Knotensicht (Koordinaten) |
 | geodienste.ch (AV-WFS) | Rechteck ±150 m um den Übergang (BBOX) |
 | Overpass: overpass.osm.ch, ersatzweise overpass-api.de, overpass.kumi.systems, overpass.private.coffee | Kartenausschnitt (Übergänge und Strassennamen) mit Rand (Suche, automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m |
 | map.bern.ch (nur Stadt Bern) | Rechteck ±150 m (amtliche Parkfelder, Baumkataster, Haltestellen, Verkehrsdaten) |
@@ -458,7 +472,8 @@ wählen und als Custom domain `fgscheck.ch` eintragen. Der Referenzvergleich (`s
   Vermessung und Geoportal der Stadt Bern; Annahmen sind gekennzeichnet, harte Verbote nur aus Tatsachen oder nach
   Bestätigung. In Bern rechnet die Sichtprüfung mit dem signalisierten Tempo des Geoportals. Fall-Dateien mit
   Bedarfsangaben haben die Version 3. Breite des Bereichs neben der Karte ziehbar. Zwei Reiter «Sichtprüfung» und
-  «Bedarf und Querungstyp»; Trottoirüberfahrt am Streifen wählbar (Knotensicht im SichtweitenCheck); Tempo 20 als
+  «Bedarf und Querungstyp»; Trottoirüberfahrt als Werkzeug bzw. am Streifen wählbar, mit Knotensicht der Einbiegenden
+  (Rechenkern aus dem SichtweitenCheck); Tempo 20 als
   Begegnungszone vorgeschlagen; Erkennungsdistanz des Streifens aus dem Sichtrechner; Street View je Zufahrt.
 
 ## Lizenz
