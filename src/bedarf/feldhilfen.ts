@@ -383,7 +383,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   },
   randAbstand: {
     was: `Lücke zwischen dem äussersten gelben Balken und der Trottoirkante, je Ende in Metern (${MIT_SLASH}).`,
-    vorschlag: 'aus den Streifenenden und den Bordkanten der Rechnung.',
+    vorschlag: 'nur bei Streifen aus dem Luftbild: aus den erkannten Balkenenden und den Bordkanten der Rechnung; sonst von Hand.',
   },
   achsWinkel: {
     was: 'Winkel zwischen Streifen und Fahrbahnrand in Grad; 90 = rechtwinklig. Schräge Streifen sind länger und für Sehbehinderte ' +

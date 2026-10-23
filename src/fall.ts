@@ -399,14 +399,14 @@ export const inselMarkiert = (fall: Fall): boolean => fall.bedarf?.felder['insel
 
 /**
  * Schlüssel der Eingaben, die die Rechnung braucht: der ganze Fall ohne Bedarf-Block (der wirkt nur über «Insel nur markiert» und, mit
- * einer Trottoirüberfahrt, über «Breite der Trottoirüberfahrt» und «Tempo der Hauptstrasse» für die Knotensicht), ohne Speicherdatum und Ergebnis-Auszug.
+ * einer Trottoirüberfahrt, über «Breite der Trottoirüberfahrt» und «Tempo der Hauptstrasse» für die Knotensicht, je mit Quelle), ohne Speicherdatum und Ergebnis-Auszug.
  * Gleicher Schlüssel: keine neue Rechnung nach einer Bedarf-Eingabe (App)
  */
 export function rechnungsSchluessel(f: Fall): string {
   const { bedarf: _b, gespeichert: _g, ergebnis: _e, ...rest } = f
   void _b; void _g; void _e
   const tue = Object.values(f.streifen).some(e => e.typ === 'trottoirueberfahrt' && !e.keinFgs)
-  return stabil([rest, inselMarkiert(f), ...(tue ? [f.bedarf?.felder['q3.breiteM']?.wert ?? null, f.bedarf?.felder['q3.vSigHaupt']?.wert ?? null] : [])])
+  return stabil([rest, inselMarkiert(f), ...(tue ? (['q3.breiteM', 'q3.vSigHaupt'] as const).flatMap(k => [f.bedarf?.felder[k]?.wert ?? null, f.bedarf?.felder[k]?.quelle ?? null]) : [])])
 }
 
 // ---------------------------------------------------------------- localStorage (nur Bequemlichkeit, darf fehlen)

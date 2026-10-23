@@ -553,8 +553,10 @@ export function sichtAnzeige(g: QuerungGruppe, titel: (fgsId: string) => string,
 }
 
 /** Befundblätter aller Querungen einer Rechnung */
-export function befundblaetter(r: { streifen: StreifenErgebnis[]; inseln?: { ring: P[] }[] }, fall: Fall, opt: BlattOptionen): BefundBlatt[] {
-  return querungen(r.streifen).map(g => befundblatt(g, fall, { ...opt, inseln: opt.inseln ?? r.inseln ?? [] }))
+export function befundblaetter(r: { streifen: StreifenErgebnis[]; inseln?: { ring: P[] }[]; streifenQuelle?: GeoVorbelegung['streifenQuelle'] },
+  fall: Fall, opt: BlattOptionen): BefundBlatt[] {
+  const geo = r.streifenQuelle && !opt.geo?.streifenQuelle ? { ...opt.geo, streifenQuelle: r.streifenQuelle } : opt.geo
+  return querungen(r.streifen).map(g => befundblatt(g, fall, { ...opt, geo, inseln: opt.inseln ?? r.inseln ?? [] }))
 }
 
 export { gruppenName }

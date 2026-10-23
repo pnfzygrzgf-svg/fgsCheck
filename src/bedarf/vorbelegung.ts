@@ -83,6 +83,8 @@ export interface Vorbelegt { werte: Vorbelegung; hinweise: string[]; feldHinweis
 
 /** Geodaten für die Vorbelegung (App: geladen um den Ladeort); fehlt ein Eintrag, bleibt das Feld wie bisher offen */
 export interface GeoVorbelegung extends AutoGeo {
+  /** Herkunft der gerechneten Streifen (FallRechnung.streifenQuelle); die Lücke zum Rand nur bei «luftbild» */
+  streifenQuelle?: 'osm' | 'hand' | 'luftbild'
   /** Haltestellen (Geoportal Stadt Bern bzw. OSM); null: noch nicht geladen */
   haltestellen?: HaltestellenErgebnis | null
   /** Verkehrsdaten (nur Stadt Bern); null: ausserhalb Berns bzw. noch nicht geladen */
@@ -189,7 +191,9 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
 
   // Streifenbreite, Abstand der Enden zum Rand, Winkel (Vermassung der Streifen von Hand)
   setze('streifenBreite', r2(Math.min(...st.map(s => s.bw))), 'rechnung', 'Breite (Balkenlänge) der Streifen')
-  if (alleAv) {
+  // nur Streifen aus dem Luftbild: dort sind die Enden die erkannten Balken; gezeichnete Streifen enden auf den Warteflächen, OSM-Streifen
+  // haben keine Balkenenden (Nutzerentscheid 23.10.2026)
+  if (alleAv && geo.streifenQuelle === 'luftbild') {
     const ab = st.flatMap(s => {
       const ns = einheit(sub(s.p1, s.p0))
       return [dot(sub(s.p0, s.rand[0]), ns), dot(sub(s.rand[1], s.p1), ns)]
