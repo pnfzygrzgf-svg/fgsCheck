@@ -8,9 +8,10 @@ import type { ZufahrtErgebnis } from './rechner/typen'
 import type { FallRechnung } from './rechner'
 import type { Multi } from './rechner/poly'
 import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernisse'
-import { type StreifenHand, type Fixpunkt, type FlaechePlan, type PlanArt, PLAN_ARTEN } from './fall'
+import { type StreifenHand, type Fixpunkt, type FlaechePlan, type PlanArt, PLAN_ARTEN, inselStandard } from './fall'
 import { planTitel, planFlaecheM2, PLAN_NAME, eckeRadiusMax, echteEcken, RUNDEN_R_BEREICH } from './rechner/planflaechen'
-import { standardTeilText, standardGeometrie, standardAngepasst } from './rechner/standardinsel'
+import { standardGeometrie, standardAngepasst } from './rechner/standardinsel'
+import { planStandardText, planStandardAngepasst, SR_ERSETZT } from './rechner/seitenraum'
 import { fixpunktName, ART_TEXT } from './fixpunkt'
 import { wgs, lv95, type P } from './geo'
 import Ortssuche from './Ortssuche'
@@ -127,7 +128,7 @@ export function standortFehlerText(code: number): string {
 }
 
 export type Werkzeug = null | 'parkfeld' | 'laengs' | 'baum' | 'hecke' | 'mauer' | 'flaeche' | 'insel' | 'streifen' | 'spurB' | 'fixpunkt' |
-  'planflaeche' | 'eckeRunden' | 'mittelinsel'
+  'planflaeche' | 'eckeRunden' | 'mittelinsel' | 'seitenraum'
 /** Masslinie ab Fixpunkt (rechner/vermassung.fixpunktMasse): von, bis, Beschriftung */
 export interface Masslinie { von: P; bis: P; text: string }
 export const FIXPUNKT_FARBE = '#be185d'
@@ -204,7 +205,7 @@ export default function Karte(props: {
   // «Ecke runden»: Vorschau beim Ziehen des Reglers (Ring, passt der Radius, Text an der Ecke)
   rundenVorschau?: { ring: P[]; passt: boolean; text: string; p: P } | null
   // «Mittelinsel (Standard)»: Vorschau vor dem Einfügen (Inselteile, Furt, Signalmast, Mitte, Teilstreifen beim Teilen)
-  inselVorschau?: { ringe: P[][]; furt: P[] | null; mast: P | null; mitte: P; teile: [P, P][]; text?: string } | null
+  inselVorschau?: { ringe: P[][]; furt: P[] | null; mast: P | null; mitte: P; teile: [P, P][]; text?: string; art?: PlanArt } | null
   // «Mittelinsel (Standard)»: Griffe in der Inselmitte (ziehbar), Ziehen (Vorschau) und Loslassen (Übernahme)
   inselGriffe?: { gruppe: string; m: P; text: string }[]
   onInselZug?: (gruppe: string, p: P, frei: boolean) => void
@@ -394,9 +395,9 @@ export default function Karte(props: {
       L.polygon(fp.ring.map(ll), { color: f.linie, weight: fp.id === bearbeiten ? 3 : 2, dashArray: STRICH_PLAN,
         fillColor: `url(#${PLAN_MUSTER}${fp.art})`, fillOpacity: 1, interactive: !werkzeug })
         .bindTooltip(`<b>${esc(planTitel(fp.id))}: ${esc(PLAN_NAME[fp.art])} (Plan, von Hand)</b>, ` +
-          `${planFlaecheM2(fp.ring).toFixed(1).replace('.', ',')} m²${fp.standard ? `<br>${esc(standardTeilText(fp))}` : ''}` +
-          (fp.standard && flaechenPlan.some(x => x.standard?.gruppe === fp.standard!.gruppe && standardAngepasst(x)) ?
-            `<br>Form ${standardAngepasst(fp) ? '' : 'eines anderen Teils '}von Hand angepasst: kein Griff zum Ziehen (nur die Standardform ist ziehbar)` : '') +
+          `${planFlaecheM2(fp.ring).toFixed(1).replace('.', ',')} m²${fp.standard ? `<br>${esc(planStandardText(fp))}` : ''}` +
+          (fp.standard && flaechenPlan.some(x => x.standard?.gruppe === fp.standard!.gruppe && planStandardAngepasst(x)) ?
+            `<br>Form ${planStandardAngepasst(fp) ? '' : 'eines anderen Teils '}von Hand angepasst: kein Griff zum Ziehen (nur die Standardform ist ziehbar)` : '') +
           '<br>ersetzt in der Rechnung die AV darunter<br><i>Klick: wählen und bearbeiten</i>',
         { sticky: true })
         .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(fp.id) })
@@ -406,8 +407,9 @@ export default function Karte(props: {
     }
     // Mittelinsel (Standard): Signalmast im Kopf der Furt-Seite (Punkt, nur Hinweis; nicht bei von Hand veränderter Form)
     for (const fp of flaechenPlan) {
-      if (fp.standard?.teil !== 'kopf' || standardAngepasst(fp)) continue
-      const mast = standardGeometrie(fp.standard).mast
+      const st = inselStandard(fp)
+      if (st?.teil !== 'kopf' || standardAngepasst(fp)) continue
+      const mast = standardGeometrie(st).mast
       if (mast) L.circleMarker(ll(mast), { radius: 4, color: '#ffffff', weight: 1.5, fillColor: '#000000', fillOpacity: 1, interactive: !werkzeug })
         .bindTooltip('Signalmast der Mittelinsel (Standard E1): Hinweis, kein Hindernis in der Rechnung').addTo(eb.plan)
     }
@@ -534,19 +536,23 @@ export default function Karte(props: {
     const eb = ebenenRef.current
     if (!eb) return
     eb.hind.clearLayers()
+    // Parkierung unter einem vorgezogenen Seitenraum: gestrichelt, gedimmt (entfällt in der Rechnung ganz bzw. zum überdeckten Teil)
+    const ersetzt = new Map((rechnung?.seitenraumErsetzt ?? []).map(x => [x.id, x.ganz]))
+    const srStil = (id: string): L.PathOptions => (ersetzt.has(id) ? { dashArray: '3 4', opacity: 0.6, fillOpacity: 0.08 } : {})
+    const srText = (id: string) => (ersetzt.has(id) ? `<br>${SR_ERSETZT}${ersetzt.get(id) ? '' : ' (zum überdeckten Teil)'}` : '')
     for (const h of hindernisse) {
       const farbe = hindernisFarbe(h)
-      const ebene = hindernisEbene(h, { color: farbe, weight: h.id === bearbeiten ? 3 : 2, fillColor: farbe, fillOpacity: 0.35 })
+      const ebene = hindernisEbene(h, { color: farbe, weight: h.id === bearbeiten ? 3 : 2, fillColor: farbe, fillOpacity: 0.35, ...srStil(h.id) })
       ;(ebene as L.Path).bindTooltip(esc(hindernisText(h)) + ((h.art === 'hecke' || h.art === 'mauer' || h.art === 'uebrige') &&
-        !h.sichtbehindernd ? ' – nicht sichtbehindernd' : ''), { sticky: true })
+        !h.sichtbehindernd ? ' – nicht sichtbehindernd' : '') + srText(h.id), { sticky: true })
         .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(h.id) })
       ebene.addTo(eb.hind)
     }
     for (const v of rechnung?.vorschlaege ?? []) {
       const farbe = hindernisFarbe(v.hindernis)
       const ebene = hindernisEbene(v.hindernis, { color: farbe, weight: v.id === bearbeiten ? 4 : 2, dashArray: v.hindernis.quelle === 'osm' ? '5 4' : undefined,
-        fillColor: farbe, fillOpacity: v.hindernis.quelle === 'osm' ? 0.12 : 0.35 })
-      ;(ebene as L.Path).bindTooltip(`${esc(v.hindernis.name ?? 'Vorschlag')}<br>${esc(v.grund)}` +
+        fillColor: farbe, fillOpacity: v.hindernis.quelle === 'osm' ? 0.12 : 0.35, ...srStil(v.id) })
+      ;(ebene as L.Path).bindTooltip(`${esc(v.hindernis.name ?? 'Vorschlag')}<br>${esc(v.grund)}${srText(v.id)}` +
         (v.hindernis.quelle === 'kataster' ? '<br><i>Klick: wählen, im Panel verwerfen</i>' : ''), { sticky: true })
         .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(v.id) })
       ebene.addTo(eb.hind)
@@ -670,7 +676,9 @@ export default function Karte(props: {
       }
     }
     const x = v
-    x.ringe.forEach((r, i) => r.setLatLngs(inselV?.ringe[i]?.map(ll) ?? []))
+    // Farbe der Plan-Art (Mittelinsel: Insel; vorgezogener Seitenraum: Trottoir)
+    const pf = PLAN_FARBEN[inselV?.art ?? 'insel']
+    x.ringe.forEach((r, i) => r.setLatLngs(inselV?.ringe[i]?.map(ll) ?? []).setStyle({ color: pf.linie, fillColor: pf.flaeche }))
     x.furt.setLatLngs(inselV?.furt?.map(ll) ?? [])
     x.teile.forEach((t, i) => t.setLatLngs(inselV?.teile[i]?.map(ll) ?? []))
     const punkt = (m: L.CircleMarker, p: P | null | undefined) => {

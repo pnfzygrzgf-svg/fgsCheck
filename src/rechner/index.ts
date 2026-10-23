@@ -16,10 +16,11 @@ import { eckCacheLeeren } from './abbiegen'
 import { HindernisDaten, type Hindernis } from './hindernisse'
 import { parkVorschlaege, baumVorschlaege, parkKatasterFelder, osmUeberdeckt, doppeltAmtlich, type Vorschlag } from './vorschlaege'
 import { abstandPunkt, flaeche } from './poly'
-import { avMitPlan, planAmRand, planNahLinie, planKurz, anteilInPlanInsel, PLAN_NAME, PLAN_STANDARD_KURZ, planTitel, INSEL_DOPPELT_ANTEIL,
+import { avMitPlan, planAmRand, planNahLinie, planKurz, anteilInPlanInsel, PLAN_NAME, planStandardKurz, planTitel, INSEL_DOPPELT_ANTEIL,
   type PlanTeil } from './planflaechen'
 import type { PlanArt, FlaechePlan } from '../fall'
 import { furtQuert, E1_KURZ } from './standardinsel'
+import { parkOhneSeitenraum, SR_NAME, SR_ERSETZT, type SrErsetzt } from './seitenraum'
 import { f1 } from '../texte'
 import type { Rechnung, StreifenErgebnis } from './typen'
 import type { TempoAmtlich } from './tempo'
@@ -155,6 +156,9 @@ export interface FallRechnung extends Rechnung {
   inseln: InselZusatz[]              // angenommene Inseln (nach OSM und Luftbild) der gerechneten Streifen, für die Karte
   inselTeilt: boolean                // Luftbild «unsicher»: der Streifen aus OSM + AV ist an der Insel aus dem Luftbild geteilt
   planFlaechen?: number              // wirksame Flächen (Plan) von Hand in der Rechnung (fehlt ohne; planflaechen.avMitPlan)
+  /** Parkierung unter einem vorgezogenen Seitenraum (seitenraum.parkOhneSeitenraum): entfällt in der Sichtprüfung ganz bzw. zum
+   * überdeckten Teil; dazu OSM-Vorschläge darunter (nur Anzeige). Fehlt ohne Element */
+  seitenraumErsetzt?: SrErsetzt[]
 }
 
 /**
@@ -262,7 +266,17 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const parkVerworfen = parkAlle.filter(v => fall.vorschlaege[v.id] && !vorhanden.has(v.id))
   // Doppelzählung: gegen alle geladenen amtlichen Felder (auch verworfene und ausserhalb der Reichweite)
   const doppelt = park && fall.parkkataster !== false ? doppeltAmtlich(fall.hindernisse, park.felder.map(f => f.ring)) : []
-  const hindernisse: Hindernis[] = [...fall.hindernisse, ...kat.map(v => v.hindernis), ...katPark.map(v => v.hindernis)]
+  let hindernisse: Hindernis[] = [...fall.hindernisse, ...kat.map(v => v.hindernis), ...katPark.map(v => v.hindernis)]
+  // Vorgezogener Seitenraum (seitenraum.ts): Parkierung darunter entfällt für die Sichtprüfung (Einträge im Fall bleiben)
+  const srPolys = plan.teile.filter(t => t.standard?.typ === 'seitenraum').map(t => t.poly)
+  let srErsetzt: SrErsetzt[] | null = null
+  if (srPolys.length) {
+    const r = parkOhneSeitenraum(hindernisse, srPolys)
+    hindernisse = r.hindernisse
+    srErsetzt = [...r.ersetzt, ...parkOhneSeitenraum(offen.map(v => v.hindernis), srPolys).ersetzt]
+    if (r.ersetzt.length) planMeldungen.push(`${SR_NAME}: ${r.ersetzt.length} Parkfeld(er) bzw. Parkierung ${SR_ERSETZT} ` +
+      `(${r.ersetzt.filter(x => x.ganz).length} ganz, ${r.ersetzt.filter(x => !x.ganz).length} zum überdeckten Teil); sie zählen in der Sichtprüfung nicht.`)
+  }
   const kx = kontextBauen(osm, av, sosf, hindernisse)
   kx.vonHand = vonHandAusFall(fall)
   kx.tempoAmtlich = tempoAmtlich
@@ -301,7 +315,8 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const inseln = [...new Set(streifen.flatMap(s => s.inseln))].filter(z => z.herkunft !== 'hand')
   return { streifen: erg, meldungen, ms: performance.now() - t0, vorschlaege: [...offen, ...kat, ...katPark], streifenQuelle: quelle,
     markierung: mk, hinweis, luftbild, parkVerworfen, doppelt, inseln, inselTeilt,
-    ...(fall.flaechenPlan?.length ? { planFlaechen: new Set(plan.teile.map(t => t.id)).size } : {}) }
+    ...(fall.flaechenPlan?.length ? { planFlaechen: new Set(plan.teile.map(t => t.id)).size } : {}),
+    ...(srErsetzt ? { seitenraumErsetzt: srErsetzt } : {}) }
 }
 
 /** OSM-Tramgleis (Linie) schneidet die Streifenachse oder liegt mit einem Stützpunkt im Umriss */
@@ -328,7 +343,7 @@ function planAnnahmen(erg: StreifenErgebnis[], plan: ReturnType<typeof avMitPlan
   if (ids.length) {
     const liste = ids.map(id => {
       const ts = plan.teile.filter(t => t.id === id)
-      return `${planTitel(id)}: ${PLAN_NAME[ts[0].art]}${ts[0].standard ? ` (${PLAN_STANDARD_KURZ})` : ''} ${f1(flaeche(ts.map(t => t.poly)))} m²`
+      return `${planTitel(id)}: ${PLAN_NAME[ts[0].art]}${ts[0].standard ? ` (${planStandardKurz(ts[0].standard)})` : ''} ${f1(flaeche(ts.map(t => t.poly)))} m²`
     })
     meldungen.push(`Rechnung mit geplanter Bodenbedeckung (von Hand): ${liste.join('; ')}. Die Plan-Flächen ersetzen die AV-Flächen ` +
       'darunter (Gebäude bleiben); Bordkanten, Wartebereiche, Inseln und Fahrlinien richten sich danach.')

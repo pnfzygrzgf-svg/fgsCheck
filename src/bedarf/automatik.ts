@@ -20,6 +20,8 @@ import type { Vorbelegung } from './fallBedarf'
 import { HW_ALLE, istFgs, istLsaUebergang, markierung, type OsmDaten, type OsmKnoten, type OsmWeg, type VortrittZeichen } from '../daten/osm'
 import type { AvFlaeche } from '../daten/av'
 import { schnitt } from '../rechner/poly'
+import { seitenraumAnStreifen } from '../rechner/seitenraum'
+import { planTitel } from '../rechner/planflaechen'
 import { KATALOG } from './katalog'
 import { imBereich, HALT_TEXT, type Bereich, type HaltestellenErgebnis, type OevHalt } from '../daten/haltestellen'
 
@@ -601,8 +603,14 @@ export function automatik(x: AutoEingang): void {
     if (insel === false && einengung === false) setze('ohneBaulich', true, 'annahme', 'keine Insel und keine Einengung: ohne bauliche Hilfe angenommen')
     else if (insel === true || einengung === true) setze('ohneBaulich', false, 'annahme', insel === true ? 'Insel an der Querung' : 'Einengung an der Querung')
   }
-  // Trottoir vor bzw. hinter der Parkreihe (AV-Bord am Streifen gegen den Bord entlang der Zufahrt, minus Parkstreifen)
-  if (av && st.every(s => s.randQuelle === 'AV')) {
+  // Trottoir vor bzw. hinter der Parkreihe: aus dem Plan-Element «Vorgezogener Seitenraum» an den Streifen (kleinster Überstand),
+  // sonst AV-Bord am Streifen gegen den Bord entlang der Zufahrt, minus Parkstreifen
+  const sr = seitenraumAnStreifen(fall.flaechenPlan, st)
+  if (sr.length) {
+    const v = sr.reduce((a, b) => (b.st.ueberstand < a.st.ueberstand ? b : a))
+    setze('seitenraumVorParklinieM', r2s(v.st.ueberstand), 'rechnung', `Plan: vorgezogener Seitenraum (${sr.map(x => planTitel(x.id)).join(', ')}), ` +
+      'Überstand über die Parklinie')
+  } else if (av && st.every(s => s.randQuelle === 'AV')) {
     const mitPark = gerade.filter(z => z.parkRechts)
     const sv = mitPark.map(z => seitenraum(av, st.find(s => s.fgsId === z.fgsId) ?? s0, z)).filter((v): v is number => v !== null)
     if (sv.length) {
@@ -889,6 +897,8 @@ function einengungLaenge(av: AvIndex | null, st: StreifenErgebnis[], grenze: num
   }
   return r1(l)
 }
+
+const r2s = (x: number) => Math.round(x * 100) / 100
 
 /** Bordversatz am Streifen gegen die Zufahrt minus Parkstreifen (+ Trottoir vorgezogen, − dahinter); null ohne Messung */
 function seitenraum(av: AvIndex, s: StreifenErgebnis, z: ZufahrtErgebnis): number | null {

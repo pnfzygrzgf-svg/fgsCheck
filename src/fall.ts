@@ -72,7 +72,24 @@ export interface PlanStandard {
   tiefe: number; breite: number; furt: number; kopf: number; seite: FurtSeite   // m: Tiefe quer, Streifenbreite, Furt, Kopflänge
   m: P; achse: P; balken: P                                                        // Mitte (LV95), Achse A -> B, Balkenrichtung
 }
-export interface FlaechePlan { id: string; art: PlanArt; ring: P[]; standard?: PlanStandard }
+/** Vorgezogener Seitenraum (seit 23.10.2026; rechner/seitenraum.ts): Kennzeichnung der Fläche (Plan) der Art Trottoir, die das
+ * Werkzeug «Vorgezogener Seitenraum» an einem Streifenende einfügt (VSS 40 240 Z. 13.4). Wie die Mittelinsel optional: ältere Apps
+ * übergehen das Feld mit Hinweis, die Fläche bleibt als Plan-Fläche Trottoir (ohne Wegfall der Parkierung darunter). Gespeichert
+ * sind Masse und Lage: k Bordkante auf der Streifenachse (heute), balken entlang der Bordkante, tief in die Fahrbahn (Einheiten),
+ * kante: Bordkante quer (entlang tief) an den beiden Enden; parkQuelle: Tiefe aus der Parkierung bzw. angenommen */
+export interface PlanSeitenraum {
+  typ: 'seitenraum'; gruppe: string
+  tiefePark: number; ueberstand: number; breite: number; randA: number; randB: number   // m
+  parkQuelle: 'parkierung' | 'annahme' | 'hand'
+  k: P; balken: P; tief: P; kante: [number, number]
+}
+export interface FlaechePlan { id: string; art: PlanArt; ring: P[]; standard?: PlanStandard | PlanSeitenraum }
+/** Kennzeichnung der Mittelinsel (Standard) einer Fläche (Plan), sonst undefined */
+export const inselStandard = (fp: { standard?: PlanStandard | PlanSeitenraum }): PlanStandard | undefined =>
+  fp.standard?.typ === 'mittelinsel_e1' ? fp.standard : undefined
+/** Kennzeichnung des vorgezogenen Seitenraums einer Fläche (Plan), sonst undefined */
+export const seitenraumStandard = (fp: { standard?: PlanStandard | PlanSeitenraum }): PlanSeitenraum | undefined =>
+  fp.standard?.typ === 'seitenraum' ? fp.standard : undefined
 /** Fläche (Plan): höchstens so viele Ecken (Fall-Datei) */
 export const PLAN_ECKEN_MAX = 500
 
@@ -190,8 +207,10 @@ export function planRingPruefen(x: unknown): P[] | null {
   return Math.abs(a / 2) >= 0.01 ? r : null
 }
 
-/** Kennzeichnung «Mittelinsel (Standard)» einer Fläche (Plan) aus der Datei; null wenn ungültig (die Fläche bleibt, ohne Kennzeichnung) */
-export function planStandardPruefen(x: unknown): PlanStandard | null {
+/** Kennzeichnung einer Fläche (Plan) aus der Datei (Mittelinsel bzw. vorgezogener Seitenraum); null wenn ungültig bzw. unbekannt
+ * (die Fläche bleibt, ohne Kennzeichnung) */
+export function planStandardPruefen(x: unknown): PlanStandard | PlanSeitenraum | null {
+  if (istObjekt(x) && x.typ === 'seitenraum') return seitenraumPruefen(x)
   if (!istObjekt(x) || x.typ !== 'mittelinsel_e1' || typeof x.gruppe !== 'string' || !x.gruppe || x.gruppe.length > 40) return null
   if (!['kopf', 'insel', 'furt'].includes(x.teil as string) || !['links', 'rechts'].includes(x.seite as string)) return null
   const im = (v: unknown, a: number, b: number): v is number => zahl(v) && v >= a && v <= b
@@ -200,6 +219,18 @@ export function planStandardPruefen(x: unknown): PlanStandard | null {
   if (!istP(x.m) || !imLv95(x.m) || !einheitP(x.achse) || !einheitP(x.balken)) return null
   return { typ: 'mittelinsel_e1', gruppe: x.gruppe, teil: x.teil as StandardTeil, tiefe: x.tiefe, breite: x.breite, furt: x.furt,
     kopf: x.kopf, seite: x.seite as FurtSeite, m: [x.m[0], x.m[1]], achse: [x.achse[0], x.achse[1]], balken: [x.balken[0], x.balken[1]] }
+}
+
+function seitenraumPruefen(x: Record<string, unknown>): PlanSeitenraum | null {
+  if (typeof x.gruppe !== 'string' || !x.gruppe || x.gruppe.length > 40 || !['parkierung', 'annahme', 'hand'].includes(x.parkQuelle as string)) return null
+  const im = (v: unknown, a: number, b: number): v is number => zahl(v) && v >= a && v <= b
+  if (!im(x.tiefePark, 0, 10) || !im(x.ueberstand, 0, 5) || !im(x.breite, 0.5, 30) || !im(x.randA, 0, 20) || !im(x.randB, 0, 20)) return null
+  const einheitP = (v: unknown): v is P => istP(v) && Math.abs(Math.hypot(v[0], v[1]) - 1) < 0.01
+  if (!istP(x.k) || !imLv95(x.k) || !einheitP(x.balken) || !einheitP(x.tief)) return null
+  if (!Array.isArray(x.kante) || x.kante.length !== 2 || !x.kante.every(v => im(v, -5, 5))) return null
+  return { typ: 'seitenraum', gruppe: x.gruppe, tiefePark: x.tiefePark, ueberstand: x.ueberstand, breite: x.breite, randA: x.randA,
+    randB: x.randB, parkQuelle: x.parkQuelle as PlanSeitenraum['parkQuelle'], k: [x.k[0], x.k[1]], balken: [x.balken[0], x.balken[1]],
+    tief: [x.tief[0], x.tief[1]], kante: [x.kante[0] as number, x.kante[1] as number] }
 }
 
 const QUELLEN_SCHLUESSEL = ['osm', 'av', 'baumkataster', 'parkkataster', 'luftbild', 'geladen', 'haltestellen', 'verkehrsdaten',
@@ -277,7 +308,9 @@ export function fallLesen(text: string): [Fall, string[]] {
       const fp: FlaechePlan = { id: o.id, art: o.art as PlanArt, ring }
       if (o.standard !== undefined) {
         const st = planStandardPruefen(o.standard)
-        if (st) fp.standard = st; else hinweise.push(`Kennzeichnung «Mittelinsel (Standard)» von ${o.id} ungültig, übergangen (Fläche bleibt)`)
+        if (st) fp.standard = st
+        else hinweise.push(`Kennzeichnung ${istObjekt(o.standard) && o.standard.typ === 'seitenraum' ? '«Vorgezogener Seitenraum»' :
+          '«Mittelinsel (Standard)»'} von ${o.id} ungültig, übergangen (Fläche bleibt)`)
       }
       plan.push(fp)
     } else hinweise.push('Fläche (Plan) ungültig, übergangen')

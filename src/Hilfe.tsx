@@ -43,7 +43,7 @@ export function Anleitung() {
         <li><b>Ergänzen:</b> unter «Eingaben von Hand» Parkfelder, Bäume, Hecken oder eine Insel zeichnen und Tempo oder Fahrlinie
           anpassen; die App rechnet sofort neu.</li>
         <li><b>Neu planen:</b> mit «Streifen planen» die beiden Wartebereiche anklicken; Trottoirnasen, Inseln und Eckradien mit
-          «Fläche (Plan)», «Mittelinsel (Standard)» und «Ecke runden».</li>
+          «Fläche (Plan)», «Mittelinsel (Standard)», «Vorgezogener Seitenraum» und «Ecke runden».</li>
         <li><b>Bedarf klären:</b> im Reiter «Bedarf und Querungstyp» die Zusammenfassung lesen, die offenen Fragen beantworten und
           Vorschläge bestätigen.</li>
         <li><b>Bericht:</b> «Bericht drucken / als PDF» öffnet die Druckansicht mit Kartenbild, Ergebnissen und Quellen.</li>
@@ -154,6 +154,10 @@ export function Anleitung() {
             an der Insel geteilten Teilstreifen nach ({f2(TEIL_ABSTAND_M)} m vor den Inselkanten, Eingaben bleiben); danach wird neu
             gerechnet. «Verschiebung zurücknehmen» unter «Flächen (Plan)» stellt die letzte Verschiebung zurück, solange seither nichts
             anderes geändert wurde. Eine von Hand veränderte Insel hat keinen Griff.</li>
+            <li><b>Vorgezogener Seitenraum:</b> Werkzeug «Vorgezogener Seitenraum» und nahe einem Streifenende klicken: die App fügt dort
+            eine Fläche (Plan) Trottoir von der Bordkante bis 0,20 m über die Parklinie ein ({V('VSS 40 240')} Z. 13.4; Tiefe aus der
+            Längsparkierung, sonst 2,00 m angenommen), Parkierung darunter entfällt in der Rechnung; Masse unter «Flächen (Plan)»
+            änderbar, am Griff entlang der Bordkante ziehbar.</li>
             <li><b>Vermassung ab Fixpunkt:</b> Werkzeug «Fixpunkt» (unter «Eingaben von Hand» bzw. «Fixpunkt setzen» in «Lage und
             Masse») und auf der Karte eine Gebäudeecke bzw. einen Punkt der AV anklicken: die App fängt den nächsten Stützpunkt der
             AV-Bodenbedeckung im Umkreis von {FANG_PX} Bildschirmpunkten (höchstens {FANG_MAX_M} m), sonst bleibt es ein freier Punkt.

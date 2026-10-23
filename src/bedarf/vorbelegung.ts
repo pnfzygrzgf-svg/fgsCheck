@@ -28,7 +28,7 @@ import { zufahrtNamen } from '../benennung'
 import { erkennungSatz, erkennungZusatz } from '../texte'
 import { ERKENNUNG_FAKTOR, type Erkennung } from '../rechner/erkennung'
 import { sichtFgs } from './tabellen'
-import type { Fall } from '../fall'
+import { type Fall, inselStandard } from '../fall'
 import type { Quelle, TempoRegime } from './eingaben'
 import type { Vorbelegung } from './fallBedarf'
 import { feldName } from './felder'
@@ -255,7 +255,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
     const l = luecken.reduce((x, y) => (y.tiefe > x.tiefe ? y : x))
     const mPunkt = l.m
     const plan = (fall.flaechenPlan ?? []).filter(fp => fp.art === 'insel' && imPolygon(mPunkt, [fp.ring]))
-    const standard = plan.find(fp => fp.standard)?.standard
+    const standard = plan.map(inselStandard).find(x => !!x)
     const hand = fall.hindernisse.find(h => h.art === 'insel' && imPolygon(mPunkt, [h.ring]))
     const angenommen = angenommeneInseln.find(z => imPolygon(mPunkt, [z.ring]))
     const quelle: Quelle = standard || plan.length ? 'rechnung' : hand ? 'hand' : angenommen ? 'luftbild' : 'av'

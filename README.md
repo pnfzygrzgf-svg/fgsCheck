@@ -86,6 +86,9 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    Eine Mittelinsel in der Standardform lässt sich am Griff in der Inselmitte ziehen (entlang der Streifenachse; frei mit dem
    Schalter «frei verschieben» oder der Umschalttaste während des Ziehens); die Teile werden an der neuen Mitte neu gebildet, an ihr geteilte Teilstreifen nachgeführt
    (`inselVerschieben` in `src/rechner/standardinsel.ts`), «Verschiebung zurücknehmen» stellt die letzte Verschiebung zurück.
+   Das Werkzeug «Vorgezogener Seitenraum» fügt an einem Streifenende eine Fläche (Plan) Trottoir von der Bordkante bis 0,20 m über
+   die Parklinie ein (VSS 40 240 Z. 13.4; Tiefe aus der Längsparkierung, sonst 2,00 m); überdeckte Parkierung entfällt in der
+   Rechnung, Masse änderbar, Griff zum Ziehen entlang der Bordkante (`src/rechner/seitenraum.ts`, Feld `standard` mit `typ: 'seitenraum'`).
 7. Je Streifen Lichtsignal und «kein FGS», je Zufahrt (Zeile anklicken) Tempo, «Fahrlinie korrigieren» (A: Linie seitlich
    verschieben, am Streifen und am Ende, + links, − rechts; B: Fahrlinie selbst zeichnen, bei Abbiegenden mit Kreisvorschlag
    und «Radius übernehmen») und «Diese Zufahrt gibt es nicht (streichen)». Abbiegezufahrten, die bisher wegen der geraden

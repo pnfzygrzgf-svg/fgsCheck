@@ -17,7 +17,7 @@ import { ladeHaltestellenBern, haltestellenStand, type BernHalte, type Bereich }
 import type { VsigLinie } from './daten/vsig'
 import { ladeVerkehrsdatenBern, type VdLinie } from './daten/verkehrsdaten'
 import type { GeoVorbelegung } from './bedarf/vorbelegung'
-import { lv95, wgs, dist, sub, einheit as einheitP, imPolygon, type P } from './geo'
+import { lv95, wgs, dist, sub, add, dot, links, einheit as einheitP, imPolygon, type P } from './geo'
 import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, aufnehmen, vereinigen, vereinigenNamen } from './ausschnitt'
 import type { ZufahrtErgebnis, StreifenErgebnis } from './rechner/typen'
 import type { FallRechnung } from './rechner'
@@ -34,6 +34,7 @@ import { VerweisText } from './Verweise'
 import { RegelUebersicht } from './RegelUebersicht'
 import { streifenStreetView, zufahrtStreetView, zufahrtStreetViewTitel } from './streetview'
 import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type PlanArt, type FlaechePlan, type FurtSeite, PLAN_ARTEN, naechstePlanId, planRingPruefen,
+  inselStandard, seitenraumStandard, type PlanSeitenraum,
   naechsteFixId, FIXPUNKT_NAME_MAX, STREIFEN_NAME_MAX, leererFall, fallLesen, fallSchreiben, fallMerken, fallErinnern, fallVergessen,
   ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, streifenHandTeilen, teilungZuruecknehmbar,
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
@@ -47,11 +48,15 @@ import { streifenTitel, zufahrtNamen, zufahrtLang, zufahrtNr, zufahrtText, entfa
 import { planTitel, planFlaecheM2, planAlsAv, avMitPlan, PLAN_NAME, eckeRunden, eckeAmPunkt, eckeRadiusMax, echteEcken, eckeGrenze, eckeGrenzeText, RUNDEN_R_VORGABE, RUNDEN_R_BEREICH, ECK_GROSS_M } from './rechner/planflaechen'
 import { mitTiteln } from './bedarf/regelname'
 import { durchfahrtAnzeige } from './bedarf/durchfahrt'
-import { inselGeometrie, inselLage, inselMasse, masseFehler, masseHinweise, streifenTeilen, standardText, standardTeilText, inselFlaechen,
+import { inselGeometrie, inselLage, inselMasse, masseFehler, masseHinweise, streifenTeilen, standardText, inselFlaechen,
   fahrbahnMitte, teilLuecke, inselPruefen, zufahrtTeil, zugMitte, standardZiehbar, standardGruppen, inselVerschieben,
   standardGeometrie, furtQuert, naechsteGruppe, aufAchse, balkenAusUmriss, E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M,
   INSEL_BEREICH, INSEL_TIEFE_MIN_M, type InselLage } from './rechner/standardinsel'
-import { Fahrbahn } from './rechner/flaechen'
+import { Fahrbahn, Inseln } from './rechner/flaechen'
+import { seitenraumLage, seitenraumMasse, kanteMessen, parkTiefe, parkRinge, seitenraumKennung, seitenraumRing, seitenraumNeu, kanteLinie,
+  seitenraumMitte, seitenraumAngepasst, srMasseFehler, naechsteSrGruppe, endeAnLinie, endenNachfuehren, srVerschieben, planStandardText,
+  SR_UEBERSTAND_M, SR_PARK_TIEFE_M, SR_RAND_M, SR_BEREICH, SR_NAME, SR_ERSETZT, type ParkRing, type SrMasse } from './rechner/seitenraum'
+import { abstandPunkt } from './rechner/poly'
 import { BedarfAbschnitt, kopfText } from './BedarfPanel'
 import { BedarfTeaser, ReiterAnsicht } from './ReiterLeiste'
 import { REITER_EREIGNIS, reiterAktiv, reiterKnopfId, reiterStand, reiterVorgabe, reiterZustand, teaserText, type Reiter } from './reiter'
@@ -106,6 +111,8 @@ const WERKZEUGE: [Exclude<Werkzeug, null>, string, string][] = [
     'sich Plan-Flächen überlappen'],
   ['mittelinsel', 'Mittelinsel (Standard)', 'Schutzinsel mit Rollstuhlfurt nach Masterplan Fussverkehr Stadt Bern, Standards, E1, als ' +
     'Flächen (Plan) der Art Insel einfügen'],
+  ['seitenraum', 'Vorgezogener Seitenraum', 'nahe einem Streifenende klicken: Fläche (Plan) Trottoir bis 0,20 m über die Parklinie ' +
+    '(VSS 40 240 Z. 13.4) auf der Seite mit Längsparkierung; Parkierung darunter entfällt in der Rechnung'],
   // derselbe Werkzeug-Name wie der Knopf oben («Streifen planen»); die gezeichneten Streifen heissen «Streifen von Hand»
   ['streifen', 'Streifen planen', 'beide Wartebereiche anklicken (Achse quer über die Fahrbahn)'],
   ['fixpunkt', 'Fixpunkt', 'Gebäudeecke bzw. Punkt der AV anklicken: die App fängt den nächsten AV-Stützpunkt im Umkreis von ' +
@@ -116,10 +123,11 @@ const WERKZEUGE: [Exclude<Werkzeug, null>, string, string][] = [
 const AV_NAME: Record<string, string> = { Strasse_Weg: 'Fahrbahn', Gebaeude: 'Gebäude' }
 
 const MIN_PUNKTE: Record<Exclude<Werkzeug, null>, number> = { parkfeld: 3, flaeche: 3, insel: 3, laengs: 2, hecke: 2, mauer: 2, streifen: 2,
-  spurB: 2, baum: 1, fixpunkt: 1, planflaeche: 3, eckeRunden: 1, mittelinsel: 1 }
+  spurB: 2, baum: 1, fixpunkt: 1, planflaeche: 3, eckeRunden: 1, mittelinsel: 1, seitenraum: 1 }
 const WERKZEUG_NAME: Record<Exclude<Werkzeug, null>, string> = { parkfeld: 'Parkfeld', flaeche: 'übriges Hindernis (Fläche)', insel: 'Insel',
   laengs: 'Längsparkierung', hecke: 'Hecke', mauer: 'Mauer', streifen: 'Streifen planen', spurB: 'Fahrlinie selbst zeichnen', baum: 'Baum',
-  fixpunkt: 'Fixpunkt', planflaeche: 'Fläche (Plan)', eckeRunden: 'Ecke runden', mittelinsel: 'Mittelinsel (Standard)' }
+  fixpunkt: 'Fixpunkt', planflaeche: 'Fläche (Plan)', eckeRunden: 'Ecke runden', mittelinsel: 'Mittelinsel (Standard)',
+  seitenraum: 'Vorgezogener Seitenraum' }
 /** Textfeld, übernommen erst beim Verlassen bzw. mit Enter (Escape: zurück); leer = kein eigener Text */
 function TextFeld({ wert, setze, platzhalter, titel, max = 80 }: { wert: string; setze: (x: string) => void; platzhalter?: string
   titel?: string; max?: number }) {
@@ -146,6 +154,22 @@ function ZahlFeld({ wert, setze, titel, bereich }: { wert: number; setze: (x: nu
   }
   return <input type="text" inputMode="decimal" className="zahl" title={titel} value={text} onChange={e => setText(e.target.value)}
     onBlur={uebernehmen} onKeyDown={e => { if (e.key === 'Enter') uebernehmen() }} />
+}
+
+/** Masse eines vorgezogenen Seitenraums in der Liste «Flächen (Plan)» (änderbar, solange die Form nicht von Hand angepasst ist) */
+function SeitenraumZeile({ fp, st, aendere, zurueck }: { fp: FlaechePlan; st: PlanSeitenraum; aendere: (id: string, x: Partial<SrMasse>) => void
+  zurueck: (() => void) | null }) {
+  // Seite A (s < 0) links bzw. rechts im Blick von der Bordkante in die Fahrbahn
+  const aLinks = dot([-st.balken[0], -st.balken[1]], links(st.tief)) > 0
+  const feld = (k: keyof SrMasse, name: string, bereich: [number, number]) => <label key={k}>{name} <ZahlFeld wert={st[k]} bereich={bereich}
+    titel={`${name} in m (${bereich[0]} bis ${bereich[1]})`} setze={v => aendere(fp.id, { [k]: v })} /> m </label>
+  return <div className="klein">{planStandardText(fp)}
+    {seitenraumAngepasst(fp) ? ' – Masse nicht mehr änderbar; löschen und neu einfügen.' : <div>
+      {feld('ueberstand', 'über die Parklinie', SR_BEREICH.ueberstand)}{feld('tiefePark', 'Parkstreifen', SR_BEREICH.tiefePark)}
+      {feld('breite', 'Streifenbreite', SR_BEREICH.breite)}{feld(aLinks ? 'randA' : 'randB', 'Rand links', SR_BEREICH.rand)}
+      {feld(aLinks ? 'randB' : 'randA', 'Rand rechts', SR_BEREICH.rand)}</div>}
+    {zurueck && <button className="zweit klein" title="wie vor dem letzten Ziehen" onClick={zurueck}>Verschiebung zurücknehmen</button>}
+  </div>
 }
 
 let zaehler = 0
@@ -891,6 +915,65 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   }, [inselAktiv, fall, rechnung, inselNetz])
   // ---- Mittelinsel ziehen: Griffe (nur Standardform), Vorschau und Lagehinweise beim Ziehen, Übernahme beim Loslassen
   const planListe = fall?.flaechenPlan
+  // ---- «Vorgezogener Seitenraum» (23.10.2026, rechner/seitenraum.ts): Griff in der Mitte (nur in der Standardform), Ziehen entlang der
+  // Bordkante (Vorschau ohne Rechnung), Übernahme beim Loslassen mit «Verschiebung zurücknehmen» wie bei der Mittelinsel
+  const [srZug, setSrZug] = useState<{ gruppe: string; p: P } | null>(null)
+  /** Fahrbahn mit den Flächen (Plan) ohne das Element gruppe (Bordkante heute) */
+  const srFahrbahn = useCallback((plan: FlaechePlan[] | undefined, gruppe: string | null) =>
+    new Fahrbahn(avMitPlan(av ?? [], plan?.filter(x => !gruppe || x.standard?.gruppe !== gruppe)).av), [av])
+  const srZugGruppe = srZug?.gruppe ?? null
+  const srZugFb = useMemo(() => (srZugGruppe && av ? srFahrbahn(planListe, srZugGruppe) : null), [srZugGruppe, av, planListe, srFahrbahn])
+  const srGriffe = useMemo(() => (planListe ?? []).filter(fp => seitenraumStandard(fp) && !seitenraumAngepasst(fp)).map(fp => {
+    const st = seitenraumStandard(fp)!
+    return { gruppe: st.gruppe, m: seitenraumMitte(st), text: 'Vorgezogenen Seitenraum ziehen: gleitet entlang der Bordkante.' }
+  }), [planListe])
+  const srElement = (plan: FlaechePlan[] | undefined, gruppe: string) => {
+    const fp = plan?.find(x => seitenraumStandard(x)?.gruppe === gruppe)
+    return fp ? { fp, st: seitenraumStandard(fp)! } : null
+  }
+  const srZugVorschau = useMemo(() => {
+    if (!srZug) return null
+    const e = srElement(planListe, srZug.gruppe)
+    if (!e) return null
+    const neu = srVerschieben(e.st, srZug.p, srZugFb ? (q, r) => srZugFb.sehne(q, r) : null)
+    return { ringe: [seitenraumRing(neu, neu)], furt: null, mast: null, mitte: seitenraumMitte(neu), teile: [] as [P, P][],
+      text: `entlang der Bordkante ${f2(dist(neu.k, e.st.k))} m`, art: 'trottoir' as PlanArt }
+  }, [srZug, planListe, srZugFb])
+  /** Element ersetzen (Masse bzw. Lage) und Streifen von Hand an der Vorderkante nachführen -> nachgeführte Streifen */
+  const srErsetzen = (f: Fall, id: string, alt: PlanSeitenraum, neu: PlanSeitenraum): string[] => {
+    const x = f.flaechenPlan?.find(y => y.id === id)
+    if (!x) return []
+    const r = endenNachfuehren(f.streifenHand, kanteLinie(alt, alt, true), kanteLinie(neu, neu, true), kanteLinie(neu, neu, false))
+    Object.assign(x, seitenraumNeu(x, neu))
+    f.streifenHand = r.streifen
+    return r.ids
+  }
+  const srZiehen = useCallback((gruppe: string, p: P) => setSrZug({ gruppe, p }), [])
+  const srLoslassen = (gruppe: string, p: P) => {
+    setSrZug(null)
+    const e = srElement(fall?.flaechenPlan, gruppe)
+    if (!e || !fall) return
+    const fb = av ? srFahrbahn(fall.flaechenPlan, gruppe) : null
+    const neu = srVerschieben(e.st, p, fb ? (q, r) => fb.sehne(q, r) : null)
+    if (dist(neu.k, e.st.k) < 0.01) return
+    const nachher = structuredClone(fall)
+    const ids = srErsetzen(nachher, e.fp.id, e.st, neu)
+    setVerschiebung({ gruppe, schluessel: eingabenSchluessel(nachher), flaechenPlan: structuredClone(fall.flaechenPlan ?? []),
+      streifenHand: structuredClone(fall.streifenHand), teilungVorher: teilung })
+    aendern(f => { srErsetzen(f, e.fp.id, e.st, neu); return f })
+    setMeldung(`${SR_NAME} um ${f2(dist(neu.k, e.st.k))} m entlang der Bordkante verschoben` +
+      (ids.length ? `; Ende von ${ids.map(id => streifenTitel(id, fall.streifenHand)).join(', ')} nachgeführt` : '') +
+      '. Zurück mit «Verschiebung zurücknehmen» unter «Flächen (Plan)».')
+  }
+  /** Masse ändern (Liste «Flächen (Plan)») */
+  const srAendern = (id: string, neu: Partial<SrMasse>) => {
+    const fp = fall?.flaechenPlan?.find(x => x.id === id), st = fp && seitenraumStandard(fp)
+    if (!fall || !st) return
+    const st2: PlanSeitenraum = { ...st, ...neu, ...(neu.tiefePark !== undefined ? { parkQuelle: 'hand' as const } : {}) }
+    const fe = srMasseFehler(st2)
+    if (fe) { setMeldung(`${SR_NAME} nicht geändert: ${fe}`); return }
+    aendern(f => { srErsetzen(f, id, st, st2); return f })
+  }
   const inselGriffe = useMemo(() => standardGruppen(planListe).filter(g => standardZiehbar(planListe, g.gruppe))
     .map(g => ({ gruppe: g.gruppe, m: g.st.m, text: inselFrei ? 'Mittelinsel ziehen: frei verschieben (Schalter «frei verschieben» ist an).' :
       'Mittelinsel ziehen: gleitet entlang der Streifenachse. Frei: Schalter «frei verschieben» oder Umschalttaste während des Ziehens.' })),
@@ -928,7 +1011,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       const pr = inselPruefen({ m, achse: st.achse, balken: st.balken }, st, zugBoden.av, (p, q) => zugBoden.fb.sehne(p, q),
         inselOpt)
       hinweise.push(...pr.hinweise.filter(h => !h.startsWith('In der Furt')).map(h => mitTiteln(durchfahrtAnzeige(h))))
-      if (pr.furtFahrbahn && !(planListe ?? []).some(x => x.standard?.gruppe === gruppe && x.standard.teil === 'furt'))
+      if (pr.furtFahrbahn && !(planListe ?? []).some(x => inselStandard(x)?.gruppe === gruppe && inselStandard(x)!.teil === 'furt'))
         hinweise.push('In der Furt liegt eine Verkehrsinsel der AV: für die Furt auf Fahrbahnniveau die Mittelinsel dort neu einfügen.')
     }
     // Achse eines Streifens quert die Furt: Streifen der Rechnung (ohne die mitgeführten Teilstreifen) und die gemeinsame Achse der
@@ -946,6 +1029,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     return { r, g, hinweise }
   }, [planListe, fall, zugBoden, rechnung, inselOpt])
   const zugVorschau = useMemo(() => {
+    if (srZugVorschau) return srZugVorschau
     if (!inselZug) return null
     const a = zugAuswerten(inselZug.gruppe, inselZug.m)
     if (!a) return null
@@ -953,7 +1037,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const teile = 'grund' in rr ? [] : rr.streifen.filter(x => rr.teilIds.includes(x.id)).map(x => [x.p0, x.p1] as [P, P])
     return { ringe: [...(a.g.kopf ? [a.g.kopf] : []), a.g.insel], furt: a.g.furt, mast: a.g.mast, mitte: inselZug.m, teile,
       text: [inselZug.frei ? 'frei verschoben' : 'entlang der Achse', ...a.hinweise].join(' – ') }
-  }, [inselZug, zugAuswerten])
+  }, [inselZug, zugAuswerten, srZugVorschau])
   const inselZiehen = useCallback((gruppe: string, p: P, umschalt: boolean) => {
     const st = standardZiehbar(planListe, gruppe), frei = umschalt || inselFrei
     if (st) setInselZug({ gruppe, m: zugMitte(st, p, frei), frei })
@@ -985,13 +1069,17 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       (r.teilIds.length ? `; Teilstreifen ${r.teilIds.map(id => streifenTitel(id, fall.streifenHand)).join(' und ')} an die Inselkanten nachgeführt` : '') +
       `.${a.hinweise.length ? ` ${mitTiteln(a.hinweise.join(' '))}` : ''} Zurück mit «Verschiebung zurücknehmen» unter «Flächen (Plan)».`)
   }, [planListe, fall, zugAuswerten, teilung, aendern, inselFrei])
+  // Griffe der Mittelinseln und der vorgezogenen Seitenräume (Kennung sr-…); Ziehen und Loslassen nach der Art des Elements
+  const alleGriffe = useMemo(() => [...inselGriffe, ...srGriffe], [inselGriffe, srGriffe])
+  const griffZug = (gruppe: string, p: P, umschalt: boolean) => (gruppe.startsWith('sr-') ? srZiehen(gruppe, p) : inselZiehen(gruppe, p, umschalt))
+  const griffLos = (gruppe: string, p: P, umschalt: boolean) => (gruppe.startsWith('sr-') ? srLoslassen(gruppe, p) : inselLoslassen(gruppe, p, umschalt))
   const verschiebungZurueck = () => {
     const v = verschiebung
     if (!v || !fall) return
     if (!verschiebungZuruecknehmbar(fall, v)) { setVerschiebung(null); setMeldung('Seither wurde etwas anderes geändert: Verschiebung nicht zurückgenommen.'); return }
     aendern(f => { verschiebungZuruecknehmen(f, v); return f })
     setTeilung(v.teilungVorher); setVerschiebung(null)
-    setMeldung('Verschiebung der Mittelinsel zurückgenommen.')
+    setMeldung(`Verschiebung ${v.gruppe.startsWith('sr-') ? 'des vorgezogenen Seitenraums' : 'der Mittelinsel'} zurückgenommen.`)
   }
   const inselM = useMemo(() => inselMasse(inselEin.tiefe, inselEin.breite, inselEin.furt, inselEin.kopf, inselEin.seite), [inselEin])
   const inselFehler = masseFehler(inselM)
@@ -1098,21 +1186,70 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     if (t) setTeilung(null)
     setMeldung(`Mittelinsel gelöscht${t ? `; Teilung zurückgenommen (${titel(t.id)} wieder ungeteilt)` : ''}.`)
   }
+  /** «Vorgezogener Seitenraum» an einem Streifenende einfügen (Klick p): nächstes Streifenende der Rechnung (Bordkante rand); fast in
+   * der Streifenmitte das Ende mit Längsparkierung. Tiefe aus der Parkierung (Parkfelder, Längsparkierung, Vorschläge), sonst Annahme */
+  const seitenraumBei = (p: P) => {
+    if (!fall || !av || !rechnung?.streifen.length) { setMeldung(`${SR_NAME}: zuerst einen Streifen rechnen lassen.`); return }
+    const fb = srFahrbahn(fall.flaechenPlan, null), inseln = new Inseln(avMitPlan(av, fall.flaechenPlan).av)
+    const parkAlle: ParkRing[] = parkRinge([...fall.hindernisse, ...rechnung.vorschlaege.map(v => v.hindernis)])
+    const vorschlag = (e: StreifenErgebnis, k: 0 | 1) => {
+      const l0 = seitenraumLage(e.p0, e.p1, k, balkenAusUmriss(einheitP(sub(e.p1, e.p0)), e.umriss), e.rand[k])
+      const kante = kanteMessen(l0, seitenraumMasse(e.bw, null), (q, r) => fb.sehne(q, r)) ?? [0, 0]
+      const lage = { ...l0, kante }
+      const park = parkTiefe(parkAlle, lage)
+      return { lage, park, masse: seitenraumMasse(e.bw, park), insel: inseln.enthaelt(add(e.rand[k], l0.tief, -0.5)) }
+    }
+    const kand = rechnung.streifen.flatMap(e => ([0, 1] as const).map(k => ({ e, k, d: dist(p, e.rand[k]) })))
+      .filter(x => x.d <= Math.max(6, x.e.bw)).sort((a, b) => a.d - b.d)
+    if (!kand.length) { setMeldung(`${SR_NAME}: kein Streifenende in der Nähe – nahe an ein Ende (Wartebereich) klicken.`); return }
+    let wahl = kand[0]
+    const andere = kand.find(x => x.e === wahl.e && x.k !== wahl.k)
+    if (andere && Math.abs(andere.d - wahl.d) < dist(wahl.e.rand[0], wahl.e.rand[1]) / 3 && !vorschlag(wahl.e, wahl.k).park &&
+      vorschlag(andere.e, andere.k).park) wahl = andere
+    const { e, k } = wahl
+    const v = vorschlag(e, k)
+    if (v.insel) { setMeldung(`${SR_NAME}: dieses Ende liegt an einer Insel – das Ende am Trottoir wählen.`); return }
+    const da = (fall.flaechenPlan ?? []).find(x => seitenraumStandard(x) && abstandPunkt([[x.ring]], e.rand[k]) <= 1)
+    if (da) { setMeldung(`${SR_NAME}: an diesem Ende liegt schon einer (${planTitel(da.id)}); Masse dort unter «Flächen (Plan)» ändern.`); return }
+    const st = seitenraumKennung(naechsteSrGruppe(fall.flaechenPlan), v.lage, v.masse)
+    const fe = srMasseFehler(st)
+    if (fe) { setMeldung(`${SR_NAME} nicht eingefügt: ${fe}`); return }
+    const ende = k === 0 ? 'p0' as const : 'p1' as const
+    const einfuegen = (f: Fall) => {
+      const id = naechstePlanId(f)
+      f.flaechenPlan = [...(f.flaechenPlan ?? []), { id, art: 'trottoir', ring: seitenraumRing(st, st), standard: st }]
+      const h = f.streifenHand.find(x => x.id === e.fgsId)
+      const q = h ? endeAnLinie(h, ende, kanteLinie(st, st, true)) : null
+      if (h && q) { h[ende] = q; h.angepasst = true }
+      return { id, hand: !!q }
+    }
+    const { id, hand } = einfuegen(structuredClone(fall))
+    aendern(f => { einfuegen(f); return f })
+    setWerkzeug(null)
+    const titelS = fall.streifenHand.length ? streifenTitel(e.fgsId, fall.streifenHand) : `Streifen ${e.fgsId}`
+    setMeldung(`${SR_NAME} als ${planTitel(id)} (Trottoir) an ${titelS}, Ende ${k ? 'B' : 'A'}: ` +
+      (v.park ? `Parkstreifen ${f2(st.tiefePark)} m aus der Parkierung (${v.park.ids.length} Feld(er))` :
+        `keine Längsparkierung gefunden – Parkstreifen ${f2(SR_PARK_TIEFE_M)} m angenommen, bitte prüfen`) +
+      ` + ${f2(SR_UEBERSTAND_M)} m, Länge ${f2(st.breite + st.randA + st.randB)} m.` +
+      (e.randQuelle !== 'AV' ? ' Bordkante dort angenommen (keine AV-Sehne): Lage prüfen.' : '') +
+      (hand ? ` Streifenende an die neue Bordkante gesetzt.` : '') + ' Masse unter «Flächen (Plan)» änderbar.')
+  }
   // Fangen der Ecken einer Fläche (Plan): AV-Stützpunkte und Ecken der übrigen Plan-Flächen (ohneId: die eben bearbeitete)
   const planFangen = (p: P, ohneId: string | null): P => fangen(p, [...(av ?? []), ...planAlsAv(fall?.flaechenPlan, ohneId)], fangRadius()).p
   const klick = useCallback((p: P) => {
     if (werkzeug === 'eckeRunden') { eckeRundenBei(p); return }
     if (werkzeug === 'mittelinsel') { mittelinselBei(p); return }
+    if (werkzeug === 'seitenraum') { seitenraumBei(p); return }
     if (werkzeug === 'baum' || werkzeug === 'fixpunkt') { fertig([p]); return }
     if (werkzeug === 'planflaeche') p = planFangen(p, null)
     const neu = [...zeichnungRef.current, p]
     zeichnungRef.current = neu
     if (werkzeug === 'streifen' && neu.length === 2) { fertig(neu); return }
     setZeichnung(neu)
-  }, [werkzeug, fertig, av, fall, bearbeiten, rundenR, inselOrt, inselK, inselStreifen, inselNetz, inselFahrbahn])
+  }, [werkzeug, fertig, av, fall, bearbeiten, rundenR, inselOrt, inselK, inselStreifen, inselNetz, inselFahrbahn, rechnung])
 
   const doppelklick = useCallback(() => {
-    if (werkzeug === 'eckeRunden' || werkzeug === 'mittelinsel') return
+    if (werkzeug === 'eckeRunden' || werkzeug === 'mittelinsel' || werkzeug === 'seitenraum') return
     // Doppelklick setzt zwei Klicks ab: den doppelten letzten Punkt weglassen
     const z = zeichnungRef.current
     const pts = z.length >= 2 && dist(z[z.length - 1], z[z.length - 2]) < 0.3 ? z.slice(0, -1) : z
@@ -1403,6 +1540,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // Parkierung im Fall, die sich mit amtlichen Feldern deckt (im Worker gerechnet, rechner/vorschlaege.doppeltAmtlich)
   const doppelt = useMemo(() => new Set(rechnung?.doppelt ?? []), [rechnung])
   const doppeltIds = useMemo(() => (fall ? fall.hindernisse.filter(h => doppelt.has(h.id)).map(h => h.id) : []), [fall, doppelt])
+  // Parkierung unter einem vorgezogenen Seitenraum (Rechnung): entfällt ganz bzw. zum überdeckten Teil (Eintrag bleibt)
+  const srErsetzt = useMemo(() => new Map((rechnung?.seitenraumErsetzt ?? []).map(x => [x.id, x.ganz])), [rechnung])
+  const srErsetztText = (id: string) => (srErsetzt.has(id) ? ` – ${SR_ERSETZT}${srErsetzt.get(id) ? '' : ' (zum überdeckten Teil)'}` : '')
 
   // Vermassung ab Fixpunkt: gerechnete Streifen von Hand (mit Vermassung), Vorschläge je Streifen (nächste Gebäudeecke je
   // Strassenseite, ohne schon gesetzte Fixpunkte), Masslinien je Fixpunkt zum nächsten Streifen (Karte)
@@ -1492,7 +1632,15 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <button className="zweit" onClick={() => { setInselOrt(null); setWerkzeug(null) }}>Abbrechen</button></div>
     </div>
   )
-  const werkzeugHilfe = werkzeug === 'mittelinsel' ? inselHilfe : werkzeug === 'eckeRunden' ? (
+  const srHilfe = (
+    <div className="werkzeughilfe">
+      <b>{SR_NAME}:</b> nahe einem Streifenende (Wartebereich) klicken. Die Fläche (Plan) Trottoir reicht von der heutigen Bordkante
+      bis {f2(SR_UEBERSTAND_M)} m über die Parklinie (Längsparkierung aus Parkfeldern bzw. OSM, sonst {f2(SR_PARK_TIEFE_M)} m
+      angenommen), Länge Streifenbreite + je {f2(SR_RAND_M)} m. Parkierung darunter entfällt in der Rechnung.
+      <div><button className="zweit" onClick={() => setWerkzeug(null)}>Abbrechen</button></div>
+    </div>
+  )
+  const werkzeugHilfe = werkzeug === 'mittelinsel' ? inselHilfe : werkzeug === 'seitenraum' ? srHilfe : werkzeug === 'eckeRunden' ? (
     <div className="werkzeughilfe">
       <b>Ecke runden{rundenPlan ? ` (${planTitel(rundenPlan.id)})` : ''}:</b> Radius einstellen, dann eine Ecke der Fläche anklicken
       (Kreise; die App fängt die nächste Ecke). Die Ecke wird durch einen Kreisbogen mit diesem Radius ersetzt, tangential an beide
@@ -1539,7 +1687,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? LEER_HIND} streifenHand={fall?.streifenHand ?? LEER_HAND}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} rundenR={rundenR}
         rundenAngebot={angebotKarte} rundenVorschau={rundenVorschau} inselVorschau={inselVorschau}
-        inselGriffe={inselGriffe} onInselZug={inselZiehen} onInselLos={inselLoslassen}
+        inselGriffe={alleGriffe} onInselZug={griffZug} onInselLos={griffLos}
         onRundenAngebot={ja => { if (ja) angebotAnnehmen(); else setRundenAngebot(null) }} fixpunkte={fall?.fixpunkte ?? LEER_FIX} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
         flaechenPlan={fall?.flaechenPlan ?? LEER_PLAN}
         masslinien={masslinien} zufahrtNamen={zNamen} streifenTitel={titel}
@@ -1749,18 +1897,21 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                         <button className="zweit klein" onClick={() => {
                           if (bearbeiten === fp.id) { setBearbeiten(null); if (werkzeug === 'eckeRunden') setWerkzeug(null) }
                           aendern(f => {
+                            // vorgezogener Seitenraum: Streifen von Hand, die an seiner Vorderkante enden, wieder an die Bordkante heute
+                            const sr = seitenraumStandard(fp)
+                            if (sr) f.streifenHand = endenNachfuehren(f.streifenHand, kanteLinie(sr, sr, true), kanteLinie(sr, sr, false)).streifen
                             f.flaechenPlan = (f.flaechenPlan ?? []).filter(x => x.id !== fp.id)
                             if (!f.flaechenPlan.length) delete f.flaechenPlan
                             return f
                           })
                         }}>löschen</button>
                       </span>
-                      {fp.standard && <div className="klein">{standardTeilText(fp)}
+                      {inselStandard(fp) && <div className="klein">{planStandardText(fp)}
                         {(fall.flaechenPlan ?? []).find(x => x.standard?.gruppe === fp.standard!.gruppe)?.id === fp.id &&
                           inselGriffe.some(g => g.gruppe === fp.standard!.gruppe) && <>{' '}
                           <label title="Ziehen am Griff in der Inselmitte: frei statt entlang der Streifenachse (gilt für alle Mittelinseln; auch auf Touch)">
                             <input type="checkbox" checked={inselFrei} onChange={e => setInselFrei(e.target.checked)} /> frei verschieben</label></>}
-                        {verschiebung?.gruppe === fp.standard.gruppe && (fall.flaechenPlan ?? []).find(x => x.standard?.gruppe === fp.standard!.gruppe)?.id === fp.id &&
+                        {verschiebung?.gruppe === fp.standard!.gruppe && (fall.flaechenPlan ?? []).find(x => x.standard?.gruppe === fp.standard!.gruppe)?.id === fp.id &&
                           verschiebungZuruecknehmbar(fall, verschiebung) && <>{' '}
                           <button className="zweit klein" title="Mittelinsel (und nachgeführte Teilstreifen) wie vor dem letzten Ziehen"
                             onClick={verschiebungZurueck}>Verschiebung zurücknehmen</button></>}
@@ -1771,6 +1922,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                           {teilung?.gruppe === fp.standard!.gruppe && teilungZuruecknehmbar(fall, teilung) && <>{' '}
                             <button className="zweit klein" title={`alle Flächen (Plan) dieser Mittelinsel löschen und ${titel(teilung.id)} wieder ungeteilt (samt Eingaben wie vor dem Teilen)`}
                               onClick={() => mittelinselLoeschen(fp.standard!.gruppe, true)}>Mittelinsel löschen und Teilung zurücknehmen</button></>}</>}</div>}
+                      {seitenraumStandard(fp) && <SeitenraumZeile fp={fp} st={seitenraumStandard(fp)!} aendere={srAendern}
+                        zurueck={verschiebung?.gruppe === fp.standard!.gruppe && verschiebungZuruecknehmbar(fall, verschiebung) ? verschiebungZurueck : null} />}
                       {rundung?.id === fp.id && gleicherRing(rundung.nachher, fp.ring) && <div className="klein">{rundung.text}{' '}
                         <button className="zweit klein" title="die Fläche wie vor dem letzten Runden" onClick={() => {
                           const r = rundung
@@ -1822,6 +1975,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
               {fall.hindernisse.map(h => (
                 <li key={h.id} className={bearbeiten === h.id ? 'aktiv' : ''}>
                   <span className="farbe" style={{ background: hindernisFarbe(h) }} />{hindernisText(h)}
+                  {srErsetzt.has(h.id) && <span className="klein">{srErsetztText(h.id)}</span>}
                   {doppelt.has(h.id) && <span className="warnung" title={'Mindestens 30 % der Fläche liegen auf amtlichen Parkfeldern ' +
                     '(auch verworfenen). Der Eintrag zählt weiter; «löschen», wenn er dieselbe Parkierung beschreibt.'}> – deckt sich mit
                     amtlichen Parkfeldern – doppelt?</span>}
@@ -1894,7 +2048,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                   Hand ergänzen.</div>}
                 {parkGewaehlt && <div><button className="zweit klein" onClick={() => {
                   aendern(f => { f.vorschlaege[parkGewaehlt.id] = 'verworfen'; return f }); setBearbeiten(null)
-                }}>gewähltes Parkfeld verwerfen</button> {parkGewaehlt.hindernis.name}</div>}
+                }}>gewähltes Parkfeld verwerfen</button> {parkGewaehlt.hindernis.name}{srErsetztText(parkGewaehlt.id)}</div>}
                 {parkAn && parkZurueck && <div><button className="zweit klein" onClick={() => {
                   aendern(f => { delete f.vorschlaege[parkZurueck.id]; return f }); setBearbeiten(null)
                 }}>wieder zählen</button> {parkZurueck.hindernis.name} (verworfen)</div>}
@@ -1971,6 +2125,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             im Kopf auf der Seite der Rollstuhlfurt: nur Hinweis, kein Hindernis; beim Werkzeug «Mittelinsel (Standard)» Vorschau
             gestrichelt, Furt grau, Teilstreifen gelb gestrichelt; Kreis mit Vierfachpfeil in der Inselmitte: Griff zum Ziehen
             (entlang der Achse; frei mit dem Schalter «frei verschieben» oder der Umschalttaste während des Ziehens)</li>
+          <li><span className="farbe" style={{ background: planMarke('trottoir'), borderColor: PLAN_FARBEN.trottoir.linie }} />Vorgezogener
+            Seitenraum: Plan-Fläche Trottoir mit Griff in der Mitte (entlang der Bordkante ziehen); Parkierung darunter gestrichelt
+            (entfällt in der Rechnung)</li>
         </ul>
         </details>
 

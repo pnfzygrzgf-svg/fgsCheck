@@ -34,7 +34,7 @@
 
 import { type P, add, dot, einheit, sub, dist, links, kreuz, imPolygon } from '../geo'
 import type { AvFlaeche } from '../daten/av'
-import type { FlaechePlan, FurtSeite, PlanStandard, StandardTeil, StreifenHand } from '../fall'
+import { type FlaechePlan, type FurtSeite, type PlanStandard, type StandardTeil, type StreifenHand, inselStandard } from '../fall'
 import { flaeche, schnitt, vereinigung, type Multi } from './poly'
 import { KATALOG } from '../bedarf/katalog'
 import { durchfahrtHinweise } from '../bedarf/durchfahrt'
@@ -164,7 +164,7 @@ export function teilRing(g: InselGeometrie, teil: StandardTeil): P[] | null {
 
 /** Teil einer Mittelinsel (Standard) seit dem Einfügen von Hand verändert (Ecken verschoben, Ecke gerundet, Art geändert)? */
 export function standardAngepasst(fp: FlaechePlan): boolean {
-  const st = fp.standard
+  const st = inselStandard(fp)
   if (!st) return false
   const soll = teilRing(standardGeometrie(st), st.teil)
   if (!soll || soll.length !== fp.ring.length) return true
@@ -181,14 +181,14 @@ export function standardText(st: { tiefe: number; breite: number; furt: number }
 }
 /** Kennzeichnung eines Teils (Liste, Karte, Bericht): Text, Teil, ggf. «von Hand angepasst» */
 export function standardTeilText(fp: FlaechePlan): string {
-  const st = fp.standard
+  const st = inselStandard(fp)
   if (!st) return ''
   return `${standardText(st)} – ${TEIL_TEXT[st.teil]}${standardAngepasst(fp) ? ' (Form seither von Hand angepasst)' : ''}`
 }
 
 /** Nächste freie Kennung einer Mittelinsel im Fall (e1-1, e1-2, …) */
 export function naechsteGruppe(plan: FlaechePlan[] | undefined): string {
-  const n = Math.max(0, ...(plan ?? []).map(x => Number(/^e1-(\d+)$/.exec(x.standard?.gruppe ?? '')?.[1] ?? 0)))
+  const n = Math.max(0, ...(plan ?? []).map(x => Number(/^e1-(\d+)$/.exec(inselStandard(x)?.gruppe ?? '')?.[1] ?? 0)))
   return `e1-${n + 1}`
 }
 
@@ -310,9 +310,10 @@ export function inselPruefen(lage: InselLage, x: InselMasse, av: AvFlaeche[], se
 export function standardGruppen(plan: FlaechePlan[] | undefined): { gruppe: string; st: PlanStandard; ids: string[] }[] {
   const aus: { gruppe: string; st: PlanStandard; ids: string[] }[] = []
   for (const fp of plan ?? []) {
-    if (!fp.standard) continue
-    const g = aus.find(x => x.gruppe === fp.standard!.gruppe)
-    if (g) g.ids.push(fp.id); else aus.push({ gruppe: fp.standard.gruppe, st: fp.standard, ids: [fp.id] })
+    const st = inselStandard(fp)
+    if (!st) continue
+    const g = aus.find(x => x.gruppe === st.gruppe)
+    if (g) g.ids.push(fp.id); else aus.push({ gruppe: st.gruppe, st, ids: [fp.id] })
   }
   return aus
 }
@@ -351,9 +352,9 @@ export function zugMitte(st: { m: P; achse: P }, ziel: P, frei: boolean): P {
 
 /** Teile einer Mittelinsel (Gruppe) in Standardform? (Griff nur dann) -> Kennzeichnung des ersten Teils, sonst null */
 export function standardZiehbar(plan: FlaechePlan[] | undefined, gruppe: string): PlanStandard | null {
-  const teile = (plan ?? []).filter(x => x.standard?.gruppe === gruppe)
+  const teile = (plan ?? []).filter(x => inselStandard(x)?.gruppe === gruppe)
   if (!teile.length || teile.some(standardAngepasst)) return null
-  return teile[0].standard!
+  return inselStandard(teile[0])!
 }
 
 /** Teilstreifen an den Inselkanten der Mittelinsel st (beim Einfügen geteilt): je Seite Streifen-Nummer und inneres Ende */
@@ -403,9 +404,10 @@ export function inselVerschieben(plan: FlaechePlan[], streifen: StreifenHand[], 
   const neuSt: PlanStandard = { ...st, m: [m[0], m[1]] }
   const g = standardGeometrie(neuSt)
   const neuPlan = plan.map(fp => {
-    if (fp.standard?.gruppe !== gruppe) return fp
-    const ring = teilRing(g, fp.standard.teil)
-    return ring ? { ...fp, ring, standard: { ...fp.standard, m: [m[0], m[1]] as P } } : fp
+    const x = inselStandard(fp)
+    if (x?.gruppe !== gruppe) return fp
+    const ring = teilRing(g, x.teil)
+    return ring ? { ...fp, ring, standard: { ...x, m: [m[0], m[1]] as P } } : fp
   })
   const ts = teilstreifenAnInsel(streifen, st)
   const neuStreifen = streifen.map(s => ({ ...s }))

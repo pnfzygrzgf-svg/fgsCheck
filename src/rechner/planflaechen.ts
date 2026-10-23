@@ -21,7 +21,7 @@
 //   die Vorschläge (Gebäudeecken) bleiben beim Bestand: Fixpunkte müssen vor Ort vorhanden sein.
 
 import type { AvFlaeche } from '../daten/av'
-import type { FlaechePlan, PlanArt, PlanStandard } from '../fall'
+import type { FlaechePlan, PlanArt, PlanStandard, PlanSeitenraum } from '../fall'
 import { type P, abstandStrecke, streckenSchnitt } from '../geo'
 import { type Multi, type Poly, type Ring, vereinigung, differenz, schnitt, flaeche, ringFlaeche, abstandLinieMulti } from './poly'
 
@@ -74,7 +74,7 @@ export function planFlaecheM2(ring: P[]): number {
 }
 
 /** Wirksamer Teil einer Fläche (Plan) in der Rechnung (nach späteren Plan-Flächen und den Gebäuden) */
-export interface PlanTeil { id: string; art: PlanArt; poly: Poly; standard?: PlanStandard }   // standard: Mittelinsel (Standard)
+export interface PlanTeil { id: string; art: PlanArt; poly: Poly; standard?: PlanStandard | PlanSeitenraum }   // standard: Mittelinsel (Standard) bzw. vorgezogener Seitenraum
 
 export interface PlanErgebnis {
   av: AvFlaeche[]            // AV-Bodenbedeckung mit den Plan-Flächen (ohne Plan-Flächen: dasselbe Array wie die Eingabe)
@@ -151,10 +151,12 @@ export function planKurzAv(id: string, avArt: string): string {
   return `${planTitel(id)}${art ? ` (${PLAN_NAME[art]})` : ''}`
 }
 /** «Plan-Fläche 1 (Trottoir)»; Teil einer Mittelinsel (Standard): «Plan-Fläche 3 (Insel, Mittelinsel Standard E1)» */
-export const planKurz = (t: { id: string; art: PlanArt; standard?: PlanStandard }) =>
-  `${planTitel(t.id)} (${PLAN_NAME[t.art]}${t.standard ? `, ${PLAN_STANDARD_KURZ}` : ''})`
+export const planKurz = (t: { id: string; art: PlanArt; standard?: PlanStandard | PlanSeitenraum }) =>
+  `${planTitel(t.id)} (${PLAN_NAME[t.art]}${t.standard ? `, ${planStandardKurz(t.standard)}` : ''})`
 /** Kurzname der Mittelinsel (Standard) in Annahmen (wie standardinsel.E1_KURZ; hier ohne Abhängigkeit) */
 export const PLAN_STANDARD_KURZ = 'Mittelinsel Standard E1'
+/** Kurzname eines Standardelements: Mittelinsel bzw. vorgezogener Seitenraum (wie seitenraum.SR_KURZ) */
+export const planStandardKurz = (st: { typ: string }) => (st.typ === 'seitenraum' ? 'vorgezogener Seitenraum' : PLAN_STANDARD_KURZ)
 
 /** Anteil eines Rings in den Plan-Flächen der Art Insel (Insel von Hand doppelt zu einer Plan-Insel?) */
 export function anteilInPlanInsel(ring: P[], teile: PlanTeil[]): number {

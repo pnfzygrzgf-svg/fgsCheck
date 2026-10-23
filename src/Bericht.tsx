@@ -11,9 +11,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { type Fall, type Fixpunkt, type StreifenHand, type FlaechePlan, PLAN_ARTEN, streifenHerkunftText, ortOhneUebergangText } from './fall'
+import { type Fall, type Fixpunkt, type StreifenHand, type FlaechePlan, PLAN_ARTEN, streifenHerkunftText, ortOhneUebergangText, inselStandard } from './fall'
 import { planTitel, planFlaecheM2, PLAN_NAME } from './rechner/planflaechen'
-import { standardTeilText, standardGeometrie, standardAngepasst } from './rechner/standardinsel'
+import { standardGeometrie, standardAngepasst } from './rechner/standardinsel'
+import { planStandardText } from './rechner/seitenraum'
 import type { FallRechnung } from './rechner'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernisse'
@@ -124,8 +125,8 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
   }, [url])
   const linien = useMemo(() => masslinien(r, fixpunkte), [r, fixpunkte])
   // Mittelinsel (Standard): Signalmast im Kopf der Furt-Seite (nur Hinweis; nicht bei von Hand veränderter Form)
-  const masten = plan.filter(fp => fp.standard?.teil === 'kopf' && !standardAngepasst(fp))
-    .map(fp => standardGeometrie(fp.standard!).mast).filter((m): m is P => !!m)
+  const masten = plan.filter(fp => inselStandard(fp)?.teil === 'kopf' && !standardAngepasst(fp))
+    .map(fp => standardGeometrie(inselStandard(fp)!).mast).filter((m): m is P => !!m)
   // Massstab: runde Länge um ein Fünftel der Breite
   const mass = [5, 10, 20, 25, 50, 100, 200].reduce((b, x) => (Math.abs(x - wM / 5) < Math.abs(b - wM / 5) ? x : b), 10)
   const halo = { stroke: '#ffffff', strokeWidth: 5, paintOrder: 'stroke' as const, strokeLinejoin: 'round' as const }
@@ -324,7 +325,7 @@ function eingabenListe(fall: Fall, r: FallRechnung | null, namen: Namen): string
   if (fall.luftbild === false) aus.push('Streifen-Suche im Luftbild abgeschaltet')
   for (const fp of fall.flaechenPlan ?? []) aus.push(`${planTitel(fp.id)} (Plan): ${PLAN_NAME[fp.art]}, ${f1(planFlaecheM2(fp.ring))} m², ` +
     `${fp.ring.length} Ecken – ersetzt in der Rechnung die AV-Bodenbedeckung darunter (Gebäude bleiben)` +
-    (fp.standard ? `; ${standardTeilText(fp)}` : ''))
+    (fp.standard ? `; ${planStandardText(fp)}` : ''))
   for (const f of fall.fixpunkte ?? []) aus.push(`Fixpunkt ${fixpunktName(f)}: ${ART_TEXT[f.art]}, E ${koordText(f.p[0])}, N ${koordText(f.p[1])} ` +
     '(nur Vermassung, ohne Einfluss auf die Rechnung)')
   const nb = Object.keys(fall.bedarf?.felder ?? {}).length, ne = Object.keys(fall.bedarf?.ebenen ?? {}).length
