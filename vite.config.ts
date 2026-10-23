@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'node:fs'
@@ -20,4 +21,6 @@ export default defineConfig(() => ({
   build: {
     cssTarget: ['chrome80', 'safari13', 'firefox78', 'edge80'],
   },
+  // Tests über alle Testfälle und Varianten brauchen auf dem GitHub-Runner länger als die Vorgabe von 5 s
+  test: { testTimeout: 60_000 },
 }))
