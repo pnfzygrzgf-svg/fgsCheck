@@ -1239,7 +1239,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     setWerkzeug(null)
     const titelS = fall.streifenHand.length ? streifenTitel(e.fgsId, fall.streifenHand) : `Streifen ${e.fgsId}`
     const text = `${SR_NAME} als ${planTitel(id)} (Trottoir) an ${titelS}, Ende ${k ? 'B' : 'A'}: ` +
-      (v.park && v.park.quelle === 'parkierung' ? `Parkstreifen ${f2(st.tiefePark)} m aus der Parkierung (${v.park.ids.length} Feld(er))` :
+      (v.park && v.park.quelle === 'parkierung' ? `Parkstreifen ${f2(st.tiefePark)} m aus der Parkierung (${v.park.ids.length} Feld(er)` +
+        `${v.park.versetzt ? '; Bordkante versetzt (Nase/Bucht): Tiefe gegen die Kante am Streifen gemessen, bitte prüfen' : ''})` :
         v.park ? `Parkstreifen ${f2(st.tiefePark)} m nur aus OSM-Vorschlägen (Lage angenommen) – prüfen` :
         `keine Parkierung gefunden – Parkstreifen ${f2(SR_PARK_TIEFE_M)} m angenommen; ohne Längsparkierung wirkt das Element wie eine ` +
         'seitliche Einengung') +

@@ -113,20 +113,27 @@ export function parkRinge(h: Hindernis[], vorschlaege: Hindernis[] = []): ParkRi
   return aus
 }
 
-/** Ergebnis der Messung: Tiefe (Median der nahen Felder), beteiligte Ids, Rand je Seite bis zum ersten Parkfeld, Quelle */
-export interface ParkMessung { tiefe: number; ids: string[]; rand: [number, number]; quelle: 'parkierung' | 'annahme' }
+/** Ergebnis der Messung: Tiefe (Median der nahen Felder), beteiligte Ids, Rand je Seite bis zum ersten Parkfeld, Quelle; versetzt:
+ * zwischen Streifen und einem Feld springt die Bordkante (Nase, Bucht), dort gegen die Kante am Streifen gemessen (Hinweis) */
+export interface ParkMessung { tiefe: number; ids: string[]; rand: [number, number]; quelle: 'parkierung' | 'annahme'; versetzt: boolean }
 const SR_DICHTE_M = 0.5                 // Kanten der Parkierung so dicht abtasten (lange Polygone)
 const SR_ORT_TOL_M = 3.0                // örtliche Bordkante höchstens so weit von der Geraden c(s) (Bogen R = 40 m auf 15 m: 2,8 m)
+export const SR_SPRUNG_M = 0.30         // Bordkante springt um mehr als das auf SR_DICHTE_M Länge: versetzt (Nase, Bucht)
+export const SR_RAND_MIN_M = 0.50       // Rand, wenn die Parkierung bis an bzw. in den Streifen reicht (Nutzerentscheid)
 export const SR_RAND_MAX_M = 5.0        // Rand bis zum ersten Parkfeld höchstens so weit über den Streifen hinaus (Nutzerentscheid)
 const median = (xs: number[]) => { const a = [...xs].sort((x, y) => x - y), n = a.length; return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2 }
 
 /**
  * Längsparkierung an dieser Bordkante messen. Die Kanten jedes Rings werden alle SR_DICHTE_M abgetastet, nur Punkte im Längsfenster
- * |s| ≤ SR_SUCHE_M zählen (lange Polygone, Reihen über einen Block). Tiefe eines Punkts gegen die ÖRTLICHE Bordkante: Sehne der
- * Fahrbahn (sehne) an der Stelle entlang tief, mit dem Winkel der Kante dort (Sehnen 1 m davor und danach) auf die Senkrechte zur
- * Kante umgerechnet; ohne Sehne gegen die Gerade c(s). Ein Feld gehört zur Kante, wenn seine Innenkante höchstens SR_PARK_INNEN_M
- * davor liegt (bis 1 m dahinter) und seine Aussenkante in SR_PARK_TIEFE_BEREICH. Tiefe = Median der Aussenkanten der Felder.
- * Rand je Seite (A: s < 0, B: s > 0) bis zum ersten dieser Felder, höchstens SR_RAND_MAX_M; ohne Feld in diesem Bereich SR_RAND_M.
+ * |s| ≤ SR_SUCHE_M zählen (lange Polygone, Reihen über einen Block). Tiefe eines Punkts gegen die ÖRTLICHE Bordkante (Kurve): Sehne
+ * der Fahrbahn (sehne) an der Stelle entlang tief, mit dem Winkel der Kante dort (Sehnen 1 m davor und danach) auf die Senkrechte zur
+ * Kante umgerechnet – nur, wenn die Kante zwischen dem Streifen und dem Feld stetig verläuft (Verlauf alle SR_DICHTE_M, kein Sprung
+ * über SR_SPRUNG_M). Springt sie (Trottoirnase an der Querung, Parkbucht), gilt die Kante AM STREIFEN (Gerade c(s)): sonst würde der
+ * Versatz doppelt gezählt (Hinweis «versetzt»); die Aussenkante zählt dann am nahen Ende des Felds. Ohne Sehne gegen c(s). Ein Feld gehört zur Kante, wenn seine Innenkante
+ * höchstens SR_PARK_INNEN_M davor liegt (bis 1 m dahinter, bei versetzter Kante bis SR_ORT_TOL_M) und seine Aussenkante in
+ * SR_PARK_TIEFE_BEREICH (bei versetzter Kante ab SR_BEREICH.tiefePark). Tiefe = Median der Aussenkanten der Felder.
+ * Rand je Seite (A: s < 0, B: s > 0) bis zum ersten dieser Felder, höchstens SR_RAND_MAX_M, mindestens SR_RAND_MIN_M (Parkierung
+ * bis an bzw. in den Streifen); ohne Feld auf dieser Seite SR_RAND_M.
  * Quelle «annahme», wenn nur OSM-Vorschläge (Lage angenommen) gemessen sind
  */
 export function parkMessen(park: ParkRing[], l: SrLage, breite: number, sehne: ((p: P, r: P) => [number, number] | null) | null = null):
@@ -146,7 +153,27 @@ export function parkMessen(park: ParkRing[], l: SrLage, breite: number, sehne: (
     const g = k1 !== null && k2 !== null ? (k2 - k1) / 2 : 0      // Änderung des Abstands je m entlang balken
     return h / Math.hypot(1, g)
   }
-  const felder: { id: string; aussen: number; sMin: number; sMax: number; annahme: boolean }[] = []
+  // Verlauf der Bordkante gegen c(s) alle SR_DICHTE_M im Längsfenster (Sehne 1 m vor der Geraden); null: keine Messung
+  const n = Math.round(SR_SUCHE_M / SR_DICHTE_M)
+  const verlauf = Array.from({ length: 2 * n + 1 }, (_, i) => {
+    const s = (i - n) * SR_DICHTE_M
+    if (!sehne) return null
+    const sh = sehne(pt(l, s, kanteBei(l, s) + 1), l.tief)
+    return sh && Math.abs(1 - sh[1]) <= SR_ORT_TOL_M ? 1 - sh[1] : null
+  })
+  /** springt die Kante zwischen s = a und s = b (inkl. Feld)? */
+  const sprung = (a: number, b: number): boolean => {
+    const i0 = Math.max(0, Math.floor(Math.min(a, b) / SR_DICHTE_M) + n), i1 = Math.min(2 * n, Math.ceil(Math.max(a, b) / SR_DICHTE_M) + n)
+    let vor: number | null = null
+    for (let i = i0; i <= i1; i++) {
+      const o = verlauf[i]
+      if (o === null) continue
+      if (vor !== null && Math.abs(o - vor) > SR_SPRUNG_M) return true
+      vor = o
+    }
+    return false
+  }
+  const felder: { id: string; aussen: number; sMin: number; sMax: number; annahme: boolean; versetzt: boolean }[] = []
   for (const f of park) {
     const pts: P[] = []
     f.ring.forEach((a, i) => {
@@ -159,21 +186,27 @@ export function parkMessen(park: ParkRing[], l: SrLage, breite: number, sehne: (
       return Math.abs(s) <= SR_SUCHE_M && t >= -SR_ORT_TOL_M && t <= SR_PARK_TIEFE_BEREICH[1] + SR_ORT_TOL_M
     })
     if (!nah.length) continue
-    const t = nah.map(tiefe), ss = nah.map(q => dot(sub(q, l.k), l.balken))
-    const innen = Math.min(...t), aussen = Math.max(...t)
-    if (innen > SR_PARK_INNEN_M || innen < -1 || aussen < SR_PARK_TIEFE_BEREICH[0] || aussen > SR_PARK_TIEFE_BEREICH[1]) continue
-    felder.push({ id: f.id, aussen, sMin: Math.min(...ss), sMax: Math.max(...ss), annahme: !!f.annahme })
+    const ss = nah.map(q => dot(sub(q, l.k), l.balken)), sMin = Math.min(...ss), sMax = Math.max(...ss)
+    const versetzt = sprung(Math.min(0, sMin), Math.max(0, sMax))
+    const t = nah.map(q => (versetzt ? dot(sub(q, l.k), l.tief) - kanteBei(l, dot(sub(q, l.k), l.balken)) : tiefe(q)))
+    const innen = Math.min(...t)
+    // versetzt: Aussenkante am nahen Ende des Felds (die Gerade c(s) gilt nur nahe am Streifen; weiter weg weicht sie von der Kante ab)
+    const nahS = sMin > 0 ? sMin : sMax < 0 ? sMax : null
+    const aussen = Math.max(...t.filter((_, i) => !versetzt || nahS === null || Math.abs(ss[i] - nahS) <= SR_DICHTE_M + 1e-9))
+    if (innen > SR_PARK_INNEN_M || innen < (versetzt ? -SR_ORT_TOL_M : -1) ||
+      aussen < (versetzt ? SR_BEREICH.tiefePark[0] : SR_PARK_TIEFE_BEREICH[0]) || aussen > SR_PARK_TIEFE_BEREICH[1]) continue
+    felder.push({ id: f.id, aussen, sMin, sMax, annahme: !!f.annahme, versetzt })
   }
   if (!felder.length) return null
   const h = breite / 2
   const randSeite = (vz: 1 | -1): number => {
     // nächstes Feld auf dieser Seite: Abstand seines nahen Endes vom Streifenrand (Felder, die in den Streifen reichen: 0)
-    const ab = felder.filter(f => (vz > 0 ? f.sMax : -f.sMin) > h).map(f => Math.max(0, (vz > 0 ? f.sMin : -f.sMax) - h))
-    const m = ab.length ? Math.min(...ab) : Infinity
-    return m <= SR_RAND_MAX_M ? Math.round(m * 100) / 100 : SR_RAND_M
+    const ab = felder.filter(f => (vz > 0 ? f.sMax : -f.sMin) > h).map(f => (vz > 0 ? f.sMin : -f.sMax) - h)
+    if (!ab.length) return SR_RAND_M
+    return Math.round(Math.min(SR_RAND_MAX_M, Math.max(SR_RAND_MIN_M, Math.min(...ab))) * 100) / 100
   }
   return { tiefe: Math.round(median(felder.map(f => f.aussen)) * 100) / 100, ids: felder.map(f => f.id), rand: [randSeite(-1), randSeite(1)],
-    quelle: felder.every(f => f.annahme) ? 'annahme' : 'parkierung' }
+    quelle: felder.every(f => f.annahme) ? 'annahme' : 'parkierung', versetzt: felder.some(f => f.versetzt) }
 }
 
 /** Masse beim Einfügen: Streifenbreite, Rand bis zum ersten Parkfeld (sonst SR_RAND_M), Überstand SR_UEBERSTAND_M, Parktiefe aus der

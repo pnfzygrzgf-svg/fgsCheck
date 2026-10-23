@@ -58,7 +58,7 @@ function einfuegen(f: Fall, rand?: [number, number], nord = true, av: AvFlaeche[
 describe('Einfügen an einem Streifenende', () => {
   it('mit Parkfeldern: Tiefe = Aussenkante der Parkierung + 0,20 m, Länge = Streifenbreite + je 1 m, hinter die Bordkante 0,50 m', () => {
     const { st, park, fp } = einfuegen(fallMit(x => { x.hindernisse.push(FELD) }))
-    expect(park).toEqual({ tiefe: 2, ids: ['p1'], rand: [1, 1], quelle: 'parkierung' })
+    expect(park).toEqual({ tiefe: 2, ids: ['p1'], rand: [1, 1], quelle: 'parkierung', versetzt: false })
     expect(st.parkQuelle).toBe('parkierung')
     expect(lok(st.k)).toEqual([0.001, 4]); expect(st.tief).toEqual([0, -1]); expect(st.kante).toEqual([0, 0])
     expect(st.tiefePark + st.ueberstand).toBeCloseTo(2 + SR_UEBERSTAND_M, 9)
@@ -250,6 +250,7 @@ describe('Messen gegen die örtliche Bordkante', () => {
     const m = parkMessen(felder, lage, 4, (q, r) => fb2.sehne(q, r))
     expect(m?.ids).toEqual(['a', 'b']); expect(m!.tiefe).toBeGreaterThan(1.95); expect(m!.tiefe).toBeLessThan(2.05)
     expect(m!.rand).toEqual([5, 5])                                           // erstes Feld 5 m nach dem Streifenrand
+    expect(m!.versetzt).toBe(false)                                           // stetiger Verlauf: örtliche Kante
   })
   it('lange Reihen: Längsparkierung über den Block bzw. langes Kataster-Polygon (nur Ecken) -> 2,00 m; Median statt Maximum', () => {
     const lage = { k: lv(0, 4), balken: [-1, 0] as P, tief: [0, -1] as P, kante: [0, 0] as [number, number] }
@@ -257,7 +258,7 @@ describe('Messen gegen die örtliche Bordkante', () => {
     expect(parkMessen(lang, lage, 4, sehne)?.tiefe).toBeCloseTo(1.8, 6)   // Aussenkante y = 2,2 nahe dem Streifen, nicht y = 2,0 weit weg
     const kat: ParkRing[] = [{ id: 'K', ring: [lv(-20, 4), lv(20, 4), lv(20, 2), lv(-20, 2)] }]
     const mk = parkMessen(kat, lage, 4, sehne)!
-    expect(mk.tiefe).toBeCloseTo(2, 6); expect(mk.rand).toEqual([0, 0])        // Reihe reicht in den Streifen: kein Rand
+    expect(mk.tiefe).toBeCloseTo(2, 6); expect(mk.rand).toEqual([0.5, 0.5])    // Reihe reicht in den Streifen: Mindestrand
     const drei: ParkRing[] = [{ id: '1', ring: rechteck(5, 2, 10, 4) }, { id: '2', ring: rechteck(-10, 2, -5, 4) }, { id: '3', ring: rechteck(12, 1, 17, 4) }]
     expect(parkMessen(drei, lage, 4, sehne)?.tiefe).toBe(2)                     // Median, nicht 3,00 m des tiefen Felds
     // nur OSM-Vorschläge: Quelle Annahme
@@ -266,8 +267,20 @@ describe('Messen gegen die örtliche Bordkante', () => {
   it('Länge bis zum ersten Parkfeld (höchstens 5 m), sonst Streifenbreite + je 1 m', () => {
     const lage = { k: lv(0, 4), balken: [-1, 0] as P, tief: [0, -1] as P, kante: [0, 0] as [number, number] }
     const m = parkMessen([{ id: '1', ring: rechteck(5, 2, 11, 4) }, { id: '2', ring: rechteck(-14, 2, -8, 4) }], lage, 4, sehne)!
-    expect(m.rand).toEqual([3, 1])                                             // A (Osten) bis x = 5; B: Feld erst 6 m nach dem Rand
-    expect(seitenraumMasse(4, m)).toMatchObject({ randA: 3, randB: 1 })
+    expect(m.rand).toEqual([3, 5])                                             // A (Osten) bis x = 5; B: Feld 6 m nach dem Rand -> höchstens 5
+    expect(seitenraumMasse(4, m)).toMatchObject({ randA: 3, randB: 5 })
+    expect(parkMessen([{ id: '1', ring: rechteck(2.2, 2, 8, 4) }], lage, 4, sehne)!.rand).toEqual([0.5, 1])   // 0,2 m: Mindestrand
+  })
+  it('Bordkante versetzt (Nase an der Querung, Parkbucht): Tiefe gegen die Kante am Streifen, nicht doppelt', () => {
+    // Nordkante y = 5 (Parkbucht), an der Querung |x| < 4 Trottoirnase bis y = 4; Parklinie y = 3: 1 m vor der Nasenkante
+    const avB = [av('Strasse_Weg', [lv(-40, -4), lv(40, -4), lv(40, 5), lv(4, 5), lv(4, 4), lv(-4, 4), lv(-4, 5), lv(-40, 5)]),
+      av('Trottoir', [lv(-40, 5), lv(-4, 5), lv(-4, 4), lv(4, 4), lv(4, 5), lv(40, 5), lv(40, 8), lv(-40, 8)])]
+    const fbB = new Fahrbahn(avB), sB = (q: P, r: P) => fbB.sehne(q, r)
+    const l0 = seitenraumLage(lv(0, -4), lv(0, 4), 1, null, lv(0, 4))
+    const l = { ...l0, kante: kanteMessen(l0, seitenraumMasse(4, null), sB) ?? [0, 0] as [number, number] }
+    const feld = (x0: number, x1: number): ParkRing => ({ id: `f${x0}`, ring: [lv(x0, 3), lv(x1, 3), lv(x1, 5), lv(x0, 5)] })
+    const m = parkMessen([feld(7, 13), feld(-13, -7)], l, 4, sB)!
+    expect(m.tiefe).toBeCloseTo(1, 6); expect(m.versetzt).toBe(true)
   })
 })
 
@@ -321,7 +334,7 @@ describe.skipIf(!REF || !existsSync(join(REF, 'cache', 'av_405.json')))('Referen
     }
     const kA = e.rand[0][1] > e.rand[1][1] ? 0 : 1                          // Ende A der Referenz (Nordseite)
     const a = ergebnis(kA), b = ergebnis(kA === 0 ? 1 : 0)
-    expect(a.pm?.quelle).toBe('parkierung'); expect(a.pm!.tiefe).toBeGreaterThan(1.8); expect(a.pm!.tiefe).toBeLessThan(2.2)
+    expect(a.pm?.quelle).toBe('parkierung'); expect(a.pm!.versetzt).toBe(true); expect(a.pm!.tiefe).toBeCloseTo(1.15, 1)
     expect(a.w).toMatchObject({ wert: 0.2, quelle: 'rechnung' })
     expect(b.pm).toBeNull(); expect(b.w?.text ?? '').not.toContain('Plan:')
     expect(a.r.streifen[0].zufahrten[0].freiBisM!).toBeGreaterThan(r0.streifen[0].zufahrten[0].freiBisM!)
