@@ -252,9 +252,9 @@ describe('Runde 4: Muss-Hinweis an offenen Feldern', () => {
     // vorbelegte Felder ohne Bestätigung: kein Zusatz
     expect(zeile('vSig')).not.toContain('feld-bedarf')
   })
-  it('«Vorschlag bestätigen» nur, wo ein Verbot (nurMitBestaetigung) an der Annahme hängt: Strecke/Zone und besonderer Grund', () => {
-    expect([...BESTAETIGUNG_MOEGLICH].sort()).toEqual(['beduerfnis', 'tempoRegime'])
-    expect(REGEL_IDS.filter(id => (KATALOG[id] as RegelDef).nurMitBestaetigung).sort()).toEqual(['A2', 'C2'])
+  it('«Vorschlag bestätigen» nur, wo ein Verbot (nurMitBestaetigung) an der Annahme hängt: Strecke/Zone, besonderer Grund, Knotensicht', () => {
+    expect([...BESTAETIGUNG_MOEGLICH].sort()).toEqual(['beduerfnis', 'q3.knotensichtOk', 'tempoRegime'])
+    expect(REGEL_IDS.filter(id => (KATALOG[id] as RegelDef).nurMitBestaetigung).sort()).toEqual(['A2', 'C2', 'Q3-11'])
   })
 })
 

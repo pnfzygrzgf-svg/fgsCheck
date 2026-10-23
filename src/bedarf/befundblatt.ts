@@ -283,7 +283,8 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
   const ebenen = ebenenWirksam(fall.bedarf, opt.vorgabe)
   // ausgeblendete Unterfelder lösen die Blöcke Trottoirüberfahrt bzw. LSA-Zeiten nicht aus (Feldhilfen, SICHTBAR)
   ausgeblendeteBloeckeLeeren(gebildet.eingaben, ebenen)
-  const befund = beurteile(gebildet.eingaben, { ebenen: { bern: ebenen.bern, kantonBE: ebenen.kantonBE, richtlinie: ebenen.richtlinie } })
+  const befund = beurteile(gebildet.eingaben, { ebenen: { bern: ebenen.bern, kantonBE: ebenen.kantonBE, richtlinie: ebenen.richtlinie },
+    quelleVon: p => gebildet.herkunft.get(p)?.quelle ?? null })
   // Runde 4: beruht ein Verbot nur auf Annahmen bzw. Schätzungen von Hand (nicht aus der Vorbelegung), gibt es keinen Vorschlag zu
   // bestätigen; das Detail sagt das (entscheid.ts kennt die Herkunft nicht)
   for (const x of befund.alle) if (x.bestaetigen && x.fehlend?.length && x.fehlend.every(f => gebildet.herkunft.get(f)?.zustand === 'hand'))

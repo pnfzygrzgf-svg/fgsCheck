@@ -53,7 +53,7 @@ describe('Knotensicht: Knoten und Zufahrt aus dem Streifen', () => {
   it('Streifen über die durchgehende Strasse weit weg vom Knoten: keine Zufahrt, Hinweis «nur an Einmündungen»', () => {
     const a = knotensichtTue(d, { p0: lv(150, -6), p1: lv(150, 6), rand: [lv(150, -4), lv(150, 4)], breite: null })
     expect(a).toMatchObject({ ohneZufahrt: true })
-    expect(text(renderToStaticMarkup(<KnotensichtBlock ks={a} lage={null} breiteHand={null} setzeBreite={() => {}} />)))
+    expect(text(renderToStaticMarkup(<KnotensichtBlock ks={a} fgsId="hand-1" titel={x => x} lage={null} breiteHand={null} setzeBreite={() => {}} />)))
       .toContain(`Trottoirüberfahrten gibt es ${TUE_NUR_EINMUENDUNG}`)
   })
 })
@@ -72,10 +72,12 @@ describe('Knotensicht im Worker-Weg (rechneFall + knotensichtAnfuegen)', () => {
     expect([k.knoten, k.zufahrt, Math.round(k.breite * 100) / 100, k.breiteQuelle]).toEqual([11, '2:0:1', 3, 'av_neben'])
     expect(k.richtungen.map(r => [r.richtung, r.tempo, !!r.trottoir, !!r.auto, !!r.velo])).toEqual([['links', 50, true, true, true], ['rechts', 50, true, true, true]])
     expect([k.phaseTrottoir.status, k.phaseFahrbahn.status, k.ok]).toEqual(['erfuellt', 'erfuellt', true])
-    expect(k.neigungGemessen).toBe(false); expect(k.annahmeGrund).toEqual(['Längsneigung 0 % angenommen'])
+    expect(k.neigungGemessen).toBe(false); expect(k.annahmeGrund).toEqual(['Tempo nach OSM', 'Längsneigung 0 % angenommen'])
+    expect([k.zufahrtName, k.richtungen.map(r => r.strasse), k.richtungen.map(r => r.tempoHerkunft)]).toEqual(['Querweg', ['Hauptstrasse', 'Hauptstrasse'], ['osm', 'osm']])
+    expect(k.karte.kanten).toHaveLength(2)
     expect(Object.keys(k.profile).sort()).toEqual(['links', 'rechts', 'trottoir', 'zufahrt'])
     expect(k.karte.dreiecke.map(d => d.art).sort()).toEqual(['auto', 'auto', 'trottoir', 'trottoir', 'velo', 'velo'])
-    expect(k.hoehenSchluessel).toBe('11|2:0:1')
+    expect(k.hoehenSchluessel).toBe('11|2:0:1|3,00')
   })
   it('Breite von Hand (Bedarf «Breite der Trottoirüberfahrt») geht vor; ausserhalb 1 bis 8 m ohne Wirkung', () => {
     const mit = (w: number) => ks(rechnen(fallTue(x => { x.bedarf = { felder: { 'q3.breiteM': { wert: w, quelle: 'hand' } } } })).streifen[0].knotensicht)
@@ -85,7 +87,7 @@ describe('Knotensicht im Worker-Weg (rechneFall + knotensichtAnfuegen)', () => {
   it('Längsneigung aus dem Höhenmodell: gemessen, keine Annahme mehr', () => {
     const m = { i: 0, quelle: `${HOEHEN_QUELLE}, Profil 50 m, 20 Punkte`, laenge: 50, punkte: 20, hinweis: null }
     const g = ks(rechnen(fallTue(), { hoehen: { [k.hoehenSchluessel]: { links: m, rechts: m, zufahrt: m, trottoir: m } } }).streifen[0].knotensicht)
-    expect([g.neigungGemessen, g.annahmeGrund]).toEqual([true, []])
+    expect([g.neigungGemessen, g.annahmeGrund]).toEqual([true, ['Tempo nach OSM']])
   })
   it('Tempo amtlich: V_sig nur, wenn die AV unter dem Knoten zur Stadt Bern gehört', () => {
     const vsig = { linien: [{ id: 'v1', strasse: 'Hauptstrasse', vSig: 30, teile: [[lv(-300, 0), lv(300, 0)]] }], bereich: { mitte: lv(-40, -4), radiusM: 150, form: 'quadrat' } }
@@ -135,10 +137,11 @@ describe('Knotensicht: Bäume, Seitenraum und Flächen (Plan) wie in der Sichtpr
 
 describe('Knotensicht: Vorbelegung «Sicht beim Ausfahren», Handeingabe geht vor', () => {
   const blatt = (f: Fall, rest = {}) => befundblaetter(rechnen(f, rest), f, { vorgabe: { bern: false, kantonBE: false } })[0]
-  it('beide Phasen erfüllt, Neigung angenommen: ja mit Quelle Annahme; mit Höhenmodell: Quelle Rechnung', () => {
+  it('beide Phasen erfüllt, Neigung bzw. Tempo nach OSM angenommen: ja mit Quelle Annahme; Tempo von Hand und Höhenmodell: Rechnung', () => {
     expect(blatt(fallTue()).vorbelegt.werte['q3.knotensichtOk']).toMatchObject({ wert: true, quelle: 'annahme' })
     const m = { i: 0, quelle: HOEHEN_QUELLE, laenge: 50, punkte: 20, hinweis: null }
-    const w = blatt(fallTue(), { hoehen: { '11|2:0:1': { links: m, rechts: m, zufahrt: m, trottoir: m } } }).vorbelegt.werte['q3.knotensichtOk']
+    const mitTempo = (x: Fall) => { x.bedarf = { felder: { 'q3.vSigHaupt': { wert: 50, quelle: 'hand' } } } }
+    const w = blatt(fallTue(mitTempo), { hoehen: { '11|2:0:1|3,00': { links: m, rechts: m, zufahrt: m, trottoir: m } } }).vorbelegt.werte['q3.knotensichtOk']
     expect(w).toMatchObject({ wert: true, quelle: 'rechnung' }); expect(String(w?.text)).toContain('aufs Trottoir genügt')
   })
   it('nicht erfüllt: nein; Handeingabe überschreibt', () => {
@@ -164,19 +167,141 @@ describe('Knotensicht: Vorbelegung «Sicht beim Ausfahren», Handeingabe geht vo
 
 describe('Knotensicht: Anzeige und Bericht (Render-Wächter)', () => {
   const k = ks(rechnen(fallTue()).streifen[0].knotensicht)
-  const t = text(renderToStaticMarkup(<KnotensichtBlock ks={k} lage={null} breiteHand={null} setzeBreite={() => {}} />))
+  const t = text(renderToStaticMarkup(<KnotensichtBlock ks={k} fgsId="hand-1" titel={x => x} lage={null} breiteHand={null} setzeBreite={() => {}} />))
   it('Phasen je Richtung, Breite mit Herkunft, Frage statt Feldname; kein Link auf den SichtweitenCheck, keine Regelnummer allein', () => {
     for (const x of ['Knotensicht der Einbiegenden', 'Ausfahrt aus', 'aufs Trottoir', 'auf die Fahrbahn', 'von links', 'von rechts',
-      'Breite 3,00 m (angrenzendes Trottoir (AV))', 'Wie breit ist die Überfahrt?', 'Längsneigung 0 % angenommen']) expect(t).toContain(x)
+      'Breite 3,00 m, angrenzendes Trottoir nach AV', 'Wie breit ist die Überfahrt?', 'Längsneigung 0 % angenommen']) expect(t).toContain(x)
     expect(t).not.toContain('SichtweitenCheck ↗'); expect(t).not.toMatch(/\bQ3-\d+\b/); expect(t).not.toMatch(/ß/)
   })
   it('Hinweis zur Neigung nur ohne Höhenmodell', () => {
     const g = { ...k, neigungGemessen: true }
-    expect(text(renderToStaticMarkup(<KnotensichtBlock ks={g} lage={null} breiteHand={null} setzeBreite={() => {}} />))).not.toContain('Längsneigung 0 %')
+    expect(text(renderToStaticMarkup(<KnotensichtBlock ks={g} fgsId="hand-1" titel={x => x} lage={null} breiteHand={null} setzeBreite={() => {}} />))).not.toContain('Längsneigung 0 % angenommen: Höhenmodell')
   })
   it('Bericht: Satz mit beiden Phasen, Tabelle, Herkunft der Rechnung', () => {
-    const b = text(renderToStaticMarkup(<KnotensichtBericht ks={k} />))
+    const b = text(renderToStaticMarkup(<KnotensichtBericht ks={k} fgsId="hand-1" titel={x => x} />))
     expect(b).toContain('aufs Trottoir genügt, auf die Fahrbahn genügt'); expect(b).toContain('Rechnung nach SichtweitenCheck 0.6.0')
     expect(b).toContain('Sicht auf die Wartefläche gilt hier nicht')
   })
 })
+
+describe('Knotensicht: Korrekturen nach Review (S1–S3, K3, K4, K7)', () => {
+  it('S1: AV-Ausschnitt reicht nicht: kurzer Hinweis je Richtung, Ergebnis unsicher, keine Vorbelegung', () => {
+    const k = ks(rechnen(fallTue(), { avRadius: 30 }).streifen[0].knotensicht)
+    expect(k.unklar.join(' ')).toContain('AV-Ausschnitt reicht nicht'); expect(k.ok).toBeNull()
+    expect(k.richtungen.some(r => r.hinweise.fahrbahn.some(h => h.startsWith('AV-Ausschnitt reicht nicht')))).toBe(true)
+    const b = befundblaetter(rechnen(fallTue(), { avRadius: 30 }), fallTue(), { vorgabe: { bern: false, kantonBE: false } })[0]
+    expect(b.vorbelegt.werte['q3.knotensichtOk']).toBeUndefined(); expect(b.vorbelegt.feldHinweise?.['q3.knotensichtOk']).toContain('unsicher')
+  })
+  it('S1: Höhenprofil uneben: Hinweis, unsicher; nicht verfügbar: Hinweis, 0 % als Annahme', () => {
+    const uneben = { i: 1, quelle: HOEHEN_QUELLE, laenge: 50, punkte: 20, hinweis: 'Höhenprofil uneben (Streuung 0,5 m um die Ausgleichsgerade; Kuppe, Wanne, Brücke?): Längsneigung vor Ort bzw. von Hand prüfen.' }
+    const ok = { ...uneben, i: 0, hinweis: null }
+    const k = ks(rechnen(fallTue(), { hoehen: { '11|2:0:1|3,00': { links: uneben, rechts: ok, zufahrt: ok, trottoir: ok } } }).streifen[0].knotensicht)
+    expect(k.ok).toBeNull(); expect(k.unklar[0]).toContain('Höhenprofil uneben')
+    const weg = { i: null, quelle: `${HOEHEN_QUELLE} nicht verfügbar`, laenge: 0, punkte: 0, hinweis: 'Höhenmodell nicht verfügbar (x): Längsneigung 0 % angenommen, von Hand eingeben.' }
+    const g = ks(rechnen(fallTue(), { hoehen: { '11|2:0:1|3,00': { links: weg, rechts: ok, zufahrt: ok, trottoir: ok } } }).streifen[0].knotensicht)
+    expect(g.ok).toBe(true); expect(g.neigungGemessen).toBe(false)
+    expect(g.richtungen[0].hinweise.fahrbahn).toContain('Höhenprofil nicht verfügbar: Längsneigung 0 % angenommen.')
+    expect(JSON.stringify(g)).not.toContain('von Hand eingeben')
+  })
+  it('S2: Streifen über die durchgehende Strasse: Flag des Kerns, ein Hinweis, keine Vorbelegung', () => {
+    const k = ks(rechnen(fallTue(() => {}, lv(-30, -6), lv(-30, 6))).streifen[0].knotensicht)
+    expect([k.durchgehend, k.ok]).toEqual([true, null])
+    expect(k.hinweise.filter(h => h.includes('durchgehende Strasse'))).toHaveLength(1)
+  })
+  it('S3: Teilstreifen einer Querung: einmal gerechnet, beide Teile tragen dasselbe Ergebnis', () => {
+    const f = fallTue(x => {
+      x.streifenHand = [{ id: 'hand-1', p0: lv(-44, -8), p1: lv(-41, -8), breite: 3, herkunft: 'gezeichnet' },
+        { id: 'hand-2', p0: lv(-39, -8), p1: lv(-36, -8), breite: 3, herkunft: 'gezeichnet' }]
+      x.streifen = { 'hand-1': { typ: 'trottoirueberfahrt' }, 'hand-2': { typ: 'trottoirueberfahrt' } }
+    })
+    const r = rechnen(f)
+    expect(r.streifen[0].uebergangId).toBe(r.streifen[1].uebergangId)
+    expect(r.streifen[0].knotensicht).toBe(r.streifen[1].knotensicht)
+    const k = ks(r.streifen[0].knotensicht)
+    expect(['hand-1', 'hand-2']).toContain(k.streifenId)
+    const andere = k.streifenId === 'hand-1' ? 'hand-2' : 'hand-1'
+    expect(text(renderToStaticMarkup(<KnotensichtBlock ks={k} fgsId={andere} titel={x => `Streifen ${x}`} lage={null} breiteHand={null}
+      setzeBreite={() => {}} />))).toContain(`siehe Streifen ${k.streifenId}`)
+  })
+  it('S6: Tempo der Hauptstrasse von Hand (Bedarf) vor V_sig und OSM', () => {
+    const k = ks(rechnen(fallTue(x => { x.bedarf = { felder: { 'q3.vSigHaupt': { wert: 40, quelle: 'hand' } } } })).streifen[0].knotensicht)
+    expect(k.richtungen.map(r => [r.tempo, r.tempoHerkunft])).toEqual([[40, 'hand'], [40, 'hand']])
+  })
+  it('K3: «nein» aus einer Annahme löst die harte Regel nicht aus (Vorschlag bestätigen); aus der Rechnung schon', () => {
+    const park = (x: Fall) => x.hindernisse.push({ id: 'h1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-60, -4, -48, -1.8), quelle: 'hand' })
+    const bl = (f: Fall, rest: Partial<Rest> = {}) => befundblaetter(rechnen(f, rest), f, { vorgabe: { bern: false, kantonBE: false } })[0]
+    const a = bl(fallTue(park))
+    expect(a.vorbelegt.werte['q3.knotensichtOk']).toMatchObject({ wert: false, quelle: 'annahme' })
+    const q = a.befund.alle.find(x => x.id === 'Q3-11')!
+    expect([q.zustand, q.bestaetigen]).toEqual(['offen', true])
+    const m = { i: 0, quelle: HOEHEN_QUELLE, laenge: 50, punkte: 20, hinweis: null }
+    const f = fallTue(x => { park(x); x.bedarf = { felder: { 'q3.vSigHaupt': { wert: 50, quelle: 'hand' } } } })
+    const r = bl(f, { hoehen: { '11|2:0:1|3,00': { links: m, rechts: m, zufahrt: m, trottoir: m } } })
+    expect(r.vorbelegt.werte['q3.knotensichtOk']).toMatchObject({ wert: false, quelle: 'rechnung' })
+    expect(r.befund.alle.find(x => x.id === 'Q3-11')?.zustand).toBe('verletzt')
+  })
+  it('K4/K7: Breite von Hand ausserhalb 1 bis 8 m: Hinweis; Texte ohne Armnummer, ohne doppelte Klammern, «mindestens … frei»', () => {
+    const k = ks(rechnen(fallTue(x => { x.bedarf = { felder: { 'q3.breiteM': { wert: 12, quelle: 'hand' } } } })).streifen[0].knotensicht)
+    const t = text(renderToStaticMarkup(<KnotensichtBlock ks={k} fgsId="hand-1" titel={x => x} lage="strecke" breiteHand={12} setzeBreite={() => {}} />))
+    expect(t).toContain('Breite von Hand 12,00 m nicht verwendet'); expect(t).toContain('Ausfahrt aus Querweg')
+    expect(t).toContain('mindestens 23 m frei, nötig 15 m')
+    expect(t).not.toMatch(/\(\s*[^()]*\(/); expect(t).not.toMatch(/\b\d (Hauptstrasse|Querweg)/); expect(t).not.toMatch(/_link|genügt \(/)
+    expect(t).not.toMatch(/im Panel|von Hand eingeben|bestätigte Vorschläge/)
+    // ohne Einmündung: «nur an Einmündungen» nur einmal
+    const o = text(renderToStaticMarkup(<KnotensichtBlock ks={{ fehler: 'x', ohneZufahrt: true }} fgsId="hand-1" titel={x => x} lage="strecke"
+      breiteHand={null} setzeBreite={() => {}} />))
+    expect(o.match(/nur an Einmündungen/g)).toHaveLength(1)
+  })
+})
+
+describe('Knotensicht: Geometrie der Überfahrt wie im SichtweitenCheck (K1)', () => {
+  // Querweg unter dem Winkel α zur Hauptstrasse; Fahrbahn 6 m (quer gemessen), Trottoir t m
+  const schief = (alpha: number, t: number) => {
+    const cot = 1 / Math.tan(alpha * Math.PI / 180), hw = 3 / Math.sin(alpha * Math.PI / 180)
+    const xc = (y: number) => -40 - y * cot, xl = (y: number) => xc(y) - hw, xr = (y: number) => xc(y) + hw
+    const osm = { elements: [
+      weg(1, [[10, -300, 0], [11, -40, 0], [12, 0, 0], [13, 300, 0]], { highway: 'tertiary', name: 'Hauptstrasse', maxspeed: '50' }),
+      weg(2, [[11, -40, 0], [20, xc(-200), -200]], { highway: 'residential', name: 'Querweg', maxspeed: '30' })] }
+    const y1 = -4 - t
+    const av: GeoJson = { features: [
+      flaeche('Strasse_Weg', rechteck(-300, -4, 300, 4)),
+      flaeche('Strasse_Weg', [lv(xl(-4), -4), lv(xr(-4), -4), lv(xr(-200), -200), lv(xl(-200), -200)]),
+      flaeche('Trottoir', rechteck(-300, 4, 300, 4 + t)),
+      flaeche('Trottoir', [lv(-300, y1), lv(xl(y1), y1), lv(xl(-4), -4), lv(-300, -4)]),
+      flaeche('Trottoir', [lv(xr(-4), -4), lv(300, -4), lv(300, y1), lv(xr(y1), y1)])] }
+    const y = -4 - t - 1
+    const f = fallTue(() => {}, lv(xl(y) - 1, y), lv(xr(y) + 1, y))
+    const r = rechneFall(osmParsen(osm), avParsen(av), [], null, f, null, null, null, null)
+    knotensichtAnfuegen(r, { osm, av }, f, REST)
+    return ks(r.streifen[0].knotensicht)
+  }
+  it('Breite aus dem angrenzenden Trottoir, begrenzt auf 2,00 bis 3,50 m', () => {
+    expect([Math.round(schief(90, 1.5).breite * 100) / 100, schief(90, 1.5).breiteQuelle]).toEqual([2, 'av_neben'])
+    expect(Math.round(schief(90, 4.5).breite * 100) / 100).toBe(3.5)
+    expect(schief(90, 4.5).hinweise.join(' ')).toContain('Breite auf 3,50 m begrenzt')
+  })
+  it('Länge auf der Zufahrtsachse = Breite / sin α', () => {
+    const k = schief(60, 3)
+    const a = Math.min(k.einbiegewinkel, 180 - k.einbiegewinkel)
+    expect(Math.abs(a - 60)).toBeLessThan(3)
+    expect(k.laenge).toBeCloseTo(k.breite / Math.sin(k.einbiegewinkel * Math.PI / 180), 2)
+  })
+  it('Auge der Ausfahrenden (Trottoir) zur Gehlinie: entlang der Zufahrt 3,00 + 0,50 / sin α, rechtwinklig 3,50 m', () => {
+    for (const alpha of [90, 60]) {
+      const k = schief(alpha, 3)
+      const D = k.karte.Dtrottoir!, gl = k.karte.dreiecke.filter(d => d.art === 'trottoir').map(d => d.frei.slice(1))
+      // Lot von D' auf die Gehlinie (parallel zur Hauptstrasse) = (3,00 + 0,50 / sin α) · sin α, D' am Fahrersitz 0,50 m neben der
+      // Zufahrtsachse (± 0,50 · cos α)
+      const sa = Math.sin(k.einbiegewinkel * Math.PI / 180), ca = Math.abs(Math.cos(k.einbiegewinkel * Math.PI / 180))
+      const ab = gl.map(pts => abstand(D, pts[0], pts[pts.length - 1]))
+      for (const x of ab) expect(Math.abs(x - (3 + 0.5 / sa) * sa)).toBeLessThanOrEqual(0.5 * ca + 0.05)
+      if (alpha === 90) for (const x of ab) expect(Math.abs(x - 3.5)).toBeLessThan(0.05)
+    }
+  })
+})
+
+/** Abstand des Punkts p von der Geraden durch a und b */
+function abstand(p: P, a: P, b: P): number {
+  const dx = b[0] - a[0], dy = b[1] - a[1]
+  return Math.abs((p[0] - a[0]) * dy - (p[1] - a[1]) * dx) / Math.hypot(dx, dy)
+}

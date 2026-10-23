@@ -89,6 +89,7 @@ interface Daten { osm: unknown; av: GeoJson; sosf: GeoJson | null; nid: number |
 const START: [number, number] = [46.9420585, 7.4322619]      // Startansicht: Mühlemattstrasse, Bern
 const WORKER_MS = 30000
 /** Höhenprofile der Knotensicht (Trottoirüberfahrt) in den geladenen Quellen */
+const TUE_STREIFEN_M = 4
 const HOEHEN_NAME = 'Höhenmodell (swisstopo, swissALTI3D, Profile der Knotensicht)'
 // Automatische Übergangssuche nach dem Verschieben bzw. Zoomen: ab SUCHE_ZOOM (rund 1:10 000; weiter draussen wird der
 // Ausschnitt für eine Overpass-Abfrage zu gross; dazu Flächengrenze in ausschnitt.ts), SUCHE_PAUSE_MS nach dem letzten moveend,
@@ -798,7 +799,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       // Planung (16.10.2026): in der Abdeckung der geladenen Daten bzw. mit den übrigen Streifen von Hand gemeinsam abdeckbar zum
       // laufenden Fall dazu (danach prüft der Effekt «geaendert» die Abdeckung und lädt um alle nach), sonst neuer Fall am Streifen
       // (abdeckung.planEntscheid; ohne OSM-Übergang mit ungesicherten Eingaben erst nach Bestätigung)
-      const neu = { p0: pts[0], p1: pts[1], breite: streifenBreite }
+      // Trottoirüberfahrt: Streifen 4 m breit (nur Zeichnung); die Breite der Überfahrt kommt aus der Frage im Block «Knotensicht»
+      const neu = { p0: pts[0], p1: pts[1], breite: tue ? TUE_STREIFEN_M : streifenBreite }
       const ort = ladeOrtRef.current
       const art = planEntscheid(neu, fall ? ort : null, fall ? { uebergang: fall.ort.uebergang, eingaben: hatEingaben(fall), gesichert,
         streifen: fall.streifenHand } : null)
@@ -1770,7 +1772,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <option value="auto">Auto</option><option value="velo">Velo/Motorrad</option></select></label>}
       {werkzeug === 'laengs' && <label> Breite <input type="number" step="0.1" min="1" max="6" value={breite}
         onChange={e => setBreite(Number(e.target.value) || LAENGS_BREITE_M)} /> m</label>}
-      {(werkzeug === 'streifen' || werkzeug === 'tue') && <label> Breite <input type="number" step="0.5" min="1" max="15" value={streifenBreite}
+      {werkzeug === 'streifen' && <label> Breite <input type="number" step="0.5" min="1" max="15" value={streifenBreite}
         onChange={e => setStreifenBreite(Number(e.target.value) || 4)} /> m</label>}
       {(werkzeug === 'hecke' || werkzeug === 'mauer' || werkzeug === 'flaeche') &&
         <label> <input type="checkbox" checked={sichtbehindernd} onChange={e => setSichtbehindernd(e.target.checked)} /> sichtbehindernd</label>}
@@ -2419,7 +2421,8 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           <option value="trottoirueberfahrt">{TUE_OPTION}{nichtEinmuendung ? ` – ${TUE_NUR_EINMUENDUNG}` : ''}</option>
         </select>
       </div>
-      {s.trottoirueberfahrt && <KnotensichtBlock ks={s.knotensicht} lage={nichtEinmuendung ? lage : null}
+      {s.trottoirueberfahrt && <KnotensichtBlock ks={s.knotensicht} fgsId={s.fgsId} titel={id => streifenTitel(id, fall.streifenHand)}
+        lage={nichtEinmuendung ? lage : null}
         breiteHand={tueBreiteHand(fall)} setzeBreite={m => aendern(f => {
           const felder = { ...(f.bedarf?.felder ?? {}) }
           if (m === null) delete felder['q3.breiteM']; else felder['q3.breiteM'] = { wert: m, quelle: 'hand' }

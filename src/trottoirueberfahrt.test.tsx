@@ -165,7 +165,7 @@ describe('Trottoirüberfahrt: Fall-Datei', () => {
 describe('Trottoirüberfahrt: Block im Reiter Sichtprüfung (Render-Wächter)', () => {
   const text = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
   it('Lage laut Bedarf keine Einmündung: Hinweis «nur an Einmündungen»; kein Link auf den SichtweitenCheck mehr', () => {
-    const html = renderToStaticMarkup(<KnotensichtBlock ks={undefined} lage="strecke" breiteHand={null} setzeBreite={() => {}} />)
+    const html = renderToStaticMarkup(<KnotensichtBlock ks={undefined} fgsId="hand-1" titel={x => x} lage="strecke" breiteHand={null} setzeBreite={() => {}} />)
     expect(text(html)).toContain('Lage laut Bedarf: auf der Strecke (keine Kreuzung) – Trottoirüberfahrten gibt es nur an Einmündungen')
     expect(html).not.toContain('sichtweitencheck.ch'); expect(text(html)).not.toMatch(/zebra/i)
   })

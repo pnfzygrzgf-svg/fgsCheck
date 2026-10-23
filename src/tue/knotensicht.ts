@@ -22,15 +22,19 @@ import { osmParsen, type OsmDaten } from '../knotensicht/daten/osm'
 import { avParsen, type AvFlaeche, type GeoJson } from '../knotensicht/daten/av'
 import { vsigRechnung, bernZustaendig } from '../knotensicht/daten/vsig'
 import { kontextBauen, rechneKnoten, type Kontext } from '../knotensicht/rechner/rechnen'
-import { knotenInfo, armText } from '../knotensicht/rechner/knoten'
+import { knotenInfo } from '../knotensicht/rechner/knoten'
+import { STRASSENTYP_TEXT } from '../knotensicht/rechner/sichtweite'
+import { B_INNERORTS_M } from '../knotensicht/rechner/beobachtung'
+import { D_MFZ_M } from '../knotensicht/rechner/hauptachsen'
+import { kurzHinweise, KS_DURCHGEHEND } from './kurztexte'
 import { HOEHEN_QUELLE } from '../knotensicht/rechner/neigung'
-import { KEINE_ALLE_EINGABEN, TUE_BREITE_MAX, TUE_BREITE_MIN, type HoehenVorgabe, type Lage, type Richtung, type RichtungStatus,
+import { KEINE_ALLE_EINGABEN, TUE_BREITE_MAX, TUE_BREITE_MIN, TEMPO_MIN, TEMPO_MAX, type HoehenVorgabe, type Lage, type Richtung, type RichtungStatus,
   type TueBreiteQuelle, type TuePhase, type TempoAmtlichLinie } from '../knotensicht/rechner/typen'
 import type { Hindernis } from '../rechner/hindernisse'
 import type { KatasterFeld } from '../daten/parkkataster'
 import herkunft from '../knotensicht/herkunft.json'
 import type { Fall } from '../fall'
-import { tueBreiteHand } from './texte'
+import { tueBreiteHand, tempoHauptHand } from './texte'
 import type { StreifenErgebnis } from '../rechner/typen'
 import { avParsen as avParsenFgs } from '../daten/av'
 import { avMitPlan } from '../rechner/planflaechen'
@@ -57,33 +61,45 @@ function linieKreuzt(l: P[], A: P, B: P): boolean {
 /** Herkunft der Rechnung (Panel, Bericht) */
 export const KS_QUELLE = `SichtweitenCheck ${herkunft.version} (${herkunft.commit.slice(0, 7)})`
 
-export interface KsTeil { soll: number; ist: number; status: RichtungStatus; verdecker: string | null }
+export interface KsTeil { soll: number; ist: number; status: RichtungStatus; verdecker: string | null
+  /** frei bis ans Ende der geprüften Strecke (ist = mindestens) */
+  bisEnde: boolean }
+/** Herkunft des Tempos einer Richtung: von Hand (Bedarf), Geoportal (V_sig), OSM, angenommen (ohne Angabe) */
+export type KsTempoHerkunft = 'hand' | 'geoportal' | 'osm' | 'annahme'
 export interface KsRichtung {
   richtung: Richtung; lage: Lage; strasse: string
-  tempo: number; tempoQuelle: string; tempoAnnahme: boolean
+  tempo: number; tempoQuelle: string; tempoHerkunft: KsTempoHerkunft
   /** Phase Fahrbahn: Auto (Tab. 1, massgebender Wert als Soll) und Velo (Tab. 3); null = kein Verkehr dieser Art von dieser Seite */
   auto: KsTeil | null; velo: KsTeil | null
   /** Phase Trottoir (Tab. 2); null = nicht geprüft */
   trottoir: (KsTeil & { neigung: number }) | null
   keinGrund: string | null
+  /** kurze Hinweise je Phase (kurztexte.ts) */
+  hinweise: { fahrbahn: string[]; trottoir: string[] }
 }
 export interface KsDreieck { art: 'auto' | 'velo' | 'trottoir'; lage: Lage; frei: P[]; verdeckt: P[] }
 export interface Knotensicht {
   quelle: string
-  knoten: number; knotenName: string; zufahrt: string; zufahrtName: string
-  breite: number; breiteQuelle: TueBreiteQuelle; breiteText: string; laenge: number; einbiegewinkel: number
-  regelungText: string
+  /** Streifen, an dem gerechnet wurde (Querung mit Teilstreifen: einmal je Querung) */
+  streifenId: string
+  knoten: number; zufahrt: string; zufahrtName: string
+  breite: number; breiteQuelle: TueBreiteQuelle; laenge: number; einbiegewinkel: number
   phaseTrottoir: TuePhase; phaseFahrbahn: TuePhase
   richtungen: KsRichtung[]
-  /** Ergebnis für die Frage im Bedarf: true = beide Phasen erfüllt (mindestens der massgebende Wert), false = beide Phasen beurteilt und
-   * eine nicht erfüllt, null = nicht eindeutig (eine Phase ohne Prüfung) */
+  /** Ergebnis für die Frage im Bedarf: true = beide Phasen genügen (mindestens der massgebende Wert), false = beide Phasen beurteilt und
+   * eine genügt nicht, null = nicht eindeutig (eine Phase ohne Prüfung, unklar) */
   ok: boolean | null
+  /** Gründe, warum das Ergebnis unsicher ist (AV-Ausschnitt, unebenes Profil, durchgehende Strasse): keine Vorbelegung */
+  unklar: string[]
+  /** Zufahrt auf der durchgehenden Strasse (Überfahrt gehört über die einmündende Strasse) */
+  durchgehend: boolean
   /** Längsneigung aus dem Höhenmodell in allen Profilen (sonst 0 % angenommen) */
   neigungGemessen: boolean
-  /** wesentliche Annahmen (Breite angenommen, Tempo angenommen, Neigung 0 %): Quelle «Annahme» im Bedarf */
+  /** wesentliche Annahmen (Breite, Tempo, Neigung): Quelle «Annahme» im Bedarf */
   annahmeGrund: string[]
+  /** kurze Annahmen (eigene Texte) und Hinweise zur ganzen Knotensicht (kurztexte.ts) */
   annahmen: string[]; hinweise: string[]
-  karte: { D: P; Dtrottoir: P | null; vorderkante: P; hinterkante: P; dreiecke: KsDreieck[] }
+  karte: { D: P; Dtrottoir: P | null; vorderkante: P; hinterkante: P; kanten: [P, P][]; dreiecke: KsDreieck[] }
   /** Linien der Höhenprofile (App lädt sie und rechnet mit hoehen[hoehenSchluessel] neu) */
   profile: Partial<Record<keyof HoehenVorgabe, P[]>>
   hoehenSchluessel: string
@@ -92,6 +108,8 @@ export type KnotensichtAntwort = Knotensicht | { fehler: string; ohneZufahrt?: t
 
 export interface KsDaten {
   osm: OsmDaten; av: AvFlaeche[]; kx?: Kontext
+  /** AV ohne Flächen (Plan): Zuständigkeit der Stadt Bern (fehlt: av) */
+  avBestand?: AvFlaeche[]
   avZentrum: P; avRadius: number
   /** fgsCheck-Hindernisse des Falls (Insel zählt nicht) und verworfene Vorschläge bzw. amtliche Parkfelder (Ids) */
   hindernisse: Hindernis[]; verworfen: string[]
@@ -105,7 +123,9 @@ export interface KsDaten {
   /** Längsneigung je Schlüssel «Knoten|Zufahrt» (App) */
   hoehen: Record<string, HoehenVorgabe> | null
 }
-export interface KsStreifen { p0: P; p1: P; rand: [P, P]; breite: number | null }
+export interface KsStreifen { fgsId?: string; p0: P; p1: P; rand: [P, P]; breite: number | null
+  /** Tempo der Hauptstrasse von Hand (Bedarf), km/h */
+  tempoHand?: number | null }
 
 const einheit = (v: P): P => { const l = Math.hypot(v[0], v[1]); return l > 0 ? [v[0] / l, v[1] / l] : [1, 0] }
 
@@ -142,64 +162,108 @@ function zaehlend(d: KsDaten): OhneInsel[] {
   return d.seitenraum?.length ? parkOhneSeitenraum(alle, d.seitenraum).hindernisse.filter(ohneInsel) : alle
 }
 
-const teil = (status: RichtungStatus, soll: number, ist: number, v: { name: string } | null): KsTeil =>
-  ({ soll, ist: Math.round(ist * 10) / 10, status, verdecker: v?.name ?? null })
+const teil = (status: RichtungStatus, soll: number, ist: number, v: { name: string } | null, bisEnde: boolean): KsTeil =>
+  ({ soll, ist: Math.round(ist * 10) / 10, status, verdecker: v?.name ?? null, bisEnde })
 const klar = (s: RichtungStatus) => s === 'erfuellt' || s === 'massgebend' || s === 'nicht_erfuellt'
 const gut = (s: RichtungStatus) => s === 'erfuellt' || s === 'massgebend'
+const f2 = (x: number) => x.toFixed(2).replace('.', ',')
+/** Strassenname ohne Armnummer; ohne Namen nie die OSM-Klasse */
+const strassenName = (name: string | undefined) => name?.trim() || 'Strasse ohne Namen'
+const HERKUNFT_WORT: Record<KsTempoHerkunft, string> = { hand: 'von Hand', geoportal: 'Geoportal', osm: 'OSM', annahme: 'angenommen' }
 
-/** Knotensicht einer Trottoirüberfahrt am Streifen */
-export function knotensichtTue(d: KsDaten, s: KsStreifen): KnotensichtAntwort {
+/** Knotensicht einer Trottoirüberfahrt am Streifen; z: Zufahrt (sonst gesucht) */
+export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number; zufahrt: string } | null): KnotensichtAntwort {
   const kx = d.kx ?? kontextBauen(d.osm, d.av)
-  const z = zufahrtFinden(kx, s)
+  const z = z0 ?? zufahrtFinden(kx, s)
   if (!z) return { fehler: `kein Knoten mit gequerter Einmündung bis ${KNOTEN_M} m vom Streifen (OSM)`, ohneZufahrt: true }
   const kp = kx.netz.p(z.knoten)
-  const tempoAmtlich = d.vsig && bernZustaendig(kp, d.av) ? vsigRechnung(d.vsig.linien, d.vsig.bereich.mitte, d.vsig.bereich.radiusM) : null
-  const hoehenSchluessel = `${z.knoten}|${z.zufahrt}`
-  const hoehen = d.hoehen?.[hoehenSchluessel] ?? null
+  // Zuständigkeit nach der AV ohne Flächen (Plan)
+  const tempoAmtlich = d.vsig && bernZustaendig(kp, d.avBestand ?? d.av) ? vsigRechnung(d.vsig.linien, d.vsig.bereich.mitte, d.vsig.bereich.radiusM) : null
   const breite = s.breite !== null && s.breite >= TUE_BREITE_MIN && s.breite <= TUE_BREITE_MAX ? s.breite : null
-  const r = rechneKnoten(d.osm, d.av, {
+  const th = s.tempoHand != null && s.tempoHand >= TEMPO_MIN && s.tempoHand <= TEMPO_MAX
+    ? { art: 'signalisiert' as const, wert: s.tempoHand, begruendung: 'Tempo der Hauptstrasse im Bedarf' } : null
+  const hindernisse = zaehlend(d)
+  const rechne = (hoehen: HoehenVorgabe | null) => rechneKnoten(d.osm, d.av, {
     knoten: z.knoten, zufahrt: z.zufahrt,
-    eingaben: { ...KEINE_ALLE_EINGABEN, trottoirueberfahrt: { breite } },
-    hindernisse: { hindernisse: zaehlend(d), verworfen: d.verworfen, park: null, baeume: null },
+    eingaben: { ...KEINE_ALLE_EINGABEN, tempo: { links: th, rechts: th }, trottoirueberfahrt: { breite } },
+    hindernisse: { hindernisse, verworfen: d.verworfen, park: null, baeume: null },
     avZentrum: d.avZentrum, hoehen, tempoAmtlich,
   }, kx, d.avRadius)
+  // Längsneigung je «Knoten|Zufahrt|Abstand des hinteren Rands» (die Gehlinie hängt daran): erst ohne, dann mit dem passenden Profil
+  let r = rechne(null)
+  const b0 = r.ergebnis?.trottoirueberfahrt?.abstand
+  const hoehenSchluessel = `${z.knoten}|${z.zufahrt}|${b0 !== undefined ? f2(b0) : ''}`
+  const hoehen = d.hoehen?.[hoehenSchluessel] ?? null
+  if (hoehen) r = rechne(hoehen)
   const e = r.ergebnis, t = e?.trottoirueberfahrt
   if (!e || !t) return { fehler: r.meldungen.join(' ') || 'Knotensicht nicht gerechnet' }
-  const zArm = r.knoten?.arme.find(a => a.key === e.zufahrt)
+  const arme = new Map((r.knoten?.arme ?? []).map(a => [a.key, a]))
   const tp = e.trottoirPruefung
+  const herkunft = (rr: (typeof e.richtungen)[number]): KsTempoHerkunft => rr.tempoArt !== null ? 'hand' : rr.tempoAnnahme ? 'annahme'
+    : tempoAmtlich && rr.tempoQuelle.startsWith(tempoAmtlich.quelle) ? 'geoportal' : 'osm'
+  const unklar: string[] = []
   const richtungen: KsRichtung[] = e.richtungen.map(rr => {
     const tr = tp?.richtungen.find(x => x.richtung === rr.richtung)
-    return { richtung: rr.richtung, lage: rr.lage, strasse: rr.strasse, tempo: rr.tempo, tempoQuelle: rr.tempoQuelle, tempoAnnahme: rr.tempoAnnahme,
-      auto: rr.status === 'keine_zufahrt' ? null : teil(rr.status, rr.massgebend, rr.vorhanden, rr.verdecker),
-      velo: rr.velo ? teil(rr.velo.status, rr.velo.A, rr.velo.vorhanden, rr.velo.verdecker) : null,
-      trottoir: tr ? { ...teil(tr.status, tr.A, tr.vorhanden, tr.verdecker), neigung: tr.neigung } : null,
-      keinGrund: rr.keinGrund ?? null }
+    const hf = kurzHinweise([...rr.hinweise, ...(rr.velo?.hinweise ?? [])]), ht = kurzHinweise(tr?.hinweise ?? [])
+    unklar.push(...hf.unklar, ...ht.unklar)
+    return { richtung: rr.richtung, lage: rr.lage, strasse: strassenName(arme.get(rr.arm)?.name), tempo: rr.tempo, tempoQuelle: rr.tempoQuelle,
+      tempoHerkunft: herkunft(rr),
+      auto: rr.status === 'keine_zufahrt' ? null : teil(rr.status, rr.massgebend, rr.vorhanden, rr.verdecker, rr.bisEnde),
+      velo: rr.velo ? teil(rr.velo.status, rr.velo.A, rr.velo.vorhanden, rr.velo.verdecker, rr.velo.bisEnde) : null,
+      trottoir: tr ? { ...teil(tr.status, tr.A, tr.vorhanden, tr.verdecker, tr.bisEnde), neigung: tr.neigung } : null,
+      keinGrund: rr.keinGrund ?? null, hinweise: { fahrbahn: hf.texte, trottoir: ht.texte } }
   })
-  // gemessen: alle geprüften Profile (Richtungen mit Verkehr, Trottoir) mit Neigung aus dem Höhenmodell
+  const allg = kurzHinweise(e.hinweise)
+  unklar.push(...allg.unklar)
+  // durchgehende Strasse (Feld des Kerns): die Überfahrt gehört über die einmündende Strasse; keine Vorbelegung, ein kurzer Hinweis
+  const durchgehend = t.durchgehend === true
+  if (durchgehend && !allg.texte.includes(KS_DURCHGEHEND)) allg.texte.unshift(KS_DURCHGEHEND)
+  if (durchgehend && !unklar.includes(KS_DURCHGEHEND)) unklar.push(KS_DURCHGEHEND)
+  // gemessen: alle geprüften Profile (Richtungen mit Auto- bzw. Veloverkehr, Trottoir) mit Neigung aus dem Höhenmodell
   const gemessen = (m: { i: number | null } | undefined) => !!m && m.i !== null
-  const neigungGemessen = !!hoehen && e.richtungen.every(rr => rr.status === 'keine_zufahrt' || rr.neigungHand || gemessen(hoehen[rr.richtung])) &&
-    (!tp || gemessen(hoehen.trottoir))
+  const neigungGemessen = !!hoehen && e.richtungen.every(rr => (rr.status === 'keine_zufahrt' && !rr.velo) || rr.neigungHand ||
+    gemessen(hoehen[rr.richtung])) && (!tp || gemessen(hoehen.trottoir))
+  const mitVerkehr = richtungen.filter(x => x.auto || x.velo)
   const annahmeGrund = [...(t.breiteQuelle === 'annahme' ? ['Breite angenommen'] : []),
-    ...(richtungen.some(x => x.tempoAnnahme && (x.auto || x.velo)) ? ['Tempo angenommen'] : []),
+    ...(mitVerkehr.some(x => x.tempoHerkunft === 'annahme') ? ['Tempo angenommen'] : []),
+    ...(mitVerkehr.some(x => x.tempoHerkunft === 'osm') ? ['Tempo nach OSM'] : []),
     ...(neigungGemessen ? [] : ['Längsneigung 0 % angenommen'])]
-  const ok = klar(t.phaseTrottoir.status) && klar(t.phaseFahrbahn.status)
-    ? gut(t.phaseTrottoir.status) && gut(t.phaseFahrbahn.status) : null
+  const ok = unklar.length || !klar(t.phaseTrottoir.status) || !klar(t.phaseFahrbahn.status) ? null
+    : gut(t.phaseTrottoir.status) && gut(t.phaseFahrbahn.status)
   const dreiecke: KsDreieck[] = [
     ...e.richtungen.flatMap(rr => [...(rr.status !== 'keine_zufahrt' ? [{ art: 'auto' as const, lage: rr.lage, frei: rr.dreieckFrei,
       verdeckt: rr.dreieckVerdeckt }] : []),
       ...(rr.velo ? [{ art: 'velo' as const, lage: rr.lage, frei: rr.velo.dreieckFrei, verdeckt: rr.velo.dreieckVerdeckt }] : [])]),
     ...(tp?.richtungen ?? []).map(x => ({ art: 'trottoir' as const, lage: x.lage, frei: x.dreieckFrei, verdeckt: x.dreieckVerdeckt }))]
+  // Vorder- und Hinterkante der Überfahrt für die Karte: entlang der Hauptstrasse (Richtung der ersten Fahr- bzw. Gehlinie), so lang
+  // wie der Streifen
+  const achse = [...e.richtungen.flatMap(rr => [rr.achse, rr.velo?.achse ?? []]), ...(tp?.richtungen ?? []).map(x => x.achse)].find(a => a.length >= 2)
+  const halb = Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]) / 2
+  const u = achse ? einheit([achse[achse.length > 3 ? 3 : 1][0] - achse[0][0], achse[achse.length > 3 ? 3 : 1][1] - achse[0][1]]) : null
+  const kante = (p: P): [P, P] => [[p[0] - u![0] * halb, p[1] - u![1] * halb], [p[0] + u![0] * halb, p[1] + u![1] * halb]]
   const profile: Knotensicht['profile'] = {}
   for (const rr of e.richtungen) if (rr.profilLinie.length >= 2) profile[rr.richtung] = rr.profilLinie
   if (e.zufahrtProfil.length >= 2) profile.zufahrt = e.zufahrtProfil
   if (e.trottoirProfil.length >= 2) profile.trottoir = e.trottoirProfil
+  // eigene kurze Annahmen (statt der Texte des Kerns)
+  const annahmen = [
+    e.regelung === 'stop' ? 'Ausfahrt mit Stop (OSM).' : 'Ausfahrt ohne Vortritt (Trottoirüberfahrt).',
+    `Auge der Ausfahrenden am Fahrersitz, ${f2(e.B)} m hinter dem vorderen Rand${e.radwegRand ? ' bzw. dem Radweg' : ''} (Fahrbahn) und ` +
+      `${f2(B_INNERORTS_M)} m hinter dem hinteren Rand (Trottoir).`,
+    `Gehlinie ${f2(t.gehlinie)} m vor dem hinteren Rand der Überfahrt; Fahrlinie der Autos ${f2(D_MFZ_M)} m vom rechten Fahrbahnrand.`,
+    `Tempo ${mitVerkehr.map(x => `${x.lage === 'gegenueber' ? 'von gegenüber' : `von ${x.lage}`} ${x.tempo} km/h (${HERKUNFT_WORT[x.tempoHerkunft]})`).join(', ') || '–'}.`,
+    neigungGemessen ? 'Längsneigung aus dem Höhenmodell (swissALTI3D).' : 'Längsneigung 0 % (Höhenmodell nicht geladen bzw. nicht verfügbar).',
+    `Strassentyp der Hauptstrasse: ${STRASSENTYP_TEXT[e.strasse.typ]} (nach OSM).`,
+    `Sichthindernisse: Gebäude der AV${hindernisse.length ? ` und ${hindernisse.length} weitere (von Hand, Bäume aus dem Baumkataster, ` +
+      'amtliche Parkfelder)' : ''}; Parkfelder gelten als belegt.`,
+  ]
   return {
-    quelle: KS_QUELLE, knoten: z.knoten, knotenName: r.knoten?.name ?? `OSM-Knoten ${z.knoten}`, zufahrt: e.zufahrt,
-    zufahrtName: zArm ? armText(zArm) : e.zufahrtName,
-    breite: t.breite, breiteQuelle: t.breiteQuelle, breiteText: t.breiteText, laenge: t.laenge, einbiegewinkel: e.einbiegewinkel,
-    regelungText: t.regelungText, phaseTrottoir: t.phaseTrottoir, phaseFahrbahn: t.phaseFahrbahn, richtungen, ok, neigungGemessen, annahmeGrund,
-    annahmen: e.annahmen, hinweise: e.hinweise,
-    karte: { D: e.D, Dtrottoir: tp?.D ?? null, vorderkante: t.vorderkante, hinterkante: t.hinterkante, dreiecke },
+    quelle: KS_QUELLE, streifenId: s.fgsId ?? '', knoten: z.knoten, zufahrt: e.zufahrt, zufahrtName: strassenName(arme.get(e.zufahrt)?.name),
+    breite: t.breite, breiteQuelle: t.breiteQuelle, laenge: t.laenge, einbiegewinkel: e.einbiegewinkel,
+    phaseTrottoir: t.phaseTrottoir, phaseFahrbahn: t.phaseFahrbahn, richtungen, ok, unklar: [...new Set(unklar)], durchgehend, neigungGemessen,
+    annahmeGrund, annahmen, hinweise: allg.texte,
+    karte: { D: e.D, Dtrottoir: tp?.D ?? null, vorderkante: t.vorderkante, hinterkante: t.hinterkante,
+      kanten: u ? [kante(t.vorderkante), kante(t.hinterkante)] : [], dreiecke },
     profile, hoehenSchluessel,
   }
 }
@@ -208,33 +272,43 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen): KnotensichtAntwort {
 export const ausHoehenmodell = (quelle: string): boolean => quelle.startsWith(HOEHEN_QUELLE)
 
 /** Daten für die Knotensicht aus den Rohdaten des Workers (Overpass, AV-GeoJSON) */
-export function ksDatenAusRoh(osmRoh: unknown, avRoh: GeoJson, rest: Omit<KsDaten, 'osm' | 'av' | 'kx'>, av?: AvFlaeche[]): KsDaten {
-  const osm = osmParsen(osmRoh as Parameters<typeof osmParsen>[0]), a = av ?? avParsen(avRoh)
-  return { ...rest, osm, av: a, kx: kontextBauen(osm, a) }
+export function ksDatenAusRoh(osmRoh: unknown, avRoh: GeoJson, rest: Omit<KsDaten, 'osm' | 'av' | 'kx' | 'avBestand'>, av?: AvFlaeche[]): KsDaten {
+  const osm = osmParsen(osmRoh as Parameters<typeof osmParsen>[0]), bestand = avParsen(avRoh), a = av ?? bestand
+  return { ...rest, osm, av: a, avBestand: bestand, kx: kontextBauen(osm, a) }
 }
 
 
 
-/** Worker: Knotensicht an jedem Streifen mit der Wahl «Trottoirüberfahrt» anfügen (andere Streifen bleiben unberührt) */
+/** Worker: Knotensicht je Querung (Teilstreifen auf einer Achse, gleicher Übergang) mit der Wahl «Trottoirüberfahrt» anfügen: die
+ * Zufahrt wird über alle Teile gesucht (ein Teil ohne gequerte Einmündung hindert nicht), gerechnet wird einmal; jeder Teil der Querung
+ * trägt dasselbe Ergebnis. Andere Streifen bleiben unberührt */
 export function knotensichtAnfuegen(r: { streifen: StreifenErgebnis[] }, roh: { osm: unknown; av: GeoJson }, fall: Fall,
   rest: { park: KsDaten['park']; baeume?: KsDaten['baeume']; vsig: { linien: TempoAmtlichLinie[]; bereich: { mitte: P; radiusM: number } } | null; avZentrum: P
     avRadius: number; hoehen: KsDaten['hoehen'] }): void {
   const tue = r.streifen.filter(s => s.trottoirueberfahrt)
   if (!tue.length) return
+  const fehler = (e: unknown) => ({ fehler: `Knotensicht nicht gerechnet (${String((e as Error)?.message ?? e)})` })
   try {
-    // Flächen (Plan) von Hand wirken wie in der übrigen Rechnung (verschobene Bordkante, geplantes Trottoir)
-    // vorgezogener Seitenraum: nur Plan-Flächen der Art Trottoir (wie rechneFall)
+    // Flächen (Plan) von Hand wirken wie in der übrigen Rechnung (verschobene Bordkante, geplantes Trottoir); vorgezogener Seitenraum:
+    // nur Plan-Flächen der Art Trottoir (wie rechneFall)
     const plan = fall.flaechenPlan?.length ? avMitPlan(avParsenFgs(roh.av), fall.flaechenPlan) : null
-    const av = plan?.av
     const seitenraum = plan ? plan.teile.filter(t => t.standard?.typ === 'seitenraum' && t.art === 'trottoir').map(t => t.poly) : []
     const d = ksDatenAusRoh(roh.osm, roh.av, { ...rest, seitenraum, vsig: rest.vsig ? { linien: rest.vsig.linien, bereich: { mitte: rest.vsig.bereich.mitte,
-      radiusM: rest.vsig.bereich.radiusM } } : null, hindernisse: fall.hindernisse, verworfen: Object.keys(fall.vorschlaege) }, av)
-    const breite = tueBreiteHand(fall)
-    for (const s of tue) {
-      try { s.knotensicht = knotensichtTue(d, { p0: s.p0, p1: s.p1, rand: s.rand, breite }) }
-      catch (e) { s.knotensicht = { fehler: `Knotensicht nicht gerechnet (${String((e as Error)?.message ?? e)})` } }
+      radiusM: rest.vsig.bereich.radiusM } } : null, hindernisse: fall.hindernisse, verworfen: Object.keys(fall.vorschlaege) }, plan?.av)
+    const breite = tueBreiteHand(fall), tempoHand = tempoHauptHand(fall)
+    const gruppen = new Map<string, StreifenErgebnis[]>()
+    for (const s of tue) gruppen.set(s.uebergangId, [...(gruppen.get(s.uebergangId) ?? []), s])
+    for (const teile of gruppen.values()) {
+      let ks: KnotensichtAntwort
+      try {
+        const kand = teile.map(s => ({ s, z: zufahrtFinden(d.kx!, s) })).filter(x => x.z)
+        const best = kand.sort((a, b) => a.z!.d - b.z!.d)[0]
+        ks = best ? knotensichtTue(d, { fgsId: best.s.fgsId, p0: best.s.p0, p1: best.s.p1, rand: best.s.rand, breite, tempoHand }, best.z)
+          : { fehler: `kein Knoten mit gequerter Einmündung bis ${KNOTEN_M} m vom Streifen (OSM)`, ohneZufahrt: true }
+      } catch (e) { ks = fehler(e) }
+      for (const s of teile) s.knotensicht = ks
     }
   } catch (e) {
-    for (const s of tue) s.knotensicht = { fehler: `Knotensicht nicht gerechnet (${String((e as Error)?.message ?? e)})` }
+    for (const s of tue) s.knotensicht = fehler(e)
   }
 }

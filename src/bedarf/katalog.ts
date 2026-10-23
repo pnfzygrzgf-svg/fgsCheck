@@ -372,6 +372,7 @@ export const KATALOG = {
   'Q3-11': { id: 'Q3-11', titel: 'Sicht beim Ausfahren', gruppe: 'Q3', thema: 'trottoirueberfahrt', art: 'befund', ebene: 'Norm', staerke: 'hart', eingaben: ['q3.knotensichtOk'],
     pruefsatz: 'Sieht man beim Ausfahren aus der Seitenstrasse vom hinteren Trottoirrand aufs Trottoir und vom vorderen Trottoirrand auf die Fahrbahn weit genug? Sonst ist mehr Sicht nötig.',
     bedingung: '!q3.knotensichtOk', ergebnis: 'Knotensicht nach VSS 40 273 nicht erfüllt (aufs Trottoir ab hinterem, auf die Fahrbahn ab vorderem Rand)', kurzsatz: 'zu wenig Sicht beim Ausfahren',
+    nurMitBestaetigung: true,
     quellen: [q('40242', 'Z. 14.4')], bemerkung: 'aus SichtweitenCheck (E5)' },
   'Q3-12': { id: 'Q3-12', titel: 'Halteverbot an der Einmündung', gruppe: 'Q3', thema: 'trottoirueberfahrt', art: 'befund', ebene: 'Norm', staerke: 'hart', eingaben: ['q3.hvl5m'],
     pruefsatz: 'Fehlen beidseits der Einmündung Halteverbotslinien von je 5 m ab der hinteren Kante? Dann sind sie nötig.',

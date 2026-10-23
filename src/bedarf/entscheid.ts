@@ -16,12 +16,15 @@
 import { KATALOG, quellText, regelDef, type BefundId, type RegelId } from './katalog'
 import { REGELN } from './regeln'
 import { Kontext, Offen } from './kontext'
-import { QUELLEN_ANNAHME, type BedarfEingaben, type Querungstyp } from './eingaben'
+import { QUELLEN_ANNAHME, type BedarfEingaben, type Querungstyp, type Quelle } from './eingaben'
 import type { Befund, Ebene, Eintrag, Empfehlung, Liste, MassZeile, RegelDef, Zulaessigkeit } from './typen'
 
 export interface Optionen {
   /** schaltbare Ebenen; Vorgabe: Bern aus, Kanton BE aus, Richtlinie an (S9) */
   ebenen?: { bern?: boolean; kantonBE?: boolean; richtlinie?: boolean }
+  /** Quelle eines Felds bzw. Unterfelds («q3.knotensichtOk») der gebildeten Eingaben (befundblatt: Herkunft); für nurMitBestaetigung
+   * bei Unterfeldern, deren Quelle das Objekt nicht trägt */
+  quelleVon?: (pfad: string) => Quelle | null
 }
 
 const leereListe = (): Liste => ({ verletzungen: [], bericht: [], empfehlungen: [], hinweise: [], offen: [] })
@@ -72,6 +75,11 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     let bestaetigen = false
     if (def.nurMitBestaetigung && r !== 'offen' && r !== null && r.verletzt) {
       const unbestaetigt = (def.nurMitBestaetigung === true ? def.eingaben : def.nurMitBestaetigung).filter(f => {
+        if (f.includes('.')) {
+          const [o, u] = f.split('.'), q = opt.quelleVon?.(f) ?? null
+          const w = (e[o as keyof BedarfEingaben]?.wert as Record<string, unknown> | null | undefined)?.[u]
+          return w !== null && w !== undefined && q !== null && QUELLEN_ANNAHME.includes(q)
+        }
         const x = e[f as keyof BedarfEingaben]
         return x && x.wert !== null && x.quelle !== null && QUELLEN_ANNAHME.includes(x.quelle)
       })

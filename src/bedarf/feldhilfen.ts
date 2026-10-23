@@ -474,7 +474,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   'q3.trottoirBeidseits': { was: 'Ja, wenn das Trottoir entlang der Hauptstrasse vor und nach der Einmündung weitergeht.' },
   'q3.winkel': { was: 'Winkel zwischen Seiten- und Hauptstrasse in Grad; 90 = rechtwinklig.' },
   'q3.knotensichtOk': { was: 'Ja, wenn Ausfahrende aus der Seitenstrasse genug weit sehen (Knotensicht nach VSS 40 273); die App rechnet sie an der Trottoirüberfahrt.',
-    vorschlag: 'aus der Knotensicht der Trottoirüberfahrt (Reiter Sichtprüfung): «ja», wenn die Sicht aufs Trottoir und auf die Fahrbahn genügt, «nein», wenn eine nicht genügt; sonst offen. Ohne Höhenmodell bzw. mit angenommener Breite als Annahme.' },
+    vorschlag: 'aus der Knotensicht der Trottoirüberfahrt (Reiter Sichtprüfung): «ja», wenn die Sicht aufs Trottoir und auf die Fahrbahn genügt, «nein», wenn eine nicht genügt; sonst bzw. bei unsicherem Ergebnis offen. Ohne Höhenmodell, mit Breite oder Tempo angenommen bzw. nach OSM als Annahme; ein «nein» daraus zählt erst nach «Vorschlag bestätigen».' },
   'q3.hvl5m': { was: 'Ja, wenn beidseits der Einmündung auf je 5 m Halteverbotslinien markiert sind.' },
   'q3.gegenueberEinm': { was: 'Ja, wenn gegenüber auf der anderen Seite der Hauptstrasse ebenfalls eine Strasse einmündet.' },
   'q3.belastungSchwach': { was: 'Ja, wenn auf allen Strassen dieser Kreuzung nur wenig Verkehr ist.' },

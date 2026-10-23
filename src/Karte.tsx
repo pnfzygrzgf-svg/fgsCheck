@@ -78,6 +78,8 @@ export const STRICH_TUE = '4 3'
 /** Knotensicht an der Trottoirüberfahrt: Strich je Teil (Auto durchgezogen, Velo gestrichelt, Trottoir punktiert) und Namen */
 const KS_STRICH: Record<string, string | undefined> = { auto: undefined, velo: '6 4', trottoir: '2 3' }
 const KS_ART: Record<string, string> = { auto: 'Auto', velo: 'Velo', trottoir: 'Trottoir' }
+/** Rand der Überfahrt: vorderer durchgezogen, hinterer gestrichelt */
+const i0 = (t: string) => (t === 'hinterer' ? '5 3' : undefined)
 /** Strichmuster der Fahrlinie einer gedeckten Abbiegezufahrt (nur mit GEDECKT_RECHNEN), in Karte und Bericht gleich */
 export const STRICH_GEDECKT = '2 8'
 export const LUFTBILD_FARBE = '#f59e0b'
@@ -493,6 +495,10 @@ export default function Karte(props: {
               interactive: !cb.current.werkzeug })
               .bindTooltip(`Knotensicht ${KS_ART[d.art]} ${KS_LAGE[d.lage] ?? d.lage}: ${wie}`, { sticky: true }).addTo(eb.sicht)
           }
+          // vorderer und hinterer Rand der Überfahrt, wie gerechnet
+          for (const [k, t] of ks.karte.kanten.map((k, i) => [k, i ? 'hinterer' : 'vorderer'] as const))
+            L.polyline(k.map(ll), { color: '#111827', weight: 2, dashArray: i0(t), interactive: !cb.current.werkzeug })
+              .bindTooltip(`${t} Rand der Trottoirüberfahrt`).addTo(eb.sicht)
           for (const [p, t] of [[ks.karte.D, 'Fahrbahn (vorderer Rand)'], [ks.karte.Dtrottoir, 'Trottoir (hinterer Rand)']] as const)
             if (p) L.circleMarker(ll(p), { radius: 4, color: '#111827', weight: 1.5, fillColor: '#ffffff', fillOpacity: 1, interactive: !cb.current.werkzeug })
               .bindTooltip(`Auge der Ausfahrenden, Sicht auf ${t}`).addTo(eb.sicht)
