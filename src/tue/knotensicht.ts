@@ -26,7 +26,7 @@ import { knotenInfo } from '../knotensicht/rechner/knoten'
 import { STRASSENTYP_TEXT } from '../knotensicht/rechner/sichtweite'
 import { B_INNERORTS_M } from '../knotensicht/rechner/beobachtung'
 import { D_MFZ_M } from '../knotensicht/rechner/hauptachsen'
-import { kurzHinweise, KS_DURCHGEHEND } from './kurztexte'
+import { kurzHinweise, KS_DURCHGEHEND, KS_EINBAHN, KS_EINBAHN_VELO } from './kurztexte'
 import { HOEHEN_QUELLE } from '../knotensicht/rechner/neigung'
 import { KEINE_ALLE_EINGABEN, TUE_BREITE_MAX, TUE_BREITE_MIN, TEMPO_MIN, TEMPO_MAX, type HoehenVorgabe, type Lage, type Richtung, type RichtungStatus,
   type TueBreiteQuelle, type TuePhase, type TempoAmtlichLinie } from '../knotensicht/rechner/typen'
@@ -34,7 +34,7 @@ import type { Hindernis } from '../rechner/hindernisse'
 import type { KatasterFeld } from '../daten/parkkataster'
 import herkunft from '../knotensicht/herkunft.json'
 import type { Fall } from '../fall'
-import { tueBreiteHand, tempoHauptHand } from './texte'
+import { tueBreiteHandWert, tempoHauptHand, type HandWert } from './texte'
 import type { StreifenErgebnis } from '../rechner/typen'
 import { avParsen as avParsenFgs } from '../daten/av'
 import { avMitPlan } from '../rechner/planflaechen'
@@ -123,9 +123,9 @@ export interface KsDaten {
   /** Längsneigung je Schlüssel «Knoten|Zufahrt» (App) */
   hoehen: Record<string, HoehenVorgabe> | null
 }
-export interface KsStreifen { fgsId?: string; p0: P; p1: P; rand: [P, P]; breite: number | null
+export interface KsStreifen { fgsId?: string; p0: P; p1: P; rand: [P, P]; breite: number | HandWert | null
   /** Tempo der Hauptstrasse von Hand (Bedarf), km/h */
-  tempoHand?: number | null }
+  tempoHand?: number | HandWert | null }
 
 const einheit = (v: P): P => { const l = Math.hypot(v[0], v[1]); return l > 0 ? [v[0] / l, v[1] / l] : [1, 0] }
 
@@ -179,9 +179,11 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   const kp = kx.netz.p(z.knoten)
   // Zuständigkeit nach der AV ohne Flächen (Plan)
   const tempoAmtlich = d.vsig && bernZustaendig(kp, d.avBestand ?? d.av) ? vsigRechnung(d.vsig.linien, d.vsig.bereich.mitte, d.vsig.bereich.radiusM) : null
-  const breite = s.breite !== null && s.breite >= TUE_BREITE_MIN && s.breite <= TUE_BREITE_MAX ? s.breite : null
-  const th = s.tempoHand != null && s.tempoHand >= TEMPO_MIN && s.tempoHand <= TEMPO_MAX
-    ? { art: 'signalisiert' as const, wert: s.tempoHand, begruendung: 'Tempo der Hauptstrasse im Bedarf' } : null
+  const bh = typeof s.breite === 'number' ? { wert: s.breite, annahme: false } : s.breite
+  const breite = bh && bh.wert >= TUE_BREITE_MIN && bh.wert <= TUE_BREITE_MAX ? bh.wert : null
+  const tv = typeof s.tempoHand === 'number' ? { wert: s.tempoHand, annahme: false } : s.tempoHand ?? null
+  const th = tv && tv.wert >= TEMPO_MIN && tv.wert <= TEMPO_MAX
+    ? { art: 'signalisiert' as const, wert: tv.wert, begruendung: 'Tempo der Hauptstrasse im Bedarf' } : null
   const hindernisse = zaehlend(d)
   const rechne = (hoehen: HoehenVorgabe | null) => rechneKnoten(d.osm, d.av, {
     knoten: z.knoten, zufahrt: z.zufahrt,
@@ -199,7 +201,7 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   if (!e || !t) return { fehler: r.meldungen.join(' ') || 'Knotensicht nicht gerechnet' }
   const arme = new Map((r.knoten?.arme ?? []).map(a => [a.key, a]))
   const tp = e.trottoirPruefung
-  const herkunft = (rr: (typeof e.richtungen)[number]): KsTempoHerkunft => rr.tempoArt !== null ? 'hand' : rr.tempoAnnahme ? 'annahme'
+  const herkunft = (rr: (typeof e.richtungen)[number]): KsTempoHerkunft => rr.tempoArt !== null ? (tv?.annahme ? 'annahme' : 'hand') : rr.tempoAnnahme ? 'annahme'
     : tempoAmtlich && rr.tempoQuelle.startsWith(tempoAmtlich.quelle) ? 'geoportal' : 'osm'
   const unklar: string[] = []
   const richtungen: KsRichtung[] = e.richtungen.map(rr => {
@@ -219,12 +221,17 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   const durchgehend = t.durchgehend === true
   if (durchgehend && !allg.texte.includes(KS_DURCHGEHEND)) allg.texte.unshift(KS_DURCHGEHEND)
   if (durchgehend && !unklar.includes(KS_DURCHGEHEND)) unklar.push(KS_DURCHGEHEND)
+  // Einbahn vom Knoten weg (Arm der Zufahrt nach OSM): ohne Velo gegen die Einbahn fährt niemand aus (kein Ergebnis); mit Velo prüft der
+  // Kern die Sicht der Velofahrenden
+  const einbahnWeg = arme.get(e.zufahrt)?.zufluss === false
+  if (einbahnWeg && !e.zufahrtVelo) { allg.texte.unshift(KS_EINBAHN); unklar.push(KS_EINBAHN) }
+  else if (einbahnWeg) allg.texte.unshift(KS_EINBAHN_VELO)
   // gemessen: alle geprüften Profile (Richtungen mit Auto- bzw. Veloverkehr, Trottoir) mit Neigung aus dem Höhenmodell
   const gemessen = (m: { i: number | null } | undefined) => !!m && m.i !== null
   const neigungGemessen = !!hoehen && e.richtungen.every(rr => (rr.status === 'keine_zufahrt' && !rr.velo) || rr.neigungHand ||
     gemessen(hoehen[rr.richtung])) && (!tp || gemessen(hoehen.trottoir))
   const mitVerkehr = richtungen.filter(x => x.auto || x.velo)
-  const annahmeGrund = [...(t.breiteQuelle === 'annahme' ? ['Breite angenommen'] : []),
+  const annahmeGrund = [...(t.breiteQuelle === 'annahme' || (t.breiteQuelle === 'eingabe' && bh?.annahme) ? ['Breite angenommen'] : []),
     ...(mitVerkehr.some(x => x.tempoHerkunft === 'annahme') ? ['Tempo angenommen'] : []),
     ...(mitVerkehr.some(x => x.tempoHerkunft === 'osm') ? ['Tempo nach OSM'] : []),
     ...(neigungGemessen ? [] : ['Längsneigung 0 % angenommen'])]
@@ -248,8 +255,9 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   // eigene kurze Annahmen (statt der Texte des Kerns)
   const annahmen = [
     e.regelung === 'stop' ? 'Ausfahrt mit Stop (OSM).' : 'Ausfahrt ohne Vortritt (Trottoirüberfahrt).',
-    `Auge der Ausfahrenden am Fahrersitz, ${f2(e.B)} m hinter dem vorderen Rand${e.radwegRand ? ' bzw. dem Radweg' : ''} (Fahrbahn) und ` +
-      `${f2(B_INNERORTS_M)} m hinter dem hinteren Rand (Trottoir).`,
+    `${e.zufahrtVelo ? 'Auge der Velofahrenden auf ihrer Achse (gegen die Einbahn)' : 'Auge der Ausfahrenden am Fahrersitz'}, ` +
+      `${f2(e.B)} m hinter dem vorderen Rand${e.radwegRand ? ' bzw. dem Radweg' : ''} (Fahrbahn) und ${f2(B_INNERORTS_M)} m hinter dem ` +
+      'hinteren Rand (Trottoir).',
     `Gehlinie ${f2(t.gehlinie)} m vor dem hinteren Rand der Überfahrt; Fahrlinie der Autos ${f2(D_MFZ_M)} m vom rechten Fahrbahnrand.`,
     `Tempo ${mitVerkehr.map(x => `${x.lage === 'gegenueber' ? 'von gegenüber' : `von ${x.lage}`} ${x.tempo} km/h (${HERKUNFT_WORT[x.tempoHerkunft]})`).join(', ') || '–'}.`,
     neigungGemessen ? 'Längsneigung aus dem Höhenmodell (swissALTI3D).' : 'Längsneigung 0 % (Höhenmodell nicht geladen bzw. nicht verfügbar).',
@@ -295,7 +303,7 @@ export function knotensichtAnfuegen(r: { streifen: StreifenErgebnis[] }, roh: { 
     const seitenraum = plan ? plan.teile.filter(t => t.standard?.typ === 'seitenraum' && t.art === 'trottoir').map(t => t.poly) : []
     const d = ksDatenAusRoh(roh.osm, roh.av, { ...rest, seitenraum, vsig: rest.vsig ? { linien: rest.vsig.linien, bereich: { mitte: rest.vsig.bereich.mitte,
       radiusM: rest.vsig.bereich.radiusM } } : null, hindernisse: fall.hindernisse, verworfen: Object.keys(fall.vorschlaege) }, plan?.av)
-    const breite = tueBreiteHand(fall), tempoHand = tempoHauptHand(fall)
+    const breite = tueBreiteHandWert(fall), tempoHand = tempoHauptHand(fall)
     const gruppen = new Map<string, StreifenErgebnis[]>()
     for (const s of tue) gruppen.set(s.uebergangId, [...(gruppen.get(s.uebergangId) ?? []), s])
     for (const teile of gruppen.values()) {
@@ -305,6 +313,9 @@ export function knotensichtAnfuegen(r: { streifen: StreifenErgebnis[] }, roh: { 
         const best = kand.sort((a, b) => a.z!.d - b.z!.d)[0]
         ks = best ? knotensichtTue(d, { fgsId: best.s.fgsId, p0: best.s.p0, p1: best.s.p1, rand: best.s.rand, breite, tempoHand }, best.z)
           : { fehler: `kein Knoten mit gequerter Einmündung bis ${KNOTEN_M} m vom Streifen (OSM)`, ohneZufahrt: true }
+        // Teile queren verschiedene Einmündungen: gerechnet wird die nächste, mit Hinweis
+        if (!('fehler' in ks) && new Set(kand.map(x => `${x.z!.knoten}|${x.z!.zufahrt}`)).size > 1)
+          ks.hinweise.unshift(`Die Teilstreifen queren verschiedene Einmündungen: gerechnet für ${ks.zufahrtName} (am nächsten beim Streifen).`)
       } catch (e) { ks = fehler(e) }
       for (const s of teile) s.knotensicht = ks
     }

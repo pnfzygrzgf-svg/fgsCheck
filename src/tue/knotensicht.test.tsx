@@ -13,6 +13,7 @@ import { knotensichtAnfuegen, knotensichtTue, ksDatenAusRoh, zufahrtFinden, type
 import { HOEHEN_QUELLE } from '../knotensicht/rechner/neigung'
 import { KnotensichtBericht, KnotensichtBlock } from './KnotensichtBlock'
 import { TUE_NUR_EINMUENDUNG } from '../texte'
+import { kurzHinweis, KS_EINBAHN, KS_EINBAHN_VELO } from './kurztexte'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number) => wgs(O[0] + x, O[1] + y)
@@ -190,7 +191,7 @@ describe('Knotensicht: Korrekturen nach Review (S1–S3, K3, K4, K7)', () => {
     expect(k.unklar.join(' ')).toContain('AV-Ausschnitt reicht nicht'); expect(k.ok).toBeNull()
     expect(k.richtungen.some(r => r.hinweise.fahrbahn.some(h => h.startsWith('AV-Ausschnitt reicht nicht')))).toBe(true)
     const b = befundblaetter(rechnen(fallTue(), { avRadius: 30 }), fallTue(), { vorgabe: { bern: false, kantonBE: false } })[0]
-    expect(b.vorbelegt.werte['q3.knotensichtOk']).toBeUndefined(); expect(b.vorbelegt.feldHinweise?.['q3.knotensichtOk']).toContain('unsicher')
+    expect(b.vorbelegt.werte['q3.knotensichtOk']).toBeUndefined(); expect(b.vorbelegt.feldHinweise?.['q3.knotensichtOk']).toContain('ohne eindeutiges Ergebnis')
   })
   it('S1: Höhenprofil uneben: Hinweis, unsicher; nicht verfügbar: Hinweis, 0 % als Annahme', () => {
     const uneben = { i: 1, quelle: HOEHEN_QUELLE, laenge: 50, punkte: 20, hinweis: 'Höhenprofil uneben (Streuung 0,5 m um die Ausgleichsgerade; Kuppe, Wanne, Brücke?): Längsneigung vor Ort bzw. von Hand prüfen.' }
@@ -305,3 +306,34 @@ function abstand(p: P, a: P, b: P): number {
   const dx = b[0] - a[0], dy = b[1] - a[1]
   return Math.abs((p[0] - a[0]) * dy - (p[1] - a[1]) * dx) / Math.hypot(dx, dy)
 }
+
+describe('Knotensicht: zweite Review (Einbahn, Veloachse, Handwerte)', () => {
+  const mitQuerweg = (tags: Record<string, string>) => ({ elements: [OSM_ROH.elements[0],
+    weg(2, [[11, -40, 0], [20, -40, -200]], { highway: 'residential', name: 'Querweg', maxspeed: '30', ...tags })] })
+  const rechnenOsm = (osm: typeof OSM_ROH, f: Fall) => {
+    const r = rechneFall(osmParsen(osm), avParsen(avRoh()), [], null, f, null, null, null, null)
+    knotensichtAnfuegen(r, { osm, av: avRoh() }, f, REST)
+    return ks(r.streifen[0].knotensicht)
+  }
+  it('Einbahn vom Knoten weg: niemand fährt aus, ein Hinweis, keine Vorbelegung', () => {
+    const k = rechnenOsm(mitQuerweg({ oneway: 'yes' }), fallTue())
+    expect(k.ok).toBeNull(); expect(k.hinweise.filter(h => h.includes('Einbahn vom Knoten weg'))).toEqual([KS_EINBAHN])
+  })
+  it('Einbahn mit Velo gegen die Einbahn: Sicht der Velofahrenden, Annahme richtig benannt', () => {
+    const k = rechnenOsm(mitQuerweg({ oneway: 'yes', 'oneway:bicycle': 'no' }), fallTue())
+    expect(k.hinweise).toContain(KS_EINBAHN_VELO); expect(k.unklar).not.toContain(KS_EINBAHN)
+    expect(k.annahmen.join(' ')).toContain('Auge der Velofahrenden'); expect(k.annahmen.join(' ')).not.toContain('Fahrersitz')
+  })
+  it('Kein Schnitt mit der Veloachse wird wie bei der Fahrlinie gezeigt', () => {
+    expect(kurzHinweis('Kein Schnitt der Zufahrtsachse mit der Veloachse: Anfang als Lot vom Knoten.')?.text)
+      .toBe('Kein Schnitt der Ausfahrt mit der Veloachse: Anfang der Sicht angenähert.')
+  })
+  it('Tempo bzw. Breite im Bedarf als Schätzung oder Annahme: zählt als Annahme (kein harter Befund ohne Bestätigung)', () => {
+    const f = fallTue(x => { x.bedarf = { felder: { 'q3.vSigHaupt': { wert: 50, quelle: 'schaetzung' }, 'q3.breiteM': { wert: 2.5, quelle: 'annahme' } } } })
+    const k = ks(rechnen(f).streifen[0].knotensicht)
+    expect(k.richtungen.map(r => r.tempoHerkunft)).toEqual(['annahme', 'annahme'])
+    expect(k.annahmeGrund).toEqual(expect.arrayContaining(['Breite angenommen', 'Tempo angenommen']))
+    const h = ks(rechnen(fallTue(x => { x.bedarf = { felder: { 'q3.vSigHaupt': { wert: 50, quelle: 'hand' } } } })).streifen[0].knotensicht)
+    expect(h.richtungen.map(r => r.tempoHerkunft)).toEqual(['hand', 'hand'])
+  })
+})

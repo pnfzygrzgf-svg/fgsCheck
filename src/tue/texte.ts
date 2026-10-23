@@ -37,7 +37,7 @@ export function knotensichtVorbelegung(alle: KnotensichtAntwort[]): { wert: bool
     return { hinweis: `nicht gerechnet (${f.fehler}): von Hand beurteilen` }
   }
   const unsicher = ks.find(k => k.unklar.length)
-  if (unsicher) return { hinweis: `Knotensicht unsicher: ${unsicher.unklar.join(' ')} Von Hand beurteilen.` }
+  if (unsicher) return { hinweis: `Knotensicht ohne eindeutiges Ergebnis: ${unsicher.unklar.join(' ')} Von Hand beurteilen.` }
   if (ks.some(k => k.ok === null)) return { hinweis: 'Knotensicht ohne eindeutiges Ergebnis (eine Phase nicht geprüft): von Hand beurteilen' }
   const nein = ks.find(k => k.ok === false)
   const k = nein ?? ks[0]
@@ -52,8 +52,15 @@ export function tueBreiteHand(fall: Pick<Fall, 'bedarf'>): number | null {
   return typeof w === 'number' && Number.isFinite(w) ? w : null
 }
 
-/** Tempo der Hauptstrasse von Hand: Eingabe im Bedarf «Tempo der Hauptstrasse» (jede Handeingabe mit Zahl), sonst null */
-export function tempoHauptHand(fall: Pick<Fall, 'bedarf'>): number | null {
-  const w = fall.bedarf?.felder['q3.vSigHaupt']?.wert
-  return typeof w === 'number' && Number.isFinite(w) ? w : null
+/** Handeingabe im Bedarf als Eingabe der Knotensicht: Wert und ob sie nur angenommen bzw. geschätzt ist (Quelle «Annahme», «Schätzung»;
+ * dann zählt sie als Annahme, kein harter Befund ohne Bestätigung). Nur Zahlen; null ohne Eingabe */
+export interface HandWert { wert: number; annahme: boolean }
+const handWert = (fall: Pick<Fall, 'bedarf'>, pfad: string): HandWert | null => {
+  const h = fall.bedarf?.felder[pfad]
+  return h && typeof h.wert === 'number' && Number.isFinite(h.wert) ? { wert: h.wert, annahme: h.quelle === 'annahme' || h.quelle === 'schaetzung' } : null
 }
+/** Tempo der Hauptstrasse von Hand: Bedarf «Tempo auf der Hauptstrasse» (signalisiert); Quelle von Hand bzw. bestätigt = Tatsache,
+ * Annahme bzw. Schätzung = Annahme */
+export const tempoHauptHand = (fall: Pick<Fall, 'bedarf'>): HandWert | null => handWert(fall, 'q3.vSigHaupt')
+/** Breite der Trottoirüberfahrt von Hand mit Quelle (wie tempoHauptHand) */
+export const tueBreiteHandWert = (fall: Pick<Fall, 'bedarf'>): HandWert | null => handWert(fall, 'q3.breiteM')

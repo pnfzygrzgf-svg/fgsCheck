@@ -9,6 +9,11 @@
 export const KS_DURCHGEHEND = 'Der Streifen quert die durchgehende Strasse: eine Trottoirüberfahrt gehört über die einmündende Strasse ' +
   '(VSS 40 242 Ziffer 14.2).'
 export const KS_AV_KNAPP = 'AV-Ausschnitt reicht nicht bis ans Ende der nötigen Sicht: weiter weg fehlen Gebäude.'
+/** Einbahn vom Knoten weg ohne Velo gegen die Einbahn: niemand fährt aus */
+export const KS_EINBAHN = 'Die einmündende Strasse ist eine Einbahn vom Knoten weg: hier fährt niemand aus; nur prüfen, wenn Velos gegen ' +
+  'die Einbahn fahren.'
+/** Einbahn vom Knoten weg mit Velo gegen die Einbahn: geprüft wird die Sicht der Velofahrenden */
+export const KS_EINBAHN_VELO = 'Die einmündende Strasse ist eine Einbahn vom Knoten weg: aus ihr fahren nur Velos (gegen die Einbahn, OSM).'
 export const KS_UNEBEN = 'Höhenprofil uneben (Kuppe, Wanne oder Brücke?): Längsneigung vor Ort prüfen.'
 
 export interface Kurz { text: string; unklar?: true }
@@ -21,12 +26,14 @@ const REGELN: Regel[] = [
   [/^Höhenmodell nicht verfügbar|^Höhenprofil mit \d+ Punkten/, () => 'Höhenprofil nicht verfügbar: Längsneigung 0 % angenommen.'],
   [/^Höhenprofil: (\d+) Punkte? weit neben/, m => `Höhenprofil: ${m[1]} Punkt${m[1] === '1' ? '' : 'e'} weit neben der Ausgleichsgeraden nicht gerechnet.`],
   [/^Kein Schnitt der Zufahrtsachse mit der Fahrstreifenachse/, () => 'Kein Schnitt der Ausfahrt mit der Fahrlinie: Anfang der Sicht angenähert.'],
+  [/^Kein Schnitt der Zufahrtsachse mit der Veloachse/, () => 'Kein Schnitt der Ausfahrt mit der Veloachse: Anfang der Sicht angenähert.'],
   [/schneidet den Rand der Vortrittsstrasse nicht/, () => 'Kein Schnitt der Ausfahrt mit dem Fahrbahnrand: Rand angenommen.'],
   [/Aussenkante des Radwegs nicht|reicht nicht bis an die Zufahrt/, () => 'Kein Schnitt mit dem Radweg: Sicht auf die Fahrbahn ab der Bordkante.'],
   [/^Radweg in OSM/, () => 'Radweg neben dem Fahrbahnrand (OSM): Sicht auf die Fahrbahn ab seiner Aussenkante.'],
   [/^OSM: Signal «([^»]+)» \(highway=\w+\) an einem anderen Arm/, m => `Signal «${m[1]}» nach OSM an einer anderen Strasse des Knotens: Vortritt prüfen.`],
   [/^OSM: Signal «([^»]+)» \(highway=\w+\) an der Zufahrt/, m => `Signal «${m[1]}» an der Ausfahrt (OSM).`],
-  [/^Die Zufahrt ist eine Einbahn vom Knoten weg/, () => 'Die einmündende Strasse ist eine Einbahn vom Knoten weg.'],
+  // Einbahn vom Knoten weg: aus dem Ergebnis (Arm der Zufahrt, Velo gegen die Einbahn) in knotensicht.ts, hier ohne Text
+  [/^Die Zufahrt ist (nach OSM )?eine Einbahn vom Knoten weg/, () => null],
   [/spitzer Winkel/, () => 'Spitzer Winkel: Seiten links und rechts prüfen.'],
   [/^Kreisverkehr/, () => 'Kreisverkehr: Ergebnis nur zur Orientierung.'],
   [/^D liegt in einem Gebäude/, () => 'Das Auge der Ausfahrenden liegt in einem Gebäude: Lage prüfen.'],
