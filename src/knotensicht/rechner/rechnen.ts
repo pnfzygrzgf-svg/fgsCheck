@@ -532,10 +532,28 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   }) : null
   // Trottoirüberfahrt (K0): Band zwischen Bordkante und hinterem Rand; F_B wartet für die Phase Fahrbahn an der Bordkante
   const tueEingabe = ke.trottoirueberfahrt?.breite ?? null
-  const tueB: TueBand | null = tue ? tueBand(beob.sRand, lagenT!.map(l => ({ ml: l.h.ml, seite: l.seite, rand: l.rand, t: l.t })) as
+  const tueB0: TueBand | null = tue ? tueBand(beob.sRand, lagenT!.map(l => ({ ml: l.h.ml, seite: l.seite, rand: l.rand, t: l.t })) as
     [Parameters<typeof tueBand>[1][0], Parameters<typeof tueBand>[1][1]], trAt,
     tueEingabe !== null && tueEingabe >= TUE_BREITE_MIN && tueEingabe <= TUE_BREITE_MAX ? tueEingabe : null, einbiegewinkel) : null
-  if (tueB) hinweise.push(...tueB.hinweise)
+  // Hinterer Rand auf der Zufahrtsachse dort, wo ihn der hintere Rand der Arme (Fahrbahnrand des Arms plus Abstand, je Seite für sich,
+  // ohne zusammengesetzte Linie) schneidet, der weitere der beiden; so liegt D' an jedem Arm mindestens 3,00 m hinter dem Rand und die
+  // Gehlinie (ab dem Fahrbahnrand des Arms, folgt der Strasse) nie auf der Fahrbahn (Korrektur nach Review, Strasse in einer Kurve).
+  // Gerade Arme: Länge = Abstand / sin α wie in tueBand. Schnitte ausserhalb der halben bis doppelten Länge zählen nicht (Arm fast
+  // parallel zur Zufahrt, z. B. gegenüber); ohne Schnitt bleibt Abstand / sin α
+  let tueB = tueB0
+  if (tueB0) {
+    const sx = lagenT!.flatMap(l => {
+      const x = schnittBei(zAchse, mitVerlaengerung(versetzt(l.h.ml, l.seite * (l.rand + tueB0.abstand))), kp)
+      return x && x.sa > beob.sRand + 0.5 * tueB0.laenge && x.sa < beob.sRand + 2 * tueB0.laenge ? [x.sa] : []
+    })
+    if (sx.length && tueB0.quelle !== 'av_quer') {
+      const sHinter = Math.max(...sx), laenge = sHinter - beob.sRand
+      tueB = { ...tueB0, sHinter, laenge }
+      if (Math.abs(laenge - tueB0.laenge) > TUE_GEH_TOL_M) hinweise.push(`Trottoirüberfahrt: Strasse in einer Kurve, hinterer Rand auf der ` +
+        `Zufahrtsachse nach dem Rand der Arme (${f2(laenge)} m statt ${f2(tueB0.laenge)} m hinter der Bordkante).`)
+    }
+    hinweise.push(...tueB0.hinweise)
+  }
   const sKante = trAt && !ke.trottoirFrei && !tue ? trAt.sHinter : beob.sRand
   let xRadweg = radwegRandLinie ? schnittBei(zAchse, radwegRandLinie, kp) : null
   if (radwegRandLinie && !xRadweg) hinweise.push('Die Zufahrtsachse schneidet die Aussenkante des Radwegs nicht: B ab der Kante bzw. Trottoirhinterkante.')
@@ -769,12 +787,10 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     const mitte = punkteAufSpur(zAchse, [(beob.sRand + sH) / 2])[0]?.[0] ?? Dt.Dachse
     const lagen = lagenT!
     const quellen: string[] = []
-    // Trottoirüberfahrt: Gehlinie je Seite parallel zum Arm durch den Punkt der Zufahrtsachse 0,50 m (/ sin α) vor dem hinteren Rand, damit
-    // sie unabhängig von der Lage der Mittellinie und der Breite der Fahrbahn je Arm genau dort die Achse schneidet (Abstand zu D' fest)
-    const pGeh = tueB ? punkteAufSpur(zAchse, [tueB.sGehlinie])[0]?.[0] ?? null : null
     const linien = lagen.map((l, j) => {
       const anders = lagen[1 - j].t
-      const abstand = tueB ? (pGeh ? dist(pGeh, lot(mitVerlaengerung(l.h.ml), pGeh).p) : tueB.gehlinie[j]) : l.t?.abstand ?? anders?.abstand ?? dist(mitte, lot(l.h.ml, mitte).p)
+      // Trottoirüberfahrt: Gehlinie je Seite ab dem Fahrbahnrand dieses Arms (Abstand plus Fahrbahnrand − 0,50 m), folgt der Strasse
+      const abstand = tueB ? tueB.gehlinie[j] : l.t?.abstand ?? anders?.abstand ?? dist(mitte, lot(l.h.ml, mitte).p)
       quellen.push(tueB ? `${lageNach({ lage: lageLR[j] })} ${f2(tueB.hinten[j] - tueB.gehlinie[j])} m vor dem hinteren Rand der Überfahrt, ` +
         `${f2(Math.max(0, abstand - l.rand))} m hinter dem Fahrbahnrand` :
         `${lageNach({ lage: lageLR[j] })} ${l.t ? `Mitte der AV-Fläche Trottoir (${l.t.n} Querschnitte, Breite ${f1(l.t.breite)} m)` :
@@ -939,6 +955,8 @@ interface VeloStand { fuehrung: Velofuehrung; vorgabe: Velofuehrung; quelle: str
 /** Ziffer 12: Toleranz am Grenzwert 2,00 m (Rundung der Lage) und höchster Abstand der OSM-Radweglinie vom Schnitt mit der
  *  Zufahrtsachse über die halbe Breite hinaus [m] */
 const RADWEG_TOL_M = 0.05
+/** K0: Länge auf der Zufahrtsachse nach dem Rand der Arme weicht mehr als so viel von Abstand / sin α ab: Hinweis [m] */
+const TUE_GEH_TOL_M = 0.3
 const RADWEG_AN_ZUFAHRT_M = 3
 /** Trottoir: Höhenprofil so weit beidseits der Zufahrt [m] (grösster Wert der Tab. 2) */
 export const TROTTOIR_PROFIL_M = Math.max(...TAB2)

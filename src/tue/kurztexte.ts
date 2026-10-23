@@ -47,6 +47,8 @@ const REGELN: Regel[] = [
   [/^Einbiegewinkel rund (\d+)°/, m => `Einbiegewinkel rund ${m[1]}°: vorgesehen sind 45° bis 135° (VSS 40 242 Ziffer 14.3.4).`],
   [/^OSM: Velos auf dem Trottoir gestattet/, () => 'Velos auf dem Trottoir gestattet (OSM): wie ein Radweg zu prüfen, hier nicht gerechnet ' +
     '(VSS 40 242 Ziffer 15.4.2).'],
+  [/^Trottoirüberfahrt: Strasse in einer Kurve, hinterer Rand .*\(([\d,]+) m statt ([\d,]+) m hinter der Bordkante\)/,
+    m => `Hauptstrasse in einer Kurve: hinterer Rand der Überfahrt auf der Ausfahrt ${m[1]} m hinter der Bordkante (gerade wären es ${m[2]} m).`],
   [/^Steile Zufahrt: Längsneigung ([^ ]+) %/, m => `Steile einmündende Strasse (${m[1]} %).`],
   [/^Tempo (\d+) km\/h laut .+?\(signalisierte Höchstgeschwindigkeit\), OSM (.+?)\.$/, m => `Tempo ${m[1]} km/h nach Geoportal, OSM ${m[2]}.`],
   [/: Tempo aus OSM\.$/, () => 'Kein Tempo im Geoportal: Tempo aus OSM.'],

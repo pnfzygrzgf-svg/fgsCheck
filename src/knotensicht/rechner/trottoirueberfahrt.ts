@@ -12,7 +12,8 @@
 // Rand = Fahrbahnrand + Vorlauf (Abstand Fahrbahnrand – vorderer Trottoirrand nach AV, kleinster der Seiten) + Breite.
 // Gehlinie (Korrektur 23.10.2026, Review fgsCheck): beidseits TUE_GEHLINIE_M (0,50 m) vor dem hinteren Rand der Überfahrt (VSS 40 242
 // Ziffer 14.4); die Überfahrt bestimmt den Rand, nicht das breitere angrenzende Trottoir. D' liegt 3,00 m hinter demselben Rand
-// (rechnen.ts), der Abstand D' – Gehlinie ist also immer 3,50 m (rechtwinklig). Nur Geometrie, keine Regeln der Sicht (rechnen.ts).
+// (rechnen.ts), der Abstand D' – Gehlinie ist also 3,50 m (rechtwinklig). An einer Strasse in einer Kurve legt rechnen.ts den hinteren
+// Rand auf der Achse an den weiteren Schnitt mit dem Rand der Arme (D' dann mindestens 3,50 m hinter beiden Gehlinien). Nur Geometrie, keine Regeln der Sicht (rechnen.ts).
 
 import type { P } from '../geo'
 

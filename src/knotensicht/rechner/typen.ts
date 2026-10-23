@@ -231,7 +231,8 @@ export interface TueErgebnis {
   breite: number              // Breite der Überfahrt quer zur Vortrittsstrasse [m] (hinterer Rand beidseits so weit hinter dem Fahrbahnrand)
   breiteQuelle: TueBreiteQuelle
   breiteText: string          // Herkunft der Breite als Satz
-  laenge: number              // Abstand vorderer – hinterer Rand entlang der Zufahrtsachse [m] = abstand / sin α
+  laenge: number              // Abstand vorderer – hinterer Rand entlang der Zufahrtsachse [m]: abstand / sin α, an einer Strasse in einer
+                              // Kurve der weitere Schnitt des hinteren Rands der Arme mit der Achse
   abstand: number             // hinterer Rand hinter dem Fahrbahnrand [m]: Breite plus Vorlauf (AV-Trottoir hinter Radweg bzw. Grünstreifen)
   durchgehend: boolean        // die Zufahrt ist ein Arm der durchgehenden Strasse (VSS 40 242 Ziffer 14.2: keine Einmündung)
   vorderkante: P              // Bordkante (Fahrbahnrand der Vortrittsstrasse) auf der Zufahrtsachse: Nullpunkt der Phase Fahrbahn

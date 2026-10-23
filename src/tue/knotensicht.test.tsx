@@ -324,6 +324,10 @@ describe('Knotensicht: zweite Review (Einbahn, Veloachse, Handwerte)', () => {
     expect(k.hinweise).toContain(KS_EINBAHN_VELO); expect(k.unklar).not.toContain(KS_EINBAHN)
     expect(k.annahmen.join(' ')).toContain('Auge der Velofahrenden'); expect(k.annahmen.join(' ')).not.toContain('Fahrersitz')
   })
+  it('Strasse in einer Kurve: kurzer Hinweis mit beiden Längen, ohne Ziffer', () => {
+    expect(kurzHinweis('Trottoirüberfahrt: Strasse in einer Kurve, hinterer Rand auf der Zufahrtsachse nach dem Rand der Arme (3,10 m statt 2,40 m hinter der Bordkante).')?.text)
+      .toBe('Hauptstrasse in einer Kurve: hinterer Rand der Überfahrt auf der Ausfahrt 3,10 m hinter der Bordkante (gerade wären es 2,40 m).')
+  })
   it('Kein Schnitt mit der Veloachse wird wie bei der Fahrlinie gezeigt', () => {
     expect(kurzHinweis('Kein Schnitt der Zufahrtsachse mit der Veloachse: Anfang als Lot vom Knoten.')?.text)
       .toBe('Kein Schnitt der Ausfahrt mit der Veloachse: Anfang der Sicht angenähert.')
