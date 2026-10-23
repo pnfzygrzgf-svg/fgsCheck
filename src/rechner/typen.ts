@@ -5,6 +5,7 @@ import type { Multi, Poly } from './poly'
 import type { Entfallen } from './zufahrten'
 import type { Vermassung } from './vermassung'
 import type { Erkennung } from './erkennung'
+import type { KnotensichtAntwort } from '../tue/knotensicht'
 
 export interface Konflikt {
   klasse: 'auto' | 'velo' | 'motorrad' | 'gebaeude' | 'baum' | 'hindernis'
@@ -104,6 +105,9 @@ export interface StreifenErgebnis {
   /** Trottoirüberfahrt: Zufahrten und entfallene Richtungen der Rechnung (wie beim Fussgängerstreifen), nur für die Vorbelegung des
    * Bedarfs (Tempo, innerorts, Lage …), nicht für Sichtbefunde */
   nurVorbelegung?: { zufahrten: ZufahrtErgebnis[]; entfallen: Entfallen[] }
+  /** Trottoirüberfahrt: Knotensicht der Einbiegenden (K2, Kern des SichtweitenCheck; tue/knotensicht.ts), im Worker angefügt; fehlt
+   * ohne Trottoirüberfahrt */
+  knotensicht?: KnotensichtAntwort
 }
 
 /** Querung ohne Vortritt: Furt (Insel ohne Balken) bzw. Nase, Einengung, ohne bauliche Massnahme */
