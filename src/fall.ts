@@ -22,11 +22,14 @@ import { bedarfLesen, bedarfLeer, type BedarfBlock } from './bedarf/fallBedarf'
  * Trottoirüberfahrt am Streifen (23.10.2026): ebenfalls Version 3 (StreifenEingabe.typ), ohne neue Version; eine App mit Version 3
  * ohne diesen Wert übergeht ihn mit Hinweis.
  */
-export const FALL_VERSION = 3
+export const FALL_VERSION = 4
 export const FALL_VERSION_BASIS = 1
-/** Version, mit der ein Fall geschrieben wird: 3 mit Bedarf bzw. Querung ohne Vortritt, 2 mit Flächen (Plan), sonst 1 */
-export const fallVersion = (f: { flaechenPlan?: unknown[]; bedarf?: BedarfBlock; streifen?: Record<string, StreifenEingabe> }): number =>
-  (!bedarfLeer(f.bedarf) || Object.values(f.streifen ?? {}).some(e => !!e.typ) ? 3 : f.flaechenPlan?.length ? 2 : FALL_VERSION_BASIS)
+/** Version, mit der ein Fall geschrieben wird: 4 mit einem vorgezogenen Seitenraum (seit 23.10.2026: eine ältere App würde die Parkierung
+ * darunter weiter zählen, sie lehnt die Datei mit «neuere Version, Seite neu laden» ab), 3 mit Bedarf bzw. Querung ohne Vortritt, 2 mit
+ * Flächen (Plan), sonst 1 */
+export const fallVersion = (f: { flaechenPlan?: FlaechePlan[]; bedarf?: BedarfBlock; streifen?: Record<string, StreifenEingabe> }): number =>
+  (f.flaechenPlan?.some(x => x.standard?.typ === 'seitenraum') ? 4
+    : !bedarfLeer(f.bedarf) || Object.values(f.streifen ?? {}).some(e => !!e.typ) ? 3 : f.flaechenPlan?.length ? 2 : FALL_VERSION_BASIS)
 
 export interface StreifenHand { id: string; p0: P; p1: P; breite: number; richtung?: P   // richtung: Balken (Luftbild), sonst OSM-Weg
   herkunft?: StreifenHerkunft      // woher der Streifen stammt (fehlt in Fällen vor dem 11.10.2026: unbekannt)
@@ -73,8 +76,8 @@ export interface PlanStandard {
   m: P; achse: P; balken: P                                                        // Mitte (LV95), Achse A -> B, Balkenrichtung
 }
 /** Vorgezogener Seitenraum (seit 23.10.2026; rechner/seitenraum.ts): Kennzeichnung der Fläche (Plan) der Art Trottoir, die das
- * Werkzeug «Vorgezogener Seitenraum» an einem Streifenende einfügt (VSS 40 240 Z. 13.4). Wie die Mittelinsel optional: ältere Apps
- * übergehen das Feld mit Hinweis, die Fläche bleibt als Plan-Fläche Trottoir (ohne Wegfall der Parkierung darunter). Gespeichert
+ * Werkzeug «Vorgezogener Seitenraum» an einem Streifenende einfügt (VSS 40 240 Z. 13.4). Ein Fall damit hat Version 4 (fallVersion):
+ * ältere Apps lehnen ihn ab, statt die Kennzeichnung (und damit den Wegfall der Parkierung darunter) still zu verlieren. Gespeichert
  * sind Masse und Lage: k Bordkante auf der Streifenachse (heute), balken entlang der Bordkante, tief in die Fahrbahn (Einheiten),
  * kante: Bordkante quer (entlang tief) an den beiden Enden; parkQuelle: Tiefe aus der Parkierung bzw. angenommen */
 export interface PlanSeitenraum {
@@ -222,7 +225,7 @@ export function planStandardPruefen(x: unknown): PlanStandard | PlanSeitenraum |
 }
 
 function seitenraumPruefen(x: Record<string, unknown>): PlanSeitenraum | null {
-  if (typeof x.gruppe !== 'string' || !x.gruppe || x.gruppe.length > 40 || !['parkierung', 'annahme', 'hand'].includes(x.parkQuelle as string)) return null
+  if (typeof x.gruppe !== 'string' || !/^sr-\d{1,6}$/.test(x.gruppe) || !['parkierung', 'annahme', 'hand'].includes(x.parkQuelle as string)) return null
   const im = (v: unknown, a: number, b: number): v is number => zahl(v) && v >= a && v <= b
   if (!im(x.tiefePark, 0, 10) || !im(x.ueberstand, 0, 5) || !im(x.breite, 0.5, 30) || !im(x.randA, 0, 20) || !im(x.randB, 0, 20)) return null
   const einheitP = (v: unknown): v is P => istP(v) && Math.abs(Math.hypot(v[0], v[1]) - 1) < 0.01
@@ -309,8 +312,12 @@ export function fallLesen(text: string): [Fall, string[]] {
       if (o.standard !== undefined) {
         const st = planStandardPruefen(o.standard)
         if (st) fp.standard = st
-        else hinweise.push(`Kennzeichnung ${istObjekt(o.standard) && o.standard.typ === 'seitenraum' ? '«Vorgezogener Seitenraum»' :
-          '«Mittelinsel (Standard)»'} von ${o.id} ungültig, übergangen (Fläche bleibt)`)
+        else {
+          const typ = istObjekt(o.standard) ? o.standard.typ : undefined
+          hinweise.push(typ === 'seitenraum' || typ === 'mittelinsel_e1' ? `Kennzeichnung ${typ === 'seitenraum' ? '«Vorgezogener Seitenraum»'
+            : '«Mittelinsel (Standard)»'} von ${o.id} ungültig, übergangen (Fläche bleibt)`
+            : `Kennzeichnung (Standardelement) von ${o.id} unbekannt bzw. ungültig, übergangen (Fläche bleibt)`)
+        }
       }
       plan.push(fp)
     } else hinweise.push('Fläche (Plan) ungültig, übergangen')

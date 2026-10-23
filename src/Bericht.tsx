@@ -189,8 +189,10 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
           {hindernisse.map(h => {
             const { ringe, linie } = hindernisRinge(h)
             const farbe = hindernisFarbe(h)
-            return <path key={'h' + h.id} d={pfad(ringe, !linie)} fill={linie ? 'none' : farbe} fillOpacity={0.35} stroke={farbe}
-              strokeWidth={linie ? 5 : 2} />
+            // Parkierung unter einem vorgezogenen Seitenraum: gestrichelt, blass (entfällt in der Rechnung)
+            const ersetzt = r.seitenraumErsetzt?.some(x => x.id === h.id)
+            return <path key={'h' + h.id} d={pfad(ringe, !linie)} fill={linie ? 'none' : farbe} fillOpacity={ersetzt ? 0.08 : 0.35} stroke={farbe}
+              strokeWidth={linie ? 5 : 2} strokeDasharray={ersetzt ? '4 4' : undefined} strokeOpacity={ersetzt ? 0.6 : undefined} />
           })}
           {(r.inseln ?? []).map((z, i) => (
             <path key={'i' + i} d={pfad([z.ring])} fill={INSEL_FARBE} fillOpacity={0.15} stroke={INSEL_FARBE} strokeWidth={2.5}
@@ -276,6 +278,7 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
         {hindernisse.some(h => h.art === 'insel') && <> Grün: Insel von Hand.</>}
         {plan.length > 0 && <> Schraffiert mit gestricheltem Rand: Flächen (Plan) von Hand ({[...new Set(plan.map(fp => PLAN_NAME[fp.art]))].join(', ')});
           sie ersetzen in der Rechnung die AV-Bodenbedeckung darunter.</>}
+        {(r.seitenraumErsetzt ?? []).length > 0 && <> Parkierung gestrichelt: durch vorgezogenen Seitenraum ersetzt.</>}
         {masten.length > 0 && <> Schwarzer Punkt: Signalmast einer Mittelinsel (Standard E1, Hinweis, kein Hindernis).</>}
         {fixpunkte.length > 0 && <> Kreuz im Quadrat: Fixpunkt; gestrichelt mit Länge: Mass vom Fixpunkt entlang der Balken bis zur
           Streifenkante (Tabelle «Vermassung ab Fixpunkt»).</>}

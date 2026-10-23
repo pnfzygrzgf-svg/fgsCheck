@@ -155,9 +155,9 @@ export function Anleitung() {
             gerechnet. «Verschiebung zurücknehmen» unter «Flächen (Plan)» stellt die letzte Verschiebung zurück, solange seither nichts
             anderes geändert wurde. Eine von Hand veränderte Insel hat keinen Griff.</li>
             <li><b>Vorgezogener Seitenraum:</b> Werkzeug «Vorgezogener Seitenraum» und nahe einem Streifenende klicken: die App fügt dort
-            eine Fläche (Plan) Trottoir von der Bordkante bis 0,20 m über die Parklinie ein ({V('VSS 40 240')} Z. 13.4; Tiefe aus der
-            Längsparkierung, sonst 2,00 m angenommen), Parkierung darunter entfällt in der Rechnung; Masse unter «Flächen (Plan)»
-            änderbar, am Griff entlang der Bordkante ziehbar.</li>
+            eine Fläche (Plan) Trottoir von der Bordkante bis 0,20 m über die Parklinie ein ({V('VSS 40 240')} Z. 13.4: idealerweise
+            mindestens; Tiefe aus der Längsparkierung, sonst 2,00 m angenommen; je Seite bis zum ersten Parkfeld, höchstens 5,00 m),
+            Auto-Parkierung darunter entfällt in der Rechnung; Masse unter «Flächen (Plan)» änderbar, am Griff entlang der Bordkante ziehbar.</li>
             <li><b>Vermassung ab Fixpunkt:</b> Werkzeug «Fixpunkt» (unter «Eingaben von Hand» bzw. «Fixpunkt setzen» in «Lage und
             Masse») und auf der Karte eine Gebäudeecke bzw. einen Punkt der AV anklicken: die App fängt den nächsten Stützpunkt der
             AV-Bodenbedeckung im Umkreis von {FANG_PX} Bildschirmpunkten (höchstens {FANG_MAX_M} m), sonst bleibt es ein freier Punkt.

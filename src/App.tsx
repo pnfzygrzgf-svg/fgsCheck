@@ -53,10 +53,10 @@ import { inselGeometrie, inselLage, inselMasse, masseFehler, masseHinweise, stre
   standardGeometrie, furtQuert, naechsteGruppe, aufAchse, balkenAusUmriss, E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M,
   INSEL_BEREICH, INSEL_TIEFE_MIN_M, type InselLage } from './rechner/standardinsel'
 import { Fahrbahn, Inseln } from './rechner/flaechen'
-import { seitenraumLage, seitenraumMasse, kanteMessen, parkTiefe, parkRinge, seitenraumKennung, seitenraumRing, seitenraumNeu, kanteLinie,
+import { seitenraumLage, seitenraumMasse, kanteMessen, parkMessen, parkRinge, seitenraumKennung, seitenraumRing, seitenraumNeu, kanteLinie,
   seitenraumMitte, seitenraumAngepasst, srMasseFehler, naechsteSrGruppe, endeAnLinie, endenNachfuehren, srVerschieben, planStandardText,
-  SR_UEBERSTAND_M, SR_PARK_TIEFE_M, SR_RAND_M, SR_BEREICH, SR_NAME, SR_ERSETZT, type ParkRing, type SrMasse } from './rechner/seitenraum'
-import { abstandPunkt } from './rechner/poly'
+  SR_UEBERSTAND_M, SR_PARK_TIEFE_M, SR_RAND_M, SR_RAND_MAX_M, SR_BEREICH, SR_NAME, SR_ERSETZT, type ParkRing, type SrMasse } from './rechner/seitenraum'
+import { abstandPunkt, flaeche, schnitt } from './rechner/poly'
 import { BedarfAbschnitt, kopfText } from './BedarfPanel'
 import { BedarfTeaser, ReiterAnsicht } from './ReiterLeiste'
 import { REITER_EREIGNIS, reiterAktiv, reiterKnopfId, reiterStand, reiterVorgabe, reiterZustand, teaserText, type Reiter } from './reiter'
@@ -111,8 +111,8 @@ const WERKZEUGE: [Exclude<Werkzeug, null>, string, string][] = [
     'sich Plan-Flächen überlappen'],
   ['mittelinsel', 'Mittelinsel (Standard)', 'Schutzinsel mit Rollstuhlfurt nach Masterplan Fussverkehr Stadt Bern, Standards, E1, als ' +
     'Flächen (Plan) der Art Insel einfügen'],
-  ['seitenraum', 'Vorgezogener Seitenraum', 'nahe einem Streifenende klicken: Fläche (Plan) Trottoir bis 0,20 m über die Parklinie ' +
-    '(VSS 40 240 Z. 13.4) auf der Seite mit Längsparkierung; Parkierung darunter entfällt in der Rechnung'],
+  ['seitenraum', 'Vorgezogener Seitenraum', 'nahe einem Streifenende klicken: Fläche (Plan) Trottoir 0,20 m über die Parklinie ' +
+    '(VSS 40 240 Z. 13.4: idealerweise mindestens) auf der Seite mit Längsparkierung; Auto-Parkierung darunter entfällt in der Rechnung'],
   // derselbe Werkzeug-Name wie der Knopf oben («Streifen planen»); die gezeichneten Streifen heissen «Streifen von Hand»
   ['streifen', 'Streifen planen', 'beide Wartebereiche anklicken (Achse quer über die Fahrbahn)'],
   ['fixpunkt', 'Fixpunkt', 'Gebäudeecke bzw. Punkt der AV anklicken: die App fängt den nächsten AV-Stützpunkt im Umkreis von ' +
@@ -943,7 +943,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const srErsetzen = (f: Fall, id: string, alt: PlanSeitenraum, neu: PlanSeitenraum): string[] => {
     const x = f.flaechenPlan?.find(y => y.id === id)
     if (!x) return []
-    const r = endenNachfuehren(f.streifenHand, kanteLinie(alt, alt, true), kanteLinie(neu, neu, true), kanteLinie(neu, neu, false))
+    const r = endenNachfuehren(f.streifenHand, kanteLinie(alt, alt, true), kanteLinie(neu, neu, true), kanteLinie(neu, neu, false),
+      kanteLinie(alt, alt, false))
     Object.assign(x, seitenraumNeu(x, neu))
     f.streifenHand = r.streifen
     return r.ids
@@ -1071,15 +1072,16 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   }, [planListe, fall, zugAuswerten, teilung, aendern, inselFrei])
   // Griffe der Mittelinseln und der vorgezogenen Seitenräume (Kennung sr-…); Ziehen und Loslassen nach der Art des Elements
   const alleGriffe = useMemo(() => [...inselGriffe, ...srGriffe], [inselGriffe, srGriffe])
-  const griffZug = (gruppe: string, p: P, umschalt: boolean) => (gruppe.startsWith('sr-') ? srZiehen(gruppe, p) : inselZiehen(gruppe, p, umschalt))
-  const griffLos = (gruppe: string, p: P, umschalt: boolean) => (gruppe.startsWith('sr-') ? srLoslassen(gruppe, p) : inselLoslassen(gruppe, p, umschalt))
+  // nach der Art des Elements (nicht nach dem Präfix der Kennung)
+  const griffZug = (gruppe: string, p: P, umschalt: boolean) => (srElement(planListe, gruppe) ? srZiehen(gruppe, p) : inselZiehen(gruppe, p, umschalt))
+  const griffLos = (gruppe: string, p: P, umschalt: boolean) => (srElement(planListe, gruppe) ? srLoslassen(gruppe, p) : inselLoslassen(gruppe, p, umschalt))
   const verschiebungZurueck = () => {
     const v = verschiebung
     if (!v || !fall) return
     if (!verschiebungZuruecknehmbar(fall, v)) { setVerschiebung(null); setMeldung('Seither wurde etwas anderes geändert: Verschiebung nicht zurückgenommen.'); return }
     aendern(f => { verschiebungZuruecknehmen(f, v); return f })
     setTeilung(v.teilungVorher); setVerschiebung(null)
-    setMeldung(`Verschiebung ${v.gruppe.startsWith('sr-') ? 'des vorgezogenen Seitenraums' : 'der Mittelinsel'} zurückgenommen.`)
+    setMeldung(`Verschiebung ${srElement(v.flaechenPlan, v.gruppe) ? 'des vorgezogenen Seitenraums' : 'der Mittelinsel'} zurückgenommen.`)
   }
   const inselM = useMemo(() => inselMasse(inselEin.tiefe, inselEin.breite, inselEin.furt, inselEin.kopf, inselEin.seite), [inselEin])
   const inselFehler = masseFehler(inselM)
@@ -1191,12 +1193,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const seitenraumBei = (p: P) => {
     if (!fall || !av || !rechnung?.streifen.length) { setMeldung(`${SR_NAME}: zuerst einen Streifen rechnen lassen.`); return }
     const fb = srFahrbahn(fall.flaechenPlan, null), inseln = new Inseln(avMitPlan(av, fall.flaechenPlan).av)
-    const parkAlle: ParkRing[] = parkRinge([...fall.hindernisse, ...rechnung.vorschlaege.map(v => v.hindernis)])
+    const parkAlle: ParkRing[] = parkRinge(fall.hindernisse, rechnung.vorschlaege.map(v => v.hindernis))
     const vorschlag = (e: StreifenErgebnis, k: 0 | 1) => {
       const l0 = seitenraumLage(e.p0, e.p1, k, balkenAusUmriss(einheitP(sub(e.p1, e.p0)), e.umriss), e.rand[k])
       const kante = kanteMessen(l0, seitenraumMasse(e.bw, null), (q, r) => fb.sehne(q, r)) ?? [0, 0]
       const lage = { ...l0, kante }
-      const park = parkTiefe(parkAlle, lage)
+      const park = parkMessen(parkAlle, lage, e.bw, (q, r) => fb.sehne(q, r))
       return { lage, park, masse: seitenraumMasse(e.bw, park), insel: inseln.enthaelt(add(e.rand[k], l0.tief, -0.5)) }
     }
     const kand = rechnung.streifen.flatMap(e => ([0, 1] as const).map(k => ({ e, k, d: dist(p, e.rand[k]) })))
@@ -1214,6 +1216,15 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const st = seitenraumKennung(naechsteSrGruppe(fall.flaechenPlan), v.lage, v.masse)
     const fe = srMasseFehler(st)
     if (fe) { setMeldung(`${SR_NAME} nicht eingefügt: ${fe}`); return }
+    // Überlappung mit anderen Flächen (Plan): Mittelinsel bzw. anderer Seitenraum abweisen, übrige melden (der Seitenraum gilt dort)
+    const ring = seitenraumRing(st, st)
+    const ueber = (fall.flaechenPlan ?? []).filter(x => { try { return flaeche(schnitt([[ring]], [[x.ring]])) > 0.05 } catch { return false } })
+    const sperrt = ueber.find(x => x.standard)
+    if (sperrt) { setMeldung(`${SR_NAME} nicht eingefügt: überlappt ${planTitel(sperrt.id)} (${inselStandard(sperrt) ? 'Mittelinsel' : SR_NAME}).`); return }
+    // Fahrbahn entlang der Achse vorher und nachher (Sehne durch die Streifenmitte)
+    const breiteFb = (f: Fahrbahn) => { const sh = f.sehne(e.m, einheitP(sub(e.p1, e.p0))); return sh ? sh[0] + sh[1] : null }
+    const fbVor = breiteFb(fb), fbNach = breiteFb(new Fahrbahn(avMitPlan(av, [...(fall.flaechenPlan ?? []),
+      { id: 'neu', art: 'trottoir', ring, standard: st }]).av))
     const ende = k === 0 ? 'p0' as const : 'p1' as const
     const einfuegen = (f: Fall) => {
       const id = naechstePlanId(f)
@@ -1227,13 +1238,28 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     aendern(f => { einfuegen(f); return f })
     setWerkzeug(null)
     const titelS = fall.streifenHand.length ? streifenTitel(e.fgsId, fall.streifenHand) : `Streifen ${e.fgsId}`
-    setMeldung(`${SR_NAME} als ${planTitel(id)} (Trottoir) an ${titelS}, Ende ${k ? 'B' : 'A'}: ` +
-      (v.park ? `Parkstreifen ${f2(st.tiefePark)} m aus der Parkierung (${v.park.ids.length} Feld(er))` :
-        `keine Längsparkierung gefunden – Parkstreifen ${f2(SR_PARK_TIEFE_M)} m angenommen, bitte prüfen`) +
-      ` + ${f2(SR_UEBERSTAND_M)} m, Länge ${f2(st.breite + st.randA + st.randB)} m.` +
+    const text = `${SR_NAME} als ${planTitel(id)} (Trottoir) an ${titelS}, Ende ${k ? 'B' : 'A'}: ` +
+      (v.park && v.park.quelle === 'parkierung' ? `Parkstreifen ${f2(st.tiefePark)} m aus der Parkierung (${v.park.ids.length} Feld(er))` :
+        v.park ? `Parkstreifen ${f2(st.tiefePark)} m nur aus OSM-Vorschlägen (Lage angenommen) – prüfen` :
+        `keine Parkierung gefunden – Parkstreifen ${f2(SR_PARK_TIEFE_M)} m angenommen; ohne Längsparkierung wirkt das Element wie eine ` +
+        'seitliche Einengung') +
+      ` + ${f2(SR_UEBERSTAND_M)} m, Länge ${f2(st.breite + st.randA + st.randB)} m` +
+      (fbNach !== null ? `; Fahrbahn entlang der Achse ${fbVor !== null ? `${f2(fbVor)} → ` : ''}${f2(fbNach)} m` : '') + '.' +
+      (ueber.length ? ` Überlappt ${ueber.map(x => planTitel(x.id)).join(', ')}: dort gilt der Seitenraum (später gezeichnet).` : '') +
       (e.randQuelle !== 'AV' ? ' Bordkante dort angenommen (keine AV-Sehne): Lage prüfen.' : '') +
-      (hand ? ` Streifenende an die neue Bordkante gesetzt.` : '') + ' Masse unter «Flächen (Plan)» änderbar.')
+      (hand ? ` Streifenende an die neue Bordkante gesetzt.` : '') + ' Masse unter «Flächen (Plan)» änderbar.'
+    setMeldung(text)
+    setSrPruef({ id, fgsId: e.fgsId, text })
   }
+  // nach der Rechnung mit dem neuen Element: Hinweis, wenn der Streifen verdeckt bleibt
+  const [srPruef, setSrPruef] = useState<{ id: string; fgsId: string; text: string } | null>(null)
+  useEffect(() => {
+    if (!srPruef || !rechnung || !rechnungFall?.flaechenPlan?.some(x => x.id === srPruef.id)) return
+    const s = rechnung.streifen.find(x => x.fgsId === srPruef.fgsId) ?? rechnung.streifen[0]
+    setMeldung(srPruef.text + (s?.status === 'verdeckt' ? ' Der Streifen bleibt «verdeckt»: der Seitenraum allein genügt hier nicht ' +
+      '(weitere Hindernisse im Sichtfeld) – Zufahrten prüfen, Länge bzw. weitere Massnahmen erwägen.' : s ? ` Status jetzt «${s.status}».` : ''))
+    setSrPruef(null)
+  }, [srPruef, rechnung, rechnungFall])
   // Fangen der Ecken einer Fläche (Plan): AV-Stützpunkte und Ecken der übrigen Plan-Flächen (ohneId: die eben bearbeitete)
   const planFangen = (p: P, ohneId: string | null): P => fangen(p, [...(av ?? []), ...planAlsAv(fall?.flaechenPlan, ohneId)], fangRadius()).p
   const klick = useCallback((p: P) => {
@@ -1635,8 +1661,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const srHilfe = (
     <div className="werkzeughilfe">
       <b>{SR_NAME}:</b> nahe einem Streifenende (Wartebereich) klicken. Die Fläche (Plan) Trottoir reicht von der heutigen Bordkante
-      bis {f2(SR_UEBERSTAND_M)} m über die Parklinie (Längsparkierung aus Parkfeldern bzw. OSM, sonst {f2(SR_PARK_TIEFE_M)} m
-      angenommen), Länge Streifenbreite + je {f2(SR_RAND_M)} m. Parkierung darunter entfällt in der Rechnung.
+      bis {f2(SR_UEBERSTAND_M)} m über die Parklinie (idealerweise mindestens; Längsparkierung aus Parkfeldern bzw. OSM, sonst
+      {' '}{f2(SR_PARK_TIEFE_M)} m angenommen), je Seite bis zum ersten Parkfeld (höchstens {f2(SR_RAND_MAX_M)} m, sonst {f2(SR_RAND_M)} m).
+      Auto-Parkierung darunter entfällt in der Rechnung.
       <div><button className="zweit" onClick={() => setWerkzeug(null)}>Abbrechen</button></div>
     </div>
   )

@@ -14,13 +14,13 @@ import { tag } from './lesetext'
 import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
 import { type P, add, sub, dot, dist, einheit, rechts, links, lv95, imPolygon, abstandStrecke, segSchnitt } from '../geo'
 import type { StreifenErgebnis, ZufahrtErgebnis } from '../rechner/typen'
-import type { Fall } from '../fall'
+import type { Fall, PlanSeitenraum } from '../fall'
 import type { Quelle } from './eingaben'
 import type { Vorbelegung } from './fallBedarf'
 import { HW_ALLE, istFgs, istLsaUebergang, markierung, type OsmDaten, type OsmKnoten, type OsmWeg, type VortrittZeichen } from '../daten/osm'
 import type { AvFlaeche } from '../daten/av'
-import { schnitt } from '../rechner/poly'
-import { seitenraumAnStreifen } from '../rechner/seitenraum'
+import { schnitt, abstandPunkt } from '../rechner/poly'
+import { seitenraumGemessen } from '../rechner/seitenraum'
 import { planTitel } from '../rechner/planflaechen'
 import { KATALOG } from './katalog'
 import { imBereich, HALT_TEXT, type Bereich, type HaltestellenErgebnis, type OevHalt } from '../daten/haltestellen'
@@ -603,13 +603,14 @@ export function automatik(x: AutoEingang): void {
     if (insel === false && einengung === false) setze('ohneBaulich', true, 'annahme', 'keine Insel und keine Einengung: ohne bauliche Hilfe angenommen')
     else if (insel === true || einengung === true) setze('ohneBaulich', false, 'annahme', insel === true ? 'Insel an der Querung' : 'Einengung an der Querung')
   }
-  // Trottoir vor bzw. hinter der Parkreihe: aus dem Plan-Element «Vorgezogener Seitenraum» an den Streifen (kleinster Überstand),
+  // Trottoir vor bzw. hinter der Parkreihe: aus dem Plan-Element «Vorgezogener Seitenraum», wenn jede gerade Zufahrt mit Parkierung
+  // rechts an ihrem Parkierungsende (Streifenende rechts der Fahrtrichtung) ein Element mit Messbezug hat (kleinster Überstand);
   // sonst AV-Bord am Streifen gegen den Bord entlang der Zufahrt, minus Parkstreifen
-  const sr = seitenraumAnStreifen(fall.flaechenPlan, st)
-  if (sr.length) {
+  const sr = seitenraumVorbelegung(fall, st, gerade.filter(z => z.parkRechts))
+  if (sr) {
     const v = sr.reduce((a, b) => (b.st.ueberstand < a.st.ueberstand ? b : a))
-    setze('seitenraumVorParklinieM', r2s(v.st.ueberstand), 'rechnung', `Plan: vorgezogener Seitenraum (${sr.map(x => planTitel(x.id)).join(', ')}), ` +
-      'Überstand über die Parklinie')
+    setze('seitenraumVorParklinieM', r2s(v.st.ueberstand), 'rechnung', `Plan: vorgezogener Seitenraum (${[...new Set(sr.map(x => planTitel(x.id)))]
+      .join(', ')}), Überstand über die Parklinie`)
   } else if (av && st.every(s => s.randQuelle === 'AV')) {
     const mitPark = gerade.filter(z => z.parkRechts)
     const sv = mitPark.map(z => seitenraum(av, st.find(s => s.fgsId === z.fgsId) ?? s0, z)).filter((v): v is number => v !== null)
@@ -899,6 +900,25 @@ function einengungLaenge(av: AvIndex | null, st: StreifenErgebnis[], grenze: num
 }
 
 const r2s = (x: number) => Math.round(x * 100) / 100
+
+/** Elemente «Vorgezogener Seitenraum» an den Parkierungsenden der Zufahrten mit Parkierung rechts (Streifenende rechts der
+ * Fahrtrichtung, Ring höchstens 1 m von der Bordkante der Rechnung); null, wenn keine solche Zufahrt bzw. eine ohne gültiges Element */
+function seitenraumVorbelegung(fall: Fall, st: StreifenErgebnis[], mitPark: ZufahrtErgebnis[]): { id: string; st: PlanSeitenraum }[] | null {
+  const el = (fall.flaechenPlan ?? []).map(fp => ({ fp, st: seitenraumGemessen(fp) })).filter(x => x.st)
+  if (!el.length || !mitPark.length) return null
+  const aus: { id: string; st: PlanSeitenraum }[] = []
+  for (const z of mitPark) {
+    const s = st.find(x => x.zufahrten.includes(z)) ?? st[0]
+    const sp = z.spur, p5 = sp && sp.length >= 2 ? punktEntlang(sp, 5) : null
+    if (!p5) return null
+    const r = rechts(einheit(sub(sp[0], p5)))
+    const rand = s.rand.reduce((a, b) => (dot(sub(b, sp[0]), r) > dot(sub(a, sp[0]), r) ? b : a))
+    const e = el.find(x => abstandPunkt([[x.fp.ring]], rand) <= 1.0)
+    if (!e) return null
+    aus.push({ id: e.fp.id, st: e.st! })
+  }
+  return aus
+}
 
 /** Bordversatz am Streifen gegen die Zufahrt minus Parkstreifen (+ Trottoir vorgezogen, − dahinter); null ohne Messung */
 function seitenraum(av: AvIndex, s: StreifenErgebnis, z: ZufahrtErgebnis): number | null {

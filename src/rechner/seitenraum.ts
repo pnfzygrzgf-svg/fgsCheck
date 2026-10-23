@@ -1,8 +1,8 @@
 // ── Vorgezogener Seitenraum: Standardelement der Flächen (Plan) (Nutzerentscheid 23.10.2026) ──
 //
 // Grundlage: VSS 40 240 Z. 13.4 (und Masterplan Fussverkehr Stadt Bern): an einer Querung zwischen Längsparkierung ist ein
-// vorgezogener Seitenraum nötig, mindestens 0,20 m über die Parkstreifenlinie in die Fahrbahn (Regeln E2b/E2c des Bedarfsmoduls,
-// Feld seitenraumVorParklinieM).
+// vorgezogener Seitenraum nötig (E2b), idealerweise mindestens 0,20 m über die Parkstreifenlinie in die Fahrbahn (E2c; Feld
+// seitenraumVorParklinieM des Bedarfsmoduls).
 //
 // Element: eine Fläche (Plan) der Art Trottoir an einem Streifenende (Kennzeichnung fall.PlanSeitenraum im Feld standard).
 // - Lage: k = heutige Bordkante auf der Streifenachse (Sehne der Fahrbahn entlang der Achse, AV mit den übrigen Flächen (Plan)),
@@ -13,7 +13,8 @@
 // - Masse: Tiefe T = tiefePark + ueberstand ab der Bordkante; entlang der Bordkante von sA = −(breite/2 + randA) bis
 //   sB = breite/2 + randB. Ring: P(sA, c(sA) − SR_HINTEN_M), P(sB, c(sB) − SR_HINTEN_M), P(sB, c(sB) + T), P(sA, c(sA) + T).
 // - tiefePark: Aussenkante der Längsparkierung an dieser Bordkante (amtliche Parkfelder, Parkfelder von Hand, OSM-Vorschläge),
-//   gemessen ab c(s), bis SR_SUCHE_M beidseits entlang der Bordkante; ohne Parkierung SR_PARK_TIEFE_M (Hinweis).
+//   gemessen gegen die örtliche Bordkante, bis SR_SUCHE_M beidseits entlang der Bordkante (parkMessen); ohne Parkierung
+//   SR_PARK_TIEFE_M (Hinweis). Rand je Seite bis zum ersten Parkfeld (höchstens SR_RAND_MAX_M), sonst SR_RAND_M.
 // Wirkung in der Rechnung (index.rechneFall): die Fläche ersetzt die AV darunter wie jede Fläche (Plan); Parkierung, die sie
 // überdeckt, entfällt für die Sichtprüfung (parkOhneSeitenraum). Einträge im Fall bleiben (nur in der Rechnung ausgeblendet).
 
@@ -24,7 +25,7 @@ import { type Hindernis, laengsPolygon } from './hindernisse'
 import { type Multi, flaeche, schnitt, differenz, vereinigung, abstandLinieMulti } from './poly'
 import { balkenNormiert, standardTeilText, standardAngepasst } from './standardinsel'
 
-export const SR_UEBERSTAND_M = 0.20     // über die Parkstreifenlinie hinaus (VSS 40 240 Z. 13.4: mindestens)
+export const SR_UEBERSTAND_M = 0.20     // über die Parkstreifenlinie hinaus (VSS 40 240 Z. 13.4: idealerweise mindestens)
 export const SR_PARK_TIEFE_M = 2.00     // Parkstreifen, wenn im Fall keine Parkierung liegt (Annahme, anpassbar)
 export const SR_RAND_M = 1.00           // Rand je Seite über die Streifenbreite hinaus (Annahme, anpassbar)
 export const SR_HINTEN_M = 0.50         // Fläche reicht so weit hinter die heutige Bordkante (Annahme: deckt eine unruhige AV-Kante)
@@ -33,6 +34,7 @@ export const SR_PARK_INNEN_M = 0.8      // Parkierung gehört zu dieser Bordkant
 export const SR_PARK_TIEFE_BEREICH: [number, number] = [1.0, 6.0]   // plausible Tiefe einer Parkierung ab der Bordkante
 export const SR_PARK_ANTEIL = 0.5       // Parkfeld entfällt ganz ab diesem überdeckten Anteil, sonst nur der überdeckte Teil (Annahme)
 export const SR_REST_M2 = 0.5           // kleinere Reste eines Parkfelds entfallen
+export const SR_REIHE_M = 8.0           // Parkfeld länger als das (grösster Eckenabstand): Reihe, nur gekürzt (Annahme)
 export const SR_KANTE_MAX_M = 1.5       // Bordkante quer weiter weg: Messung verworfen (c = 0)
 export const SR_ENDE_TOL_M = 0.05       // Streifenende «an der Kante» (Nachführen)
 export const SR_RAND_ZUSCHLAG = 0.30    // Streifenende vor der Bordkante (wie streifen.RAND_ZUSCHLAG)
@@ -98,38 +100,87 @@ export function seitenraumMitte(st: PlanSeitenraum): P {
   return pt(st, s, kanteBei(st, s) + (srTiefe(st) - SR_HINTEN_M) / 2)
 }
 
-/** Parkierung im Fall (Ring; Parkfelder, Längsparkierung, Vorschläge) */
-export interface ParkRing { id: string; ring: P[] }
-/** Parkierung als Ringe (nur Auto-Parkfelder und Längsparkierung) */
-export function parkRinge(h: Hindernis[]): ParkRing[] {
+/** Parkierung im Fall (Ring; Parkfelder, Längsparkierung, Vorschläge); annahme: Lage nur angenommen (OSM-Vorschlag) */
+export interface ParkRing { id: string; ring: P[]; annahme?: true }
+/** Parkierung als Ringe (nur Auto-Parkfelder und Längsparkierung); Vorschläge aus OSM (Quelle osm, nicht im Fall) als Annahme */
+export function parkRinge(h: Hindernis[], vorschlaege: Hindernis[] = []): ParkRing[] {
   const aus: ParkRing[] = []
-  for (const x of h) {
-    if (x.art === 'parkfeld' && x.klasse === 'auto' && x.ring.length >= 3) aus.push({ id: x.id, ring: x.ring })
-    else if (x.art === 'laengsparkierung') { const r = laengsPolygon(x.linie, x.breite); if (r.length >= 3) aus.push({ id: x.id, ring: r }) }
+  for (const [x, annahme] of [...h.map(y => [y, false] as const), ...vorschlaege.map(y => [y, y.quelle === 'osm'] as const)]) {
+    const z = annahme ? { annahme: true as const } : {}
+    if (x.art === 'parkfeld' && x.klasse === 'auto' && x.ring.length >= 3) aus.push({ id: x.id, ring: x.ring, ...z })
+    else if (x.art === 'laengsparkierung') { const r = laengsPolygon(x.linie, x.breite); if (r.length >= 3) aus.push({ id: x.id, ring: r, ...z }) }
   }
   return aus
 }
 
-/** Tiefe der Längsparkierung an dieser Bordkante (Aussenkante ab c(s), grösste) -> Tiefe und beteiligte Ids, sonst null */
-export function parkTiefe(park: ParkRing[], l: SrLage): { tiefe: number; ids: string[] } | null {
-  let best = -Infinity
-  const ids: string[] = []
-  for (const f of park) {
-    const v = f.ring.map(q => { const d = sub(q, l.k), s = dot(d, l.balken); return [s, dot(d, l.tief) - kanteBei(l, s)] as [number, number] })
-      .filter(([s]) => Math.abs(s) <= SR_SUCHE_M + 2)
-    if (!v.length || !v.some(([s]) => Math.abs(s) <= SR_SUCHE_M)) continue
-    const innen = Math.min(...v.map(q => q[1])), aussen = Math.max(...v.map(q => q[1]))
-    if (innen > SR_PARK_INNEN_M || innen < -1 || aussen < SR_PARK_TIEFE_BEREICH[0] || aussen > SR_PARK_TIEFE_BEREICH[1]) continue
-    ids.push(f.id)
-    best = Math.max(best, aussen)
+/** Ergebnis der Messung: Tiefe (Median der nahen Felder), beteiligte Ids, Rand je Seite bis zum ersten Parkfeld, Quelle */
+export interface ParkMessung { tiefe: number; ids: string[]; rand: [number, number]; quelle: 'parkierung' | 'annahme' }
+const SR_DICHTE_M = 0.5                 // Kanten der Parkierung so dicht abtasten (lange Polygone)
+const SR_ORT_TOL_M = 3.0                // örtliche Bordkante höchstens so weit von der Geraden c(s) (Bogen R = 40 m auf 15 m: 2,8 m)
+export const SR_RAND_MAX_M = 5.0        // Rand bis zum ersten Parkfeld höchstens so weit über den Streifen hinaus (Nutzerentscheid)
+const median = (xs: number[]) => { const a = [...xs].sort((x, y) => x - y), n = a.length; return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2 }
+
+/**
+ * Längsparkierung an dieser Bordkante messen. Die Kanten jedes Rings werden alle SR_DICHTE_M abgetastet, nur Punkte im Längsfenster
+ * |s| ≤ SR_SUCHE_M zählen (lange Polygone, Reihen über einen Block). Tiefe eines Punkts gegen die ÖRTLICHE Bordkante: Sehne der
+ * Fahrbahn (sehne) an der Stelle entlang tief, mit dem Winkel der Kante dort (Sehnen 1 m davor und danach) auf die Senkrechte zur
+ * Kante umgerechnet; ohne Sehne gegen die Gerade c(s). Ein Feld gehört zur Kante, wenn seine Innenkante höchstens SR_PARK_INNEN_M
+ * davor liegt (bis 1 m dahinter) und seine Aussenkante in SR_PARK_TIEFE_BEREICH. Tiefe = Median der Aussenkanten der Felder.
+ * Rand je Seite (A: s < 0, B: s > 0) bis zum ersten dieser Felder, höchstens SR_RAND_MAX_M; ohne Feld in diesem Bereich SR_RAND_M.
+ * Quelle «annahme», wenn nur OSM-Vorschläge (Lage angenommen) gemessen sind
+ */
+export function parkMessen(park: ParkRing[], l: SrLage, breite: number, sehne: ((p: P, r: P) => [number, number] | null) | null = null):
+  ParkMessung | null {
+  const kanteSehne = (q: P): number | null => {
+    if (!sehne) return null
+    const sh = sehne(q, l.tief)
+    return sh ? sh[1] : null                                   // Abstand zur Bordkante gegen tief (negativ: hinter der Kante)
   }
-  return ids.length ? { tiefe: Math.round(best * 100) / 100, ids } : null
+  const tiefe = (q: P): number => {
+    const d = sub(q, l.k), s = dot(d, l.balken), gerade = dot(d, l.tief) - kanteBei(l, s)
+    const h = kanteSehne(q)
+    // die Sehne misst zur nächsten Bordkante; weicht sie mehr als SR_ORT_TOL_M von der Geraden ab, ist es eine andere Kante
+    if (h === null || Math.abs(h - gerade) > SR_ORT_TOL_M) return gerade
+    // Winkel der Kante an der Stelle: Kante 1 m davor und danach (gemessen gegen tief)
+    const k1 = kanteSehne(add(q, l.balken, -1)), k2 = kanteSehne(add(q, l.balken, 1))
+    const g = k1 !== null && k2 !== null ? (k2 - k1) / 2 : 0      // Änderung des Abstands je m entlang balken
+    return h / Math.hypot(1, g)
+  }
+  const felder: { id: string; aussen: number; sMin: number; sMax: number; annahme: boolean }[] = []
+  for (const f of park) {
+    const pts: P[] = []
+    f.ring.forEach((a, i) => {
+      const b = f.ring[(i + 1) % f.ring.length], n = Math.max(1, Math.ceil(dist(a, b) / SR_DICHTE_M))
+      for (let j = 0; j < n; j++) pts.push(add(a, sub(b, a), j / n))
+    })
+    // nur Punkte im Längsfenster und nahe dieser Bordkante (gegen die Gerade c(s); ferne Teile langer Polygone zählen nicht)
+    const nah = pts.filter(q => {
+      const d = sub(q, l.k), s = dot(d, l.balken), t = dot(d, l.tief) - kanteBei(l, s)
+      return Math.abs(s) <= SR_SUCHE_M && t >= -SR_ORT_TOL_M && t <= SR_PARK_TIEFE_BEREICH[1] + SR_ORT_TOL_M
+    })
+    if (!nah.length) continue
+    const t = nah.map(tiefe), ss = nah.map(q => dot(sub(q, l.k), l.balken))
+    const innen = Math.min(...t), aussen = Math.max(...t)
+    if (innen > SR_PARK_INNEN_M || innen < -1 || aussen < SR_PARK_TIEFE_BEREICH[0] || aussen > SR_PARK_TIEFE_BEREICH[1]) continue
+    felder.push({ id: f.id, aussen, sMin: Math.min(...ss), sMax: Math.max(...ss), annahme: !!f.annahme })
+  }
+  if (!felder.length) return null
+  const h = breite / 2
+  const randSeite = (vz: 1 | -1): number => {
+    // nächstes Feld auf dieser Seite: Abstand seines nahen Endes vom Streifenrand (Felder, die in den Streifen reichen: 0)
+    const ab = felder.filter(f => (vz > 0 ? f.sMax : -f.sMin) > h).map(f => Math.max(0, (vz > 0 ? f.sMin : -f.sMax) - h))
+    const m = ab.length ? Math.min(...ab) : Infinity
+    return m <= SR_RAND_MAX_M ? Math.round(m * 100) / 100 : SR_RAND_M
+  }
+  return { tiefe: Math.round(median(felder.map(f => f.aussen)) * 100) / 100, ids: felder.map(f => f.id), rand: [randSeite(-1), randSeite(1)],
+    quelle: felder.every(f => f.annahme) ? 'annahme' : 'parkierung' }
 }
 
-/** Masse beim Einfügen: Streifenbreite, Rand SR_RAND_M, Überstand SR_UEBERSTAND_M, Parktiefe aus der Parkierung bzw. Annahme */
-export function seitenraumMasse(breite: number, park: { tiefe: number } | null): SrMasse & { parkQuelle: PlanSeitenraum['parkQuelle'] } {
+/** Masse beim Einfügen: Streifenbreite, Rand bis zum ersten Parkfeld (sonst SR_RAND_M), Überstand SR_UEBERSTAND_M, Parktiefe aus der
+ * Parkierung bzw. Annahme */
+export function seitenraumMasse(breite: number, park: ParkMessung | null): SrMasse & { parkQuelle: PlanSeitenraum['parkQuelle'] } {
   return { tiefePark: park ? park.tiefe : SR_PARK_TIEFE_M, ueberstand: SR_UEBERSTAND_M, breite: Math.round(breite * 100) / 100,
-    randA: SR_RAND_M, randB: SR_RAND_M, parkQuelle: park ? 'parkierung' : 'annahme' }
+    randA: park ? park.rand[0] : SR_RAND_M, randB: park ? park.rand[1] : SR_RAND_M, parkQuelle: park ? park.quelle : 'annahme' }
 }
 
 /** Unzulässige Masse -> Grund, sonst null */
@@ -189,9 +240,10 @@ const ueber = (a: Box, b: Box) => !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] ||
 
 export interface SrErsetzt { id: string; ganz: boolean }
 /**
- * Parkierung unter vorgezogenen Seitenräumen (polys: wirksame Teile, planflaechen.avMitPlan): ein Parkfeld bzw. eine Längsparkierung
- * entfällt ganz, wenn mindestens SR_PARK_ANTEIL davon überdeckt ist; sonst entfällt nur der überdeckte Teil (Reste unter SR_REST_M2
- * weg; eine Längsparkierung wird dann zu Parkfeldern). Ohne Element bzw. Überdeckung: dieselbe Liste
+ * Parkierung unter vorgezogenen Seitenräumen (polys: wirksame Teile, planflaechen.avMitPlan; Nutzerentscheid 23.10.2026): nur Auto-
+ * Parkierung (Velo- und Motorradfelder bleiben). Ein einzelnes Parkfeld entfällt ganz, wenn mindestens SR_PARK_ANTEIL davon überdeckt
+ * ist, sonst nur der überdeckte Teil; eine Reihe (Längsparkierung bzw. Feld länger als SR_REIHE_M) wird immer nur um den überdeckten
+ * Teil gekürzt (Reste unter SR_REST_M2 weg; die Reste sind Parkfelder mit derselben Id). Ohne Element bzw. Überdeckung: dieselbe Liste
  */
 export function parkOhneSeitenraum(liste: Hindernis[], polys: Multi): { hindernisse: Hindernis[]; ersetzt: SrErsetzt[] } {
   if (!polys.length) return { hindernisse: liste, ersetzt: [] }
@@ -200,20 +252,28 @@ export function parkOhneSeitenraum(liste: Hindernis[], polys: Multi): { hinderni
   const sb = box(sr.flatMap(p => p[0] ?? []))
   const aus: Hindernis[] = [], ersetzt: SrErsetzt[] = []
   for (const h of liste) {
-    const ring = h.art === 'parkfeld' ? h.ring : h.art === 'laengsparkierung' ? laengsPolygon(h.linie, h.breite) : null
+    const ring = h.art === 'parkfeld' && h.klasse === 'auto' ? h.ring : h.art === 'laengsparkierung' ? laengsPolygon(h.linie, h.breite) : null
     if (!ring || ring.length < 3 || !ueber(box(ring), sb)) { aus.push(h); continue }
     let a = 0, ue = 0
     try { a = flaeche([[ring]]); ue = flaeche(schnitt([[ring]], sr)) } catch { aus.push(h); continue }
     if (ue < 0.05 || !(a > 0)) { aus.push(h); continue }
-    if (ue >= SR_PARK_ANTEIL * a) { ersetzt.push({ id: h.id, ganz: true }); continue }
+    const reihe = h.art === 'laengsparkierung' || Math.max(...ring.flatMap(p => ring.map(q => dist(p, q)))) > SR_REIHE_M
+    if (!reihe && ue >= SR_PARK_ANTEIL * a) { ersetzt.push({ id: h.id, ganz: true }); continue }
     let rest: Multi = []
     try { rest = differenz([[ring]], sr) } catch { aus.push(h); continue }
-    ersetzt.push({ id: h.id, ganz: false })
-    const klasse = h.art === 'parkfeld' ? h.klasse : 'auto'
-    for (const p of rest) if (p[0] && flaeche([[p[0]]]) >= SR_REST_M2)
-      aus.push({ id: h.id, art: 'parkfeld', klasse, ring: p[0], quelle: h.quelle, name: h.name ?? (h.art === 'laengsparkierung' ? 'Längsparkierung von Hand' : undefined) })
+    const teile = rest.filter(p => p[0] && flaeche([[p[0]]]) >= SR_REST_M2)
+    ersetzt.push({ id: h.id, ganz: !teile.length })
+    for (const p of teile)
+      aus.push({ id: h.id, art: 'parkfeld', klasse: 'auto', ring: p[0], quelle: h.quelle, name: h.name ?? (h.art === 'laengsparkierung' ? 'Längsparkierung von Hand' : undefined) })
   }
   return { hindernisse: aus, ersetzt }
+}
+
+/** Element mit Messbezug zur Parkierung (Vorbelegung des Bedarfs): Art Trottoir, Parkstreifen gemessen bzw. von Hand (nicht
+ * angenommen), Form nicht von Hand verändert */
+export function seitenraumGemessen(fp: FlaechePlan): PlanSeitenraum | null {
+  const st = seitenraumStandard(fp)
+  return st && fp.art === 'trottoir' && st.parkQuelle !== 'annahme' && !seitenraumAngepasst(fp) ? st : null
 }
 
 /** Vorgezogene Seitenräume an den Streifen (Ring höchstens 1 m von einer Achse) -> Kennzeichnung und Id */
@@ -247,8 +307,8 @@ export function endeAnLinie(s: StreifenHand, ende: 'p0' | 'p1', linie: [P, P]): 
  * nachführen (beim Ändern, Ziehen bzw. Löschen eines Elements); die Achse muss neu innerhalb der Strecke queren, sonst gilt rueck
  * (Bordkante heute). -> neue Liste und die Ids der nachgeführten Streifen
  */
-export function endenNachfuehren(streifen: StreifenHand[], alt: [P, P], neu: [P, P], rueck: [P, P] | null = null):
-  { streifen: StreifenHand[]; ids: string[] } {
+export function endenNachfuehren(streifen: StreifenHand[], alt: [P, P], neu: [P, P], rueck: [P, P] | null = null,
+  altKante: [P, P] | null = null): { streifen: StreifenHand[]; ids: string[] } {
   const ids: string[] = []
   const aus = streifen.map(s => {
     const a = einheit(sub(s.p1, s.p0))
@@ -256,8 +316,13 @@ export function endenNachfuehren(streifen: StreifenHand[], alt: [P, P], neu: [P,
     for (const ende of ['p0', 'p1'] as const) {
       const innen: P = ende === 'p0' ? a : [-a[0], -a[1]]
       const sa = schnittGerade(s.p0, a, alt[0], alt[1])
-      if (!sa || sa.t < -0.05 || sa.t > 1.05 || dist(add(sa.x, innen, SR_RAND_ZUSCHLAG), s[ende]) > SR_ENDE_TOL_M) continue
+      const anAlt = !!sa && sa.t >= -0.05 && sa.t <= 1.05 && dist(add(sa.x, innen, SR_RAND_ZUSCHLAG), s[ende]) <= SR_ENDE_TOL_M
+      // altKante (Ziehen): ein Ende, das beim Wegziehen an die Bordkante heute zurückgesetzt wurde, folgt beim Zurückziehen wieder
+      const sk = !anAlt && altKante ? schnittGerade(s.p0, a, altKante[0], altKante[1]) : null
+      const anKante = !!sk && (!sa || sa.t < -0.05 || sa.t > 1.05) && dist(add(sk.x, innen, SR_RAND_ZUSCHLAG), s[ende]) <= SR_ENDE_TOL_M
+      if (!anAlt && !anKante) continue
       const sn = schnittGerade(s.p0, a, neu[0], neu[1])
+      if (anKante && !(sn && sn.t >= -0.05 && sn.t <= 1.05)) continue
       const ziel = sn && sn.t >= -0.05 && sn.t <= 1.05 ? neu : rueck ?? neu
       const p = endeAnLinie(s, ende, ziel)
       if (!p) continue

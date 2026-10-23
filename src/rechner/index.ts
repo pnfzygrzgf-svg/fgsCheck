@@ -268,14 +268,17 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const doppelt = park && fall.parkkataster !== false ? doppeltAmtlich(fall.hindernisse, park.felder.map(f => f.ring)) : []
   let hindernisse: Hindernis[] = [...fall.hindernisse, ...kat.map(v => v.hindernis), ...katPark.map(v => v.hindernis)]
   // Vorgezogener Seitenraum (seitenraum.ts): Parkierung darunter entfällt für die Sichtprüfung (Einträge im Fall bleiben)
-  const srPolys = plan.teile.filter(t => t.standard?.typ === 'seitenraum').map(t => t.poly)
+  // (nur Art Trottoir: nach einem Wechsel der Art wirkt die Fläche wie jede Plan-Fläche)
+  const srPolys = plan.teile.filter(t => t.standard?.typ === 'seitenraum' && t.art === 'trottoir').map(t => t.poly)
   let srErsetzt: SrErsetzt[] | null = null
   if (srPolys.length) {
     const r = parkOhneSeitenraum(hindernisse, srPolys)
     hindernisse = r.hindernisse
     srErsetzt = [...r.ersetzt, ...parkOhneSeitenraum(offen.map(v => v.hindernis), srPolys).ersetzt]
-    if (r.ersetzt.length) planMeldungen.push(`${SR_NAME}: ${r.ersetzt.length} Parkfeld(er) bzw. Parkierung ${SR_ERSETZT} ` +
-      `(${r.ersetzt.filter(x => x.ganz).length} ganz, ${r.ersetzt.filter(x => !x.ganz).length} zum überdeckten Teil); sie zählen in der Sichtprüfung nicht.`)
+    const ganz = r.ersetzt.filter(x => x.ganz).length, teil = r.ersetzt.length - ganz
+    if (r.ersetzt.length) planMeldungen.push(`${SR_NAME}: Auto-Parkierung ${SR_ERSETZT} – ` +
+      [ganz ? `${ganz} Feld(er) entfallen ganz` : '', teil ? `${teil} Feld(er) bzw. Reihe(n) um den überdeckten Teil gekürzt` : '']
+        .filter(Boolean).join(', ') + ' (in der Sichtprüfung; die Einträge bleiben).')
   }
   const kx = kontextBauen(osm, av, sosf, hindernisse)
   kx.vonHand = vonHandAusFall(fall)
