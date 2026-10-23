@@ -19,6 +19,8 @@ import { bedarfLesen, bedarfLeer, type BedarfBlock } from './bedarf/fallBedarf'
  * Version 3 (Bedarfsmodul E1, 20.10.2026): mit Block «bedarf» (Handeingaben zu Bedarf und Querungstyp) bzw. mit einem Streifen
  * als Querung ohne Vortritt (StreifenEingabe.typ). Beides würde eine ältere App still übergehen (den Streifen ohne Vortritt
  * prüfte sie als Fussgängerstreifen); sie lehnt Version 3 mit ihrer Meldung ab. Ohne beides bleibt es bei 1 bzw. 2.
+ * Trottoirüberfahrt am Streifen (23.10.2026): ebenfalls Version 3 (StreifenEingabe.typ), ohne neue Version; eine App mit Version 3
+ * ohne diesen Wert übergeht ihn mit Hinweis.
  */
 export const FALL_VERSION = 3
 export const FALL_VERSION_BASIS = 1
@@ -44,10 +46,16 @@ export const FIXPUNKT_ARTEN: FixpunktArt[] = ['gebaeudeecke', 'av_punkt', 'frei'
 export const FIXPUNKT_NAME_MAX = 80
 export interface Fixpunkt { id: string; p: P; art: FixpunktArt; name?: string; avArt?: string }
 /** Eingaben je Streifen: Lichtsignal von Hand; keinFgs: kein Fussgängerstreifen, Streifen nicht prüfen (wie bisher); typ:
- * Querung ohne Vortritt (Bedarfsmodul E1), geprüft mit der Sichtweite nach VSS 40 240 Z. 8.2. keinFgs und typ schliessen sich aus
- * (keinFgs geht vor). Fehlt typ: Fussgängerstreifen */
-export interface StreifenEingabe { lsa?: 'ja' | 'nein'; keinFgs?: boolean; typ?: QuerungOhneVortritt }
+ * Querung ohne Vortritt (Bedarfsmodul E1), geprüft mit der Sichtweite nach VSS 40 240 Z. 8.2, bzw. Trottoirüberfahrt (seit
+ * 23.10.2026): ohne Sicht auf die Wartefläche (massgebend ist die Knotensicht, die fgsCheck nicht rechnet), Zufahrten nur für die
+ * Vorbelegung des Bedarfs (rechneFall), Querungstyp im Bedarf.
+ * keinFgs und typ schliessen sich aus (keinFgs geht vor). Fehlt typ: Fussgängerstreifen. Eine ältere App ohne die
+ * Trottoirüberfahrt übergeht den Wert mit «Querungstyp ungültig» und prüft den Streifen als Fussgängerstreifen */
+export interface StreifenEingabe { lsa?: 'ja' | 'nein'; keinFgs?: boolean; typ?: StreifenQuerung }
 export const QUERUNG_OHNE_VORTRITT: QuerungOhneVortritt[] = ['furt', 'ohne_vortritt']
+/** Querungsart am Streifen (Auswahl «Querung»): ohne Vortritt bzw. Trottoirüberfahrt; Fussgängerstreifen ohne Wert */
+export type StreifenQuerung = QuerungOhneVortritt | 'trottoirueberfahrt'
+export const STREIFEN_QUERUNGEN: StreifenQuerung[] = [...QUERUNG_OHNE_VORTRITT, 'trottoirueberfahrt']
 /** Fläche (Plan) von Hand (seit 16.10.2026; rechner/planflaechen.ts): geplante Bodenbedeckung, ersetzt für die Rechnung die
  * AV-Flächen darunter (Trottoirnase, Fahrbahnverengung, verschobener Randstein, neue Insel). Ring ohne Schlusspunkt, LV95 */
 export type PlanArt = 'trottoir' | 'fahrbahn' | 'insel'
@@ -293,9 +301,10 @@ export function fallLesen(text: string): [Fall, string[]] {
     let gemeldet = false
     if (v.typ !== undefined) {
       gemeldet = true
-      if (!QUERUNG_OHNE_VORTRITT.includes(v.typ as QuerungOhneVortritt)) hinweise.push(`Streifen-Eingabe ${k}: Querungstyp ungültig, übergangen`)
-      else if (e.keinFgs) hinweise.push(`Streifen-Eingabe ${k}: «kein FGS» und Querung ohne Vortritt zugleich – «kein FGS» gilt, Querungstyp übergangen`)
-      else { e.typ = v.typ as QuerungOhneVortritt; gemeldet = false }
+      if (!STREIFEN_QUERUNGEN.includes(v.typ as StreifenQuerung)) hinweise.push(`Streifen-Eingabe ${k}: Querungstyp ungültig, übergangen`)
+      else if (e.keinFgs) hinweise.push(`Streifen-Eingabe ${k}: «kein FGS» und ${v.typ === 'trottoirueberfahrt' ? 'Trottoirüberfahrt'
+        : 'Querung ohne Vortritt'} zugleich – «kein FGS» gilt, Querungstyp übergangen`)
+      else { e.typ = v.typ as StreifenQuerung; gemeldet = false }
     }
     if (Object.keys(e).length) fall.streifen[k] = e
     else if (Object.keys(v).length && !gemeldet) hinweise.push(`Streifen-Eingabe ${k} ungültig, übergangen`)
@@ -331,14 +340,19 @@ export function vonHandAusFall(fall: Fall): VonHand {
     spur: (fid, kennung) => z(fid, kennung)?.spur ?? null,
     streichen: (fid, kennung) => !!z(fid, kennung)?.streichen,
     lsa: fid => fall.streifen[fid]?.lsa ?? null,
+    // Trottoirüberfahrt: gerechnet wie ein Fussgängerstreifen, rechneFall legt die Zufahrten nur für die Vorbelegung ab
     keinFgs: fid => !!fall.streifen[fid]?.keinFgs,
     tempoKennung: (fid, kennung) => z(fid, kennung)?.tempo ?? null,
     querung: fid => {
       const e = fall.streifen[fid]
-      return e?.typ && !e.keinFgs ? { typ: e.typ, inselMarkiert: inselMarkiert(fall) } : null
+      return e?.typ && !e.keinFgs && e.typ !== 'trottoirueberfahrt' ? { typ: e.typ, inselMarkiert: inselMarkiert(fall) } : null
     },
   }
 }
+
+/** Streifen am Streifen als Trottoirüberfahrt gewählt (nicht «kein FGS») */
+export const istTrottoirueberfahrt = (fall: Fall, fid: string): boolean =>
+  fall.streifen[fid]?.typ === 'trottoirueberfahrt' && !fall.streifen[fid]?.keinFgs
 
 /** Insel im Bedarf von Hand als «nur markiert» bezeichnet (Querung ohne Vortritt: L über die ganze Fahrbahn) */
 export const inselMarkiert = (fall: Fall): boolean => fall.bedarf?.felder['insel.art']?.wert === 'markiert'

@@ -4,6 +4,7 @@ import type { P } from '../geo'
 import type { Multi, Poly } from './poly'
 import type { Entfallen } from './zufahrten'
 import type { Vermassung } from './vermassung'
+import type { Erkennung } from './erkennung'
 
 export interface Konflikt {
   klasse: 'auto' | 'velo' | 'motorrad' | 'gebaeude' | 'baum' | 'hindernis'
@@ -65,6 +66,10 @@ export interface ZufahrtErgebnis {
    * Zufahrten, zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll): frei = geprüfte Länge (Soll bzw. geprueftBisM), verdeckt =
    * Länge bis zum ersten Sichtpunkt, dessen Sichtfeld einen der gemeldeten Konflikte trifft. Darüber hinaus nicht gerechnet */
   freiBisM?: number
+  /** Erkennungsdistanz (Nutzerentscheid 23.10.2026; erkennung.ts): ab wie vielen Metern vor dem Streifen Fahrende die Markierung im
+   * eigenen Fahrstreifen sehen, geprüft bis zum Doppelten der Sichtweite nach Tempo (höchstens 110 m) bzw. bis zum Ende der Fahrlinie.
+   * Nur gerade Zufahrten von Fussgängerstreifen; 2D ohne Gelände (Annahme). Zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll */
+  erkennungM?: Erkennung
   deckung?: string                // Abbiegezufahrt, die ab dem Knoten von der geraden Zufahrt gedeckt ist (nur mit GEDECKT_RECHNEN,
                                   // seit 14.10.2026 standardmässig aus): Text wie beim Entfallen «Knoten … m vor dem Streifen; …»
 }
@@ -93,6 +98,12 @@ export interface StreifenErgebnis {
   querung?: { typ: QuerungOhneVortritt; L: number; ganzeFahrbahn: boolean }
   /** OSM-Tramgleis quert den Streifen (nur mit OSM-Netz; Vorbelegung Bedarfsmodul) */
   tram?: boolean
+  /** Trottoirüberfahrt (Wahl am Streifen, 23.10.2026): angezeigt wie «kein FGS» (Status kein_fgs, ohne Zufahrten und ohne hier nicht
+   * geprüfte Richtungen, keine Sicht auf die Wartefläche); massgebend ist die Knotensicht, die fgsCheck nicht rechnet */
+  trottoirueberfahrt?: true
+  /** Trottoirüberfahrt: Zufahrten und entfallene Richtungen der Rechnung (wie beim Fussgängerstreifen), nur für die Vorbelegung des
+   * Bedarfs (Tempo, innerorts, Lage …), nicht für Sichtbefunde */
+  nurVorbelegung?: { zufahrten: ZufahrtErgebnis[]; entfallen: Entfallen[] }
 }
 
 /** Querung ohne Vortritt: Furt (Insel ohne Balken) bzw. Nase, Einengung, ohne bauliche Massnahme */

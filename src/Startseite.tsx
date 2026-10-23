@@ -69,7 +69,8 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
             lokal gespeichert, ohne Upload. Auch die gewählte Breite des rechten Bereichs merkt sich der Browser.</li>
           <li>Für Karte und Rechnung fragt die App den Kartenausschnitt bei swisstopo, geodienste.ch, OpenStreetMap
             (Overpass) und in Bern bei map.bern.ch ab; gesendet werden nur Koordinaten des Ausschnitts. Den Suchbegriff der
-            Ortssuche erhält swisstopo; der eigene Standort bleibt im Browser.</li>
+            Ortssuche erhält swisstopo; der eigene Standort bleibt im Browser. Die Links «Street View ↗» öffnen Google Maps erst
+            auf Klick; dabei gehen die Koordinaten an Google.</li>
           <li>Nutzungsstatistik: Seitenaufrufe werden mit GoatCounter gezählt, ohne Cookies und ohne Speicherung der
             IP-Adresse. GitHub Pages protokolliert Zugriffe wie jeder Webserver.</li>
         </ul>

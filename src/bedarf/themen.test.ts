@@ -75,7 +75,8 @@ describe('Verbindlichkeit in Worten (Muss/Soll/Hinweis)', () => {
     expect(new Set(Object.values(ist)).size).toBe(EBENEN.length * STAERKEN.length)
     for (const w of [...Object.values(ist), ...Object.values(STAERKE_WORT), ...Object.values(EBENE_WORT)])
       expect(w).not.toMatch(/\b(rot|gelb|grün|blau|grau)\b/i)
-    expect(LEGENDE).toContain('verbindlich im Rechtssinn ist nur die Ebene Recht')
+    // Rechtsnatur-Satz gestrichen (Nutzerentscheid 23.10.2026)
+    expect(LEGENDE).toBe('Muss, Soll und Hinweis nach dem Wortlaut der Quelle.')
   })
   it('Projektentscheide (A1, C3c): «Hinweis (Projektentscheid fgsCheck)»', () => {
     expect(verbindlichkeitVon({ id: 'A1', ebene: 'Recht', staerke: 'hinweis' })).toBe('Hinweis (Projektentscheid fgsCheck)')

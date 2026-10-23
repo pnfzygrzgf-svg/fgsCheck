@@ -50,7 +50,7 @@ export const FELD_DEFS: FeldDef[] = [
     ['mehrzweck', 'Mehrzweckstreifen']) },
   { pfad: 'innerorts', gruppe: 'rahmen', name: 'Innerorts (innerhalb der Ortstafeln)', art: B },
   { pfad: 'vSig', gruppe: 'rahmen', name: 'Signalisiertes Tempo', art: { art: 'zahl', einheit: 'km/h', min: 5, max: 120 } },
-  { pfad: 'tempoRegime', gruppe: 'rahmen', name: 'Strecke oder Zone (Tempo-Regime)', art: w(['strecke', 'Strecke (auch Tempo 30 auf einer Hauptstrasse)'],
+  { pfad: 'tempoRegime', gruppe: 'rahmen', name: 'Strecke oder Zone (Tempo-Regime)', art: w(['strecke', 'Strecke (auch Tempo 20/30 auf einer Strecke)'],
     ['t30_zone', 'in einer Tempo-30-Zone (Zonentafel)'], ['begegnungszone', 'in einer Begegnungszone']) },
   { pfad: 'v85', gruppe: 'rahmen', name: 'Gefahrenes Tempo (V85)', art: { art: 'zahl', einheit: 'km/h', min: 5, max: 150 } },
   { pfad: 'v85Nachweis', gruppe: 'rahmen', name: 'V85 ist gemessen', art: B },
@@ -134,6 +134,7 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'insel.furt', gruppe: 'insel', name: 'Rollstuhldurchgang durch die Insel (Breite)', art: m(0, 5) },
   { pfad: 'inselMoeglich', gruppe: 'insel', name: 'Platz für eine Insel', art: B },
   { pfad: 'durchfahrt', gruppe: 'insel', name: 'Fahrbahn neben der Insel (je Seite, quer)', art: ms(undefined, 30) },
+  { pfad: 'veloQuerung', gruppe: 'insel', name: 'Velos queren mit und warten auf der Insel', art: B },
 
   // ── Ausrüstung ──
   { pfad: 'fgsMitLsa', gruppe: 'ausruestung', name: 'Mit Lichtsignal für Fussgänger', art: B },

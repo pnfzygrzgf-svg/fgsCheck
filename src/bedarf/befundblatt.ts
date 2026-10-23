@@ -24,11 +24,13 @@ import { ahs } from './tabellen'
 import { grundpruefung, type Grundpruefung } from './grundpruefung'
 import { ausgeblendeteBloeckeLeeren } from './feldhilfen'
 import { regelName, regelTitel } from './regelname'
+import { fundstelleKurz } from './quellen'
 import type { Querungstyp } from './eingaben'
 import type { StreifenErgebnis, ZufahrtErgebnis } from '../rechner/typen'
 import type { Fall } from '../fall'
 import type { P } from '../geo'
 import { sichtweiteKurve } from '../rechner/tempo'
+import { sichtQuelleKurz } from '../texte'
 import { sichtFgs } from './tabellen'
 
 export interface BlattOptionen {
@@ -127,8 +129,9 @@ const ZUL: Record<string, string> = {
   nicht_angezeigt: 'Fussgängerstreifen nicht angezeigt', offen: 'Zulässigkeit offen',
 }
 
-/** Regel mit Kurztitel, Nummer und Fundstelle, z. B. «Insel bei breiter Fahrbahn (D2, VSS 40 241 Z. 24)» */
-const regelVerweis = (id: string): string => `${regelTitel(id)} (${id}, ${kurzQuelle(id)})`
+/** Regel mit Kurztitel und lesbarer Fundstelle, ohne Nummer (Nutzertest 23.10.2026), z. B. «Wenig Fahrverkehr – VSS-Norm 40 241
+ * Fussgängerstreifen, Ziffer 17»; die Anzeige verlinkt das Werk ins Quellenverzeichnis */
+const regelVerweis = (id: string): string => `${regelTitel(id)} – ${fundstelleKurz(id)}`
 
 /** Begründung in einer Zeile: Zulässigkeit, Regeln für den Typ mit Fundstelle */
 export function begruendung(b: Befund, typ: Querungstyp | null = null): string {
@@ -198,7 +201,7 @@ const OHNE_VORTRITT = ['furt', 'ohne_vortritt']
 /** Typen, die aus den Streifen folgen */
 const STREIFEN_TYPEN = ['fgs', 'lsa', 'furt', 'ohne_vortritt']
 const TYP_TEXT: Record<string, string> = { fgs: 'Fussgängerstreifen', lsa: 'Fussgängerstreifen mit Lichtsignal', furt: 'Furt',
-  ohne_vortritt: 'Querung ohne Vortritt' }
+  ohne_vortritt: 'Querung ohne Vortritt', trottoirueberfahrt: 'Trottoirüberfahrt' }
 
 /**
  * Ist das Soll des Sichtrechners (nach dem Tempo der Zufahrt) das richtige? (Korrektur A3) Fussgängerstreifen (H1, VSS 40 241 Z. 14):
@@ -260,9 +263,15 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
   if (sichtText) rechnerAnzeige.sichtVorh = sichtText
   vorbelegt.rechner = rechnerAnzeige
   const gebildet = eingabenBilden(vorbelegt.werte, fall.bedarf, rechnerAnzeige)
+  // strittige Felder (Datenquellen widersprechen sich) bleiben ohne Handeingabe offen mit Kennzeichen (A2 offen, 23.10.2026)
+  for (const f of vorbelegt.strittig ?? []) {
+    const x = gebildet.eingaben[f as keyof typeof gebildet.eingaben]
+    if (x && x.wert === null) x.strittig = true
+  }
   // Querungstyp Fussgängerstreifen bzw. ohne Vortritt folgt aus den Streifen (Querungsart, Lichtsignal); eine abweichende
   // Handeingabe dieser Typen gilt nicht (die Rechnung prüft die Streifen nach ihrer Querungsart). Trottoirüberfahrt und
-  // Mehrzweckstreifen bleiben Handeingaben
+  // Mehrzweckstreifen bleiben Handeingaben; ist am Streifen «Trottoirüberfahrt» gewählt (23.10.2026), gilt diese Wahl auch gegen
+  // eine Handeingabe Fussgängerstreifen bzw. ohne Vortritt
   const vorTyp = vorbelegt.werte.typ, handTyp = fall.bedarf?.felder.typ?.wert as string | undefined
   const typHinweis: string[] = []
   if (vorTyp && handTyp && STREIFEN_TYPEN.includes(handTyp) && handTyp !== vorTyp.wert) {
@@ -305,7 +314,8 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     const erreichtR = (r: 'H1' | 'E3') => befund.ausgewertet.includes(r)
     for (const s of g.streifen) {
       const st = streifenTyp(s)
-      if (st === 'kein') continue
+      // «kein FGS» und Trottoirüberfahrt (Wahl am Streifen): keine Sicht auf die Wartefläche gerechnet
+      if (st === 'kein' || st === 'trottoirueberfahrt') continue
       const ov = OHNE_VORTRITT.includes(st)
       const regel: 'H1' | 'E3' = ov ? 'E3' : 'H1'
       // Fussgängerstreifen mit Lichtsignal: VSS 40 241 gilt nicht (kein H1), Sichtrechner nur zur Information
@@ -459,7 +469,9 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       status: x.status, abbiegend: x.zufahrt.startsWith('a'), ...(x.bisM !== undefined ? { bisM: x.bisM } : {}),
       ...(x.freiBisM !== undefined ? { freiBisM: x.freiBisM } : {}) })),
     ohneZufahrt: g.streifen.filter(s => streifenTyp(s) === 'fgs' && s.lsa !== 'ja' && !s.zufahrten.length).map(s => titel(s.fgsId)),
-    gemischt: arten.has('fgs') && [...arten].some(t => OHNE_VORTRITT.includes(t)),
+    // Nachtrag nach Prüfung: auch Fussgängerstreifen und Trottoirüberfahrt in einer Querung
+    gemischt: arten.has('fgs') && [...arten].some(t => OHNE_VORTRITT.includes(t)) ? true
+      : arten.has('fgs') && arten.has('trottoirueberfahrt') ? 'trottoirueberfahrt' : false,
   })
 
   // Annahmen der Grundprüfung mit Wert und Herkunft (Runde 5, Stelle 18)
@@ -521,10 +533,11 @@ const m1 = (x: number) => `${String(Math.round(x * 10) / 10).replace('.', ',')} 
 export function sichtAnzeige(g: QuerungGruppe, titel: (fgsId: string) => string, zName: (fgsId: string, z: string) => string): string {
   const teile: string[] = []
   for (const s of g.streifen) {
-    if (streifenTyp(s) === 'kein') continue
+    if (streifenTyp(s) === 'kein' || streifenTyp(s) === 'trottoirueberfahrt') continue
     for (const z of s.zufahrten) {
       const name = `${g.streifen.length > 1 ? `${titel(s.fgsId)}, ` : ''}${zName(s.fgsId, z.zufahrt)}`
-      const soll = `Soll ${m1(z.sichtweite)} (${z.sichtweiteQuelle})`
+      // Herleitung in Worten statt Rohfundstelle (Nachprüfung 23.10.2026)
+      const soll = `Soll ${m1(z.sichtweite)} (${sichtQuelleKurz(z.sichtweiteQuelle)})`
       if (z.status === 'frei') {
         const bis = z.geprueftBisM ?? z.freiBisM
         teile.push(`${name}: ${bis !== undefined ? `frei bis ${m1(bis)}` : 'frei'}, ${soll}`)

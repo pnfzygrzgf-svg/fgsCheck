@@ -29,7 +29,7 @@ export const HAND_QUELLEN: readonly Quelle[] = ['hand', 'bestaetigt', 'schaetzun
 export const QUELLE_TEXT: Record<Quelle, string> = {
   av: 'AV', osm: 'OSM', geoportal: 'Geoportal Stadt Bern', luftbild: 'Luftbild', hand: 'von Hand', bestaetigt: 'bestätigt', annahme: 'Annahme',
   schaetzung: 'Schätzung',
-  rechnung: 'Sichtrechner',
+  rechnung: 'Sichtrechner', vorschlag: 'Vorschlag',
 }
 
 const istObjekt = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)

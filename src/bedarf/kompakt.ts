@@ -1,10 +1,10 @@
 // ── Bedarfsmodul Runde 2, Verdichtung: eine Zeile je Punkt bzw. Eintrag (nur Anzeige, Befunde unverändert) ──
 //
 // Grundprüfung (Big Five): je Punkt Symbol, Wort und ein Satz; Nummern, Fundstellen, Normhinweise, feste Hinweise und Annahmen nur
-// hinter «Details». Zustand der Zeile (Aggregation, Korrektur D1): die Muss-Regel des Punkts bestimmt ihn (✗ nicht erfüllt, ? offen);
-// ist sie erfüllt, bleibt ✓ bzw. ! auch dann, wenn eine Soll- oder Hinweis-Regel offen bzw. nicht erfüllt ist – mit kurzem Zusatz
-// in Klammern. Punkte ohne Muss-Regel (② ohne gebaute Insel, ⑤) nehmen die schlimmste Teilregel (Soll nicht erfüllt vor offen vor
-// Hinweis vor erfüllt). Offene Angaben erscheinen als Frage (feldhilfen.FRAGEN).
+// in den Details des Punkts (je Punkt aufklappbar, 23.10.2026). Zustand der Zeile (Aggregation, Korrektur D1): die Muss-Regel des
+// Punkts bestimmt ihn (✗ nicht erfüllt, ? offen); ist sie erfüllt, bleibt ✓ bzw. ! (Soll-Regel nicht erfüllt, deren Satz) – übrige
+// offene Teilregeln, Annahmen und Hinweise nur als Zahl in Klammern. Punkte ohne Muss-Regel (② ohne gebaute Insel, ⑤) nehmen die
+// schlimmste Teilregel (Soll nicht erfüllt vor offen vor Hinweis vor erfüllt). Offene Angaben erscheinen als Frage (feldhilfen.FRAGEN).
 //
 // Erweiterte Prüfung: je Eintrag ein Satz aus Ergebnistext und Ist/Soll (mit Einheit, «Soll –» entfällt); offene Einträge als Frage.
 
@@ -31,8 +31,10 @@ export interface GrundZeile {
   zustand: ZeilenZustand
   /** ein Satz (ohne Nummern, ohne Fundstelle) */
   satz: string
-  /** kurzer Zusatz in Klammern (Soll- bzw. Hinweis-Regel offen oder nicht erfüllt) */
+  /** kurzer Zusatz in Klammern: Zahl der übrigen offenen bzw. nicht erfüllten Teilregeln, Annahmen, Hinweise («1 Punkt offen, 1 Annahme») */
   zusatz?: string
+  /** Sätze für die Details des Punkts (Vorbehalt, Hinweise der Vorbelegung), nicht in der Zeile */
+  hinweise: string[]
   /** fehlende Felder der bestimmenden Regel (als Fragen anzuzeigen) */
   fragen: string[]
   /** Wort statt dem des Zustands (Runde 5: Tempo «voraussichtlich erfüllt») */
@@ -67,15 +69,6 @@ export function teilSatz(t: GrundTeil): string {
   return [ist, soll && !(t.zustand === 'erfuellt' && OHNE_SOLL.includes(t.id)) ? `Soll ${soll}` : ''].filter(Boolean).join(', ')
 }
 
-/** Zusatz einer nebensächlichen Teilregel (Soll bzw. Hinweis): «Erkennungsdistanz nicht angegeben» */
-/** offene Nebenregel als Satz (Runde 5): «offen: ab wo der Streifen erkennbar ist» */
-const OFFEN_SATZ: Partial<Record<string, string>> = { 'B5-1b': 'offen: ab wo der Streifen erkennbar ist' }
-function zusatzVon(t: GrundTeil): string | null {
-  if (t.zustand === 'offen') return OFFEN_SATZ[t.id] ?? `${t.name} nicht angegeben`
-  if (t.zustand === 'verletzt') return `${t.name}: Soll nicht erfüllt${t.ist ? `, ${istWort(t.ist)}` : ''}`
-  return null
-}
-
 /** fehlende Felder für Fragen: dedupliziert; Zählung und Schätzklasse der Querenden als eine Frage */
 export function fragenFelder(felder: readonly string[]): string[] {
   const f = [...new Set(felder)]
@@ -85,11 +78,16 @@ export function fragenFelder(felder: readonly string[]): string[] {
 /** Annahme der Grundprüfung, wenn V85 fehlt (grundpruefung.ANNAHME_V85) */
 const ANNAHME_V85 = 'Tempo wie signalisiert (V85 nicht gemessen)'
 
+/** Zahl mit Wort, z. B. «1 Punkt offen», «2 Punkte offen» */
+const anzahl = (n: number, eins: string, mehr: string): string => `${n} ${n === 1 ? eins : mehr}`
+
 /**
- * Zeile eines Punkts (Aggregation D1). Muss-Regel verletzt bzw. offen bestimmt den Zustand (offen: mit nicht erfüllten Soll-Regeln im
- * Zusatz); Muss erfüllt und eine Soll-Regel nicht erfüllt: «!» mit dem Satz der Soll-Regel (Korrektur S9), die Muss-Regel im Zusatz;
- * offene Soll-Regeln im Zusatz. Sicht (①) ohne V85: Zusatz «Annahme: signalisiertes Tempo» (S2). zusatzAussen: weiterer Zusatz
- * (z. B. Hinweis der Vorbelegung zur Beleuchtung, S3).
+ * Zeile eines Punkts (Aggregation D1). Muss-Regel verletzt bzw. offen bestimmt den Zustand; Muss erfüllt und eine Soll-Regel nicht
+ * erfüllt: «!» mit dem Satz der Soll-Regel (Korrektur S9). In der Zeile steht nur der Satz der Teilregel, die den Zustand bestimmt;
+ * die übrigen offenen bzw. nicht erfüllten Teilregeln, Annahmen und Hinweise höchstens als kurzer Zusatz «(1 Punkt offen, 1 Annahme)»
+ * (23.10.2026, Nutzertest: sonst las sich die erfüllte Inseltiefe wie der Grund für «!»). Ihre Sätze stehen in den Details des
+ * Punkts (hinweise): Sicht (①) ohne V85 unter Vorbehalt (S2), Tempo des Sichtrechners, zusatzAussen (z. B. Hinweis der Vorbelegung
+ * zur Beleuchtung, S3; ohne Zahl im Zusatz).
  */
 export function punktZeile(p: GrundPunkt, annahmen: readonly string[] = [], zusatzAussen?: string, tempoHinweis?: string): GrundZeile {
   const m = p.teile.filter(muss), rest = p.teile.filter(t => !muss(t))
@@ -98,36 +96,61 @@ export function punktZeile(p: GrundPunkt, annahmen: readonly string[] = [], zusa
   const t0 = p.teile[0]
   if (p.nr === 'T' && t0?.zustand === 'offen' && t0.fehlend?.length === 1 && t0.fehlend[0] === 'anzeichenSchneller')
     return { nr: p.nr, zustand: 'offen', wort: 'voraussichtlich erfüllt', satz: `${t0.ist}; V85 messen nur bei Verdacht auf schnelleres Fahren`,
-      fragen: ['anzeichenSchneller'] }
+      fragen: ['anzeichenSchneller'], hinweise: [] }
   // Sicht nach dem signalisierten Tempo: unter Vorbehalt (Runde 5, Muster 2)
-  const extra = [p.nr === '1' && annahmen.includes(ANNAHME_V85) ? 'unter Vorbehalt: angenommen, dass nicht schneller als signalisiert gefahren wird' : '',
-    p.nr === '1' ? tempoHinweis ?? '' : '', zusatzAussen ?? '']
-  const mitZusatz = (z: GrundZeile, teile: (string | null)[]): GrundZeile => {
-    const zusatz = [...teile, ...extra].filter((x): x is string => !!x).filter((x, i, a) => a.indexOf(x) === i).join('; ')
-    return zusatz ? { ...z, zusatz } : z
+  const vorbehalt = p.nr === '1' && annahmen.includes(ANNAHME_V85) ? 'unter Vorbehalt: angenommen, dass nicht schneller als signalisiert gefahren wird' : ''
+  const tempo = p.nr === '1' ? tempoHinweis ?? '' : ''
+  const hinweise = [vorbehalt, tempo, zusatzAussen ?? ''].filter(Boolean)
+  /** Zeile mit kurzem Zusatz: Zahl der übrigen offenen bzw. nicht erfüllten Teilregeln, Annahmen und Hinweise */
+  const zeile = (z: Omit<GrundZeile, 'hinweise' | 'zusatz'>, neben: readonly GrundTeil[]): GrundZeile => {
+    const nOffen = neben.filter(t => zz(t) === 'offen').length, nSoll = neben.filter(t => zz(t) === 'soll').length
+    const zusatz = [nSoll ? anzahl(nSoll, 'Soll nicht erfüllt', 'Soll nicht erfüllt') : '', nOffen ? anzahl(nOffen, 'Punkt offen', 'Punkte offen') : '',
+      vorbehalt ? anzahl(1, 'Annahme', 'Annahmen') : '', tempo ? anzahl(1, 'Hinweis', 'Hinweise') : ''].filter(Boolean).join(', ')
+    return { ...z, ...(zusatz ? { zusatz } : {}), hinweise }
   }
   if (m.length) {
     const kopf = sortiert(m)[0]
     const z = zz(kopf)
     const nebenSoll = sortiert(rest).filter(t => zz(t) === 'soll')
-    if (z === 'verletzt' || z === 'soll') return mitZusatz({ nr: p.nr, zustand: z, satz: teilSatz(kopf), fragen: [] }, [])
-    if (z === 'offen') return mitZusatz({ nr: p.nr, zustand: z, satz: teilSatz(kopf), fragen: fragenFelder(kopf.fehlend ?? []) },
-      nebenSoll.map(zusatzVon))
+    if (z === 'verletzt' || z === 'soll') return zeile({ nr: p.nr, zustand: z, satz: teilSatz(kopf), fragen: [] }, [])
+    if (z === 'offen') return zeile({ nr: p.nr, zustand: z, satz: teilSatz(kopf), fragen: fragenFelder(kopf.fehlend ?? []) }, nebenSoll)
     const neben = sortiert(rest).filter(t => zz(t) !== 'erfuellt' && zz(t) !== 'hinweis')
     if (nebenSoll.length) {
       const s0 = nebenSoll[0]
-      return mitZusatz({ nr: p.nr, zustand: 'soll', satz: `${s0.name}: ${teilSatz(s0)}`, fragen: [] },
-        [teilSatz(kopf) ? `${kopf.name}: ${teilSatz(kopf)}` : null, ...neben.filter(t => t !== s0).map(zusatzVon)])
+      return zeile({ nr: p.nr, zustand: 'soll', satz: `${s0.name}: ${teilSatz(s0)}`, fragen: [] }, neben.filter(t => t !== s0))
     }
-    return mitZusatz({ nr: p.nr, zustand: z, satz: teilSatz(kopf), fragen: [] }, neben.map(zusatzVon))
+    return zeile({ nr: p.nr, zustand: z, satz: teilSatz(kopf), fragen: [] }, neben)
   }
-  if (!p.teile.length) return { nr: p.nr, zustand: 'hinweis', satz: 'hier nicht anwendbar', fragen: [] }
+  if (!p.teile.length) return { nr: p.nr, zustand: 'hinweis', satz: 'hier nicht anwendbar', fragen: [], hinweise: [] }
   const kopf = sortiert(p.teile)[0]
   const z = zz(kopf)
-  return mitZusatz({ nr: p.nr, zustand: z, satz: teilSatz(kopf), fragen: z === 'offen' ? fragenFelder(kopf.fehlend ?? []) : [] }, [])
+  return zeile({ nr: p.nr, zustand: z, satz: teilSatz(kopf), fragen: z === 'offen' ? fragenFelder(kopf.fehlend ?? []) : [] }, [])
 }
 
-/** Zeile «Weitere» (weitere bfu-Punkte): schlimmster Zustand; offene als Liste der fehlenden Angaben */
+/**
+ * Annahmen der Grundprüfung je Punkt (Details des Punkts): eine Annahme gehört zu den Punkten, deren Teilregeln das Feld lesen
+ * (Katalog: eingaben; erkannt am Feldnamen bzw. Schlüssel am Anfang, wie befundblatt.annahmeZeilen sie bildet); «Tempo wie
+ * signalisiert» zum Tempo. Die übrigen (z. B. Querungstyp offen) gelten für den ganzen Kasten.
+ */
+export function annahmenJePunkt(g: Pick<Grundpruefung, 'punkte' | 'weitere' | 'annahmen'>,
+  name: (pfad: string) => string = x => x, pfade: readonly string[] = []): { je: Map<string, string[]>; allgemein: string[] } {
+  const je = new Map<string, string[]>(), allgemein: string[] = []
+  const gruppen: [string, readonly GrundTeil[]][] = [...g.punkte.map(p => [p.nr, [...p.teile, ...p.notizen]] as [string, GrundTeil[]]), ['W', g.weitere]]
+  const praefixe = (teile: readonly GrundTeil[]): string[] => {
+    const felder = new Set(teile.flatMap(t => (DEF[t.id]?.eingaben ?? []) as readonly string[]))
+    const ps = [...felder, ...pfade.filter(x => felder.has(x.split('.')[0]))]
+    return [...new Set(ps.flatMap(x => [`${x}:`, `${name(x)}:`]))]
+  }
+  const pr = gruppen.map(([nr, teile]) => [nr, praefixe(teile)] as const)
+  for (const a of g.annahmen) {
+    const zu = a === ANNAHME_V85 ? ['T'] : pr.filter(([, ps]) => ps.some(x => a.startsWith(x))).map(([nr]) => nr)
+    if (!zu.length) allgemein.push(a)
+    for (const nr of zu) je.set(nr, [...(je.get(nr) ?? []), a])
+  }
+  return { je, allgemein }
+}
+
+/** Zeile «Ergänzend (bfu)» (weitere bfu-Aspekte neben den fünf Punkten): schlimmster Zustand; offene als Liste der fehlenden Angaben */
 export function weitereZeile(ws: readonly GrundTeil[]): GrundZeile | null {
   if (!ws.length) return null
   const zustand = [...ws].map(zz).sort((a, b) => RANG[b] - RANG[a])[0]
@@ -136,7 +159,7 @@ export function weitereZeile(ws: readonly GrundTeil[]): GrundZeile | null {
   const offen = ws.filter(t => t.zustand === 'offen')
   if (offen.length) teile.push(`${offen.length} ${offen.length === 1 ? 'Angabe fehlt' : 'Angaben fehlen'} (${offen.map(t => t.name).join(', ')})`)
   if (!teile.length) teile.push(ws.map(t => t.name).join(', ') + ' erfüllt')
-  return { nr: 'W', zustand, satz: teile.join('; '), fragen: fragenFelder(offen.flatMap(t => t.fehlend ?? [])) }
+  return { nr: 'W', zustand, satz: teile.join('; '), fragen: fragenFelder(offen.flatMap(t => t.fehlend ?? [])), hinweise: [] }
 }
 
 /** Kopfzeile: Zahl je Zustand über Tempo und die fünf Punkte, z. B. «erfüllt 2 · Hinweis 1 · offen 3» */

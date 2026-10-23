@@ -219,11 +219,19 @@ describe('② Fussgängerschutzinsel (B5-2a, B5-2b, B5-2c)', () => {
     expect(teil(gp({ insel: INSEL({ breite: null }) }), 'B5-2b')).toMatchObject({ zustand: 'offen', fehlend: ['insel.breite'] })
     expect(z(gp({ insel: INSEL({}) }), 'B5-2a')).toBe('-')
   })
-  it('Durchfahrt: 3,50 m (Toleranz bis 3,75 m wie F3) oder ab 4,50 m; dazwischen und darunter weich; je Seite; fehlt: offen', () => {
+  it('Durchfahrt: 3,50 m (gemessen 3,45 bis 3,75 m) oder ab 4,50 m; dazwischen und darunter weich; je Seite; fehlt: offen', () => {
     expect(KATALOG['B5-2c'].werte.dTol).toBe(KATALOG.F3.werte.schmalMax)
+    // bfu-Toleranz ab 3,45 m; die Arbeitshilfe (F3) prüft seit dem Nutzerentscheid 23.10.2026 wieder ab 3,50 m
+    expect([KATALOG['B5-2c'].werte.dMin, KATALOG.F3.werte.min]).toEqual([3.45, 3.5])
     const d = (x: number[]) => z(gp({ insel: INSEL({}), durchfahrt: x }), 'B5-2c')
-    expect([3.49, 3.5, 3.75, 3.76, 4.49, 4.5, 6].map(x => d([x, x]))).toEqual(['weich', 'erfuellt', 'erfuellt', 'weich', 'weich', 'erfuellt', 'erfuellt'])
-    expect([3.49, 3.5, 3.75, 3.76, 4.49, 4.5].map(bfuDurchfahrtOk)).toEqual([false, true, true, false, false, true])
+    // Korrektur 23.10.2026: die bfu nennt 3,5 m auf eine Nachkommastelle, untere Grenze 3,45 m
+    expect([3.44, 3.45, 3.49, 3.5, 3.75, 3.76, 4.49, 4.5, 6].map(x => d([x, x])))
+      .toEqual(['weich', 'erfuellt', 'erfuellt', 'erfuellt', 'erfuellt', 'weich', 'weich', 'erfuellt', 'erfuellt'])
+    expect([3.44, 3.45, 3.49, 3.5, 3.75, 3.76, 4.49, 4.5].map(bfuDurchfahrtOk)).toEqual([false, true, true, true, true, false, false, true])
+    // Anzeige: Soll mit Band, Ist je Seite
+    expect(teil(gp({ insel: INSEL({}), durchfahrt: [3.47, 3.5] }), 'B5-2c')).toMatchObject({ zustand: 'erfuellt',
+      ist: 'je Seite 3,47 m und 3,50 m', soll: '3,50 m (3,45–3,75 m) oder mindestens 4,50 m' })
+    expect(teil(gp({ insel: INSEL({}), durchfahrt: [3.47] }), 'B5-2c')!.ist).toBe('3,47 m')
     const g = gp({ insel: INSEL({}), durchfahrt: [3.5, 4] })
     expect(teil(g, 'B5-2c')).toMatchObject({ zustand: 'verletzt', detail: 'Seite 2: 4,00 m' })
     // Normhinweis fallbezogen: F3 wertet nur 4,25 bis 4,50 m milder
@@ -333,13 +341,17 @@ describe('④ Beleuchtung und ⑤ Fussgängerfrequenz (B5-4, B5-5)', () => {
 })
 
 describe('Weitere bfu-Punkte (B5-W1, B5-W2, B5-W3)', () => {
-  it('Fahrbahnhaltestelle (Ziff. 2.3): ohne bauliche Insel weich; mit Insel Durchfahrt rund 3,50 m (bis 3,75 m), sonst weich; fehlt offen', () => {
+  it('Fahrbahnhaltestelle (Ziff. 2.3): ohne bauliche Insel weich; mit Insel Durchfahrt rund 3,50 m (3,45 bis 3,75 m), sonst weich; fehlt offen', () => {
     const halt = (art: 'fahrbahn' | 'bucht' | null) => ({ art, lage: null, verdeckt: null, ueberholenUnterbunden: null })
     expect(z(gp({ haltestelle: halt('fahrbahn') }), 'B5-W3')).toBe('weich')
     expect(teil(gp({ haltestelle: halt('fahrbahn') }), 'B5-W3')!.quelle).toBe('bfu MS.013:2025 Ziff. 2.3')
     expect(z(gp({ haltestelle: halt('fahrbahn'), insel: INSEL({ art: 'markiert' }) }), 'B5-W3')).toBe('weich')
     const d = (x: number) => z(gp({ haltestelle: halt('fahrbahn'), insel: INSEL({}), durchfahrt: [x, 3.6] }), 'B5-W3')
-    expect([3.49, 3.5, 3.75, 3.76, 4.5].map(d)).toEqual(['weich', 'erfuellt', 'erfuellt', 'weich', 'weich'])   // ohne Alternative ab 4,50 m
+    // untere Grenze 3,45 m (Korrektur 23.10.2026), ohne Alternative ab 4,50 m
+    expect([3.44, 3.45, 3.49, 3.5, 3.75, 3.76, 4.5].map(d)).toEqual(['weich', 'erfuellt', 'erfuellt', 'erfuellt', 'erfuellt', 'weich', 'weich'])
+    expect(KATALOG['B5-W3'].werte.dMin).toBe(KATALOG['B5-2c'].werte.dMin)
+    expect(teil(gp({ haltestelle: halt('fahrbahn'), insel: INSEL({}), durchfahrt: [3.47, 3.5] }), 'B5-W3'))
+      .toMatchObject({ ist: 'Durchfahrt je Seite 3,47 m und 3,50 m', soll: 'rund 3,50 m (3,45–3,75 m)' })
     expect(teil(gp({ haltestelle: halt('fahrbahn'), insel: INSEL({}), durchfahrt: null }), 'B5-W3')).toMatchObject({ zustand: 'offen', fehlend: ['durchfahrt'] })
     expect(teil(gp({ haltestelle: null }), 'B5-W3')).toMatchObject({ zustand: 'offen', fehlend: ['haltestelle'] })
     expect(z(gp({ haltestelle: halt('bucht') }), 'B5-W3')).toBe('-')

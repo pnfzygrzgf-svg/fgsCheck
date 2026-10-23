@@ -9,12 +9,14 @@ import { describe, expect, it } from 'vitest'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
 import { KATALOG, REGEL_IDS, WERKE, type RegelId } from './katalog'
+import { LESENAME } from './quellen'
 import { REGELN } from './regeln'
 import { GRUND_IDS } from './grundpruefung'
 import { beurteile } from './entscheid'
 import { fall, TESTFAELLE } from './testfaelle'
 import { EBENEN, STAERKEN, type RegelDef } from './typen'
 import { FELDER } from './eingaben'
+import { nummernOhneTitel } from './regelname'
 
 const defs = REGEL_IDS.map(id => [id, KATALOG[id] as RegelDef] as const)
 /** Regeln mit Befund im Entscheidbaum (ohne Grundprüfung B5) bzw. der Grundprüfung */
@@ -90,11 +92,75 @@ describe('Regelkatalog', () => {
   })
 })
 
+/**
+ * Prüfsätze (Nutzerentscheid 23.10.2026): je Regel ein Satz in Alltagssprache, was gemessen bzw. abgefragt wird und was folgt. Die
+ * Grenzwerte stehen im Satz so, wie die Regel sie aus werte liest (8,5 → «8,50»); 1 und 2 auch als Wort («mehr als einen», «zwei»,
+ * «doppelte»), 2/3 und 1/3 als «zwei Drittel» bzw. «ein Drittel».
+ */
+describe('Prüfsätze', () => {
+  /** Schwellen, die bewusst nicht im Prüfsatz stehen, mit Grund */
+  const OHNE_ZAHL: Record<string, string> = {
+    'B5-1.r10': 'Zwischenstufe der Radiustabelle; der Satz nennt den Bereich 10 bis 24 m',
+    'B5-1.r15': 'Zwischenstufe der Radiustabelle; der Satz nennt den Bereich 10 bis 24 m',
+    'I6-B.ab': 'Grenze A/B zu C ohne Einfluss auf den Befund (beides erfüllt)',
+    'I6-B.abInsel': 'Grenze A/B zu C ohne Einfluss auf den Befund (beides erfüllt)',
+    'I6-B.e': 'Grenze E zu F ohne Einfluss auf den Befund (beides Soll verletzt)',
+    'I6-B.eInsel': 'Grenze E zu F ohne Einfluss auf den Befund (beides Soll verletzt)',
+  }
+  const woerter = (t: string): number => t.trim().split(/\s+/).length
+  /** Formen einer Zahl im Satz: ganz, mit zwei bzw. einer Nachkommastelle (Komma), kleine Zahlen und Brüche als Wort */
+  const formen = (v: number): RegExp[] => {
+    const z = (x: string) => new RegExp(`(?<![\\d,])${x.replace(',', '\\,')}(?!\\d|,\\d)`)
+    const r = [z(v.toFixed(2).replace('.', ',')), z(v.toFixed(1).replace('.', ','))]
+    if (Number.isInteger(v)) r.push(z(String(v)))
+    if (v === 1) r.push(/\b(mehr als|höchstens) einen\b/)
+    if (v === 2) r.push(/\b(zwei|doppelten?)\b/)
+    if (Math.abs(v - 2 / 3) < 1e-9) r.push(/\bzwei Dritteln?\b/)
+    if (Math.abs(v - 1 / 3) < 1e-9) r.push(/\bein Drittel\b/)
+    return r
+  }
+
+  it('jede Regel hat einen Prüfsatz: Satz bis 40 Wörter, ohne Regelnummer und Fundstellen-Kürzel, V85/DTV erklärt, Ton nach Stärke', () => {
+    for (const [id, d] of defs) {
+      const t = d.pruefsatz
+      expect(t.trim().length, id).toBeGreaterThan(20)
+      expect(t, id).toMatch(/[.?]$/)
+      expect(woerter(t), id).toBeLessThanOrEqual(40)
+      expect(nummernOhneTitel(t), id).toEqual([])
+      expect(t, id).not.toMatch(/\b(Z|Ziff|Tab|Anh|Abb|Kap|Art|S)\.\s?\d|z\. ?B\./)
+      // V85 und DTV beim ersten Vorkommen erklärt: «gefahrenes Tempo (V85)», «Fahrzeuge pro Tag (DTV)»
+      if (t.includes('V85')) expect(t.indexOf('V85'), id).toBe(t.indexOf('(V85)') + 1)
+      if (t.includes('DTV')) expect(t.indexOf('DTV'), id).toBe(t.indexOf('(DTV)') + 1)
+      // Ablauf und gestrichene Regeln kurz gekennzeichnet, sonst Ton nach der Hauptstärke
+      if (d.art === 'gestrichen') { expect(t, id).toMatch(/^Gestrichen: /); continue }
+      if (d.art !== 'befund') { expect(t, id).toMatch(/^Ablauf: /); continue }
+      expect(t, id).not.toMatch(/^(Ablauf|Gestrichen):/)
+      const ton: Record<string, RegExp> = { hart: /[Nn]ötig|nicht zulässig|kein\w* .*zulässig/, hart_bericht: /verkehrstechnische[mnr]? Bericht/,
+        weich: /sollte[\s\S]*begründ/, hinweis: /Hinweis|prüfen/ }
+      // Hauptstärke und fallabhängige Stärken (auch)
+      for (const st of [d.staerke!, ...(d.auch ?? [])]) expect(t, `${id} (${st})`).toMatch(ton[st])
+    }
+  })
+  it('Grenzwerte aus werte stehen im Prüfsatz (Ausnahmen begründet)', () => {
+    const fehlt: string[] = []
+    for (const [id, d] of defs) for (const [k, v] of Object.entries(d.werte ?? {})) {
+      if (OHNE_ZAHL[`${id}.${k}`]) continue
+      if (!formen(v).some(r => r.test(d.pruefsatz))) fehlt.push(`${id}.${k} = ${v}: ${d.pruefsatz}`)
+    }
+    expect(fehlt).toEqual([])
+    // jede Ausnahme gehört zu einer vorhandenen Schwelle
+    for (const s of Object.keys(OHNE_ZAHL)) {
+      const [id, k] = [s.slice(0, s.lastIndexOf('.')), s.slice(s.lastIndexOf('.') + 1)]
+      expect((KATALOG[id as RegelId] as RegelDef).werte?.[k], s).toBeDefined()
+    }
+  })
+})
+
 describe('Normtext-Wächter', () => {
   const texte = defs.flatMap(([id, d]) => [
     [id, 'ergebnis', d.ergebnis, MAX_ERGEBNIS], [id, 'bedingung', d.bedingung, MAX_SONST],
     [id, 'bemerkung', d.bemerkung ?? '', MAX_SONST], [id, 'normHinweis', d.normHinweis ?? '', MAX_SONST],
-    [id, 'kurzsatz', d.kurzsatz ?? '', MAX_ERGEBNIS],
+    [id, 'kurzsatz', d.kurzsatz ?? '', MAX_ERGEBNIS], [id, 'pruefsatz', d.pruefsatz, MAX_SONST],
   ] as const)
 
   it(`kurze eigene Texte (Ergebnis ≤ ${MAX_ERGEBNIS}, übrige ≤ ${MAX_SONST} Zeichen), ohne Anführungszeichen, ohne ß, ohne «Zebra»`, () => {
@@ -111,8 +177,9 @@ describe('Normtext-Wächter', () => {
     const src = readFileSync(join(__dirname, f), 'utf-8').split('\n').filter(z => !/^\s*(\/\/|\*|\/\*\*)/.test(z)).join('\n')
     return [...src.matchAll(/'((?:[^'\\\n]|\\.)*)'|`((?:[^`\\]|\\.)*)`/g)].map(m => [f, m[1] ?? m[2]] as [string, string])
   })
-  /** Titel der Werke und Ziffern sind Zitate (Fundstellen), kein Normtext: vom Wortfolgen-Abgleich ausgenommen */
-  const zitate = new Set<string>([...Object.values(WERKE).flatMap(w => [w.name, w.titel]), ...defs.flatMap(([, d]) => d.quellen.map(q => q.ziffer))])
+  /** Titel der Werke und Ziffern sind Zitate (Fundstellen), Adressen keine Texte: vom Wortfolgen-Abgleich ausgenommen */
+  const zitate = new Set<string>([...Object.values(WERKE).flatMap(w => [w.name, w.titel, w.voll, w.pdf?.url ?? '', w.seite ?? '']), ...Object.values(LESENAME),
+    ...defs.flatMap(([, d]) => d.quellen.map(q => q.ziffer))])
   it('alle Zeichenketten in src/bedarf: ohne ß, ohne «Zebra»', () => {
     expect(modulTexte.length).toBeGreaterThan(500)
     for (const [f, t] of modulTexte) {
@@ -144,6 +211,41 @@ describe('Normtext-Wächter', () => {
         const s = w.slice(i, i + N).join(' ')
         if (folgen.has(s)) treffer.push(`${id}.${feld}: ${s}`)
       }
+    }
+    expect(treffer).toEqual([])
+  })
+})
+
+/** Quellen mit vollem Titel und Link (23.10.2026): Adressen nur beim Herausgeber und nur im Werkverzeichnis */
+describe('Werkverzeichnis: voller Titel und offizielle Adressen', () => {
+  const ERLAUBT = ['fedlex.admin.ch', 'bfu.ch', 'bern.ch', 'be.ch', 'hindernisfreie-architektur.ch', 'verkehrsclub.ch', 'llv.li']
+  const host = (u: string) => new URL(u).hostname
+  const erlaubt = (u: string) => ERLAUBT.some(d => host(u) === d || host(u).endsWith(`.${d}`))
+  it('jedes Werk hat einen vollen Titel; jede Adresse ist https beim Herausgeber; ohne Adresse ein Vermerk (ausser Projektentscheid)', () => {
+    for (const [id, w] of Object.entries(WERKE) as [string, (typeof WERKE)[keyof typeof WERKE]][]) {
+      expect(w.voll.length, id).toBeGreaterThan(w.name.length)
+      for (const u of [w.pdf?.url, w.seite]) if (u) {
+        expect(u, id).toMatch(/^https:\/\//)
+        expect(erlaubt(u), `${id}: ${u}`).toBe(true)
+      }
+      if (w.pdf) expect(w.pdf.mb, id).toBeGreaterThan(0)
+      if (!w.pdf && !w.seite) expect(id === 'ENTSCHEID' || !!w.bezug, id).toBe(true)
+    }
+    // Normen: kein Link (kostenpflichtig, Nutzerentscheid 23.10.2026), nur der Vermerk
+    for (const id of ['40241', '40240', '40242', '40837', '40213', '640075', '640850a', '640852', '640070'] as const)
+      expect([WERKE[id].pdf, WERKE[id].seite, WERKE[id].bezug], id).toEqual([null, null, 'kostenpflichtig'])
+    expect([WERKE.ENTSCHEID.pdf, WERKE.ENTSCHEID.seite]).toEqual([null, null])
+  })
+  it('Adressen der Herausgeber stehen nur in katalog.ts (Geodienste wie map.bern.ch ausgenommen)', () => {
+    const GEODIENSTE = ['map.bern.ch']
+    const dateien = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? dateien(join(d, e.name))
+      : /\.(ts|tsx)$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [join(d, e.name)] : [])
+    const src = join(__dirname, '..')
+    const treffer: string[] = []
+    for (const f of dateien(src)) {
+      if (f.endsWith(join('bedarf', 'katalog.ts')) || f.endsWith(join('bedarf', 'quellen.ts'))) continue
+      for (const m of readFileSync(f, 'utf-8').matchAll(/https?:\/\/[^\s'"`)]+/g))
+        if (erlaubt(m[0]) && !GEODIENSTE.includes(host(m[0]))) treffer.push(`${f.slice(src.length + 1)}: ${m[0]}`)
     }
     expect(treffer).toEqual([])
   })

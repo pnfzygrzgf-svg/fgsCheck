@@ -20,6 +20,8 @@ import { querungen, vorbelegen, type GeoVorbelegung } from './vorbelegung'
 import { automatik, type AutoGeo } from './automatik'
 import { AUTO_C, ortAbstandText, abstandOrt, querAbstand, querungsAchse } from './automatikC'
 import { createElement } from 'react'
+import { offeneFragen } from './zusammenfassung'
+import { bestaetigungsFelder } from './feldbedarf'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { BedarfAbschnitt } from '../BedarfPanel'
 import { DETAIL_HAND_ANNAHME, befundblatt, typText } from './befundblatt'
@@ -29,6 +31,10 @@ import { vorbehaltFelder } from './kompakt'
 import { beurteile } from './entscheid'
 import { fall as testfall } from './testfaelle'
 import { kurzform } from './zusammenfassung'
+import { reiterStand } from '../reiter'
+import { zusammenfassungBlatt } from './zusammenfassung'
+import { grundpruefung } from './grundpruefung'
+import { GrundpruefungAnzeige } from '../BedarfPanel'
 import type { Vorbelegung } from './fallBedarf'
 
 const O: P = [2600000, 1200000]
@@ -65,6 +71,128 @@ const styp = (id: number): StLinie => {
 const SH = (h: ShLinie[], t: StLinie[] = []): GeoVorbelegung['strassenhierarchie'] => ({ hierarchie: h, typen: t, bereich: BQ })
 const VS = (v: (number | null)[], teile: P[][][] = v.map(() => LAENGS)): GeoVorbelegung['vsig'] =>
   ({ linien: v.map((x, i) => ({ id: `v${i}`, strasse: 'Hauptstrasse', vSig: x, teile: teile[i] })), bereich: BQ })
+
+describe('Tempo 20: Begegnungszone als Vorschlag (Nutzerentscheid 23.10.2026)', () => {
+  const opt = (geo: GeoVorbelegung) => ({ vorgabe: { bern: true, kantonBE: true }, geo })
+  it('20 km/h laut Geoportal: Begegnungszone vorgeschlagen, A2 verletzt (kein «Annahme bestätigen»), Empfehlung flächig, keine Grundprüfung', () => {
+    const v = vor({ vsig: VS([20]) })
+    expect(v.werte.tempoRegime).toEqual({ wert: 'begegnungszone', quelle: 'vorschlag',
+      text: 'Tempo 20 km/h laut Geoportal Stadt Bern: Begegnungszone vorgeschlagen (Tempo 20 auf einer Strecke ist selten; sonst unter «Strecke oder Zone» Strecke wählen)' })
+    const b = befundblatt(g, fallMit(), opt({ vsig: VS([20]) }))
+    expect(b.gebildet.eingaben.tempoRegime).toEqual({ wert: 'begegnungszone', quelle: 'vorschlag' })
+    expect(b.befund.alle.find(y => y.id === 'A2')).toMatchObject({ zustand: 'verletzt' })
+    expect(b.befund.alle.find(y => y.id === 'A2')?.bestaetigen).toBeUndefined()
+    expect(b.befund.ende).toBe('begegnungszone')
+    expect(b.befund.empfehlung.typ).toBe('flaechig')
+    expect(reiterStand(b.befund)).toBe('kein_streifen')
+    expect(b.grund).toMatchObject({ gilt: false, zoneVorschlag: true })
+    expect(b.grund.grund).toContain('Begegnungszone vorgeschlagen (Tempo 20)')
+    expect(b.annahmen.join(' ')).not.toContain('Strecke oder Zone')
+    const html = renderToStaticMarkup(createElement(BedarfAbschnitt, { fall: fallMit(), blaetter: [b], vorgabe: { bern: true, kantonBE: true }, aendern: () => {} }))
+    expect(html).toContain('Falls Strecke: unter «Strecke oder Zone» ändern')
+    expect(html).toContain('Strecke (auch Tempo 20/30 auf einer Strecke)')
+  })
+  it('von Hand «Strecke» bei 20 km/h: Handeingabe geht vor, normale Prüfung mit Grundprüfung', () => {
+    const f = fallMit()
+    f.bedarf = { felder: { tempoRegime: { wert: 'strecke', quelle: 'hand' } } }
+    const b = befundblatt(g, f, opt({ vsig: VS([20]) }))
+    expect(b.gebildet.eingaben.tempoRegime).toEqual({ wert: 'strecke', quelle: 'hand' })
+    expect(b.befund.ende).toBeNull()
+    expect(b.befund.alle.some(y => y.id === 'A2')).toBe(false)
+    expect(b.grund.gilt).toBe(true)
+    expect(reiterStand(b.befund)).not.toBe('kein_streifen')
+  })
+  it('20 km/h mit OSM-Zonentag Tempo-30-Zone: widersprüchlich, Strecke/Zone offen mit Hinweis', () => {
+    const geo: GeoVorbelegung = { vsig: VS([20]), osmTags: new Map([[1, { ...HAUPT, maxspeed: '30', 'zone:maxspeed': 'CH:zone30' }]]) }
+    const v = vor(geo)
+    expect(v.werte.tempoRegime).toBeUndefined()
+    expect(v.feldHinweise!.tempoRegime).toMatch(/^Tempo 20 km\/h laut Geoportal Stadt Bern, aber Tempo-30-Zone \(OSM\).*widersprüchlich/)
+    const b = befundblatt(g, fallMit(), opt(geo))
+    expect(b.befund.alle.find(y => y.id === 'A2')).toMatchObject({ zustand: 'offen', fehlend: ['tempoRegime'] })
+    // living_street (Begegnungszone in OSM) widerspricht nicht: bleibt Tatsache aus OSM
+    expect(vor({ vsig: VS([20]), osmTags: new Map([[1, { ...HAUPT, highway: 'living_street', maxspeed: '20' }]]) }).werte.tempoRegime)
+      .toMatchObject({ wert: 'begegnungszone', quelle: 'osm' })
+  })
+})
+
+describe('Tempo 20: Nachtrag nach Prüfung (wirksames Tempo, Rohtempo, Strecke 20)', () => {
+  const opt = (geo: GeoVorbelegung) => ({ vorgabe: { bern: true, kantonBE: true }, geo })
+  /** zwei Wege (West: 1, Ost: 2) mit eigenen Tags */
+  const zwei = (a: Record<string, string>, b: Record<string, string>, geo: GeoVorbelegung = {}) => {
+    const o: OsmDaten = { ...OSM, wege: [weg(1, [[10, -300, 0], [12, 0, 0]], { ...HAUPT, ...a }), weg(2, [[12, 0, 0], [13, 300, 0]], { ...HAUPT, ...b })] }
+    const gg = querungen(rechneFall(o, AV, [], 12, fallMit(), null).streifen)[0]
+    return vorbelegen(gg, fallMit(), [], { ...geo, osmTags: new Map(o.wege.map(w => [w.id, w.tags])) })
+  }
+  it('Soll 1: wirksames Tempo von Hand nicht 20 (z. B. 50 bei V_sig 20): kein Vorschlag, normale Prüfung', () => {
+    const f = fallMit()
+    f.bedarf = { felder: { vSig: { wert: 50, quelle: 'hand' } } }
+    const b = befundblatt(g, f, opt({ vsig: VS([20]) }))
+    expect(b.vorbelegt.werte.tempoRegime?.quelle).not.toBe('vorschlag')
+    expect(b.gebildet.eingaben.tempoRegime.quelle).not.toBe('vorschlag')
+    expect(b.befund.ende).toBeNull()
+    expect(b.grund.gilt).toBe(true)
+    // von Hand 20 bei V_sig 30: Vorschlag (wirksam ist die Handeingabe)
+    const f20 = fallMit()
+    f20.bedarf = { felder: { vSig: { wert: 20, quelle: 'hand' } } }
+    expect(befundblatt(g, f20, opt({ vsig: VS([30]) })).gebildet.eingaben.tempoRegime).toEqual({ wert: 'begegnungszone', quelle: 'vorschlag' })
+  })
+  it('Soll 2: nur Rohtempo genau 20; OSM maxspeed 10 (Stufe 20) bleibt offen mit Hinweis', () => {
+    const v10 = zwei({ maxspeed: '10' }, { maxspeed: '10' })
+    expect(v10.werte.vSig?.wert).toBe(20)
+    expect(v10.werte.tempoRegime).toBeUndefined()
+    expect(v10.feldHinweise!.tempoRegime).toContain('Tempo 10 in OSM ohne Zonenangabe')
+    expect(zwei({ maxspeed: '20' }, { maxspeed: '20' }).werte.tempoRegime).toMatchObject({ wert: 'begegnungszone', quelle: 'vorschlag' })
+  })
+  it('Soll 3: maxspeed=20 mit CH:urban am selben Weg: Strecke (OSM, Tatsache); CH:urban an einem anderen Weg: Widerspruch', () => {
+    const u = { maxspeed: '20', 'maxspeed:type': 'CH:urban' }
+    expect(zwei(u, u).werte.tempoRegime).toMatchObject({ wert: 'strecke', quelle: 'osm' })
+    const w2 = zwei({ maxspeed: '20' }, { 'maxspeed:type': 'CH:urban' }, { vsig: VS([20]) })
+    expect(w2.werte.tempoRegime).toBeUndefined()
+    expect(w2.feldHinweise!.tempoRegime).toContain('widersprüchlich')
+  })
+  it('Kann: Zusammenfassung «vorgeschlagene Begegnungszone», Bericht ohne Sprung, Grundprüfung gemischt mit Trottoirüberfahrt', () => {
+    const b = befundblatt(g, fallMit(), opt({ vsig: VS([20]) }))
+    expect(zusammenfassungBlatt(b).antwort).toMatch(/^In der vorgeschlagenen Begegnungszone \(Tempo 20\) ist kein Fussgängerstreifen zulässig/)
+    expect(renderToStaticMarkup(createElement(GrundpruefungAnzeige, { g: b.grund, druck: true }))).not.toContain('Falls Strecke')
+    expect(renderToStaticMarkup(createElement(GrundpruefungAnzeige, { g: b.grund }))).toContain('Falls Strecke')
+    expect(grundpruefung(testfall({}), { gemischt: 'trottoirueberfahrt' }).grund).toContain('teils Fussgängerstreifen, teils Trottoirüberfahrt')
+  })
+})
+
+describe('Begegnungszone aus OSM gegen amtliches Tempo (Nutzerentscheid 23.10.2026)', () => {
+  const LS = { ...HAUPT, highway: 'living_street', maxspeed: '20' }
+  it('OSM living_street, V_sig 30 (wie Nr. 1088): Strecke/Zone offen mit Hinweis, A2 offen, Zulässigkeit offen, Empfehlung ausgesetzt', () => {
+    const geo: GeoVorbelegung = { vsig: VS([30]), osmTags: new Map([[1, LS]]) }
+    const v = vor(geo)
+    expect(v.werte.tempoRegime).toBeUndefined()
+    expect(v.feldHinweise!.tempoRegime).toBe('OSM: Begegnungszone, Geoportal Stadt Bern: Tempo 30 km/h – Strecke oder Zone von Hand wählen')
+    const b = befundblatt(g, fallMit(), { vorgabe: { bern: true, kantonBE: true }, geo })
+    expect(b.gebildet.eingaben.tempoRegime.wert).toBeNull()
+    expect(b.gebildet.eingaben.tempoRegime.strittig).toBe(true)
+    expect(b.befund.alle.find(y => y.id === 'A2')).toMatchObject({ zustand: 'offen', fehlend: ['tempoRegime'] })
+    expect(b.befund.ende).toBeNull()
+    expect(b.befund.zulaessigkeit).toBe('offen')
+    expect(b.befund.empfehlung.typ).toBe('keiner')
+    expect(frageVon('tempoRegime')).toContain('Begegnungszone')
+    // Handeingabe «Strecke» klärt den Widerspruch: A2 nicht anwendbar, normale Prüfung
+    const f = fallMit()
+    f.bedarf = { felder: { tempoRegime: { wert: 'strecke', quelle: 'hand' } } }
+    const bh = befundblatt(g, f, { vorgabe: { bern: true, kantonBE: true }, geo })
+    expect(bh.gebildet.eingaben.tempoRegime.strittig).toBeUndefined()
+    expect(bh.befund.alle.some(y => y.id === 'A2')).toBe(false)
+    // ohne Widerspruch (Tempo 30 ohne Zonenangabe) bleibt A2 wie bisher nicht anwendbar
+    const ohne = befundblatt(g, fallMit(), { vorgabe: { bern: true, kantonBE: true }, geo: { vsig: VS([30]) } })
+    expect(ohne.befund.alle.some(y => y.id === 'A2')).toBe(false)
+    // V_sig 50: ebenfalls offen (nicht Strecke nach dem Geoportal)
+    expect(vor({ vsig: VS([50]), osmTags: new Map([[1, LS]]) }).werte.tempoRegime).toBeUndefined()
+  })
+  it('V_sig 20 mit living_street: Begegnungszone (OSM); ohne Geoportal (ausserhalb Berns): OSM-Begegnungszone bleibt Tatsache', () => {
+    expect(vor({ vsig: VS([20]), osmTags: new Map([[1, LS]]) }).werte.tempoRegime).toMatchObject({ wert: 'begegnungszone', quelle: 'osm' })
+    const aus = vor({ osmTags: new Map([[1, { ...LS, maxspeed: '30' }]]) })
+    expect(aus.werte.tempoRegime).toMatchObject({ wert: 'begegnungszone', quelle: 'osm' })
+    expect(aus.feldHinweise?.tempoRegime).toBeUndefined()
+  })
+})
 
 describe('Paket C: Tempo (V_sig) und Strecke/Zone (Strassenhierarchie)', () => {
   it('V_sig über der Achse hat Vorrang vor OSM; Abweichung mit Hinweis; leerer V_sig bzw. Ausfall: OSM bleibt', () => {
@@ -492,10 +620,16 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
     expect(b.offen.filter(o => o.bestaetigen).map(o => o.feld).sort()).toEqual(['beduerfnis', 'tempoRegime'])
     const html = renderToStaticMarkup(createElement(BedarfAbschnitt, { fall: fallMit(), blaetter: [b], vorgabe: { bern: true, kantonBE: true }, aendern: () => {} }))
     expect(html).toContain('Vorschlag bestätigen')
-    expect(html).toContain('Annahme bestätigen für')
+    // 23.10.2026: als Frage im Thema (statt «Annahme bestätigen für» unter den offenen Angaben), mit «Vorschlag bestätigen» und «ändern»
+    expect(html).toContain('Bitte bestätigen: in einer Tempo-30-Zone (Zonentafel) (angenommen)?')
     // Runde 4: der Knopf nur an den Feldern, deren Annahme das Verbot offen hält (nicht an jeder Annahme)
-    const knoepfe = [...html.matchAll(/aria-label="([^"]+): Vorschlag bestätigen"/g)].map(x => x[1])
-    expect(knoepfe.sort()).toEqual(['Besonderer Grund für Vortritt', 'Strecke oder Zone (Tempo-Regime)'])
+    const knoepfe = [...html.matchAll(/<li id="feld-([^"]+)">(?:(?!<\/li>).)*?aria-label="[^"]+ Vorschlag bestätigen"/g)].map(x => x[1])
+    expect(knoepfe.sort()).toEqual(['beduerfnis', 'tempoRegime'])
+    expect(html.match(/Vorschlag bestätigen<\/button>/g)?.length).toBe(2)
+    // 23.10.2026: Strecke/Zone und besonderer Grund gehören zur erweiterten Prüfung, nicht in den Block der Grundprüfung
+    const fr = offeneFragen(b, bestaetigungsFelder([b]))
+    expect(fr.map(x => x.ziel)).not.toContain('tempoRegime')
+    expect(fr.map(x => x.ziel)).not.toContain('beduerfnis')
     expect([...b.gebildet.herkunft.values()].filter(h => h.zustand === 'vorbelegt' && (h.quelle === 'annahme' || h.quelle === 'schaetzung')).length)
       .toBeGreaterThan(2)
     expect(b.befund.alle.find(y => y.id === 'C2')?.detail).toBe('beruht auf einer Annahme der Vorbelegung: Vorschlag bestätigen bzw. von Hand ändern')
@@ -529,11 +663,11 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
     expect(t30.befund.alle.some(y => y.id === 'A2')).toBe(false)
     expect(t30.befund.ausgewertet).toContain('A2')
     expect(t30.befund.empfehlung.typ).toBe('Q1')
-    // Tempo 20 ohne Zonenangabe (OSM-Tags allein): Strecke/Zone offen → A2 offen, Empfehlung ausgesetzt
+    // Tempo 20 ohne Zonenangabe (OSM-Tags allein): Begegnungszone als Vorschlag (Nutzerentscheid 23.10.2026), gilt für die Beurteilung
     const t20 = mit({ maxspeed: '20' })
-    expect(t20.gebildet.eingaben.tempoRegime.wert).toBeNull()
-    expect(t20.befund.alle.find(y => y.id === 'A2')).toMatchObject({ zustand: 'offen', fehlend: ['tempoRegime'] })
-    expect(t20.befund.empfehlung.typ).toBe('keiner')
+    expect(t20.gebildet.eingaben.tempoRegime).toEqual({ wert: 'begegnungszone', quelle: 'vorschlag' })
+    expect(t20.befund.alle.find(y => y.id === 'A2')).toMatchObject({ zustand: 'verletzt' })
+    expect(t20.befund.empfehlung.typ).toBe('flaechig')
     // Begegnungszone als Annahme (Tempo 20): offen mit «bestätigen», Empfehlung ausgesetzt
     const ann = testfall({ tempoRegime: 'begegnungszone', vSig: 20 }); ann.tempoRegime = { wert: 'begegnungszone', quelle: 'annahme' }
     expect(beurteile(ann, BERN).alle.find(y => y.id === 'A2')).toMatchObject({ zustand: 'offen', bestaetigen: true, fehlend: ['tempoRegime'] })

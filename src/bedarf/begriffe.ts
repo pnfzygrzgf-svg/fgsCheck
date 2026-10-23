@@ -115,6 +115,12 @@ export const BEGRIFFE: readonly Begriff[] = [
     text: 'Ein Stück einer Querung bis zu einer Insel; über eine Insel quert man in zwei Teilquerungen.' },
   { id: 'einengung', name: 'Einengung (Trottoirnase)', muster: ['Einengung(?:en)?', 'Trottoirnasen?', 'Nase'],
     text: 'Stelle, an der das Trottoir in die Fahrbahn vorgezogen ist: der Weg über die Fahrbahn wird kürzer, und Querende sind besser zu sehen.' },
+  { id: 'projektentscheid', name: 'Projektentscheid', muster: ['Projektentscheide?'],
+    text: 'Festlegung der App fgsCheck, wo die Grundlagen nichts sagen oder eine Vereinfachung nötig ist; sie ist kein externes Werk und nicht verbindlich.' },
+  { id: 'ziffer', name: 'Ziffer', muster: ['Ziffer'],
+    text: 'Nummerierter Abschnitt einer Norm oder Fachdokumentation (etwa Ziffer 24), damit sich die Stelle im Werk finden lässt.' },
+  { id: 'sr', name: 'SR (Systematische Rechtssammlung)', muster: ['SR(?= \\d)', 'Systematische Rechtssammlung'],
+    text: 'Systematische Rechtssammlung des Bundes: unter dieser Nummer wird ein Erlass des Bundes geführt, etwa SR 741.21 für die Signalisationsverordnung.' },
 ]
 
 const RE = new Map(BEGRIFFE.map(b => [b.id, new RegExp(`(?<![\\p{L}\\p{N}])(?:${b.muster.join('|')})(?![\\p{L}\\p{N}])`, 'u')]))

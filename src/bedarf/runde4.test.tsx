@@ -20,8 +20,8 @@ import { eintragSatz } from './kompakt'
 import { FRAGEN } from './feldhilfen'
 import { nummernOhneTitel } from './regelname'
 import type { RegelDef } from './typen'
-import { BedarfAbschnitt, BefundblattAnzeige, VerzeichnisBericht, feldZeileId } from '../BedarfPanel'
-import { BegriffeHilfe, QuellenHilfe } from '../Hilfe'
+import { BedarfAbschnitt, BefundblattAnzeige, QuelleMitVerweis, VerzeichnisBericht, feldZeileId } from '../BedarfPanel'
+import { Anleitung, BegriffeListe, QuellenTabelle, RechnungGrundlagen } from '../Hilfe'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number): [number, number] => wgs(O[0] + x, O[1] + y)
@@ -47,19 +47,22 @@ const bOffen = blatt(fOffen)
 const satzZahl = (t: string) => t.split(/(?<=[.!?])\s+(?=[A-ZÄÖÜ0-9])/).length
 
 describe('Runde 4: Quellenverzeichnis', () => {
-  it('jedes Werk hat Ebene und zwei eigene Sätze (was, wie verbindlich); Bundesrecht verbindlich, Projektentscheid kein Werk', () => {
+  it('jedes Werk hat Ebene und eigene Sätze (was, ausser bei Normen wie verbindlich); Bundesrecht verbindlich, Projektentscheid kein Werk', () => {
     expect(Object.keys(WERK_INFO).sort()).toEqual(Object.keys(WERKE).sort())
     for (const w of WERK_IDS) {
       const i = WERK_INFO[w]
       expect(i.was, w).toMatch(/\.$/)
-      expect(i.gilt, w).toMatch(/\.$/)
-      expect(satzZahl(werkText(w)), w).toBe(2)
+      // Normen: nur der erste Satz (Nutzerentscheid 23.10.2026), sonst zwei Sätze
+      if (i.ebene === 'Norm') expect(i.gilt, w).toBe('')
+      else expect(i.gilt, w).toMatch(/\.$/)
+      expect(satzZahl(werkText(w)), w).toBe(i.ebene === 'Norm' ? 1 : 2)
+      expect(werkText(w), w).not.toMatch(/anerkannte Fachregeln|kein Gesetz/)
       expect(werkText(w).length, w).toBeLessThanOrEqual(320)
       expect(werkText(w).toLowerCase(), w).not.toContain('zebra')
       expect(nummernOhneTitel(werkText(w)), w).toEqual([])
     }
     for (const w of ['VOT30', 'SSV', 'VRV'] as WerkId[]) expect(WERK_INFO[w]).toMatchObject({ ebene: 'Recht', gilt: 'Bundesrecht, verbindlich.' })
-    for (const w of ['40241', '40240', '640075'] as WerkId[]) expect(WERK_INFO[w].gilt).toContain('kein Gesetz')
+    for (const w of ['40241', '40240', '640075'] as WerkId[]) expect(WERK_INFO[w].gilt).toBe('')
     expect(WERK_INFO.MP.gilt).toContain('eigenen Projekte der Stadt Bern verbindlich')
     expect(WERK_INFO.AHBE.gilt).toContain('eigenen Projekte des Kantons verbindlich')
     expect(WERK_INFO.AHBE.gilt).toMatch(/^Arbeitshilfe der kantonalen Verwaltung, keine Rechtsnorm/)
@@ -92,23 +95,43 @@ describe('Runde 4: Quellenverzeichnis', () => {
     const w = werkeImFall([b])
     const erwartet = new Set([...b.befund.alle.map(x => x.id), ...b.grund.punkte.flatMap(p => [...p.teile, ...p.notizen].map(t => t.id)),
       ...b.grund.weitere.map(t => t.id)].flatMap(werkeVon))
+    erwartet.delete('ENTSCHEID')
     expect(new Set(w)).toEqual(erwartet)
     expect(w).toContain('BFU')
     expect(w).not.toContain('VCS')
-    const hilfe = renderToStaticMarkup(<QuellenHilfe />)
+    const hilfe = renderToStaticMarkup(<QuellenTabelle />)
     const n = regelnJeWerk()
-    for (const x of WERK_IDS) expect(hilfe.includes(`id="quelle-${x}"`), x).toBe((n.get(x) ?? 0) > 0)
+    for (const x of WERK_IDS) expect(hilfe.includes(`id="quelle-${x}"`), x).toBe(x !== 'ENTSCHEID' && (n.get(x) ?? 0) > 0)
     expect(hilfe).not.toContain('id="quelle-VCS"')
-    expect(text(hilfe)).toContain(`VSS 40 241 Fussgängerstreifen 2019-03 Norm ${WERK_INFO['40241'].was}`)
+    // nur externe Werke: kein Projektentscheid in der Tabelle (der Begriff erklärt ihn)
+    expect(hilfe).not.toContain('id="quelle-ENTSCHEID"')
+    expect(BEGRIFFE.some(b => b.id === 'projektentscheid')).toBe(true)
+    const pe = REGEL_IDS.find(id => (KATALOG[id] as RegelDef).quellen[0]?.werk === 'ENTSCHEID')!
+    expect(renderToStaticMarkup(<QuelleMitVerweis id={pe} quelle="" />)).toContain('href="#begriff-projektentscheid"')
+    expect(renderToStaticMarkup(<BegriffeListe />)).toContain('id="begriff-projektentscheid"')
+    // voller Titel und Link zum Herausgeber (23.10.2026)
+    expect(text(hilfe)).toContain(`VSS 40 241 ${WERKE['40241'].voll} (kostenpflichtig) 2019-03 Norm ${WERK_INFO['40241'].was}`)
+    expect(hilfe).not.toMatch(/mobilityplatform|vss\.ch/)
+    expect(hilfe).toContain(`<a href="${WERKE.BFU.pdf.url}" target="_blank" rel="noopener" class="werk-extern"`)
+    expect(text(hilfe)).toContain(`${WERKE.BFU.voll} Seite ↗ · PDF, 0,2 MB ↗`)
+    // jede PDF-Adresse ist als PDF gekennzeichnet
+    for (const w of WERK_IDS) {
+      const pdf = WERKE[w].pdf
+      if (pdf && (n.get(w) ?? 0) > 0) expect(text(hilfe), w).toMatch(new RegExp(`PDF, ${String(pdf.mb).replace('.', ',')} MB ↗`))
+    }
     expect(nummernOhneTitel(text(hilfe))).toEqual([])
   })
-  it('Details je Eintrag: Werkname als Verweis auf das Verzeichnis mit dem Satz als Tooltip; im Bericht reiner Text', () => {
+  it('Details je Eintrag: Werkname als Verweis auf das Verzeichnis mit vollem Titel und Satz als Tooltip, Link ↗ zum Herausgeber; im Bericht reiner Text', () => {
     const panel = renderToStaticMarkup(<BefundblattAnzeige b={bOffen} />)
     expect(panel).toMatch(/<a href="#quelle-[^"]+" class="werk-link" title="[^"]+">/)
-    expect(panel).toContain(`href="#quelle-VOT30" class="werk-link" title="${WERK_INFO.VOT30.was} ${WERK_INFO.VOT30.gilt}">SR 741.213.3</a>`)
+    // Nutzertest 23.10.2026: Lesename statt Kennung, Artikel direkt in fedlex
+    expect(panel).toContain(`href="#quelle-VOT30" class="werk-link" title="${WERKE.VOT30.voll}. ${WERK_INFO.VOT30.was} ${WERK_INFO.VOT30.gilt}">Tempo-30-Zonen-Verordnung (SR 741.213.3)</a>`)
+    expect(panel).toContain(`<a href="${WERKE.VOT30.seite}#art_4" target="_blank" rel="noopener" class="werk-extern"`)
+    expect(text(panel).replace(/ ,/g, ',')).toContain('Tempo-30-Zonen-Verordnung (SR 741.213.3), Art. 4 Abs. 2 ↗')
     const druck = renderToStaticMarkup(<BefundblattAnzeige b={bOffen} druck />)
     expect(druck).not.toContain('werk-link')
-    expect(druck).toContain('SR 741.213.3:2001-09-28 Art. 4 Abs. 2')
+    expect(druck).not.toContain('werk-extern')
+    expect(druck).toContain('Tempo-30-Zonen-Verordnung (SR 741.213.3), Art. 4 Abs. 2')
     // Kann A2: Begegnungszone offen (Tempo 20 ohne Zonenangabe) → im Bericht «Empfehlung: folgt, sobald …»
     const b20 = blatt(fallMit(x => { x.bedarf = { felder: { tempoRegime: { wert: null, quelle: 'hand' }, vSig: { wert: 20, quelle: 'hand' } } } }))
     expect(b20.befund.empfehlung.typ).toBe('keiner')
@@ -166,11 +189,15 @@ describe('Runde 4: Begriffe', () => {
     expect(text(bericht)).toContain(`Begegnungszone: ${BEGRIFFE.find(b => b.id === 'begegnungszone')!.text}`)
     expect(bericht).not.toContain('begriff-knopf')
     expect(nummernOhneTitel(text(bericht))).toEqual([])
+    // Bericht: voller Titel und Adresse als Text (druckbar)
+    expect(text(bericht)).toContain(`${WERKE.VOT30.name} (${WERKE.VOT30.ausgabe}): ${WERKE.VOT30.voll}.`)
+    expect(text(bericht)).toContain(`Seite: ${WERKE.VOT30.seite}`)
+    expect(bericht).not.toContain('target="_blank"')
     const panel = renderToStaticMarkup(<BedarfAbschnitt fall={fOffen} blaetter={[bOffen]} vorgabe={BERN.vorgabe} aendern={() => {}} />)
     expect(panel).toContain('class="begriff-knopf"')
     const zf = /<p class="bedarf-zusammenfassung">.*?<\/p>/.exec(panel)![0]
     expect(zf).not.toContain('begriff')
-    const hilfe = text(renderToStaticMarkup(<BegriffeHilfe />))
+    const hilfe = text(renderToStaticMarkup(<BegriffeListe />))
     for (const b of BEGRIFFE) expect(hilfe).toContain(`${b.name} ${b.text}`)
     expect(nummernOhneTitel(hilfe)).toEqual([])
   })
@@ -214,9 +241,11 @@ describe('Runde 4: Muss-Hinweis an offenen Feldern', () => {
   it('Maske: Zusatz klein und grau mit Symbol bei offenen Feldern', () => {
     const html = renderToStaticMarkup(<BedarfAbschnitt fall={fOffen} blaetter={[bOffen]} vorgabe={BERN.vorgabe} aendern={() => {}} />)
     const zeile = (pfad: string) => new RegExp(`<tr id="${feldZeileId(pfad)}"[^>]*>.*?</tr>`).exec(html)?.[0] ?? ''
-    expect(zeile('tempoRegime')).toContain('<div class="klein feld-bedarf"><span aria-hidden="true">⚑</span> entscheidet über die Zulässigkeit</div>')
+    // 23.10.2026: offene Angaben der erweiterten Prüfung stehen als Frage im Thema (statt als Zeile der Maske), mit «für: …»
+    expect(zeile('tempoRegime')).toBe('')
+    expect(new RegExp(`<li id="${feldZeileId('tempoRegime')}">.*?</li>`).exec(html)?.[0]).toContain('für: ')
     const m = feldBedarf([bOffen])
-    const mitText = FELD_DEFS.filter(d => html.includes(`id="${feldZeileId(d.pfad)}"`) && feldBedarfText(m.get(d.pfad)) &&
+    const mitText = FELD_DEFS.filter(d => html.includes(`<tr id="${feldZeileId(d.pfad)}"`) && feldBedarfText(m.get(d.pfad)) &&
       bOffen.gebildet.herkunft.get(d.pfad)?.zustand !== 'vorbelegt')
     expect(mitText.length).toBeGreaterThan(3)
     for (const d of mitText) expect(zeile(d.pfad), d.pfad).toContain(`⚑</span> ${feldBedarfText(m.get(d.pfad))}`)
@@ -267,5 +296,50 @@ describe('Runde 4: Abstand bei beidseitigem Strassenende (ganze Strasse)', () =>
     const vor = { abstandFgsM: { wert: 40, quelle: 'annahme' as const, text: 'ganze Strasse', ganzeStrasse: true as const } }
     expect(eingabenBilden(vor, null).eingaben.abstandFgsM).toEqual({ wert: 40, quelle: 'annahme', ganzeStrasse: true })
     expect(eingabenBilden(vor, { felder: { abstandFgsM: { wert: 40, quelle: 'hand' } } }).eingaben.abstandFgsM).toEqual({ wert: 40, quelle: 'hand' })
+  })
+})
+
+describe('Hilfe kurz; Quellen und Begriffe als eigene Abschnitte (23.10.2026)', () => {
+  it('«So funktioniert\'s»: höchstens 8 kurze Schritte, ausführliche Bedienung und Grenzen zugeklappt, ohne Quellen- und Begriffstabelle', () => {
+    const html = renderToStaticMarkup(<Anleitung />)
+    const schritte = /<ol>(.*?)<\/ol>/s.exec(html)![1].match(/<li>/g)!.length
+    expect(schritte).toBeLessThanOrEqual(8)
+    for (const li of /<ol>(.*?)<\/ol>/s.exec(html)![1].split('<li>').slice(1)) expect(text(li).length).toBeLessThanOrEqual(260)
+    expect(html).toContain('<summary>Mehr zur Bedienung</summary>')
+    expect(html).toContain('<summary>Grenzen der App</summary>')
+    expect(html).not.toContain('quellen-tabelle')
+    expect(html).not.toContain('begriffe-liste')
+    expect(text(html)).toContain('«Grundlagen und Quellen» und «Begriffe»')
+    // ausführliche Bedienung bleibt erhalten (nur verschoben)
+    for (const t of ['Ecke runden:', 'Mittelinsel (Standard):', 'Vermassung ab Fixpunkt:', 'Feldhilfen:', 'Grundprüfung (Big Five, bfu):'])
+      expect(text(html)).toContain(t)
+  })
+  it('Begriff-Knopf: Erklärung mit Sprung zum Abschnitt «Begriffe»; Quellen-Anker in der Tabelle', () => {
+    const tab = renderToStaticMarkup(<QuellenTabelle />)
+    expect(tab).toContain('id="quelle-BFU"')
+    expect(renderToStaticMarkup(<BegriffeListe />)).toContain('id="begriff-begegnungszone"')
+  })
+})
+
+describe('Feste Texte mit Werkverweisen (Nutzerbefund 23.10.2026)', () => {
+  it('«Rechnung und Sichtweiten»: je genanntes Werk ein Verweis ins Quellenverzeichnis, VRV mit Artikel-Link, bfu mit Link zum Herausgeber', () => {
+    const html = renderToStaticMarkup(<RechnungGrundlagen />)
+    for (const w of ['40241', 'BFU', 'VRV']) expect(html, w).toContain(`href="#quelle-${w}" class="werk-link"`)
+    expect(html).toContain(`href="${WERKE.VRV.seite}#art_18"`)
+    expect(html).toContain(`href="${WERKE.BFU.seite}"`)
+    expect(text(html)).toContain('Verkehrsregelnverordnung (VRV)')
+    expect(text(html)).not.toMatch(/\b(Z|Tab)\. /)
+    // Hilfe «Mehr zur Bedienung»: Werknamen verlinkt
+    const hilfe = renderToStaticMarkup(<Anleitung />)
+    for (const w of ['40241', '40240', 'BFU', 'MP', 'AHBE']) expect(hilfe, w).toContain(`href="#quelle-${w}"`)
+  })
+})
+
+describe('Kein Satz zur Rechtsnatur (Nutzerentscheid 23.10.2026)', () => {
+  it('weder «kein Gesetz» noch «keine Gesetze» im Panel, Befundblatt, Bericht, in den Quellen und der Hilfe', () => {
+    const htmls = [renderToStaticMarkup(<BedarfAbschnitt fall={fOffen} blaetter={[bOffen]} vorgabe={BERN.vorgabe} aendern={() => {}} />),
+      renderToStaticMarkup(<BefundblattAnzeige b={bOffen} druck />), renderToStaticMarkup(<VerzeichnisBericht blaetter={[bOffen]} />),
+      renderToStaticMarkup(<QuellenTabelle />), renderToStaticMarkup(<Anleitung />)]
+    for (const h of htmls) expect(text(h)).not.toMatch(/kein Gesetz|keine Gesetze|Rechtssinn/)
   })
 })

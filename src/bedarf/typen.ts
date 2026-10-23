@@ -44,6 +44,12 @@ export interface RegelDef {
   gruppe: Gruppe
   /** Thema (Pflicht): genau eines je Regel, Anzeige nach Thema */
   thema: Thema
+  /**
+   * Prüfsatz (Pflicht, Nutzerentscheid 23.10.2026): eine Frage bzw. ein Bedingungssatz in Alltagssprache, was gemessen bzw. abgefragt
+   * wird (mit Grenzwert und Einheit aus werte) und was daraus folgt, Ton nach Stärke; eigene Formulierung, kein Normtext. Ablauf
+   * (Weichen, Zusammenfassungen, Verweise) beginnt mit «Ablauf:», gestrichene Regeln mit «Gestrichen:». Anzeige: Regelübersicht «Prüft:».
+   */
+  pruefsatz: string
   art: RegelArt
   /** null nur bei aggregat, verweis, gestrichen */
   ebene: Ebene | null

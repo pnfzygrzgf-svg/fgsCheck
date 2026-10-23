@@ -168,7 +168,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     const mzsFgs = typ === 'mehrzweck' && k.o('mzsMitFgs') === true
     if (zul !== 'nicht_angezeigt') {
       const stumm = !(FGS_ARTIG.includes(typ) || mzsFgs)
-      reihe(['D1', 'D1b', 'D2', 'D2a', 'D2c', 'D3a', 'D3b', 'D4a', 'D4b', 'D4c', 'D4d', 'D4-R',
+      reihe(['D1', 'D1b', 'D2', 'D2a', 'D3a', 'D2c', 'D3b', 'D4a', 'D4b', 'D4c', 'D4d', 'D4-R',
         'D6-1', 'D6-2', 'D6-2b', 'D6-3', 'D6-3b', 'D6-4', 'D6-5'], stumm)
     }
 

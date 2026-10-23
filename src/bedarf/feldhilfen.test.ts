@@ -418,7 +418,7 @@ describe('Gestrichenes Feld «zoneVerkehrsorientiert» (Nutzerentscheid 20.10.20
     expect(KATALOG.C2c.art).toBe('gestrichen')
     expect(KATALOG.C2c.bemerkung).toContain('Nutzerentscheid 20.10.2026')
     expect(Object.keys(REGELN)).not.toContain('C2c')
-    expect(FELD_DEF.get('tempoRegime')!.art).toMatchObject({ optionen: [['strecke', 'Strecke (auch Tempo 30 auf einer Hauptstrasse)'],
+    expect(FELD_DEF.get('tempoRegime')!.art).toMatchObject({ optionen: [['strecke', 'Strecke (auch Tempo 20/30 auf einer Strecke)'],
       ['t30_zone', 'in einer Tempo-30-Zone (Zonentafel)'], ['begegnungszone', 'in einer Begegnungszone']] })
     expect(FELD_HILFEN.tempoRegime.was).toContain('Hauptstrasse')
   })

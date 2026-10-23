@@ -7,27 +7,36 @@
 
 import { KATALOG } from './katalog'
 
+const f2 = (x: number) => x.toFixed(2).replace('.', ',')
+
 export type F3Klasse = 'schmal' | 'band' | 'knapp' | null
 
 /** Klasse einer Durchfahrt d [m] nach F3 */
 export function f3Klasse(d: number): F3Klasse {
   const W = KATALOG.F3.werte
-  if (d < W.min) return 'schmal'
+  // zu schmal unter 3,50 m wie die Arbeitshilfe (Nutzerentscheid 23.10.2026; die Toleranz ab 3,45 m gilt nur in der Grundprüfung bfu)
+  if (d < W.min - 1e-9) return 'schmal'
   if (d > W.schmalMax && d < W.breitMin) return 'band'
   if (d < W.ideal || (d >= W.breitMin && d < W.breitIdeal)) return 'knapp'
   return null
 }
 
 /**
- * Durchfahrt d [m] nach der Grundprüfung bfu (B5-2c): «3,5 m oder mindestens 4,5 m». Toleranz um 3,50 m bis zum oberen Rand des
- * schmalen Bands von F3 (3,75 m, Arbeitshilfe Kanton BE), darunter bzw. bis 4,50 m nicht erfüllt.
+ * Durchfahrt d [m] nach der Grundprüfung bfu (B5-2c): «3,5 m oder mindestens 4,5 m». Band um 3,50 m: unten ab 3,45 m (die bfu nennt
+ * 3,5 m auf eine Nachkommastelle; 3,47 m ist Mess- bzw. Zeichengenauigkeit), oben bis zum Rand des schmalen Bands von F3 (3,75 m,
+ * Arbeitshilfe Kanton BE); darunter bzw. bis 4,50 m nicht erfüllt.
  */
 export function bfuDurchfahrtOk(d: number): boolean {
   const W = KATALOG['B5-2c'].werte
-  return (d >= W.d - 1e-9 && d <= W.dTol + 1e-9) || d >= W.dBreit - 1e-9
+  return (d >= W.dMin - 1e-9 && d <= W.dTol + 1e-9) || d >= W.dBreit - 1e-9
 }
 
-const f2 = (x: number) => x.toFixed(2).replace('.', ',')
+/** Ist der Durchfahrt in Worten: eine Seite «3,47 m», zwei Seiten «je Seite 3,47 m und 3,50 m» */
+export function durchfahrtIst(d: readonly number[]): string {
+  const t = d.map(x => `${f2(x)} m`)
+  return t.length === 2 ? `je Seite ${t[0]} und ${t[1]}` : t.join(', ')
+}
+
 
 /**
  * Hinweise zur Durchfahrt neben einer Insel für das Werkzeug: je Seite (A, B) die Klasse nach F3 und, mit durchgehendem

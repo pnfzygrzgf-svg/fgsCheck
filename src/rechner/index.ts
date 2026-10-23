@@ -23,7 +23,7 @@ import { furtQuert, E1_KURZ } from './standardinsel'
 import { f1 } from '../texte'
 import type { Rechnung, StreifenErgebnis } from './typen'
 import type { TempoAmtlich } from './tempo'
-import { vonHandAusFall, streifenHerkunftText, type Fall } from '../fall'
+import { vonHandAusFall, streifenHerkunftText, istTrottoirueberfahrt, type Fall } from '../fall'
 import { streifenTitel } from '../benennung'
 
 const BRUECKE_UMRISS_M = 0.5
@@ -273,7 +273,11 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   // wird als Fussgängerstreifen geprüft – nur als Hinweis zum Fall, nicht «kein Fussgängerstreifen» am Streifen
   const planung = quelle === 'hand' && !!u && !!mk && !istFgs(mk)
   const hinweis = u && mk ? (planung ? planungHinweis(mk, u.tags) : markierungHinweis(mk, u.tags)) : ''
+  // Trottoirüberfahrt (Wahl am Streifen): gerechnet wie ein Fussgängerstreifen, gekennzeichnet; ohne Hinweis zur Markierung. Die
+  // Zufahrten kommen am Ende nach nurVorbelegung (Anzeige wie «kein FGS»)
+  for (const s of erg) if (istTrottoirueberfahrt(fall, s.fgsId)) s.trottoirueberfahrt = true
   if (hinweis && !planung) for (const s of erg) {
+    if (s.trottoirueberfahrt) continue
     if (mk && istFgs(mk)) s.markierungHinweis = hinweis; else s.keinFgsHinweis = hinweis
   }
   // Streifen von Hand: Lage und Masse für den Plan (vermassung.ts), mit Umriss und Bordkanten der Rechnung
@@ -290,6 +294,10 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   if (plan.teile.length || plan.meldungen.length) planAnnahmen(erg, plan, meldungen, planMeldungen, kx.fahrbahn, fall.flaechenPlan)
   // Tramgleis nach OSM quert den Streifen (Achse bzw. Umriss): nur Vorbelegung des Bedarfsmoduls, die Sichtprüfung nutzt es nicht
   if (kxOhne.netz) for (const e of erg) e.tram = kxOhne.netz.tram.some(l => tramQuert(l, e.p0, e.p1, e.umriss))
+  for (const e of erg) if (e.trottoirueberfahrt) {
+    e.nurVorbelegung = { zufahrten: e.zufahrten, entfallen: e.entfallen }
+    e.zufahrten = []; e.entfallen = []; e.status = 'kein_fgs'
+  }
   const inseln = [...new Set(streifen.flatMap(s => s.inseln))].filter(z => z.herkunft !== 'hand')
   return { streifen: erg, meldungen, ms: performance.now() - t0, vorschlaege: [...offen, ...kat, ...katPark], streifenQuelle: quelle,
     markierung: mk, hinweis, luftbild, parkVerworfen, doppelt, inseln, inselTeilt,

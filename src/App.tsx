@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
-  OHNE_VORTRITT_FARBE,
+  OHNE_VORTRITT_FARBE, TUE_RAND,
   hindernisText, hindernisFarbe, FIXPUNKT_FARBE, PLAN_FARBEN, planMarke, NrMarke, type Werkzeug, type KartenHinweis, type Masslinie } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
@@ -22,18 +22,22 @@ import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, au
 import type { ZufahrtErgebnis, StreifenErgebnis } from './rechner/typen'
 import type { FallRechnung } from './rechner'
 import { KATASTER_PARK_M } from './rechner/vorschlaege'
-import { SICHTWEITE, KURVE_SICHTWEITE } from './rechner/tempo'
 import { abzugTeile } from './rechner/fahrstreifen'
 import { type Hindernis, BAUM_STAMM_M, LAENGS_BREITE_M } from './rechner/hindernisse'
 import { linieKreis, RADIUS_HAND_M } from './rechner/spurhand'
-import { GRUND, ART, STATUS, statusText, f1, f2, mText } from './texte'
+import { ART, ENTFALLEN_ERKLAERUNG, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, tempoHerkunft, f1, f2, mText, streifenStatus, TUE_OPTION,
+  TUE_NUR_EINMUENDUNG, erkennungText, ERKENNUNG_TITEL } from './texte'
+import { TueHinweis } from './TueHinweis'
 import Bericht from './Bericht'
-import { Anleitung, Datenschutz, Fusszeile } from './Hilfe'
+import { Anleitung, BegriffeListe, Datenschutz, Fusszeile, QuellenTabelle, RechnungGrundlagen } from './Hilfe'
+import { VerweisText } from './Verweise'
+import { RegelUebersicht } from './RegelUebersicht'
+import { streifenStreetView, zufahrtStreetView, zufahrtStreetViewTitel } from './streetview'
 import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type PlanArt, type FlaechePlan, type FurtSeite, PLAN_ARTEN, naechstePlanId, planRingPruefen,
   naechsteFixId, FIXPUNKT_NAME_MAX, STREIFEN_NAME_MAX, leererFall, fallLesen, fallSchreiben, fallMerken, fallErinnern, fallVergessen,
   ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, streifenHandTeilen, teilungZuruecknehmbar,
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
-  streifenHerkunftText, rechnungsSchluessel, QUERUNG_OHNE_VORTRITT } from './fall'
+  streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, type StreifenQuerung } from './fall'
 import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_M, ORT_TOL_M, streifenMitte, streifenAbstand, planEntscheid,
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
   querungAusserhalb, querungWegText, querungVerschobenText, type OrtEntscheid, type Ausserhalb } from './abdeckung'
@@ -48,10 +52,12 @@ import { inselGeometrie, inselLage, inselMasse, masseFehler, masseHinweise, stre
   standardGeometrie, furtQuert, naechsteGruppe, aufAchse, balkenAusUmriss, E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, TEIL_ABSTAND_M,
   INSEL_BEREICH, INSEL_TIEFE_MIN_M, type InselLage } from './rechner/standardinsel'
 import { Fahrbahn } from './rechner/flaechen'
-import { BedarfAbschnitt } from './BedarfPanel'
+import { BedarfAbschnitt, kopfText } from './BedarfPanel'
+import { BedarfTeaser, ReiterAnsicht } from './ReiterLeiste'
+import { REITER_EREIGNIS, reiterAktiv, reiterKnopfId, reiterStand, reiterVorgabe, reiterZustand, teaserText, type Reiter } from './reiter'
 import Trenner from './Trenner'
 import { ladeBreite } from './panelbreite'
-import { befundblaetter } from './bedarf/befundblatt'
+import { befundblaetter, type BefundBlatt } from './bedarf/befundblatt'
 import { ebenenVorgabe, ebenenWirksam } from './bedarf/fallBedarf'
 import { radstreifenAusRechnung } from './bedarf/vorbelegung'
 import { OsmNetz, fahrbahnRichtung } from './rechner/netz'
@@ -203,6 +209,11 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [auswahl, setAuswahl] = useState<string | null>(null)
   const [quellen, setQuellen] = useState<Record<string, QuellenStand>>({})
   const [werkzeug, setWerkzeug] = useState<Werkzeug>(null)
+  // Reiter im Panel (Sichtprüfung / Bedarf und Querungstyp, reiter.ts): Wahl im laufenden Fall, nur in der Sitzung; null = Vorgabe
+  // nach dem Fall. Ein neuer Fall (Übergang, geplanter Streifen, Fall-Datei) beginnt wieder mit der Vorgabe
+  const [reiterWahl, setReiterWahl] = useState<Reiter | null>(null)
+  const reiterNeu = () => setReiterWahl(null)
+  const reiterWaehlen = useCallback((r: Reiter) => setReiterWahl(r), [])
   // Werkzeug über den Knopf oben («Streifen planen» neben «Fall laden») gewählt: Werkzeughilfe dort zeigen, sonst bei den Werkzeugen
   const [werkzeugOben, setWerkzeugOben] = useState(false)
   const [zeichnung, setZeichnung] = useState<P[]>([])
@@ -610,7 +621,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const pruefen = (k: OsmKnoten) => {
     if (werkzeug) { setMeldung('Zeichnen läuft: zuerst «Fertig» oder «Abbrechen», dann einen anderen Übergang wählen.'); return }
     wechseln(`Übergang ${k.id} prüfen: der bisherige Fall wird ersetzt.`, 'Übergang laden', () => {
-      setGewaehlt(k); setGespeichert(null); neuerFallImOrt(); laden(k.lat, k.lon, k.id, null)
+      setGewaehlt(k); setGespeichert(null); neuerFallImOrt(); reiterNeu()
+      laden(k.lat, k.lon, k.id, null)
     })
   }
 
@@ -1195,7 +1207,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const id = naechsteHandId(f)
     f.streifenHand.push({ id, ...neu, herkunft: 'gezeichnet' })
     const bisher = fall && hatEingaben(fall) ? fall.ort.uebergang : null
-    setGewaehlt(null); setGespeichert(null); neuerFallImOrt()
+    setGewaehlt(null); setGespeichert(null); neuerFallImOrt(); reiterNeu()
     laden(lat, lon, null, f)
     const weit = reicht !== null ? ` (reicht bis ${abstandText(reicht)} vom bisherigen Ort)` : ''
     setLadeHinweis({ text: `Neuer Fall am geplanten ${streifenTitel(id)}${weit}: AV, OSM und Kataster werden um den Streifen geladen.` +
@@ -1272,7 +1284,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     // Lage des Übergangs vorläufig der gespeicherte Ort (Tags fehlen); nach dem Laden aus OSM nachgeführt
     setGewaehlt(f.ort.uebergang !== null ? { id: f.ort.uebergang, lat: f0.ort.lat, lon: f0.ort.lon, tags: {} } : null)
     setGespeichert(datei ? eingabenSchluessel(f) : null)
-    neuerFallImOrt()
+    neuerFallImOrt(); reiterNeu()
     laden(f.ort.lat, f.ort.lon, f.ort.uebergang, f)
     // nach dem Start von laden (setzt den Hinweis zurück); ein späterer Hinweis (Übergang ausserhalb) wird angehängt
     setLadeHinweis({ text: `${titel} (${eingabenZahl(f)} Eingaben)` +
@@ -1361,6 +1373,24 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   }, [daten, bernGeo, streifenBern, av])
   const blaetter = useMemo(() => (fall && rechnung && rechnung.streifen.length ? befundblaetter(rechnung, fall, { vorgabe: bedarfVorgabe,
     titel, zufahrt: (fid, z) => zufahrtText(zNamen.get(fid), z), geo: geoVor }) : []), [fall, rechnung, bedarfVorgabe, titel, zNamen, geoVor])
+  // Reiter: Vorgabe nach dem Fall (bestehender Übergang mit Streifen → Sichtprüfung, Planung → Bedarf), sobald Bedarfsblätter da
+  // sind; die Vorgabe der ersten Rechnung gilt im Fall weiter (kein Springen, wenn später ein Streifen von Hand dazukommt)
+  const mitReitern = !!fall && blaetter.length > 0
+  const vorgabeReiter = reiterVorgabe({ uebergang: fall?.ort.uebergang ?? null, streifenQuelle: rechnung?.streifenQuelle ?? null,
+    markierung: rechnung?.markierung ?? fall?.ort.markierung ?? null, herkunft: fall?.streifenHand.map(s => s.herkunft) })
+  const reiter = reiterAktiv(reiterWahl, vorgabeReiter)
+  useEffect(() => { if (mitReitern && reiterWahl === null) setReiterWahl(vorgabeReiter) }, [mitReitern, reiterWahl, vorgabeReiter])
+  // Sprünge in einen verborgenen Reiter (Ereignis aus reiter.reiterZeigen) zeigen ihren Reiter
+  useEffect(() => {
+    const auf = (e: Event) => { const r = (e as CustomEvent<Reiter>).detail; if (r === 'sicht' || r === 'bedarf') reiterWaehlen(r) }
+    window.addEventListener(REITER_EREIGNIS, auf)
+    return () => window.removeEventListener(REITER_EREIGNIS, auf)
+  }, [reiterWaehlen])
+  const bedarfStaende = blaetter.map(b => reiterStand(b.befund))
+  const bedarfZustand = mitReitern ? reiterZustand(bedarfStaende) : null
+  // Klick auf eine Zufahrt bzw. ein Hindernis auf der Karte (ausserhalb der Werkzeuge): Liste und Detail stehen in der Sichtprüfung
+  const zurSicht = () => { if (mitReitern && reiter === 'bedarf') reiterWaehlen('sicht') }
+  const zeigeBedarf = useCallback(() => reiterWaehlen('bedarf'), [reiterWaehlen])
   const gewaehlteZ: ZufahrtErgebnis | null = useMemo(() => alleZ.find(z => zufahrtKey(z) === auswahl) ?? null, [alleZ, auswahl])
   const vorschlagOsm = (rechnung?.vorschlaege ?? []).filter(v => v.hindernis.quelle === 'osm')
   const katBaeume = (rechnung?.vorschlaege ?? []).filter(v => v.hindernis.quelle === 'kataster' && v.hindernis.art === 'baum')
@@ -1402,8 +1432,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     } catch (e) { setMeldung(`Koordinaten nicht kopiert: ${(e as Error).message}`) }
   }
   // Hilfe zum gewählten Werkzeug: unter der Knopfzeile, wenn es dort gewählt wurde («Streifen planen») bzw. noch kein Fall
-  // geladen ist, sonst im Abschnitt «Eingaben von Hand»
-  const hilfeOben = werkzeugOben || !(fall && daten)
+  // geladen ist bzw. der Reiter «Bedarf und Querungstyp» offen ist (Werkzeuge gelten in beiden Reitern), sonst im Abschnitt
+  // «Eingaben von Hand»
+  const hilfeOben = werkzeugOben || !(fall && daten) || (mitReitern && reiter === 'bedarf')
   // Angebot für das Popup an der Ecke (gleiches Objekt, solange das Angebot gleich bleibt: sonst öffnete die Karte es neu)
   const angebotKarte = useMemo(() => (werkzeug === 'eckeRunden' && rundenAngebot ? { p: rundenAngebot.ring[rundenAngebot.i],
     text: rundenAngebot.text, knopf: `mit ${f1(rundenAngebot.rMax)} m runden` } : null), [werkzeug, rundenAngebot])
@@ -1512,8 +1543,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         onRundenAngebot={ja => { if (ja) angebotAnnehmen(); else setRundenAngebot(null) }} fixpunkte={fall?.fixpunkte ?? LEER_FIX} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
         flaechenPlan={fall?.flaechenPlan ?? LEER_PLAN}
         masslinien={masslinien} zufahrtNamen={zNamen} streifenTitel={titel}
-        onUebergang={pruefen} onZufahrt={setAuswahl}
-        onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => setBearbeiten(b => (b === id ? null : id))}
+        onUebergang={pruefen} onZufahrt={key => { setAuswahl(key); if (key) zurSicht() }}
+        onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => { setBearbeiten(b => (b === id ? null : id)); zurSicht() }}
         onAusschnitt={ausschnitt} hinweis={suchHinweis} kartenRef={kartenRef} />
       <Trenner breite={panelBreite} setze={setPanelBreite} onFertig={trennerFertig} />
       <aside className="panel">
@@ -1541,6 +1572,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             'ersetzt ihn erst nach Rückfrage.'}>Letzten geplanten Fall wiederherstellen</button>}
           {fall && rechnung && !rechnet && <button onClick={() => setBericht(true)} title={'Druckansicht mit Kartenbild, Ergebnis, Eingaben ' +
             'und Quellen; als PDF speichern über den Druckdialog des Browsers'}>Bericht drucken / als PDF</button>}
+          {rechnung && rechnung.streifen.length > 0 && <a className="knopf zweit streetview" href={streifenStreetView(rechnung.streifen[0])}
+            target="_blank" rel="noopener noreferrer" title={'Google Street View an der Mitte des Streifens, Blick entlang des Streifens ' +
+            '(öffnet Google Maps; die Koordinaten gehen dabei an Google)'}>Street View ↗</a>}
         </div>
         <label className="klein"><input type="checkbox" checked={nurMarkiert} onChange={e => setNurMarkiert(e.target.checked)} />
           {' '}nur markierte Übergänge zeigen (Fussgängerstreifen, vermutliche und Lichtsignal)</label>
@@ -1599,6 +1633,19 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         )}
         {rechnet && <p className="klein">Rechnung läuft …</p>}
 
+        {/* Reiter (ReiterLeiste.tsx): Sichtprüfung mit Teaser zum Bedarf, Eingaben von Hand und Streifen; Bedarf und Querungstyp */}
+        <ReiterAnsicht mitReitern={mitReitern} aktiv={reiter} waehlen={reiterWaehlen} zustand={bedarfZustand}
+          bedarf={fall && blaetter.length > 0 && <BedarfAbschnitt fall={fall} blaetter={blaetter} vorgabe={bedarfVorgabe} aendern={aendern}
+            zeigen={zeigeBedarf} sichtLinks={fgsIds => (rechnung?.streifen ?? []).filter(x => fgsIds.includes(x.fgsId)).flatMap(x =>
+              nachNr(x.zufahrten, zNamen.get(x.fgsId)).flatMap(z => {
+                const u = zufahrtStreetView(z, x), nr = zufahrtNr(zNamen.get(x.fgsId), z.zufahrt)
+                return u ? [{ name: `${nr ? `${nr} ` : ''}${zufahrtLang(zNamen.get(x.fgsId), z.zufahrt)}`, url: u, titel: zufahrtStreetViewTitel(nr || z.zufahrt) }] : []
+              }))} />}
+          sicht={<>
+        {bedarfZustand && <BedarfTeaser zustand={bedarfZustand} oeffnen={() => {
+          reiterWaehlen('bedarf')
+          window.setTimeout(() => document.getElementById(reiterKnopfId('bedarf'))?.focus(), 0)
+        }} text={teaserText(bedarfStaende, blaetter.map(kopfText))} />}
         {fall && daten && (
           <section className="eingaben">
             <h2>Eingaben von Hand</h2>
@@ -1860,13 +1907,14 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         )}
 
         {rechnung && rechnung.meldungen.length > 0 && <ul className="annahmen">{rechnung.meldungen.map(m => <li key={m}>{m}</li>)}</ul>}
-        {fall && blaetter.length > 0 && <BedarfAbschnitt fall={fall} blaetter={blaetter} vorgabe={bedarfVorgabe} aendern={aendern} />}
         {rechnung?.streifen.map(s => fall && (
           <StreifenAnzeige key={s.fgsId} s={s} fall={fall} auswahl={auswahl} setAuswahl={setAuswahl} aendern={aendern} namen={zNamen.get(s.fgsId)}
+            alleStreifen={rechnung?.streifen ?? []} alleNamen={zNamen} blatt={blaetter.find(b => b.streifen.includes(s.fgsId)) ?? null}
             gewaehlteZ={gewaehlteZ} spurZeichnen={key => { setSpurFuer(key); setZeichnung([]); setWerkzeugOben(false); setWerkzeug('spurB') }}
             ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null} neuLaden={() => umStreifenLaden(s.fgsId)} />
         ))}
         {rechnung && <p className="klein">Rechenzeit {Math.round(rechnung.ms)} ms (Web Worker).</p>}
+          </>} />
 
         <details className="abschnitt" open={quellenOffen} onToggle={e => setQuellenOffen(e.currentTarget.open)}>
         <summary><h2>Geladene Quellen{quellenFehler && <span className="fehler"> (Fehler)</span>}</h2></summary>
@@ -1894,7 +1942,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             <span className="farbe rund" style={{ background: UEBERGANG_FARBE.unmarkiert }} />unmarkiert bzw. ohne Angabe (kein FGS)</li>
           <li><span className="farbe" style={{ background: '#fde047' }} />Streifen, <span className="farbe gestrichelt" style={{ background: '#e2e8f0',
             borderColor: '#0f172a', borderStyle: 'dashed', boxShadow: `inset 0 0 0 1px ${OHNE_VORTRITT_FARBE}` }} />Querung ohne Vortritt (ohne Balken, weiss
-            gestrichelt; Sichtweite nach VSS 40 240 Z. 8.2), <span className="farbe" style={{ background: '#0ea5e9' }} />Annäherungsbereiche,
+            gestrichelt; Sichtweite nach <VerweisText text="VSS 40 240" />, Ziffer 8.2), <span className="farbe gestrichelt" style={{ background: AV_FARBEN.Trottoir,
+            borderColor: TUE_RAND, borderStyle: 'dashed' }} />Trottoirüberfahrt (nicht geprüft, Knotensicht im SichtweitenCheck),
+            <span className="farbe" style={{ background: '#0ea5e9' }} />Annäherungsbereiche,
             <span className="farbe" style={{ borderColor: LUFTBILD_FARBE, borderWidth: 2 }} />Balken aus dem Luftbild (gestrichelt: unsicher)</li>
           <li><NrMarke nr="1" />{NUMMERN_TEXT} (je Streifen nach der Herkunft der Fahrzeuge, gerade und abbiegende gemeinsam; von Hand
             gestrichene behalten ihre Nummer ohne Schild, aus den Daten entfallene Richtungen haben keine), Schild hinter dem letzten Sichtpunkt; <NrMarke nr="2" gewaehlt />gewählte Zufahrt (Klick
@@ -1924,18 +1974,29 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         </ul>
         </details>
 
-        <details className="abschnitt">
+        <details className="abschnitt" id="abschnitt-grundlagen">
         <summary><h2>Grundlagen und Quellen</h2></summary>
-        <p className="klein">
-          Sichtweiten: VSS 40 241, Tab. 1 ({Object.entries(SICHTWEITE).map(([t, s]) => `${t} km/h: ${s} m`).join(', ')}); im Knoten nach
-          Kurvenradius (bfu 2.457.01 bzw. VSS Tab. 2: {KURVE_SICHTWEITE.map(([r, s]) => `bis ${r} m: ${s} m`).join(', ')}).
-          Sichtpunkte mindestens 1,5 m von Parkfeldern; Auto-Parkfeld näher als 5 m am Streifen: VRV Art. 18 Abs. 2e.
-        </p>
+        <h3>Rechnung und Sichtweiten</h3>
+        <RechnungGrundlagen />
+        <h3>Daten</h3>
         <p className="klein">
           Luftbild und Streifen-Erkennung {LUFTBILD_QUELLE}{daten?.flugjahr ? ` (Flugjahr ${daten.flugjahr})` : ''} · Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '…'}, geodienste.ch ·
           Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}.
         </p>
         <p className="klein">Die App ersetzt keine Beurteilung vor Ort. Eingaben bleiben im Browser bzw. in der Fall-Datei.</p>
+        <h3>Quellen der Prüfungen</h3>
+        <QuellenTabelle />
+        </details>
+
+        <details className="abschnitt" id="abschnitt-begriffe">
+        <summary><h2>Begriffe</h2></summary>
+        <p className="klein">Fachbegriffe des Reiters «Bedarf und Querungstyp» in Alltagssprache.</p>
+        <BegriffeListe />
+        </details>
+
+        <details className="abschnitt" id="abschnitt-regeln">
+        <summary><h2>Regeln</h2></summary>
+        <RegelUebersicht />
         </details>
         <Datenschutz />
         <Fusszeile />
@@ -2042,17 +2103,30 @@ function LuftbildAnzeige({ rechnung, fall, flugjahr, hatBild, aendern, setMeldun
   )
 }
 
+/** Link «Street View ↗» je Zufahrt (Blick der Fahrenden vom Sichtpunkt in Soll-Distanz auf die Wartefläche); der Klick wählt die
+ * Zeile nicht */
+function StreetViewZufahrt({ url, nr }: { url: string | null; nr: string }) {
+  if (!url) return null
+  return <div className="klein"><a href={url} target="_blank" rel="noopener noreferrer" className="streetview-link" title={zufahrtStreetViewTitel(nr)}
+    onClick={e => e.stopPropagation()}>Street View ↗</a></div>
+}
+
 /** Tooltip gedeckter Abbiegezufahrten (nur mit GEDECKT_RECHNEN, seit 14.10.2026 standardmässig aus) */
 const GEDECKT_TITEL = 'Geprüft; den Weg ab dem Knoten prüft die gerade Zufahrt mit; das Ergebnis zählt trotzdem'
 
-function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, spurZeichnen, ausserhalb, neuLaden, namen }: {
+function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, spurZeichnen, ausserhalb, neuLaden, namen, alleStreifen, alleNamen, blatt }: {
   s: StreifenErgebnis; fall: Fall; auswahl: string | null; setAuswahl: (k: string | null) => void
+  blatt: BefundBlatt | null          // Bedarf der Querung: Lage (Hinweis zur Trottoirüberfahrt) und OSM-Knoten (SichtweitenCheck)
+  alleStreifen: StreifenErgebnis[]; alleNamen: Map<string, ZufahrtNamen>   // für «geprüft beim anderen Teil» bzw. die gerade Zufahrt
   namen: ZufahrtNamen | undefined    // Zufahrten nach Strasse und Herkunft (benennung.ts)
   aendern: (f: (x: Fall) => Fall) => void; gewaehlteZ: ZufahrtErgebnis | null; spurZeichnen: (key: string) => void
   ausserhalb: Ausserhalb | null      // Streifen von Hand ausserhalb der geladenen Daten (abdeckung.ts)
   neuLaden: () => void               // um diesen Streifen neu laden
 }) {
   const se = fall.streifen[s.fgsId] ?? {}
+  // Lage der Querung im Bedarf (Vorbelegung bzw. von Hand): bekannt und keine Einmündung → Hinweis an der Trottoirüberfahrt
+  const lage = blatt?.gebildet.eingaben.lage.wert ?? null
+  const nichtEinmuendung = lage !== null && lage !== 'einmuendung'
   const setzeS = (e: Partial<typeof se>) => aendern(f => {
     const neu = { ...(f.streifen[s.fgsId] ?? {}), ...e }
     for (const k of Object.keys(neu) as (keyof typeof neu)[]) if (neu[k] === undefined || neu[k] === false) delete neu[k]
@@ -2063,7 +2137,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
     <section className="streifen">
       <h2>
         <span className="farbe" style={{ background: STATUS_FARBE[s.status] ?? '#64748b' }} />
-        {streifenTitel(s.fgsId, fall.streifenHand)} {s.strasse && <>– {s.strasse}</>}: {STATUS[s.status] ?? s.status}
+        {streifenTitel(s.fgsId, fall.streifenHand)} {s.strasse && <>– {s.strasse}</>}: {streifenStatus(s)}
         {s.querung && <span className="klein"> (ohne Vortritt)</span>}
       </h2>
       <div className="klein zeile">
@@ -2078,14 +2152,17 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
       <div className="klein zeile">
         <label htmlFor={`querung-${s.fgsId}`}>Querung:</label> <select id={`querung-${s.fgsId}`} value={se.typ ?? ''} disabled={!!se.keinFgs} title={se.keinFgs ? '«kein FGS»: nicht geprüft' :
           'Fussgängerstreifen: Sichtweite nach VSS 40 241 Tab. 1. Ohne Vortritt (Furt bzw. Nase, Einengung, ohne Massnahme): Sichtweite ' +
-          'nach VSS 40 240 Z. 8.2 je Teilquerung, auf der Karte ohne Balken'}
-          onChange={e => setzeS({ typ: (QUERUNG_OHNE_VORTRITT as string[]).includes(e.target.value) ? e.target.value as 'furt' | 'ohne_vortritt' : undefined })}>
+          'nach VSS 40 240 Z. 8.2 je Teilquerung, auf der Karte ohne Balken. Trottoirüberfahrt: keine Sicht auf die Wartefläche, ' +
+          'massgebend ist die Knotensicht (SichtweitenCheck)'}
+          onChange={e => setzeS({ typ: (STREIFEN_QUERUNGEN as string[]).includes(e.target.value) ? e.target.value as StreifenQuerung : undefined })}>
           <option value="">Fussgängerstreifen</option>
           <option value="furt">ohne Vortritt: Furt (Insel ohne Balken)</option>
           <option value="ohne_vortritt">ohne Vortritt: Nase, Einengung bzw. ohne bauliche Massnahme</option>
+          <option value="trottoirueberfahrt">{TUE_OPTION}{nichtEinmuendung ? ` – ${TUE_NUR_EINMUENDUNG}` : ''}</option>
         </select>
       </div>
-      {s.querung && <p className="klein">Querung ohne Vortritt: Sichtweite nach VSS 40 240 Z. 8.2, max(v · L / 1,2 m/s; Anhaltesichtweite) mit
+      {s.trottoirueberfahrt && <TueHinweis knoten={blatt?.vorbelegt.knoten ?? null} lage={nichtEinmuendung ? lage : null} />}
+      {s.querung && <p className="klein">Querung ohne Vortritt: Sichtweite nach <VerweisText text="VSS 40 240" />, Ziffer 8.2, max(v · L / 1,2 m/s; Anhaltesichtweite) mit
         L = {f1(s.querung.L)} m{s.querung.ganzeFahrbahn ? ' (Insel nur markiert: ganze Fahrbahn)' : ''}; kein Fussgängerstreifen.</p>}
       <p className="klein">Zuordnung OSM: {s.netzQuelle} · Bordkanten: {s.randQuelle === 'AV' ? 'AV' : 'angenommen'} ·
         Länge {f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m, Breite {f1(s.bw)} m</p>
@@ -2093,11 +2170,12 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
         <button className="zweit klein" onClick={neuLaden}>um {streifenTitel(s.fgsId, fall.streifenHand)} neu laden</button></p>}
       {s.keinFgsHinweis && <p className="keinfgs klein">Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug.</p>}
       {s.markierungHinweis && <p className="pruefen klein">Vermutlich Fussgängerstreifen (Markierung in OSM nicht erfasst), bitte prüfen.</p>}
-      {s.lsa === 'ja' && <p className="klein">Mit Lichtsignal gilt die Arbeitshilfe nicht; die Rechnung wird trotzdem gezeigt.</p>}
+      {s.lsa === 'ja' && <p className="klein">Mit Lichtsignal gilt die <VerweisText text="Arbeitshilfe Fussgängerstreifen Kanton Bern" /> nicht; die Rechnung wird trotzdem gezeigt.</p>}
       {s.annahmen.length > 0 && <ul className="annahmen">{s.annahmen.map(a => <li key={a}>{a}</li>)}</ul>}
       {s.status !== 'kein_fgs' && (
         <table className="zufahrten">
-          <thead><tr><th>Zufahrt</th><th>Tempo</th><th>Sichtweite</th><th>vom Rand</th><th>Status</th></tr></thead>
+          <thead><tr><th>Zufahrt</th><th>Tempo</th><th title="Sichtweite, die frei sein muss (nach Tempo bzw. Kurvenradius)">nötige Sicht</th>
+            <th>Ergebnis</th></tr></thead>
           <tbody>
             {nachNr(s.zufahrten, namen).map(z => (
               <tr key={z.zufahrt} className={zufahrtKey(z) === auswahl ? 'aktiv' : ''}
@@ -2106,17 +2184,19 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
                 onClick={() => setAuswahl(zufahrtKey(z) === auswahl ? null : zufahrtKey(z))}>
                 <td><NrMarke nr={zufahrtNr(namen, z.zufahrt)} gewaehlt={zufahrtKey(z) === auswahl} /><b>{zufahrtLang(namen, z.zufahrt)}</b>
                   {z.deckung && <span className="klein"> (mitgeprüft)</span>}<div className="klein">{ART[z.art] ?? z.art}
-                  {z.art === 'abbiegend' && z.ueberStrasse ? `, weiter auf ${z.ueberStrasse}` : ''}</div></td>
-                <td>{z.tempo}<div className={z.tempoQuelle === 'Ersatz' ? 'klein warnung' : 'klein'}>
-                  {z.tempoQuelle === 'Ersatz' ? 'Annahme' : z.tempoQuelle === 'Korrektur' ? 'von Hand' : z.tempoQuelle === 'Geoportal' ? 'Geoportal' : 'OSM'}</div></td>
-                <td>{mText(z.sichtweite)} m<div className="klein">{z.sichtweiteQuelle}{z.kurvenradiusM != null ? `, R ${f1(z.kurvenradiusM)} m` : ''}</div>
+                  {z.art === 'abbiegend' && z.ueberStrasse ? `, weiter auf ${z.ueberStrasse}` : ''}</div>
+                  {z.lageQuelle === 'Hand' && <div className="klein">Fahrlinie von Hand</div>}
+                  <StreetViewZufahrt url={zufahrtStreetView(z, s)} nr={zufahrtNr(namen, z.zufahrt) || z.zufahrt} /></td>
+                <td>{z.tempo} km/h<div className={z.tempoQuelle === 'Ersatz' ? 'klein warnung' : 'klein'}>({tempoHerkunft(z.tempoQuelle)})</div></td>
+                <td title={`Herleitung: ${z.sichtweiteQuelle}${z.kurvenradiusM != null ? `, Kurvenradius ${f1(z.kurvenradiusM)} m` : ''}`}>{mText(z.sichtweite)} m
+                  <div className="klein">({sichtQuelleKurz(z.sichtweiteQuelle)})</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
-                <td>{z.sichtpunktVomRandM != null ? `${f2(z.sichtpunktVomRandM)} m` : '–'}{z.lageQuelle === 'Hand' && <div className="klein">Fahrlinie von Hand</div>}</td>
                 <td><span className="farbe" style={{ background: STATUS_FARBE[z.status] }} />{statusText(z, fall.hindernisse)}
-                  {z.unter5m && <div className="klein warnung">Parkfeld unter 5 m</div>}</td>
+                  {z.unter5m && <div className="klein warnung">Parkfeld unter 5 m</div>}
+                  {z.erkennungM && <div className="klein" title={ERKENNUNG_TITEL}>{erkennungText(z.erkennungM)}</div>}</td>
               </tr>
             ))}
-            {!s.zufahrten.length && <tr><td colSpan={5} className="klein">keine Zufahrt</td></tr>}
+            {!s.zufahrten.length && <tr><td colSpan={4} className="klein">keine Zufahrt</td></tr>}
           </tbody>
         </table>
       )}
@@ -2125,17 +2205,18 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
         aendern={aendern} spurZeichnen={spurZeichnen} />}
       {s.entfallen.length > 0 && (
         <details>
-          <summary className="klein">Nicht geprüfte Richtungen ({s.entfallen.length})</summary>
+          <summary className="klein" title={ENTFALLEN_ERKLAERUNG}>{ENTFALLEN_TITEL} ({s.entfallen.length})</summary>
           <table><tbody>
-            {s.entfallen.map(e => (
-              <tr key={e.kennung + e.zufahrt} title={`Fahrtrichtung ${e.richtung}° (ab Osten gegen den Uhrzeigersinn)`}>
-                <td><NrMarke nr={entfallenNr(namen, e)} />{entfallenLang(namen, e)}</td><td>{GRUND[e.grund] ?? e.grund}<div className="klein">{e.quelle}</div>
+            {s.entfallen.map(e => {
+              const g = entfallenGrund(e, s, alleStreifen, fid => streifenTitel(fid, fall.streifenHand), (fid, z) => zufahrtLang(alleNamen.get(fid), z))
+              return <tr key={e.kennung + e.zufahrt} title={`Fahrtrichtung ${e.richtung}° (ab Osten gegen den Uhrzeigersinn)${g.zusatz ? `; Rechnung: ${g.zusatz}` : ''}`}>
+                <td><NrMarke nr={entfallenNr(namen, e)} />{entfallenLang(namen, e)}</td><td>{g.text}{g.kurz && <div className="klein">{g.kurz}</div>}
                 {e.grund === 'hand' && <button className="zweit klein" onClick={() => aendern(f => {
                   const k = zufahrtSchluessel(s.fgsId, e.kennung)
                   if (f.zufahrten[k]) delete f.zufahrten[k].streichen
                   return f
                 })}>wieder prüfen</button>}</td></tr>
-            ))}
+            })}
           </tbody></table>
         </details>
       )}
@@ -2168,6 +2249,7 @@ function ZufahrtDetail({ z, name, nr, fall, aendern, spurZeichnen }: {
         <tr><td>Sichtweite</td><td>{mText(z.sichtweite)} m ({z.sichtweiteQuelle}){z.geprueftBisM != null &&
           <span className="warnung">; geprüft bis {z.geprueftBisM} m (Reichweite der geladenen Daten), darüber nicht geprüft</span>}</td></tr>
         {z.kurvenradiusM != null && <tr><td>Radius</td><td>{f1(z.kurvenradiusM)} m ({z.radiusQuelle})</td></tr>}
+        {z.erkennungM && <tr><td>Erkennbar</td><td title={ERKENNUNG_TITEL}>{erkennungText(z.erkennungM)}; Sichtrechner, ohne Gelände (Annahme)</td></tr>}
         {z.knotenM != null && <tr><td>Knoten</td><td>{f1(z.knotenM)} m vor dem Streifen</td></tr>}
         {z.deckung && <tr><td>Mitgeprüft</td><td title={GEDECKT_TITEL}>ab dem Knoten durch die gerade Zufahrt ({z.deckung}); zählt trotzdem</td></tr>}
         <tr><td>Fahrbahn</td><td>{z.fahrbahnM != null ? `${f2(z.fahrbahnM)} m` : '–'}, Fahrstreifen

@@ -21,7 +21,7 @@
 //   (zufahrtAzimut, wie die Namen), gerade und abbiegende Zufahrten gemeinsam; bis 1° westlich von Nord zählt als Nord, nach
 //   dem exakten Winkel, bei Gleichstand in der Reihenfolge der Rechnung; «(2)» im Namen folgt den Nummern. Nummeriert werden
 //   die geprüften und die von Hand gestrichenen Zufahrten (Grund «hand»): Streichen lässt die übrigen Nummern stehen, die
-//   gestrichene behält ihre Nummer unter «Nicht geprüfte Richtungen» (ohne Schild auf der Karte, es gibt keine Fahrlinie).
+//   gestrichene behält ihre Nummer unter «Hier nicht geprüfte Richtungen» (ohne Schild auf der Karte, es gibt keine Fahrlinie).
 //   Aus den Daten entfallene Richtungen (Einbahn, Einmündung …) haben keine Nummer. Grenze: die Herkunft einer gestrichenen
 //   geraden Zufahrt kommt aus der Fahrtrichtung, nicht mehr aus den Sichtpunkten; auf kurvigen Strassen kann sie darum mit
 //   einer Nachbarin den Platz tauschen. Nur Anzeige, nicht in der Fall-Datei. Karte und Bericht-Bild zeigen das Nummernschild

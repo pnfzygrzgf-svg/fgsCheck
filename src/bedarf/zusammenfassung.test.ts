@@ -150,7 +150,8 @@ describe('Vorlagen', () => {
     const z = zf({})
     expect(z.antwort).toBe('Ein Fussgängerstreifen ist hier zulässig.')
     expect(z.wichtig).toBe('Grundprüfung bfu: 4 von 5 Punkten erfüllt, Fussgängerschutzinsel mit Hinweis. Übrige Prüfungen ohne Befund (1 Hinweis).')
-    expect(zf({ typ: 'lsa', fgsMitLsa: true }).wichtig).toBe('Keine Befunde: 27 von 28 Prüfungen ohne Befund, 1 Hinweis.')
+    // Korrektur 23.10.2026: mit Lichtsignal entfallen «Lichtsignal prüfen» bei starkem Verkehr und sehr vielen Querenden (D5-1, D5-6)
+    expect(zf({ typ: 'lsa', fgsMitLsa: true }).wichtig).toBe('Keine Befunde: 25 von 26 Prüfungen ohne Befund, 1 Hinweis.')
     expect(z.fehlt).toBeNull()
   })
   it('Grundfall mit offenen Feldern: Fragen, Muss zuerst, höchstens zwei ausgeschrieben, Rest als Zahl', () => {

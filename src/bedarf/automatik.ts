@@ -214,6 +214,10 @@ function armKnotenBis(a: Arm, d: number): number[] {
 }
 const ll2p = (k: OsmKnoten): P => lv95(k.lat, k.lon)
 
+/** Zufahrten mit Sicht auf die Wartefläche (ohne Trottoirüberfahrt, deren Zufahrten nur der Vorbelegung dienen): Grundlage für
+ * Vorbelegungen aus dem Sichtfeld (Parkierung im Sichtfeld, Kurvenradius, Halteverbotslinie) */
+export const zufSicht = (st: StreifenErgebnis[]): ZufahrtErgebnis[] => st.filter(s => !s.trottoirueberfahrt).flatMap(s => s.zufahrten)
+
 // ── Hauptfunktion ──
 export interface AutoEingang {
   st: StreifenErgebnis[]
@@ -226,6 +230,8 @@ export interface AutoEingang {
   hinweise: string[]
   /** Anzeige je Pfad im Zustand «rechner» (Feld ohne Wert, Sichtrechner rechnet je Zufahrt) */
   rechner: Record<string, string>
+  /** Ausgabe ohne Feld: OSM-Knoten der Lage (Kreuzung bzw. Einmündung, nicht am Kreisel), für den Verweis auf den SichtweitenCheck */
+  aus?: { knoten?: number }
 }
 
 export function automatik(x: AutoEingang): void {
@@ -290,6 +296,7 @@ export function automatik(x: AutoEingang): void {
       setze('q3.kreisel', true, 'osm', 'Kreisel am Streifen (OSM)')
     } else if (knoten) {
       const k = knoten
+      if (x.aus) x.aus.knoten = k.id
       const weiter = gerade.some(z => z.osmKnoten === String(k.id))
       const endetR = einmRechnung.some(e => e.osmKnoten === String(k.id))
       // OSM: an diesem Knoten nur ein Arm der gequerten Strasse (Name bzw. Weg)
@@ -523,19 +530,20 @@ export function automatik(x: AutoEingang): void {
       : 'Streifen von Hand an einem OSM-Übergang ohne Markierung: neue Anlage angenommen')
 
   // ── A7 Kurvenradius aus dem Sichtrechner ──
-  const radien = zuf.filter(z => z.kurvenradiusM !== null && z.kurvenradiusM > 0)
+  const zs = zufSicht(st)
+  const radien = zs.filter(z => z.kurvenradiusM !== null && z.kurvenradiusM > 0)
   if (radien.length) {
     const z = radien.reduce((a, b) => (b.kurvenradiusM! < a.kurvenradiusM! ? b : a))
     const geschaetzt = /geschätzt/.test(z.radiusQuelle ?? '')
     const was = z.art === 'abbiegend' ? `Abbiegeradius${z.strasse ? ` aus der ${z.strasse}` : ''}` : 'Radius im Kreisel'
     const wie = geschaetzt ? 'aus den Fahrbahnbreiten geschätzt' : `aus ${(z.radiusQuelle ?? 'der Rechnung').replace(/^geschätzt \((.*)\)$/, '$1 geschätzt')}`
     setze('kurve.radius', z.kurvenradiusM, geschaetzt ? 'annahme' : 'rechnung', `${was} ${f1(z.kurvenradiusM!)} m, ${wie} (Sichtrechner)`)
-  } else if (zuf.length) rechner['kurve.radius'] = 'Sichtrechner: keine abbiegende Zufahrt und kein Kreisel; gerade Zufahrten nach Tempo'
+  } else if (zs.length) rechner['kurve.radius'] = 'Sichtrechner: keine abbiegende Zufahrt und kein Kreisel; gerade Zufahrten nach Tempo'
 
   // ── A9 Halteverbotslinie nach Sichtbedarf ──
-  if (zuf.length) {
+  if (zs.length) {
     let bedarf = 0, wo = ''
-    for (const z of zuf) for (const k of z.konflikte.filter(k => k.klasse === 'auto')) {
+    for (const z of zs) for (const k of z.konflikte.filter(k => k.klasse === 'auto')) {
       const s = st.find(y => y.fgsId === z.fgsId) ?? s0
       // nur der Teil des Parkfelds im Sichtfeld (lange Parkstreifen reichen weit darüber hinaus)
       const teil = z.feld?.length ? schnitt(k.geom, z.feld) : k.geom

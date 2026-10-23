@@ -17,7 +17,7 @@
 
 import { KATALOG, quellText, type GrundId } from './katalog'
 import { Kontext, Offen } from './kontext'
-import { bfuDurchfahrtOk } from './durchfahrt'
+import { bfuDurchfahrtOk, durchfahrtIst } from './durchfahrt'
 import { QUELLEN_ANNAHME, type BedarfEingaben } from './eingaben'
 import type { RegelDef, Staerke, Thema } from './typen'
 
@@ -65,6 +65,8 @@ export interface Grundpruefung {
   annahmen: string[]
   /** Tempo des Sichtrechners weicht vom signalisierten Tempo ab (Runde 5, F2; Befundblatt): Hinweis in der Zeile ① */
   tempoHinweis?: string
+  /** Begegnungszone nur vorgeschlagen (Tempo 20, Nutzerentscheid 23.10.2026): Anzeige mit Sprung zum Feld «Strecke oder Zone» */
+  zoneVorschlag?: true
 }
 
 /** Sicht je Zufahrt aus dem Sichtrechner (Befundblatt, nur Fussgängerstreifen ohne Lichtsignal) */
@@ -90,8 +92,8 @@ export interface GrundOptionen {
   sicht?: GrundSicht[]
   /** Fussgängerstreifen der Querung ohne geprüfte Zufahrt (Name): Sicht offen */
   ohneZufahrt?: string[]
-  /** Teilstreifen teils Fussgängerstreifen, teils ohne Vortritt: Grundprüfung gilt nicht */
-  gemischt?: boolean
+  /** Teilstreifen teils Fussgängerstreifen, teils ohne Vortritt bzw. Trottoirüberfahrt: Grundprüfung gilt nicht */
+  gemischt?: boolean | 'trottoirueberfahrt'
 }
 
 /** Rohergebnis einer Regel; null = hier nicht anwendbar. Fehlt eine Eingabe, wirft der Kontext Offen */
@@ -339,7 +341,7 @@ const GRUND: Record<GrundId, GrundFn> = {
     if (k.o('insel')?.art !== 'baulich' || !k.insBaulich()) return null
     const d = k.w('durchfahrt'), W = K['B5-2c'].werte
     const schlecht = d.map((x, i) => [x, i] as const).filter(([x]) => !bfuDurchfahrtOk(x))
-    const x = { ist: `${d.map(v => fmt(v)).join(' / ')} m`, soll: `${fmt(W.d)} m (bis ${fmt(W.dTol)} m) oder mindestens ${fmt(W.dBreit)} m`,
+    const x = { ist: durchfahrtIst(d), soll: `${fmt(W.d)} m (${fmt(W.dMin)}–${fmt(W.dTol)} m) oder mindestens ${fmt(W.dBreit)} m`,
       detail: schlecht.length ? schlecht.map(([v, i]) => `Seite ${i + 1}: ${fmt(v)} m`).join('; ') : undefined }
     return schlecht.length ? verletzt({ ...x, normHinweis: hinweisDurchfahrt(schlecht.map(([v]) => v)) }) : ok(x)
   },
@@ -392,8 +394,9 @@ const GRUND: Record<GrundId, GrundFn> = {
     if (k.w('haltestelle').art !== 'fahrbahn') return null
     if (!k.insBaulich()) return verletzt({ ist: k.inselMarkiert() ? 'Fahrbahnhaltestelle, Insel nur markiert' : 'Fahrbahnhaltestelle ohne Insel', soll: 'Schutzinsel' })
     const d = k.w('durchfahrt'), W = K['B5-W3'].werte
-    const schlecht = d.map((x, i) => [x, i] as const).filter(([x]) => x < W.d - EPS || x > W.dTol + EPS)
-    const x = { ist: `Durchfahrt ${d.map(v => fmt(v)).join(' / ')} m`, soll: `rund ${fmt(W.d)} m (bis ${fmt(W.dTol)} m)`,
+    // untere Grenze 3,45 m wie B5-2c: die bfu nennt 3,5 m auf eine Nachkommastelle (Korrektur 23.10.2026)
+    const schlecht = d.map((x, i) => [x, i] as const).filter(([x]) => x < W.dMin - EPS || x > W.dTol + EPS)
+    const x = { ist: `Durchfahrt ${durchfahrtIst(d)}`, soll: `rund ${fmt(W.d)} m (${fmt(W.dMin)}–${fmt(W.dTol)} m)`,
       detail: schlecht.length ? schlecht.map(([v, i]) => `Seite ${i + 1}: ${fmt(v)} m`).join('; ') : undefined }
     return schlecht.length ? verletzt(x) : ok(x)
   },
@@ -419,6 +422,11 @@ const PUNKTE: { nr: GrundPunkt['nr']; thema: Thema; titel: string; teile: GrundI
   { nr: '5', thema: 'nachfrage', titel: 'Fussgängerfrequenz', teile: ['B5-5'], notizen: ['B5-5b'] },
 ]
 const WEITERE: GrundId[] = ['B5-W1', 'B5-W2', 'B5-W3']
+/** Punkt der Grundprüfung einer Regel der Gruppe B5 (T Tempo, 1–5, W Weitere); null, wenn sie keine ist (Regelübersicht) */
+export function grundPunktVon(id: string): GrundPunkt['nr'] | 'W' | null {
+  const p = PUNKTE.find(x => (x.teile as string[]).includes(id) || ((x.notizen ?? []) as string[]).includes(id))
+  return p ? p.nr : (WEITERE as string[]).includes(id) ? 'W' : null
+}
 
 const RANG: Record<string, number> = { hart: 3, hart_bericht: 2, weich: 1, hinweis: 0 }
 
@@ -453,11 +461,22 @@ function teil(id: GrundId, k: Kontext, o: GrundOptionen): GrundTeil | null {
 
 /** Grundprüfung einer Querung (reine Funktion) */
 export function grundpruefung(e: BedarfEingaben, o: GrundOptionen = {}): Grundpruefung {
+  // Begegnungszone (Tatsache bzw. Vorschlag bei Tempo 20, Nutzerentscheid 23.10.2026): kein Fussgängerstreifen, keine Grundprüfung;
+  // als Annahme bleibt sie offen (A2 «Annahme bestätigen») und die Grundprüfung läuft wie bisher
+  const tr = e.tempoRegime
+  if (tr?.wert === 'begegnungszone' && !(tr.quelle && QUELLEN_ANNAHME.includes(tr.quelle))) {
+    const vorschlag = tr.quelle === 'vorschlag'
+    return { gilt: false, grund: vorschlag
+      ? 'Keine Grundprüfung: Begegnungszone vorgeschlagen (Tempo 20), dort ist kein Fussgängerstreifen zulässig.'
+      : 'Keine Grundprüfung: in der Begegnungszone ist kein Fussgängerstreifen zulässig.', punkte: [], weitere: [], annahmen: [],
+      ...(vorschlag ? { zoneVorschlag: true as const } : {}) }
+  }
   const k = new Kontext(e, { Recht: true, Norm: true, Bern: true, 'Kanton BE': true, Richtlinie: true })
   const typ = k.o('typ')
   const lsa = k.o('fgsMitLsa') === true
   if (o.gemischt && !lsa && (typ === null || typ === 'fgs'))
-    return { gilt: false, grund: `${NUR_FGS_TEXT} (hier: Teilstreifen teils Fussgängerstreifen, teils ohne Vortritt).`, punkte: [], weitere: [], annahmen: [] }
+    return { gilt: false, grund: `${NUR_FGS_TEXT} (hier: Teilstreifen teils Fussgängerstreifen, teils ${o.gemischt === 'trottoirueberfahrt'
+      ? 'Trottoirüberfahrt' : 'ohne Vortritt'}).`, punkte: [], weitere: [], annahmen: [] }
   if ((typ !== null && typ !== 'fgs') || lsa) {
     const art = NICHT_FGS[typ !== null && typ !== 'fgs' ? typ : 'lsa']
     return { gilt: false, grund: `${NUR_FGS_TEXT} (hier: ${art}).`, punkte: [], weitere: [], annahmen: [] }

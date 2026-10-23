@@ -2,6 +2,10 @@
   color-scheme: light;
   --bg: #f1f5f9;
   --accent: #b45309;
+  /* Zweitfarbe «Bedarf und Querungstyp» (dunkles Petrol, hebt sich vom Bernstein ab): Kontrast auf Weiss 7,3:1, auf --bedarf-hell
+     6,5:1, Weiss auf --bedarf 7,3:1 (WCAG AA und AAA für Text) */
+  --bedarf: #0f5f6b;
+  --bedarf-hell: #e7f3f4;
   --text-strong: #1e293b;
   --text: #334155;
   --text-muted: #64748b;
@@ -131,6 +135,8 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .strassenname span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-size: 12px; font-weight: 600;
   color: #ffffff; text-shadow: 0 0 2px #0f172a, 0 0 2px #0f172a, 0 0 4px #0f172a; }
 .keinfgs { background: #f1f5f9; border: 1px solid #94a3b8; border-left: 4px solid #64748b; border-radius: 6px; padding: 6px 8px; margin: 6px 0; font-weight: 600; color: #334155; }
+/* Trottoirüberfahrt am Streifen (23.10.2026): Verweis auf die Knotensicht, Rand in der Trottoirfarbe der Karte */
+.tue { background: #f8f8ee; border: 1px solid #b5b08a; border-left: 4px solid #8a8350; border-radius: 6px; padding: 6px 8px; margin: 6px 0; color: #334155; }
 .pruefen { background: #fefce8; border: 1px dashed #a16207; border-left: 4px solid #eab308; border-radius: 6px; padding: 6px 8px; margin: 6px 0; font-weight: 600; color: #713f12; }
 .zahl { width: 4.5em; }
 .textfeld { width: 12em; }
@@ -166,21 +172,45 @@ span.zufahrt-nr { display: inline-block; width: 18px; height: 18px; font-size: 1
 .fuss { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--border); line-height: 1.6; }
 .fuss a, .hilfe a { color: var(--accent); }
 
+/* Reiter im Panel (22.10.2026): «Sichtprüfung» (Bernstein) und «Bedarf und Querungstyp» (Petrol); aktiv gefüllt bzw. mit dicker
+   Oberkante, nicht nur unterstrichen; auch schmal je 50 % der Breite. Verborgene Reiterfelder bleiben im DOM (hidden). */
+.reiterleiste { display: flex; gap: 4px; margin: 14px 0 0; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 5;
+  background: #ffffff; padding-top: 4px; }
+@media print { .reiterleiste { display: none; } }
+.reiterleiste .reiter { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left;
+  margin-bottom: -2px; padding: 8px 10px; border: 1px solid var(--border); border-bottom: 2px solid var(--border); border-radius: 8px 8px 0 0;
+  background: #f1f5f9; color: var(--text); font-weight: 600; line-height: 1.25; }
+.reiterleiste .reiter:hover { filter: none; background: #e2e8f0; }
+.reiterleiste .reiter:focus-visible { outline: 2px solid var(--text-strong); outline-offset: 2px; }
+.reiterleiste .reiter-sicht.gewaehlt { background: #ffffff; color: var(--accent); border-color: var(--accent); border-top-width: 4px;
+  border-bottom-color: #ffffff; }
+.reiterleiste .reiter-bedarf.gewaehlt { background: var(--bedarf); color: #ffffff; border-color: var(--bedarf); }
+.reiterleiste .reiter:not(.gewaehlt) .reiter-name { text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+.reiter-zustand { display: inline-block; font-size: 12px; font-weight: 600; padding: 0 6px; border-radius: 9px; background: #ffffff;
+  border: 1px solid currentColor; }
+.reiter-zustand.gruen { color: #15803d; }
+.reiter-zustand.gelb { color: #92400e; }
+.reiter-zustand.rot { color: #b91c1c; }
+.reiter-zustand.grau { color: #475569; }
+.nur-vorlesen { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.reiterfeld[hidden] { display: none !important; }
+.reiterfeld-bedarf { border-left: 4px solid var(--bedarf); padding: 2px 0 4px 10px; }
+.bedarf-teaser { display: flex; align-items: baseline; gap: 6px; width: 100%; margin: 10px 0 6px; padding: 6px 10px; text-align: left;
+  font-size: 13px; background: var(--bedarf-hell); color: var(--bedarf); border: 1px solid var(--bedarf); border-left-width: 4px; border-radius: 6px; }
+.bedarf-teaser:hover { filter: none; background: #d3e9ec; }
+.bedarf-teaser:focus-visible { outline: 2px solid var(--text-strong); outline-offset: 2px; }
+.teaser-symbol { font-weight: 700; }
+
 /* Bedarfsmodul E1: Abschnitt «Bedarf und Querungstyp» und Befundblatt (rot Pflicht, gelb Empfehlung, blau Hinweis, grau offen) */
-details.bedarf > summary .klein { display: block; margin-top: 2px; }
-.bedarf-ebenen label { display: block; margin: 2px 0; }
+.bedarf-kopf { margin: 10px 0 8px; padding: 8px 10px; background: var(--bedarf-hell); border-radius: 0 8px 8px 0; }
+.bedarf-kopf h2 { margin: 0; color: var(--bedarf); font-size: 16px; }
+.bedarf-leitfrage { margin: 2px 0 0; font-weight: 600; color: var(--text-strong); }
+.bedarf-kopfzeile { margin: 4px 0 0; color: var(--bedarf); }
+.bedarf-ebenen label { display: inline-block; margin: 2px 10px 2px 0; }
 .befundblatt { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin: 8px 0; background: #ffffff; }
 .befundblatt h3 { margin-top: 2px; }
 .befund-typ { margin: 2px 0 4px; }
 .bedarf-zusammenfassung { margin: 6px 0 8px; line-height: 1.45; }
-.befund-liste { border-left: 4px solid #94a3b8; padding: 2px 0 2px 8px; margin: 6px 0; font-size: 12px; }
-.befund-liste ul { margin: 2px 0; padding-left: 16px; }
-.befund-liste.rot { border-color: #dc2626; }
-.befund-liste.rot > b { color: #b91c1c; }
-.befund-liste.gelb { border-color: #eab308; }
-.befund-liste.gelb > b { color: #a16207; }
-.befund-liste.blau { border-color: #0ea5e9; }
-.befund-liste.grau { border-color: #94a3b8; color: var(--text-muted); }
 .befund-masse { font-size: 12px; }
 .befund-masse tr.verletzt td { color: #b91c1c; }
 .befund-masse tr.offen td, .befund-masse tr.nicht_anwendbar td { color: var(--text-muted); }
@@ -202,6 +232,11 @@ details.bedarf > summary .klein { display: block; margin-top: 2px; }
 .feld-bedarf { margin-top: 1px; color: var(--text-muted); font-weight: 400; }
 .werk-link { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
 .werk-link:hover { color: var(--accent); }
+.werk-extern { text-decoration: none; white-space: nowrap; }
+.streetview-link { white-space: nowrap; }
+a.knopf.streetview { text-decoration: none; }
+.werk-extern:hover { text-decoration: underline; }
+.url-text { overflow-wrap: anywhere; word-break: break-all; }
 .begriff-verweise { color: var(--text-muted); }
 .begriff-knopf { background: none; border: none; padding: 0 1px; color: var(--text-muted); font: inherit; font-size: 11px;
   text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; }
@@ -219,7 +254,13 @@ details.bedarf > summary .klein { display: block; margin-top: 2px; }
 .begriffe-liste dd { margin: 0 0 2px 10px; }
 .hervor { background: #fef3c7; transition: background 0.4s; }
 .rechner-anzeige { margin: 0 0 2px; line-height: 1.35; color: var(--text); }
-.bedarf-frage { margin: 6px 0; padding: 6px 8px; background: #fffbeb; border-left: 3px solid #f59e0b; font-size: 13px; }
+/* Block «Offene Fragen» (23.10.2026) unter der Zusammenfassung: je Frage die Antwort direkt */
+.offene-fragen { margin: 6px 0 8px; padding: 6px 8px; background: #fffbeb; border-left: 3px solid #f59e0b; font-size: 13px; }
+.offene-fragen ul { list-style: none; margin: 4px 0 0; padding-left: 0; }
+.offene-fragen li { margin: 4px 0; }
+.offene-fragen .frage-punkt { display: inline-block; min-width: 1.4em; font-weight: 600; color: #92400e; }
+.offene-fragen .frage-antworten { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.offene-fragen p { margin: 2px 0 0; }
 /* Feldhilfen: Knopf «?» je Feld, Erklärung als eigene Zeile unter dem Feld (kein Tooltip, auch auf Touch lesbar) */
 .hilfe-knopf { padding: 0 5px !important; margin-left: 2px; border-radius: 9px; line-height: 1.4; font-weight: 700; }
 .bedarf-hilfe td { background: #f8fafc; border-left: 3px solid var(--border); }
@@ -242,17 +283,11 @@ details.bedarf > summary .klein { display: block; margin-top: 2px; }
 .grundpruefung li.gelb > .grund-symbol { color: #a16207; }
 .grundpruefung li.blau > .grund-symbol { color: #0369a1; }
 .grundpruefung li.grau > .grund-symbol { color: var(--text-muted); }
-.bedarf-erweitert { margin: 8px 0; border-top: 1px dashed var(--border); padding-top: 4px; }
+.bedarf-erweitert, .bedarf-grund-eingaben { margin: 8px 0; border-top: 1px dashed var(--border); padding-top: 4px; }
 .bedarf-maske tr.bedarf-block th { text-align: left; padding-top: 6px; color: var(--text-muted); }
 .grundpruefung.druck { border: 1px solid #9ca3af; font-size: 9.5pt; break-inside: avoid; }
 .grundpruefung.druck, .grundpruefung.druck * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.befundblatt.druck .befund-liste { font-size: 9.5pt; }
-.befundblatt.druck .befund-liste, .befundblatt.druck .befund-liste * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-/* Runde 2: Prüfübersicht und Einträge nach Thema; Symbol und Verbindlichkeitswort tragen die Bedeutung, Farbe nur zusätzlich */
-.pruef-uebersicht { border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; margin: 6px 0; font-size: 12px; background: #f8fafc; }
-.pruef-uebersicht > summary { cursor: pointer; }
-.pruef-themen { margin: 4px 0; padding-left: 16px; }
-.pruef-themen > li { margin: 2px 0; }
+/* Runde 2: Einträge nach Thema; Symbol und Verbindlichkeitswort tragen die Bedeutung, Farbe nur zusätzlich */
 .befund-thema { margin: 6px 0; font-size: 12px; }
 .befund-thema > ul { list-style: none; margin: 2px 0; padding-left: 0; }
 .befund-thema > ul > li { border-left: 4px solid #94a3b8; padding: 1px 0 1px 8px; margin: 3px 0; }
@@ -263,8 +298,7 @@ details.bedarf > summary .klein { display: block; margin-top: 2px; }
 .befund-thema li.rot > .grund-symbol { color: #b91c1c; }
 .befund-thema li.gelb > .grund-symbol { color: #a16207; }
 .befund-thema li.blau > .grund-symbol { color: #0369a1; }
-.befundblatt.druck .befund-thema, .pruef-uebersicht.druck { font-size: 9.5pt; }
-.pruef-uebersicht.druck { background: #ffffff; break-inside: avoid; }
+.befundblatt.druck .befund-thema { font-size: 9.5pt; }
 .befundblatt.druck .befund-thema, .befundblatt.druck .befund-thema * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 /* Runde 2, Verdichtung: eine Zeile je Punkt bzw. Eintrag, Fragen als Sprung zum Feld, Details aufklappbar */
 .grund-kopf { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
@@ -282,12 +316,50 @@ details.bedarf > summary .klein { display: block; margin-top: 2px; }
 .grund-tabelle tr.rot .grund-symbol { color: #b91c1c; }
 .grund-tabelle tr.gelb .grund-symbol { color: #a16207; }
 .grund-tabelle tr.blau .grund-symbol { color: #0369a1; }
+/* Details je Punkt (23.10.2026): Knopf am Zeilenende, Details in einer Zeile darunter (Rand in der Farbe der Zeile) */
+.grund-auf-zelle { text-align: right; white-space: nowrap; }
+/* Knopf «Details» (Nutzertest 23.10.2026: das Symbol ▸ war kaum zu sehen): Petrol auf Weiss 7,3:1, Fläche mindestens 32 × 24 px */
+.grund-auf { background: #ffffff; border: 1px solid var(--bedarf); color: var(--bedarf); border-radius: 6px; padding: 2px 8px; min-width: 32px;
+  min-height: 24px; cursor: pointer; font: inherit; font-size: 12px; line-height: 1.2; }
+.grund-auf:hover { background: var(--bedarf-hell); filter: none; }
+.grund-auf:focus-visible { outline: 2px solid var(--bedarf); outline-offset: 1px; }
+.grund-tabelle tr.grund-zeile-klick { cursor: pointer; }
+.grund-tabelle tr.grund-detail td { border-top: none; padding: 0 4px 4px 10px; }
+.grund-tabelle tr.rand-gruen { border-left-color: #16a34a; }
+.grund-tabelle tr.rand-rot { border-left-color: #dc2626; }
+.grund-tabelle tr.rand-gelb { border-left-color: #eab308; }
+.grund-tabelle tr.rand-blau { border-left-color: #0ea5e9; }
+.grund-fuss { color: var(--text-muted); margin: 2px 0 0; }
 .grund-details > summary, .eintrag-details > summary, .bedarf-begruendung > summary { cursor: pointer; }
 .frage-knopf { background: none; border: none; padding: 0; color: var(--accent); text-decoration: underline; font: inherit; cursor: pointer; text-align: left; }
 .frage-knopf:hover { filter: none; text-decoration-thickness: 2px; }
 .befund-thema .eintrag-details > summary { list-style-position: outside; }
 .befund-thema .eintrag-details > span { display: block; margin: 1px 0 2px; }
 .legende { color: var(--text-muted); }
+/* Erweiterte Prüfung nach Thema (23.10.2026): je Thema ein Aufklapper, Zählung in Symbol und Wort, Fragen mit Eingabe wie im Block der
+   Grundprüfung, übrige Angaben zugeklappt; Masse und Annahmen am Ende */
+details.bedarf-thema { border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; margin: 6px 0; background: #ffffff; }
+details.bedarf-thema > summary { cursor: pointer; padding: 2px 0; }
+details.bedarf-thema[open] > summary { margin-bottom: 2px; }
+.thema-zahl { color: var(--text-muted); }
+.thema-fragen { margin: 4px 0; padding: 2px 8px; background: #fffbeb; border-left: 3px solid #f59e0b; font-size: 13px; }
+.thema-fragen ul { list-style: none; margin: 2px 0; padding-left: 0; }
+.thema-fragen li { margin: 4px 0; }
+.thema-fragen .frage-antworten { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.frage-fuer { color: var(--text-muted); }
+.thema-ohne { color: var(--text-muted); margin: 2px 0; }
+details.thema-ohne > summary { cursor: pointer; }
+.thema-verweis, .thema-block { margin: 2px 0; }
+.thema-block details.thema-ohne { display: inline; }
+.thema-fragen .feld-hilfe { margin: 2px 0 4px; }
+details.thema-ohne ul { margin: 1px 0 2px; padding-left: 18px; }
+.thema-querung { color: var(--text-muted); margin-top: 4px; }
+details.thema-angaben { margin: 4px 0 2px; }
+details.thema-angaben > summary { cursor: pointer; color: var(--bedarf); }
+.befund-thema > ul.annahmen-liste { list-style: disc; padding-left: 18px; }
+.befund-thema > ul.annahmen-liste > li { border-left: none; padding: 0; margin: 2px 0; }
+.annahmen-liste ul { margin: 1px 0; padding-left: 16px; }
+.befundblatt.druck .thema-fragen { background: #ffffff; font-size: 9.5pt; }
 @media (max-width: 480px) { .grund-tabelle th { white-space: normal; } }
 /* Druck: Einträge nicht trennen, Themenkopf beim Eintrag halten */
 .befundblatt.druck .befund-thema > ul > li, .grund-tabelle tr { break-inside: avoid; page-break-inside: avoid; }
@@ -371,3 +443,21 @@ html.startseite, html.startseite body, html.startseite #root { height: auto; min
 .start-daten ul { margin: 6px 0 0; padding-left: 20px; }
 .start-fuss { margin-top: 18px !important; font-size: 12px; color: var(--text-muted); text-align: center; }
 .start-fuss a { color: var(--accent); }
+.bedarf-maske tr.zaehlt-nicht td { color: var(--text-muted); }
+/* Regelübersicht (23.10.2026) */
+.regel-steuerung { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin: 4px 0; }
+.regel-steuerung input[type="search"] { width: 12em; max-width: 100%; }
+.regel-gruppe > summary { cursor: pointer; margin: 2px 0; }
+.regel-liste { list-style: none; margin: 2px 0 6px; padding-left: 8px; }
+.regel-liste > li { margin: 4px 0; padding: 2px 0 2px 6px; border-left: 2px solid var(--border); }
+/* Regelübersicht lesbar (Nutzertest 23.10.2026) */
+.regel-nr { color: var(--text-muted); font-size: 11px; }
+.regel-teile { display: grid; grid-template-columns: max-content 1fr; gap: 1px 6px; margin: 2px 0 0; }
+.regel-teile dt { color: var(--text-muted); }
+.regel-teile dd { margin: 0; }
+/* Feld als Textlink (dunkle Schrift auf hellem Grund; nicht der Grundstil «button» mit weisser Schrift) */
+button.feld-link, button.feld-link.klein { background: none; border: none; padding: 0; color: var(--bedarf); text-decoration: underline;
+  font: inherit; cursor: pointer; text-align: left; }
+button.feld-link:hover { filter: none; text-decoration-thickness: 2px; }
+/* Fragen-Knöpfe mit «klein»: sonst gewinnt button.klein:not(.zweit) (weisse Schrift) und die Schrift ist auf hellem Grund unsichtbar */
+button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; border: none; }

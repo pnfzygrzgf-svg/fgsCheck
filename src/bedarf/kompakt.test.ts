@@ -6,7 +6,7 @@ import { fall, INSEL_OK, TESTFAELLE } from './testfaelle'
 import { FELD_DEFS } from './felder'
 import { FELDNAMEN } from './eingaben'
 import { FRAGEN, feldZiel, frageVon } from './feldhilfen'
-import { eintragSatz, fragenFelder, grundKopf, istSoll, punktZeile, vorbehaltFelder } from './kompakt'
+import { annahmenJePunkt, eintragSatz, fragenFelder, grundKopf, istSoll, punktZeile, vorbehaltFelder } from './kompakt'
 
 const teil = (id: GrundTeil['id'], zustand: GrundTeil['zustand'], x: Partial<GrundTeil> = {}): GrundTeil =>
   ({ id, name: id, zustand, staerke: zustand === 'verletzt' ? 'hart' : null, text: '', quelle: '', ...x })
@@ -15,20 +15,26 @@ const punkt = (teile: GrundTeil[]): GrundPunkt => ({ nr: '1', titel: 'Sichtverh�
 describe('Aggregation je Punkt (D1): die Muss-Regel bestimmt den Zustand', () => {
   it('Muss erfüllt, Soll offen → ✓ mit Zusatz; Muss erfüllt, Soll nicht erfüllt → ! mit Zusatz', () => {
     const a = punktZeile(punkt([teil('B5-1', 'erfuellt', { ist: '3 von 3 Zufahrten frei', soll: '≥ 25 m' }), teil('B5-1b', 'offen', { name: 'Erkennungsdistanz', fehlend: ['erkennungM'] })]))
-    expect(a).toMatchObject({ zustand: 'erfuellt', satz: 'alle 3 Zufahrten frei (nötig: 25 m)', zusatz: 'offen: ab wo der Streifen erkennbar ist', fragen: [] })
+    // 23.10.2026: in der Zeile nur gezählt, der Rest in den Details des Punkts
+    expect(a).toMatchObject({ zustand: 'erfuellt', satz: 'alle 3 Zufahrten frei (nötig: 25 m)', zusatz: '1 Punkt offen', fragen: [] })
     const b = punktZeile(punkt([teil('B5-1', 'erfuellt'), teil('B5-1b', 'verletzt', { name: 'Erkennungsdistanz', staerke: 'weich', ist: '60 m' })]))
     // Korrektur S9: die Soll-Regel bestimmt den Zustand, ihr Satz steht in der Zeile, die erfüllte Muss-Regel im Zusatz
     expect(b).toMatchObject({ zustand: 'soll', satz: 'Erkennungsdistanz: 60 m' })
     const c = punktZeile(punkt([teil('B5-1', 'erfuellt', { name: 'Sichtweite', ist: '70 m', soll: '≥ 55 m' }),
       teil('B5-1b', 'verletzt', { name: 'Erkennungsdistanz', staerke: 'weich', ist: '60 m', soll: '≥ 110 m' })]))
-    expect(c).toMatchObject({ zustand: 'soll', satz: 'Erkennungsdistanz: 60 m, Soll mindestens 110 m', zusatz: 'Sichtweite: 70 m (nötig: 55 m)' })
+    expect(c).toMatchObject({ zustand: 'soll', satz: 'Erkennungsdistanz: 60 m, Soll mindestens 110 m' })
+    // die erfüllte Muss-Regel steht nicht in der Zeile (sonst liest sie sich wie der Grund für «!»), nur in den Details
+    expect(c.zusatz).toBeUndefined()
   })
   it('Kann/S2/S3: Muss offen und Soll verletzt → ? mit Zusatz; ① ohne V85 mit Annahme; ④ offen mit Hinweis der Vorbelegung; über 60 km/h ein Satz', () => {
     const o = punktZeile(punkt([teil('B5-1', 'offen', { fehlend: ['sichtVorh'] }), teil('B5-1b', 'verletzt', { name: 'Erkennungsdistanz', staerke: 'weich', ist: '60 m' })]))
-    expect(o).toMatchObject({ zustand: 'offen', zusatz: 'Erkennungsdistanz: Soll nicht erfüllt, 60 m' })
+    expect(o).toMatchObject({ zustand: 'offen', zusatz: '1 Soll nicht erfüllt' })
     const k = grundKopf(grundpruefung(fall({ v85: null, beleuchtung: null })), { beleuchtung: 'Lampe 8 m (OSM), vor Ort prüfen' })
-    expect(k.zeilen[1].zusatz).toContain('unter Vorbehalt')
-    expect(k.zeilen[4]).toMatchObject({ zustand: 'offen', zusatz: 'Lampe 8 m (OSM), vor Ort prüfen', fragen: ['beleuchtung'] })
+    expect(k.zeilen[1].zusatz).toBe('1 Annahme')
+    expect(k.zeilen[1].hinweise).toEqual(['unter Vorbehalt: angenommen, dass nicht schneller als signalisiert gefahren wird'])
+    // ④: Zeile nur die Frage, der Hinweis der Vorbelegung in den Details
+    expect(k.zeilen[4]).toMatchObject({ zustand: 'offen', fragen: ['beleuchtung'], hinweise: ['Lampe 8 m (OSM), vor Ort prüfen'] })
+    expect(k.zeilen[4].zusatz).toBeUndefined()
     const v = grundKopf(grundpruefung(fall({ vSig: 60, v85: 61 })))
     expect(v.zeilen[1].zustand).toBe('offen')
     expect(v.zeilen[1].satz).toContain('über 60 km/h')
@@ -37,6 +43,23 @@ describe('Aggregation je Punkt (D1): die Muss-Regel bestimmt den Zustand', () =>
     const o = punktZeile(punkt([teil('B5-1', 'offen', { fehlend: ['sichtVorh'] }), teil('B5-1b', 'erfuellt')]))
     expect(o).toMatchObject({ zustand: 'offen', fragen: ['sichtVorh'] })
     expect(punktZeile(punkt([teil('B5-1', 'verletzt'), teil('B5-1b', 'erfuellt')])).zustand).toBe('verletzt')
+  })
+  it('Nutzertest 23.10.: ② Inseltiefe erfüllt, Durchfahrt nicht erfüllt → «!» mit dem Satz der Durchfahrt, Inseltiefe nicht in der Zeile', () => {
+    const p2 = grundpruefung(fall({ insel: INSEL_OK, durchfahrt: [3.3, 3.5] })).punkte.find(p => p.nr === '2')!
+    expect(p2.teile.map(t => [t.id, t.zustand])).toEqual([['B5-2b', 'erfuellt'], ['B5-2c', 'verletzt']])
+    const z = punktZeile(p2)
+    expect(z).toMatchObject({ zustand: 'soll',
+      satz: 'Durchfahrt neben der Insel: je Seite 3,30 m und 3,50 m, Soll 3,50 m (3,45–3,75 m) oder mindestens 4,50 m' })
+    expect(z.zusatz).toBeUndefined()
+    // 3,47 m (Zieglerstrasse) liegt im Band: ② erfüllt
+    expect(punktZeile(grundpruefung(fall({ insel: INSEL_OK, durchfahrt: [3.47, 3.5] })).punkte.find(p => p.nr === '2')!).zustand).toBe('erfuellt')
+  })
+  it('Annahmen je Punkt: nach den Feldern der Teilregeln; V85-Annahme beim Tempo; übrige für den Kasten', () => {
+    const g = grundpruefung(fall({ v85: null }))
+    const a = annahmenJePunkt({ ...g, annahmen: [...g.annahmen, 'beleuchtung: Annahme', 'Querungstyp offen: als Fussgängerstreifen ohne Lichtsignal geprüft'] })
+    expect(a.je.get('T')).toContain('Tempo wie signalisiert (V85 nicht gemessen)')
+    expect(a.je.get('4')).toEqual(['beleuchtung: Annahme'])
+    expect(a.allgemein).toEqual(['Querungstyp offen: als Fussgängerstreifen ohne Lichtsignal geprüft'])
   })
   it('ohne Muss-Regel (② ohne gebaute Insel, ⑤): schlimmste Teilregel', () => {
     const p2 = grundpruefung(fall({ fahrbahnB: 9 })).punkte.find(p => p.nr === '2')!

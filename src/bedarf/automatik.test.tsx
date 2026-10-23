@@ -109,17 +109,21 @@ describe('Paket A: Anzeige (renderToStaticMarkup)', () => {
     expect(html).toContain('offen (Vorbelegung verwerfen)')
   })
   it('Sichtweite im Zustand «rechner»: Ergebnis des Sichtrechners je Zufahrt, darunter «von Hand überschreiben»', () => {
-    expect(html).toMatch(/class="klein rechner-anzeige">Sichtrechner: [^<]*frei bis 55 m, Soll 55 m \(VSS Tab\. 1\)/)
+    // Herleitung in Worten statt Rohfundstelle (Nachprüfung 23.10.2026)
+    expect(html).toMatch(/class="klein rechner-anzeige">Sichtrechner: [^<]*frei bis 55 m, Soll 55 m \(nach Tempo\)/)
     expect(html).toContain('placeholder="von Hand überschreiben"')
     expect(b.gebildet.herkunft.get('sichtVorh')!.zustand).toBe('rechner')
   })
-  it('Frage nach Anzeichen für schnelleres Fahren oben, solange offen; «Zebra» nirgends sichtbar', () => {
-    expect(html).toContain('class="bedarf-frage"')
-    expect(html).toContain('Gibt es Anzeichen, dass hier schneller als erlaubt gefahren wird?')
+  it('Frage nach Anzeichen für schnelleres Fahren im Block «Offene Fragen», solange offen; «Zebra» nirgends sichtbar', () => {
+    // 23.10.2026: statt des Sonderfalls ein Block mit den wichtigen Fragen (ja/nein direkt beantworten)
+    const block = /<div class="offene-fragen".*?<\/div>/s.exec(html)?.[0] ?? ''
+    expect(block).toContain('Gibt es Anzeichen, dass hier schneller als erlaubt gefahren wird?')
+    expect(block).toContain('aria-label="Gibt es Anzeichen, dass hier schneller als erlaubt gefahren wird? ja"')
+    expect(html).not.toContain('class="bedarf-frage"')
     const f2 = fallMit(x => { x.bedarf = { felder: { anzeichenSchneller: { wert: false, quelle: 'hand' } } } })
     const [b2] = befundblaetter(r0, f2, OHNE)
     expect(renderToStaticMarkup(<BedarfAbschnitt fall={f2} blaetter={[b2]} vorgabe={{ bern: false, kantonBE: false }} aendern={() => {}} />))
-      .not.toContain('class="bedarf-frage"')
+      .not.toContain('Gibt es Anzeichen, dass hier schneller als erlaubt gefahren wird? ja')
     const osmZ: OsmDaten = { ...OSM, uebergaenge: [knoten(12, 0, 0, { highway: 'crossing', crossing: 'zebra', 'crossing:markings': 'zebra' }),
       knoten(40, 60, 0, { highway: 'crossing', crossing_ref: 'zebra' })], wege: [weg(1, [[10, -300, 0], [12, 0, 0], [40, 60, 0], [13, 300, 0]], HAUPT)] }
     const [bz] = befundblaetter(rechneFall(osmZ, AV, [], 12, f, null), f, { ...OHNE, geo: GEO(osmZ) })
@@ -148,14 +152,15 @@ describe('Paket A: Tempo-Regime, innerorts (A3)', () => {
     expect(v.werte.innerorts).toMatchObject({ wert: false, quelle: 'osm' })
     expect(vorbelegen(g0, fallMit(), [], {}).werte.innerorts).toMatchObject({ wert: true, quelle: 'annahme' })
   })
-  it('Strecke ab 40 km/h (Tatsache), 30 km/h ohne Zonenangabe offen, 20 km/h Begegnungszone als Annahme', () => {
+  it('Strecke ab 40 km/h (Tatsache), 30 km/h ohne Zonenangabe offen, 20 km/h Begegnungszone als Vorschlag nur mit Rohtempo (23.10.2026)', () => {
     const regime = (v: string) => {
       const osm: OsmDaten = { ...OSM, wege: [weg(1, [[10, -300, 0], [12, 0, 0], [13, 300, 0]], { ...HAUPT, maxspeed: v })] }
       return vorbelegen(querungen(rechneFall(osm, AV, [], 12, fallMit(), null).streifen)[0], fallMit()).werte.tempoRegime
     }
     expect(regime('40')).toMatchObject({ wert: 'strecke', quelle: 'osm' })
     expect(regime('30')).toBeUndefined()
-    expect(regime('20')).toMatchObject({ wert: 'begegnungszone', quelle: 'annahme' })
+    // ohne OSM-Tags ist das Rohtempo unbekannt (der Sichtrechner rundet 5 bzw. 10 km/h auf die Stufe 20): kein Vorschlag (Nachtrag nach Prüfung)
+    expect(regime('20')).toBeUndefined()
   })
 })
 

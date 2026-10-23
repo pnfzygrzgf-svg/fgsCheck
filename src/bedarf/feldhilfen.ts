@@ -28,7 +28,7 @@ export const WERK_KURZ: Record<WerkId, string> = {
   '640075': 'SN 640 075', '640850a': 'SN 640 850a', '640852': 'SN 640 852', '640070': 'SN 640 070',
   VOT30: 'Tempo-30-Zonen-Verordnung', SSV: 'Signalisationsverordnung', VRV: 'Verkehrsregelnverordnung',
   MP: 'Masterplan Fussverkehr Bern', MPV: 'Masterplan Veloinfrastruktur Bern', HBLSA: 'Handbuch Lichtsignalanlagen Bern',
-  AHBE: 'Arbeitshilfe Kanton Bern', BFU: 'bfu MS.013 (2025)', BFU2016: 'bfu MS.013 (2016)', HA: 'Richtlinie Hindernisfreie Architektur',
+  AHBE: 'Arbeitshilfe Kanton Bern', BFU: 'bfu-Fachdokumentation «Fussgängerstreifen»', BFU2016: 'ältere bfu-Fachdokumentation (2016)', HA: 'Richtlinie Hindernisfreie Architektur',
   VCS: 'VCS', ENTSCHEID: 'Projektentscheid fgsCheck',
 }
 
@@ -47,7 +47,7 @@ export const UNTERFELDER: Partial<Record<RegelId, readonly string[]>> = {
   D4a: ['haltestelle.lage'], D4b: ['haltestelle.art', 'haltestelle.verdeckt', ...IV], D4c: ['haltestelle.lage'],
   D4d: ['haltestelle.art', 'haltestelle.lage', 'haltestelle.ueberholenUnterbunden'], 'D4-R': ['haltestelle.art', ...IV],
   F2: ['insel.vorhanden', 'insel.breite'], F2b: ['insel.vorhanden', 'insel.breite'], F2c: ['insel.vorhanden', 'insel.breite'],
-  'F2-K': ['insel.vorhanden', 'insel.breite'], F2e: [...IV, 'insel.vertikal', 'insel.kopfErhoeht'], F2f: [...IV, 'insel.kopfUeberstand'],
+  'F2-K': [...IV, 'insel.breite'], F2e: [...IV, 'insel.vertikal', 'insel.kopfErhoeht'], F2f: [...IV, 'insel.kopfUeberstand'],
   F2g: [...IV, 'insel.pfostenH'], 'F2-B': ['insel.vorhanden', 'insel.furt'], 'F3-M': [...IV, 'insel.breite'], 'F3-B': ['insel.vorhanden'],
   'B5-2b': [...IV, 'insel.breite'],
   F7a: ['randabschluss.art', 'randabschluss.hoeheMm', 'randabschluss.breiteM'], F7b: ['randabschluss.art'],
@@ -99,7 +99,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     was: 'Strecke: gewöhnliche Strasse ohne Zonentafel. Zone: die Querung liegt in einer signalisierten Tempo-30-Zone bzw. ' +
       'Begegnungszone. Eine Hauptstrasse, die nicht zur Zone gehört, ist eine Strecke, auch mit Tempo 30. In der Tempo-30-Zone ist ' +
       'ein Fussgängerstreifen nur mit besonderem Grund erlaubt, in der Begegnungszone nie.',
-    vorschlag: 'aus OSM (zone:maxspeed bzw. maxspeed); ab 40 km/h Strecke, weil eine Zone höchstens 30 km/h hat; Tempo 20 ohne Zonenangabe Begegnungszone als Annahme. Tempo 30 ohne jede Zonenangabe in OSM in Bern nach der Strassenhierarchie als Annahme: Quartierstrasse Zone, Basisnetz Strecke, sonst offen.',
+    vorschlag: 'aus OSM (zone:maxspeed bzw. maxspeed); ab 40 km/h Strecke (eine Zone hat höchstens 30 km/h); Tempo 20 ohne andere Zonenangabe: Begegnungszone vorgeschlagen, gilt für die Beurteilung (sonst «Strecke» wählen). Tempo 30 ohne Zonenangabe in Bern nach der Strassenhierarchie als Annahme: Quartierstrasse Zone, Basisnetz Strecke, sonst offen.',
   },
   v85: {
     was: 'Das Tempo, das 85 von 100 Fahrzeugen nicht überschreiten, aus einer Messung. Beispiel: signalisiert 50 km/h, gemessen ' +
@@ -214,7 +214,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   radstreifen: {
     was: 'Ja, wenn ein Radstreifen (gelbe Linie mit Velosymbol) an der Querung vorbeiführt. Wichtig für die Breite neben einer Insel.',
     vorschlag: 'aus OSM (Velostreifen an den Zufahrten).',
-    ablauf: 'Mit Radstreifen und Insel gelten die Breiten für Insel und Durchfahrt nach Kanton bzw. Stadt Bern.',
+    ablauf: 'Mit Radstreifen und Insel gilt die Durchfahrt neben der Insel nach den Standards der Stadt Bern.',
   },
   busspur: { was: 'Ja, wenn ein eigener Fahrstreifen für Busse gequert wird. Er zählt bei den Fahrstreifen je Richtung mit.', vorschlag: '«ja» aus den Angaben zu Busstreifen an den Zufahrten in OSM; ohne solche Angaben «nein» als Annahme (OSM ist lückenhaft).' },
   busDurchmarkiert: { was: 'Ja, wenn die gelben Balken auch über den Busstreifen durchgehen.' },
@@ -318,6 +318,9 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   erkennungM: {
     was: 'Aus welcher Entfernung Fahrende den Streifen (Markierung bzw. Tafel) erkennen, in Metern. Pflicht ist mindestens die ' +
       'nötige Sichtweite, empfohlen das Doppelte (auch in der Grundprüfung).',
+    vorschlag: 'aus dem Sichtrechner als Annahme: kleinster Wert der geraden Zufahrten (Sicht von der Fahrlinie auf die Markierung, ' +
+      'geprüft bis 110 m; Gebäude, Hecken, Mauern, Bäume und Auto-Parkfelder verdecken), ohne Gelände und ohne die blaue Tafel ' +
+      '(Signal 4.11). Ein Wert «mindestens …» gilt nur, wenn er das Doppelte erreicht; sonst bleibt das Feld offen (Hinweis).',
   },
 
   // ── Insel ──
@@ -360,6 +363,11 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     was: `Wie breit die Fahrbahn auf jeder Seite der Insel bleibt, Bord bis Insel quer gemessen (${MIT_SLASH}). Zu schmal behindert ` +
       'Lastwagen; mittlere Breiten verleiten zum knappen Überholen von Velos.',
     vorschlag: 'aus den Teilquerungen Bord bis Insel, quer zur Fahrbahn.',
+  },
+  veloQuerung: {
+    was: 'Ja, wenn auch Velos hier queren und dabei auf der Insel warten (z. B. eine Veloroute quert die Strasse). Ein Radstreifen ' +
+      'entlang der Strasse allein genügt nicht.',
+    ablauf: 'Mit gebauter Insel gilt dann die Inseltiefe nach der Arbeitshilfe des Kantons Bern (Ebene Kanton BE).',
   },
 
   // ── Ausrüstung ──
@@ -540,8 +548,8 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   'fusswegAchse.rechtwinkligUneinsehbar': FGS, 'fusswegAchse.versatz': FGS, 'fusswegAchse.umlaufschranke': FGS,
   // Verkehr
   mivKlasse: alle(ja('einengung'), BERN),
-  // F2-K (Kanton BE) und F3-B (Bern) lesen den Radstreifen erst mit Insel
-  radstreifen: alle(INSEL, { eines: [KANTON, BERN] }),
+  // F3-B (Bern) liest den Radstreifen erst mit Insel; F2-K (Kanton BE) fragt nach querenden Velos (veloQuerung, 23.10.2026)
+  radstreifen: alle(INSEL, BERN),
   busDurchmarkiert: alle(ja('busspur'), F1_TYPEN),
   tramHaltestellenbereich: { feld: 'tram', ist: ['eigentrassee', 'fahrbahn'] },
   balkenAufGleis: alle({ feld: 'tram', ist: ['eigentrassee'] }, FGS_ARTIG),
@@ -566,7 +574,7 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   'kurve.fuenfBedingungen': FGS_ODER_OFFEN,
   erkennungM: FGS_ODER_OFFEN,
   // Insel
-  'insel.art': INSEL, 'insel.breite': INSEL, 'insel.furt': INSEL, durchfahrt: INSEL,
+  'insel.art': INSEL, 'insel.breite': INSEL, 'insel.furt': INSEL, durchfahrt: INSEL, veloQuerung: alle(INSEL_BAULICH, KANTON),
   'insel.kopfUeberstand': INSEL_BAULICH, 'insel.vertikal': INSEL_BAULICH, 'insel.kopfErhoeht': INSEL_BAULICH, 'insel.pfostenH': INSEL_BAULICH,
   // Ausrüstung
   streifenBreite: F1_TYPEN, randAbstand: F1_TYPEN,
@@ -697,6 +705,37 @@ const INSEL_K = kann('insel.vorhanden', true)
 const BAULICH_K = alle(INSEL_K, kann('insel.art', 'baulich'))
 const ZONE_K = alle(NICHT_TUE, kann('tempoRegime', 't30_zone'))
 
+/** Bausteine der Geltung mit Namen in Alltagssprache (Regelübersicht, «Gilt für») */
+const GELTUNG_NAME = new Map<Bedingung, string>([
+  [GRUND_K, 'Fussgängerstreifen ohne Lichtsignal'], [FGS_ARTIG_K, 'Fussgängerstreifen (auch mit Lichtsignal)'], [FGS_K, 'Fussgängerstreifen'],
+  [NICHT_LSA_K, 'Querungen ohne Lichtsignal'], [LSA_K, 'Querungen mit Lichtsignal'], [NICHT_TUE, 'nicht bei Trottoirüberfahrten'],
+  [E_K, 'Querungen ohne Vortritt'], [Q3_K, 'Einmündungen bzw. Trottoirüberfahrten'], [KNOTEN_K, 'Querungen an Knoten'],
+  [INSEL_K, 'mit Insel'], [BAULICH_K, 'mit gebauter Insel'], [ZONE_K, 'in Tempo-30-Zonen'], [MZS_FGS_K, 'Mehrzweckstreifen mit Fussgängerstreifen'],
+])
+/** ein Baustein in Worten; «offen» (noch nicht bekannt, gilt vorsorglich) fällt weg */
+function geltungTeil(b: Bedingung): string {
+  const n = GELTUNG_NAME.get(b)
+  if (n) return n
+  if ('alle' in b) return b.alle.map(geltungTeil).join(', ')
+  if ('eines' in b) return b.eines.map(geltungTeil).join(' oder ')
+  if ('ebene' in b) return b.ebene === 'bern' ? 'nur Stadt Bern' : 'nur Kanton Bern'
+  if ('gesetzt' in b) return `${feldText(b.feld)} bekannt`
+  if ('ueber' in b) return `${feldText(b.feld)} über ${b.ueber}`
+  const w = b.ist.filter(x => x !== null)
+  if (b.feld === 'typ') return w.map(x => wertName('typ', x)).join(' oder ')
+  if (w.length === 1 && typeof w[0] === 'boolean') return `${feldText(b.feld)}: ${w[0] ? 'ja' : 'nein'}`
+  return `${feldText(b.feld)}: ${w.map(x => wertName(b.feld, x)).join(' oder ')}`
+}
+/**
+ * Geltung kurz in Worten (Regelübersicht, Nutzertest 23.10.2026): Bausteine mit Namen («Fussgängerstreifen ohne Lichtsignal», «mit
+ * Insel»), sonst Feld und Werte ohne «offen»; alle Teile (die Übersicht kürzt auf zwei), genau: bedingungText
+ */
+export function geltungKurz(b: Bedingung | undefined): { teile: string[]; mehr: boolean; genau: string } {
+  if (!b) return { teile: [], mehr: false, genau: '' }
+  const teile = !GELTUNG_NAME.has(b) && 'alle' in b ? b.alle.map(geltungTeil) : [geltungTeil(b)]
+  return { teile, mehr: false, genau: bedingungText(b) }
+}
+
 /**
  * Geltung je Regel (fehlt: immer): Ablauf in entscheid.ts bzw. grundpruefung.ts (Blöcke nach Typ, Lichtsignal, Lage) und die
  * Fälle, in denen eine Regel nicht anwendbar ist (null) bzw. nie verletzt sein kann. Ebenen kommen aus dem Katalog (Bern, Kanton BE,
@@ -712,8 +751,8 @@ export const GELTUNG: Partial<Record<RegelId, Bedingung>> = {
   D4a: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn', 'bucht')), D4c: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn', 'bucht')),
   D4b: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn')), 'D4-R': alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn')),
   D4d: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn'), kann('haltestelle.lage', 'fgs_nach_halt')),
-  'D5-1': kann('strassentyp', 'verkehrsorientiert'), 'D5-2': alle(KNOTEN_K, NICHT_LSA_K), 'D5-3': NICHT_LSA_K,
-  'D5-5': kann('tram', 'eigentrassee', 'fahrbahn'),
+  'D5-1': alle(kann('strassentyp', 'verkehrsorientiert'), NICHT_LSA_K), 'D5-2': alle(KNOTEN_K, NICHT_LSA_K), 'D5-3': NICHT_LSA_K,
+  'D5-4': NICHT_LSA_K, 'D5-5': alle(kann('tram', 'eigentrassee', 'fahrbahn'), NICHT_LSA_K), 'D5-6': NICHT_LSA_K,
   'D6-1': FGS_ARTIG_K, 'D6-2': FGS_ARTIG_K, 'D6-2b': FGS_ARTIG_K, 'D6-3': alle(FGS_ARTIG_K, NICHT_LSA_K),
   'D6-3b': alle(FGS_ARTIG_K, NICHT_LSA_K), 'D6-4': alle(FGS_ARTIG_K, NICHT_LSA_K), 'D6-5': T('lsa'),
   D7: alle(T('mehrzweck'), kann('mzsMitFgs', true)),
@@ -725,7 +764,7 @@ export const GELTUNG: Partial<Record<RegelId, Bedingung>> = {
   F1e: alle(FGS_ARTIG_K, kann('busspur', true)),
   F2: INSEL_K, F2b: INSEL_K, F2c: INSEL_K, F2d: INSEL_K, 'F2-B': INSEL_K, F2e: BAULICH_K, F2f: BAULICH_K, F2g: BAULICH_K, F3: BAULICH_K,
   'F3-M': alle(INSEL_K, kann('insel.art', 'markiert')), 'F3-B': alle(INSEL_K, kann('radstreifen', true)),
-  'F2-K': alle(INSEL_K, kann('radstreifen', true)),
+  'F2-K': alle(BAULICH_K, kann('veloQuerung', true)),
   F4a: alle(kann('einengung', true), kann('mivKlasse', 'tief', 'mittel')), F4b: kann('einengung', true),
   F4c: alle(kann('einengung', true), T('fgs')),
   F5a: T('trottoirueberfahrt'), F5b: T('trottoirueberfahrt'), F6a: T('mehrzweck'), F6b: T('mehrzweck'), F6c: T('mehrzweck'),
@@ -915,7 +954,7 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   'kurve.radius': 'Wie eng ist die Kurve vor der Querung (Radius)?',
   'kurve.fuenfBedingungen': 'Sind alle Bedingungen für die Sicht nach dem Kurvenradius erfüllt (siehe «?»)?',
   sichtVorh: 'Wie weit sieht man je Zufahrt auf die Wartefläche (von Hand gemessen)?',
-  erkennungM: 'Ab welcher Distanz erkennen Fahrende den Streifen?',
+  erkennungM: 'Ab welcher Entfernung sehen Fahrende den Streifen (Markierung oder Signal)?',
   // Insel
   'insel.vorhanden': 'Gibt es eine Insel in der Fahrbahnmitte?',
   'insel.art': 'Ist die Insel gebaut oder nur aufgemalt?',
@@ -927,6 +966,7 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   'insel.furt': 'Wie breit ist der Rollstuhldurchgang durch die Insel?',
   inselMoeglich: 'Hat es Platz für eine Insel?',
   durchfahrt: 'Wie breit ist die Fahrbahn neben der Insel (je Seite)?',
+  veloQuerung: 'Queren hier auch Velos und warten auf der Insel?',
   // Ausrüstung
   fgsMitLsa: 'Hat die Querung ein Lichtsignal für Fussgänger?',
   streifenBreite: 'Wie breit ist der Streifen (Länge der Balken)?',
@@ -1009,7 +1049,7 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   randabschluss: 'Welcher Randstein liegt an der Querung?',
   kurve: 'Liegt vor der Querung eine Kurve?',
   lsaZeiten: 'Wie sind die Grün- und Gelbzeiten für Fussgänger?',
-  q3: 'Wie ist die Einmündung beschaffen (Angaben im Block «Trottoirüberfahrt»: Gebiet, Tempo, Fahrstreifen, Sicht beim Ausfahren …)?',
+  q3: 'Wie ist die Einmündung beschaffen (Angaben im Thema «Trottoirüberfahrt»: Gebiet, Tempo, Fahrstreifen, Sicht beim Ausfahren …)?',
   Zufahrten: 'Hinweis: im Sichtrechner ist für diesen Streifen keine Zufahrt geprüft (Zufahrten prüfen bzw. Sichtweite von Hand eingeben).',
 }
 

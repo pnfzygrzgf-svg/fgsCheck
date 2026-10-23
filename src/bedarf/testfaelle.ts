@@ -43,7 +43,7 @@ export const S0: Werte = {
   kurve: { radius: null, fuenfBedingungen: false }, typ: 'fgs', ohneBaulich: false, querdistanzL: [7], laengsparkierung: false,
   seitenraumVorParklinieM: 0, absenkungBeidseits: true, aufstellflaeche: true, parkierungSichtbehindernd: false, einengung: false,
   mivKlasse: 'mittel', restbreiteM: 7, einengungLaengeM: 0, mzsBreiteM: 2, mzsMitFgs: false, lsaZeiten: LSA_OK, q3: Q3_OK,
-  kantonsstrasse: false,
+  kantonsstrasse: false, veloQuerung: false,
 }
 
 /** Abweichung vom Grundfall; null = Feld offen */
@@ -125,7 +125,7 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'D2', name: 'Einbahn B 9,00', abw: { fahrbahnB: 9, zweirichtung: false, nRichtung: [1] }, erwartet: { D2: '-' } },
   { regel: 'D2', name: 'B 9,00, DTV fehlt', abw: { fahrbahnB: 9, dtv: null }, erwartet: { D2: 'offen', C4: 'offen' } },
   { regel: 'D2c', name: 'S0', abw: {}, erwartet: { D2c: KATALOG.D2c.staerke } },
-  { regel: 'D3a', name: 'Eigentrassee ohne Insel', abw: { tram: 'eigentrassee' }, erwartet: { D3a: 'hart_bericht' } },
+  { regel: 'D3a', name: 'Eigentrassee ohne Insel', abw: { tram: 'eigentrassee' }, erwartet: { D3a: 'hart_bericht', D2c: '-' } },
   { regel: 'D3a', name: 'Eigentrassee mit LSA', abw: { tram: 'eigentrassee', fgsMitLsa: true }, erwartet: { D3a: '-' } },
   { regel: 'D3b', name: 'Balken auf dem Gleis', abw: { tram: 'eigentrassee', balkenAufGleis: true }, erwartet: { D3b: 'weich' } },
   { regel: 'D5-5', name: 'Tram auf der Fahrbahn ausserhalb Haltestelle', abw: { tram: 'fahrbahn' }, erwartet: { D3c: '-', 'D5-5': 'hinweis' } },
@@ -143,6 +143,12 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'D5-2', name: 'LSA-Knoten mit bestehender LSA', abw: { lage: 'knoten_berechtigt', knotenLsa: true, fgsMitLsa: true }, erwartet: { 'D5-2': '-' } },
   { regel: 'D5-4', name: 'Sicht 50 (Soll 55)', abw: { sichtVorh: [50, 70] }, erwartet: { H1: 'hart', 'D5-4': 'hinweis' } },
   { regel: 'D5-6', name: 'sehr viele Querende', abw: { fgSehrHoch: true }, erwartet: { 'D5-6': 'hinweis' } },
+  // Korrektur 23.10.2026: mit bestehendem Lichtsignal keine Hinweise «Lichtsignal prüfen»
+  { regel: 'D5-1', name: 'stark belastet mit bestehender LSA', abw: { starkBelastet: true, fgsMitLsa: true }, erwartet: { 'D5-1': '-' } },
+  { regel: 'D5-4', name: 'Sicht 50 mit bestehender LSA', abw: { sichtVorh: [50, 70], fgsMitLsa: true }, erwartet: { H1: 'hart', 'D5-4': '-' } },
+  { regel: 'D5-5', name: 'Tram auf der Fahrbahn mit bestehender LSA', abw: { tram: 'fahrbahn', fgsMitLsa: true }, erwartet: { 'D5-5': '-' } },
+  { regel: 'D5-6', name: 'sehr viele Querende mit bestehender LSA', abw: { fgSehrHoch: true, typ: 'lsa' }, erwartet: { 'D5-6': '-' } },
+  { regel: 'D5-6', name: 'sehr viele Querende, Lichtsignal offen', abw: { fgSehrHoch: true, fgsMitLsa: null }, erwartet: { 'D5-6': 'offen' } },
   { regel: 'D6-1', name: 'Tempo 20 Strecke, Bern', abw: { vSig: 20, v85: null }, ebenen: BERN, erwartet: { 'D6-1': 'weich' } },
   { regel: 'D6-2', name: 'Tempo 50, DTV 12000, Bern', abw: { dtv: 12000 }, ebenen: BERN, erwartet: { 'D6-2': 'weich', 'D6-3b': 'hinweis' } },
   { regel: 'D6-2b', name: 'Tempo 50, DTV 5000, Bern', abw: { dtv: 5000 }, ebenen: BERN, erwartet: { 'D6-2b': 'hinweis', 'D6-2': '-' } },
@@ -236,10 +242,17 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'F2f', name: 'Kopf 0,75', abw: { insel: ins({ kopfUeberstand: [0.75, 0.75] }) }, erwartet: { F2f: '-' } },
   { regel: 'F2g', name: 'Pfosten 0,95', abw: { insel: ins({ pfostenH: 0.95 }) }, erwartet: { F2g: 'hart' } },
   { regel: 'F2-B', name: 'Insel ohne Furt, Bern', abw: { insel: ins({ furt: 0 }) }, ebenen: BERN, erwartet: { 'F2-B': 'hinweis' } },
-  { regel: 'F2-K', name: 'Radstreifen, Insel 1,80, Kanton', abw: { radstreifen: true, insel: ins({ breite: 1.8 }) }, ebenen: KANTON, erwartet: { 'F2-K': 'hinweis' } },
-  ...([[3.49, 'weich'], [3.5, 'hinweis'], [3.6, '-'], [3.75, '-'], [3.76, 'weich'], [4.24, 'weich'], [4.25, 'hinweis'], [4.5, '-']] as [number, Erw][])
+  // Nutzerentscheid 23.10.2026: F2-K nach querenden Velos (veloQuerung), nicht mehr nach dem Radstreifen; nur gebaute Insel
+  { regel: 'F2-K', name: 'Velos queren, Insel 1,80, Kanton', abw: { veloQuerung: true, insel: ins({ breite: 1.8 }) }, ebenen: KANTON, erwartet: { 'F2-K': 'hinweis' } },
+  { regel: 'F2-K', name: 'Velos queren, Insel 2,00, Kanton', abw: { veloQuerung: true, insel: ins({ breite: 2 }) }, ebenen: KANTON, erwartet: { 'F2-K': '-' } },
+  { regel: 'F2-K', name: 'Radstreifen ohne querende Velos, Insel 1,80', abw: { radstreifen: true, insel: ins({ breite: 1.8 }) }, ebenen: KANTON, erwartet: { 'F2-K': '-' } },
+  { regel: 'F2-K', name: 'querende Velos offen, gebaute Insel 1,80', abw: { veloQuerung: null, insel: ins({ breite: 1.8 }) }, ebenen: KANTON, erwartet: { 'F2-K': 'offen' } },
+  { regel: 'F2-K', name: 'querende Velos offen, markierte Insel', abw: { veloQuerung: null, insel: ins({ art: 'markiert', breite: 1.8 }) }, ebenen: KANTON, erwartet: { 'F2-K': '-' } },
+  { regel: 'F2-B', name: 'Furt 0,90, Bern', abw: { insel: ins({ furt: 0.9 }) }, ebenen: BERN, erwartet: { 'F2-B': 'hinweis' }, ist: { 'F2-B': '0,90' } },
+  { regel: 'F2-B', name: 'Furt 1,20, Bern', abw: { insel: ins({ furt: 1.2 }) }, ebenen: BERN, erwartet: { 'F2-B': '-' } },
+  ...([[3.44, 'weich'], [3.45, 'weich'], [3.49, 'weich'], [3.5, 'hinweis'], [3.6, '-'], [3.75, '-'], [3.76, 'weich'], [4.24, 'weich'], [4.25, 'hinweis'], [4.5, '-']] as [number, Erw][])
     .map(([d, e]): Testfall => ({ regel: 'F3', name: `Durchfahrt ${d}`, abw: { insel: INSEL_OK, durchfahrt: [d, 3.6] }, ebenen: KANTON, erwartet: { F3: e } })),
-  { regel: 'F3', name: 'Durchfahrt 3,49, Kanton aus', abw: { insel: INSEL_OK, durchfahrt: [3.49, 3.6] }, erwartet: { F3: '-' } },
+  { regel: 'F3', name: 'Durchfahrt 3,40, Kanton aus', abw: { insel: INSEL_OK, durchfahrt: [3.4, 3.6] }, erwartet: { F3: '-' } },
   { regel: 'F3', name: 'markierte Insel: F3 nicht anwendbar', abw: { fahrbahnB: 8, insel: ins({ art: 'markiert' }), durchfahrt: [3.0, 3.0] }, ebenen: KANTON, erwartet: { F3: '-', 'F3-M': '-' } },
   { regel: 'F3-M', name: 'markierte Insel, Fahrstreifen 2,90', abw: { fahrbahnB: 8, insel: ins({ art: 'markiert' }), durchfahrt: [2.9, 3.1] }, ebenen: KANTON, erwartet: { 'F3-M': 'weich' } },
   { regel: 'F3-M', name: 'markierte Insel 1,40', abw: { fahrbahnB: 8, insel: ins({ art: 'markiert', breite: 1.4 }), durchfahrt: [3.3, 3.3] }, ebenen: KANTON, erwartet: { 'F3-M': 'weich' } },
@@ -259,8 +272,11 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'F5b', name: 'Anrampung 0,60 m', abw: { ...EINM, typ: 'trottoirueberfahrt', q3: q3({ anrampung: { neigung: 12, laenge: 0.6 } }) }, erwartet: { F5b: 'weich' } },
   { regel: 'F6a', name: 'Mehrzweckstreifen 1,40', abw: { typ: 'mehrzweck', mzsBreiteM: 1.4, v85: 30 }, erwartet: { F6a: 'hart', F6b: '-', F6c: '-' } },
   { regel: 'F6b', name: 'Mehrzweckstreifen 1,80', abw: { typ: 'mehrzweck', mzsBreiteM: 1.8, v85: 30 }, erwartet: { F6b: 'weich', F6a: '-' } },
-  { regel: 'F6c', name: 'Mehrzweckstreifen V85 35', abw: { typ: 'mehrzweck', v85: 35 }, erwartet: { F6c: 'weich' } },
-  { regel: 'F6c', name: 'Mehrzweckstreifen V85 45 (auch über 40 weich)', abw: { typ: 'mehrzweck', v85: 45 }, erwartet: { F6c: 'weich' } },
+  // Korrektur 23.10.2026: über 30 bis 40 km/h Hinweis, über 40 km/h Soll
+  { regel: 'F6c', name: 'Mehrzweckstreifen V85 35', abw: { typ: 'mehrzweck', v85: 35 }, erwartet: { F6c: 'hinweis' } },
+  { regel: 'F6c', name: 'Mehrzweckstreifen V85 40', abw: { typ: 'mehrzweck', v85: 40 }, erwartet: { F6c: 'hinweis' } },
+  { regel: 'F6c', name: 'Mehrzweckstreifen V85 41', abw: { typ: 'mehrzweck', v85: 41 }, erwartet: { F6c: 'weich' } },
+  { regel: 'F6c', name: 'Mehrzweckstreifen V85 45', abw: { typ: 'mehrzweck', v85: 45 }, erwartet: { F6c: 'weich' } },
   { regel: 'F7a', name: 'vertikal 60 mm', abw: { randabschluss: { art: 'vertikal', hoeheMm: 60, breiteM: null } }, erwartet: { F7a: 'hart' } },
   { regel: 'F7b', name: 'schräg 40 mm, Quergefälle 4 %', abw: { randabschluss: { art: 'schraeg', hoeheMm: 40, breiteM: 0.15 }, quergefaelle: 4 }, erwartet: { F7b: 'hart', F7a: '-' } },
   { regel: 'F7c', name: 'Absenkung 7 %', abw: { absenkung: 7 }, erwartet: { F7c: 'hart' } },

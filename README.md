@@ -247,8 +247,11 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   `src/panelbreite.ts` – ziehbarer Trenner zwischen Karte und Panel (360 px bis 70 % der Fensterbreite, in localStorage gespeichert)
 - `src/Einstieg.tsx` – Startseite oder Prüfung je nach Anker `#pruefen` (Zurück-Taste des Browsers geht; die Prüfung lädt
   erst beim Wechsel), `src/Startseite.tsx` – Startseite mit Beschreibung, Querverweisen und Datenspeicherung
-- `src/Bericht.tsx` – Bericht (Druckansicht, Kartenbild aus WMS + SVG), `src/Hilfe.tsx` – «So funktioniert's», Datenschutz,
-  Fusszeile, `src/texte.ts` – Texte für Panel und Bericht
+- `src/Bericht.tsx` – Bericht (Druckansicht, Kartenbild aus WMS + SVG), `src/Hilfe.tsx` – «So funktioniert's» (kurze Anleitung in
+  Schritten, ausführliche Bedienung und Grenzen zugeklappt), Quellen der Prüfungen und Begriffe für die Panel-Abschnitte
+  «Grundlagen und Quellen» bzw. «Begriffe», Datenschutz, Fusszeile, `src/streetview.ts` – Link «Street View ↗» auf Google Maps
+  je Zufahrt (vom Sichtpunkt in Soll-Distanz mit Blick auf die Streifenmitte) und an der Streifenmitte, nur als Link (keine
+  Einbettung, kein API-Schlüssel; die Koordinaten gehen erst beim Klick an Google), `src/texte.ts` – Texte für Panel und Bericht
 - `src/abdeckung.ts` – Abdeckung der geladenen Daten: wann die App um Streifen von Hand neu lädt (Herleitung der 30 m im
   Kopf der Datei), `src/rechner/vermassung.ts` – Lage und Masse eines Streifens von Hand
 - `src/rechner/planflaechen.ts` – Flächen (Plan) von Hand mit der AV-Bodenbedeckung verschneiden (Regeln im Kopf der Datei),
@@ -262,6 +265,10 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   vorbelegt aus der Rechnung in `vorbelegung.ts`, Befundblatt aus `befundblatt.ts` auch im Bericht), Querung ohne Vortritt je
   Streifen mit der Sichtweite nach VSS 40 240 Z. 8.2 im Sichtrechner (`src/rechner/ohneVortritt.ts`); Fall-Dateien mit
   Bedarf-Eingaben (Block `bedarf`, je Unterfeld geprüft in `fallBedarf.ts`) bzw. mit einer Querung ohne Vortritt haben die Version 3.
+  Ein Streifen lässt sich als Trottoirüberfahrt wählen (`StreifenEingabe.typ = 'trottoirueberfahrt'`): ohne Sicht auf die Wartefläche
+  (Zufahrten nur für die Vorbelegung des Bedarfs), setzt im Bedarf den Querungstyp und verweist für die Knotensicht auf den SichtweitenCheck (`?knoten=<OSM-Id>`).
+  Im Panel stehen Sichtprüfung und Bedarf in zwei Reitern (`src/ReiterLeiste.tsx`, Logik in `src/reiter.ts`: Vorgabe nach dem
+  Fall, Pfeiltasten, Zustand der Zulässigkeit in Wort und Symbol, Teaserzeile im Reiter Sichtprüfung).
   Vorbelegung aus Geodaten (`vorbelegung.ts`, `src/daten/haltestellen.ts`, `verkehrsdaten.ts`, `geoportal.ts`): Bushaltestelle
   (Geoportal Stadt Bern bzw. OSM, «keine» ohne Haltestelle im Umkreis von 50 m, sonst Hinweis), Strecke oder Zone (OSM-Tags der
   Zufahrten), DTV (Bern: Geoportal, 16·Nt + 8·Nn; ohne Eintrag Annahme 500) und ein Hinweis zur Beleuchtung (OSM, ohne Wert); jede
@@ -277,6 +284,13 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Versionen übergehen sie). «Sichtweite je Zufahrt» zeigt ohne Handeingabe das Ergebnis des Sichtrechners (Zustand «rechner»,
   zählt nicht als offen); der Sichtrechner liefert dazu je gerade Zufahrt `freiBisM` (zusätzliches Ausgabefeld, Status und Soll
   unverändert), das die Grundprüfung bei verdeckter Sicht nutzt.
+  Erkennungsdistanz aus dem Sichtrechner (`src/rechner/erkennung.ts`): je gerade Zufahrt eines Fussgängerstreifens `erkennungM`
+  (`{ wert, bis: 'frei' | 'fahrlinie_endet' | 'verdeckt', hindernis?, ende? }`, zusätzliches Ausgabefeld, übrige Ergebnisse
+  unverändert): freie Sicht von den Sichtpunkten bzw. einer nur dafür verlängerten Fahrlinie auf die Markierung im eigenen
+  Fahrstreifen, Abstand entlang der Fahrlinie, bis 110 m (`REICHWEITE_SICHT_M`) bzw. bis zum Ende der Fahrlinie; Gebäude, Hecken,
+  Mauern, Bäume und Auto-Parkfelder verdecken; Abbieger und Querungen ohne Vortritt ohne Wert. 2D ohne Gelände, nur die Markierung
+  (nicht die blaue Tafel, Signal 4.11): die Vorbelegung setzt den kleinsten Wert der geraden Zufahrten als Annahme ins Feld «Ab welcher Distanz ist der Streifen erkennbar» (eine Untergrenze nur, wenn sie das Doppelte der
+  Sichtweite erreicht; Handeingabe geht vor).
   Datenschicht «Automatik Paket C» (nur Daten, in `GeoVorbelegung` durchgereicht; in Bern geladen, wenn die AV-Fläche am Ladeort
   in der Stadt Bern liegt, je Dienst eine Abfrage pro Layer im Rechteck ±150 m, Fehler je Dienst getrennt, Liste in
   `src/daten/bernDienste.ts`, Quellenangabe «Geodaten Stadt Bern» in Fusszeile, Fall-Datei und Bericht):
@@ -308,7 +322,7 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Vorbedingung, Sicht und Erkennungsdistanz, Schutzinsel, Zweistreifigkeit, Beleuchtung, Fussgängerfrequenz, dazu DTV und
   Annäherungsbereich), Stärke nach dem Wortlaut der bfu, Normhinweis, wo die Norm anders wertet; je Punkt erfüllt, verletzt,
   offen oder Hinweis, nur für Fussgängerstreifen ohne Lichtsignal und unabhängig von den Ebenen. Im Panel oben mit ihren
-  Eingaben (`GRUND_FELDER` in `felder.ts`), Befundblatt und übrige Eingaben aufklappbar als «Erweiterte Prüfung»; im Bericht
+  Eingaben (`GRUND_FELDER` in `felder.ts`), übrige Prüfungen und Eingaben aufklappbar als «Erweiterte Prüfung»; im Bericht
   vor dem Befundblatt. Die Regeln B5 erscheinen nicht im Befundblatt; das Fallformat bleibt unverändert.
   Seit der Korrekturrunde zusätzlich die Fahrbahnhaltestelle (bfu Ziff. 2.3) und unsichere Soll-Werte als Bereich (Stufe 60 km/h
   ohne Angabe innerorts, Kurvenradius von Hand): verletzt nur sicher darunter, erfüllt nur sicher darüber, sonst offen.
@@ -316,23 +330,42 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Bedeutung eines leeren Felds und Sichtbarkeitsbedingungen als Daten (`SICHTBAR`), geprüft vom Wächter `feldhilfen.test.ts`.
   Themen und Verbindlichkeit in `themen.ts`: jede Regel hat genau ein Thema (`thema` im Katalog, Liste `THEMEN`; die Punkte der
   Grundprüfung führen die bfu-Namen, ihr Thema steht daneben); das Befundblatt ordnet die Einträge nach Thema und Stärke, nennt je Eintrag die
-  Verbindlichkeit in Worten aus Ebene und Stärke (`verbindlichkeit`, z. B. «Pflicht (Norm)») und zählt in der Prüfübersicht
+  Verbindlichkeit in Worten aus Ebene und Stärke (`verbindlichkeit`, z. B. «Pflicht (Norm)») und zählt (`pruefUebersicht`)
   die geprüften Regeln (in Ordnung = `Befund.erfuellt`, offen, Befunde, Hinweise; nicht anwendbare zählen nicht).
   Seit der Korrekturrunde heisst «in Ordnung» «ohne Befund» und gilt nicht für die zweite Stufe eines Regelpaars, deren erste
   verletzt oder offen ist (`PAARE`); Weichen zählen nicht, «nicht geprüft» nennt den Grund. Verbindlichkeit als «Muss», «Soll» bzw.
   «Hinweis» mit Ebene. Grundprüfung und Befundblatt zeigen eine Zeile je Punkt bzw. Eintrag (`kompakt.ts`), offene Angaben als
-  Frage je Feld (`FRAGEN` in `feldhilfen.ts`), Klick springt zum Feld.
+  Frage je Feld (`FRAGEN` in `feldhilfen.ts`), Klick springt zum Feld. In der Grundprüfung nennt die Zeile nur den Satz der
+  Teilregel, die den Zustand bestimmt (übrige offene Teilregeln, Annahmen und Hinweise gezählt); die Details je Punkt öffnet ▸ am
+  Zeilenende, im Bericht stehen sie unter der Zeile. Das Werkverzeichnis (`WERKE` in `katalog.ts`) führt je Werk den vollen Titel
+  und die offiziellen Adressen beim Herausgeber (Seite bzw. PDF mit Grösse; Normen ohne Link, kostenpflichtig): Links ↗ in den
+  Quellen der Prüfungen, im Bericht die Adresse als Text. Im Lesetext stehen Werke mit verständlichem Namen und ausgeschriebener
+  Fundstelle (`LESENAME`, `fundstelleText`, `verweisTeile` in `quellen.ts`), verlinkt auf ihre Zeile in «Grundlagen und Quellen»;
+  Artikel des Bundesrechts direkt in fedlex, Seiten der Berner Masterpläne im PDF. Der Panel-Abschnitt «Regeln» (`RegelUebersicht.tsx`,
+  Daten aus `bedarf/regeluebersicht.ts`) listet alle Regeln des Katalogs nach Thema oder nach Quelle, mit Filter und Suche: Fundstelle,
+  wo und wann die Regel wirkt, nötige Angaben (Sprung zum Feld) und Ergebnis; die Zahl «Regeln» der Quellentabelle und die
+  Regelnummern in den Details verweisen dorthin. Unter der Zusammenfassung stehen im Panel die offenen Fragen der Grundprüfung
+  (`offeneFragen` in `zusammenfassung.ts`: feste Reihenfolge nach Punkt, mit dessen Zeichen, ohne Nummern), mit der Eingabe
+  direkt dort (dieselbe Felddefinition und Übernahme wie die Maske); Satz 3 zählt sie nur, im Bericht bleiben sie ausgeschrieben.
+  Die erweiterte Prüfung steht je Thema (`themenansicht.ts`): Befunde, offene Angaben als Fragen mit Eingabe (dieselbe Liste wie
+  der Block, je Feld einmal, im Thema des Felds bzw. seiner Regeln) und zugeklappt die übrigen Felder des Themas; brauchen Regeln
+  eines anderen Themas bzw. der Grundprüfung die Angabe, dort ein Verweis «siehe …» mit der Regel; ohne Angaben nicht geprüfte
+  Blöcke (Trottoirüberfahrt, LSA-Zeiten) als Zeile mit Sprung; Masse sowie Annahmen und Hinweise am Ende. Der Bericht gliedert
+  gleich, ohne Eingaben.
   Zuoberst im Abschnitt und im Bericht steht je Querung eine Zusammenfassung in drei Sätzen nach festen Vorlagen (`zusammenfassung.ts`:
   Zulässigkeit und Empfehlung, Grundprüfung und wichtigste Befunde mit den Kurzformen `kurzsatz` des Katalogs, fehlende Angaben als Fragen).
   Runde 4: Quellenverzeichnis in `quellen.ts` (je Werk des Werkverzeichnisses zwei eigene Sätze: was es ist und wie verbindlich nach
-  der Ebene; Hilfe mit Tabelle und Zahl der Prüfungen je Werk, Bericht nur mit den Werken des Falls, in den Details der Werkname als
-  Verweis), Begriffsliste in `begriffe.ts` (eigene Erklärungen; Hilfe alphabetisch, Bericht nur die Begriffe des Falls, dezente
+  der Ebene; Tabelle mit Zahl der Prüfungen je Werk im Panel-Abschnitt «Grundlagen und Quellen», Bericht nur mit den Werken des
+  Falls, in den Details der Werkname als Verweis), Begriffsliste in `begriffe.ts` (eigene Erklärungen; Panel-Abschnitt «Begriffe» alphabetisch, Bericht nur die Begriffe des Falls, dezente
   Verweise in Feldhilfen und Details) und an offenen Feldern der Zusatz, wofür die Angabe fehlt («fehlt für 2 Muss-Prüfungen»,
   «entscheidet über die Zulässigkeit»; `feldbedarf.ts`). «Vorschlag bestätigen» steht nur an Feldern, deren Annahme im Fall ein
   Verbot offen hält. Abstände entlang der Strasse: endet die Strasse ohne Fortsetzung (Querstrasse, Sackgasse), gilt diese Richtung
   als ganz durchsucht, nur ein Namenswechsel begrenzt die Suche (`FORTSETZUNG_GRAD` in `automatik.ts`); enden beide Richtungen, gilt
-  die Länge der ganzen Strasse mit dem Kennzeichen `ganzeStrasse` (G1/G2 dann als Hinweis, nicht anwendbar). Ist offen, ob die Querung in einer Begegnungszone liegt (nur bei Tempo 20 bzw. unbekanntem
-  Tempo ohne Zonenangabe; ab Tempo 30 ist die Regel nicht anwendbar), folgt die Empfehlung eines Typs erst nach der Klärung.
+  die Länge der ganzen Strasse mit dem Kennzeichen `ganzeStrasse` (G1/G2 dann als Hinweis, nicht anwendbar). Ist offen, ob die Querung in einer Begegnungszone liegt (bei unbekanntem
+  Tempo ohne Zonenangabe, bei widersprüchlichen Angaben zu Tempo 20 sowie bei einer Begegnungszone aus OSM gegen amtliches Tempo ab
+  30 km/h, Kennzeichen `strittig`; sonst ist die Regel ab Tempo 30 nicht anwendbar), folgt die Empfehlung eines Typs erst nach der
+  Klärung. Bei genau Tempo 20 (Geoportal bzw. OSM maxspeed) ohne widersprechende Zonenangabe schlägt die Vorbelegung die
+  Begegnungszone vor (Quelle `vorschlag`, keine Annahme: gilt für die Beurteilung, von Hand auf Strecke änderbar).
   Satz 1 der Zusammenfassung nennt bei offener Zulässigkeit den möglichen Typ («falls ja, passt …») und die
   entscheidende Frage; Satz 3 trennt entscheidende von vervollständigenden Angaben; Satz 4 nennt Annahmen und gefundene Gründe für
   Vortritt. Belege aus Datenbanken (OSM-Tags, Knotennummern) stehen in Herkunftstexten zwischen ⟦…⟧ und erscheinen nur im Tooltip
@@ -412,6 +445,14 @@ wählen und als Custom domain `fgscheck.ch` eintragen. Der Referenzvergleich (`s
   Zufahrten tragen Nummern (je Streifen im Uhrzeigersinn ab Norden nach der Herkunft) als Schild auf der Karte und im
   Kartenbild des Berichts sowie vor dem Namen in Panel und Bericht; von Hand gestrichene Zufahrten behalten ihre Nummer;
   nur Anzeige, nicht in der Fall-Datei.
+- v0.6: Bedarfsmodul «Bedarf und Querungstyp»: Grundprüfung nach bfu (Big Five) und erweiterte Prüfung nach Normen,
+  Stadt Bern und Kanton Bern; Zusammenfassung in wenigen Sätzen, Fragen statt Feldnamen, Erklärung und Herkunft je Feld,
+  Quellen der Prüfungen mit Links, Begriffe und Regelübersicht als eigene Abschnitte. Vorbelegung aus Sichtrechner, OpenStreetMap, Amtlicher
+  Vermessung und Geoportal der Stadt Bern; Annahmen sind gekennzeichnet, harte Verbote nur aus Tatsachen oder nach
+  Bestätigung. In Bern rechnet die Sichtprüfung mit dem signalisierten Tempo des Geoportals. Fall-Dateien mit
+  Bedarfsangaben haben die Version 3. Breite des Bereichs neben der Karte ziehbar. Zwei Reiter «Sichtprüfung» und
+  «Bedarf und Querungstyp»; Trottoirüberfahrt am Streifen wählbar (Knotensicht im SichtweitenCheck); Tempo 20 als
+  Begegnungszone vorgeschlagen; Erkennungsdistanz des Streifens aus dem Sichtrechner; Street View je Zufahrt.
 
 ## Lizenz
 

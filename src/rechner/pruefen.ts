@@ -35,6 +35,7 @@ import { abbiegeZufahrt, SPUR_MIN_M, type AbbiegeKontext } from './abbiegen'
 import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvexeHuelle, enthaelt, abstandMulti, huelle, abstandLinieMulti } from './poly'
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
 import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt, QuerungOhneVortritt } from './typen'
+import { type Augpunkt, type Erkennung, type ErkennungEnde, ERKENNUNG_MAX_M, entlangLinie, erkennungRechnen, zielPunkte } from './erkennung'
 import { type OhneVortritt, sichtOhneVortritt, quelleOhneVortritt, annahmeOhneVortritt, weiteOhneVortritt, REICHWEITE_SICHT_M } from './ohneVortritt'
 
 const RAND_TOL = 1.0
@@ -299,10 +300,14 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   let su: Suche | null = null, kbe: Knotenbereich | null = null, sg: SpurGerade | null = null
   let knotenM: number[] = []
   let wegRoh: P[], tempoStreifen: number, tempoQ: string, kreiselPruefen: boolean, achseFb = true
+  // Fahrlinie gleicher Herleitung mit längerer Reichweite, nur für die Erkennungsdistanz (erkennung.ts); die Spur bleibt unverändert
+  let wegLang: (L: number) => { punkte: P[]; endeM: number | null; endeGrund: string | null }
   if (zf.g !== null && netz) {
     su = netz.stromauf(zf.g, zf.sd!, zf.gegenEinbahn)
     kbe = su.art === 'knoten' ? netz.knotenbereich(su, zf.g) : null
     sg = netz.spurGerade(su, kbe, weite, SPUR_ENDE_KAPPEN)
+    const su0 = su, kbe0 = kbe
+    wegLang = L => netz.spurGerade(su0, kbe0, L, SPUR_ENDE_KAPPEN)
     wegRoh = sg.punkte; knotenM = sg.knotenM
     ;[tempoStreifen, tempoQ] = tempoStart(netz, zf.g.wid)
     kreiselPruefen = true
@@ -316,11 +321,13 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       const wid = achsen.linien[treffer[0]].wid
       ;[tempoStreifen, tempoQ] = tempoStart(netz, wid)
       wegRoh = achsen.spur([treffer[0], treffer[1], treffer[2]], neg(d), weite)
+      wegLang = L => ({ punkte: achsen.spur([treffer[0], treffer[1], treffer[2]], neg(d), L), endeM: null, endeGrund: null })
       zf.name = zf.name || netz.w(wid).name
       kreiselPruefen = true
       annahmen.push(`Kein OSM-Weg quert den Streifen: Fahrlinie entlang des nächsten OSM-Wegs (Nr. ${wid})` + (aufFb ? '' : ', neben der Fahrbahn'))
     } else {
       wegRoh = [s.m, add(s.m, neg(d), weite)]
+      wegLang = L => ({ punkte: [s.m, add(s.m, neg(d), L)], endeM: null, endeGrund: null })
       tempoStreifen = 50; tempoQ = 'Ersatz'
       kreiselPruefen = false
       annahmen.push('Kein OSM-Weg am Streifen: Fahrlinie gerade, senkrecht zum Streifen angenommen')
@@ -753,6 +760,76 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     netzHinweis.push('spur_hand')
   }
   const geradeGestrichen = hatGerade && !geradeEntfaellt && !!kx.vonHand?.streichen?.(fid, kennungG)
+  /**
+   * Erkennungsdistanz der geraden Zufahrt (erkennung.ts): Augpunkte = Sichtpunkte, dahinter auf der verlängerten Fahrlinie mit der
+   * seitlichen Lage des letzten Sichtpunkts bis zur Prüfgrenze bzw. zum Ende der Fahrlinie. Ohne Verlängerung: Kreisel in der
+   * Sichtweite (Spur auf dem Ring) und eine schon in der Sichtprüfung geometrisch begrenzte Spur (bis Knoten, Wegende, Gebäude);
+   * Fahrlinie von Hand B: die gezeichnete Linie gerade verlängert wie in der Sichtprüfung.
+   * Messbezug (Prüfung 23.10.2026): x = Abstand ENTLANG der Fahrlinie ab dem ersten Sichtpunkt (Projektion auf die Linie, nicht die
+   * Summe der Sichtpunkt-Abstände, die bei seitlich versetzten Punkten zickzackt); Enden nach OSM (ab der Streifenmitte) ebenso.
+   */
+  function erkennungGerade(): Erkennung | undefined {
+    if (!sichtpunkte.length) return undefined
+    const grenze = ERKENNUNG_MAX_M
+    const ziele = zielPunkte(sichtpunkte[0], s)
+    const hd = kx.hindernisse ?? null
+    // Augpunkt im Gebäude neben der Fahrbahn (Strasse wird schmaler, biegt ab, Linie von Hand daneben): auf die nächste Fahrbahn bis
+    // 5 m, sonst endet die Fahrlinie dort (null)
+    const aufLinie = (p: P): P | null => {
+      if (!(gebaeude.enthaelt(p) && !fahrbahn.enthaelt(p))) return p
+      const q = aufFahrbahnNaechst(fahrbahn, p, 1.0, 5.0)
+      return gebaeude.enthaelt(q) && !fahrbahn.enthaelt(q) ? null : q
+    }
+    if (spurH?.art === 'B') {
+      // gezeichnete Linie, gerade verlängert (liniePunkte: Punkte alle SCHRITT entlang der Linie)
+      const augen: Augpunkt[] = []
+      let ende: ErkennungEnde | null = null
+      for (const [k, p0] of liniePunkte(spurH.linie, grenze)[0].entries()) {
+        const p = aufLinie(p0)
+        if (!p) { ende = 'gebaeude'; break }
+        augen.push({ p, x: Math.min(k * SCHRITT, grenze) })
+      }
+      return erkennungRechnen(augen, ziele, gebaeude, hd, ende && augen[augen.length - 1].x < grenze - 1e-6 ? ende : null)
+    }
+    const entlang = (linie: P[], pts: P[], start: number) => entlangLinie(linie, pts, start, SCHRITT)
+    const geoEnde: Record<string, ErkennungEnde> = { 'bis Gebäude': 'gebaeude', 'bis Wegende': 'wegende', 'bis Knoten (Strassenende)': 'knoten' }
+    const hRand = gesamt - sw
+    if (kt || geoEnde[swQuelle]) {
+      const lage = entlang(spurK ?? weg, sichtpunkte, hRand)
+      const augen = sichtpunkte.map((p, k) => ({ p, x: lage[k].a - lage[0].a })).filter(a => a.x <= grenze + 1e-6)
+      return erkennungRechnen(augen, ziele, gebaeude, hd, augen[augen.length - 1].x < grenze - 1e-6 ? (kt ? 'kreisel' : geoEnde[swQuelle]) : null)
+    }
+    // verlängerte Fahrlinie: Ende nach OSM (Strassenende = Knoten ohne Fortsetzung, Wegende), Knoten ohne gerade Fortsetzung bzw.
+    // Kreisel bis zur Prüfgrenze (wie hatGerade bzw. die Kreisel-Regel in der Sichtweite); alle Enden ab dem ersten Sichtpunkt
+    const lE = grenze + Math.max(h, hRand) + 10
+    const wl = wegLang(lE)
+    const wegE = glaetten(versetzen(wl.punkte, verschiebung, rueckAb), GLAETTUNG_M)
+    const lage = entlang(wegE, sichtpunkte, hRand)
+    const a0 = lage[0].a
+    const augen = sichtpunkte.map((p, k) => ({ p, x: lage[k].a - a0 })).filter(a => a.x <= grenze + 1e-6)
+    const xLetzt = augen[augen.length - 1].x
+    let endeX = Infinity, ende: ErkennungEnde | null = null
+    const endeBei = (x: number, e: ErkennungEnde) => { if (x < endeX) { endeX = x; ende = e } }
+    if (wl.endeM !== null) endeBei(wl.endeM - a0, wl.endeGrund === 'strassenende' ? 'knoten' : 'wegende')
+    if (su !== null && su.art === 'knoten' && !(forts !== null && forts.rolle === 'gerade' && !fortsService)) endeBei(su.dist - a0, 'knoten')
+    if (kreiselPruefen) { const k2 = kreisel.treffer(wl.punkte, lE); if (k2) endeBei(Math.max(k2[0], a0) - a0, 'kreisel') }
+    const bisX = Math.min(grenze, endeX)
+    const aLetzt = lage[augen.length - 1].a, lat = lage[augen.length - 1].lat
+    const xs: number[] = []
+    for (let x = xLetzt + SCHRITT; x < bisX - 1e-6; x += SCHRITT) xs.push(x)
+    if (bisX > xLetzt + 1e-6) xs.push(bisX)
+    let vorher = xLetzt
+    for (const x of xs) {
+      const q = refAuf(wegE, [aLetzt + x - xLetzt], lat)
+      // Fahrlinie zu Ende (Datenrand) bzw. Spurende im Gebäude (wie die Sichtprüfung)
+      if (!q.length) { endeBei(vorher, 'wegende'); break }
+      const p = aufLinie(q[0][0])
+      if (!p) { endeBei(vorher, 'gebaeude'); break }
+      augen.push({ p, x }); vorher = x
+    }
+    const reicht = augen[augen.length - 1].x
+    return erkennungRechnen(augen, ziele, gebaeude, hd, reicht < grenze - 1e-6 ? ende ?? 'wegende' : null)
+  }
   if (geradeGestrichen) {
     entf.push(entfallen(fid, 'gerade', gradD, String(gradD), 'hand', 'von Hand gestrichen', zf.g?.wid ?? null,
       mitKnoten ? su!.K : null, kennungG))
@@ -760,6 +837,8 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     const feld = sf(sichtpunkte)
     const konflikte = kf(feld, sichtpunkte)
     const freiBisM = freiBis(sichtpunkte, konflikte, sf, kf, sw)
+    // Erkennungsdistanz (zusätzliches Ausgabefeld, nur Fussgängerstreifen: eine Querung ohne Vortritt hat keine Balken)
+    const erkennungM = ov ? undefined : erkennungGerade()
     ergebnisse.push({
       fgsId: fid, zufahrt: schluessel([...bisher, ...ergebnisse], art, gradD), kennung: kennungG, richtung: gradD, art,
       strasse: zf.name || null, ueberStrasse: null, knotenM: null, tempo, tempoQuelle: tempoQ,
@@ -778,6 +857,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       netzHinweis: [...new Set(netzHinweis)], punkteVerschoben: nVerschoben, sichtpunkte, feld, spur: weg, annahmen,
       ...(fso ? { fahrstreifenOsmN: fso.n } : {}),
       freiBisM,
+      ...(erkennungM ? { erkennungM } : {}),
     })
   } else if (!hatGerade) {
     const ende = sg !== null && sg.endeM !== null ? `Spur endet nach ${sg.endeM.toFixed(1)} m (${sg.endeGrund})` : ''

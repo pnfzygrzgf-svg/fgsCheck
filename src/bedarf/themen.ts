@@ -6,7 +6,7 @@
 // Verbindlichkeit (Korrektur Runde 2, Schweizer Amtssprache Muss/Soll/Kann): aus Stärke (Wortlaut der Quelle, Entscheid E0-1) und
 // Ebene ein Wort, z. B. «Muss (Norm)», «Muss (Norm), Abweichung nur mit verkehrstechnischem Bericht», «Soll (Norm), Abweichung
 // begründen», «Hinweis (Richtlinie)». Regeln aus Projektentscheiden (erste Quelle fgsCheck) heissen «… (Projektentscheid fgsCheck)».
-// Mehr sagt das Wort nicht (LEGENDE): Norm, Standard und Arbeitshilfe sind keine Gesetze.
+// Mehr sagt das Wort nicht (LEGENDE).
 //
 // Prüfübersicht (erweiterte Prüfung, ohne Grundprüfung B5 und ohne Weichen des Baums): je Regel ein Stand aus den Einträgen.
 //   geprüft          = mit Eintrag (verletzt bzw. offen) oder erfüllt (Befund.erfuellt)
@@ -79,8 +79,7 @@ export function verbindlichkeitVon(x: Pick<Eintrag, 'id' | 'ebene' | 'staerke'>)
   return verbindlichkeit(x.ebene, x.staerke)
 }
 /** Legende unter Befundblatt und im Bericht */
-export const LEGENDE = 'Muss/Soll nach dem Wortlaut der Quelle. Norm, Standard und Arbeitshilfe sind keine Gesetze; verbindlich im ' +
-  'Rechtssinn ist nur die Ebene Recht.'
+export const LEGENDE = 'Muss, Soll und Hinweis nach dem Wortlaut der Quelle.'
 /** Wort für einen offenen Eintrag (Eingabe fehlt, Entscheid E0-2) */
 export const OFFEN_WORT = 'Angabe fehlt'
 

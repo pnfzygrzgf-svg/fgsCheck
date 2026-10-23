@@ -69,6 +69,10 @@ export const STATUS_FARBE: Record<string, string> = {
 /** Querung ohne Vortritt (Bedarfsmodul E1): Umriss ohne Balken, weiss gestrichelt über dunklem Rand, in Karte und Bericht */
 export const OHNE_VORTRITT_FARBE = '#ffffff'
 export const STRICH_OHNE_VORTRITT = '6 4'
+/** Trottoirüberfahrt (Wahl am Streifen): Umriss grau gestrichelt, Fläche in der Trottoirfarbe der AV, ohne Balken und ohne
+ * Annäherungsbereiche, in Karte und Bericht */
+export const TUE_RAND = '#64748b'
+export const STRICH_TUE = '4 3'
 /** Strichmuster der Fahrlinie einer gedeckten Abbiegezufahrt (nur mit GEDECKT_RECHNEN), in Karte und Bericht gleich */
 export const STRICH_GEDECKT = '2 8'
 export const LUFTBILD_FARBE = '#f59e0b'
@@ -468,6 +472,12 @@ export default function Karte(props: {
         L.polygon(multiLl(z.feld), { color: farbe, weight: 1, fillColor: farbe, fillOpacity: 0.1, interactive: !cb.current.werkzeug })
           .bindTooltip(`Sichtfeld ${esc(zufahrtText(cb.current.zufahrtNamen.get(z.fgsId), z.zufahrt))}${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(z.status.replace('_', ' '))}`, { sticky: true })
           .on('click', () => { if (!cb.current.werkzeug) cb.current.onZufahrt(zufahrtKey(z)) }).addTo(eb.sicht)
+      }
+      if (s.trottoirueberfahrt) {
+        // Trottoirüberfahrt: keine Wartefläche, kein Balken; Trottoirfarbe, grau gestrichelt
+        L.polygon(s.umriss.map(ll), { color: TUE_RAND, weight: 2, dashArray: STRICH_TUE, fillColor: AV_FARBEN.Trottoir, fillOpacity: 0.85,
+          interactive: false }).addTo(eb.sicht)
+        continue
       }
       for (const a of s.ann) L.polygon(a.map(r => r.map(ll)), { color: '#0ea5e9', weight: 1, fillOpacity: 0.4, interactive: false }).addTo(eb.sicht)
       if (s.querung) {

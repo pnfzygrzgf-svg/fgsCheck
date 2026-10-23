@@ -106,6 +106,9 @@ export const REGELN: Record<BefundId, RegelFn> = {
   A2: k => {
     const t = k.o('tempoRegime')
     if (t !== null) return t === 'begegnungszone' ? ja(true) : null
+    // 23.10.2026: nennt eine Datenquelle eine Begegnungszone und widerspricht das amtliche Tempo (Feld strittig), bleibt A2 offen,
+    // auch bei Tempo ab 30 km/h
+    if (k.e.tempoRegime?.strittig) throw new Offen(['tempoRegime'])
     const v = k.o('vSig')
     if (v !== null && v >= 30) return null
     throw new Offen(['tempoRegime'])
@@ -190,7 +193,8 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (k.w('fahrbahnB') < W.bMin || k.insBaulich()) return ja(false)
     return ja(k.w('dtv') < W.dtvMin)
   },
-  D2c: k => ja(!k.insBaulich() && !k.hat('D1') && !k.hat('D2') && !k.hat('D2a')),
+  // Korrektur 23.10.2026: nach D3a ausgewertet, damit «nicht verlangt» nicht neben «Insel nötig» (Tram auf eigenem Gleis) steht
+  D2c: k => ja(!k.insBaulich() && !k.hat('D1') && !k.hat('D2') && !k.hat('D2a') && !k.hat('D3a')),
   D3a: k => (lsaBekannt(k) || k.w('tram') !== 'eigentrassee' ? null : ja(!k.insBaulich() && !k.mitLsa())),
   D3b: k => (k.w('tram') !== 'eigentrassee' ? null : ja(k.w('balkenAufGleis'))),
   D4a: k => ja(k.w('haltestelle').lage === 'im_bereich'),
@@ -213,20 +217,34 @@ export const REGELN: Record<BefundId, RegelFn> = {
     }
     return ja(true, { soll: `${a} m`, detail: `Richtwert ${a} m Abstand zur Haltestelle` })
   },
-  'D5-1': k => (k.w('strassentyp') !== 'verkehrsorientiert' ? null : ja(k.w('starkBelastet'))),
+  // Korrektur 23.10.2026: D5-1, D5-4, D5-5, D5-6 wie D5-2/D5-3 nicht anwendbar, wenn die Querung schon ein Lichtsignal hat; das
+  // Lichtsignal wird erst gelesen, wenn die Regel sonst greifen würde (kein «offen» nur wegen des Lichtsignals)
+  'D5-1': k => {
+    if (lsaBekannt(k) || k.w('strassentyp') !== 'verkehrsorientiert') return null
+    if (!k.w('starkBelastet')) return ja(false)
+    return k.mitLsa() ? null : ja(true)
+  },
   'D5-2': k => (lsaBekannt(k) || !istKnoten(k.w('lage')) || k.mitLsa() ? null : ja(k.w('knotenLsa'))),
   'D5-3': k => (k.mitLsa() ? null : ja(k.nMax() >= K['D5-3'].werte.nAb && !k.insBaulich())),
   // Runde 2 (Korrektur A2): nicht anwendbar, wenn weder H1 noch E3 ausgewertet ist; offen, solange eine davon offen ist
   'D5-4': k => {
     const h = k.ergebnisse.get('H1'), e = k.ergebnisse.get('E3')
-    if (!h && !e) return null
-    if (k.hat('H1') || k.hat('E3')) return ja(true)
+    if (lsaBekannt(k) || (!h && !e)) return null
+    if (k.hat('H1') || k.hat('E3')) return k.mitLsa() ? null : ja(true)
     const fehlt = [...new Set([...(k.offenFelder.get('H1') ?? []), ...(k.offenFelder.get('E3') ?? [])])]
     if (fehlt.length) throw new Offen(fehlt)
     return ja(false)
   },
-  'D5-5': k => (k.w('tram') === 'keins' ? null : ja(!k.w('tramHaltestellenbereich'))),
-  'D5-6': k => ja(k.w('fgSehrHoch')),
+  'D5-5': k => {
+    if (lsaBekannt(k) || k.w('tram') === 'keins') return null
+    if (k.w('tramHaltestellenbereich')) return ja(false)
+    return k.mitLsa() ? null : ja(true)
+  },
+  'D5-6': k => {
+    if (lsaBekannt(k)) return null
+    if (!k.w('fgSehrHoch')) return ja(false)
+    return k.mitLsa() ? null : ja(true)
+  },
   'D6-1': k => ja(kTempo(k.w('vSig')) === 'k20', { ist: `${k.w('vSig')} km/h` }),
   'D6-2': k => {
     if (k.insBaulich()) return ja(false)
@@ -392,11 +410,18 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const h = k.s('insel', 'pfostenH'), W = K.F2g.werte
     return ja(h > W.max, { ist: fmt(h), soll: `≤ ${fmt(W.max)}` })
   },
-  'F2-B': k => (!k.w('insel').vorhanden ? null : ja(!(k.s('insel', 'furt') > 0))),
+  // Korrektur 23.10.2026: auch ein Durchgang unter der Skizzenbreite 1,20 m ist ein Hinweis
+  'F2-B': k => {
+    if (!k.w('insel').vorhanden) return null
+    const f = k.s('insel', 'furt'), W = K['F2-B'].werte
+    return ja(!(f > 0) || f < W.furt - EPS, f > 0 ? { ist: fmt(f) } : {})
+  },
+  // Nutzerentscheid 23.10.2026: nur, wenn Velos queren und auf der Insel warten (nicht mehr bei Radstreifen entlang der Strasse), nur
+  // an einer gebauten Insel; ohne Insel, mit markierter Insel bzw. ohne querende Velos nicht anwendbar, auch wenn das andere Feld offen ist
   'F2-K': k => {
-    // ohne Insel bzw. ohne Radstreifen nicht anwendbar, auch wenn das andere Feld offen ist
-    if (k.o('insel')?.vorhanden === false || k.o('radstreifen') === false) return null
-    if (!k.w('insel').vorhanden || !k.w('radstreifen')) return null
+    const i = k.o('insel')
+    if (i?.vorhanden === false || (i?.vorhanden && i.art === 'markiert') || k.o('veloQuerung') === false) return null
+    if (!k.insBaulich() || !k.w('veloQuerung')) return null
     return ja(k.s('insel', 'breite') < K['F2-K'].werte.min, { ist: fmt(k.s('insel', 'breite')) })
   },
   F3: k => {
@@ -469,10 +494,11 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const m = k.w('mzsBreiteM'), W = K.F6b.werte
     return ja(m >= W.min && m < W.regel, { ist: fmt(m), soll: `${fmt(W.regel)} (Regel)` })
   },
+  // Korrektur 23.10.2026: zweistufig, über 30 bis 40 km/h Hinweis, über 40 km/h Soll verletzt
   F6c: k => {
     if (k.o('typ') !== 'mehrzweck') return null
     const v = k.v85e(), W = K.F6c.werte
-    return ja(v > W.vMax, { ist: `V85 ${v} km/h`, soll: `≤ ${W.vMax} km/h (allenfalls ${W.vGrenze})` })
+    return ja(v > W.vMax, { staerke: v > W.vGrenze ? 'weich' : 'hinweis', ist: `V85 ${v} km/h`, soll: `≤ ${W.vMax} km/h (allenfalls ${W.vGrenze})` })
   },
   F7a: k => {
     const r = k.w('randabschluss'), W = K.F7a.werte

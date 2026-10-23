@@ -15,13 +15,13 @@
 // Länge: vier Sätze, Ziel 70, höchstens 85 Wörter (Runde 5); zu lang → kürzen nach STUFEN (Satz 4 bleibt immer, kurz).
 
 import { KATALOG } from './katalog'
-import type { Grundpruefung, GrundTeil } from './grundpruefung'
+import type { Grundpruefung, GrundPunkt, GrundTeil } from './grundpruefung'
 import type { Befund, Ebene, Eintrag, Empfehlung, RegelDef, Staerke } from './typen'
 import type { BefundBlatt } from './befundblatt'
 import type { Querungstyp } from './eingaben'
 import { fragenFelder, grundKopf, vorbehaltFelder, type ZeilenZustand } from './kompakt'
 import { istWeiche, mitEinheit, pruefUebersicht, themaVon, type UebersichtKontext } from './themen'
-import { frageVon } from './feldhilfen'
+import { feldZiel, frageVon } from './feldhilfen'
 import { QUELLEN_ANNAHME } from './eingaben'
 import { FELD_DEF, wertText } from './felder'
 import { lesetext } from './lesetext'
@@ -29,7 +29,7 @@ import { ANNAHME_V85 } from './grundpruefung'
 
 const DEF = KATALOG as Readonly<Record<string, RegelDef>>
 
-/** Ort der Anzeige: Verweise «(siehe unten)» im Panel, «(siehe Befundblatt)» bzw. «(siehe Offene Angaben)» im Bericht */
+/** Ort der Anzeige: Verweise «(siehe unten)» im Panel, «(siehe erweiterte Prüfung)» im Bericht (23.10.2026: Befunde und offene Angaben je Thema) */
 export type ZfOrt = 'panel' | 'bericht'
 
 export interface ZfEingabe {
@@ -47,6 +47,9 @@ export interface ZfEingabe {
   gefunden?: readonly string[]
   /** Runde 5 (Stelle 10): Frage je Feld statt der Standardfrage (z. B. «Bitte bestätigen: Tempo-30-Zone (angenommen)?») */
   fragen?: Readonly<Record<string, string>>
+  /** 23.10.2026: Felder, deren Fragen im Block «Offene Fragen» darunter stehen (Panel, nur Grundprüfung); Satz 3 nennt sie nicht
+   * ausgeschrieben, sondern zählt sie */
+  imBlock?: readonly string[]
 }
 
 export interface Zusammenfassung {
@@ -55,7 +58,9 @@ export interface Zusammenfassung {
   /** Satz 2: Grundprüfung und wichtigste Befunde (ein bis zwei Sätze; leer, wenn nichts zu sagen ist) */
   wichtig: string
   /** Satz 3: fehlende Angaben; null, wenn keine fehlt. Runde 5 (Muster 9): zuerst die entscheidenden Angaben, nachsatz zählt den Rest */
-  fehlt: { einleitung: string; felder: string[]; weitere: number; nachsatz?: string; gesamt: number } | null
+  fehlt: { einleitung: string; felder: string[]; weitere: number; nachsatz?: string; gesamt: number
+    /** Verweis auf den Block «Offene Fragen» (Panel): «2 Fragen der Grundprüfung stehen unten.» */
+    block?: string } | null
   /** Satz 4 (Runde 5): Annahmen und gefundene Gründe; leer ohne */
   hinweis: string
   /** Regeln, die Satz 1 als Grund nennt */
@@ -241,13 +246,14 @@ function vorlaeufigWegen(e: Empfehlung): string {
   return 'die Empfehlung ist vorläufig'
 }
 
-function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefined, geplant?: boolean | null): string {
+function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefined, geplant?: boolean | null, zoneVorschlag?: boolean): string {
   const e = b.empfehlung, vorl = e.vorlaeufig
   if (b.ende === 'offen') return 'Noch nicht beurteilt: Es fehlt die Angabe, ob die Querung innerorts liegt.'
   if (b.ende === 'ausserorts') return 'Die Querung liegt ausserorts; fgsCheck beurteilt nur Querungen innerorts.'
   if (b.ende === 'begegnungszone') {
     grundIds.push('A2')
-    return 'In der Begegnungszone ist kein Fussgängerstreifen zulässig; dort queren Fussgänger überall mit Vortritt.'
+    return `In der ${zoneVorschlag ? 'vorgeschlagenen Begegnungszone (Tempo 20)' : 'Begegnungszone'} ist kein Fussgängerstreifen zulässig; ` +
+      'dort queren Fussgänger überall mit Vortritt.'
   }
   if (b.ende === 'flaechig') {
     grundIds.push('B1')
@@ -366,7 +372,7 @@ function befundSatz(liste: readonly Nennung[], max: number, x: ZfEingabe, grundI
   if (liste.length) {
     const m = liste.filter(n => n.muss), s = liste.filter(n => !n.muss && !n.gegen), g = liste.filter(n => n.gegen)
     const km = Math.min(max, m.length), ks = Math.min(max - km, s.length), kg = Math.min(Math.max(1, max - km - ks), g.length)
-    const wo = x.ort === 'bericht' ? 'siehe Befundblatt' : 'siehe unten'
+    const wo = x.ort === 'bericht' ? 'siehe erweiterte Prüfung' : 'siehe unten'
     // Runde 5 (Stelle 11): der Rest als Zahl mit Verweis, nie «ein weiterer Befund» ohne Inhalt
     const teil = (xs: readonly Nennung[], k: number): string => {
       const namen = xs.slice(0, k).map(n => n.text), rest = xs.length - k
@@ -397,12 +403,31 @@ const sichtOhneFeld = (t: GrundTeil): string[] =>
   (t.zustand === 'offen' && !t.fehlend?.length && (t.id === 'B5-1' || t.id === 'B5-1b') && t.detail?.includes('Kurvenradius') ? ['kurve.radius'] : [])
 
 /** Felder, die über die Antwort (Satz 1) entscheiden: Ortslage, Zulässigkeit, Vorbehalt der Empfehlung (Runde 5, Muster 9) */
-function entscheidendeFelder(x: ZfEingabe): string[] {
+export function entscheidendeFelder(x: Pick<ZfEingabe, 'befund'>): string[] {
   const b = x.befund
   const aus: string[] = []
   if (b.ende === 'offen') aus.push(...(b.offenFelder.A1 ?? ['innerorts']))
   if (b.empfehlung.vorlaeufig || b.zulaessigkeit === 'offen') aus.push(...vorbehaltFelder(b))
   return fragenFelder(aus).filter(f => f !== 'Zufahrten')
+}
+
+/** Felder offener Muss-Regeln: Grundprüfung, dann Baum */
+function mussFelder(x: ZfEingabe): string[] {
+  const { befund: b, grund: g } = x
+  const aus: string[] = []
+  if (g.gilt) for (const t of [...g.punkte.flatMap(p => p.teile), ...g.weitere])
+    if (t.zustand === 'offen' && DEF[t.id]?.staerke === 'hart') aus.push(...(t.fehlend ?? []), ...sichtOhneFeld(t))
+  for (const e of b.alle) if (e.zustand === 'offen' && MUSS.includes(e.staerke)) aus.push(...(e.fehlend ?? []))
+  return aus
+}
+
+/**
+ * Wichtige Fragen (Block «Offene Fragen», 23.10.2026): Felder, die die Antwort (Zulässigkeit bzw. Typ) entscheiden, dann die Felder
+ * offener Muss-Prüfungen – dieselbe Reihenfolge wie Satz 3; entscheidend: davon die Felder, die die Antwort tragen
+ */
+export function wichtigeFelder(x: ZfEingabe): { felder: string[]; entscheidend: string[]; alle: string[] } {
+  const entscheidend = entscheidendeFelder(x)
+  return { felder: fragenFelder([...entscheidend, ...mussFelder(x)]).filter(f => f !== 'Zufahrten'), entscheidend, alle: fehlendeFelder(x) }
 }
 
 /** fehlende Felder in der Reihenfolge der Dringlichkeit */
@@ -412,9 +437,7 @@ function fehlendeFelder(x: ZfEingabe): string[] {
   // 1. Zulässigkeit bzw. Empfehlung offen
   aus.push(...entscheidendeFelder(x))
   // 2. Muss-Regeln offen: Grundprüfung, dann Baum
-  if (g.gilt) for (const t of [...g.punkte.flatMap(p => p.teile), ...g.weitere])
-    if (t.zustand === 'offen' && DEF[t.id]?.staerke === 'hart') aus.push(...(t.fehlend ?? []), ...sichtOhneFeld(t))
-  for (const e of b.alle) if (e.zustand === 'offen' && MUSS.includes(e.staerke)) aus.push(...(e.fehlend ?? []))
+  aus.push(...mussFelder(x))
   // 3. übrige Fragen der Grundprüfung, dann die offenen Angaben des Befundblatts
   if (g.gilt) {
     const k = grundKopf(g)
@@ -428,7 +451,7 @@ function fehlendeFelder(x: ZfEingabe): string[] {
 function fehltSatz(felder: readonly string[], entscheidend: readonly string[], max: number, ort: ZfOrt): Zusammenfassung['fehlt'] {
   const n = felder.length
   if (!n) return null
-  const wo = ort === 'bericht' ? 'siehe Offene Angaben' : 'siehe unten'
+  const wo = ort === 'bericht' ? 'siehe erweiterte Prüfung' : 'siehe unten'
   const ent = felder.filter(f => entscheidend.includes(f)), rest = n - ent.length
   // Runde 5 (Muster 9): entscheidende Angaben getrennt von denen, die die Prüfung nur vervollständigen
   if (ent.length) {
@@ -444,14 +467,21 @@ function fehltSatz(felder: readonly string[], entscheidend: readonly string[], m
   return { einleitung, felder: felder.slice(0, k), weitere: n - k, gesamt: n }
 }
 
+/** Satz 3 mit dem Verweis auf den Block «Offene Fragen» (k Fragen der Grundprüfung) */
+function mitBlock(f: Zusammenfassung['fehlt'], k: number): Zusammenfassung['fehlt'] {
+  if (!k) return f
+  const block = k === 1 ? '1 Frage der Grundprüfung steht unten.' : `${k} Fragen der Grundprüfung stehen unten.`
+  return f ? { ...f, block } : { einleitung: '', felder: [], weitere: 0, gesamt: k, block }
+}
+
 // ── Gesamt ──
 
 /** Zusammenfassung als Text (Bericht, Tests): Fragen ausgeschrieben, «(und N weitere)» */
 export function zusammenfassungText(z: Pick<Zusammenfassung, 'antwort' | 'wichtig' | 'fehlt'> & { hinweis?: string },
   fragen: Readonly<Record<string, string>> = {}): string {
   const f = z.fehlt
-  const s3 = f ? [f.einleitung, ...f.felder.map(x => fragen[x] ?? frageVon(x))].join(' ') + (f.weitere ? ` (und ${f.weitere} weitere).` : '') +
-    (f.nachsatz ? ` ${f.nachsatz}` : '') : ''
+  const s3 = f ? ([f.einleitung, ...f.felder.map(x => fragen[x] ?? frageVon(x))].join(' ') + (f.weitere ? ` (und ${f.weitere} weitere).` : '') +
+    (f.nachsatz ? ` ${f.nachsatz}` : '') + (f.block ? ` ${f.block}` : '')).trim() : ''
   return [z.antwort, z.wichtig, s3, z.hinweis ?? ''].filter(Boolean).join(' ')
 }
 
@@ -492,16 +522,20 @@ const VERWEIS = / \((das entscheidet die )?erste Frage unten\)/
 /** Zusammenfassung einer Querung */
 export function zusammenfassung(x: ZfEingabe): Zusammenfassung {
   const grundIds: string[] = []
-  const s1 = antwort(x.befund, grundIds, x.kontext?.typ, x.geplant)
+  const s1 = antwort(x.befund, grundIds, x.kontext?.typ, x.geplant, x.grund?.zoneVorschlag)
   const liste = befundListe(x.befund, x.grund, grundIds)
   const felder = fehlendeFelder(x), entscheidend = entscheidendeFelder(x)
+  // Block «Offene Fragen» (Panel): diese Fragen nennt Satz 3 nicht ausgeschrieben, sondern zählt sie (im Bericht kein Block)
+  const imBlock = x.ort === 'bericht' ? [] : x.imBlock ?? []
+  // Zahl der Fragen im Block (Zählung und Schätzung der Querenden sind eine Frage)
+  const nBlock = imBlock.filter(f => f !== 'fgKlasse').length
   const varianten: Zusammenfassung[] = []
   for (const st of STUFEN) {
     const vorab = grundSatz(x.grund, x.befund, st.grundKurz, [])
     const bs = befundSatz(liste, st.befunde, x, grundIds, vorab.startsWith('Grundprüfung bfu:'))
     const bsText = st.ohneSonst && bs.text === 'Sonst keine Befunde.' ? '' : bs.text
     const wichtig = [grundSatz(x.grund, x.befund, st.grundKurz, bs.genannt), bsText].filter(Boolean).join(' ')
-    const f0 = fehltSatz(felder, entscheidend, st.fragen, x.ort ?? 'panel')
+    const f0 = mitBlock(fehltSatz(felder.filter(f => !imBlock.includes(f)), entscheidend, st.fragen, x.ort ?? 'panel'), nBlock)
     const fehlt = f0 && st.ohneNachsatz && f0.nachsatz && f0.felder.length ? (({ nachsatz: _n, ...r }) => { void _n; return r })(f0) : f0
     // der Verweis in Satz 1 fällt nur weg, wenn Satz 3 die entscheidende Frage selbst nennt
     const antwortS = st.ohneVerweis && fehlt?.einleitung === 'Für die Antwort entscheidend:' && fehlt.felder.length ? s1.replace(VERWEIS, '') : s1
@@ -560,4 +594,58 @@ const ANNAHME_KURZ: Record<(typeof ANNAHME_KURZ_REIHE)[number], (w: unknown) => 
   fgsMitLsa: w => (w === true ? 'Lichtsignal der nahen Ampel gilt für die Querung' : ''),
   nachfrage: w => (w === 'punktuell' ? 'gebündeltes Queren' : w === 'flaechig' ? 'verteiltes Queren' : ''),
   dtv: w => (typeof w === 'number' ? `${w} Fahrzeuge pro Tag` : ''),
+}
+
+// ── Block «Offene Fragen» (23.10.2026) ──
+
+/** eine Frage im Block: Feld der Frage, Feld der Maske (Ziel), Eingabe bzw. Vorschlag bestätigen, Punkt der Grundprüfung (festes
+ * Zeichen: T Tempo, 1–5; W ergänzende bfu-Aspekte, im Block nicht verwendet), entscheidet die Antwort */
+export interface OffeneFrage { feld: string; ziel: string; art: 'eingabe' | 'bestaetigen'; punkte: (GrundPunkt['nr'] | 'W')[]; entscheidend: boolean }
+
+/**
+ * Fragen für den Block «Offene Fragen» (Nutzerentscheid 23.10.2026): alle Felder, die eine Regel der Grundprüfung (Tempo und die fünf
+ * Punkte, ohne die ergänzenden bfu-Aspekte) offen lässt, höchstens rund sechs. Feste Reihenfolge nach Punkt (Tempo, ① bis ⑤), im
+ * Punkt Muss vor Soll vor Hinweis; Felder, die die Antwort entscheiden, tragen nur den Hinweis. Je Feld der Maske einmal (unter mehreren Punkten mit allen
+ * Zeichen; Zählung bzw. Schätzklasse der Querenden als eine Frage); beantwortbar sind offene Felder (auch bewusst offen gesetzte
+ * und solche mit Rechner-Anzeige) und vorbelegte Annahmen mit Bestätigungspflicht (bestaetig).
+ */
+export function offeneFragen(b: BefundBlatt, bestaetig: ReadonlySet<string>): OffeneFrage[] {
+  return offeneFragenAus(b.grund, entscheidendeFelder(zfEingabeBlatt(b)), ziel => {
+    const h = b.gebildet.herkunft.get(ziel)
+    const offen = !h || h.zustand === 'offen' || h.zustand === 'rechner' || (h.zustand === 'hand' && (h.wert === null || h.wert === undefined))
+    const best = h?.zustand === 'vorbelegt' && bestaetig.has(ziel) && !!h.quelle && QUELLEN_ANNAHME.includes(h.quelle)
+    return best ? 'bestaetigen' : offen ? 'eingabe' : null
+  })
+}
+
+/** Auswahl der Fragen (offeneFragen) aus der Grundprüfung, den entscheidenden Feldern und der Beantwortbarkeit je Feld der Maske */
+export function offeneFragenAus(g: Grundpruefung, entscheidend: readonly string[],
+  art: (ziel: string) => OffeneFrage['art'] | null): OffeneFrage[] {
+  if (!g.gilt) return []
+  const RANG_ST: Record<string, number> = { hart: 0, hart_bericht: 0, weich: 1, hinweis: 2 }
+  const roh: { feld: string; punkt: GrundPunkt['nr'] | 'W' }[] = []
+  const gruppen: [GrundPunkt['nr'] | 'W', readonly GrundTeil[]][] = [...g.punkte.map(p => [p.nr, p.teile] as [GrundPunkt['nr'], GrundTeil[]]), ['W', g.weitere]]
+  for (const [punkt, teile] of gruppen) {
+    // nur Tempo und die fünf Punkte (Nutzerentscheid 23.10.2026): die ergänzenden bfu-Aspekte bleiben bei ihren Feldern
+    if (punkt === 'W') continue
+    const offen = teile.filter(t => t.zustand === 'offen')
+      .sort((x, y) => (RANG_ST[DEF[x.id]?.staerke ?? 'hinweis'] ?? 2) - (RANG_ST[DEF[y.id]?.staerke ?? 'hinweis'] ?? 2))
+    for (const t of offen) for (const f of [...(t.fehlend ?? []), ...sichtOhneFeld(t)]) roh.push({ feld: f, punkt })
+  }
+  // feste Reihenfolge Tempo, ① bis ⑤, Weitere (Nutzerentscheid 23.10.2026: Stabilität); entscheidende nur mit Hinweis
+  const fragen: OffeneFrage[] = []
+  for (const { feld: f0, punkt } of roh) {
+    if (f0 === 'Zufahrten') continue
+    // Zählung oder Schätzklasse der Querenden (⑤): eine gemeinsame Frage beim Feld der Zählung
+    const f = f0 === 'fgKlasse' ? 'fg5h' : f0
+    const ziel = feldZiel(f)
+    if (!ziel) continue
+    const da = fragen.find(x => x.ziel === ziel)
+    // dasselbe Feld unter einem weiteren Punkt: eine Frage, beide Zeichen
+    if (da) { if (!da.punkte.includes(punkt)) da.punkte.push(punkt); continue }
+    const a = art(ziel)
+    if (!a) continue
+    fragen.push({ feld: f, ziel, art: a, punkte: [punkt], entscheidend: entscheidend.includes(f) })
+  }
+  return fragen
 }

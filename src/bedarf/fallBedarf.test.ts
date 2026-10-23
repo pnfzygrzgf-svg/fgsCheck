@@ -9,7 +9,8 @@ import { FELD_DEFS, FELD_DEF, OBJEKTE, unterfelder, wertGueltig, gruppeVon, feld
 import { FELDNAMEN } from './eingaben'
 import { durchfahrtHinweise, f3Klasse } from './durchfahrt'
 import { masseFehler, inselMasse, INSEL_TIEFE_MIN_M } from '../rechner/standardinsel'
-import { INSEL_KEINE, S0 } from './testfaelle'
+import { INSEL_KEINE, INSEL_OK, S0, fall } from './testfaelle'
+import { beurteile } from './entscheid'
 
 const O = [2600000, 1200000]
 const ll = (x: number, y: number): [number, number] => wgs(O[0] + x, O[1] + y)
@@ -127,6 +128,20 @@ describe('Fall-Datei mit Bedarf (Version 1, 2, 3)', () => {
   })
 })
 
+describe('Alte Fall-Datei ohne «Velos queren mit» (veloQuerung, 23.10.2026)', () => {
+  it('liest ohne Hinweis; Feld offen; Inseltiefe für querende Velos (Kanton BE) offen bei gebauter Insel, nicht mehr nach dem Radstreifen', () => {
+    const alt = { felder: { radstreifen: { wert: true, quelle: 'hand' }, 'insel.vorhanden': { wert: true, quelle: 'hand' },
+      'insel.art': { wert: 'baulich', quelle: 'hand' }, 'insel.breite': { wert: 1.8, quelle: 'hand' } } }
+    const [blk, h] = bedarfLesen(alt)
+    expect(h).toEqual([])
+    const e = eingabenBilden({}, blk).eingaben
+    expect(e.veloQuerung).toEqual({ wert: null, quelle: null })
+    const f = fall({ radstreifen: true, insel: { ...INSEL_OK, breite: 1.8 } })
+    f.veloQuerung = e.veloQuerung
+    expect(beurteile(f, { ebenen: { kantonBE: true } }).alle.find(x => x.id === 'F2-K')).toMatchObject({ zustand: 'offen', fehlend: ['veloQuerung'] })
+  })
+})
+
 describe('Eingaben bilden: Vorbelegung, Hand, Objekte', () => {
   const vor: Vorbelegung = {
     vSig: { wert: 50, quelle: 'osm', text: 'OSM' },
@@ -196,7 +211,10 @@ describe('Eingaben bilden: Vorbelegung, Hand, Objekte', () => {
 
 describe('Durchfahrt neben der Insel (F3, F3-B) und Untergrenze der Inseltiefe im Werkzeug', () => {
   it('Bänder nach F3: zu schmal, knapp, Konfliktband, Idealbereich', () => {
-    expect([3.49, 3.5, 3.6, 3.75, 3.76, 4.24, 4.25, 4.5].map(f3Klasse)).toEqual(['schmal', 'knapp', null, null, 'band', 'band', 'knapp', null])
+    expect([3.44, 3.45, 3.49, 3.5, 3.6, 3.75, 3.76, 4.24, 4.25, 4.5].map(f3Klasse)).toEqual(['schmal', 'schmal', 'schmal', 'knapp', null, null, 'band', 'band', 'knapp', null])
+    // zu schmal unter 3,50 m wie die Arbeitshilfe (Nutzerentscheid 23.10.2026); 3,49 zu schmal, 3,50 nur unter dem Idealmass
+    expect(durchfahrtHinweise([3.49, 3.6])[0]).toBe('Durchfahrt neben der Insel 3,49 m (Seite Ende A): unter 3,50 m, zu schmal (F3, Arbeitshilfe Kanton BE).')
+    expect(durchfahrtHinweise([3.44, 3.6])[0]).toBe('Durchfahrt neben der Insel 3,44 m (Seite Ende A): unter 3,50 m, zu schmal (F3, Arbeitshilfe Kanton BE).')
     expect(durchfahrtHinweise([3.6, 4.6])).toEqual([])
     const h = durchfahrtHinweise([4.0, 3.6], { radstreifen: true })
     expect(h[0]).toBe('Durchfahrt neben der Insel 4,00 m (Seite Ende A): zwischen 3,75 und 4,25 m überholen Lastwagen Velos zu knapp (F3, Arbeitshilfe Kanton BE).')

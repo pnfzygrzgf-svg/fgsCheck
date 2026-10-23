@@ -7,9 +7,13 @@
 // Radstreifen (wie die Vermassung); nRichtung = Fahrstreifen je Richtung aus OSM lanes, Busstreifen zählen, Radstreifen nicht.
 // E0 hat keine Oberfläche; E1 hängt diesen Block an die Fall-Datei (Block bedarf).
 
-/** Herkunft eines Werts; bestaetigt = vorgeschlagene Annahme von Hand bestätigt (Korrektur M2, gilt als Handeingabe, keine Annahme) */
-export type Quelle = 'av' | 'osm' | 'geoportal' | 'luftbild' | 'hand' | 'bestaetigt' | 'annahme' | 'schaetzung' | 'rechnung'
-export const QUELLEN: readonly Quelle[] = ['av', 'osm', 'geoportal', 'luftbild', 'hand', 'bestaetigt', 'annahme', 'schaetzung', 'rechnung']
+/**
+ * Herkunft eines Werts; bestaetigt = vorgeschlagene Annahme von Hand bestätigt (Korrektur M2, gilt als Handeingabe, keine Annahme);
+ * vorschlag = Vorschlag der Vorbelegung, der für die Beurteilung wie eine Tatsache gilt und von Hand geändert werden kann (bisher nur
+ * Begegnungszone bei Tempo 20, Nutzerentscheid 23.10.2026); keine Annahme, also kein «Annahme bestätigen»
+ */
+export type Quelle = 'av' | 'osm' | 'geoportal' | 'luftbild' | 'hand' | 'bestaetigt' | 'annahme' | 'schaetzung' | 'rechnung' | 'vorschlag'
+export const QUELLEN: readonly Quelle[] = ['av', 'osm', 'geoportal', 'luftbild', 'hand', 'bestaetigt', 'annahme', 'schaetzung', 'rechnung', 'vorschlag']
 /** Quellen, die der Befund als Annahme ausweist */
 export const QUELLEN_ANNAHME: readonly Quelle[] = ['annahme', 'schaetzung']
 
@@ -210,6 +214,8 @@ export interface Werte {
   lsaZeiten: LsaZeiten
   q3: Q3
   kantonsstrasse: boolean
+  /** Velos queren mit und warten auf der Insel (neu 23.10.2026, F2-K; nur von Hand, alte Fälle: offen) */
+  veloQuerung: boolean
 }
 
 export type FeldName = keyof Werte
@@ -217,7 +223,10 @@ export type FeldName = keyof Werte
 export interface Feld<T> { wert: T | null; quelle: Quelle | null
   /** Runde 4: Abstand entlang der Strasse ist die Länge der ganzen Strasse (sie endet beidseits ohne Fortsetzung; nur aus der
    * Vorbelegung, eine Handeingabe trägt es nicht): G1/G2 dann als Hinweis, kein weiterer Streifen bzw. kein Lichtsignal möglich */
-  ganzeStrasse?: true }
+  ganzeStrasse?: true
+  /** 23.10.2026: Feld offen, weil Datenquellen sich widersprechen (bisher nur Strecke/Zone: Begegnungszone aus OSM gegen amtliches
+   * Tempo ab 30 km/h); A2 bleibt dann offen statt nicht anwendbar */
+  strittig?: true }
 export type BedarfEingaben = { [K in FeldName]: Feld<Werte[K]> }
 
 /** Art je Feld für die Prüfung beim Lesen (wie fall.ts: Ungültiges wird offen, mit Hinweis) */
@@ -243,7 +252,7 @@ export const FELDER: { readonly [K in FeldName]: Art } = {
   kurve: 'objekt', typ: QUERUNGSTYPEN, ohneBaulich: 'bool', querdistanzL: 'zahlen', laengsparkierung: 'bool',
   seitenraumVorParklinieM: 'zahl', absenkungBeidseits: 'bool', aufstellflaeche: 'bool', parkierungSichtbehindernd: 'bool',
   einengung: 'bool', mivKlasse: ['tief', 'mittel', 'hoch'], restbreiteM: 'zahl', einengungLaengeM: 'zahl', mzsBreiteM: 'zahl',
-  mzsMitFgs: 'bool', lsaZeiten: 'objekt', q3: 'objekt', kantonsstrasse: 'bool',
+  mzsMitFgs: 'bool', lsaZeiten: 'objekt', q3: 'objekt', kantonsstrasse: 'bool', veloQuerung: 'bool',
 }
 export const FELDNAMEN = Object.keys(FELDER) as FeldName[]
 

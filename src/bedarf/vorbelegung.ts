@@ -17,12 +17,17 @@
 // dem Tempo, Insel aus der AV als gebaut (Tatsache) mit Kopfüberstand, Tramgleis eigentrassee/Fahrbahn, dazu die übrigen Felder der
 // Automatik (Lage, Abstände, Haltestelle, Annahmen mit Schwellen, Kopien in LSA-Zeiten und Trottoirüberfahrt). rechner: Felder im
 // Zustand «rechner» (Sichtrechner rechnet je Zufahrt, z. B. Kurvenradius ohne Abbieger).
+// Seit 23.10.2026 die Erkennungsdistanz aus dem Sichtrechner (erkennungVorbelegen, Annahme; Abschnitt 34 der Regeln).
 // Seit 21.10.2026 Automatik Paket C (automatikC.ts, Abschnitt 24 der Regeln): Tempo aus V_sig und Strecke/Zone aus der
 // Strassenhierarchie (Geoportal Stadt Bern), Strassentyp aus Hierarchie und Strassentypen (Vorrang vor OSM), besonderer Grund
 // (Schulen, Kindergärten, Heime), Fusswegnetz, taktile Markierungen, Nutzungszonen, ÖV-Linien; Vortrittsrolle in automatik.ts.
 
 import { type P, dot, sub, add, dist, imPolygon, abstandStrecke, segSchnitt } from '../geo'
 import type { StreifenErgebnis } from '../rechner/typen'
+import { zufahrtNamen } from '../benennung'
+import { erkennungSatz, erkennungZusatz } from '../texte'
+import { ERKENNUNG_FAKTOR, type Erkennung } from '../rechner/erkennung'
+import { sichtFgs } from './tabellen'
 import type { Fall } from '../fall'
 import type { Quelle, TempoRegime } from './eingaben'
 import type { Vorbelegung } from './fallBedarf'
@@ -30,7 +35,7 @@ import { feldName } from './felder'
 import { E1_KURZ } from '../rechner/standardinsel'
 import { imBereich, HALT_TEXT, type Bereich, type HaltestellenErgebnis, type OevHalt } from '../daten/haltestellen'
 import type { VerkehrsdatenErgebnis, VdLinie } from '../daten/verkehrsdaten'
-import { automatik, avInselBei, kopfUeberstandAv, type AutoGeo } from './automatik'
+import { automatik, avInselBei, kopfUeberstandAv, zufSicht, type AutoGeo } from './automatik'
 import { tag } from './lesetext'
 import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
 import { automatikC, strassentypBern, tempoAusHierarchie, vsigVorbelegen, zoneNachVsig } from './automatikC'
@@ -58,15 +63,22 @@ const einheit = (v: P): P => { const l = Math.hypot(v[0], v[1]); return l > 0 ? 
 /** Teilstreifen an einer Insel: länger als das gilt als unplausibel (Runde 5, F5) */
 export const TEIL_MAX_M = 12
 
-/** Querungsart eines gerechneten Streifens: Fussgängerstreifen, ohne Vortritt (Furt bzw. übrige) oder «kein FGS» (nicht geprüft) */
-export const streifenTyp = (s: StreifenErgebnis): 'fgs' | 'furt' | 'ohne_vortritt' | 'kein' =>
-  s.status === 'kein_fgs' ? 'kein' : s.querung?.typ ?? 'fgs'
+/** Querungsart eines gerechneten Streifens: Fussgängerstreifen, ohne Vortritt (Furt bzw. übrige), Trottoirüberfahrt (Wahl am Streifen,
+ * nicht geprüft) oder «kein FGS» (nicht geprüft) */
+export const streifenTyp = (s: StreifenErgebnis): 'fgs' | 'furt' | 'ohne_vortritt' | 'trottoirueberfahrt' | 'kein' =>
+  s.trottoirueberfahrt ? 'trottoirueberfahrt' : s.status === 'kein_fgs' ? 'kein' : s.querung?.typ ?? 'fgs'
+/** Herkunft des Querungstyps aus der Wahl «Trottoirüberfahrt» am Streifen */
+export const TUE_WAHL_TEXT = 'Wahl am Streifen: Trottoirüberfahrt'
 
 /** Vorbelegung einer Querung: Werte; Hinweise zur Querung; feldHinweise: Hinweis ohne Wert je Feld (das Feld bleibt offen, z. B.
  * Haltestelle in der Nähe: Fahrbahn oder Bucht wählen). Die Hinweise ohne Wert stehen mit dem Feldnamen auch in hinweise. */
 export interface Vorbelegt { werte: Vorbelegung; hinweise: string[]; feldHinweise?: Record<string, string>
   /** Anzeige je Pfad im Zustand «rechner» (Feld ohne Wert, Sichtrechner rechnet je Zufahrt; Automatik Paket A) */
-  rechner?: Record<string, string> }
+  rechner?: Record<string, string>
+  /** OSM-Knoten (Kreuzung bzw. Einmündung) bis 20 m von der Querung, wie für die Lage gefunden (automatik.ts); nur für Verweise */
+  knoten?: number
+  /** Felder, die offen bleiben, weil Datenquellen sich widersprechen (eingaben.Feld.strittig; bisher tempoRegime) */
+  strittig?: string[] }
 
 /** Geodaten für die Vorbelegung (App: geladen um den Ladeort); fehlt ein Eintrag, bleibt das Feld wie bisher offen */
 export interface GeoVorbelegung extends AutoGeo {
@@ -112,7 +124,8 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   const setze = (pfad: string, wert: unknown, quelle: Quelle, text: string, ganzeStrasse?: true) => {
     w[pfad] = { wert, quelle, text, ...(ganzeStrasse ? { ganzeStrasse } : {}) }
   }
-  const st = g.streifen
+  // Trottoirüberfahrt: Zufahrten der Rechnung nur für die Vorbelegung (ohne Sichtbefunde: zufSicht)
+  const st = g.streifen.map(s => (s.nurVorbelegung ? { ...s, ...s.nurVorbelegung } : s))
   if (!st.length) return { werte: w, hinweise, feldHinweise, rechner }
 
   // Querungstyp aus der Querungsart der Streifen (Panel: «Querung» je Streifen)
@@ -120,6 +133,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   const mitLsa = st.some(s => s.lsa === 'ja')
   if (typen.length === 1 && typen[0] === 'fgs') setze('typ', mitLsa ? 'lsa' : 'fgs', 'rechnung', mitLsa
     ? 'Streifen als Fussgängerstreifen mit Lichtsignal gerechnet' : 'Streifen als Fussgängerstreifen gerechnet')
+  else if (typen.length === 1 && typen[0] === 'trottoirueberfahrt') setze('typ', typen[0], 'hand', TUE_WAHL_TEXT)
   else if (typen.length === 1 && typen[0] !== 'kein') setze('typ', typen[0], 'hand', `Querungsart von Hand: ${typen[0] === 'furt' ? 'Furt' : 'ohne Vortritt'}`)
   else if (typen.length > 1) hinweise.push('Die Teilstreifen haben verschiedene Querungsarten: Querungstyp offen')
   else hinweise.push('Streifen als «kein FGS» nicht geprüft: Querungstyp offen')
@@ -214,7 +228,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
     if (park.every(x => x !== null)) setze('laengsparkierung', park.some(x => !!x), 'rechnung', park.some(x => !!x)
       ? 'Parkierung rechts an der Zufahrt (OSM bzw. Parkfelder)' : 'keine Parkierung rechts an den Zufahrten')
   }
-  const zuf = st.flatMap(s => s.zufahrten)
+  const zuf = zufSicht(st)
   if (zuf.length) {
     const auto = zuf.flatMap(z => z.konflikte.filter(k => k.klasse === 'auto'))
     setze('parkierungSichtbehindernd', auto.length > 0, 'rechnung', auto.length ? 'Auto-Parkfelder im Sichtfeld (Sichtrechner)' : 'keine Auto-Parkfelder im Sichtfeld')
@@ -292,13 +306,25 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   // Paket C: Tempo aus V_sig (Geoportal) vor OSM; eine OSM-Strecke nur aus maxspeed bzw. eine OSM-Zone passt dann ggf. nicht mehr
   vsigVorbelegen(st, geo.vsig, w, setze, hinweise)
   innerortsAusTempo(st, w, setze, feldHinweise, tags)
+  // Nutzerentscheid 23.10.2026: amtliches Tempo ab 30 km/h (V_sig des Geoportals) gegen eine Begegnungszone aus OSM (living_street,
+  // zone20) ist ein Widerspruch: Strecke/Zone offen mit Hinweis; ohne Geoportal (ausserhalb Berns) bleibt die OSM-Begegnungszone Tatsache
+  const vs0 = w.vSig
+  let bgzWiderspruch = false
+  const strittig: string[] = []
+  if (w.tempoRegime?.wert === 'begegnungszone' && w.tempoRegime.quelle === 'osm' && vs0?.quelle === 'geoportal' && typeof vs0.wert === 'number'
+    && vs0.wert >= 30) {
+    delete w.tempoRegime
+    zoneText = `OSM: Begegnungszone, ${GEOPORTAL_BERN}: Tempo ${vs0.wert} km/h – Strecke oder Zone von Hand wählen`
+    bgzWiderspruch = true
+    strittig.push('tempoRegime')
+  }
   const vsigZone = zoneNachVsig(w, setze)
   if (vsigZone) zoneText = `${vsigZone}: Strecke oder Zone von Hand wählen`
-  // Strecke aus dem Tempo (Automatik Paket A): ab 40 km/h keine Zone (eine Zone hat höchstens 30 km/h); 20 km/h ohne Zonenangabe:
-  // Begegnungszone als Annahme. Nur ohne Hinweis aus den OSM-Tags (z. B. Tempo 30 ohne Zonenangabe bzw. Zufahrten widersprüchlich)
+  // Strecke aus dem Tempo (Automatik Paket A): ab 40 km/h keine Zone (eine Zone hat höchstens 30 km/h). Nur ohne Hinweis aus den
+  // OSM-Tags (z. B. Tempo 30 ohne Zonenangabe bzw. Zufahrten widersprüchlich); Tempo 20 siehe unten
   const vs = w.vSig
   // Korrektur S3: V_sig ab 40 km/h (Geoportal) gegen einen OSM-Hinweis (z. B. Tempo 30 ohne Zonenangabe): Strecke nach dem Geoportal
-  if (!w.tempoRegime && zoneText && vs?.quelle === 'geoportal' && typeof vs.wert === 'number' && vs.wert >= 40) {
+  if (!w.tempoRegime && !bgzWiderspruch && zoneText && vs?.quelle === 'geoportal' && typeof vs.wert === 'number' && vs.wert >= 40) {
     setze('tempoRegime', 'strecke', 'geoportal', `Tempo ${vs.wert} km/h laut ${GEOPORTAL_BERN}: Strecke (eine Zone hat höchstens 30 km/h; ` +
       `OSM widerspricht: ${zoneText})`)
     zoneText = ''
@@ -306,18 +332,47 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   if (!w.tempoRegime && !zoneText && vs && typeof vs.wert === 'number') {
     if (vs.wert >= 40) setze('tempoRegime', 'strecke', vs.quelle === 'hand' ? 'rechnung' : vs.quelle,
       `Tempo ${vs.wert} km/h: Strecke (eine Zone hat höchstens 30 km/h)`)
-    else if (vs.wert === 20) setze('tempoRegime', 'begegnungszone', 'annahme', 'Tempo 20 km/h ohne Zonenangabe: Begegnungszone angenommen')
+  }
+  // Nutzerentscheid 23.10.2026: Tempo 20 (Geoportal bzw. OSM) → Begegnungszone als Vorschlag (Quelle «vorschlag»): gilt für die
+  // Beurteilung wie eine Tatsache (Tempo 20 auf einer Strecke ist sehr selten) und ist von Hand auf «Strecke» änderbar (Handeingabe geht
+  // vor). Widerspricht eine Zonenangabe in OSM (Tempo-30-Zone, Strecke CH:urban …), bleibt Strecke/Zone offen mit Hinweis.
+  // Nachtrag nach Prüfung: massgebend ist das wirksame Tempo (eine Handeingabe im Bedarf geht vor; nicht 20: kein Vorschlag) und das
+  // Rohtempo genau 20 (V_sig des Geoportals bzw. OSM maxspeed; der Sichtrechner rundet OSM 5 bzw. 10 km/h auf die Stufe 20).
+  // maxspeed=20 mit maxspeed:type=CH:urban am selben Weg ist eine bewusst erfasste Strecke 20 (Entscheid Prüfer), kein Widerspruch.
+  const hv = fall.bedarf?.felder.vSig
+  const vEff = hv ? (typeof hv.wert === 'number' ? { wert: hv.wert, quelle: hv.quelle } : null) : vs
+  if (vEff && vEff.wert === 20 && roh20(vEff.quelle, wegTagsGerade) && w.tempoRegime?.wert !== 'begegnungszone') {
+    const andere = wegTagsGerade.filter((t): t is Record<string, string> => !!t && hatZonenangabe(t))
+      .map(t => ({ z: zoneAusTags(t), t }))
+      .filter(({ z, t }) => z.wert !== null && z.wert !== 'begegnungszone' && !(z.wert === 'strecke' && Number(t.maxspeed) === 20))
+      .map(({ z }) => z)
+    const von = vEff.quelle === 'geoportal' ? GEOPORTAL_BERN : vEff.quelle === 'osm' ? 'OSM' : vEff.quelle === 'hand' ? 'Eingabe von Hand' : 'Vorbelegung'
+    if (andere.length) {
+      delete w.tempoRegime
+      zoneText = `Tempo 20 km/h laut ${von}, aber ${[...new Set(andere.map(z => z.text))].join(' bzw. ')}: widersprüchlich, ` +
+        'Strecke oder Zone von Hand wählen'
+    } else if (w.tempoRegime?.wert === 'strecke' && w.tempoRegime.quelle === 'osm') {
+      // Strecke 20 aus OSM (maxspeed=20 und CH:urban): bleibt Tatsache
+    } else {
+      setze('tempoRegime', 'begegnungszone', 'vorschlag', `Tempo 20 km/h laut ${von}: Begegnungszone vorgeschlagen (Tempo 20 auf einer ` +
+        'Strecke ist selten; sonst unter «Strecke oder Zone» Strecke wählen)')
+      zoneText = ''
+    }
   }
   // Paket C: Tempo 30 ohne Zonenangabe in Bern: Strassenhierarchie (Annahme) bzw. Hinweis; nur, wenn OSM an keiner Zufahrt eine
   // Zonenangabe hat (Korrektur M1: ein OSM-Zonentag geht immer vor, widersprüchliche Zufahrten bleiben offen)
   const hierText = wegTagsGerade.some(t => t && hatZonenangabe(t)) ? '' : tempoAusHierarchie(st, geo, w, setze)
   if (!w.tempoRegime && (zoneText || hierText)) feldHinweis('tempoRegime', [zoneText, hierText].filter(Boolean).join('; '))
+  // Erkennungsdistanz aus dem Sichtrechner (Nutzerentscheid 23.10.2026): kleinster Wert der geraden Zufahrten, als Annahme (nach
+  // dem Tempo aus V_sig: ein Wert «mindestens» bzw. «so weit geprüft» gilt nur, wenn er das Doppelte der Sichtweite erreicht)
+  erkennungVorbelegen(st, fall, w, setze, feldHinweis)
   dtvVorbelegen(st, gerade.map(z => z.spur), geo.verkehrsdaten ?? null, setze, feldHinweis)
   const licht = beleuchtungHinweis(st, gerade.map(z => wegId(z.osmWeg)), tags, geo.lampen ?? null)
   if (licht) feldHinweis('beleuchtung', licht)
   // Automatik Paket A + B (automatik.ts); Strassentyp aus dem Geoportal (Paket C) hat Vorrang vor OSM
+  const aus: { knoten?: number } = {}
   automatik({ st, fall, geo: { ...geo, strassentyp: geo.strassentyp ?? strassentypBern(st, geo.strassenhierarchie) }, w, setze, feldHinweis,
-    hinweise, rechner })
+    hinweise, rechner, aus })
   // Automatik Paket C (automatikC.ts)
   const feldHinweisWeg = (pfad: string) => {
     const t = feldHinweise[pfad]
@@ -329,7 +384,8 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   automatikC({ st, geo, w, setze, feldHinweis, feldHinweisWeg, hinweise })
   if (st.some(s => s.tram === true) && !w.tram && !feldHinweise.tram)
     hinweise.push('Ein Tramgleis nach OSM quert die Querung: Art (Fahrbahn bzw. Eigentrassee) von Hand wählen')
-  return { werte: w, hinweise, feldHinweise, rechner }
+  return { werte: w, hinweise, feldHinweise, rechner, ...(aus.knoten !== undefined ? { knoten: aus.knoten } : {}),
+    ...(strittig.length && !w.tempoRegime ? { strittig } : {}) }
 }
 
 /** Kurzname einer Quelle in Herkunftstexten */
@@ -361,6 +417,38 @@ function innerortsAusTempo(st: StreifenErgebnis[], w: Vorbelegung, setze: Setze,
     const q = mit.every(z => z.tempoQuelle === TEMPO_QUELLE_AMTLICH) ? 'Geoportal' : mit.some(z => z.tempoQuelle === 'Korrektur') ? 'von Hand' : 'OSM'
     setze('innerorts', true, 'annahme', `Tempo der einmündenden Strasse ${v} km/h (${q}): innerorts angenommen`)
   }
+}
+
+/**
+ * Erkennungsdistanz (Nutzerentscheid 23.10.2026, Abschnitt 34 der Regeln): kleinster Wert über die geprüften geraden Zufahrten der
+ * Fussgängerstreifen (ZufahrtErgebnis.erkennungM; Abbieger rechnet der Sichtrechner nicht), Quelle «annahme» (2D, ohne Gelände und
+ * ohne Signal 4.11). Endet die Fahrlinie vorher, ist der Wert ihre Länge («mindestens …»); bei gleichem Wert zählt ein gerechneter vor
+ * einem «mindestens». Eine Handeingabe geht vor (fallBedarf.eingabenBilden).
+ * Untergrenzen («mindestens» bzw. frei bis zur Prüfgrenze) belegen das Feld nur, wenn sie das Doppelte der Sichtweite nach dem höchsten
+ * bekannten Tempo erreichen (Tempo der Zufahrten, signalisiert vorbelegt bzw. von Hand, V85 von Hand): sonst würde die Grundprüfung
+ * aus einer nicht weit genug geprüften Sicht eine Verletzung ableiten. Dann bleibt das Feld offen, mit dem Ergebnis als Hinweis.
+ */
+export function erkennungVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vorbelegung, setze: Setze, feldHinweis: FeldHinweis): void {
+  const kand = st.flatMap((s, i) => {
+    if (streifenTyp(s) !== 'fgs') return []
+    const namen = zufahrtNamen(s)
+    return s.zufahrten.filter(z => z.art !== 'abbiegend' && z.erkennungM).map(z => {
+      const nr = namen.zufahrt.get(z.zufahrt)?.nr
+      const name = `${st.length > 1 ? `Teil ${i + 1}, ` : ''}${nr ? `Zufahrt ${nr}` : `Zufahrt ${z.zufahrt}`}`
+      return { e: z.erkennungM!, name, tempo: z.tempo }
+    })
+  })
+  if (!kand.length) return
+  const rang = (x: { e: Erkennung }) => x.e.wert + (x.e.bis === 'fahrlinie_endet' ? 0.5 : 0)
+  const min = kand.reduce((a, b) => (rang(b) < rang(a) ? b : a))
+  const text = `Sichtrechner: Streifen ${erkennungSatz(min.e)} (${min.name}, ${erkennungZusatz(min.e)}), ohne Gelände; nur Markierung geprüft, ` +
+    'blaue Tafel (Signal 4.11) nicht'
+  const zahl = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? x : null)
+  const hand = (p: string) => zahl(fall.bedarf?.felder[p]?.wert)
+  const v = Math.max(...[zahl(w.vSig?.wert), hand('vSig'), hand('v85'), ...kand.map(k => k.tempo)].filter((x): x is number => x !== null))
+  const noetig = ERKENNUNG_FAKTOR * sichtFgs(v)
+  if (min.e.bis === 'verdeckt' || min.e.wert >= noetig - 1e-9) setze('erkennungM', min.e.wert, 'annahme', text)
+  else feldHinweis('erkennungM', `${text}; nötig ${noetig} m (doppelte Sichtweite bei ${v} km/h), so weit nicht geprüft: von Hand angeben`)
 }
 
 // ── Geodaten (Abschnitt 18 der Regeln) ──
@@ -453,6 +541,17 @@ export function innerortsAusOsm(wege: (Record<string, string> | null)[]): { wert
 /** Zonenangabe in den OSM-Tags eines Wegs (zone:maxspeed, maxspeed:type, source:maxspeed bzw. maxspeed mit CH:…, living_street) */
 export const hatZonenangabe = (t: Record<string, string>): boolean => !!(t['zone:maxspeed'] || t['maxspeed:type'] ||
   /^CH:/.test(t['source:maxspeed'] ?? '') || /^CH:/.test(t.maxspeed ?? '') || t.highway === 'living_street')
+
+/**
+ * Rohtempo genau 20 km/h (Nachtrag nach Prüfung 23.10.2026): V_sig des Geoportals bzw. eine Eingabe von Hand zählen wie angegeben;
+ * Tempo aus OSM nur, wenn maxspeed der Wege der geraden Zufahrten (ohne Rundung auf die Stufe) überall genau 20 ist; sonst nein
+ */
+function roh20(quelle: Quelle, wege: (Record<string, string> | null)[]): boolean {
+  if (quelle === 'geoportal' || quelle === 'hand' || quelle === 'bestaetigt') return true
+  if (quelle !== 'osm') return false
+  const v = wege.filter((t): t is Record<string, string> => !!t && t.maxspeed !== undefined).map(t => Number(t.maxspeed.trim()))
+  return v.length > 0 && v.every(x => x === 20)
+}
 
 /** Strecke oder Zone aus den Tags der Wege der geraden Zufahrten (null: Weg unbekannt): nur wenn alle eindeutig und gleich */
 export function zoneAusOsm(wege: (Record<string, string> | null)[]): { wert: TempoRegime | null; text: string } {

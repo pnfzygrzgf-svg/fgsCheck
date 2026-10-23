@@ -1,11 +1,12 @@
 // ── Bedarfsmodul Runde 4: Quellenverzeichnis (Hilfe, Bericht, Verweise in den Details) ──
 //
-// Je Werk des Werkverzeichnisses (katalog.WERKE) eine Beschreibung in Alltagssprache, zwei Sätze: was es ist, wer es herausgibt,
-// wofür es gilt und wie verbindlich es ist. Die Verbindlichkeit folgt nur aus der Ebene (Recht, Norm, Standard bzw. Arbeitshilfe
+// Je Werk des Werkverzeichnisses (katalog.WERKE) eine Beschreibung in Alltagssprache: was es ist, wer es herausgibt, wofür es gilt,
+// und (ausser bei Normen, Nutzerentscheid 23.10.2026) wie verbindlich es ist. Die Verbindlichkeit folgt nur aus der Ebene (Recht, Norm, Standard bzw. Arbeitshilfe
 // einer Verwaltung, Richtlinie bzw. Empfehlung einer Fachstelle oder eines Verbands, Projektentscheid), nicht aus eigener Auslegung.
 // Eigene Formulierungen, kein Text aus den Werken. Der Typ (Record über WerkId) verlangt für jedes Werk einen Text.
 // Anzeige: Hilfe (Tabelle Werk · Ausgabe · Ebene · Beschreibung · Regeln), Bericht (nur Werke, die im Fall vorkommen), Details je
-// Eintrag (Werk als Verweis auf das Verzeichnis bzw. mit dem Satz als Tooltip).
+// Eintrag (Werk als Verweis auf das Verzeichnis bzw. mit dem Satz als Tooltip). Verzeichnisse und Tooltips nennen den vollen Titel
+// (WERKE.voll) und die offizielle Adresse beim Herausgeber (Panel: Link ↗ in neuem Fenster; Bericht: Adresse als Text).
 
 import { KATALOG, REGEL_IDS, WERKE, type WerkId } from './katalog'
 import type { BefundBlatt } from './befundblatt'
@@ -21,11 +22,12 @@ export interface WerkInfo {
   ebene: WerkEbene
   /** erster Satz: was es ist, wer es herausgibt, wofür es gilt */
   was: string
-  /** zweiter Satz: wie verbindlich (aus der Ebene) */
+  /** zweiter Satz: wie verbindlich (aus der Ebene); bei Normen leer */
   gilt: string
 }
 
-const NORM = 'Normen sind anerkannte Fachregeln, kein Gesetz; Behörden und Planende stützen sich darauf und begründen Abweichungen.'
+/** Normen: kein zweiter Satz (Nutzerentscheid 23.10.2026: der Satz zur Verbindlichkeit von Normen ist gestrichen) */
+const NORM = ''
 const BUND = 'Bundesrecht, verbindlich.'
 const STADT = 'Für die eigenen Projekte der Stadt Bern verbindlich, für andere Strassen eine Orientierung.'
 const KANTON = 'Arbeitshilfe der kantonalen Verwaltung, keine Rechtsnorm: für die eigenen Projekte des Kantons verbindlich, sonst eine ' +
@@ -110,8 +112,118 @@ export function werkeImFall(blaetter: readonly BefundBlatt[]): WerkId[] {
     if (b.grund.gilt) for (const t of [...b.grund.punkte.flatMap(p => [...p.teile, ...p.notizen]), ...b.grund.weitere]) ids.add(t.id)
   }
   const w = new Set([...ids].flatMap(werkeVon))
-  return WERK_IDS.filter(x => w.has(x))
+  // nur externe Werke (Nutzerentscheid 23.10.2026): Projektentscheide erklärt die Begriffsliste
+  return WERK_IDS.filter(x => w.has(x) && x !== 'ENTSCHEID')
 }
 
-/** Beschreibung eines Werks in zwei Sätzen */
-export const werkText = (w: WerkId): string => `${WERK_INFO[w].was} ${WERK_INFO[w].gilt}`
+/** Beschreibung eines Werks: was es ist, dazu (ausser bei Normen) wie verbindlich */
+export const werkText = (w: WerkId): string => [WERK_INFO[w].was, WERK_INFO[w].gilt].filter(Boolean).join(' ')
+
+/** voller bzw. amtlicher Titel eines Werks (nur Verzeichnisse und Tooltips; im Lesetext der Lesename) */
+export const werkVoll = (w: WerkId): string => WERKE[w].voll
+/** Tooltip eines Werks: voller Titel, dann die Beschreibung */
+export const werkTooltip = (w: WerkId): string => `${werkVoll(w)}. ${werkText(w)}`
+
+export interface WerkLink {
+  url: string
+  /** Seite des Herausgebers (Webseite) bzw. das Dokument als PDF */
+  art: 'seite' | 'pdf'
+  /** Text des Links: «Seite» bzw. «PDF, 0,2 MB» */
+  text: string
+}
+const mbText = (mb: number): string => `${String(mb).replace('.', ',')} MB`
+/** externe Adressen eines Werks beim Herausgeber: zuerst die Seite, dann das PDF mit Grösse (leer: kein Link) */
+export function werkLinks(w: WerkId): WerkLink[] {
+  const x = WERKE[w], aus: WerkLink[] = []
+  if (x.seite) aus.push({ url: x.seite, art: 'seite', text: 'Seite' })
+  if (x.pdf) aus.push({ url: x.pdf.url, art: 'pdf', text: `PDF, ${mbText(x.pdf.mb)}` })
+  return aus
+}
+/** Vermerk zum Bezug: Normen «kostenpflichtig», Link auf ein zitierendes Werk bzw. ohne Adresse «beim Herausgeber erhältlich» */
+export function werkBezug(w: WerkId): string | null {
+  const x = WERKE[w]
+  if (x.bezug) return x.bezug
+  return x.seite || x.pdf || w === 'ENTSCHEID' ? null : 'beim Herausgeber erhältlich'
+}
+
+// ── Fundstellen lesbar (Nutzertest 23.10.2026) ──
+
+/** Name eines Werks im Lesetext: verständlich, ohne Ausgabe und Kennungen (die stehen im Quellenverzeichnis) */
+export const LESENAME: Readonly<Record<WerkId, string>> = {
+  '40241': 'VSS-Norm 40 241 Fussgängerstreifen', '40240': 'VSS-Norm 40 240 Querungsanlagen', '40242': 'VSS-Norm 40 242 Trottoirüberfahrten',
+  '40837': 'VSS-Norm 40 837 Lichtsignalanlagen', '40213': 'VSS-Norm 40 213 Verkehrsberuhigungselemente',
+  '640075': 'Norm SN 640 075 Hindernisfreier Verkehrsraum', '640850a': 'Norm SN 640 850a Markierungen',
+  '640852': 'Norm SN 640 852 Taktil-visuelle Markierungen', '640070': 'Norm SN 640 070 Fussgängerverkehr',
+  VOT30: 'Tempo-30-Zonen-Verordnung (SR 741.213.3)', SSV: 'Signalisationsverordnung (SSV)', VRV: 'Verkehrsregelnverordnung (VRV)',
+  MP: 'Masterplan Fussverkehr Stadt Bern', MPV: 'Masterplan Veloinfrastruktur Stadt Bern', HBLSA: 'Handbuch Lichtsignalanlagen Stadt Bern',
+  AHBE: 'Arbeitshilfe Fussgängerstreifen Kanton Bern', BFU: 'bfu-Fachdokumentation «Fussgängerstreifen»',
+  BFU2016: 'ältere bfu-Fachdokumentation (2016)', HA: 'Richtlinie «Strassen – Wege – Plätze»', VCS: 'VCS-Leitfaden «Sichere Querungen»',
+  ENTSCHEID: 'Projektentscheid fgsCheck',
+}
+
+/** Abkürzungen der Fundstellen ausgeschrieben: «Z. 24» → «Ziffer 24», «Tab. 1» → «Tabelle 1», «S. 60» → «Seite 60» («Abs.» bleibt) */
+export function abkLesbar(t: string): string {
+  return t.replace(/\bZiff\. ?/g, 'Ziffer ').replace(/\bZ\. ?(?=\d)/g, 'Ziffer ').replace(/\bTab\. ?/g, 'Tabelle ')
+    .replace(/\bAnh\. ?/g, 'Anhang ').replace(/\bS\. (?=\d)/g, 'Seite ').replace(/\bKap\. ?/g, 'Kapitel ').replace(/\bBst\. ?/g, 'Buchstabe ')
+    .replace(/\bvia Weisung FL\b/g, 'über die Weisung Liechtenstein')
+}
+
+/** eine Fundstelle lesbar: «Tempo-30-Zonen-Verordnung (SR 741.213.3), Art. 4 Abs. 2», «VSS-Norm 40 241 Fussgängerstreifen, Ziffer 24» */
+export const fundstelleText = (q: { werk: string; ziffer: string }): string =>
+  `${LESENAME[q.werk as WerkId] ?? q.werk}${q.ziffer ? `, ${abkLesbar(q.ziffer)}` : ''}`
+/** Fundstellen einer Regel lesbar, mit «; » getrennt */
+export const fundstellenText = (id: string): string => (DEF[id]?.quellen ?? []).map(fundstelleText).join('; ')
+/** erste Fundstelle einer Regel lesbar (Begründung) */
+export const fundstelleKurz = (id: string): string => { const q = DEF[id]?.quellen[0]; return q ? fundstelleText(q) : '' }
+
+/**
+ * Direkter Link zur Fundstelle, wo frei verfügbar: Bundesrecht auf den Artikel in fedlex (Anker «#art_4», geprüft in der
+ * HTML-Fassung des Filestore), Masterpläne Bern auf die PDF-Seite («#page=60», gedruckte Seitenzahl = PDF-Seite geprüft). Sonst null.
+ */
+export function fundstelleLink(q: { werk: string; ziffer: string }): WerkLink | null {
+  const w = WERKE[q.werk as WerkId]
+  if (!w) return null
+  const art = /^Art\. (\d+)([a-z]?)/.exec(q.ziffer)
+  if (art && w.seite?.includes('fedlex.admin.ch')) return { url: `${w.seite}#art_${art[1]}${art[2] ? `_${art[2]}` : ''}`, art: 'seite', text: `Art. ${art[1]}${art[2]}` }
+  const seite = /^S\. (\d+)/.exec(q.ziffer)
+  if (seite && w.pdf && (q.werk === 'MP' || q.werk === 'MPV')) return { url: `${w.pdf.url}#page=${seite[1]}`, art: 'pdf', text: `PDF, Seite ${seite[1]}` }
+  return null
+}
+
+/** Normen behalten im Lesetext ihren Kurznamen («VSS 40 241»), die übrigen Werke heissen mit dem Lesenamen */
+const IST_NORM = (w: WerkId): boolean => /^(VSS|SN) /.test(WERKE[w].name)
+const escRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** Werknamen im Text: Lesenamen und Kurznamen mit Ausgabe («VSS 40 241:2019», «bfu MS.013-2025»); nicht «VCS», «fgsCheck» allein */
+const MUSTER: [string, WerkId, boolean][] = [
+  ...WERK_IDS.map(w => [escRe(LESENAME[w]), w, true] as [string, WerkId, boolean]),
+  ...WERK_IDS.filter(w => !['VCS', 'ENTSCHEID', 'BFU2016'].includes(w))
+    .map(w => [`${escRe(WERKE[w].name)}(?:[: -]\\d{4}(?:-\\d{2}){0,2})?`, w, false] as [string, WerkId, boolean]),
+].sort((a, b) => b[0].length - a[0].length)
+const WERK_RE = new RegExp(`(?<![\\wäöü])(${MUSTER.map(m => m[0]).join('|')})(,? (Art\\. \\d+[a-z]?(?: Abs\\. \\d+)?(?: Buchstabe [a-z])?))?`, 'g')
+
+/** Teil eines Lesetexts: Text bzw. Werk (Anzeige, Werk, Artikel-Link zu fedlex) */
+export type VerweisTeil = { text: string } | { werk: WerkId; anzeige: string; ziffer?: { text: string; link: WerkLink | null } }
+
+/**
+ * Lesetext mit Werkverweisen (Nutzertest 23.10.2026): Abkürzungen ausgeschrieben, Werknamen erkannt (Normen mit Kurzname, übrige
+ * mit Lesename, z. B. «bfu MS.013-2025» → «bfu-Fachdokumentation «Fussgängerstreifen»»); ein Artikel dahinter mit Link zu fedlex
+ */
+export function verweisTeile(text: string): VerweisTeil[] {
+  const t = abkLesbar(text), aus: VerweisTeil[] = []
+  let i = 0
+  for (const m of t.matchAll(WERK_RE)) {
+    const roh = m[1]
+    let w = MUSTER.find(x => new RegExp(`^(?:${x[0]})$`).test(roh))![1]
+    if (w === 'BFU' && /2016/.test(roh)) w = 'BFU2016'
+    if (m.index! > i) aus.push({ text: t.slice(i, m.index) })
+    const anzeige = IST_NORM(w) ? roh.replace(/[: -]\d{4}(?:-\d{2}){0,2}$/, '') : LESENAME[w]
+    const art = m[3]
+    aus.push({ werk: w, anzeige, ...(art ? { ziffer: { text: art, link: fundstelleLink({ werk: w, ziffer: art }) } } : {}) })
+    i = m.index! + m[0].length
+  }
+  if (i < t.length) aus.push({ text: t.slice(i) })
+  return aus
+}
+/** Lesetext ohne Verweise (Bericht, Tests): wie verweisTeile, als Zeichenkette */
+export const verweisText = (text: string): string =>
+  verweisTeile(text).map(x => ('text' in x ? x.text : `${x.anzeige}${x.ziffer ? `, ${x.ziffer.text}` : ''}`)).join('')
