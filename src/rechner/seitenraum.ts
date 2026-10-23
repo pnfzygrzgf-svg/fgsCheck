@@ -119,6 +119,7 @@ export interface ParkMessung { tiefe: number; ids: string[]; rand: [number, numb
 const SR_DICHTE_M = 0.5                 // Kanten der Parkierung so dicht abtasten (lange Polygone)
 const SR_ORT_TOL_M = 3.0                // örtliche Bordkante höchstens so weit von der Geraden c(s) (Bogen R = 40 m auf 15 m: 2,8 m)
 export const SR_SPRUNG_M = 0.30         // Bordkante springt um mehr als das auf SR_DICHTE_M Länge: versetzt (Nase, Bucht)
+const SR_FOLGE_M = 2.0                  // beim Verfolgen der Kante: grössere Änderung auf einen Schritt = andere Kante (Einmündung)
 export const SR_RAND_MIN_M = 0.50       // Rand, wenn die Parkierung bis an bzw. in den Streifen reicht (Nutzerentscheid)
 export const SR_RAND_MAX_M = 5.0        // Rand bis zum ersten Parkfeld höchstens so weit über den Streifen hinaus (Nutzerentscheid)
 const median = (xs: number[]) => { const a = [...xs].sort((x, y) => x - y), n = a.length; return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2 }
@@ -138,40 +139,44 @@ const median = (xs: number[]) => { const a = [...xs].sort((x, y) => x - y), n = 
  */
 export function parkMessen(park: ParkRing[], l: SrLage, breite: number, sehne: ((p: P, r: P) => [number, number] | null) | null = null):
   ParkMessung | null {
-  const kanteSehne = (q: P): number | null => {
-    if (!sehne) return null
-    const sh = sehne(q, l.tief)
-    return sh ? sh[1] : null                                   // Abstand zur Bordkante gegen tief (negativ: hinter der Kante)
-  }
-  const tiefe = (q: P): number => {
-    const d = sub(q, l.k), s = dot(d, l.balken), gerade = dot(d, l.tief) - kanteBei(l, s)
-    const h = kanteSehne(q)
-    // die Sehne misst zur nächsten Bordkante; weicht sie mehr als SR_ORT_TOL_M von der Geraden ab, ist es eine andere Kante
-    if (h === null || Math.abs(h - gerade) > SR_ORT_TOL_M) return gerade
-    // Winkel der Kante an der Stelle: Kante 1 m davor und danach (gemessen gegen tief)
-    const k1 = kanteSehne(add(q, l.balken, -1)), k2 = kanteSehne(add(q, l.balken, 1))
-    const g = k1 !== null && k2 !== null ? (k2 - k1) / 2 : 0      // Änderung des Abstands je m entlang balken
-    return h / Math.hypot(1, g)
-  }
-  // Verlauf der Bordkante gegen c(s) alle SR_DICHTE_M im Längsfenster (Sehne 1 m vor der Geraden); null: keine Messung
+  // Verlauf der Bordkante o(s) gegen die Gerade c(s), alle SR_DICHTE_M im Längsfenster, vom Streifen aus nach beiden Seiten verfolgt:
+  // Sehne 1 m vor der zuletzt gefundenen Kante; ändert sie sich um mehr als SR_FOLGE_M auf einen Schritt (Einmündung, andere Kante),
+  // bleibt die Stelle ohne Wert. So folgt o auch einer engen Kurve (über SR_ORT_TOL_M von der Geraden weg)
   const n = Math.round(SR_SUCHE_M / SR_DICHTE_M)
-  const verlauf = Array.from({ length: 2 * n + 1 }, (_, i) => {
-    const s = (i - n) * SR_DICHTE_M
-    if (!sehne) return null
-    const sh = sehne(pt(l, s, kanteBei(l, s) + 1), l.tief)
-    return sh && Math.abs(1 - sh[1]) <= SR_ORT_TOL_M ? 1 - sh[1] : null
-  })
-  /** springt die Kante zwischen s = a und s = b (inkl. Feld)? */
-  const sprung = (a: number, b: number): boolean => {
-    const i0 = Math.max(0, Math.floor(Math.min(a, b) / SR_DICHTE_M) + n), i1 = Math.min(2 * n, Math.ceil(Math.max(a, b) / SR_DICHTE_M) + n)
-    let vor: number | null = null
-    for (let i = i0; i <= i1; i++) {
-      const o = verlauf[i]
-      if (o === null) continue
-      if (vor !== null && Math.abs(o - vor) > SR_SPRUNG_M) return true
-      vor = o
+  const o: (number | null)[] = Array(2 * n + 1).fill(null)
+  if (sehne) for (const vz of [1, -1]) {
+    let vor: number | null = vz > 0 ? null : o[n]
+    for (let j = vz > 0 ? 0 : 1; j <= n; j++) {
+      const i = n + vz * j, s = (i - n) * SR_DICHTE_M, basis: number = vor ?? 0
+      const sh = sehne(pt(l, s, kanteBei(l, s) + basis + 1), l.tief)
+      if (!sh) continue
+      const v: number = basis + 1 - sh[1]
+      if ((vor === null ? Math.abs(v) > SR_ORT_TOL_M : Math.abs(v - vor) > SR_FOLGE_M)) continue
+      o[i] = v; vor = v
     }
-    return false
+  }
+  const idx = (s: number) => Math.round(s / SR_DICHTE_M) + n
+  /** Tiefe eines Punkts gegen die örtliche Kante (o an der Stelle, Winkel aus den Nachbarn); null: Kante dort nicht gemessen */
+  const tiefe = (q: P): number | null => {
+    const d = sub(q, l.k), s = dot(d, l.balken), gerade = dot(d, l.tief) - kanteBei(l, s)
+    if (!sehne) return gerade
+    const i = idx(s), oi = o[i]
+    if (i < 0 || i > 2 * n || oi === null) return null
+    const a = o[i - 1] ?? null, b = o[i + 1] ?? null
+    const g = a !== null && b !== null ? Math.max(-1, Math.min(1, (b - a) / (2 * SR_DICHTE_M))) : 0
+    return (gerade - oi) / Math.hypot(1, g)
+  }
+  /** Versatz der Kante zwischen s = a und s = b: Summe der Sprünge über SR_SPRUNG_M (eine Kerbe dazwischen, z. B. Einfahrt, hebt sich auf) */
+  const versatz = (a: number, b: number): number => {
+    const i0 = Math.max(0, idx(Math.min(a, b))), i1 = Math.min(2 * n, idx(Math.max(a, b)))
+    let vor: number | null = null, summe = 0
+    for (let i = i0; i <= i1; i++) {
+      const v = o[i]
+      if (v === null) continue
+      if (vor !== null && Math.abs(v - vor) > SR_SPRUNG_M) summe += v - vor
+      vor = v
+    }
+    return summe
   }
   const felder: { id: string; aussen: number; sMin: number; sMax: number; annahme: boolean; versetzt: boolean }[] = []
   for (const f of park) {
@@ -180,18 +185,17 @@ export function parkMessen(park: ParkRing[], l: SrLage, breite: number, sehne: (
       const b = f.ring[(i + 1) % f.ring.length], n = Math.max(1, Math.ceil(dist(a, b) / SR_DICHTE_M))
       for (let j = 0; j < n; j++) pts.push(add(a, sub(b, a), j / n))
     })
-    // nur Punkte im Längsfenster und nahe dieser Bordkante (gegen die Gerade c(s); ferne Teile langer Polygone zählen nicht)
-    const nah = pts.filter(q => {
-      const d = sub(q, l.k), s = dot(d, l.balken), t = dot(d, l.tief) - kanteBei(l, s)
-      return Math.abs(s) <= SR_SUCHE_M && t >= -SR_ORT_TOL_M && t <= SR_PARK_TIEFE_BEREICH[1] + SR_ORT_TOL_M
-    })
-    if (!nah.length) continue
-    const ss = nah.map(q => dot(sub(q, l.k), l.balken)), sMin = Math.min(...ss), sMax = Math.max(...ss)
-    const versetzt = sprung(Math.min(0, sMin), Math.max(0, sMax))
-    const t = nah.map(q => (versetzt ? dot(sub(q, l.k), l.tief) - kanteBei(l, dot(sub(q, l.k), l.balken)) : tiefe(q)))
+    // nur Punkte im Längsfenster, an denen die Kante gemessen ist, und nahe dieser Kante (ferne Teile langer Polygone zählen nicht)
+    const nahT = pts.map(q => ({ q, s: dot(sub(q, l.k), l.balken), t: Math.abs(dot(sub(q, l.k), l.balken)) <= SR_SUCHE_M ? tiefe(q) : null }))
+      .filter((x): x is { q: P; s: number; t: number } => x.t !== null && x.t >= -SR_ORT_TOL_M && x.t <= SR_PARK_TIEFE_BEREICH[1] + SR_ORT_TOL_M)
+    if (!nahT.length) continue
+    const ss = nahT.map(x => x.s), sMin = Math.min(...ss), sMax = Math.max(...ss)
+    const nahS = sMin > 0 ? sMin : sMax < 0 ? sMax : null
+    // versetzt: die Kante liegt am Feld anders als am Streifen (Sprung zwischen Streifen und nahem Feldende, Kerben heben sich auf)
+    const versetzt = nahS !== null && Math.abs(versatz(0, nahS + Math.sign(nahS) * 1)) > SR_SPRUNG_M
+    const t = nahT.map(x => (versetzt ? dot(sub(x.q, l.k), l.tief) - kanteBei(l, x.s) : x.t))
     const innen = Math.min(...t)
     // versetzt: Aussenkante am nahen Ende des Felds (die Gerade c(s) gilt nur nahe am Streifen; weiter weg weicht sie von der Kante ab)
-    const nahS = sMin > 0 ? sMin : sMax < 0 ? sMax : null
     const aussen = Math.max(...t.filter((_, i) => !versetzt || nahS === null || Math.abs(ss[i] - nahS) <= SR_DICHTE_M + 1e-9))
     if (innen > SR_PARK_INNEN_M || innen < (versetzt ? -SR_ORT_TOL_M : -1) ||
       aussen < (versetzt ? SR_BEREICH.tiefePark[0] : SR_PARK_TIEFE_BEREICH[0]) || aussen > SR_PARK_TIEFE_BEREICH[1]) continue

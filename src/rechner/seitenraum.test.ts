@@ -271,6 +271,28 @@ describe('Messen gegen die örtliche Bordkante', () => {
     expect(seitenraumMasse(4, m)).toMatchObject({ randA: 3, randB: 5 })
     expect(parkMessen([{ id: '1', ring: rechteck(2.2, 2, 8, 4) }], lage, 4, sehne)!.rand).toEqual([0.5, 1])   // 0,2 m: Mindestrand
   })
+  /** Nordkante y = yc(x) (alle 0,5 m), Felder 2 m tief entlang der Kante 8–14 m vom Streifen; extra: weitere AV-Flächen */
+  const welle = (yc: (x: number) => number, extra: AvFlaeche[] = []) => {
+    const xs = Array.from({ length: 161 }, (_, i) => -40 + i * 0.5)
+    const avW = [av('Strasse_Weg', [lv(-40, -4), lv(40, -4), ...xs.slice().reverse().map(x => lv(x, yc(x)))]),
+      av('Trottoir', [...xs.map(x => lv(x, yc(x))), ...xs.slice().reverse().map(x => lv(x, yc(x) + 4))]), ...extra]
+    const fbW = new Fahrbahn(avW), sW = (q: P, r: P) => fbW.sehne(q, r)
+    const l0 = seitenraumLage(lv(0, -4), lv(0, yc(0)), 1, null, lv(0, yc(0)))
+    const l = { ...l0, kante: kanteMessen(l0, seitenraumMasse(4, null), sW) ?? [0, 0] as [number, number] }
+    const ring = (x0: number, x1: number): ParkRing => {
+      const s1: number[] = []; for (let x = x0; x <= x1; x += 1) s1.push(x)
+      return { id: `f${x0}`, ring: [...s1.map(x => lv(x, yc(x))), ...s1.slice().reverse().map(x => lv(x, yc(x) - 2))] }
+    }
+    return parkMessen([ring(8, 14), ring(-14, -8)], l, 4, sW)
+  }
+  for (const sg of [1, -1]) it(`enge Kurve R = 25 m (${sg > 0 ? 'vom Streifen weg' : 'zur Fahrbahn hin'} gekrümmt): Parkstreifen ≈ 2,00 m`, () => {
+    const m = welle(x => 4 + sg * x * x / 50)!
+    expect(m.ids).toHaveLength(2); expect(Math.abs(m.tiefe - 2)).toBeLessThan(0.1); expect(m.versetzt).toBe(false)
+  })
+  it('Einfahrt (Fahrbahnlappen 3 × 1,5 m zwischen Streifen und Feld) gilt nicht als versetzt', () => {
+    const m = welle(x => 4 - x * x / 200, [av('Strasse_Weg', [lv(4, 4 - 16 / 200), lv(7, 4 - 49 / 200), lv(7, 5.5), lv(4, 5.5)])])!
+    expect(m.versetzt).toBe(false); expect(Math.abs(m.tiefe - 2)).toBeLessThan(0.05)
+  })
   it('Bordkante versetzt (Nase an der Querung, Parkbucht): Tiefe gegen die Kante am Streifen, nicht doppelt', () => {
     // Nordkante y = 5 (Parkbucht), an der Querung |x| < 4 Trottoirnase bis y = 4; Parklinie y = 3: 1 m vor der Nasenkante
     const avB = [av('Strasse_Weg', [lv(-40, -4), lv(40, -4), lv(40, 5), lv(4, 5), lv(4, 4), lv(-4, 4), lv(-4, 5), lv(-40, 5)]),
