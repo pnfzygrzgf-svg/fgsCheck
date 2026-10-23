@@ -8,8 +8,11 @@
 //   3. das schmalere angrenzende AV-Trottoir links bzw. rechts der Zufahrt (velo.trottoirNeben), begrenzt auf 2,00 bis 3,50 m –
 //      der häufige Planungsfall: die Einmündung ist in der AV durchgehend Strasse;
 //   4. Annahme TUE_BREITE_ANNAHME_M (2,00 m).
-// Gehlinie für die Sicht auf das Trottoir je Seite TUE_GEHLINIE_M (0,50 m) vor dem eigenen hinteren Trottoirrand der Seite (AV-Trottoir
-// der Seite, sonst Fahrbahnrand plus Breite; VSS 40 242 Ziffer 14.4). Nur Geometrie, keine Regeln der Sicht (rechnen.ts).
+// Liegt das angrenzende AV-Trottoir hinter einem Radweg bzw. Grünstreifen, beginnt die Überfahrt (für die Phase Trottoir) dort: hinterer
+// Rand = Fahrbahnrand + Vorlauf (Abstand Fahrbahnrand – vorderer Trottoirrand nach AV, kleinster der Seiten) + Breite.
+// Gehlinie (Korrektur 23.10.2026, Review fgsCheck): beidseits TUE_GEHLINIE_M (0,50 m) vor dem hinteren Rand der Überfahrt (VSS 40 242
+// Ziffer 14.4); die Überfahrt bestimmt den Rand, nicht das breitere angrenzende Trottoir. D' liegt 3,00 m hinter demselben Rand
+// (rechnen.ts), der Abstand D' – Gehlinie ist also immer 3,50 m (rechtwinklig). Nur Geometrie, keine Regeln der Sicht (rechnen.ts).
 
 import type { P } from '../geo'
 
@@ -21,6 +24,8 @@ export const TUE_BREITE_ANNAHME_M = 2.0
 export const TUE_BREITE_Z16: [number, number] = [2.0, 3.5]
 /** Länge auf der Zufahrtsachse: sin α höchstens bis zu diesem Winkel verkleinert (sehr schiefe Einmündung) [°] */
 const MIN_WINKEL_GRAD = 20
+/** Vorlauf unter diesem Wert gilt als 0 (Rand der AV-Flächen auf wenige mm genau) [m] */
+const VORLAUF_MIN_M = 0.05
 
 /** eine Seite der Zufahrt: Mittellinie des Arms (vom Knoten weg), Seite der Zufahrt (+1 links von u, −1 rechts), Abstand des
  *  Fahrbahnrands von der Mittellinie, AV-Trottoir neben dem Arm (velo.trottoirNeben) */
@@ -31,9 +36,11 @@ export interface TueBand {
   quelle: 'av_quer' | 'av_neben' | 'eingabe' | 'annahme'
   sHinter: number             // hinterer Rand auf der Zufahrtsachse (Bogenlänge)
   laenge: number              // sHinter − sRand
-  hinten: [number, number]    // hinterer Trottoirrand je Seite: Abstand von der Mittellinie [m]
-  gehlinie: [number, number]  // Gehlinie je Seite: Abstand von der Mittellinie [m]
-  herkunft: [string, string]  // Herkunft des hinteren Rands je Seite (Text)
+  vorlauf: number             // Abstand Fahrbahnrand – vorderer Trottoirrand nach AV (Radweg, Grünstreifen), sonst 0 [m]
+  abstand: number             // hinterer Rand der Überfahrt hinter dem Fahrbahnrand: vorlauf + breite [m]
+  hinten: [number, number]    // hinterer Rand der Überfahrt je Seite: Abstand von der Mittellinie [m]
+  gehlinie: [number, number]  // Gehlinie je Seite: Abstand von der Mittellinie [m] (gerade Arme; rechnen.ts legt sie durch sGehlinie)
+  sGehlinie: number           // Gehlinie auf der Zufahrtsachse (Bogenlänge): 0,50 m / sin α vor dem hinteren Rand
   hinweise: string[]
 }
 
@@ -60,13 +67,17 @@ export function tueBand(sRand: number, seiten: [TueSeite, TueSeite], quer: { sHi
     if (Math.abs(breite - schmal) > 0.005) hinweise.push(`Breite der Trottoirüberfahrt ${f2(breite)} m: angrenzendes Trottoir nach AV ` +
       `${f2(schmal)} m, nach VSS 40 242 Ziffer 16 begrenzt auf ${f2(TUE_BREITE_Z16[0])} bis ${f2(TUE_BREITE_Z16[1])} m.`)
   } else { breite = TUE_BREITE_ANNAHME_M; quelle = 'annahme' }
-  const laenge = quelle === 'av_quer' ? quer!.sHinter - sRand : breite / sinA
-  // eigener hinterer Trottoirrand je Seite (für die Gehlinie): AV-Trottoir der Seite, sonst Fahrbahnrand plus Breite
-  const hinten = seiten.map((s): [number, string] => s.t ? [s.t.abstand + s.t.breite / 2,
-    `hinterer Rand der AV-Fläche Trottoir, ${s.t.n} Querschnitte, Trottoir ${f2(s.t.breite)} m`] :
-    [s.rand + breite, `Fahrbahnrand plus Breite der Überfahrt ${f2(breite)} m`])
-  // Gehlinie TUE_GEHLINIE_M vor dem hinteren Rand, höchstens in der Mitte des Trottoirs
-  const geh = seiten.map((s, j) => hinten[j][0] - Math.min(TUE_GEHLINIE_M, Math.max(0, hinten[j][0] - s.rand) / 2))
-  return { breite, quelle, sHinter: sRand + laenge, laenge, hinten: [hinten[0][0], hinten[1][0]], gehlinie: [geh[0], geh[1]],
-    herkunft: [hinten[0][1], hinten[1][1]], hinweise }
+  // Vorlauf: das AV-Trottoir beginnt hinter dem Fahrbahnrand (Radweg, Grünstreifen); kleinster der Seiten, nicht bei AV quer (die
+  // gemessene Länge zählt ab der Bordkante)
+  const vor = seiten.filter(s => s.t).map(s => Math.max(0, s.t!.abstand - s.t!.breite / 2 - s.rand))
+  const v0 = quelle === 'av_quer' || !vor.length ? 0 : Math.min(...vor)
+  const vorlauf = v0 < VORLAUF_MIN_M ? 0 : v0
+  const abstand = quelle === 'av_quer' ? breite : vorlauf + breite
+  const laenge = quelle === 'av_quer' ? quer!.sHinter - sRand : abstand / sinA
+  // hinterer Rand der Überfahrt beidseits gleich weit hinter dem Fahrbahnrand; Gehlinie TUE_GEHLINIE_M davor (höchstens in der Mitte)
+  const hinten = seiten.map(s => s.rand + abstand)
+  const vorRand = Math.min(TUE_GEHLINIE_M, breite / 2)
+  const geh = hinten.map(h => h - vorRand)
+  return { breite, quelle, sHinter: sRand + laenge, laenge, vorlauf, abstand, hinten: [hinten[0], hinten[1]], gehlinie: [geh[0], geh[1]],
+    sGehlinie: sRand + laenge - vorRand / sinA, hinweise }
 }

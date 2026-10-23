@@ -216,7 +216,7 @@ export interface TrottoirPruefung {
   hinterkante: P
   achseQuelle: string         // Lage der Trottoirachse
   richtungen: TrottoirRichtung[]
-  gehlinie?: boolean          // K0, Trottoirüberfahrt: Zielpunkte auf der Gehlinie 0,50 m vom hinteren Trottoirrand statt auf der Achse
+  gehlinie?: boolean          // K0, Trottoirüberfahrt: Zielpunkte auf der Gehlinie 0,50 m vom hinteren Rand der Überfahrt statt auf der Achse
 }
 
 /** Herkunft der Breite einer Trottoirüberfahrt (K0), in dieser Reihenfolge: Eingabe, AV-Fläche Trottoir quer über die Zufahrt, das
@@ -231,10 +231,12 @@ export interface TueErgebnis {
   breite: number              // Breite der Überfahrt quer zur Vortrittsstrasse [m] (hinterer Rand beidseits so weit hinter dem Fahrbahnrand)
   breiteQuelle: TueBreiteQuelle
   breiteText: string          // Herkunft der Breite als Satz
-  laenge: number              // Abstand vorderer – hinterer Rand entlang der Zufahrtsachse [m] = breite / sin α
+  laenge: number              // Abstand vorderer – hinterer Rand entlang der Zufahrtsachse [m] = abstand / sin α
+  abstand: number             // hinterer Rand hinter dem Fahrbahnrand [m]: Breite plus Vorlauf (AV-Trottoir hinter Radweg bzw. Grünstreifen)
+  durchgehend: boolean        // die Zufahrt ist ein Arm der durchgehenden Strasse (VSS 40 242 Ziffer 14.2: keine Einmündung)
   vorderkante: P              // Bordkante (Fahrbahnrand der Vortrittsstrasse) auf der Zufahrtsachse: Nullpunkt der Phase Fahrbahn
   hinterkante: P              // hinterer Rand der Überfahrt auf der Zufahrtsachse: Nullpunkt der Phase Trottoir
-  gehlinie: number            // Abstand der Gehlinie vom hinteren Trottoirrand [m] (0,50)
+  gehlinie: number            // Abstand der Gehlinie vom hinteren Rand der Überfahrt [m] (0,50)
   regelungText: string        // Vortritt fest: warum
   phaseTrottoir: TuePhase
   phaseFahrbahn: TuePhase

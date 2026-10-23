@@ -18,6 +18,8 @@ describe('Kopie des SichtweitenCheck-Kerns (herkunft.json)', () => {
     expect(herkunft.quelle).toBe('SichtweitenCheck')
     expect(herkunft.commit).toMatch(/^[0-9a-f]{40}$/)
     expect(Object.keys(dateien)).toContain('rechner/rechnen.ts')
+    // geholt aus einem eingecheckten Stand (das Skript vermerkt nichtEingecheckt sonst)
+    expect((herkunft as { nichtEingecheckt?: boolean }).nichtEingecheckt).toBeUndefined()
   })
   it('jede Datei unverändert (SHA-256 wie beim Holen)', () => {
     for (const [f, h] of Object.entries(dateien))

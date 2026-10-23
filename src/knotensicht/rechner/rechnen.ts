@@ -29,9 +29,10 @@
 //     eingaben: { ...KEINE_ALLE_EINGABEN, trottoirueberfahrt: { breite: null | m } },
 //     hindernisse, avZentrum, hoehen,
 //     tempoAmtlich: { linien, bereich, quelle } | null,   // Stadt Bern: V_sig des Geoportals (daten/vsig.ts), sonst null = OSM
-//   }) -> Rechnung; ergebnis.trottoirueberfahrt: TueErgebnis (Breite mit Herkunft, vorderer und hinterer Rand, Status je Phase),
+//   }) -> Rechnung; ergebnis.trottoirueberfahrt: TueErgebnis (Breite mit Herkunft, Abstand des hinteren Rands vom Fahrbahnrand, Länge
+//      auf der Achse, vorderer und hinterer Rand, durchgehend = Zufahrt auf der durchgehenden Strasse (Ziffer 14.2), Status je Phase),
 //      Phase Trottoir = ergebnis.trottoirPruefung (D' 3,00 m hinter dem hinteren Rand, Zielpunkte auf der Gehlinie 0,50 m vor dem
-//      hinteren Trottoirrand, Tab. 2), Phase Fahrbahn = ergebnis.richtungen (Auto Tab. 1, Velo Tab. 3, B ab der Bordkante).
+//      hinteren Rand der Überfahrt, Tab. 2), Phase Fahrbahn = ergebnis.richtungen (Auto Tab. 1, Velo Tab. 3, B ab der Bordkante).
 //
 // Im Modus gilt (VSS 40 242 Ziffern 12.3, 14.4): kein Rechtsvortritt (Vorgabe Vortritt bzw. Stop aus OSM; «Rechtsvortritt» gewählt:
 // gerechnet wie Vortritt), Nullpunkt von B an der Bordkante (vorderer Rand der Überfahrt; eine Haltelinie bzw. ein Radweg nach Ziffer 12
@@ -768,11 +769,14 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     const mitte = punkteAufSpur(zAchse, [(beob.sRand + sH) / 2])[0]?.[0] ?? Dt.Dachse
     const lagen = lagenT!
     const quellen: string[] = []
+    // Trottoirüberfahrt: Gehlinie je Seite parallel zum Arm durch den Punkt der Zufahrtsachse 0,50 m (/ sin α) vor dem hinteren Rand, damit
+    // sie unabhängig von der Lage der Mittellinie und der Breite der Fahrbahn je Arm genau dort die Achse schneidet (Abstand zu D' fest)
+    const pGeh = tueB ? punkteAufSpur(zAchse, [tueB.sGehlinie])[0]?.[0] ?? null : null
     const linien = lagen.map((l, j) => {
       const anders = lagen[1 - j].t
-      const abstand = tueB ? tueB.gehlinie[j] : l.t?.abstand ?? anders?.abstand ?? dist(mitte, lot(l.h.ml, mitte).p)
-      quellen.push(tueB ? `${lageNach({ lage: lageLR[j] })} ${f2(tueB.hinten[j] - tueB.gehlinie[j])} m vor dem hinteren Trottoirrand ` +
-        `(${tueB.herkunft[j]}), ${f2(Math.max(0, tueB.gehlinie[j] - l.rand))} m hinter dem Fahrbahnrand` :
+      const abstand = tueB ? (pGeh ? dist(pGeh, lot(mitVerlaengerung(l.h.ml), pGeh).p) : tueB.gehlinie[j]) : l.t?.abstand ?? anders?.abstand ?? dist(mitte, lot(l.h.ml, mitte).p)
+      quellen.push(tueB ? `${lageNach({ lage: lageLR[j] })} ${f2(tueB.hinten[j] - tueB.gehlinie[j])} m vor dem hinteren Rand der Überfahrt, ` +
+        `${f2(Math.max(0, abstand - l.rand))} m hinter dem Fahrbahnrand` :
         `${lageNach({ lage: lageLR[j] })} ${l.t ? `Mitte der AV-Fläche Trottoir (${l.t.n} Querschnitte, Breite ${f1(l.t.breite)} m)` :
         anders ? 'wie die Gegenseite' : 'Mitte des Trottoirs an der Zufahrt, parallel zur Strasse'}`)
       const linie = mitVerlaengerung(versetzt(l.h.ml, l.seite * abstand))
@@ -798,7 +802,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     if (tueB) annahmen.push(`Trottoirüberfahrt, Phase Trottoir (VSS 40 242 Ziffer 14.4; Werte VSS 40 273 Ziffer 13.2, Tab. 2): ` +
       `Beobachtungspunkt D' ${zufahrtVelo ? '' : 'am Fahrersitz '}${f2(B_INNERORTS_M)} m hinter dem hinteren Rand der Überfahrt ` +
       `(${zufahrtVelo ? 'auf der Achse des Velogegenverkehrs' : `${f2(FAHRERSITZ_M)} m links der Zufahrtsachse`}); Zielpunkte auf der ` +
-      `Gehlinie ${f2(TUE_GEHLINIE_M)} m vor dem hinteren Trottoirrand beidseits der Zufahrt (${quellen.join('; ')}); Längsneigung des ` +
+      `Gehlinie ${f2(TUE_GEHLINIE_M)} m vor dem hinteren Rand der Überfahrt beidseits der Zufahrt (${quellen.join('; ')}); Längsneigung des ` +
       `Trottoirs in Gehrichtung auf die Zufahrt zu ${mT?.i !== null && mT?.i !== undefined ? `aus dem Höhenmodell (Ausgleichsgerade über ` +
       `${TROTTOIR_PROFIL_M} m beidseits)` : '0 % (ohne Messung)'}; Spalten der Tab. 2 bis zur Spaltenzahl gerechnet. Hindernisse wie für ` +
       'Motorfahrzeuge; Hecken und Zäune an der Grundstücksgrenze von Hand.')
@@ -825,8 +829,9 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       `(AV ${seitenAv.join(', ')}; VSS 40 242 Ziffer 16: 2,00 bis 3,50 m); an der Einmündung zeigt die AV kein Trottoir (Planungsfall)` :
       tueB.quelle === 'eingabe' ? `Breite ${f2(tueB.breite)} m von Hand` :
       `Breite ${f2(TUE_BREITE_ANNAHME_M)} m angenommen (die AV zeigt kein Trottoir, keine Eingabe; VSS 40 242 Ziffer 16)`
-    annahmen.push(`Trottoirüberfahrt (VSS 40 242): ${breiteText}; vorderer Rand an der Bordkante, hinterer Rand beidseits ${f2(tueB.breite)} m ` +
-      `hinter dem Fahrbahnrand, auf der Zufahrtsachse ${f2(tueB.laenge)} m (Breite / sin α, α rund ${Math.round(einbiegewinkel)}°).`)
+    annahmen.push(`Trottoirüberfahrt (VSS 40 242): ${breiteText}; vorderer Rand an der Bordkante, hinterer Rand beidseits ${f2(tueB.abstand)} m ` +
+      `${tueB.vorlauf > 0.005 ? `(Trottoir nach AV ab ${f2(tueB.vorlauf)} m) ` : ''}` +
+      `hinter dem Fahrbahnrand, auf der Zufahrtsachse ${f2(tueB.laenge)} m (/ sin α, α rund ${Math.round(einbiegewinkel)}°).`)
     // kurze Hinweise nur, wenn sie zutreffen (VSS 40 242 Ziffern 14.1, 14.2, 14.3.1, 14.3.4, 15.4.2)
     if (ao.ausserorts) hinweise.push('Trottoirüberfahrt ausserorts (nach OSM): nach VSS 40 242 Ziffer 14.1 nur innerorts.')
     if (durchgehend || gegenArm) hinweise.push('Die Zufahrt liegt auf der durchgehenden Strasse: nach VSS 40 242 Ziffer 14.2 Trottoirüberfahrt nur ' +
@@ -847,7 +852,8 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     const tt: [string, RichtungStatus][] = (trottoirPruefung?.richtungen ?? []).map(t => [`${lageKurz(t)}: Trottoir`, t.status])
     const phase = (x: [string, RichtungStatus][]): TuePhase => ({ status: schlecht(x.map(y => y[1])),
       fehlt: x.filter(y => y[1] === 'nicht_erfuellt').map(y => y[0]) })
-    trottoirueberfahrt = { breite: tueB.breite, breiteQuelle: tueB.quelle, breiteText, laenge: tueB.laenge,
+    trottoirueberfahrt = { breite: tueB.breite, breiteQuelle: tueB.quelle, breiteText, laenge: tueB.laenge, abstand: tueB.abstand,
+      durchgehend: durchgehend || !!gegenArm,
       vorderkante: beobachtungAb(zAchse, beob.sRand, 0).nullpunkt, hinterkante: beobachtungAb(zAchse, tueB.sHinter, 0).nullpunkt,
       gehlinie: TUE_GEHLINIE_M, regelungText: regelung === 'stop' ? 'Stop (Zufahrt vortrittsbelastet)' : 'Vortritt: kein Rechtsvortritt an ' +
         'einer Trottoirüberfahrt, die Zufahrt ist vortrittsbelastet (VSS 40 242 Ziffer 12.3)', phaseTrottoir: phase(tt), phaseFahrbahn: phase(fb) }

@@ -16,7 +16,7 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, join, normalize, resolve } from 'node:path'
+import { dirname, join, normalize, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
@@ -42,7 +42,8 @@ const kern = ['geo.ts', ...DATEN, ...rechner].sort()
 /** relative Importe einer Datei (statisch); dynamische import(...) zählen getrennt */
 const importe = (rel) => {
   const t = readFileSync(join(SRC, rel), 'utf-8')
-  const statisch = [...t.matchAll(/(?:^|\n)\s*(?:import|export)\b[^'"\n]*?(?:from\s*)?['"](\.{1,2}\/[^'"]+)['"]/g)].map(m => m[1])
+  // auch mehrzeilige Importe: «from '…'» (import bzw. export … from) und «import '…'» (nur Nebenwirkung)
+  const statisch = [...t.matchAll(/\bfrom\s*['"](\.{1,2}\/[^'"]+)['"]/g), ...t.matchAll(/\bimport\s*['"](\.{1,2}\/[^'"]+)['"]/g)].map(m => m[1])
   const dynamisch = /\bimport\s*\(/.test(t)
   return { ziele: statisch.map(z => normalize(join(dirname(rel), z.endsWith('.ts') ? z : `${z}.ts`))), dynamisch }
 }
@@ -58,7 +59,17 @@ const ausgelassen = testKand.filter(f => !tests.includes(f)).sort()
 
 // alte Kopie entfernen (nur Dateien der bisherigen Herkunft), neue schreiben
 const herkunftPfad = join(ZIEL, 'herkunft.json')
-if (existsSync(herkunftPfad)) for (const f of Object.keys(JSON.parse(readFileSync(herkunftPfad, 'utf-8')).dateien ?? {})) rmSync(join(ZIEL, f), { force: true })
+// (nur Pfade, die sicher in src/knotensicht/ liegen: relativ, ohne «..», Endung .ts; sonst Abbruch)
+if (existsSync(herkunftPfad)) {
+  const alt = Object.keys(JSON.parse(readFileSync(herkunftPfad, 'utf-8')).dateien ?? {})
+  for (const f of alt) {
+    const ziel = resolve(ZIEL, f)
+    if (!/^[\w/.-]+\.ts$/.test(f) || f.split('/').includes('..') || !ziel.startsWith(ZIEL + sep)) {
+      console.error(`herkunft.json nennt einen unzulässigen Pfad «${f}»: nichts gelöscht.`); process.exit(1)
+    }
+  }
+  for (const f of alt) rmSync(resolve(ZIEL, f), { force: true })
+}
 const dateien = {}
 for (const f of [...kern, ...tests]) {
   const inhalt = readFileSync(join(SRC, f))
