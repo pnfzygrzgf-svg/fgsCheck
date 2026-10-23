@@ -9,8 +9,10 @@
 //   Trottoir begrenzt auf 2,00 bis 3,50 m, Annahme 2,00 m).
 // - Tempo: V_sig des Geoportals Stadt Bern (wie die übrige fgsCheck-Rechnung; nur wenn die AV-Fläche unter dem Knoten zur Stadt Bern
 //   gehört), sonst OSM.
-// - Hindernisse wie im SichtweitenCheck: von Hand gezeichnete (ohne Insel; zählen sofort), amtliche Parkfelder ohne verworfene; Bäume
-//   aus dem Baumkataster wären dort nur Vorschläge und zählen hier nicht.
+// - Hindernisse wie in der Sichtprüfung von fgsCheck (Entscheid 23.10.2026): von Hand gezeichnete (ohne Insel), Bäume aus dem
+//   Baumkataster (eingeschaltet, ohne verworfene; zählen sofort, im Kern als Baum mit Palisade) und amtliche Parkfelder ohne verworfene;
+//   Parkierung unter einem vorgezogenen Seitenraum entfällt bzw. wird gekürzt (seitenraum.parkOhneSeitenraum). Flächen (Plan) wirken
+//   auf die AV wie in der Sichtprüfung (avMitPlan).
 // - Längsneigung: Profile aus dem Höhenmodell (App, daten/hoehen der Kopie), je Knoten und Zufahrt; ohne Profile 0 %.
 // Das Ergebnis ist schlank und serialisierbar (Worker → App), mit den Linien für die Höhenprofile und den Sichtdreiecken für die Karte.
 
@@ -32,6 +34,10 @@ import { tueBreiteHand } from './texte'
 import type { StreifenErgebnis } from '../rechner/typen'
 import { avParsen as avParsenFgs } from '../daten/av'
 import { avMitPlan } from '../rechner/planflaechen'
+import { parkOhneSeitenraum } from '../rechner/seitenraum'
+import { BAUM_STAMM_M } from '../rechner/hindernisse'
+import type { Multi } from '../rechner/poly'
+import type { KatasterBaum } from '../daten/baumkataster'
 
 /** Knoten höchstens so weit von der Streifenachse (wie automatik.AUTO.knotenM) */
 export const KNOTEN_M = 20
@@ -90,6 +96,10 @@ export interface KsDaten {
   /** fgsCheck-Hindernisse des Falls (Insel zählt nicht) und verworfene Vorschläge bzw. amtliche Parkfelder (Ids) */
   hindernisse: Hindernis[]; verworfen: string[]
   park: { felder: KatasterFeld[]; quellenangabe: string } | null
+  /** Bäume aus dem Baumkataster (null: abgeschaltet bzw. nicht geladen) */
+  baeume?: { baeume: KatasterBaum[]; quellenangabe: string } | null
+  /** Flächen der vorgezogenen Seitenräume (Plan, Art Trottoir): Parkierung darunter entfällt */
+  seitenraum?: Multi
   /** V_sig-Linien (Geoportal Stadt Bern) mit abgedecktem Bereich; null ausserhalb Berns bzw. nicht geladen */
   vsig: { linien: TempoAmtlichLinie[]; bereich: { mitte: P; radiusM: number } } | null
   /** Längsneigung je Schlüssel «Knoten|Zufahrt» (App) */
@@ -118,6 +128,20 @@ export function zufahrtFinden(kx: Kontext, s: Pick<KsStreifen, 'p0' | 'p1' | 'ra
   return best
 }
 
+type OhneInsel = Exclude<Hindernis, { art: 'insel' }>
+const ohneInsel = (h: Hindernis): h is OhneInsel => h.art !== 'insel'
+/** Hindernisse der Knotensicht wie in der Sichtprüfung: von Hand (ohne Insel), Bäume aus dem Baumkataster, amtliche Parkfelder (ohne
+ * verworfene; wie im Kern nach den Eingaben), Parkierung unter einem vorgezogenen Seitenraum entfällt bzw. gekürzt */
+function zaehlend(d: KsDaten): OhneInsel[] {
+  const weg = new Set(d.verworfen), da = new Set(d.hindernisse.map(h => h.id))
+  const baeume: Hindernis[] = (d.baeume?.baeume ?? []).filter(b => !weg.has(b.id) && !da.has(b.id))
+    .map(b => ({ id: b.id, art: 'baum', p: b.p, stamm: BAUM_STAMM_M, quelle: 'kataster', name: b.name }))
+  const amtlich: Hindernis[] = (d.park?.felder ?? []).filter(f => !weg.has(f.id) && f.ring.length >= 3)
+    .map(f => ({ id: f.id, art: 'parkfeld', klasse: f.klasse, ring: f.ring, quelle: 'kataster', name: f.name }))
+  const alle = [...d.hindernisse, ...baeume, ...amtlich].filter(ohneInsel)
+  return d.seitenraum?.length ? parkOhneSeitenraum(alle, d.seitenraum).hindernisse.filter(ohneInsel) : alle
+}
+
 const teil = (status: RichtungStatus, soll: number, ist: number, v: { name: string } | null): KsTeil =>
   ({ soll, ist: Math.round(ist * 10) / 10, status, verdecker: v?.name ?? null })
 const klar = (s: RichtungStatus) => s === 'erfuellt' || s === 'massgebend' || s === 'nicht_erfuellt'
@@ -136,7 +160,7 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen): KnotensichtAntwort {
   const r = rechneKnoten(d.osm, d.av, {
     knoten: z.knoten, zufahrt: z.zufahrt,
     eingaben: { ...KEINE_ALLE_EINGABEN, trottoirueberfahrt: { breite } },
-    hindernisse: { hindernisse: d.hindernisse.filter((h): h is Exclude<Hindernis, { art: 'insel' }> => h.art !== 'insel'), verworfen: d.verworfen, park: d.park, baeume: null },
+    hindernisse: { hindernisse: zaehlend(d), verworfen: d.verworfen, park: null, baeume: null },
     avZentrum: d.avZentrum, hoehen, tempoAmtlich,
   }, kx, d.avRadius)
   const e = r.ergebnis, t = e?.trottoirueberfahrt
@@ -193,14 +217,17 @@ export function ksDatenAusRoh(osmRoh: unknown, avRoh: GeoJson, rest: Omit<KsDate
 
 /** Worker: Knotensicht an jedem Streifen mit der Wahl «Trottoirüberfahrt» anfügen (andere Streifen bleiben unberührt) */
 export function knotensichtAnfuegen(r: { streifen: StreifenErgebnis[] }, roh: { osm: unknown; av: GeoJson }, fall: Fall,
-  rest: { park: KsDaten['park']; vsig: { linien: TempoAmtlichLinie[]; bereich: { mitte: P; radiusM: number } } | null; avZentrum: P
+  rest: { park: KsDaten['park']; baeume?: KsDaten['baeume']; vsig: { linien: TempoAmtlichLinie[]; bereich: { mitte: P; radiusM: number } } | null; avZentrum: P
     avRadius: number; hoehen: KsDaten['hoehen'] }): void {
   const tue = r.streifen.filter(s => s.trottoirueberfahrt)
   if (!tue.length) return
   try {
     // Flächen (Plan) von Hand wirken wie in der übrigen Rechnung (verschobene Bordkante, geplantes Trottoir)
-    const av = fall.flaechenPlan?.length ? avMitPlan(avParsenFgs(roh.av), fall.flaechenPlan).av : undefined
-    const d = ksDatenAusRoh(roh.osm, roh.av, { ...rest, vsig: rest.vsig ? { linien: rest.vsig.linien, bereich: { mitte: rest.vsig.bereich.mitte,
+    // vorgezogener Seitenraum: nur Plan-Flächen der Art Trottoir (wie rechneFall)
+    const plan = fall.flaechenPlan?.length ? avMitPlan(avParsenFgs(roh.av), fall.flaechenPlan) : null
+    const av = plan?.av
+    const seitenraum = plan ? plan.teile.filter(t => t.standard?.typ === 'seitenraum' && t.art === 'trottoir').map(t => t.poly) : []
+    const d = ksDatenAusRoh(roh.osm, roh.av, { ...rest, seitenraum, vsig: rest.vsig ? { linien: rest.vsig.linien, bereich: { mitte: rest.vsig.bereich.mitte,
       radiusM: rest.vsig.bereich.radiusM } } : null, hindernisse: fall.hindernisse, verworfen: Object.keys(fall.vorschlaege) }, av)
     const breite = tueBreiteHand(fall)
     for (const s of tue) {

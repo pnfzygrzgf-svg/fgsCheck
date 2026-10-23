@@ -54,7 +54,7 @@ self.onmessage = async (ev: MessageEvent<Auftrag>) => {
       park ?? null, vsig ? vsigTempo(vsig) : null)
     if (luftbild && !b) r.meldungen.push('Luftbild nicht lesbar: Streifen aus OSM + AV.')
     // Trottoirüberfahrt: Knotensicht der Einbiegenden (Kern des SichtweitenCheck); ohne Trottoirüberfahrt geschieht nichts
-    knotensichtAnfuegen(r, { osm, av }, fall, { park: park ?? null, vsig: vsig ?? null, avZentrum: avZentrum ?? lv95(fall.ort.lat, fall.ort.lon),
+    knotensichtAnfuegen(r, { osm, av }, fall, { park: park ?? null, baeume: kataster ?? null, vsig: vsig ?? null, avZentrum: avZentrum ?? lv95(fall.ort.lat, fall.ort.lon),
       avRadius: AV_RADIUS_M, hoehen: hoehen ?? null })
     ;(self as unknown as Worker).postMessage({ id, ok: true, rechnung: r })
   } catch (e) {

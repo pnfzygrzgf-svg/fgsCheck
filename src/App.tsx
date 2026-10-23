@@ -2194,7 +2194,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           <li><span className="farbe" style={{ background: '#fde047' }} />Streifen, <span className="farbe gestrichelt" style={{ background: '#e2e8f0',
             borderColor: '#0f172a', borderStyle: 'dashed', boxShadow: `inset 0 0 0 1px ${OHNE_VORTRITT_FARBE}` }} />Querung ohne Vortritt (ohne Balken, weiss
             gestrichelt; Sichtweite nach <VerweisText text="VSS 40 240" />, Ziffer 8.2), <span className="farbe gestrichelt" style={{ background: AV_FARBEN.Trottoir,
-            borderColor: TUE_RAND, borderStyle: 'dashed' }} />Trottoirüberfahrt (nicht geprüft, Knotensicht im SichtweitenCheck),
+            borderColor: TUE_RAND, borderStyle: 'dashed' }} />Trottoirüberfahrt (ohne Wartefläche),
             <span className="farbe" style={{ background: '#0ea5e9' }} />Annäherungsbereiche,
             <span className="farbe" style={{ borderColor: LUFTBILD_FARBE, borderWidth: 2 }} />Balken aus dem Luftbild (gestrichelt: unsicher)</li>
           <li><NrMarke nr="1" />{NUMMERN_TEXT} (je Streifen nach der Herkunft der Fahrzeuge, gerade und abbiegende gemeinsam; von Hand
@@ -2204,6 +2204,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             (Auto-Parkfeld, Gebäude), <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_hindernis }} />Hecke, Mauer,
             übriges Hindernis, <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_baum }} />Baum,
             <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_zweirad }} />Zweirad-Feld (Velo/Motorrad)</li>
+          {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li>Knotensicht: <span className="farbe" style={{ background: STATUS_FARBE.frei }} />frei,
+            <span className="farbe" style={{ background: STATUS_FARBE.verdeckt }} />verdeckt; Auto durchgezogen, Velo gestrichelt, Trottoir
+            punktiert; <span className="farbe rund" style={{ background: '#ffffff', borderColor: '#111827' }} />Auge der Ausfahrenden</li>}
           <li><span className="farbe" style={{ background: QUELLE_FARBE.hand }} />von Hand, <span className="farbe" style={{ background: QUELLE_FARBE.osm }} />aus OSM (gestrichelt: Vorschlag, prüfen),
             <span className="farbe" style={{ background: QUELLE_FARBE.kataster }} />aus Baumkataster</li>
           <li><span className="farbe gestrichelt" style={{ borderColor: INSEL_FARBE, borderWidth: 2 }} />{INSEL_TEXT};

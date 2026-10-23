@@ -104,6 +104,35 @@ describe('Knotensicht im Worker-Weg (rechneFall + knotensichtAnfuegen)', () => {
   })
 })
 
+describe('Knotensicht: Bäume, Seitenraum und Flächen (Plan) wie in der Sichtprüfung (Entscheid 23.10.2026)', () => {
+  const PARK = (x: Fall) => x.hindernisse.push({ id: 'h1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-60, -4, -48, -1.8), quelle: 'hand' })
+  const links = (f: Fall, rest: Partial<Rest> = {}) => ks(rechnen(f, rest).streifen[0].knotensicht).richtungen.find(r => r.richtung === 'links')!
+  it('Bäume aus dem Baumkataster zählen sofort (Baumreihe links); verworfene nicht', () => {
+    const baeume = { baeume: Array.from({ length: 21 }, (_, i) => ({ id: `b${i}`, p: lv(-70 + i, -3), name: 'Baum (Kataster)' })), quellenangabe: 'Baumkataster' }
+    const ohne = links(fallTue()), mit = links(fallTue(), { baeume })
+    expect(mit.auto!.ist).toBeLessThan(ohne.auto!.ist)
+    const verworfen = links(fallTue(x => { for (const b of baeume.baeume) x.vorschlaege[b.id] = 'verworfen' }), { baeume })
+    expect(verworfen.auto).toEqual(ohne.auto)
+  })
+  const sr = (standard: boolean) => (x: Fall) => {
+    PARK(x)
+    x.flaechenPlan = [{ id: 'plan-1', art: 'trottoir', ring: rechteck(-62, -4, -46, -1.6), ...(standard ? { standard: { typ: 'seitenraum' as const,
+      gruppe: 'sr-1', tiefePark: 2.2, ueberstand: 0.2, breite: 16, randA: 0, randB: 0, parkQuelle: 'parkierung' as const, k: lv(-54, -4), balken: [1, 0] as P,
+      tief: [0, 1] as P, kante: [-62, -46] as [number, number] } } : {}) }]
+  }
+  it('vorgezogener Seitenraum: Parkierung darunter entfällt; dieselbe Fläche ohne Kennzeichnung lässt sie stehen', () => {
+    expect(links(fallTue(sr(false))).auto!.status).toBe('nicht_erfuellt')
+    expect(links(fallTue(sr(true))).auto!.status).not.toBe('nicht_erfuellt')
+  })
+  it('Fläche (Plan) Trottoirnase wirkt auf die AV der Knotensicht', () => {
+    const nase = (x: Fall) => { x.flaechenPlan = [{ id: 'plan-1', art: 'trottoir', ring: rechteck(-62, -4, -43, -1.6) }] }
+    // Trottoirnase bis an die Einmündung: Fahrbahnrand am Knoten 2,4 m weiter innen, Fahrstreifenachse nach Norden verschoben
+    const dreieck = (f: Fall) => ks(rechnen(f).streifen[0].knotensicht).karte.dreiecke.find(d => d.art === 'auto' && d.lage === 'links')!.frei
+    const y = (f: Fall) => dreieck(f).filter(p => p[0] > O[0] - 58 && p[0] < O[0] - 50).map(p => p[1] - O[1])
+    expect(Math.min(...y(fallTue(nase)))).toBeGreaterThan(Math.max(...y(fallTue())) + 1)
+  })
+})
+
 describe('Knotensicht: Vorbelegung «Sicht beim Ausfahren», Handeingabe geht vor', () => {
   const blatt = (f: Fall, rest = {}) => befundblaetter(rechnen(f, rest), f, { vorgabe: { bern: false, kantonBE: false } })[0]
   it('beide Phasen erfüllt, Neigung angenommen: ja mit Quelle Annahme; mit Höhenmodell: Quelle Rechnung', () => {
