@@ -98,6 +98,12 @@ button:disabled { opacity: .5; cursor: default; }
 .knopfzeile { display: flex; flex-wrap: wrap; gap: 6px; }
 .werkzeuge { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
 .werkzeuge button { padding: 4px 8px; font-size: 12px; }
+/* Gruppe Planen (Planen.tsx): über der Reiterleiste, in beiden Reitern; Knöpfe umbrechend */
+.planen { margin: 12px 0 0; padding: 6px 8px 4px; border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px; }
+.planen > h2 { margin: 0 0 2px; font-size: 14px; }
+.planen details.geplant { margin: 6px 0 2px; }
+.planen details.geplant > summary { font-size: 12px; font-weight: 600; color: var(--text-strong); }
+@media (max-width: 700px) { .planen .werkzeuge button { padding: 6px 10px; } }
 button.aktiv { background: var(--accent); color: #ffffff; }
 .werkzeughilfe { font-size: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 6px 8px; margin: 4px 0; }
 .werkzeughilfe div { margin-top: 4px; }

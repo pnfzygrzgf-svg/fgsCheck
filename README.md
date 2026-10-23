@@ -58,7 +58,7 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    übernehmen und anpassen» macht die gebildeten Streifen verschiebbar; eine angenommene Insel (nach OSM und Luftbild)
    kommt dabei als Insel von Hand («Insel (aus Luftbild übernommen)») mit, damit die Teilung bleibt (ebenso bei
    «Luftbild-Streifen übernehmen und anpassen»; nicht doppelt, wenn schon eine Insel von Hand dort liegt).
-   Planung neuer Streifen: «Streifen planen» (oben im Panel, auch ohne gewählten Übergang) zeichnet einen Streifen an
+   Planung neuer Streifen: «Streifen planen» (Gruppe «Planen»; ohne geladenen Ort oben im Panel) zeichnet einen Streifen an
    beliebiger Stelle; liegt er ausserhalb der geladenen Daten, lädt die App AV, OSM und Kataster um die Streifen neu
    (`src/abdeckung.ts`, abgedeckt ist ein Streifen ganz innert 30 m vom Ladeort; mehrere Streifen bis rund 60 m
    Spannweite in einem Fall). An einem Übergang ohne Fussgängerstreifen heisst der Knopf «Querung als geplanten Streifen
@@ -75,7 +75,7 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    AV-Bodenbedeckung darunter (Gebäude bleiben, die zuletzt gezeichnete Plan-Fläche gilt), Bordkanten, Wartebereiche,
    Inseln, Fahrlinien und Vermassung richten sich danach (`src/rechner/planflaechen.ts`). In der Fall-Datei steht sie
    im Feld `flaechenPlan`; die Karte zeigt sie schraffiert über der AV, der Bericht im Kartenbild und unter «Eingaben von Hand».
-   «Ecke runden» (je Fläche unter «Flächen (Plan)») ersetzt eine angeklickte Ecke durch einen Kreisbogen mit dem eingegebenen
+   «Ecke runden» (je Fläche unter «Flächen (Plan)» bzw. in der Gruppe «Planen») ersetzt eine angeklickte Ecke durch einen Kreisbogen mit dem eingegebenen
    Radius (Vorgabe 6 m, 1 bis 30 m), tangential an beide Kanten; passt der Bogen nicht, bleibt die Fläche unverändert
    (`eckeRunden` in `src/rechner/planflaechen.ts`). Liest der Eckradius an einer Ecke nach Plan-Fläche einen Bogen über 23,5 m,
    gilt sie als unplausibel und der Abbiegeradius wird geschätzt; AV-Ecken über 23,5 m bleiben mit «AV-Ecke prüfen».
@@ -90,6 +90,9 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    die Parklinie ein (VSS 40 240 Z. 13.4: idealerweise mindestens; Tiefe aus der Längsparkierung, sonst 2,00 m; je Seite bis zum
    ersten Parkfeld, höchstens 5,00 m); überdeckte Auto-Parkierung entfällt in der Rechnung, Masse änderbar, Griff zum Ziehen entlang
    der Bordkante (`src/rechner/seitenraum.ts`, Feld `standard` mit `typ: 'seitenraum'`; Fall-Datei Version 4).
+   Die Planungswerkzeuge (Streifen planen, Mittelinsel (Standard), Vorgezogener Seitenraum, Fläche (Plan), Ecke runden,
+   Fixpunkt) stehen in der Gruppe «Planen» über den Reitern, in beiden sichtbar, mit der aufklappbaren Liste «Geplante
+   Elemente» (`src/Planen.tsx`); «Eingaben von Hand» behält die Werkzeuge für den Bestand. Esc beendet ein Werkzeug.
 7. Je Streifen Lichtsignal und «kein FGS», je Zufahrt (Zeile anklicken) Tempo, «Fahrlinie korrigieren» (A: Linie seitlich
    verschieben, am Streifen und am Ende, + links, − rechts; B: Fahrlinie selbst zeichnen, bei Abbiegenden mit Kreisvorschlag
    und «Radius übernehmen») und «Diese Zufahrt gibt es nicht (streichen)». Abbiegezufahrten, die bisher wegen der geraden

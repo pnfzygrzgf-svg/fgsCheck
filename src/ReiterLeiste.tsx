@@ -15,9 +15,10 @@ export function ZustandMarke({ z }: { z: ReiterZustand }) {
     <span aria-hidden="true">{z.symbol}</span> {z.wort}</span>
 }
 
-/** Reiterleiste und beide Reiterfelder; mitReitern false: nur das Feld Sichtprüfung, ohne Leiste und ohne Rollen */
-export function ReiterAnsicht({ mitReitern, aktiv, waehlen, zustand, sicht, bedarf }: { mitReitern: boolean; aktiv: Reiter
-  waehlen: (r: Reiter) => void; zustand: ReiterZustand | null; sicht: ReactNode; bedarf: ReactNode }) {
+/** Reiterleiste und beide Reiterfelder; mitReitern false: nur das Feld Sichtprüfung, ohne Leiste und ohne Rollen. kopf: über der
+ * Leiste, in beiden Reitern sichtbar (Gruppe Planen, Planen.tsx) */
+export function ReiterAnsicht({ mitReitern, aktiv, waehlen, zustand, sicht, bedarf, kopf }: { mitReitern: boolean; aktiv: Reiter
+  waehlen: (r: Reiter) => void; zustand: ReiterZustand | null; sicht: ReactNode; bedarf: ReactNode; kopf?: ReactNode }) {
   const knoepfe = useRef<Partial<Record<Reiter, HTMLButtonElement | null>>>({})
   const taste = (e: KeyboardEvent<HTMLDivElement>) => {
     const r = reiterTaste(aktiv, e.key)
@@ -32,6 +33,7 @@ export function ReiterAnsicht({ mitReitern, aktiv, waehlen, zustand, sicht, beda
     {...(mitReitern && r === 'bedarf' ? { tabIndex: 0 } : {})}>
     {inhalt}</div>
   return <>
+    {kopf}
     {mitReitern && <div className="reiterleiste" role="tablist" aria-label="Ansicht im Panel" onKeyDown={taste}>
       {REITER.map(r => <button key={r} type="button" role="tab" id={reiterKnopfId(r)} aria-selected={aktiv === r}
         aria-controls={reiterFeldId(r)} tabIndex={aktiv === r ? 0 : -1} className={`reiter reiter-${r}${aktiv === r ? ' gewaehlt' : ''}`}

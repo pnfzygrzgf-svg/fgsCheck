@@ -42,8 +42,9 @@ export function Anleitung() {
           auf die Zeile zeigt das Sichtfeld auf der Karte.</li>
         <li><b>Ergänzen:</b> unter «Eingaben von Hand» Parkfelder, Bäume, Hecken oder eine Insel zeichnen und Tempo oder Fahrlinie
           anpassen; die App rechnet sofort neu.</li>
-        <li><b>Neu planen:</b> mit «Streifen planen» die beiden Wartebereiche anklicken; Trottoirnasen, Inseln und Eckradien mit
-          «Fläche (Plan)», «Mittelinsel (Standard)», «Vorgezogener Seitenraum» und «Ecke runden».</li>
+        <li><b>Neu planen:</b> in der Gruppe «Planen» über den Reitern: «Streifen planen» und die beiden Wartebereiche anklicken;
+          Trottoirnasen, Inseln und Eckradien mit «Fläche (Plan)», «Mittelinsel (Standard)», «Vorgezogener Seitenraum» und «Ecke
+          runden».</li>
         <li><b>Bedarf klären:</b> im Reiter «Bedarf und Querungstyp» die Zusammenfassung lesen, die offenen Fragen beantworten und
           Vorschläge bestätigen.</li>
         <li><b>Bericht:</b> «Bericht drucken / als PDF» öffnet die Druckansicht mit Kartenbild, Ergebnissen und Quellen.</li>
@@ -93,7 +94,11 @@ export function Anleitung() {
             (Fussgängerstreifen, ohne Vortritt oder Trottoirüberfahrt). Vorschläge aus OSM (gestrichelt) zählen erst nach
             «bestätigen»; in Bern lädt die App die amtlichen Parkfelder der Stadt, sie zählen sofort. Die Rechnung läuft nach jeder
             Änderung neu.</li>
-            <li><b>Streifen planen:</b> «Streifen planen» (neben «Fall laden») wählen, die Breite (Balkenlänge) einstellen und auf der
+            <li><b>Gruppe «Planen»:</b> über den Reitern, in beiden sichtbar, sobald ein Ort geladen ist: «Streifen planen»,
+            «Mittelinsel (Standard)», «Vorgezogener Seitenraum», «Fläche (Plan)», «Ecke runden» und «Fixpunkt»; darunter die Hilfe zum
+            gewählten Werkzeug und aufklappbar «Geplante Elemente» (Streifen von Hand, Fixpunkte, Flächen (Plan)). Esc beendet ein
+            Werkzeug. «Eingaben von Hand» im Reiter «Sichtprüfung» bleibt für den Bestand.</li>
+            <li><b>Streifen planen:</b> «Streifen planen» (in der Gruppe «Planen», ohne geladenen Ort neben «Fall laden») wählen, die Breite (Balkenlänge) einstellen und auf der
             Karte die beiden Wartebereiche gegenüber anklicken – auch dort, wo OSM keinen Übergang kennt. Die App prüft den Streifen
             als Fussgängerstreifen (Zufahrten, Tempo, Sichtweiten, Hindernisse). Zum laufenden Fall kommt er, wenn er ganz innert
             {' '}{NACHLADEN_M} m um den geladenen Ort liegt oder alle Streifen von Hand zusammen ganz innert {NACHLADEN_M} m um einen
@@ -113,7 +118,7 @@ export function Anleitung() {
             unter «Flächen (Plan)» mit Art und Fläche (Art änderbar, Ecken verschieben, löschen), im Bericht im Kartenbild und unter
             «Eingaben von Hand». Das Werkzeug «Insel» bleibt für eine Insel, die in der AV fehlt (die AV-Fahrbahn bleibt darunter);
             liegt eine Insel von Hand in einer Plan-Fläche der Art Insel, zählt nur die Plan-Fläche. <b>Ecke runden:</b> unter
-            «Flächen (Plan)» bei der Fläche «Ecke runden» wählen, den Radius eingeben (Vorgabe {RUNDEN_R_VORGABE} m,
+            «Flächen (Plan)» bei der Fläche «Ecke runden» wählen (bzw. «Ecke runden» in der Gruppe «Planen», Fläche in der Hilfe), den Radius eingeben (Vorgabe {RUNDEN_R_VORGABE} m,
             {' '}{RUNDEN_R_BEREICH[0]} bis {RUNDEN_R_BEREICH[1]} m) und auf der Karte eine Ecke der Fläche anklicken: die App ersetzt sie
             durch einen Kreisbogen mit diesem Radius, tangential an beide Kanten (konvexe Ecken abgeschnitten, einspringende ausgefüllt).
             Passt der Bogen nicht auf die Kanten, bleibt die Fläche unverändert: die Meldung steht beim Radiusfeld, mit dem grössten
@@ -158,7 +163,7 @@ export function Anleitung() {
             eine Fläche (Plan) Trottoir von der Bordkante bis 0,20 m über die Parklinie ein ({V('VSS 40 240')} Z. 13.4: idealerweise
             mindestens; Tiefe aus der Längsparkierung, sonst 2,00 m angenommen; je Seite bis zum ersten Parkfeld, höchstens 5,00 m),
             Auto-Parkierung darunter entfällt in der Rechnung; Masse unter «Flächen (Plan)» änderbar, am Griff entlang der Bordkante ziehbar.</li>
-            <li><b>Vermassung ab Fixpunkt:</b> Werkzeug «Fixpunkt» (unter «Eingaben von Hand» bzw. «Fixpunkt setzen» in «Lage und
+            <li><b>Vermassung ab Fixpunkt:</b> Werkzeug «Fixpunkt» (in der Gruppe «Planen» bzw. «Fixpunkt setzen» in «Lage und
             Masse») und auf der Karte eine Gebäudeecke bzw. einen Punkt der AV anklicken: die App fängt den nächsten Stützpunkt der
             AV-Bodenbedeckung im Umkreis von {FANG_PX} Bildschirmpunkten (höchstens {FANG_MAX_M} m), sonst bleibt es ein freier Punkt.
             Vorgeschlagen wird je Strassenseite die nächste Gebäudeecke bis {VORSCHLAG_M} m vom Streifen (blasses Quadrat auf der Karte: Klick darauf bzw. «übernehmen» in «Lage und Masse»). Gemessen wird

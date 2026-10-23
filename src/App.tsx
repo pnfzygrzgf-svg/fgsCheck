@@ -59,6 +59,7 @@ import { seitenraumLage, seitenraumMasse, kanteMessen, parkMessen, parkRinge, se
 import { abstandPunkt, flaeche, schnitt } from './rechner/poly'
 import { BedarfAbschnitt, kopfText } from './BedarfPanel'
 import { BedarfTeaser, ReiterAnsicht } from './ReiterLeiste'
+import { WERKZEUGE, BESTAND_WERKZEUGE, hilfeOrt, PlanenGruppe, StreifenPlanenOben, WerkzeugKnoepfe } from './Planen'
 import { REITER_EREIGNIS, reiterAktiv, reiterKnopfId, reiterStand, reiterVorgabe, reiterZustand, teaserText, type Reiter } from './reiter'
 import Trenner from './Trenner'
 import { ladeBreite } from './panelbreite'
@@ -95,29 +96,6 @@ const ZU_WEIT: KartenHinweis = { text: 'Zum Suchen näher heranzoomen' }
 // Ausschnitte der Abrufe (AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M) und die Abdeckung um einen Streifen von
 // Hand (NACHLADEN_M): abdeckung.ts, dort die Herleitung
 const STREIFEN_MIN_M = 1.0                      // Streifen von Hand: kürzeste Länge
-const WERKZEUGE: [Exclude<Werkzeug, null>, string, string][] = [
-  ['parkfeld', 'Parkfeld', 'Ecken anklicken, Doppelklick schliesst'],
-  ['laengs', 'Längsparkierung', 'Mittellinie der Parkierung zeichnen, Doppelklick beendet'],
-  ['baum', 'Baum', 'Stamm anklicken'],
-  ['hecke', 'Hecke', 'Linie zeichnen, Doppelklick beendet'],
-  ['mauer', 'Mauer', 'Linie zeichnen, Doppelklick beendet'],
-  ['flaeche', 'übriges Hindernis', 'Fläche: Ecken anklicken, Doppelklick schliesst'],
-  ['insel', 'Insel', 'Verkehrsinsel, die in der AV fehlt (z. B. markiert bzw. noch nicht erfasst): Ecken anklicken, Doppelklick ' +
-    'schliesst; teilt den Streifen und ersetzt eine Insel aus OSM und Luftbild, die AV-Fahrbahn darunter bleibt. Eine geplante ' +
-    'bauliche Insel besser als «Fläche (Plan)» mit Art Insel'],
-  ['planflaeche', 'Fläche (Plan)', 'geplante Bodenbedeckung (Trottoirnase, Fahrbahnverengung, verschobener Randstein, neue Insel): ' +
-    `Ecken anklicken, die App fängt sie auf Stützpunkte der AV bzw. anderer Plan-Flächen (${FANG_PX} Bildschirmpunkte); ` +
-    'Doppelklick schliesst. Ersetzt in der Rechnung die AV-Flächen darunter (Gebäude bleiben); die zuletzt gezeichnete gilt, wo ' +
-    'sich Plan-Flächen überlappen'],
-  ['mittelinsel', 'Mittelinsel (Standard)', 'Schutzinsel mit Rollstuhlfurt nach Masterplan Fussverkehr Stadt Bern, Standards, E1, als ' +
-    'Flächen (Plan) der Art Insel einfügen'],
-  ['seitenraum', 'Vorgezogener Seitenraum', 'nahe einem Streifenende klicken: Fläche (Plan) Trottoir 0,20 m über die Parklinie ' +
-    '(VSS 40 240 Z. 13.4: idealerweise mindestens) auf der Seite mit Längsparkierung; Auto-Parkierung darunter entfällt in der Rechnung'],
-  // derselbe Werkzeug-Name wie der Knopf oben («Streifen planen»); die gezeichneten Streifen heissen «Streifen von Hand»
-  ['streifen', 'Streifen planen', 'beide Wartebereiche anklicken (Achse quer über die Fahrbahn)'],
-  ['fixpunkt', 'Fixpunkt', 'Gebäudeecke bzw. Punkt der AV anklicken: die App fängt den nächsten AV-Stützpunkt im Umkreis von ' +
-    `${FANG_PX} Bildschirmpunkten, sonst freier Punkt. Für die Vermassung der Streifen von Hand, ohne Einfluss auf die Rechnung`],
-]
 
 /** Anzeige der AV-Arten in der Legende (Schlüssel wie in AV_FARBEN) */
 const AV_NAME: Record<string, string> = { Strasse_Weg: 'Fahrbahn', Gebaeude: 'Gebäude' }
@@ -238,8 +216,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [reiterWahl, setReiterWahl] = useState<Reiter | null>(null)
   const reiterNeu = () => setReiterWahl(null)
   const reiterWaehlen = useCallback((r: Reiter) => setReiterWahl(r), [])
-  // Werkzeug über den Knopf oben («Streifen planen» neben «Fall laden») gewählt: Werkzeughilfe dort zeigen, sonst bei den Werkzeugen
-  const [werkzeugOben, setWerkzeugOben] = useState(false)
+  // Gruppe Planen (Planen.tsx): Liste «Geplante Elemente» aufgeklappt (öffnet sich bei einem neuen Element bzw. beim Bearbeiten)
+  const [geplantOffen, setGeplantOffen] = useState(false)
   const [zeichnung, setZeichnung] = useState<P[]>([])
   const [bearbeiten, setBearbeiten] = useState<string | null>(null)
   const [klasse, setKlasse] = useState<'auto' | 'velo'>('auto')
@@ -1358,9 +1336,37 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       `Fixpunkt gesetzt: ${fixpunktName(g)} (gefangen). Bezeichnung unter «Fixpunkte» änderbar.`)
   }
 
-  const werkzeugWaehlen = (w: Werkzeug, oben = false) => {
-    setZeichnung([]); setBearbeiten(null); setWerkzeugOben(oben); setWerkzeug(x => (x === w ? null : w))
+  const werkzeugWaehlen = (w: Werkzeug) => {
+    setZeichnung([]); setBearbeiten(null); setWerkzeug(x => (x === w ? null : w))
   }
+  /** Knopf der Gruppe Planen; «Ecke runden» nimmt die gewählte Fläche (Plan), sonst die zuletzt gezeichnete (Wahl in der Hilfe) */
+  const planWaehlen = (w: Exclude<Werkzeug, null>) => {
+    if (w !== 'eckeRunden') { werkzeugWaehlen(w); return }
+    setZeichnung([]); zeichnungRef.current = []; setSpurFuer(null); setRundenFehler(null); setRundenAngebot(null)
+    if (werkzeug === 'eckeRunden') { setWerkzeug(null); setBearbeiten(null); return }
+    const plan = fall?.flaechenPlan ?? []
+    setBearbeiten(plan.some(x => x.id === bearbeiten) ? bearbeiten : plan[plan.length - 1]?.id ?? null)
+    setWerkzeug('eckeRunden')
+  }
+  /** Werkzeug beenden (Esc): Zeichnung verwerfen, wie «Abbrechen» bzw. «fertig» in der Werkzeughilfe */
+  const werkzeugBeenden = useRef<() => void>(() => {})
+  werkzeugBeenden.current = () => {
+    if (!werkzeug) return
+    if (werkzeug === 'eckeRunden') { setBearbeiten(null); setRundenFehler(null); setRundenAngebot(null) }
+    if (werkzeug === 'mittelinsel') setInselOrt(null)
+    setZeichnung([]); zeichnungRef.current = []; setSpurFuer(null); setWerkzeug(null)
+  }
+  useEffect(() => {
+    const taste = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      // Esc in einem Eingabefeld gehört dem Feld (TextFeld, Ortssuche: Text zurücksetzen bzw. Liste schliessen)
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+      werkzeugBeenden.current()
+    }
+    window.addEventListener('keydown', taste)
+    return () => window.removeEventListener('keydown', taste)
+  }, [])
 
   // ---------------------------------------------------------------- Planung: Streifen von Hand ohne OSM-Übergang (16.10.2026)
   /** Neuer Fall am gezeichneten Streifen (nur dieser Streifen, ohne OSM-Übergang); die Karte bleibt, wo sie ist. reicht: weitester
@@ -1598,10 +1604,22 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         'tabulatorgetrennt (Punkt, E, N in LV95, Meter).')
     } catch (e) { setMeldung(`Koordinaten nicht kopiert: ${(e as Error).message}`) }
   }
-  // Hilfe zum gewählten Werkzeug: unter der Knopfzeile, wenn es dort gewählt wurde («Streifen planen») bzw. noch kein Fall
-  // geladen ist bzw. der Reiter «Bedarf und Querungstyp» offen ist (Werkzeuge gelten in beiden Reitern), sonst im Abschnitt
-  // «Eingaben von Hand»
-  const hilfeOben = werkzeugOben || !(fall && daten) || (mitReitern && reiter === 'bedarf')
+  // Hilfe zum gewählten Werkzeug (Planen.hilfeOrt): ohne geladenen Ort unter der Knopfzeile («Streifen planen»); Planen-Werkzeuge
+  // in der Gruppe Planen (beide Reiter); Bestand-Werkzeuge unter «Eingaben von Hand», im Reiter «Bedarf und Querungstyp» unter
+  // der Knopfzeile
+  const hilfeWo = hilfeOrt(werkzeug, !!(fall && daten), mitReitern && reiter === 'bedarf')
+  // geplante Elemente (Gruppe Planen): Streifen von Hand, Fixpunkte, Flächen (Plan) samt Mittelinsel und Seitenraum; die Liste
+  // klappt auf, wenn ein Element dazukommt bzw. eines davon bearbeitet wird
+  const geplantZahl = fall ? fall.streifenHand.length + (fall.fixpunkte?.length ?? 0) + (fall.flaechenPlan?.length ?? 0) : 0
+  const geplantVorher = useRef(geplantZahl)
+  useEffect(() => {
+    if (geplantZahl > geplantVorher.current) setGeplantOffen(true)
+    geplantVorher.current = geplantZahl
+  }, [geplantZahl])
+  useEffect(() => {
+    if (bearbeiten && fall && (fall.streifenHand.some(x => x.id === bearbeiten) || fall.fixpunkte?.some(x => x.id === bearbeiten) ||
+      fall.flaechenPlan?.some(x => x.id === bearbeiten))) setGeplantOffen(true)
+  }, [bearbeiten, fall])
   // Angebot für das Popup an der Ecke (gleiches Objekt, solange das Angebot gleich bleibt: sonst öffnete die Karte es neu)
   const angebotKarte = useMemo(() => (werkzeug === 'eckeRunden' && rundenAngebot ? { p: rundenAngebot.ring[rundenAngebot.i],
     text: rundenAngebot.text, knopf: `mit ${f1(rundenAngebot.rMax)} m runden` } : null), [werkzeug, rundenAngebot])
@@ -1670,7 +1688,11 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   )
   const werkzeugHilfe = werkzeug === 'mittelinsel' ? inselHilfe : werkzeug === 'seitenraum' ? srHilfe : werkzeug === 'eckeRunden' ? (
     <div className="werkzeughilfe">
-      <b>Ecke runden{rundenPlan ? ` (${planTitel(rundenPlan.id)})` : ''}:</b> Radius einstellen, dann eine Ecke der Fläche anklicken
+      <b>Ecke runden{rundenPlan ? ` (${planTitel(rundenPlan.id)})` : ''}:</b>{(fall?.flaechenPlan?.length ?? 0) > 1 && <>{' '}
+        <label>Fläche <select value={bearbeiten ?? ''} onChange={e => { setBearbeiten(e.target.value || null); setRundenFehler(null)
+          setRundenAngebot(null) }}>{!rundenPlan && <option value="">– wählen –</option>}
+          {fall!.flaechenPlan!.map(x => <option key={x.id} value={x.id}>{planTitel(x.id)} ({PLAN_NAME[x.art]})</option>)}</select></label>;</>}
+      {' '}Radius einstellen, dann eine Ecke der Fläche anklicken
       (Kreise; die App fängt die nächste Ecke). Die Ecke wird durch einen Kreisbogen mit diesem Radius ersetzt, tangential an beide
       Kanten; konvexe Ecken werden abgeschnitten, einspringende ausgefüllt. Grau gestrichelte Ecken: der eingestellte Radius passt
       dort nicht (Tooltip: höchstens möglicher Radius; Klick bietet ihn an). Kleine Punkte gehören zu einem Bogen und sind keine
@@ -1736,11 +1758,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             onChange={e => { const d = e.target.files?.[0]
               if (d) dateiGewaehlt(d)
               e.target.value = '' }} /></label>
-          <button className={werkzeug === 'streifen' ? 'aktiv' : 'zweit'} onClick={() => werkzeugWaehlen('streifen', true)}
-            title={'Neuen Fussgängerstreifen zeichnen, auch ohne OSM-Übergang: beide Wartebereiche anklicken. Zum laufenden Fall kommt ' +
-              `er, wenn er ganz innert ${NACHLADEN_M} m um den geladenen Ort liegt oder alle Streifen von Hand zusammen ganz innert ` +
-              `${NACHLADEN_M} m um einen Ort liegen (dann lädt die App dort nach); sonst bzw. ohne geladenen Ort beginnt am Streifen ` +
-              'ein neuer Fall. Die App lädt AV, OSM und Kataster um den Streifen, rechnet und vermasst ihn.'}>Streifen planen</button>
+          {/* mit geladenem Ort steht «Streifen planen» in der Gruppe Planen (Planen.tsx) */}
+          <StreifenPlanenOben geladen={!!(fall && daten)} aktiv={werkzeug === 'streifen'} waehlen={() => werkzeugWaehlen('streifen')} />
           {fall && <button onClick={speichern}>Fall speichern</button>}
           {ortGemerkt && <button className="zweit" onClick={ortWiederherstellen} title={'Den zuletzt bearbeiteten Fall ohne ' +
             `OSM-Übergang (z. B. geplanter Streifen; ${eingabenZahl(ortGemerkt)} Eingaben, Stand ${ortGemerkt.gespeichert?.slice(0, 10) ??
@@ -1756,7 +1775,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           {' '}nur markierte Übergänge zeigen (Fussgängerstreifen, vermutliche und Lichtsignal)</label>
         {meldung && <p className="klein">{meldung}{ladeFehler && fall && !daten && <>{' '}
           <button className="zweit klein" onClick={() => laden(fall.ort.lat, fall.ort.lon, fall.ort.uebergang, fall)}>erneut laden</button></>}</p>}
-        {hilfeOben && werkzeugHilfe}
+        {hilfeWo === 'oben' && werkzeugHilfe}
         {wechsel && (
           <p className="klein warnung hinweisbox">{wechsel.text} Der bisherige Fall hat keinen OSM-Übergang und ist nicht als Datei
             gesichert{fall ? ` (${eingabenZahl(fall)} Eingaben)` : ''}: {!wechsel.gemerkt ? 'er ist im Browser nicht gemerkt (dort liegt ' +
@@ -1809,28 +1828,13 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         )}
         {rechnet && <p className="klein">Rechnung läuft …</p>}
 
-        {/* Reiter (ReiterLeiste.tsx): Sichtprüfung mit Teaser zum Bedarf, Eingaben von Hand und Streifen; Bedarf und Querungstyp */}
+        {/* Reiter (ReiterLeiste.tsx): davor die Gruppe Planen (in beiden Reitern); Sichtprüfung mit Teaser zum Bedarf, Eingaben von
+            Hand und Streifen; Bedarf und Querungstyp */}
         <ReiterAnsicht mitReitern={mitReitern} aktiv={reiter} waehlen={reiterWaehlen} zustand={bedarfZustand}
-          bedarf={fall && blaetter.length > 0 && <BedarfAbschnitt fall={fall} blaetter={blaetter} vorgabe={bedarfVorgabe} aendern={aendern}
-            zeigen={zeigeBedarf} sichtLinks={fgsIds => (rechnung?.streifen ?? []).filter(x => fgsIds.includes(x.fgsId)).flatMap(x =>
-              nachNr(x.zufahrten, zNamen.get(x.fgsId)).flatMap(z => {
-                const u = zufahrtStreetView(z, x), nr = zufahrtNr(zNamen.get(x.fgsId), z.zufahrt)
-                return u ? [{ name: `${nr ? `${nr} ` : ''}${zufahrtLang(zNamen.get(x.fgsId), z.zufahrt)}`, url: u, titel: zufahrtStreetViewTitel(nr || z.zufahrt) }] : []
-              }))} />}
-          sicht={<>
-        {bedarfZustand && <BedarfTeaser zustand={bedarfZustand} oeffnen={() => {
-          reiterWaehlen('bedarf')
-          window.setTimeout(() => document.getElementById(reiterKnopfId('bedarf'))?.focus(), 0)
-        }} text={teaserText(bedarfStaende, blaetter.map(kopfText))} />}
-        {fall && daten && (
-          <section className="eingaben">
-            <h2>Eingaben von Hand</h2>
-            <div className="werkzeuge">
-              {WERKZEUGE.map(([w, name]) => (
-                <button key={w} className={werkzeug === w ? 'aktiv' : 'zweit'} onClick={() => werkzeugWaehlen(w)}>{name}</button>
-              ))}
-            </div>
-            {!hilfeOben && werkzeugHilfe}
+          kopf={fall && daten && <PlanenGruppe geladen werkzeug={werkzeug} waehlen={planWaehlen} hilfe={hilfeWo === 'planen' && werkzeugHilfe}
+            gesperrt={fall.flaechenPlan?.length ? {} : { eckeRunden: 'Ecke runden: zuerst eine Fläche (Plan) zeichnen bzw. eine ' +
+              'Mittelinsel oder einen vorgezogenen Seitenraum einfügen' }}
+            anzahl={geplantZahl} offen={geplantOffen} setOffen={setGeplantOffen} geplant={<>
             {fall.streifenHand.length > 0 && (
               <>
                 <h3>Streifen von Hand (ersetzen den Streifen aus OSM)</h3>
@@ -1917,7 +1921,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                         <button className={werkzeug === 'eckeRunden' && bearbeiten === fp.id ? 'aktiv klein' : 'zweit klein'}
                           title={'Eine Ecke dieser Fläche durch einen Kreisbogen ersetzen (Radius eingeben, Ecke auf der Karte anklicken), z. B. den ' +
                           'geplanten Bordkantenradius an einer Einmündung'} onClick={() => {
-                            setZeichnung([]); zeichnungRef.current = []; setSpurFuer(null); setWerkzeugOben(false)
+                            setZeichnung([]); zeichnungRef.current = []; setSpurFuer(null)
                             setRundenFehler(null); setRundenAngebot(null)
                             if (werkzeug === 'eckeRunden' && bearbeiten === fp.id) { setWerkzeug(null); setBearbeiten(null) }
                             else { setWerkzeug('eckeRunden'); setBearbeiten(fp.id) }
@@ -1969,6 +1973,23 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                   festlegen.</p>}
               </>
             )}
+            </>} />}
+          bedarf={fall && blaetter.length > 0 && <BedarfAbschnitt fall={fall} blaetter={blaetter} vorgabe={bedarfVorgabe} aendern={aendern}
+            zeigen={zeigeBedarf} sichtLinks={fgsIds => (rechnung?.streifen ?? []).filter(x => fgsIds.includes(x.fgsId)).flatMap(x =>
+              nachNr(x.zufahrten, zNamen.get(x.fgsId)).flatMap(z => {
+                const u = zufahrtStreetView(z, x), nr = zufahrtNr(zNamen.get(x.fgsId), z.zufahrt)
+                return u ? [{ name: `${nr ? `${nr} ` : ''}${zufahrtLang(zNamen.get(x.fgsId), z.zufahrt)}`, url: u, titel: zufahrtStreetViewTitel(nr || z.zufahrt) }] : []
+              }))} />}
+          sicht={<>
+        {bedarfZustand && <BedarfTeaser zustand={bedarfZustand} oeffnen={() => {
+          reiterWaehlen('bedarf')
+          window.setTimeout(() => document.getElementById(reiterKnopfId('bedarf'))?.focus(), 0)
+        }} text={teaserText(bedarfStaende, blaetter.map(kopfText))} />}
+        {fall && daten && (
+          <section className="eingaben">
+            <h2>Eingaben von Hand</h2>
+            <WerkzeugKnoepfe liste={BESTAND_WERKZEUGE} werkzeug={werkzeug} waehlen={werkzeugWaehlen} />
+            {hilfeWo === 'eingaben' && werkzeugHilfe}
             <LuftbildAnzeige rechnung={rechnung} fall={fall} flugjahr={daten.flugjahr} hatBild={!!daten.luftbild} aendern={aendern}
               setMeldung={setMeldung} />
             {rechnung && rechnung.streifenQuelle !== 'hand' && rechnung.streifen.length > 0 && (
@@ -2092,7 +2113,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         {rechnung?.streifen.map(s => fall && (
           <StreifenAnzeige key={s.fgsId} s={s} fall={fall} auswahl={auswahl} setAuswahl={setAuswahl} aendern={aendern} namen={zNamen.get(s.fgsId)}
             alleStreifen={rechnung?.streifen ?? []} alleNamen={zNamen} blatt={blaetter.find(b => b.streifen.includes(s.fgsId)) ?? null}
-            gewaehlteZ={gewaehlteZ} spurZeichnen={key => { setSpurFuer(key); setZeichnung([]); setWerkzeugOben(false); setWerkzeug('spurB') }}
+            gewaehlteZ={gewaehlteZ} spurZeichnen={key => { setSpurFuer(key); setZeichnung([]); setWerkzeug('spurB') }}
             ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null} neuLaden={() => umStreifenLaden(s.fgsId)} />
         ))}
         {rechnung && <p className="klein">Rechenzeit {Math.round(rechnung.ms)} ms (Web Worker).</p>}
