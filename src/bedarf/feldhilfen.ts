@@ -474,7 +474,8 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   'q3.nHaupt': { was: 'Wie viele Fahrstreifen die Hauptstrasse je Richtung hat.', vorschlag: 'an einer Trottoirüberfahrt aus OSM am Knoten ' +
     '(lanes der Strasse mit Vortritt, ohne Angabe 1 als Annahme; mehr als 1 als Vorschlag zum Bestätigen).' },
   'q3.trottoirBeidseits': { was: 'Ja, wenn das Trottoir entlang der Hauptstrasse vor und nach der Einmündung weitergeht.' },
-  'q3.winkel': { was: 'Winkel zwischen Seiten- und Hauptstrasse in Grad; 90 = rechtwinklig.' },
+  'q3.winkel': { was: 'Winkel zwischen Seiten- und Hauptstrasse in Grad; 90 = rechtwinklig.',
+    vorschlag: 'aus der Knotensicht der Trottoirüberfahrt: Winkel der beiden Strassen im OSM-Netz an der Einmündung.' },
   'q3.knotensichtOk': { was: 'Ja, wenn Ausfahrende aus der Seitenstrasse genug weit sehen (Knotensicht nach VSS 40 273); die App rechnet sie an der Trottoirüberfahrt.',
     vorschlag: 'aus der Knotensicht der Trottoirüberfahrt (Reiter Sichtprüfung): «ja», wenn die Sicht aufs Trottoir und auf die Fahrbahn genügt, «nein», wenn eine nicht genügt; sonst bzw. bei unsicherem Ergebnis offen. Ohne Höhenmodell, mit Breite oder Tempo angenommen bzw. nach OSM als Annahme; ein «nein» daraus zählt erst nach «Vorschlag bestätigen».' },
   'q3.hvl5m': { was: 'Ja, wenn beidseits der Einmündung auf je 5 m Halteverbotslinien markiert sind.' },
@@ -487,7 +488,10 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     vorschlag: 'aus «Strecke oder Zone»; an einer Trottoirüberfahrt eine Zone als Vorschlag zum Bestätigen (heutiger Zustand).' },
   'q3.eingangstor': { was: 'Ja, wenn die Trottoirüberfahrt bewusst den Eingang in die Zone markiert.' },
   'q3.hauptInZone': { was: 'Ja, wenn auch die Hauptstrasse innerorts in der Tempo-30-Zone liegt.' },
-  'q3.wartezeitEinmS': { was: 'Wie lange Fahrzeuge aus der Seitenstrasse im Mittel auf eine Lücke warten, in Sekunden.' },
+  'q3.wartezeitEinmS': { was: 'Wie lange Fahrzeuge aus der Seitenstrasse im Mittel auf eine Lücke warten, in Sekunden. ' +
+    'Ein gemessener Wert aus einer Verkehrszählung ersetzt die Schätzung.',
+    vorschlag: 'in Bern als Annahme aus dem DTV der Hauptstrasse (Verkehrsdaten des Geoportals): Spitzenstunde 10 % des DTV, Zeitlückenmodell ' +
+      'mit 6 s Grenz- und 3 s Folgezeitlücke. Ohne Verkehrszahlen offen.' },
   'q3.lkwGelegentlich': { was: 'Ja, wenn in der Seitenstrasse nur ab und zu Lastwagen fahren.' },
   'q3.linienbus': { was: 'Ja, wenn ein Linienbus durch die Seitenstrasse fährt.',
     vorschlag: 'in Bern aus den ÖV-Linien des Geoportals: Bus- bzw. Trolleybuslinie in der gequerten Strasse «ja», keine «nein».' },
@@ -496,10 +500,13 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     vorschlag: 'wie «Kreuzung mit Lichtsignal»; an einer Trottoirüberfahrt ein Lichtsignal nach OSM als Vorschlag zum Bestätigen (heutiger Zustand).' },
   'q3.kreisel': { was: 'Ja, wenn die Einmündung an einem Kreisel liegt.', vorschlag: 'aus OSM: Kreisel bis 20 m bzw. Einmündung ohne Kreisel.' },
   'q3.breiteM': { was: 'Wie breit die durchgehende Trottoirfläche über die Seitenstrasse ist, in Metern. Mit Zusatztafel «Velos gestattet» ' +
-    'sind bis 4,00 m zulässig; der Hinweis über 3,50 m bleibt.' },
+    'sind bis 4,00 m zulässig; der Hinweis über 3,50 m bleibt.',
+    vorschlag: 'aus der Knotensicht: Trottoir der AV quer über die Einmündung bzw. das schmalere angrenzende Trottoir, auf 2,00 bis 3,50 m ' +
+      'begrenzt; zeigt die AV keines, 2,00 m als Annahme.' },
   'q3.randDurchgehend': { was: 'Ja, wenn der Trottoirrand entlang der Hauptstrasse ohne Rücksprung über die Einmündung läuft. Bei ' +
     'Längsparkierung darf er bis zur Parklinie vorgezogen sein (Werkzeug «Vorgezogener Seitenraum»).' },
-  'q3.ueberfahrbarM': { was: 'Länge des abgesenkten, überfahrbaren Rands entlang der Hauptstrasse, in Metern.' },
+  'q3.ueberfahrbarM': { was: 'Länge des abgesenkten, überfahrbaren Rands entlang der Hauptstrasse, in Metern.',
+    vorschlag: 'mit gerechneter Knotensicht die Länge des gezeichneten Streifens; für neue Trottoirränder den Streifen mit Flächen (Plan) neu zeichnen.' },
   'q3.begrenzung': { was: 'Womit der Bereich, den Fahrzeuge befahren dürfen, seitlich abgegrenzt ist.' },
   'q3.erkennbar': { was: 'Ja, wenn Fahrende aus der Seitenstrasse mindestens 10 m vorher sehen, dass sie über ein Trottoir fahren; auch bei ' +
     'Schnee sollte das so bleiben.' },

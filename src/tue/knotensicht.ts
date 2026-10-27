@@ -100,6 +100,8 @@ export interface Knotensicht {
   streifenId: string
   knoten: number; zufahrt: string; zufahrtName: string
   breite: number; breiteQuelle: TueBreiteQuelle; laenge: number; einbiegewinkel: number
+  /** Herkunft der Breite als Satz des Kerns (Vorbelegung der Breite im Bedarf liest daraus die AV-Breiten) */
+  breiteText?: string
   phaseTrottoir: TuePhase; phaseFahrbahn: TuePhase
   richtungen: KsRichtung[]
   /** Ergebnis für die Frage im Bedarf: true = beide Phasen genügen (mindestens der massgebende Wert), false = beide Phasen beurteilt und
@@ -333,7 +335,7 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   ]
   return {
     quelle: KS_QUELLE, streifenId: s.fgsId ?? '', knoten: z.knoten, zufahrt: e.zufahrt, zufahrtName: strassenName(arme.get(e.zufahrt)?.name),
-    breite: t.breite, breiteQuelle: t.breiteQuelle, laenge: t.laenge, einbiegewinkel: e.einbiegewinkel,
+    breite: t.breite, breiteQuelle: t.breiteQuelle, breiteText: t.breiteText, laenge: t.laenge, einbiegewinkel: e.einbiegewinkel,
     phaseTrottoir: t.phaseTrottoir, phaseFahrbahn: t.phaseFahrbahn, richtungen, ok, unklar: [...new Set(unklar)], durchgehend, neigungGemessen,
     annahmeGrund, annahmen, hinweise: allg.texte,
     karte: { D: e.D, Dtrottoir: tp?.D ?? null, vorderkante: t.vorderkante, hinterkante: t.hinterkante,

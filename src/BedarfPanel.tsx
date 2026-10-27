@@ -992,10 +992,10 @@ function ThemaAnzeige({ t, blaetter, druck, eingabe, begriffe }: { t: ThemaTeil;
     return <Fragment key={b.gruppe}>{mehrere && <div className="klein thema-querung">{querungTitel(b)}</div>}
       <ul>{xs.map((x, i) => <EintragZeile key={x.id + i} x={x} druck={druck} mitDetail={(n.get(x.id) ?? 0) > 1} begriffe={begriffe.get(x)} />)}</ul></Fragment>
   })
-  const fragenListe = (fs: ThemaFrage[]) => fs.length > 0 && <div className="thema-fragen">{eingabe
+  const fragenListe = (fs: ThemaFrage[], kopf = 'Noch offen:') => fs.length > 0 && <div className="thema-fragen">{eingabe
     ? <FragenListe b={b0} fall={eingabe.fall} aendern={eingabe.aendern} fragen={fs.map(f => themaFrageZeile(f, blaetter, eingabe))}
       leerFokus={themaId(t.thema.id)} />
-    : <><span className="klein">Noch offen:</span><ul>{fs.map(f => <li key={f.feld}><Frage feld={f.feld} text={frageText(f, blaetter)} />
+    : <><span className="klein">{kopf}</span><ul>{fs.map(f => <li key={f.feld}><Frage feld={f.feld} text={frageText(f, blaetter)} />
       <Fuer regeln={f.regeln} /></li>)}</ul></>}</div>
   const verweisZeilen = (vs0: ThemaTeil['verweise']) => (['grund', ...THEMEN.map(x => x.id)] as const).map(wo => {
     const vs = vs0.filter(v => v.wo === wo)
@@ -1010,6 +1010,14 @@ function ThemaAnzeige({ t, blaetter, druck, eingabe, begriffe }: { t: ThemaTeil;
     {glied ? glied.map((g, i) => {
       const neu = g.abschnitt !== abschnitt
       abschnitt = g.abschnitt
+      // Ausführung (27.10.2026): im Panel eingeklappt, Fragen zählen nicht; im Bericht unter derselben Überschrift
+      if (g.ausfuehrung) {
+        const inhalt = <>{eintraegeListe(g.eintraege)}{fragenListe(g.fragen, 'Erst bei der Umsetzung zu klären:')}{verweisZeilen(g.verweise)}</>
+        const n = g.fragen.length
+        return druck ? <div key={i} className="thema-teil">{neu && <div className="thema-abschnitt"><b>{T(g.abschnitt)}</b></div>}{inhalt}</div>
+          : <details key={i} className="thema-teil thema-ausfuehrung"><summary><b>{T(g.abschnitt)}</b>
+            {n > 0 && <span className="klein"> – {n === 1 ? '1 Frage' : `${n} Fragen`} offen, nicht gezählt</span>}</summary>{inhalt}</details>
+      }
       return <div key={i} className="thema-teil">
         {neu && g.abschnitt && <div className="thema-abschnitt"><b>{T(g.abschnitt)}</b></div>}
         {g.unter && <div className="klein thema-unter"><i>{g.unter}</i></div>}

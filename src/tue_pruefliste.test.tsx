@@ -75,8 +75,10 @@ describe('Prüfliste: Reihenfolge der Felder und Überschriften', () => {
   })
   it('Abschnitte mit Tabelle und Seite; nachAbschnitt ordnet nur die Regeln der Gliederung', () => {
     expect(ABSCHNITTE.trottoirueberfahrt!.map(a => a.titel)).toEqual(['Zwingende Voraussetzungen (VSS 40 242 Tab. 1, S. 28)',
-      'Merkmale zur Anordnung (VSS 40 242 Tab. 2, S. 30)', 'Ausstattung (VSS 40 242 Tab. 3, S. 32 und 34)', 'Bern'])
-    expect(nachAbschnitt(['A1', 'F5n', 'C1', 'Q3-M10', 'Q3-1'], x => x)).toEqual(['A1', 'Q3-1', 'C1', 'Q3-M10', 'F5n'])
+      'Merkmale zur Anordnung (VSS 40 242 Tab. 2, S. 30)', 'Ausstattung (VSS 40 242 Tab. 3, S. 32 und 34)', 'Bern',
+      'Ausführung (erst bei der Umsetzung; VSS 40 242 Tab. 3, S. 32 und 34)'])
+    expect(ABSCHNITTE.trottoirueberfahrt!.filter(a => a.ausfuehrung).length).toBe(1)
+    expect(nachAbschnitt(['A1', 'F5n', 'C1', 'Q3-M10', 'Q3-1', 'Q3-B', 'F5a'], x => x)).toEqual(['A1', 'Q3-1', 'C1', 'Q3-M10', 'F5a', 'Q3-B', 'F5n'])
     expect(nachAbschnitt(['C1', 'A1'], x => x)).toEqual(['C1', 'A1'])
   })
   it('Thema: Fragen in der Reihenfolge der Prüfliste unter den Überschriften', () => {
@@ -85,16 +87,20 @@ describe('Prüfliste: Reihenfolge der Felder und Überschriften', () => {
     const g = themaGliederung(t)!
     // Teile ohne offene Frage (Lage im Strassennetz, Knotentyp: vorbelegt) entfallen
     expect(g.map(x => x.unter || x.abschnitt)).toEqual(['Lage in Bezug zur Siedlung', 'Betrieb und Anlage',
-      'Sichtweite', 'Strassentypen', 'Verkehrsmengen', 'Ausstattung (VSS 40 242 Tab. 3, S. 32 und 34)'])
+      'Sichtweite', 'Strassentypen', 'Verkehrsmengen', 'Ausstattung (VSS 40 242 Tab. 3, S. 32 und 34)',
+      'Ausführung (erst bei der Umsetzung; VSS 40 242 Tab. 3, S. 32 und 34)'])
+    expect(g.map(x => !!x.ausfuehrung)).toEqual([false, false, false, false, false, false, true])
     const fragen = g.flatMap(x => x.fragen.map(f => f.ziel))
     expect(fragen.slice(0, 4)).toEqual(['q3.bebaut', 'q3.gewerbe', 'q3.anschlussGewerbe', 'q3.nHaupt'])
     // Verkehrsmengen: Gegenüber (M9) vor Wartezeit (M3)
     expect(fragen.indexOf('q3.gegenueberEinm')).toBeLessThan(fragen.indexOf('q3.wartezeitEinmS'))
     expect(fragen.indexOf('q3.wartezeitEinmS')).toBeLessThan(fragen.indexOf('q3.breiteM'))
-    // Ausstattung: F5a, F5c … F5k, F5b, F5l, F5m, F5n
+    // Ausstattung (Machbarkeit): F5a, F5c, F5d; Ausführung: F5e … F5k, F5b, F5l, F5m, F5n
     const aus = g.find(x => x.abschnitt.startsWith('Ausstattung'))!.fragen.map(f => f.ziel)
-    expect(aus).toEqual(['q3.breiteM', 'q3.randDurchgehend', 'q3.ueberfahrbarM', 'q3.begrenzung', 'q3.erkennbar', 'q3.belag',
-      'q3.quergefaelle', 'q3.randabschluss', 'q3.randsteineSenkrecht', 'q3.signalisation', 'q3.markierung', 'q3.taktil'])
+    expect(aus).toEqual(['q3.breiteM', 'q3.randDurchgehend', 'q3.ueberfahrbarM'])
+    const ausf = g.find(x => x.ausfuehrung)!.fragen.map(f => f.ziel)
+    expect(ausf).toEqual(['q3.begrenzung', 'q3.erkennbar', 'q3.belag', 'q3.quergefaelle', 'q3.randabschluss', 'q3.randsteineSenkrecht',
+      'q3.signalisation', 'q3.markierung', 'q3.taktil'])
   })
   it('Panel und Bericht: Überschriften in dieser Reihenfolge (Abkürzungen ausgeschrieben)', () => {
     const f = tueFall({ innerorts: true, lage: 'einmuendung' })
@@ -112,7 +118,7 @@ describe('Prüfliste: Reihenfolge der Felder und Überschriften', () => {
     const ids = g.zeilen.map(z => z.id)
     expect(ids.slice(0, 3)).toEqual(['Q3-1', 'Q3-2', 'Q3-3'])
     expect(ids.indexOf('Q3-M9')).toBeLessThan(ids.indexOf('Q3-M3'))
-    expect(ids.slice(-15)).toEqual(['F5a', 'F5c', 'F5d', 'F5e', 'F5f', 'F5g', 'F5h', 'F5i', 'F5j', 'F5k', 'F5b', 'F5l', 'F5m', 'F5n', 'Q3-B'])
+    expect(ids.slice(-15)).toEqual(['F5a', 'F5c', 'F5d', 'Q3-B', 'F5e', 'F5f', 'F5g', 'F5h', 'F5i', 'F5j', 'F5k', 'F5b', 'F5l', 'F5m', 'F5n'])
     expect(g.zeilen.find(z => z.id === 'F5c')!.wo).toBe('Erweiterte Prüfung, Thema Trottoirüberfahrt, Ausstattung (VSS 40 242 Tab. 3, S. 32 und 34)')
   })
 })
@@ -150,6 +156,36 @@ describe('Nur Fragen der Trottoirüberfahrt; Alternative Fussgängerstreifen auf
     const z = zusammenfassungBlatt(b)
     expect(z.antwort).toBe('Eine Trottoirüberfahrt ist hier zulässig.')
     expect(z.fehlt).toBeNull()
+  })
+  it('Ausführung (erst bei der Umsetzung): offen zählt nicht (Thema, Zusammenfassung, Muss-Fragen); beantwortet geprüft, im Bericht unter derselben Überschrift', () => {
+    const AUSF = ['q3.begrenzung', 'q3.erkennbar', 'q3.belag', 'q3.quergefaelle', 'q3.randabschluss', 'q3.randsteineSenkrecht', 'q3.anrampung',
+      'q3.signalisation', 'q3.markierung', 'q3.taktil']
+    const ohneAusf = Object.fromEntries(Object.entries(OK).filter(([k]) => !AUSF.includes(k)))
+    const b = blatt(tueFall(ohneAusf))
+    const a = themenAnsicht([b])
+    const t = a.themen.find(x => x.thema.id === 'trottoirueberfahrt')!
+    expect(t.fragen.length).toBeGreaterThan(5)
+    expect(a.themen.reduce((n, x) => n + x.zahl.offen, 0)).toBe(0)
+    const z = zusammenfassungBlatt(b)
+    expect(z.antwort).toBe('Eine Trottoirüberfahrt ist hier zulässig.')
+    expect(z.fehlt).toBeNull()
+    expect(b.befund.empfehlung.vorlaeufig).toBe(false)
+    expect(entscheidendeFelder(zfEingabeBlatt(b)).filter(f => AUSF.includes(f))).toEqual([])
+    const satz = JSON.stringify(z)
+    expect(satz).toMatch(/Ausführung: \d+ Punkte, erst bei der Umsetzung/)
+    expect(satz).not.toMatch(/Prüfungen noch offen/)
+    // alles beantwortet: kein Zusatz zur Ausführung
+    expect(JSON.stringify(zusammenfassungBlatt(blatt(tueFall(OK))))).not.toContain('Ausführung')
+    // beantwortet: geprüft wie bisher, Befund unter «Ausführung»
+    const mark = blatt(tueFall({ ...ohneAusf, 'q3.markierung': true }))
+    expect(mark.befund.alle.find(x => x.id === 'F5m')?.zustand).toBe('verletzt')
+    const g = themaGliederung(themenAnsicht([mark]).themen.find(x => x.thema.id === 'trottoirueberfahrt')!)!
+    expect(g.find(x => x.ausfuehrung)!.eintraege.flatMap(e => e.xs.map(x => x.id))).toEqual(['F5m'])
+    const html = renderToStaticMarkup(<BefundblattAnzeige b={mark} druck />)
+    expect(html.indexOf('Ausführung (erst bei der Umsetzung; VSS 40 242 Tabelle 3, Seite 32 und 34)')).toBeGreaterThan(html.indexOf('Ausstattung (VSS 40 242 Tabelle 3'))
+    // Panel: eingeklappt
+    const panel = renderToStaticMarkup(<BedarfAbschnitt fall={tueFall(ohneAusf)} blaetter={[b]} vorgabe={OHNE.vorgabe} aendern={() => {}} setAlternative={() => {}} />)
+    expect(panel).toMatch(/<details class="thema-teil thema-ausfuehrung"><summary><b>Ausführung/)
   })
   it('nicht zulässig: Alternative in einem Satz, «nur grob geprüft» ohne, ohne Zusatz mit Knopf; Trottoirrand zurückgesetzt zählt mit', () => {
     const f = tueFall({ ...OK, 'q3.randDurchgehend': false })

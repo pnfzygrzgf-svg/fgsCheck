@@ -37,7 +37,8 @@ import { imBereich, HALT_TEXT, type Bereich, type HaltestellenErgebnis, type Oev
 import type { VerkehrsdatenErgebnis, VdLinie } from '../daten/verkehrsdaten'
 import { automatik, avInselBei, kopfUeberstandAv, zufSicht, type AutoGeo } from './automatik'
 import { tag } from './lesetext'
-import { knotensichtVorbelegung } from '../tue/texte'
+import { WARTE_TC_S, WARTE_TF_S, breiteVorbelegung, knotensichtGueltig, knotensichtVorbelegung, ueberfahrbarVorbelegung, wartezeitSchaetzen,
+  winkelVorbelegung } from '../tue/texte'
 import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
 import { automatikC, strassentypBern, tempoAusHierarchie, vsigVorbelegen, zoneNachVsig } from './automatikC'
 import { GEOPORTAL_BERN, type BernErgebnis } from '../daten/geoportal'
@@ -392,6 +393,22 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   const kv = knotensichtVorbelegung(g.streifen.flatMap(s => (s.knotensicht ? [s.knotensicht] : [])))
   if (kv && 'hinweis' in kv) feldHinweis('q3.knotensichtOk', kv.hinweis)
   else if (kv) setze('q3.knotensichtOk', kv.wert, kv.quelle, kv.text)
+  // Trottoirüberfahrt mit gerechneter Knotensicht (27.10.2026): Winkel, Breite und Länge des überfahrbaren Rands als Vorschlag; eine
+  // Handeingabe geht vor. Die Breite liest die Knotensicht nur von Hand (texte.handWert), nie aus dieser Vorbelegung
+  const ks = knotensichtGueltig(g.streifen.flatMap(s => (s.knotensicht ? [s.knotensicht] : [])))
+  if (ks) {
+    const wi = winkelVorbelegung(ks)
+    setze('q3.winkel', wi.wert, 'rechnung', wi.text)
+    const br = breiteVorbelegung(ks)
+    if (br) setze('q3.breiteM', br.wert, br.quelle, br.text)
+    const tue = st.filter(s => s.trottoirueberfahrt)
+    if (tue.length) {
+      const ue = ueberfahrbarVorbelegung(Math.max(...tue.map(s => dist(s.p0, s.p1))))
+      setze('q3.ueberfahrbarM', ue.wert, 'rechnung', ue.text)
+    }
+    // Wartezeit beim Ausfahren: aus dem DTV der Hauptstrasse geschätzt (Annahme), ohne Verkehrszahlen offen
+    wartezeitVorbelegen(st, geo.verkehrsdaten ?? null, setze, feldHinweis)
+  }
   if (st.some(s => s.tram === true) && !w.tram && !feldHinweise.tram)
     hinweise.push('Ein Tramgleis nach OSM quert die Querung: Art (Fahrbahn bzw. Eigentrassee) von Hand wählen')
   return { werte: w, hinweise, feldHinweise, rechner, ...(aus.knoten !== undefined ? { knoten: aus.knoten } : {}),
@@ -655,6 +672,51 @@ function dtvVorbelegen(st: StreifenErgebnis[], spuren: P[][], vd: VerkehrsdatenE
   const teile = je.length > 1 ? `, Summe von ${je.length} Fahrbahnen (${je.map(x => ganz(x.wert!)).join(' + ')})` : ''
   setze('dtv', summe, 'geoportal', `DTV ${ganz(summe)}${namen ? ` ${namen}` : ''} (${herkunft(alle)})${teile}` +
     (grenze.length ? `; Grenze zweier Abschnitte (${grenze.join('; ')}): höherer Wert` : ''))
+}
+
+/** Hauptstrasse ohne Verkehrszahlen: die Wartezeit bleibt offen */
+export const WARTEZEIT_OHNE_DTV = 'ohne Verkehrszahlen nicht schätzbar'
+/** Hauptstrasse einer Trottoirüberfahrt: Verkehrsdaten-Linie bis HAUPT_MAX_M von der Mitte des Streifens, höchstens HAUPT_WINKEL° zu ihm */
+const HAUPT_MAX_M = 25, HAUPT_COS = Math.cos((30 * Math.PI) / 180)
+
+/**
+ * DTV der Hauptstrasse einer Trottoirüberfahrt (27.10.2026): der Streifen läuft entlang der Hauptstrasse; Verkehrsdaten-Linien mit einem
+ * Abschnitt etwa parallel zum Streifen bis HAUPT_MAX_M von seiner Mitte, ohne die Linien über der Querungsachse (Seitenstrasse); die
+ * nächsten (innert VD_GLEICH_M, z. B. beidseits der Einmündung) mit dem höchsten Wert. null: keine solche Linie mit Wert
+ */
+export function dtvHauptstrasse(st: StreifenErgebnis[], vd: VerkehrsdatenErgebnis | null): { wert: number; text: string } | null {
+  if (!vd || 'fehler' in vd || !st.length) return null
+  const s0 = st.find(s => s.trottoirueberfahrt) ?? st[0], n = einheit(sub(s0.p1, s0.p0)), m = add(s0.p0, sub(s0.p1, s0.p0), 0.5)
+  if (!imBereich(m, HAUPT_MAX_M, vd.bereich)) return null
+  const ts = st.flatMap(s => [s.p0, s.p1, ...s.rand]).map(p => dot(sub(p, s0.p0), n))
+  const a = add(s0.p0, n, Math.min(...ts) - 1), b = add(s0.p0, n, Math.max(...ts) + 1)
+  const ueberAchse = (l: VdLinie) => l.teile.some(z => z.slice(1).some((q, i) => !!segSchnitt(a, b, z[i], q)))
+  const nah: { l: VdLinie; d: number }[] = []
+  for (const l of vd.linien) {
+    if (ueberAchse(l)) continue
+    const ds = l.teile.flatMap(z => z.slice(1).flatMap((q, i) => (dist(z[i], q) > 0 && Math.abs(dot(einheit(sub(q, z[i])), n)) >= HAUPT_COS
+      ? [abstandStrecke(m, z[i], q)] : [])))
+    const d = ds.length ? Math.min(...ds) : Infinity
+    if (d <= HAUPT_MAX_M) nah.push({ l, d })
+  }
+  if (!nah.length) return null
+  const d0 = Math.min(...nah.map(x => x.d))
+  const mit = nah.filter(x => x.d <= d0 + VD_GLEICH_M && x.l.dtv !== null).map(x => x.l)
+  if (!mit.length) return null
+  const wert = Math.max(...mit.map(l => l.dtv!))
+  const namen = [...new Set(mit.filter(l => l.dtv === wert).map(l => l.strasse).filter(Boolean))].join(', ')
+  const stand = [...new Set(mit.map(l => l.stand).filter(Boolean))].join(', ')
+  return { wert, text: `${namen ? `${namen}, ` : ''}${GEOPORTAL_BERN}${stand ? `, Stand ${stand}` : ''}` }
+}
+
+/** Wartezeit beim Ausfahren aus dem DTV der Hauptstrasse (Zeitlückenmodell, texte.wartezeitSchaetzen) als Annahme; ohne DTV ein Hinweis */
+function wartezeitVorbelegen(st: StreifenErgebnis[], vd: VerkehrsdatenErgebnis | null, setze: Setze, feldHinweis: FeldHinweis): void {
+  const h = dtvHauptstrasse(st, vd)
+  if (!h) { feldHinweis('q3.wartezeitEinmS', WARTEZEIT_OHNE_DTV); return }
+  const d = wartezeitSchaetzen(h.wert)
+  const ist = Math.min(300, Math.round(d))
+  setze('q3.wartezeitEinmS', ist, 'annahme', `geschätzt aus DTV ${ganz(h.wert)} der Hauptstrasse (${h.text}; Spitzenstunde 10 %, ` +
+    `Zeitlückenmodell tc ${WARTE_TC_S} s, tf ${WARTE_TF_S} s): ${d > 300 ? 'über 300 s' : `ca. ${ist} s`}`)
 }
 
 /** Abstand (m), bis zu dem ein Endpunkt auf der Querungsachse liegt bzw. zwei Endpunkte zusammenfallen (Grenze zweier Abschnitte) */

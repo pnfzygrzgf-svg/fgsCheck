@@ -20,7 +20,7 @@ import type { Befund, Ebene, Eintrag, Empfehlung, RegelDef, Staerke } from './ty
 import type { BefundBlatt } from './befundblatt'
 import type { Querungstyp } from './eingaben'
 import { fragenFelder, grundKopf, vorbehaltFelder, type ZeilenZustand } from './kompakt'
-import { istWeiche, mitEinheit, nachAbschnitt, nachPruefliste, pruefUebersicht, themaVon, type UebersichtKontext } from './themen'
+import { istAusfuehrung, istWeiche, mitEinheit, nachAbschnitt, nachPruefliste, pruefUebersicht, themaVon, type UebersichtKontext } from './themen'
 import { feldZiel, frageVon } from './feldhilfen'
 import { QUELLEN_ANNAHME, QUELLEN_BESTAETIGBAR } from './eingaben'
 import { FELD_DEF, wertText } from './felder'
@@ -36,7 +36,7 @@ export interface ZfEingabe {
   befund: Befund
   grund: Grundpruefung
   /** offene Angaben des Befundblatts (Blöcke ganz ohne Eingabe ausgenommen); fehlt: alle offenen Felder des Befunds */
-  offen?: readonly { feld: string }[]
+  offen?: readonly { feld: string; regeln?: readonly string[] }[]
   /** Ebenen und Querungstyp der beurteilten Anlage (Prüfübersicht, Satz 1) */
   kontext?: UebersichtKontext
   ort?: ZfOrt
@@ -395,12 +395,14 @@ function befundSatz(liste: readonly Nennung[], max: number, x: ZfEingabe, grundI
   }
   const u = pruefUebersicht(b, x.kontext ?? {})
   const h = u.hinweise ? `${u.hinweise} ${u.hinweise === 1 ? 'Hinweis' : 'Hinweise'}` : ''
+  // Ausführung (27.10.2026): offene Punkte zählen nicht, werden aber genannt
+  const na = u.ausfuehrungOffen.length, ausf = na ? `; Ausführung: ${na === 1 ? '1 Punkt' : `${na} Punkte`}, erst bei der Umsetzung` : ''
   if (!u.geprueft) return { text: '', genannt: [] }
   if (u.befunde > 0 || grundIds.length) return { text: 'Sonst keine Befunde.', genannt: [] }
-  if (u.offen) return { text: `Bisher keine Befunde; ${u.offen} von ${u.geprueft} Prüfungen noch offen.`, genannt: [] }
-  if (mitGrund) return { text: `Übrige Prüfungen ohne Befund${h ? ` (${h})` : ''}.`, genannt: [] }
-  if (!h) return { text: `Keine Befunde: alle ${u.geprueft} Prüfungen ohne Befund.`, genannt: [] }
-  return { text: `Keine Befunde: ${u.ohneBefund} von ${u.geprueft} Prüfungen ohne Befund, ${h}.`, genannt: [] }
+  if (u.offen) return { text: `Bisher keine Befunde; ${u.offen} von ${u.geprueft} Prüfungen noch offen${ausf}.`, genannt: [] }
+  if (mitGrund) return { text: `Übrige Prüfungen ohne Befund${h ? ` (${h})` : ''}${ausf}.`, genannt: [] }
+  if (!h) return { text: `Keine Befunde: alle ${u.geprueft} Prüfungen ohne Befund${ausf}.`, genannt: [] }
+  return { text: `Keine Befunde: ${u.ohneBefund} von ${u.geprueft} Prüfungen ohne Befund, ${h}${ausf}.`, genannt: [] }
 }
 
 // ── Satz 3 ──
@@ -431,7 +433,8 @@ function mussFelder(x: ZfEingabe): string[] {
   const aus: string[] = []
   if (g.gilt) for (const t of [...g.punkte.flatMap(p => p.teile), ...g.weitere])
     if (t.zustand === 'offen' && DEF[t.id]?.staerke === 'hart') aus.push(...(t.fehlend ?? []), ...sichtOhneFeld(t))
-  for (const e of b.alle) if (e.zustand === 'offen' && MUSS.includes(e.staerke)) aus.push(...(e.fehlend ?? []))
+  // Ausführung (erst bei der Umsetzung, 27.10.2026): keine Muss-Frage
+  for (const e of b.alle) if (e.zustand === 'offen' && MUSS.includes(e.staerke) && !istAusfuehrung(e.id)) aus.push(...(e.fehlend ?? []))
   return aus
 }
 
@@ -457,7 +460,8 @@ function fehlendeFelder(x: ZfEingabe): string[] {
     const k = grundKopf(g)
     aus.push(...k.zeilen.flatMap(z => z.fragen), ...(k.weitere?.fragen ?? []), ...g.punkte.flatMap(p => p.teile).flatMap(sichtOhneFeld))
   }
-  aus.push(...(x.offen ? x.offen.map(o => o.feld) : b.offenGruppen.map(o => o.feld)))
+  // Angaben nur für die Ausführung (erst bei der Umsetzung, 27.10.2026) fehlen nicht
+  aus.push(...(x.offen ?? b.offenGruppen).filter(o => !o.regeln?.length || !o.regeln.every(istAusfuehrung)).map(o => o.feld))
   // «Zufahrten» ist ein Hinweis, keine Frage
   const felder = fragenFelder(aus).filter(f => f !== 'Zufahrten')
   if (!b.ausgewertet.includes('Q3-4')) return felder

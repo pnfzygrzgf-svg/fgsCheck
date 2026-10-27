@@ -13,7 +13,7 @@
 // (Trottoirüberfahrt, LSA-Zeiten), stehen als Zeile mit Sprung zur ersten Angabe und zählen als offen.
 
 import { FELD_DEF, FELD_DEFS, OBJEKTE, istGrundFeld, istObjektFeld } from './felder'
-import { ABSCHNITTE, THEMEN, abschnittVon, istWeiche, nachThema, normVergleich, pruefUebersicht, themaVon, type ThemaDef } from './themen'
+import { ABSCHNITTE, THEMEN, abschnittVon, istAusfuehrung, istWeiche, nachThema, normVergleich, pruefUebersicht, themaVon, type ThemaDef } from './themen'
 import { bezuege, feldZiel, gilt, schaltet, type SichtKontext } from './feldhilfen'
 import { KATALOG, type RegelId } from './katalog'
 import type { BefundBlatt } from './befundblatt'
@@ -62,6 +62,8 @@ export interface ThemaFrage {
   /** Eingabe direkt bei der Frage (in ziel, eingabeFeld); sonst Sprung bzw. Text */
   eingabe: boolean
 }
+/** Frage nur für die Ausführung (alle Regeln erst bei der Umsetzung): zählt nicht als offen */
+export const nurAusfuehrung = (f: Pick<ThemaFrage, 'regeln'>): boolean => f.regeln.length > 0 && f.regeln.every(istAusfuehrung)
 
 /** Verweis auf eine offene Angabe, die anderswo gefragt ist (Grundprüfung bzw. ein anderes Thema); zählt hier nicht */
 export interface Verweis {
@@ -237,7 +239,8 @@ export function themenAnsicht(blaetter: readonly BefundBlatt[]): ThemenAnsicht {
     return {
       thema, eintraege, fragen, verweise: verweiseJe.get(thema.id) ?? [], bloecke, ohneAngaben, ohneBefund,
       geprueft: Math.max(0, ...us.map(u => u.themen[i].geprueft)), felder: felderJe.get(thema.id) ?? [],
-      zahl: { muss: muss.size, soll: soll.length, hinweise: hinweise.length, offen: fragen.length + bloecke.length + ohneAngaben.length },
+      zahl: { muss: muss.size, soll: soll.length, hinweise: hinweise.length,
+        offen: fragen.filter(f => !nurAusfuehrung(f)).length + bloecke.length + ohneAngaben.filter(id => !istAusfuehrung(id)).length },
     }
   })
   return { themen, ohneThema, ablauf, frageFelder, regeln, ohneOrtslage: blaetter.every(b => b.befund.ende === 'offen') }
@@ -251,6 +254,8 @@ export interface GliedTeil {
   eintraege: { b: BefundBlatt; xs: Eintrag[] }[]
   fragen: ThemaFrage[]
   verweise: Verweis[]
+  /** Ausführung (erst bei der Umsetzung): eingeklappt, Fragen zählen nicht */
+  ausfuehrung?: true
 }
 
 /**
@@ -271,7 +276,7 @@ export function themaGliederung(t: ThemaTeil): GliedTeil[] | null {
     const fragen = t.fragen.filter(f => passt(f.regeln, u.regeln))
       .sort((x, y) => erste(x.regeln) - erste(y.regeln) || (RANG_FELD.get(x.ziel ?? x.feld) ?? 1e9) - (RANG_FELD.get(y.ziel ?? y.feld) ?? 1e9))
     const verweise = t.verweise.filter(v => passt(v.regeln, u.regeln))
-    teile.push({ abschnitt: a.titel, unter: u.titel, eintraege, fragen, verweise })
+    teile.push({ abschnitt: a.titel, unter: u.titel, eintraege, fragen, verweise, ...(a.ausfuehrung ? { ausfuehrung: true as const } : {}) })
   }
   const rest: GliedTeil = { abschnitt: '', unter: '',
     eintraege: t.eintraege.map(e => ({ b: e.b, xs: e.xs.filter(x => !abschnittVon(x.id)) })).filter(e => e.xs.length),

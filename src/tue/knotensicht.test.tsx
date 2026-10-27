@@ -17,6 +17,7 @@ import { TUE_NUR_EINMUENDUNG } from '../texte'
 import { kurzHinweis, KS_EINBAHN, KS_EINBAHN_VELO } from './kurztexte'
 import { tueFlaeche, tueMasse } from './karte'
 import { tueFahrzeuge } from '../fahrzeuge'
+import { breiteVorbelegung, knotensichtGueltig, wartezeitSchaetzen } from './texte'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number) => wgs(O[0] + x, O[1] + y)
@@ -442,5 +443,70 @@ describe('Knotensicht: Auge von Hand und Planungstempo (27.10.2026)', () => {
     expect(f.bedarf?.felder['q3.vSigHaupt']).toEqual({ wert: 30, quelle: 'hand' })
     const k = ks(rechnen(f).streifen[0].knotensicht)
     expect(k.richtungen.map(r => [r.tempo, r.tempoHerkunft])).toEqual([[30, 'hand'], [30, 'hand']])
+  })
+})
+
+describe('Knotensicht: Winkel, Breite, Länge des überfahrbaren Rands und Wartezeit als Vorbelegung (27.10.2026)', () => {
+  const BEREICH = { mitte: lv(-40, -4), radiusM: 150, form: 'quadrat' as const }
+  const blatt = (f: Fall, geo = {}) => befundblaetter(rechnen(f), f, { vorgabe: { bern: false, kantonBE: false }, geo })[0]
+  const w = blatt(fallTue()).vorbelegt.werte
+  it('Winkel aus der Knotensicht (Quelle Rechnung)', () => {
+    expect(w['q3.winkel']).toMatchObject({ wert: 90, quelle: 'rechnung' })
+    expect(w['q3.winkel']!.text).toBe('Winkel der Seitenstrasse zur Hauptstrasse aus dem OSM-Netz an der Einmündung, 90°')
+  })
+  it('Breite: Band der Knotensicht (Rechnung) mit den AV-Breiten; von Hand: keine Vorbelegung, die Eingabe geht vor', () => {
+    expect(w['q3.breiteM']).toMatchObject({ wert: 3, quelle: 'rechnung',
+      text: 'schmaleres angrenzendes Trottoir 3,00 m, nach VSS 40 242 Z. 16 auf 2,00–3,50 m begrenzt' })
+    const hand = blatt(fallTue(x => { x.bedarf = { felder: { 'q3.breiteM': { wert: 2.5, quelle: 'hand' } } } }))
+    expect(hand.vorbelegt.werte['q3.breiteM']).toBeUndefined()
+    expect(hand.gebildet.eingaben.q3.wert?.breiteM).toBe(2.5)
+  })
+  it('Breite: keine Rückkopplung – ein Wert mit Quelle Rechnung im Fall ist keine Eingabe der Knotensicht', () => {
+    const r = ks(rechnen(fallTue(x => { x.bedarf = { felder: { 'q3.breiteM': { wert: 2.2, quelle: 'rechnung' } } } })).streifen[0].knotensicht)
+    expect([Math.round(r.breite * 100) / 100, r.breiteQuelle]).toEqual([3, 'av_neben'])
+    const a = ks(rechnen(fallTue(x => { x.bedarf = { felder: { 'q3.breiteM': { wert: 2.2, quelle: 'annahme' } } } })).streifen[0].knotensicht)
+    expect([a.breite, a.breiteQuelle, a.annahmeGrund.includes('Breite angenommen')]).toEqual([2.2, 'eingabe', true])
+  })
+  it('Breite aus Annahme bzw. AV quer: eigene Texte und Quellen', () => {
+    const k0 = ks(rechnen(fallTue()).streifen[0].knotensicht)
+    expect(breiteVorbelegung({ ...k0, breite: 2, breiteQuelle: 'annahme' })).toMatchObject({ wert: 2, quelle: 'annahme', text: expect.stringMatching(/^Annahme 2,00 m/) })
+    expect(breiteVorbelegung({ ...k0, breite: 2.6, breiteQuelle: 'av_quer' })).toMatchObject({ wert: 2.6, quelle: 'rechnung' })
+    expect(breiteVorbelegung({ ...k0, breiteQuelle: 'eingabe' })).toBeNull()
+  })
+  it('Länge des überfahrbaren Rands: Länge der gezeichneten Streifenachse (Rechnung)', () => {
+    expect(w['q3.ueberfahrbarM']).toMatchObject({ wert: 8, quelle: 'rechnung' })
+    expect(w['q3.ueberfahrbarM']!.text).toBe('Länge des gezeichneten Streifens entlang der Hauptstrasse, 8,0 m; mit Flächen (Plan) als neue ' +
+      'Trottoirränder den Streifen neu zeichnen')
+    const lang = blatt(fallTue(() => {}, lv(-46, -8), lv(-33.5, -8))).vorbelegt.werte['q3.ueberfahrbarM']
+    expect(lang?.wert).toBe(12.5)
+  })
+  it('ohne gültige Knotensicht (durchgehende Strasse bzw. Fehler): keine Vorbelegung', () => {
+    const k0 = ks(rechnen(fallTue()).streifen[0].knotensicht)
+    expect(knotensichtGueltig([{ ...k0, durchgehend: true }])).toBeNull()
+    expect(knotensichtGueltig([{ fehler: 'x' }])).toBeNull()
+    expect(knotensichtGueltig([k0])).toBe(k0)
+  })
+  it('Wartezeit: Zeitlückenmodell bei DTV 5000 und 15 000', () => {
+    // q = 0,1·DTV Fz/h; C = q·e^(−q·6/3600) / (1 − e^(−q·3/3600)); d = 3600/C
+    const d = (dtv: number) => { const q = 0.1 * dtv; return 3600 / (q * Math.exp(-q * 6 / 3600) / (1 - Math.exp(-q * 3 / 3600))) }
+    expect(wartezeitSchaetzen(5000)).toBeCloseTo(d(5000), 9); expect(wartezeitSchaetzen(5000)).toBeCloseTo(5.65, 2)
+    expect(wartezeitSchaetzen(15000)).toBeCloseTo(d(15000), 9); expect(wartezeitSchaetzen(15000)).toBeCloseTo(20.86, 2)
+    expect(wartezeitSchaetzen(0)).toBe(3)
+  })
+  it('Wartezeit aus dem DTV der Hauptstrasse (Annahme); die Linie der Seitenstrasse zählt nicht; ohne Verkehrszahlen offen mit Hinweis', () => {
+    const linie = (id: string, strasse: string, dtv: number | null, teile: P[][]) => ({ id, strasse, dtv, stand: '21.11.2025', teile })
+    const haupt = linie('h', 'Hauptstrasse', 15000, [[lv(-300, 0), lv(300, 0)]]), seite = linie('s', 'Querweg', 30000, [[lv(-40, 0), lv(-40, -200)]])
+    const b = blatt(fallTue(), { verkehrsdaten: { linien: [haupt, seite], bereich: BEREICH } })
+    expect(b.vorbelegt.werte['q3.wartezeitEinmS']).toMatchObject({ wert: 21, quelle: 'annahme' })
+    expect(b.vorbelegt.werte['q3.wartezeitEinmS']!.text).toBe('geschätzt aus DTV 15 000 der Hauptstrasse (Hauptstrasse, Geoportal Stadt Bern, ' +
+      'Stand 21.11.2025; Spitzenstunde 10 %, Zeitlückenmodell tc 6 s, tf 3 s): ca. 21 s')
+    const ohne = blatt(fallTue(), { verkehrsdaten: { linien: [seite], bereich: BEREICH } })
+    expect(ohne.vorbelegt.werte['q3.wartezeitEinmS']).toBeUndefined()
+    expect(ohne.vorbelegt.feldHinweise?.['q3.wartezeitEinmS']).toBe('ohne Verkehrszahlen nicht schätzbar')
+    expect(blatt(fallTue()).vorbelegt.feldHinweise?.['q3.wartezeitEinmS']).toBe('ohne Verkehrszahlen nicht schätzbar')
+    // gemessener Wert von Hand geht vor
+    const hand = blatt(fallTue(x => { x.bedarf = { felder: { 'q3.wartezeitEinmS': { wert: 40, quelle: 'hand' } } } }),
+      { verkehrsdaten: { linien: [haupt, seite], bereich: BEREICH } })
+    expect(hand.gebildet.eingaben.q3.wert?.wartezeitEinmS).toBe(40)
   })
 })

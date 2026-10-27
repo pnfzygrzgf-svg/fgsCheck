@@ -75,8 +75,9 @@ export const themaVon = (id: string): Thema | null => DEF[id]?.thema ?? null
 
 /** Unterabschnitt: Überschrift (leer: keine eigene) und Regeln in Anzeigereihenfolge */
 export interface Unterabschnitt { titel: string; regeln: readonly string[] }
-/** Abschnitt eines Themas mit Überschrift (Tabelle und Seite der Norm) */
-export interface Abschnitt { titel: string; unter: readonly Unterabschnitt[] }
+/** Abschnitt eines Themas mit Überschrift (Tabelle und Seite der Norm); ausfuehrung: erst bei der Umsetzung (eingeklappt, zählt nicht als
+ * offen und nicht für das Urteil) */
+export interface Abschnitt { titel: string; unter: readonly Unterabschnitt[]; ausfuehrung?: true }
 
 /**
  * Gliederung eines Themas nach der Prüfliste der Norm (Thema, Bericht, Regelübersicht, Zusammenfassung): Trottoirüberfahrt nach
@@ -93,9 +94,11 @@ export const ABSCHNITTE: Partial<Record<Thema, readonly Abschnitt[]>> = {
       { titel: 'Strassentypen', regeln: ['Q3-M1', 'Q3-M2'] },
       { titel: 'Verkehrsmengen', regeln: ['Q3-M9', 'Q3-M3', 'Q3-M4', 'Q3-M5', 'Q3-M6', 'Q3-M10'] },
       { titel: 'Knotentyp', regeln: ['Q3-M7', 'Q3-M8'] }] },
-    { titel: 'Ausstattung (VSS 40 242 Tab. 3, S. 32 und 34)', unter: [
-      { titel: '', regeln: ['F5a', 'F5c', 'F5d', 'F5e', 'F5f', 'F5g', 'F5h', 'F5i', 'F5j', 'F5k', 'F5b', 'F5l', 'F5m', 'F5n'] }] },
+    // Machbarkeit (27.10.2026): Breite, Trottoirrand, Länge des überfahrbaren Rands; die übrige Ausstattung erst bei der Umsetzung
+    { titel: 'Ausstattung (VSS 40 242 Tab. 3, S. 32 und 34)', unter: [{ titel: '', regeln: ['F5a', 'F5c', 'F5d'] }] },
     { titel: 'Bern', unter: [{ titel: '', regeln: ['Q3-B'] }] },
+    { titel: 'Ausführung (erst bei der Umsetzung; VSS 40 242 Tab. 3, S. 32 und 34)', ausfuehrung: true, unter: [
+      { titel: '', regeln: ['F5e', 'F5f', 'F5g', 'F5h', 'F5i', 'F5j', 'F5k', 'F5b', 'F5l', 'F5m', 'F5n'] }] },
   ],
 }
 
@@ -104,6 +107,9 @@ const RANG_ABSCHNITT = new Map<string, { rang: number; abschnitt: number; unter:
 for (const abs of Object.values(ABSCHNITTE)) abs!.forEach((a, i) => a.unter.forEach((u, j) => u.regeln.forEach(id =>
   RANG_ABSCHNITT.set(id, { rang: RANG_ABSCHNITT.size, abschnitt: i, unter: j }))))
 export const abschnittVon = (id: string): { rang: number; abschnitt: number; unter: number } | null => RANG_ABSCHNITT.get(id) ?? null
+/** Regeln der Ausführung (erst bei der Umsetzung): zählen nicht als offen und nicht für das Urteil, beantwortet werden sie geprüft */
+export const AUSFUEHRUNG: readonly string[] = Object.values(ABSCHNITTE).flatMap(abs => abs!.filter(a => a.ausfuehrung).flatMap(a => a.unter.flatMap(u => u.regeln)))
+export const istAusfuehrung = (id: string): boolean => AUSFUEHRUNG.includes(id)
 
 /**
  * Reihenfolge der Angaben einer Trottoirüberfahrt nach der Prüfliste (27.10.2026): die Eingaben der Regeln in der Reihenfolge der
@@ -256,6 +262,8 @@ export interface PruefUebersicht extends Zaehlung {
   nichtGeprueftWegen: Map<string, string>
   /** Gründe mit Zahl der Regeln (häufigste zuerst) */
   gruende: { grund: string; n: number }[]
+  /** offene Regeln der Ausführung (erst bei der Umsetzung): nicht in den Zahlen und nicht in stand */
+  ausfuehrungOffen: string[]
 }
 
 /** Stand einer Regel aus ihren Einträgen: Befund vor offen vor Hinweis */
@@ -316,6 +324,9 @@ export function pruefUebersicht(b: Pick<Befund, 'alle' | 'erfuellt' | 'ausgewert
   const stand = new Map<string, RegelStand>()
   for (const [id, xs] of je) stand.set(id, standAus(xs))
   for (const id of b.erfuellt) if (ERWEITERT_IDS.includes(id) && !stand.has(id)) stand.set(id, 'ohne_befund')
+  // Ausführung (27.10.2026): offen zählt nicht (weder offen noch geprüft); beantwortet ist sie geprüft wie jede Regel
+  const ausfuehrungOffen = AUSFUEHRUNG.filter(id => stand.get(id) === 'offen')
+  for (const id of ausfuehrungOffen) stand.delete(id)
   const ng = new Map<string, string>()
   // zweite Stufe eines Paars: nicht «ohne Befund», wenn die erste verletzt oder offen ist
   for (const [a, z] of PAARE) {
@@ -331,7 +342,7 @@ export function pruefUebersicht(b: Pick<Befund, 'alle' | 'erfuellt' | 'ausgewert
     const grund = echt[0]?.grund ?? (!z.geprueft && !z.nichtAnwendbar ? gr[0]?.grund : undefined)
     return { thema, ...z, ohneBefundIds: t.filter(id => stand.get(id) === 'ohne_befund'), ...(grund ? { grund } : {}) }
   })
-  return { ...zaehle(ERWEITERT_IDS, stand, ng), themen, stand, nichtGeprueftWegen: ng, gruende: gruendeVon(ERWEITERT_IDS, ng) }
+  return { ...zaehle(ERWEITERT_IDS, stand, ng), themen, stand, nichtGeprueftWegen: ng, gruende: gruendeVon(ERWEITERT_IDS, ng), ausfuehrungOffen }
 }
 
 /** Zählung als Text: «12 geprüft, 9 ohne Befund, 2 offen, 1 Befund»; nichts geprüft: «nicht geprüft (Grund)» bzw. «nicht anwendbar» */
