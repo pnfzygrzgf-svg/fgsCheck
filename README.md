@@ -1,6 +1,7 @@
-# fgsCheck (Prototyp v0.5)
+# fgsCheck (Prototyp v0.6)
 
-Sichtprüfung an bestehenden und geplanten Fussgängerstreifen im Browser.
+Sichtprüfung an bestehenden und geplanten Fussgängerstreifen im Browser; dazu Bedarf und Querungstyp nach bfu, VSS 40 240,
+40 241 und 40 242, Stadt und Kanton Bern, und die Trottoirüberfahrt mit Knotensicht.
 
 Vibecoding. Don't trust, verify!
 
@@ -121,6 +122,24 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    Der Bericht druckt ohne Seitenrand (`@page { margin: 0 }`); den Rand bildet ein Rahmen, dessen Kopf und Fuss sich auf jeder
    Seite wiederholen (`.bericht-rahmen`). So setzt der Browser keine eigene Kopf- und Fusszeile mit Titel, Adresse, Seitenzahl und
    Datum dazu. Seite 1 zeigt Ort und Kartenbild, das Ergebnis beginnt auf Seite 2.
+11. Reiter «Bedarf und Querungstyp»: Darf hier ein Fussgängerstreifen hin, und welche Querung passt? Zuerst die Grundprüfung
+    nach bfu (Tempo, Sichtverhältnisse, Schutzinsel, Zweistreifigkeit, Beleuchtung, Fussgängerfrequenz), dann die erweiterte
+    Prüfung nach Themen in der Gliederung der Normen (Anordnungsvoraussetzungen, Positionierung, Ausrüstung, Lichtsignal,
+    Trottoirüberfahrt, Querungstyp), je Regel mit Fundstelle (Norm, Ziffer, Seite). Fragen statt Feldnamen; die App belegt vor,
+    was sie aus Rechnung, OSM, Vermessung und Geoportal Bern kennt, und nennt die Herkunft. Annahmen und Vorschläge sind
+    gekennzeichnet; ein hartes «nicht zulässig» entsteht nur aus Tatsachen oder nach «Vorschlag bestätigen». «Wert ändern» in
+    einer Befundzeile springt zur Eingabe. Die Zusammenfassung sagt das Ergebnis in wenigen Sätzen und nennt die noch fehlenden
+    Angaben.
+12. «Trottoirüberfahrt planen» (Knopfzeile ohne Ort bzw. Gruppe «Planen»): beide Enden auf dem Trottoir der Hauptstrasse, links
+    und rechts der Seitenstrasse anklicken; die Vermessung erscheint schon beim Planen. Die App zeichnet die gerechnete Überfahrt
+    (Bordkante bis hinterer Rand), prüft die Prüfliste der VSS 40 242 (Tab. 1 bis 3, in der Reihenfolge der Norm; Ausführung
+    getrennt von der Machbarkeit) und rechnet die Knotensicht der Ausfahrenden in zwei Phasen; wartende Fahrzeuge (grau: Sicht
+    auf die Fahrbahn, ocker: Sicht aufs Trottoir) lassen sich am Auge ziehen, ein Klick zeigt nur ihre Phase, das Planungstempo
+    steht im Block «Knotensicht». Winkel, Breite, Länge des überfahrbaren Rands und Wartezeit schlägt die App vor; ein bestehendes
+    Lichtsignal am Knoten ist nur ein Vorschlag («Lichtsignal an der Einmündung» beim Streifen). Quert der Streifen die
+    Hauptstrasse, sagt die App das und rechnet nicht.
+13. «Messen» (Gruppe «Planen»): zwei Punkte anklicken, Fang auf Vermessungspunkte, Mass auf der Karte; «übernehmen» schreibt
+    den Wert ins zuletzt angeklickte Zahlenfeld in Metern.
 
 ## Grenzen
 
@@ -131,6 +150,9 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
   «Streifen von Hand».
 - Amtliche Parkfelder nur in der Stadt Bern; sonst von Hand bzw. aus OSM-Vorschlägen (bestätigen). Private Parkplätze,
   Hecken und Mauern (Höhe) fehlen in den Daten.
+- Knotensicht der Trottoirüberfahrt nur an Einmündungen und an Kreuzungen über die Zufahrt ohne Vortritt; an
+  Grundstückzufahrten nur ein Hinweis. Bäume aus dem Baumkataster zählen (anders als im SichtweitenCheck).
+- Wartezeit beim Ausfahren nur als Schätzung aus dem DTV der Hauptstrasse (Bern); ohne Verkehrszahlen offen.
 - Die App ersetzt keine Beurteilung vor Ort.
 
 ## Was gerechnet wird

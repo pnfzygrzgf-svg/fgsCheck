@@ -46,6 +46,13 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
         Parkfelder automatisch ein, der Baumkataster auf Wunsch. Hindernisse lassen sich von Hand ergänzen, Tempo und
         Fahrlinien korrigieren; das Ergebnis gibt es als PDF-Bericht.
       </p>
+      <p>
+        Im Reiter «Bedarf und Querungstyp» prüft die App, ob ein Fussgängerstreifen zulässig ist und welche Querung passt:
+        zuerst die fünf Punkte der bfu, dann die Regeln der Normen, der Stadt Bern und des Kantons, in der Reihenfolge der
+        Normen und mit Fundstelle. Eine Trottoirüberfahrt lässt sich direkt planen: Die App geht die Prüfliste der VSS 40 242
+        durch und rechnet die Knotensicht der Ausfahrenden mit demselben Rechenkern wie der SichtweitenCheck. Fahrzeuge und
+        Sichtfelder stehen auf der Karte, Masse lassen sich im Luftbild messen.
+      </p>
       <p className="start-grenzen">
         fgsCheck richtet sich an Fachleute und ersetzt keine Beurteilung vor Ort. Gerechnet werden kann in den Kantonen
         AG, AI, AR, BE, BL, BS, FR, GE, GL, GR, SG, SH, SO, SZ, TG, TI, UR, ZG und ZH, im Wallis in einem Teil der
