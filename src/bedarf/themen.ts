@@ -106,6 +106,18 @@ for (const abs of Object.values(ABSCHNITTE)) abs!.forEach((a, i) => a.unter.forE
 export const abschnittVon = (id: string): { rang: number; abschnitt: number; unter: number } | null => RANG_ABSCHNITT.get(id) ?? null
 
 /**
+ * Reihenfolge der Angaben einer Trottoirüberfahrt nach der Prüfliste (27.10.2026): die Eingaben der Regeln in der Reihenfolge der
+ * Abschnitte (Tab. 1, Tab. 2, Ausstattung, Bern), ohne den Querungstyp; Objekt «q3» (Block ohne Angaben) zuerst
+ */
+const TUE_FELDER_REIHE: readonly string[] = ['q3', ...new Set((ABSCHNITTE.trottoirueberfahrt ?? []).flatMap(a => a.unter.flatMap(u => u.regeln))
+  .flatMap(id => (DEF[id]?.eingaben ?? []).filter(f => f !== 'typ')))]
+/** Angaben einer Trottoirüberfahrt nach der Prüfliste ordnen; nicht darin enthaltene Angaben danach in ihrer Reihenfolge */
+export function nachPruefliste(felder: readonly string[]): string[] {
+  const r = (f: string) => { const i = TUE_FELDER_REIHE.indexOf(f === 'fgKlasse' || f === 'fgQuelle' ? 'fg5h' : f); return i < 0 ? Infinity : i }
+  return felder.map((f, i) => ({ f, i })).sort((a, b) => (r(a.f) - r(b.f)) || a.i - b.i).map(x => x.f)
+}
+
+/**
  * Reihenfolge nach der Gliederung: Elemente mit Regel aus einer Gliederung untereinander nach ihrem Rang (an den Stellen, an denen sie
  * stehen), alle übrigen bleiben, wo sie sind (ohne solche Elemente unverändert)
  */

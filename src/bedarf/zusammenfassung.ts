@@ -20,7 +20,7 @@ import type { Befund, Ebene, Eintrag, Empfehlung, RegelDef, Staerke } from './ty
 import type { BefundBlatt } from './befundblatt'
 import type { Querungstyp } from './eingaben'
 import { fragenFelder, grundKopf, vorbehaltFelder, type ZeilenZustand } from './kompakt'
-import { istWeiche, mitEinheit, nachAbschnitt, pruefUebersicht, themaVon, type UebersichtKontext } from './themen'
+import { istWeiche, mitEinheit, nachAbschnitt, nachPruefliste, pruefUebersicht, themaVon, type UebersichtKontext } from './themen'
 import { feldZiel, frageVon } from './feldhilfen'
 import { QUELLEN_ANNAHME, QUELLEN_BESTAETIGBAR } from './eingaben'
 import { FELD_DEF, wertText } from './felder'
@@ -420,7 +420,9 @@ export function entscheidendeFelder(x: Pick<ZfEingabe, 'befund' | 'alternative'>
     if (b.empfehlung.vorlaeufig) aus.push(...vorbehaltFelder({ alle: b.alle, empfehlung: b.empfehlung, nichtGeprueft: b.nichtGeprueft,
       offenFelder: Object.fromEntries(w.map(id => [id, b.offenFelder[id] ?? []])) }))
   } else if (b.empfehlung.vorlaeufig || b.zulaessigkeit === 'offen') aus.push(...vorbehaltFelder(b))
-  return fragenFelder(aus).filter(f => f !== 'Zufahrten')
+  const felder = fragenFelder(aus).filter(f => f !== 'Zufahrten')
+  // beurteilte Trottoirüberfahrt: in der Reihenfolge der Prüfliste (27.10.2026; sonst nach der Nummer der Regel, F5c vor Q3-1)
+  return b.ausgewertet.includes('Q3-4') ? nachPruefliste(felder) : felder
 }
 
 /** Felder offener Muss-Regeln: Grundprüfung, dann Baum */
@@ -457,7 +459,11 @@ function fehlendeFelder(x: ZfEingabe): string[] {
   }
   aus.push(...(x.offen ? x.offen.map(o => o.feld) : b.offenGruppen.map(o => o.feld)))
   // «Zufahrten» ist ein Hinweis, keine Frage
-  return fragenFelder(aus).filter(f => f !== 'Zufahrten')
+  const felder = fragenFelder(aus).filter(f => f !== 'Zufahrten')
+  if (!b.ausgewertet.includes('Q3-4')) return felder
+  // beurteilte Trottoirüberfahrt (27.10.2026): erst die entscheidenden, dann die übrigen Angaben, je in der Reihenfolge der Prüfliste
+  const ent = new Set(entscheidendeFelder(x))
+  return [...nachPruefliste(felder.filter(f => ent.has(f))), ...nachPruefliste(felder.filter(f => !ent.has(f)))]
 }
 
 function fehltSatz(felder: readonly string[], entscheidend: readonly string[], max: number, ort: ZfOrt): Zusammenfassung['fehlt'] {

@@ -10,10 +10,10 @@ import { rechneFall } from './rechner'
 import { leererFall, type Fall } from './fall'
 import { befundblaetter, type BefundBlatt } from './bedarf/befundblatt'
 import { themenAnsicht, themaGliederung } from './bedarf/themenansicht'
-import { ABSCHNITTE, nachAbschnitt } from './bedarf/themen'
+import { ABSCHNITTE, nachAbschnitt, nachPruefliste } from './bedarf/themen'
 import { FELD_DEFS } from './bedarf/felder'
 import { sichtbar } from './bedarf/feldhilfen'
-import { zfEingabeBlatt, zusammenfassungBlatt } from './bedarf/zusammenfassung'
+import { entscheidendeFelder, zfEingabeBlatt, zusammenfassungBlatt } from './bedarf/zusammenfassung'
 import { beurteile } from './bedarf/entscheid'
 import { Q3_OK, fall } from './bedarf/testfaelle'
 import { handSetzen } from './bedarf/fallBedarf'
@@ -240,5 +240,22 @@ describe('Planung statt heutiger Zustand: Lichtsignal, Fahrstreifen, Zone als Vo
     // ohne Trottoirüberfahrt bleibt die Option an der Einmündung wie bisher (keine Bestätigung verlangt)
     const fgs = beurteile({ ...e, typ: { wert: 'fgs', quelle: 'hand' } }, { quelleVon: q(true) })
     expect(fgs.empfehlung.zusatz.join(' ')).toContain('nicht zulässig wegen')
+  })
+})
+
+describe('Offene Angaben einer Trottoirüberfahrt in der Reihenfolge der Prüfliste (27.10.2026)', () => {
+  it('nachPruefliste: Tab. 1 vor Tab. 2 vor Ausstattung vor Bern; Lage nach der Siedlung; Querende bei den Verkehrsmengen; Fremdes danach', () => {
+    expect(nachPruefliste(['q3.randDurchgehend', 'q3.dtvEinm', 'q3.lsaKnoten', 'lage', 'q3.anschlussGewerbe', 'q3.bebaut', 'vSig', 'fgKlasse', 'q3.veloSchule']))
+      .toEqual(['q3.bebaut', 'q3.anschlussGewerbe', 'lage', 'q3.veloSchule', 'fgKlasse', 'q3.lsaKnoten', 'q3.randDurchgehend', 'q3.dtvEinm', 'vSig'])
+  })
+  it('Zusammenfassung: «Für die Antwort entscheidend» beginnt mit dem bebauten Gebiet, nicht mit dem Trottoirrand; entscheidende zuerst', () => {
+    const b = blatt(tueFall({ innerorts: true, lage: 'einmuendung' }))
+    const z = zusammenfassungBlatt(b, 'bericht')
+    expect(z.fehlt?.einleitung).toBe('Für die Antwort entscheidend:')
+    expect(z.fehlt?.felder[0]).toBe('q3.bebaut')
+    expect(z.fehlt?.felder).not.toContain('q3.randDurchgehend')
+    const ent = entscheidendeFelder({ befund: b.befund })
+    expect(ent).toEqual(nachPruefliste(ent))
+    expect(ent.indexOf('q3.bebaut')).toBeLessThan(ent.indexOf('q3.randDurchgehend'))
   })
 })
