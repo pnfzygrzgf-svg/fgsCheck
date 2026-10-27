@@ -18,6 +18,7 @@ import Ortssuche from './Ortssuche'
 import { schildLage, zufahrtNr, zufahrtText, type ZufahrtNamen } from './benennung'
 import { ortZoom, type Ort } from './daten/ortssuche'
 import { KS_LAGE } from './tue/texte'
+import { tueFlaeche } from './tue/karte'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
@@ -482,9 +483,12 @@ export default function Karte(props: {
           .on('click', () => { if (!cb.current.werkzeug) cb.current.onZufahrt(zufahrtKey(z)) }).addTo(eb.sicht)
       }
       if (s.trottoirueberfahrt) {
-        // Trottoirüberfahrt: keine Wartefläche, kein Balken; Trottoirfarbe, grau gestrichelt
-        L.polygon(s.umriss.map(ll), { color: TUE_RAND, weight: 2, dashArray: STRICH_TUE, fillColor: AV_FARBEN.Trottoir, fillOpacity: 0.85,
-          interactive: false }).addTo(eb.sicht)
+        // Trottoirüberfahrt (27.10.2026): die gerechnete Überfahrt zwischen vorderem und hinterem Rand (Trottoirfarbe, grau gestrichelt),
+        // nicht der Streifen mit seiner festen Zeichenbreite; dieser bleibt als dünne Achse. Ohne Knotensicht nur die Achse
+        const fl = tueFlaeche(s.knotensicht)
+        if (fl) L.polygon(fl.map(ll), { color: TUE_RAND, weight: 2, dashArray: STRICH_TUE, fillColor: AV_FARBEN.Trottoir, fillOpacity: 0.85,
+          interactive: false, className: 'tue-flaeche' }).addTo(eb.sicht)
+        L.polyline([s.p0, s.p1].map(ll), { color: TUE_RAND, weight: 2, interactive: false, className: 'tue-achse' }).addTo(eb.sicht)
         // Knotensicht (K4): Sichtdreiecke je Richtung (frei grün, verdeckt rot; Velo gestrichelt, Trottoir punktiert) und die
         // Beobachtungspunkte der beiden Phasen
         const ks = s.knotensicht

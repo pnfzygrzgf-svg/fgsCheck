@@ -24,6 +24,7 @@ import { lv95, dist, type P } from './geo'
 import { wmsBildUrl, LUFTBILD_QUELLE } from './daten/luftbild'
 import { STATUS_FARBE, STRICH_GEDECKT, UEBERGANG_TEXT, INSEL_FARBE, STRICH_INSEL, hindernisFarbe, hindernisText, INSEL_TEXT, AV_FARBEN, TUE_RAND,
   STRICH_TUE } from './Karte'
+import { tueFlaeche } from './tue/karte'
 import { LESENAME } from './bedarf/quellen'
 import { ART, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, tempoHerkunft, f1, f2, mText, streifenStatus,
   erkennungText } from './texte'
@@ -206,8 +207,10 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
             <g key={'s' + st.fgsId}>
               {!st.trottoirueberfahrt && st.ann.map((a, i) => <path key={i} d={pfad(a)} fill="#0ea5e9" fillOpacity={0.35} stroke="#0369a1" strokeWidth={1} />)}
               {st.trottoirueberfahrt
-                ? <path d={pfad([st.umriss])} fill={AV_FARBEN.Trottoir} fillOpacity={0.9} stroke={TUE_RAND} strokeWidth={2.5}
-                  strokeDasharray={STRICH_TUE.split(' ').map(x => Number(x) * 2).join(' ')} />
+                // Trottoirüberfahrt (27.10.2026): gerechnete Überfahrt (Knotensicht), der Streifen von Hand nur als Achse
+                ? <>{tueFlaeche(st.knotensicht) && <path d={pfad([tueFlaeche(st.knotensicht)!])} fill={AV_FARBEN.Trottoir} fillOpacity={0.9}
+                  stroke={TUE_RAND} strokeWidth={2.5} strokeDasharray={STRICH_TUE.split(' ').map(x => Number(x) * 2).join(' ')} />}
+                  <polyline points={[st.p0, st.p1].map(xy).join(' ')} fill="none" stroke={TUE_RAND} strokeWidth={2} /></>
                 : st.querung
                 ? <path d={pfad([st.umriss])} fill="#ffffff" fillOpacity={0.3} stroke="#000000" strokeWidth={2.5} strokeDasharray="10 6" />
                 : <path d={pfad([st.umriss])} fill="#fde047" fillOpacity={0.7} stroke="#000000" strokeWidth={2} />}

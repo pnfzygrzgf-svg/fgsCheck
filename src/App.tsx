@@ -42,7 +42,8 @@ import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type Pl
   naechsteFixId, FIXPUNKT_NAME_MAX, STREIFEN_NAME_MAX, leererFall, fallLesen, fallSchreiben, fallMerken, fallErinnern, fallVergessen,
   ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, streifenHandTeilen, teilungZuruecknehmbar,
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
-  streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, type StreifenQuerung } from './fall'
+  streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, type StreifenQuerung } from './fall'
+import { tueMasse } from './tue/karte'
 import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_M, ORT_TOL_M, streifenMitte, streifenAbstand, planEntscheid,
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
   querungAusserhalb, querungWegText, querungVerschobenText, type OrtEntscheid, type Ausserhalb } from './abdeckung'
@@ -1901,13 +1902,13 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                         setze={t => aendern(f => { const y = f.streifenHand.find(z => z.id === s.id); if (y) { if (t) y.name = t; else delete y.name } return f })} />
                       : {f1(dist(s.p0, s.p1))} m lang,{' '}
                       {/* Breite (Balkenlänge) änderbar; setzt «angepasst» nicht: das beschreibt verschobene Enden, die Breite steht
-                          in Liste und Bericht ohnehin als Zahl */}
-                      <ZahlFeld wert={s.breite} bereich={[0.5, 15]} titel={'Breite des Streifens (Balkenlänge entlang der Fahrbahn) in m, ' +
+                          in Liste und Bericht ohnehin als Zahl. Trottoirüberfahrt: die Breite kommt aus der Knotensicht (27.10.2026) */}
+                      {istTrottoirueberfahrt(fall, s.id) ? <>Trottoirüberfahrt, </> : <><ZahlFeld wert={s.breite} bereich={[0.5, 15]} titel={'Breite des Streifens (Balkenlänge entlang der Fahrbahn) in m, ' +
                         '0,5 bis 15 m; Enter bzw. Feld verlassen übernimmt'} setze={x => {
                         if (x === s.breite) return
                         geaendert.current = s.id
                         aendern(f => { const y = f.streifenHand.find(z => z.id === s.id); if (y) y.breite = x; return f })
-                      }} /> m breit, {streifenHerkunftText(s)}
+                      }} /> m breit, </>}{streifenHerkunftText(s)}
                       <span className="aktionen">
                         <button className="zweit klein" title="Enden auf der Karte verschieben" onClick={() => setBearbeiten(b => (b === s.id ? null : s.id))}>
                           {bearbeiten === s.id ? 'fertig' : 'verschieben'}</button>
@@ -2199,7 +2200,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           <li><span className="farbe" style={{ background: '#fde047' }} />Streifen, <span className="farbe gestrichelt" style={{ background: '#e2e8f0',
             borderColor: '#0f172a', borderStyle: 'dashed', boxShadow: `inset 0 0 0 1px ${OHNE_VORTRITT_FARBE}` }} />Querung ohne Vortritt (ohne Balken, weiss
             gestrichelt; Sichtweite nach <VerweisText text="VSS 40 240" />, Ziffer 8.2), <span className="farbe gestrichelt" style={{ background: AV_FARBEN.Trottoir,
-            borderColor: TUE_RAND, borderStyle: 'dashed' }} />Trottoirüberfahrt (ohne Wartefläche),
+            borderColor: TUE_RAND, borderStyle: 'dashed' }} />Trottoirüberfahrt (gerechnete Fläche, Strich: gezeichnete Achse),
             <span className="farbe" style={{ background: '#0ea5e9' }} />Annäherungsbereiche,
             <span className="farbe" style={{ borderColor: LUFTBILD_FARBE, borderWidth: 2 }} />Balken aus dem Luftbild (gestrichelt: unsicher)</li>
           <li><NrMarke nr="1" />{NUMMERN_TEXT} (je Streifen nach der Herkunft der Fahrzeuge, gerade und abbiegende gemeinsam; von Hand
@@ -2295,7 +2296,11 @@ function MasseAnzeige({ s, e, kopieren, namen, fixpunkte, vorschlaege, setzen, u
         <table className="zahlen"><thead><tr><th>Punkt</th><th>E (LV95)</th><th>N (LV95)</th></tr></thead><tbody>
           {v.punkte.map(q => <tr key={q.name}><td>{q.name}</td><td>{koordText(q.p[0])}</td><td>{koordText(q.p[1])}</td></tr>)}
         </tbody></table>
-        <div>Ende A liegt im {v.seiteA}en (erster Punkt). Achse A–B {f2(v.laengeM)} m, Breite {f2(v.breiteM)} m, Winkel zur
+        <div>Ende A liegt im {v.seiteA}en (erster Punkt). Achse A–B {f2(v.laengeM)} m, {e.trottoirueberfahrt ? (() => {
+          // Trottoirüberfahrt (27.10.2026): Breite und Länge der gerechneten Überfahrt statt der Zeichenbreite des Streifens
+          const m = tueMasse(e.knotensicht)
+          return m ? `Überfahrt ${f2(m.breite)} m breit und ${f2(m.laenge)} m lang (Knotensicht)` : 'Masse der Überfahrt nach der Knotensicht (noch nicht gerechnet)'
+        })() : `Breite ${f2(v.breiteM)} m`}, Winkel zur
           Fahrbahnachse {v.winkelGrad !== null ? `${f1(v.winkelGrad)}° (90° = senkrecht; ${v.winkelQuelle})` : `– (${v.winkelQuelle})`}.</div>
         <div>Abstand zum Fahrbahnrand entlang der Achse (+ vor dem Rand, − darüber hinaus): {v.randAbstandM ? <>Ende A
           {' '}{vorzeichenText(v.randAbstandM[0])}, Ende B {vorzeichenText(v.randAbstandM[1])}; Fahrbahn {f2(v.fahrbahnM!)} m</> : '–'}
