@@ -43,7 +43,7 @@ describe('Regelübersicht', () => {
     expect(r.angaben.map(a => a.pfad)).toContain('durchfahrt')
     const f3b = z.find(x => x.id === 'F3-B')!
     expect(f3b.wo).toBe('Erweiterte Prüfung, Thema Insel')
-    expect(f3b.giltFuer).toBe('nur Stadt Bern; mit Insel und weitere Bedingungen')
+    expect(f3b.giltFuer).toBe('nur Stadt Bern; nicht bei Trottoirüberfahrten und weitere Bedingungen')
     expect(f3b.giltGenau).toContain('Radstreifen')
     // «Prüft:» zeigt den Prüfsatz des Katalogs (23.10.2026), nicht den Ergebnistext
     expect(f3b.prueft).toBe(KATALOG['F3-B'].pruefsatz)

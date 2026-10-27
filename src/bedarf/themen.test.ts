@@ -27,13 +27,13 @@ const ue = (abw: Abw, eb: { bern?: boolean; kantonBE?: boolean } = {}) => {
 }
 
 describe('Themen', () => {
-  it('höchstens 11 Themen, eindeutig; jede der 166 Regeln hat genau ein bekanntes Thema; kein Thema leer (auch nicht in der erweiterten Prüfung)', () => {
+  it('höchstens 11 Themen, eindeutig; jede der 178 Regeln hat genau ein bekanntes Thema; kein Thema leer (auch nicht in der erweiterten Prüfung)', () => {
     expect(THEMEN.length).toBeLessThanOrEqual(11)
     expect(new Set(THEMEN.map(t => t.id)).size).toBe(THEMEN.length)
     expect(new Set(THEMEN.map(t => t.name)).size).toBe(THEMEN.length)
     const ids = new Set(THEMEN.map(t => t.id))
     for (const id of REGEL_IDS) expect(ids.has(DEF[id].thema), id).toBe(true)
-    expect(REGEL_IDS.length).toBe(166)
+    expect(REGEL_IDS.length).toBe(178)
     for (const t of THEMEN) {
       expect(REGEL_IDS.filter(id => DEF[id].thema === t.id).length, t.name).toBeGreaterThan(0)
       expect(ERWEITERT_IDS.filter(id => DEF[id].thema === t.id).length, t.name).toBeGreaterThan(0)
@@ -178,7 +178,7 @@ describe('Befundblatt nach Thema und Prüfübersicht (alle Testfälle mal Varian
   })
   it('Beispiel Grundfall S0 (Fussgängerstreifen, Tempo 50, DTV 8000, ohne Insel)', () => {
     const u = ue({})
-    expect([u.geprueft, u.ohneBefund, u.offen, u.befunde, u.hinweise, u.nichtGeprueft, u.nichtAnwendbar]).toEqual([42, 41, 0, 0, 1, 7, 88])   // Runde 4: Begegnungszone (A2) bei Strecke nicht anwendbar
+    expect([u.geprueft, u.ohneBefund, u.offen, u.befunde, u.hinweise, u.nichtGeprueft, u.nichtAnwendbar]).toEqual([42, 41, 0, 0, 1, 7, 100])   // Runde 4: Begegnungszone (A2) bei Strecke nicht anwendbar
     expect(zaehlText(u.themen.find(z => z.thema.id === 'insel')!)).toBe('3 geprüft, 2 ohne Befund, 1 Hinweis')
     // Korrektur S6: «Ebene ausgeschaltet» nur für Regeln, die mit eingeschalteter Ebene gälten (D6-2 ja, C2-B auf der Strecke nicht)
     const b0 = beurteile(fall({}))

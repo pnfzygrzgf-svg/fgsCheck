@@ -60,7 +60,7 @@ export function RegelUebersicht({ anfang = 'thema', anfangFilter = {} }: { anfan
         <dl className="regel-teile klein">
           <dt>Prüft:</dt><dd>{abkLesbar(mitTiteln(z.prueft))}</dd>
           <dt>Gilt für:</dt><dd title={z.giltGenau}>{z.giltFuer}</dd>
-          <dt>Wo:</dt><dd>{z.wo}</dd>
+          <dt>Wo:</dt><dd>{abkLesbar(z.wo)}</dd>
           <dt>Quelle:</dt><dd><QuelleMitVerweis id={z.id} quelle="" /></dd>
           {z.angaben.length > 0 && <><dt>Braucht:</dt><dd>{z.angaben.map((a, i) => <Fragment key={a.pfad}>{i ? ' · ' : ''}
             <button type="button" className="feld-link" title="zum Feld springen" aria-label={`zum Feld: ${a.name}`}

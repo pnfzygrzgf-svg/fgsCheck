@@ -484,6 +484,39 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (!a) return null
     return ja(a.neigung < W.nMin || a.neigung > W.nMax || a.laenge < W.lMin, { ist: `${a.neigung} %, ${fmt(a.laenge)} m` })
   },
+  // Ausstattung der Trottoirüberfahrt (VSS 40 242 Tab. 3): nur Typ Trottoirüberfahrt, Handangaben
+  F5c: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(!k.s('q3', 'randDurchgehend'))),
+  F5d: k => {
+    if (k.o('typ') !== 'trottoirueberfahrt') return null
+    const l = k.s('q3', 'ueberfahrbarM'), W = K.F5d.werte
+    return ja(l > W.max, { ist: fmt(l), soll: `≤ ${fmt(W.max)}` })
+  },
+  F5e: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(k.s('q3', 'begrenzung') !== 'poller')),
+  F5f: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(!k.s('q3', 'erkennbar'))),
+  F5g: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(['wechsel', 'beides'].includes(k.s('q3', 'belag')))),
+  F5h: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(['absatz', 'beides'].includes(k.s('q3', 'belag')))),
+  F5i: k => {
+    if (k.o('typ') !== 'trottoirueberfahrt') return null
+    const g = k.s('q3', 'quergefaelle'), W = K.F5i.werte
+    if (g > W.max) return ja(true, { staerke: 'hart', ist: `${fmt(g, 1)} %`, soll: `≤ ${W.max} %` })
+    return ja(g > W.regel, { staerke: 'hinweis', ist: `${fmt(g, 1)} %`, soll: `≤ ${W.max} %`, text: `Quergefälle über ${W.regel} %: in der Regel ${W.regel} %` })
+  },
+  F5j: k => {
+    if (k.o('typ') !== 'trottoirueberfahrt') return null
+    const r = k.s('q3', 'randabschluss')
+    if (r === 'anderer') return ja(true, { staerke: 'weich' })
+    return ja(r !== 's0625', { staerke: 'hinweis', text: 'Schmalerer bzw. niedrigerer Randabschluss: für Sehbehinderte schlechter ertastbar' })
+  },
+  F5k: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(!k.s('q3', 'randsteineSenkrecht'))),
+  F5l: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(k.s('q3', 'signalisation'))),
+  F5m: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(k.s('q3', 'markierung'))),
+  F5n: k => {
+    if (k.o('typ') !== 'trottoirueberfahrt') return null
+    const b = k.w('q3').breiteM ?? null, breit = b !== null && b > K.F5n.werte.breiteZweite
+    const zweite = `Überfahrt breiter als ${fmt(K.F5n.werte.breiteZweite)} m: zweite Leitlinie nötig`
+    if (!k.s('q3', 'taktil')) return ja(true, { staerke: 'hart', ...(breit ? { detail: zweite } : {}) })
+    return ja(breit, { staerke: 'hinweis', text: zweite })
+  },
   F6a: k => {
     if (k.o('typ') !== 'mehrzweck') return null
     const m = k.w('mzsBreiteM'), W = K.F6a.werte

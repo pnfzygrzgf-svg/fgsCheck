@@ -234,11 +234,12 @@ describe('Vorlagen', () => {
     }
   })
   it('Korrektur M2: Trottoirüberfahrt nicht zulässig – Alternative nach der Zulässigkeit des Fussgängerstreifens', () => {
-    expect(zf({ typ: 'trottoirueberfahrt' }).antwort).toMatch(/; stattdessen passt ein Fussgängerstreifen\.$/)
+    // 27.10.2026: die Alternative läuft still mit («nur grob geprüft»), bis «Alternative Fussgängerstreifen prüfen» gewählt ist
+    expect(zf({ typ: 'trottoirueberfahrt' }).antwort).toMatch(/; stattdessen passt ein Fussgängerstreifen \(nur grob geprüft\)\.$/)
     expect(zf({ typ: 'trottoirueberfahrt', tempoRegime: 't30_zone', vSig: 30, beduerfnis: ['schule'] }).antwort)
-      .toMatch(/; stattdessen ein Fussgängerstreifen, aber nur mit Begründung\.$/)
-    expect(zf({ typ: 'trottoirueberfahrt', tempoRegime: null }).antwort).toMatch(/; ob stattdessen ein Fussgängerstreifen zulässig ist, ist noch offen\.$/)
-    expect(zf({ typ: 'trottoirueberfahrt', vSig: 60, v85: 65 }).antwort).toMatch(/; stattdessen passt eine Fussgängerfurt \(Insel ohne Balken\)\.$/)
+      .toMatch(/; stattdessen ein Fussgängerstreifen, aber nur mit Begründung \(nur grob geprüft\)\.$/)
+    expect(zf({ typ: 'trottoirueberfahrt', tempoRegime: null }).antwort).toMatch(/; ob stattdessen ein Fussgängerstreifen zulässig ist, ist noch offen \(nur grob geprüft\)\.$/)
+    expect(zf({ typ: 'trottoirueberfahrt', vSig: 60, v85: 65 }).antwort).toMatch(/; stattdessen passt eine Fussgängerfurt \(Insel ohne Balken\) \(nur grob geprüft\)\.$/)
   })
   it('beurteilte Furt, Querung ohne Vortritt, Mehrzweckstreifen: «Beurteilt wird …», dann die Alternative (Runde 5)', () => {
     expect(zf({ typ: 'furt', insel: INSEL_OK }).antwort).toBe('Beurteilt wird die Fussgängerfurt; ein Fussgängerstreifen wäre hier ebenfalls zulässig.')

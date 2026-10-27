@@ -32,7 +32,7 @@ describe('Kurztitel der Regeln', () => {
       expect(s.has(d.titel), `${id}: ${d.titel} doppelt in ${d.gruppe}`).toBe(false)
       je.set(d.gruppe, s.add(d.titel))
     }
-    expect(REGEL_IDS.length).toBe(166)
+    expect(REGEL_IDS.length).toBe(178)
   })
   it('Namen und Texte: «Titel (Nummer)», einzelne Nummern in Texten ergänzt, Standard E1 bleibt', () => {
     expect(regelName('D2')).toBe('Insel bei breiter Fahrbahn (D2)')

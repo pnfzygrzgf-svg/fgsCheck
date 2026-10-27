@@ -39,7 +39,7 @@ import type { Ebene, Eintrag } from './bedarf/typen'
 import { QUELLEN_ANNAHME, type Quelle } from './bedarf/eingaben'
 import { mitTiteln, regelName, regelTitel } from './bedarf/regelname'
 import { EBENE_WORT, LEGENDE, THEMEN, mitEinheit, pruefUebersicht, themaName, verbindlichkeitVon } from './bedarf/themen'
-import { BLOCK_GRUENDE, hatInhalt, themenAnsicht, type ThemaFrage, type ThemaTeil, type ThemenAnsicht } from './bedarf/themenansicht'
+import { BLOCK_GRUENDE, hatInhalt, themaGliederung, themenAnsicht, type ThemaFrage, type ThemaTeil, type ThemenAnsicht } from './bedarf/themenansicht'
 import { FELD_HILFEN, SICHTBAR, bedingungText, bezuegeImFall, feldZiel, frageVon, leerText, schalterText, sichtbar, wozuTeilen,
   type SichtKontext } from './bedarf/feldhilfen'
 import { A2_OFFEN_TEXT, OHNE_ORTSLAGE_TEXT, typText, herkunftKurz } from './bedarf/befundblatt'
@@ -424,10 +424,13 @@ export const themaId = (t: string): string => `thema-${t}`
 /** Abschnitt im Panel (Inhalt des Reiters «Bedarf und Querungstyp», offen mit eigenem Kopf): Zusammenfassung, Typ, Grundprüfung,
  * Eingaben; aufklappbar die erweiterte Prüfung (Ebenen, je Thema Befunde, Fragen und Angaben, Masse, Annahmen). zeigen: Reiter
  * aktivieren, bevor ein Sprung zum Feld scrollt (Reiter verborgen) */
-export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sichtLinks }: { fall: Fall; blaetter: BefundBlatt[]
+export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sichtLinks, alternative = false, setAlternative }: { fall: Fall
+  blaetter: BefundBlatt[]
   vorgabe: { bern: boolean; kantonBE: boolean }; aendern: (f: (x: Fall) => Fall) => void; zeigen?: () => void
   /** Street View je Zufahrt der Streifen einer Querung (Details von ① Sichtverhältnisse) */
-  sichtLinks?: (fgsIds: string[]) => SichtLink[] }) {
+  sichtLinks?: (fgsIds: string[]) => SichtLink[]
+  /** Trottoirüberfahrt: Alternative Fussgängerstreifen mit Fragen prüfen (Sitzung, nicht im Fall; 27.10.2026) */
+  alternative?: boolean; setAlternative?: (x: boolean) => void }) {
   // ausgeblendete Felder je Maske einblenden (Nutzertest 23.10.2026: ein Schalter je Maske, nahe bei ihr)
   const [alleGrund, setAlleGrund] = useState(false)
   const [alleErw, setAlleErw] = useState(false)
@@ -448,7 +451,7 @@ export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sich
   if (!blaetter.length) return null
   const b0 = blaetter[0]
   // Feld zählt, wenn es in mindestens einer Querung wirken kann (Eingaben gelten für alle Querungen)
-  const kontexte: SichtKontext[] = blaetter.map(b => ({ e: b.gebildet.eingaben, ebenen: b.ebenen }))
+  const kontexte: SichtKontext[] = blaetter.map(b => ({ e: b.gebildet.eingaben, ebenen: b.ebenen, alternative: b.alternative }))
   const zaehlt = (pfad: string) => kontexte.some(k => sichtbar(pfad, k))
   const bedarf = feldBedarf(blaetter), bestaetig = bestaetigungsFelder(blaetter)
   // offene Fragen der Grundprüfung über alle Querungen (je Feld einmal): steuert, ob «Eingaben der Grundprüfung» offen ist
@@ -495,6 +498,9 @@ export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sich
       {blaetter.map(b => <div key={b.gruppe}>
         {blaetter.length > 1 && <h3>{querungTitel(b)}</h3>}
         <ZusammenfassungAnzeige b={b} imBlock={blockFelder(offeneFragen(b, bestaetig))} />
+        {setAlternative && istTue(b) && b === blaetter.find(istTue) && <p><button type="button" className={alternative ? 'aktiv klein' : 'zweit klein'}
+          aria-pressed={alternative} title="Fragen zum Fussgängerstreifen als Alternative zeigen und zählen (nur in dieser Sitzung)"
+          onClick={() => setAlternative(!alternative)}>Alternative Fussgängerstreifen prüfen</button></p>}
         <OffeneFragen b={b} fall={fall} aendern={aendern} springe={springe} bestaetig={bestaetig} />
         <TypAnzeige b={b} />
         <GrundpruefungAnzeige g={b.grund} feldHinweise={b.vorbelegt.feldHinweise} sichtLinks={sichtLinks?.(b.streifen)} />
@@ -509,7 +515,7 @@ export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sich
           bedarf={bedarf} bestaetig={bestaetig} />
         {ausgeblendet(verstecktGrund, alleGrund, setAlleGrund)}
       </details>
-      <details className="bedarf-erweitert">
+      <details className="bedarf-erweitert" open={blaetter.some(istTue) || undefined}>
         <summary><b>Erweiterte Prüfung</b> <span className="klein" title={`${LEGENDE} ${SYMBOLE}`}>{erweitertKopf(ansicht)}</span></summary>
         <div className="klein bedarf-ebenen"><span title="Bundesrecht und Normen gelten immer">Welche Vorgaben gelten:</span>{' '}
           {(['bern', 'kantonBE', 'richtlinie'] as const).map(k => <label key={k} title={`${ebeneText[k]}; ${k === 'richtlinie' ? 'Vorgabe: an' :
@@ -661,9 +667,13 @@ function OffeneFragen({ b, fall, aendern, springe, bestaetig }: { b: BefundBlatt
   </div>
 }
 
+/** beurteilte Anlage ist eine Trottoirüberfahrt */
+export const istTue = (b: BefundBlatt): boolean => b.gebildet.eingaben.typ.wert === 'trottoirueberfahrt'
+
 /** Kopfzeile des Aufklappers je Querung: empfohlener Typ; offene Zulässigkeit ohne Elemente (Runde 3, Korrektur) */
 export function kopfText(b: BefundBlatt): string {
   const f = b.befund
+  if (istTue(b)) return 'Trottoirüberfahrt beurteilt'
   const anlage = ANLAGE_NAME[b.gebildet.eingaben.typ.wert ?? '']
   if (anlage) return `${anlage} beurteilt`
   if (f.ende === 'offen') return 'noch nicht beurteilt (innerorts?)'
@@ -715,6 +725,8 @@ export function typZeile(b: BefundBlatt): JSX.Element {
   const f = b.befund, t = typText(f, false)
   const anlage = ANLAGE_NAME[b.gebildet.eingaben.typ.wert ?? '']
   if (t === A2_OFFEN_TEXT || t === OHNE_ORTSLAGE_TEXT) return <><b>{t}</b> (siehe Zusammenfassung)</>
+  // Trottoirüberfahrt: die Alternative nennt die Zusammenfassung (27.10.2026)
+  if (istTue(b)) return <><b>Beurteilt:</b> Trottoirüberfahrt{b.gebildet.eingaben.neuanlage.wert === true ? ' (geplant)' : ''} (siehe Zusammenfassung)</>
   const fgs = f.zulaessigkeit === 'offen' ? 'ob ein Fussgängerstreifen zulässig wäre, ist noch offen'
     : f.zulaessigkeit === 'nicht_angezeigt' ? 'ein Fussgängerstreifen wäre nicht zulässig' : f.zulaessigkeit === 'mit_begruendung'
       ? 'ein Fussgängerstreifen wäre nur mit Begründung zulässig' : 'ein Fussgängerstreifen wäre ebenfalls zulässig'
@@ -962,30 +974,45 @@ function ThemaAnzeige({ t, blaetter, druck, eingabe, begriffe }: { t: ThemaTeil;
   eingabe?: ErwEingabe; begriffe: ReadonlyMap<Eintrag, string[]> }) {
   const b0 = blaetter[0], mehrere = blaetter.length > 1
   const felder = eingabe ? t.felder.filter(p => eingabe.alle || eingabe.zaehlt(p)).map(p => FELD_DEF.get(p)!) : []
-  return <ErwTeil titel={t.thema.name} zahl={<ThemaZahl t={t} />} druck={druck} offen={t.zahl.muss + t.zahl.soll > 0} id={themaId(t.thema.id)}
+  // beurteilte Trottoirüberfahrt: ihr Thema ist die Prüfung, offen (27.10.2026)
+  const tue = t.thema.id === 'trottoirueberfahrt' && blaetter.some(b => b.gebildet.eingaben.typ.wert === 'trottoirueberfahrt')
+  // Gliederung nach der Prüfliste der Norm (themen.ABSCHNITTE): Überschriften mit Tabelle und Seite
+  const glied = themaGliederung(t)
+  const eintraegeListe = (es: ThemaTeil['eintraege']) => es.map(({ b, xs }) => {
+    const n = new Map<string, number>()
+    for (const x of xs) n.set(x.id, (n.get(x.id) ?? 0) + 1)
+    return <Fragment key={b.gruppe}>{mehrere && <div className="klein thema-querung">{querungTitel(b)}</div>}
+      <ul>{xs.map((x, i) => <EintragZeile key={x.id + i} x={x} druck={druck} mitDetail={(n.get(x.id) ?? 0) > 1} begriffe={begriffe.get(x)} />)}</ul></Fragment>
+  })
+  const fragenListe = (fs: ThemaFrage[]) => fs.length > 0 && <div className="thema-fragen">{eingabe
+    ? <FragenListe b={b0} fall={eingabe.fall} aendern={eingabe.aendern} fragen={fs.map(f => themaFrageZeile(f, blaetter, eingabe))}
+      leerFokus={themaId(t.thema.id)} />
+    : <><span className="klein">Noch offen:</span><ul>{fs.map(f => <li key={f.feld}><Frage feld={f.feld} text={frageText(f, blaetter)} />
+      <Fuer regeln={f.regeln} /></li>)}</ul></>}</div>
+  const verweisZeilen = (vs0: ThemaTeil['verweise']) => (['grund', ...THEMEN.map(x => x.id)] as const).map(wo => {
+    const vs = vs0.filter(v => v.wo === wo)
+    if (!vs.length) return null
+    return <p key={wo} className="klein thema-verweis">siehe {wo === 'grund' ? (tue ? 'oben' : 'Grundprüfung') : `«${themaName(wo)}»`}: {vs.map((v, i) =>
+      <Fragment key={v.feld}>{i ? '; ' : ''}<Frage feld={v.feld} text={verweisText(v.feld)} />{v.regeln.length === 1 && v.regeln[0] === 'A1'
+        ? ' – davon hängt ab, ob fgsCheck überhaupt beurteilt (nur innerorts)' : <Fuer regeln={v.regeln} />}</Fragment>)}</p>
+  })
+  let abschnitt = ''
+  return <ErwTeil titel={t.thema.name} zahl={<ThemaZahl t={t} />} druck={druck} offen={t.zahl.muss + t.zahl.soll > 0 || tue} id={themaId(t.thema.id)}
     umfang={t.thema.umfang}>
-    {t.eintraege.map(({ b, xs }) => {
-      const n = new Map<string, number>()
-      for (const x of xs) n.set(x.id, (n.get(x.id) ?? 0) + 1)
-      return <Fragment key={b.gruppe}>{mehrere && <div className="klein thema-querung">{querungTitel(b)}</div>}
-        <ul>{xs.map((x, i) => <EintragZeile key={x.id + i} x={x} druck={druck} mitDetail={(n.get(x.id) ?? 0) > 1} begriffe={begriffe.get(x)} />)}</ul></Fragment>
-    })}
-    {t.fragen.length > 0 && <div className="thema-fragen">{eingabe
-      ? <FragenListe b={b0} fall={eingabe.fall} aendern={eingabe.aendern} fragen={t.fragen.map(f => themaFrageZeile(f, blaetter, eingabe))}
-        leerFokus={themaId(t.thema.id)} />
-      : <><span className="klein">Noch offen:</span><ul>{t.fragen.map(f => <li key={f.feld}><Frage feld={f.feld} text={frageText(f, blaetter)} />
-        <Fuer regeln={f.regeln} /></li>)}</ul></>}</div>}
+    {glied ? glied.map((g, i) => {
+      const neu = g.abschnitt !== abschnitt
+      abschnitt = g.abschnitt
+      return <div key={i} className="thema-teil">
+        {neu && g.abschnitt && <div className="thema-abschnitt"><b>{T(g.abschnitt)}</b></div>}
+        {g.unter && <div className="klein thema-unter"><i>{g.unter}</i></div>}
+        {eintraegeListe(g.eintraege)}{fragenListe(g.fragen)}{verweisZeilen(g.verweise)}
+      </div>
+    }) : <>{eintraegeListe(t.eintraege)}{fragenListe(t.fragen)}</>}
     {t.bloecke.map(x => <div key={x.block} className="klein thema-block"><span className="grund-symbol" aria-hidden="true">?</span> Nicht geprüft:
       {' '}{x.text} {!druck && <><Frage feld={x.ziel} text="Angaben eingeben" />{' '}</>}
       <RegelListe ids={x.regeln} druck={druck} kopf={`(${zahlWort(x.regeln.length, 'Regel', 'Regeln')})`} /></div>)}
     {t.ohneAngaben.length > 0 && <p className="klein">Angabe fehlt: <Titel ids={t.ohneAngaben} /></p>}
-    {(['grund', ...THEMEN.map(x => x.id)] as const).map(wo => {
-      const vs = t.verweise.filter(v => v.wo === wo)
-      if (!vs.length) return null
-      return <p key={wo} className="klein thema-verweis">siehe {wo === 'grund' ? 'Grundprüfung' : `«${themaName(wo)}»`}: {vs.map((v, i) =>
-        <Fragment key={v.feld}>{i ? '; ' : ''}<Frage feld={v.feld} text={verweisText(v.feld)} />{v.regeln.length === 1 && v.regeln[0] === 'A1'
-          ? ' – davon hängt ab, ob fgsCheck überhaupt beurteilt (nur innerorts)' : <Fuer regeln={v.regeln} />}</Fragment>)}</p>
-    })}
+    {!glied && verweisZeilen(t.verweise)}
     {t.ohneBefund.length > 0 && (() => {
       const kopf = <><span className="grund-symbol" aria-hidden="true">✓</span> {zahlWort(t.ohneBefund.length, 'Regel', 'Regeln')} ohne Befund</>
       return druck ? <p className="klein">{kopf}</p> : <RegelListe ids={t.ohneBefund} druck={false} kopf={kopf} />

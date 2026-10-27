@@ -229,7 +229,12 @@ describe('Feldhilfen: Sichtbarkeit', () => {
     const kern = (e: BedarfEingaben, ebenen: { bern: boolean; kantonBE: boolean }) => {
       const b = sichtfrei(beurteile(e, { ebenen: { ...ebenen, richtlinie: true } }), e.sichtVorh.wert !== null)
       const g = grundpruefung(e)
-      return JSON.stringify([b.alle, b.empfehlung, b.zulaessigkeit, b.ende, b.masse, b.annahmen, b.nichtGeprueft, g])
+      // Trottoirüberfahrt (27.10.2026): die Alternative Fussgängerstreifen läuft still mit den ausgeblendeten Feldern; ihr Typ und ihre
+      // Zulässigkeit zählen hier nicht (Fragen dazu erst mit «Alternative Fussgängerstreifen prüfen»); die Grundprüfung gilt nicht (nur ob)
+      const tue = e.typ.wert === 'trottoirueberfahrt'
+      const empf = tue ? { zusatz: b.empfehlung.zusatz, vorlaeufig: b.empfehlung.vorlaeufig, offenWegen: b.empfehlung.offenWegen,
+        q3: b.empfehlung.typ === 'Q3' } : b.empfehlung
+      return JSON.stringify([b.alle, empf, tue ? null : b.zulaessigkeit, b.ende, b.masse, b.annahmen, b.nichtGeprueft, tue ? g.gilt : g])
     }
     let ausgeblendet = 0
     const abweichend: string[] = []

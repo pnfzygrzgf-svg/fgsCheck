@@ -13,7 +13,7 @@
 // (Trottoirüberfahrt, LSA-Zeiten), stehen als Zeile mit Sprung zur ersten Angabe und zählen als offen.
 
 import { FELD_DEF, FELD_DEFS, OBJEKTE, istGrundFeld, istObjektFeld } from './felder'
-import { THEMEN, istWeiche, nachThema, pruefUebersicht, themaVon, type ThemaDef } from './themen'
+import { ABSCHNITTE, THEMEN, abschnittVon, istWeiche, nachThema, pruefUebersicht, themaVon, type ThemaDef } from './themen'
 import { bezuege, feldZiel, gilt, schaltet, type SichtKontext } from './feldhilfen'
 import { KATALOG, type RegelId } from './katalog'
 import type { BefundBlatt } from './befundblatt'
@@ -116,7 +116,7 @@ export interface ThemenAnsicht {
 export const hatInhalt = (t: ThemaTeil): boolean =>
   t.eintraege.length > 0 || t.fragen.length > 0 || t.verweise.length > 0 || t.bloecke.length > 0 || t.ohneAngaben.length > 0
 
-const kontext = (b: BefundBlatt): SichtKontext => ({ e: b.gebildet.eingaben, ebenen: b.ebenen })
+const kontext = (b: BefundBlatt): SichtKontext => ({ e: b.gebildet.eingaben, ebenen: b.ebenen, alternative: b.alternative })
 const giltIn = (id: string, b: BefundBlatt): boolean => !(id in KATALOG) || gilt(id as RegelId, kontext(b))
 
 /** Blöcke, die der Ablauf ohne Angaben nicht prüft (Befund.nichtGeprueft): Thema, Text, erste Angabe, Grund der Prüfübersicht */
@@ -174,8 +174,10 @@ export function themenAnsicht(blaetter: readonly BefundBlatt[]): ThemenAnsicht {
     verweiseJe.set(t, l)
   }
   const frageFelder = new Set<string>()
+  // beurteilte Trottoirüberfahrt (27.10.2026): Fragen ihrer Regeln (z. B. die Lage) stehen in ihrem Thema an der Stelle der Prüfliste
+  const nurTue = blaetter.length > 0 && blaetter.every(b => b.gebildet.eingaben.typ.wert === 'trottoirueberfahrt')
   for (const x of offen.values()) {
-    const t = themaFuer(x.ziel, x.regeln)
+    const t = nurTue && x.regeln.some(id => themaVon(id) === 'trottoirueberfahrt' && abschnittVon(id)) ? 'trottoirueberfahrt' : themaFuer(x.ziel, x.regeln)
     if (!t) continue
     if (x.eingabe) frageFelder.add(x.ziel!)
     fragenJe.set(t, [...(fragenJe.get(t) ?? []), x])
@@ -235,4 +237,40 @@ export function themenAnsicht(blaetter: readonly BefundBlatt[]): ThemenAnsicht {
     }
   })
   return { themen, ohneThema, ablauf, frageFelder, regeln, ohneOrtslage: blaetter.every(b => b.befund.ende === 'offen') }
+}
+
+/** Teil der Gliederung eines Themas (themen.ABSCHNITTE): Überschrift des Abschnitts und des Unterabschnitts (leer: keine) mit seinen
+ * Befunden, Fragen und Verweisen */
+export interface GliedTeil {
+  abschnitt: string
+  unter: string
+  eintraege: { b: BefundBlatt; xs: Eintrag[] }[]
+  fragen: ThemaFrage[]
+  verweise: Verweis[]
+}
+
+/**
+ * Gliederung eines Themas nach der Prüfliste der Norm (27.10.2026; Trottoirüberfahrt nach VSS 40 242 Tab. 1 bis 3, dann Bern): je
+ * Unterabschnitt die Befunde seiner Regeln, die Fragen, deren erste Regel (nach der Gliederung) dort steht, in der Reihenfolge der Regeln
+ * und der Maske, und die Verweise. Was keiner Regel der Gliederung gehört, folgt ohne Überschrift. null: Thema ohne Gliederung.
+ */
+export function themaGliederung(t: ThemaTeil): GliedTeil[] | null {
+  const abs = ABSCHNITTE[t.thema.id]
+  if (!abs) return null
+  const RANG_FELD = new Map(FELD_DEFS.map((d, i) => [d.pfad, i]))
+  const erste = (regeln: readonly string[]): number =>
+    Math.min(...regeln.map(id => abschnittVon(id)?.rang ?? Infinity))
+  const teile: GliedTeil[] = []
+  const passt = (regeln: readonly string[], ids: readonly string[]) => { const r = erste(regeln); return Number.isFinite(r) && ids.some(id => abschnittVon(id)?.rang === r) }
+  for (const a of abs) for (const u of a.unter) {
+    const eintraege = t.eintraege.map(e => ({ b: e.b, xs: e.xs.filter(x => u.regeln.includes(x.id)) })).filter(e => e.xs.length)
+    const fragen = t.fragen.filter(f => passt(f.regeln, u.regeln))
+      .sort((x, y) => erste(x.regeln) - erste(y.regeln) || (RANG_FELD.get(x.ziel ?? x.feld) ?? 1e9) - (RANG_FELD.get(y.ziel ?? y.feld) ?? 1e9))
+    const verweise = t.verweise.filter(v => passt(v.regeln, u.regeln))
+    teile.push({ abschnitt: a.titel, unter: u.titel, eintraege, fragen, verweise })
+  }
+  const rest: GliedTeil = { abschnitt: '', unter: '',
+    eintraege: t.eintraege.map(e => ({ b: e.b, xs: e.xs.filter(x => !abschnittVon(x.id)) })).filter(e => e.xs.length),
+    fragen: t.fragen.filter(f => !Number.isFinite(erste(f.regeln))), verweise: t.verweise.filter(v => !Number.isFinite(erste(v.regeln))) }
+  return [...teile, rest].filter(x => x.eintraege.length || x.fragen.length || x.verweise.length)
 }

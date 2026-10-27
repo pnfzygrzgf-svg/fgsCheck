@@ -105,6 +105,29 @@ export interface Q3 {
   dtvEinm: number | null
   /** viel Verkehr auf der einmündenden Strasse (Handangabe, keine Zahl in der Norm; Q3-M10) */
   mivEinmHoch: boolean | null
+  // Ausstattung (VSS 40 242 Tab. 3; F5c bis F5n, Handangaben)
+  /** Trottoirrand entlang der Hauptstrasse läuft gerade durch (nicht zurückgesetzt) */
+  randDurchgehend?: boolean | null
+  /** Länge des überfahrbaren Randabschlusses entlang der Hauptstrasse [m] */
+  ueberfahrbarM?: number | null
+  /** Begrenzung des befahrbaren Bereichs */
+  begrenzung?: 'poller' | 'randstein' | 'keine' | null
+  /** aus der Seitenstrasse auf mindestens 10 m als Überfahrt erkennbar */
+  erkennbar?: boolean | null
+  /** Belag über die Überfahrt: gleich, Wechsel, Absatz, beides */
+  belag?: 'gleich' | 'wechsel' | 'absatz' | 'beides' | null
+  /** Quergefälle auf der Überfahrt [%] */
+  quergefaelle?: number | null
+  /** überfahrbarer Randabschluss zur Hauptstrasse */
+  randabschluss?: 's0625' | 's0630' | 's0416' | 'anderer' | null
+  /** Randsteine neben der Überfahrt senkrecht, mindestens 6 cm */
+  randsteineSenkrecht?: boolean | null
+  /** dauernde Signalisation der Überfahrt vorgesehen */
+  signalisation?: boolean | null
+  /** Markierungen auf der Überfahrt bzw. Wartelinie davor vorgesehen */
+  markierung?: boolean | null
+  /** Aufmerksamkeitsfelder beidseits mit verbindender Leitlinie */
+  taktil?: boolean | null
 }
 
 /** Werte aller Felder (ohne Quelle). (neu) = nicht in der Skizze, für die Regeln nötig */

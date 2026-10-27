@@ -56,6 +56,54 @@ export const themaName = (t: Thema): string => THEMA_DEF[t].name
 /** Thema einer Regel (unbekannte Nummer: null) */
 export const themaVon = (id: string): Thema | null => DEF[id]?.thema ?? null
 
+// ── Abschnitte in einem Thema (Prüfliste der Norm, 27.10.2026) ──
+
+/** Unterabschnitt: Überschrift (leer: keine eigene) und Regeln in Anzeigereihenfolge */
+export interface Unterabschnitt { titel: string; regeln: readonly string[] }
+/** Abschnitt eines Themas mit Überschrift (Tabelle und Seite der Norm) */
+export interface Abschnitt { titel: string; unter: readonly Unterabschnitt[] }
+
+/**
+ * Gliederung eines Themas nach der Prüfliste der Norm (Thema, Bericht, Regelübersicht, Zusammenfassung): Trottoirüberfahrt nach
+ * VSS 40 242 Tab. 1 bis 3, dann Bern. Regeln des Themas, die hier fehlen (Weichen), folgen ohne Überschrift.
+ */
+export const ABSCHNITTE: Partial<Record<Thema, readonly Abschnitt[]>> = {
+  trottoirueberfahrt: [
+    { titel: 'Zwingende Voraussetzungen (VSS 40 242 Tab. 1, S. 28)', unter: [
+      { titel: 'Lage in Bezug zur Siedlung', regeln: ['Q3-1', 'Q3-2', 'Q3-3'] },
+      { titel: 'Lage im Strassennetz', regeln: ['Q3-4', 'Q3-5'] },
+      { titel: 'Betrieb und Anlage', regeln: ['Q3-6', 'Q3-7', 'Q3-8', 'Q3-9', 'Q3-10'] },
+      { titel: 'Sichtweite', regeln: ['Q3-11', 'Q3-12'] }] },
+    { titel: 'Merkmale zur Anordnung (VSS 40 242 Tab. 2, S. 30)', unter: [
+      { titel: 'Strassentypen', regeln: ['Q3-M1', 'Q3-M2'] },
+      { titel: 'Verkehrsmengen', regeln: ['Q3-M9', 'Q3-M3', 'Q3-M4', 'Q3-M5', 'Q3-M6', 'Q3-M10'] },
+      { titel: 'Knotentyp', regeln: ['Q3-M7', 'Q3-M8'] }] },
+    { titel: 'Ausstattung (VSS 40 242 Tab. 3, S. 32 und 34)', unter: [
+      { titel: '', regeln: ['F5a', 'F5c', 'F5d', 'F5e', 'F5f', 'F5g', 'F5h', 'F5i', 'F5j', 'F5k', 'F5b', 'F5l', 'F5m', 'F5n'] }] },
+    { titel: 'Bern', unter: [{ titel: '', regeln: ['Q3-B'] }] },
+  ],
+}
+
+/** Rang einer Regel in der Gliederung ihres Themas (Abschnitt, Unterabschnitt, Stelle); null: Thema ohne Gliederung bzw. Regel nicht darin */
+const RANG_ABSCHNITT = new Map<string, { rang: number; abschnitt: number; unter: number }>()
+for (const abs of Object.values(ABSCHNITTE)) abs!.forEach((a, i) => a.unter.forEach((u, j) => u.regeln.forEach(id =>
+  RANG_ABSCHNITT.set(id, { rang: RANG_ABSCHNITT.size, abschnitt: i, unter: j }))))
+export const abschnittVon = (id: string): { rang: number; abschnitt: number; unter: number } | null => RANG_ABSCHNITT.get(id) ?? null
+
+/**
+ * Reihenfolge nach der Gliederung: Elemente mit Regel aus einer Gliederung untereinander nach ihrem Rang (an den Stellen, an denen sie
+ * stehen), alle übrigen bleiben, wo sie sind (ohne solche Elemente unverändert)
+ */
+export function nachAbschnitt<T>(xs: readonly T[], idVon: (x: T) => string): T[] {
+  const stellen = xs.map((x, i) => (abschnittVon(idVon(x)) ? i : -1)).filter(i => i >= 0)
+  if (!stellen.length) return [...xs]
+  const sortiert = stellen.map(i => xs[i]).map((x, k) => ({ x, k }))
+    .sort((a, b) => abschnittVon(idVon(a.x))!.rang - abschnittVon(idVon(b.x))!.rang || a.k - b.k).map(y => y.x)
+  const aus = [...xs]
+  stellen.forEach((i, k) => { aus[i] = sortiert[k] })
+  return aus
+}
+
 // ── Verbindlichkeit in Worten ──
 
 /** Stärke nach Wortlaut der Quelle (Entscheid E0-1): Muss, Soll, Hinweis */
@@ -172,12 +220,15 @@ const ENDE: Record<string, string> = {
   flaechig: 'Baum endet: flächige Nachfrage',
 }
 const TYP_BLOECKE = ['E', 'F', 'G', 'H']
+const TUE_AUSSTATTUNG = ['F5c', 'F5d', 'F5e', 'F5f', 'F5g', 'F5h', 'F5i', 'F5j', 'F5k', 'F5l', 'F5m', 'F5n']
 
 /** Grund «nicht geprüft» einer nicht ausgewerteten Regel; null = nicht anwendbar */
 function grundVon(id: string, b: Pick<Befund, 'ausgewertet' | 'ende' | 'nichtGeprueft' | 'zulaessigkeit'> & Partial<Pick<Befund, 'ebeneAus'>>,
   k: UebersichtKontext): string | null {
   const d = DEF[id]
   if (b.ausgewertet.includes(id)) return null
+  // Ausstattung der Trottoirüberfahrt (neu 27.10.2026): bei bekanntem anderem Querungstyp nicht anwendbar (zählt nicht als «nicht geprüft»)
+  if (TUE_AUSSTATTUNG.includes(id) && k.typ && k.typ !== 'trottoirueberfahrt') return null
   const eb = k.ebenen ?? { bern: false, kantonBE: false, richtlinie: true }
   // Korrektur S6: ausgeschaltete Ebene nur, wo die Regel mit eingeschalteter Ebene anwendbar wäre (Befund.ebeneAus); sonst nicht anwendbar
   const aus = (d.ebene === 'Bern' && !eb.bern) || (d.ebene === 'Kanton BE' && !eb.kantonBE) || (d.ebene === 'Richtlinie' && !eb.richtlinie)

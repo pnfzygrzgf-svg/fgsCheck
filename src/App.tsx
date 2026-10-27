@@ -218,6 +218,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [auswahl, setAuswahl] = useState<string | null>(null)
   const [quellen, setQuellen] = useState<Record<string, QuellenStand>>({})
   const [werkzeug, setWerkzeug] = useState<Werkzeug>(null)
+  // Trottoirüberfahrt: Alternative Fussgängerstreifen mit Fragen prüfen (nur in der Sitzung, nicht im Fall; 27.10.2026)
+  const [alternative, setAlternative] = useState(false)
   // Reiter im Panel (Sichtprüfung / Bedarf und Querungstyp, reiter.ts): Wahl im laufenden Fall, nur in der Sitzung; null = Vorgabe
   // nach dem Fall. Ein neuer Fall (Übergang, geplanter Streifen, Fall-Datei) beginnt wieder mit der Vorgabe
   const [reiterWahl, setReiterWahl] = useState<Reiter | null>(null)
@@ -544,7 +546,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     abbruchRef.current = ctrl
     auftrag.current++
     setRechnung(null); setAuswahl(null); setAv(null); setDaten(null); setWerkzeug(null); setZeichnung([]); setBearbeiten(null)
-    setKataster(null); setParkKat(null); setBernGeo(null); setWechsel(null); setLadeFehler(false)
+    setAlternative(false); setKataster(null); setParkKat(null); setBernGeo(null); setWechsel(null); setLadeFehler(false)
     const nr = ++ladeNr.current
     const erinnert = !fallNeu && nid !== null ? fallErinnern(nid) : null
     // Fall aus dem Browser, dessen Streifen von Hand nur um den gespeicherten Ort abgedeckt sind (Ort nach dem Verschieben an die
@@ -1592,7 +1594,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     }
   }, [daten, bernGeo, streifenBern, av])
   const blaetter = useMemo(() => (fall && rechnung && rechnung.streifen.length ? befundblaetter(rechnung, fall, { vorgabe: bedarfVorgabe,
-    titel, zufahrt: (fid, z) => zufahrtText(zNamen.get(fid), z), geo: geoVor }) : []), [fall, rechnung, bedarfVorgabe, titel, zNamen, geoVor])
+    titel, zufahrt: (fid, z) => zufahrtText(zNamen.get(fid), z), geo: geoVor, ...(alternative ? { alternative } : {}) }) : []),
+  [fall, rechnung, bedarfVorgabe, titel, zNamen, geoVor, alternative])
   // Reiter: Vorgabe nach dem Fall (bestehender Übergang mit Streifen → Sichtprüfung, Planung → Bedarf), sobald Bedarfsblätter da
   // sind; die Vorgabe der ersten Rechnung gilt im Fall weiter (kein Springen, wenn später ein Streifen von Hand dazukommt)
   const mitReitern = !!fall && blaetter.length > 0
@@ -2025,7 +2028,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             )}
             </>} />}
           bedarf={fall && blaetter.length > 0 && <BedarfAbschnitt fall={fall} blaetter={blaetter} vorgabe={bedarfVorgabe} aendern={aendern}
-            zeigen={zeigeBedarf} sichtLinks={fgsIds => (rechnung?.streifen ?? []).filter(x => fgsIds.includes(x.fgsId)).flatMap(x =>
+            zeigen={zeigeBedarf} alternative={alternative} setAlternative={setAlternative} sichtLinks={fgsIds => (rechnung?.streifen ?? []).filter(x => fgsIds.includes(x.fgsId)).flatMap(x =>
               nachNr(x.zufahrten, zNamen.get(x.fgsId)).flatMap(z => {
                 const u = zufahrtStreetView(z, x), nr = zufahrtNr(zNamen.get(x.fgsId), z.zufahrt)
                 return u ? [{ name: `${nr ? `${nr} ` : ''}${zufahrtLang(zNamen.get(x.fgsId), z.zufahrt)}`, url: u, titel: zufahrtStreetViewTitel(nr || z.zufahrt) }] : []

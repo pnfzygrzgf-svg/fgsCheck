@@ -20,7 +20,7 @@ import type { Befund, Ebene, Eintrag, Empfehlung, RegelDef, Staerke } from './ty
 import type { BefundBlatt } from './befundblatt'
 import type { Querungstyp } from './eingaben'
 import { fragenFelder, grundKopf, vorbehaltFelder, type ZeilenZustand } from './kompakt'
-import { istWeiche, mitEinheit, pruefUebersicht, themaVon, type UebersichtKontext } from './themen'
+import { istWeiche, mitEinheit, nachAbschnitt, pruefUebersicht, themaVon, type UebersichtKontext } from './themen'
 import { feldZiel, frageVon } from './feldhilfen'
 import { QUELLEN_ANNAHME } from './eingaben'
 import { FELD_DEF, wertText } from './felder'
@@ -50,6 +50,8 @@ export interface ZfEingabe {
   /** 23.10.2026: Felder, deren Fragen im Block «Offene Fragen» darunter stehen (Panel, nur Grundprüfung); Satz 3 nennt sie nicht
    * ausgeschrieben, sondern zählt sie */
   imBlock?: readonly string[]
+  /** Trottoirüberfahrt mit geprüfter Alternative Fussgängerstreifen (27.10.2026) */
+  alternative?: boolean
 }
 
 export interface Zusammenfassung {
@@ -246,7 +248,8 @@ function vorlaeufigWegen(e: Empfehlung): string {
   return 'die Empfehlung ist vorläufig'
 }
 
-function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefined, geplant?: boolean | null, zoneVorschlag?: boolean): string {
+function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefined, geplant?: boolean | null, zoneVorschlag?: boolean,
+  alternative = false): string {
   const e = b.empfehlung, vorl = e.vorlaeufig
   if (b.ende === 'offen') return 'Noch nicht beurteilt: Es fehlt die Angabe, ob die Querung innerorts liegt.'
   if (b.ende === 'ausserorts') return 'Die Querung liegt ausserorts; fgsCheck beurteilt nur Querungen innerorts.'
@@ -268,11 +271,15 @@ function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefi
   // beurteilte Trottoirüberfahrt (Q3-4 läuft nur dann): Antwort aus den zwingenden Punkten der Trottoirüberfahrt; die Alternative nach
   // der (still geprüften) Zulässigkeit des Fussgängerstreifens
   if (b.ausgewertet.includes('Q3-4')) {
-    const hart = verletzt(b.alle.filter(x => x.id.startsWith('Q3') && x.zustand === 'verletzt' && MUSS.includes(x.staerke)).map(x => x.id))
+    // zwingende Punkte (Q3) und der Trottoirrand (F5c), in der Reihenfolge der Prüfliste (27.10.2026)
+    const hart = nachAbschnitt(verletzt(b.alle.filter(x => (x.id.startsWith('Q3') || x.id === 'F5c') && x.zustand === 'verletzt' &&
+      MUSS.includes(x.staerke)).map(x => x.id)), x => x.id)
     if (hart.length) {
-      const alt = b.zulaessigkeit === 'offen' ? '; ob stattdessen ein Fussgängerstreifen zulässig ist, ist noch offen'
-        : b.zulaessigkeit === 'mit_begruendung' ? '; stattdessen ein Fussgängerstreifen, aber nur mit Begründung'
-          : typPhrase(e) && e.typ !== 'Q3' ? `; stattdessen passt ${typPhrase(e)}` : ''
+      // die Alternative (still bzw. mit «Alternative Fussgängerstreifen prüfen» geprüft) in einem kurzen Satz
+      const grob = alternative ? '' : ' (nur grob geprüft)'
+      const alt = b.zulaessigkeit === 'offen' ? `; ob stattdessen ein Fussgängerstreifen zulässig ist, ist noch offen${grob}`
+        : b.zulaessigkeit === 'mit_begruendung' ? `; stattdessen ein Fussgängerstreifen, aber nur mit Begründung${grob}`
+          : typPhrase(e) && e.typ !== 'Q3' ? `; stattdessen passt ${typPhrase(e)}${grob}` : ''
       return `Eine Trottoirüberfahrt ist hier nicht zulässig: ${kurzform(hart[0])}${hart.length > 1 ? ` (und ${hart.length - 1} ${hart.length === 2 ? 'weiterer Grund' : 'weitere Gründe'})` : ''}` +
         `${alt}${vorl ? ' (vorläufig: es fehlen Angaben)' : ''}.`
     }
@@ -353,7 +360,7 @@ interface Nennung { id: string; text: string; muss: boolean; gegen?: boolean }
 /** Befunde für Satz 2: Muss vor Soll, je zuerst der Baum, dann die Grundprüfung (ohne gleichwertige verletzte Regel im Baum) */
 function befundListe(b: Befund, g: Grundpruefung, grundIds: readonly string[]): Nennung[] {
   const baum: Eintrag[] = []
-  for (const x of b.alle) if (x.zustand === 'verletzt' && x.staerke !== 'hinweis' && !istWeiche(x.id) && !grundIds.includes(x.id) &&
+  for (const x of nachAbschnitt(b.alle, y => y.id)) if (x.zustand === 'verletzt' && x.staerke !== 'hinweis' && !istWeiche(x.id) && !grundIds.includes(x.id) &&
     !baum.some(y => y.id === x.id)) baum.push(x)
   // gleichwertig nur, wenn die Regel im Baum selbst einen Befund meldet (Muss bzw. Soll) oder Satz 1 sie als Grund nennt; ein
   // verletzter Hinweis (z. B. D2a, D2c, C3b, F3 knapp) ersetzt keinen Soll-Punkt der Grundprüfung
@@ -403,11 +410,16 @@ const sichtOhneFeld = (t: GrundTeil): string[] =>
   (t.zustand === 'offen' && !t.fehlend?.length && (t.id === 'B5-1' || t.id === 'B5-1b') && t.detail?.includes('Kurvenradius') ? ['kurve.radius'] : [])
 
 /** Felder, die über die Antwort (Satz 1) entscheiden: Ortslage, Zulässigkeit, Vorbehalt der Empfehlung (Runde 5, Muster 9) */
-export function entscheidendeFelder(x: Pick<ZfEingabe, 'befund'>): string[] {
+export function entscheidendeFelder(x: Pick<ZfEingabe, 'befund' | 'alternative'>): string[] {
   const b = x.befund
   const aus: string[] = []
   if (b.ende === 'offen') aus.push(...(b.offenFelder.A1 ?? ['innerorts']))
-  if (b.empfehlung.vorlaeufig || b.zulaessigkeit === 'offen') aus.push(...vorbehaltFelder(b))
+  // Trottoirüberfahrt ohne geprüfte Alternative (27.10.2026): nur ihre eigenen offenen Punkte, nicht die der still geprüften Alternative
+  if (b.ausgewertet.includes('Q3-4') && !x.alternative) {
+    const w = b.empfehlung.offenWegen
+    if (b.empfehlung.vorlaeufig) aus.push(...vorbehaltFelder({ alle: b.alle, empfehlung: b.empfehlung, nichtGeprueft: b.nichtGeprueft,
+      offenFelder: Object.fromEntries(w.map(id => [id, b.offenFelder[id] ?? []])) }))
+  } else if (b.empfehlung.vorlaeufig || b.zulaessigkeit === 'offen') aus.push(...vorbehaltFelder(b))
   return fragenFelder(aus).filter(f => f !== 'Zufahrten')
 }
 
@@ -522,7 +534,7 @@ const VERWEIS = / \((das entscheidet die )?erste Frage unten\)/
 /** Zusammenfassung einer Querung */
 export function zusammenfassung(x: ZfEingabe): Zusammenfassung {
   const grundIds: string[] = []
-  const s1 = antwort(x.befund, grundIds, x.kontext?.typ, x.geplant, x.grund?.zoneVorschlag)
+  const s1 = antwort(x.befund, grundIds, x.kontext?.typ, x.geplant, x.grund?.zoneVorschlag, x.alternative)
   const liste = befundListe(x.befund, x.grund, grundIds)
   const felder = fehlendeFelder(x), entscheidend = entscheidendeFelder(x)
   // Block «Offene Fragen» (Panel): diese Fragen nennt Satz 3 nicht ausgeschrieben, sondern zählt sie (im Bericht kein Block)
@@ -580,7 +592,7 @@ export function zfEingabeBlatt(b: BefundBlatt, ort: ZfOrt = 'panel'): ZfEingabe 
     if (d) fragen[o.feld] = `Bitte bestätigen: ${wertText(d, h.get(o.feld)!.vorbelegt!.wert)} (angenommen)?`
   }
   return { befund: b.befund, grund: b.grund, offen: b.offen, kontext: { ebenen: b.ebenen, typ: e.typ.wert }, ort,
-    geplant: e.neuanlage.wert, annahmen, gefunden, fragen }
+    geplant: e.neuanlage.wert, annahmen, gefunden, fragen, ...(b.alternative ? { alternative: true } : {}) }
 }
 
 /** Annahmen für Satz 4: Reihenfolge und Kurzform mit Wert */

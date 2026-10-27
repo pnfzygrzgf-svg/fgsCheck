@@ -9,7 +9,7 @@
 
 import { KATALOG, REGEL_IDS, type RegelId, type WerkId } from './katalog'
 import type { RegelDef, Thema } from './typen'
-import { THEMEN, themaName } from './themen'
+import { ABSCHNITTE, THEMEN, abschnittVon, nachAbschnitt, themaName } from './themen'
 import { GELTUNG, geltungKurz, regelPfade } from './feldhilfen'
 import { feldName } from './felder'
 import { grundPunktVon } from './grundpruefung'
@@ -58,6 +58,12 @@ function verbindlichkeitLaie(d: RegelDef): string {
   return `${STAERKE_LAIE[d.staerke]} nach ${her}${d.staerke === 'hart_bericht' ? ' (Abweichung nur mit Bericht)' : ''}`
 }
 
+/** Abschnitt der Gliederung eines Themas (themen.ABSCHNITTE), z. B. «, Zwingende Voraussetzungen (VSS 40 242 Tab. 1, S. 28)» */
+function abschnittText(id: string): string {
+  const a = abschnittVon(id), d = DEF[id]
+  return a ? `, ${ABSCHNITTE[d.thema]![a.abschnitt].titel}` : ''
+}
+
 /** Zeile einer Regel */
 export function regelZeile(id: RegelId): RegelZeile {
   const d = DEF[id]
@@ -69,7 +75,7 @@ export function regelZeile(id: RegelId): RegelZeile {
   return {
     id, titel: d.titel, thema: d.thema, art: regelArtGruppe(id), verbindlichkeit: verbindlichkeitLaie(d),
     prueft: d.pruefsatz,
-    wo: d.gruppe === 'B5' ? `Grundprüfung${punkt ? `, ${PUNKT_NAME[punkt]}` : ''}` : `Erweiterte Prüfung, Thema ${themaName(d.thema)}`,
+    wo: d.gruppe === 'B5' ? `Grundprüfung${punkt ? `, ${PUNKT_NAME[punkt]}` : ''}` : `Erweiterte Prüfung, Thema ${themaName(d.thema)}${abschnittText(id)}`,
     giltFuer: teile.length ? `${teile.join('; ')}${mehr ? ' und weitere Bedingungen' : ''}` : 'alle Querungen',
     ...(mehr ? { giltGenau: [ebene, g.genau].filter(Boolean).join('; ') } : {}),
     angaben: regelPfade(id).map(p => ({ pfad: p, name: feldName(p) })),
@@ -100,7 +106,7 @@ export function regelGruppen(zeilen: readonly RegelZeile[], nach: Gliederung, f:
   const z = zeilen.filter(x => passt(x, f))
   const aktiv = z.filter(x => x.art === 'aktiv')
   const gruppen: RegelGruppe[] = nach === 'thema'
-    ? THEMEN.map(t => ({ schluessel: `thema-${t.id}`, name: t.name, zeilen: aktiv.filter(x => x.thema === t.id) }))
+    ? THEMEN.map(t => ({ schluessel: `thema-${t.id}`, name: t.name, zeilen: nachAbschnitt(aktiv.filter(x => x.thema === t.id), x => x.id) }))
     : WERK_IDS.filter(w => !f.werk || w === f.werk).map(w => ({ schluessel: `werk-${w}`, name: LESENAME[w], zeilen: aktiv.filter(x => x.werke.includes(w)) }))
   gruppen.push({ schluessel: 'ablauf', name: 'Ablauf (Verzweigungen, Zusammenfassungen, Verweise)', zeilen: z.filter(x => x.art === 'ablauf') })
   gruppen.push({ schluessel: 'gestrichen', name: 'Gestrichen', zeilen: z.filter(x => x.art === 'gestrichen') })

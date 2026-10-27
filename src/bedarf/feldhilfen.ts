@@ -489,9 +489,27 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     vorschlag: 'in Bern aus den ÖV-Linien des Geoportals: Bus- bzw. Trolleybuslinie in der gequerten Strasse «ja», keine «nein».' },
   'q3.lsaKnoten': { was: 'Ja, wenn die Einmündung mit Lichtsignalen geregelt ist.', vorschlag: 'wie «Kreuzung mit Lichtsignal».' },
   'q3.kreisel': { was: 'Ja, wenn die Einmündung an einem Kreisel liegt.', vorschlag: 'aus OSM: Kreisel bis 20 m bzw. Einmündung ohne Kreisel.' },
-  'q3.breiteM': { was: 'Wie breit die durchgehende Trottoirfläche über die Seitenstrasse ist, in Metern.' },
+  'q3.breiteM': { was: 'Wie breit die durchgehende Trottoirfläche über die Seitenstrasse ist, in Metern. Mit Zusatztafel «Velos gestattet» ' +
+    'sind bis 4,00 m in Ordnung; der Hinweis über 3,50 m gilt dann nicht.' },
+  'q3.randDurchgehend': { was: 'Ja, wenn der Trottoirrand entlang der Hauptstrasse ohne Rücksprung über die Einmündung läuft. Bei ' +
+    'Längsparkierung darf er bis zur Parklinie vorgezogen sein (Werkzeug «Vorgezogener Seitenraum»).' },
+  'q3.ueberfahrbarM': { was: 'Länge des abgesenkten, überfahrbaren Rands entlang der Hauptstrasse, in Metern.' },
+  'q3.begrenzung': { was: 'Womit der Bereich, den Fahrzeuge befahren dürfen, seitlich abgegrenzt ist.' },
+  'q3.erkennbar': { was: 'Ja, wenn Fahrende aus der Seitenstrasse mindestens 10 m vorher sehen, dass sie über ein Trottoir fahren; auch bei ' +
+    'Schnee sollte das so bleiben.' },
+  'q3.belag': { was: 'Ob das Trottoir mit gleichem Belag und ohne Kante über die Überfahrt läuft. Beim Umbau einer Einmündung den neuen ' +
+    'Belag länger ziehen, als die Seitenstrasse breit ist.' },
+  'q3.quergefaelle': { was: 'Neigung quer zur Gehrichtung auf der Überfahrt, in Prozent; üblich sind 2 %.' },
+  'q3.randabschluss': { was: 'Der schräge Stein, über den Fahrzeuge von der Hauptstrasse auf die Überfahrt fahren; Sehbehinderte ertasten ' +
+    'ihn mit dem Stock.' },
+  'q3.randsteineSenkrecht': { was: 'Ja, wenn die Randsteine links und rechts der Überfahrt senkrecht und mindestens 6 cm hoch sind.' },
+  'q3.signalisation': { was: 'Ja, wenn dauernd ein Signal auf die Überfahrt hinweisen soll. Bei einer neuen Überfahrt ist für die ' +
+    'Einführungszeit ein Gefahrensignal mit Zusatztafel sinnvoll.' },
+  'q3.markierung': { was: 'Ja, wenn auf der Überfahrt Markierungen oder davor in der Seitenstrasse eine Wartelinie geplant sind.' },
+  'q3.taktil': { was: 'Ja, wenn beidseits der Überfahrt Aufmerksamkeitsfelder markiert sind, verbunden durch eine Leitlinie für Sehbehinderte.' },
   'q3.anrampung': {
-    was: 'Die Schräge, über die Fahrzeuge auf Trottoirhöhe fahren: Neigung in Prozent und Länge in Metern, z. B. 12 / 0,80.',
+    was: 'Die Schräge, über die Fahrzeuge auf Trottoirhöhe fahren: Neigung in Prozent und Länge in Metern, z. B. 12 / 0,80. Gut ' +
+      'sichtbar mit Schachbrettmuster oder kontrastierender Pflästerung.',
     leer: 'Leer: keine Rampe angegeben; die Prüfung der Rampe entfällt.',
   },
   'q3.dtvEinm': { was: 'Motorfahrzeuge pro Tag in der Seitenstrasse (für die Berner Tabelle).', vorschlag: 'wie der DTV.' },
@@ -604,6 +622,8 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   'lsaZeiten.inselNurAnmeldung': alle(LSA, INSEL, { feld: 'lsaZeiten.inselGeraet', ist: [false] }, BERN),
   // Trottoirüberfahrt (übrige q3-Felder: Q3_BLOCK, unten ergänzt)
   'q3.breiteM': typ('trottoirueberfahrt'), 'q3.anrampung': typ('trottoirueberfahrt'),
+  ...Object.fromEntries(['randDurchgehend', 'ueberfahrbarM', 'begrenzung', 'erkennbar', 'belag', 'quergefaelle', 'randabschluss',
+    'randsteineSenkrecht', 'signalisation', 'markierung', 'taktil'].map(u => [`q3.${u}`, typ('trottoirueberfahrt')])),
   'q3.vSigEinm': alle(Q3_BLOCK, BERN), 'q3.dtvEinm': alle(Q3_BLOCK, BERN),
   'q3.eingangstor': alle(Q3_BLOCK, { feld: 'q3.zoneEinm', ist: ['t30', 'bgz'] }),
   'q3.hauptInZone': alle(Q3_BLOCK, { feld: 'q3.zoneEinm', ist: ['t30', 'bgz'] }),
@@ -621,7 +641,9 @@ export function wertVon(e: BedarfEingaben, pfad: string): unknown {
   return x !== null && typeof x === 'object' && !Array.isArray(x) ? (x as unknown as Record<string, unknown>)[u] ?? null : null
 }
 
-export interface SichtKontext { e: BedarfEingaben; ebenen: { bern: boolean; kantonBE: boolean; richtlinie?: boolean } }
+/** alternative: Trottoirüberfahrt mit «Alternative Fussgängerstreifen prüfen» (27.10.2026): Felder und Regeln des Fussgängerstreifens
+ * zählen dann wie bei einem Fussgängerstreifen */
+export interface SichtKontext { e: BedarfEingaben; ebenen: { bern: boolean; kantonBE: boolean; richtlinie?: boolean }; alternative?: boolean }
 
 export function erfuellt(b: Bedingung, k: SichtKontext): boolean {
   if ('alle' in b) return b.alle.every(x => erfuellt(x, k))
@@ -630,25 +652,34 @@ export function erfuellt(b: Bedingung, k: SichtKontext): boolean {
   const w = wertVon(k.e, b.feld)
   if ('gesetzt' in b) return w !== null
   if ('ueber' in b) return w === null || (typeof w === 'number' && w > b.ueber)
+  // Trottoirüberfahrt mit geprüfter Alternative: gilt auch, wo ein Fussgängerstreifen verlangt ist
+  if (b.feld === 'typ' && w === 'trottoirueberfahrt' && k.alternative && b.ist.includes('fgs')) return true
   return b.ist.includes(w as Wert)
 }
+
+/** Trottoirüberfahrt ohne Alternative (27.10.2026): ausser den Feldern der Trottoirüberfahrt (q3) zählen nur diese */
+export const TUE_FELDER: readonly string[] = ['typ', 'innerorts', 'lage', 'fg5h', 'fgKlasse']
+/** Feld zählt bei einer Trottoirüberfahrt ohne geprüfte Alternative nicht (Fragen des Fussgängerstreifens ausgeblendet) */
+export const nurFgsBeiTue = (pfad: string, k: SichtKontext): boolean =>
+  !k.alternative && wertVon(k.e, 'typ') === 'trottoirueberfahrt' && !pfad.startsWith('q3.') && !TUE_FELDER.includes(pfad)
 
 /**
  * Blöcke ohne Pflicht-Unterfeld (q3, lsaZeiten) entstehen nur aus Unterfeldern, die im Fall zählen: ein ausgeblendeter Wert (z. B.
  * Breite der Trottoirüberfahrt bei anderem Typ, Tempo der Seitenstrasse ohne Ebene Bern) lässt den Block nicht laufen (sonst
  * «offen» statt «nicht geprüft»). Ändert e (Befundblatt nach eingabenBilden).
  */
-export function ausgeblendeteBloeckeLeeren(e: BedarfEingaben, ebenen: SichtKontext['ebenen']): void {
+export function ausgeblendeteBloeckeLeeren(e: BedarfEingaben, ebenen: SichtKontext['ebenen'], alternative = false): void {
   for (const o of ['q3', 'lsaZeiten'] as const) {
     const x = e[o].wert as unknown as Record<string, unknown> | null
     if (!x) continue
-    const k: SichtKontext = { e, ebenen }
+    const k: SichtKontext = { e, ebenen, alternative }
     if (!Object.keys(x).some(u => x[u] !== null && x[u] !== undefined && sichtbar(`${o}.${u}`, k))) e[o] = { wert: null, quelle: null }
   }
 }
 
 /** Feld zählt im aktuellen Fall (sonst blendet die Maske es aus; der Wert bleibt im Fall) */
 export const sichtbar = (pfad: string, k: SichtKontext): boolean => {
+  if (nurFgsBeiTue(pfad, k)) return false
   const b = SICHTBAR[pfad]
   return !b || erfuellt(b, k)
 }
@@ -759,17 +790,23 @@ export const GELTUNG: Partial<Record<RegelId, Bedingung>> = {
   D7: alle(T('mehrzweck'), kann('mzsMitFgs', true)),
   E1: E_K, E2: E_K, E3: E_K, E3a: E_K, E1b: alle(E_K, kann('strassentyp', 'verkehrsorientiert')), E2a: alle(E_K, T('furt')), E1c: alle(E_K, T('furt')),
   E2d: alle(E_K, T('ohne_vortritt'), kann('ohneBaulich', true)), E2e: alle(E_K, T('ohne_vortritt'), kann('ohneBaulich', true)),
-  E2b: kann('laengsparkierung', true), E2c: kann('laengsparkierung', true),
+  // Querung auf der Fahrbahn (F2 bis F4, E2b, E2c, F7): nicht bei Trottoirüberfahrten (entscheid.ts, 27.10.2026)
+  E2b: alle(NICHT_TUE, kann('laengsparkierung', true)), E2c: alle(NICHT_TUE, kann('laengsparkierung', true)),
   'Q3-4': T('trottoirueberfahrt'),
   F1a: FGS_ARTIG_K, F1b: FGS_ARTIG_K, F1c: FGS_ARTIG_K, F1d: FGS_ARTIG_K, 'F1-K': alle(FGS_ARTIG_K, kann('kantonsstrasse', true)),
   F1e: alle(FGS_ARTIG_K, kann('busspur', true)),
-  F2: INSEL_K, F2b: INSEL_K, F2c: INSEL_K, F2d: INSEL_K, 'F2-B': INSEL_K, F2e: BAULICH_K, F2f: BAULICH_K, F2g: BAULICH_K, F3: BAULICH_K,
-  'F3-M': alle(INSEL_K, kann('insel.art', 'markiert')), 'F3-B': alle(INSEL_K, kann('radstreifen', true)),
-  'F2-K': alle(BAULICH_K, kann('veloQuerung', true)),
-  F4a: alle(kann('einengung', true), kann('mivKlasse', 'tief', 'mittel')), F4b: kann('einengung', true),
+  F2: alle(NICHT_TUE, INSEL_K), F2b: alle(NICHT_TUE, INSEL_K), F2c: alle(NICHT_TUE, INSEL_K), F2d: alle(NICHT_TUE, INSEL_K),
+  'F2-B': alle(NICHT_TUE, INSEL_K), F2e: alle(NICHT_TUE, BAULICH_K), F2f: alle(NICHT_TUE, BAULICH_K), F2g: alle(NICHT_TUE, BAULICH_K),
+  F3: alle(NICHT_TUE, BAULICH_K), 'F3-M': alle(NICHT_TUE, INSEL_K, kann('insel.art', 'markiert')),
+  'F3-B': alle(NICHT_TUE, INSEL_K, kann('radstreifen', true)), 'F2-K': alle(NICHT_TUE, BAULICH_K, kann('veloQuerung', true)),
+  F4a: alle(NICHT_TUE, kann('einengung', true), kann('mivKlasse', 'tief', 'mittel')), F4b: alle(NICHT_TUE, kann('einengung', true)),
   F4c: alle(kann('einengung', true), T('fgs')),
-  F5a: T('trottoirueberfahrt'), F5b: T('trottoirueberfahrt'), F6a: T('mehrzweck'), F6b: T('mehrzweck'), F6c: T('mehrzweck'),
-  F7b: kann('randabschluss.art', 'schraeg'),
+  F5a: T('trottoirueberfahrt'), F5b: T('trottoirueberfahrt'), F5c: T('trottoirueberfahrt'), F5d: T('trottoirueberfahrt'),
+  F5e: T('trottoirueberfahrt'), F5f: T('trottoirueberfahrt'), F5g: T('trottoirueberfahrt'), F5h: T('trottoirueberfahrt'),
+  F5i: T('trottoirueberfahrt'), F5j: T('trottoirueberfahrt'), F5k: T('trottoirueberfahrt'), F5l: T('trottoirueberfahrt'),
+  F5m: T('trottoirueberfahrt'), F5n: T('trottoirueberfahrt'),
+  F7a: NICHT_TUE, F7c: NICHT_TUE, F7d: NICHT_TUE, F7e: NICHT_TUE, F6a: T('mehrzweck'), F6b: T('mehrzweck'), F6c: T('mehrzweck'),
+  F7b: alle(NICHT_TUE, kann('randabschluss.art', 'schraeg')),
   G1: FGS_K, G2: alle(FGS_K, kann('fgsMitLsa', false)), G3b: FGS_K, G4: FGS_K, G4b: alle(FGS_K, BAULICH_K), G5: FGS_K, G5b: FGS_K,
   G6: alle(FGS_K, kann('lage', 'knoten_belastet')), 'G6-B': alle(FGS_K, KNOTEN_K),
   G7: alle(FGS_K, kann('haltenSichtrelevantUeber5m', true)), G7b: alle(FGS_K, kann('hvl.vorhanden', true)), G8a: FGS_K,
@@ -1038,6 +1075,17 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   'q3.lsaKnoten': 'Hat die Einmündung ein Lichtsignal?',
   'q3.kreisel': 'Liegt die Einmündung an einem Kreisel?',
   'q3.breiteM': 'Wie breit ist die Trottoirüberfahrt?',
+  'q3.randDurchgehend': 'Läuft der Trottoirrand entlang der Hauptstrasse gerade durch?',
+  'q3.ueberfahrbarM': 'Wie lang ist der überfahrbare Randabschluss entlang der Hauptstrasse?',
+  'q3.begrenzung': 'Wie ist der befahrbare Bereich begrenzt?',
+  'q3.erkennbar': 'Ist die Überfahrt aus der Seitenstrasse auf mindestens 10 m als solche erkennbar?',
+  'q3.belag': 'Geht das Trottoir ohne Belagwechsel und ohne Absatz über die Überfahrt?',
+  'q3.quergefaelle': 'Wie gross ist das Quergefälle auf der Überfahrt?',
+  'q3.randabschluss': 'Welcher überfahrbare Randabschluss liegt zur Hauptstrasse?',
+  'q3.randsteineSenkrecht': 'Sind die Randsteine neben der Überfahrt senkrecht und mindestens 6 cm hoch?',
+  'q3.signalisation': 'Ist eine dauernde Signalisation der Überfahrt vorgesehen?',
+  'q3.markierung': 'Sind auf der Überfahrt Markierungen vorgesehen oder eine Wartelinie davor in der Seitenstrasse?',
+  'q3.taktil': 'Sind beidseits Aufmerksamkeitsfelder mit verbindender Leitlinie markiert?',
   'q3.anrampung': 'Wie steil und wie lang ist die Rampe der Überfahrt?',
   'q3.dtvEinm': 'Wie viele Fahrzeuge fahren pro Tag in der Seitenstrasse?',
   'q3.mivEinmHoch': 'Hat die Seitenstrasse viel Verkehr?',

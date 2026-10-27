@@ -43,6 +43,8 @@ export interface BlattOptionen {
   zufahrt?: (fgsId: string, zufahrt: string) => string
   /** Geodaten für die Vorbelegung (Haltestellen, Verkehrsdaten, OSM-Tags, Strassenlampen; vorbelegung.ts) */
   geo?: GeoVorbelegung
+  /** Trottoirüberfahrt: Alternative Fussgängerstreifen mit Fragen prüfen (Sitzung, nicht im Fall; entscheid.Optionen.alternative) */
+  alternative?: boolean
 }
 
 /** Sicht je Zufahrt aus dem Sichtrechner */
@@ -84,6 +86,8 @@ export interface BefundBlatt {
   grund: Grundpruefung
   /** von Hand gestrichene Zufahrten (nicht geprüft; Vermerk in der Prüfübersicht) */
   gestrichen?: number
+  /** Trottoirüberfahrt mit geprüfter Alternative Fussgängerstreifen (nur dann true) */
+  alternative?: boolean
 }
 
 /** Empfehlung ausgesetzt, solange offen ist, ob die Querung in einer Begegnungszone liegt (Runde 4) */
@@ -282,9 +286,10 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
   }
   const ebenen = ebenenWirksam(fall.bedarf, opt.vorgabe)
   // ausgeblendete Unterfelder lösen die Blöcke Trottoirüberfahrt bzw. LSA-Zeiten nicht aus (Feldhilfen, SICHTBAR)
-  ausgeblendeteBloeckeLeeren(gebildet.eingaben, ebenen)
+  const alternative = opt.alternative === true && gebildet.eingaben.typ.wert === 'trottoirueberfahrt'
+  ausgeblendeteBloeckeLeeren(gebildet.eingaben, ebenen, alternative)
   const befund = beurteile(gebildet.eingaben, { ebenen: { bern: ebenen.bern, kantonBE: ebenen.kantonBE, richtlinie: ebenen.richtlinie },
-    quelleVon: p => gebildet.herkunft.get(p)?.quelle ?? null })
+    quelleVon: p => gebildet.herkunft.get(p)?.quelle ?? null, ...(alternative ? { alternative } : {}) })
   // Runde 4: beruht ein Verbot nur auf Annahmen bzw. Schätzungen von Hand (nicht aus der Vorbelegung), gibt es keinen Vorschlag zu
   // bestätigen; das Detail sagt das (entscheid.ts kennt die Herkunft nicht)
   for (const x of befund.alle) if (x.bestaetigen && x.fehlend?.length && x.fehlend.every(f => gebildet.herkunft.get(f)?.zustand === 'hand'))
@@ -492,7 +497,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     gruppe: g.id, streifen: g.streifen.map(s => s.fgsId), titel: blattTitel(g, opt.titel ?? ((id: string) => id)),
     befund, gebildet, vorbelegt, ebenen, sicht, sichtVonHand, typText: typText(befund),
     zulText: befund.zulaessigkeit ? ZUL[befund.zulaessigkeit] : '', begruendung: begruendung(befund, gebildet.eingaben.typ.wert), offen, nichtGeprueft, annahmen,
-    hinweise: [...new Set(hinweise.map(lesetext))],
+    hinweise: [...new Set(hinweise.map(lesetext))], ...(alternative ? { alternative } : {}),
   }
 }
 

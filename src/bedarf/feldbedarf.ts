@@ -49,7 +49,7 @@ export function feldBedarf(blaetter: readonly BefundBlatt[]): Map<string, FeldBe
     return m.get(ziel)!
   }
   for (const b of blaetter) {
-    const k: SichtKontext = { e: b.gebildet.eingaben, ebenen: b.ebenen }
+    const k: SichtKontext = { e: b.gebildet.eingaben, ebenen: b.ebenen, alternative: b.alternative }
     const offen: { id: string; staerke: Staerke; felder: readonly string[] }[] = []
     for (const x of b.befund.alle) if (x.zustand === 'offen' && x.fehlend?.length) offen.push({ id: x.id, staerke: x.staerke, felder: x.fehlend })
     if (b.grund.gilt) for (const t of [...b.grund.punkte.flatMap(p => p.teile), ...b.grund.weitere]) {
