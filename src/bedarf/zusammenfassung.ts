@@ -22,7 +22,7 @@ import type { Querungstyp } from './eingaben'
 import { fragenFelder, grundKopf, vorbehaltFelder, type ZeilenZustand } from './kompakt'
 import { istWeiche, mitEinheit, nachAbschnitt, pruefUebersicht, themaVon, type UebersichtKontext } from './themen'
 import { feldZiel, frageVon } from './feldhilfen'
-import { QUELLEN_ANNAHME } from './eingaben'
+import { QUELLEN_ANNAHME, QUELLEN_BESTAETIGBAR } from './eingaben'
 import { FELD_DEF, wertText } from './felder'
 import { lesetext } from './lesetext'
 import { ANNAHME_V85 } from './grundpruefung'
@@ -587,9 +587,10 @@ export function zfEingabeBlatt(b: BefundBlatt, ort: ZfOrt = 'panel'): ZfEingabe 
   }
   // Fragen zum Bestätigen (Stelle 10): vorbelegte Annahme, die eine offene Regel trägt
   const fragen: Record<string, string> = {}
-  for (const o of b.offen) if (o.bestaetigen && annahme(o.feld)) {
+  const bestaetigbar = (f: string) => { const x = h.get(f); return x?.zustand === 'vorbelegt' && !!x.quelle && QUELLEN_BESTAETIGBAR.includes(x.quelle) }
+  for (const o of b.offen) if (o.bestaetigen && bestaetigbar(o.feld)) {
     const d = FELD_DEF.get(o.feld)
-    if (d) fragen[o.feld] = `Bitte bestätigen: ${wertText(d, h.get(o.feld)!.vorbelegt!.wert)} (angenommen)?`
+    if (d) fragen[o.feld] = `Bitte bestätigen: ${wertText(d, h.get(o.feld)!.vorbelegt!.wert)} (${h.get(o.feld)!.quelle === 'vorschlag' ? 'heutiger Zustand' : 'angenommen'})?`
   }
   return { befund: b.befund, grund: b.grund, offen: b.offen, kontext: { ebenen: b.ebenen, typ: e.typ.wert }, ort,
     geplant: e.neuanlage.wert, annahmen, gefunden, fragen, ...(b.alternative ? { alternative: true } : {}) }
@@ -625,7 +626,7 @@ export function offeneFragen(b: BefundBlatt, bestaetig: ReadonlySet<string>): Of
   return offeneFragenAus(b.grund, entscheidendeFelder(zfEingabeBlatt(b)), ziel => {
     const h = b.gebildet.herkunft.get(ziel)
     const offen = !h || h.zustand === 'offen' || h.zustand === 'rechner' || (h.zustand === 'hand' && (h.wert === null || h.wert === undefined))
-    const best = h?.zustand === 'vorbelegt' && bestaetig.has(ziel) && !!h.quelle && QUELLEN_ANNAHME.includes(h.quelle)
+    const best = h?.zustand === 'vorbelegt' && bestaetig.has(ziel) && !!h.quelle && QUELLEN_BESTAETIGBAR.includes(h.quelle)
     return best ? 'bestaetigen' : offen ? 'eingabe' : null
   })
 }

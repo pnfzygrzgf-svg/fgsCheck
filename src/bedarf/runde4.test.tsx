@@ -253,8 +253,9 @@ describe('Runde 4: Muss-Hinweis an offenen Feldern', () => {
     expect(zeile('vSig')).not.toContain('feld-bedarf')
   })
   it('«Vorschlag bestätigen» nur, wo ein Verbot (nurMitBestaetigung) an der Annahme hängt: Strecke/Zone, besonderer Grund, Knotensicht', () => {
-    expect([...BESTAETIGUNG_MOEGLICH].sort()).toEqual(['beduerfnis', 'q3.knotensichtOk', 'tempoRegime'])
-    expect(REGEL_IDS.filter(id => (KATALOG[id] as RegelDef).nurMitBestaetigung).sort()).toEqual(['A2', 'C2', 'Q3-11'])
+    // 27.10.2026: an der Trottoirüberfahrt zusätzlich Fahrstreifen, Zone und Lichtsignal nach dem heutigen Zustand (Vorschlag)
+    expect([...BESTAETIGUNG_MOEGLICH].sort()).toEqual(['beduerfnis', 'q3.knotensichtOk', 'q3.lsaKnoten', 'q3.nEinm', 'q3.nHaupt', 'q3.zoneEinm', 'tempoRegime'])
+    expect(REGEL_IDS.filter(id => (KATALOG[id] as RegelDef).nurMitBestaetigung).sort()).toEqual(['A2', 'C2', 'Q3-11', 'Q3-7', 'Q3-8', 'Q3-M2', 'Q3-M7'])
   })
 })
 

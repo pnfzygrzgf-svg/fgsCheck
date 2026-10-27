@@ -16,6 +16,9 @@ export type Quelle = 'av' | 'osm' | 'geoportal' | 'luftbild' | 'hand' | 'bestaet
 export const QUELLEN: readonly Quelle[] = ['av', 'osm', 'geoportal', 'luftbild', 'hand', 'bestaetigt', 'annahme', 'schaetzung', 'rechnung', 'vorschlag']
 /** Quellen, die der Befund als Annahme ausweist */
 export const QUELLEN_ANNAHME: readonly Quelle[] = ['annahme', 'schaetzung']
+/** Quellen einer Vorbelegung, die «Vorschlag bestätigen» anbietet (27.10.2026: auch der Vorschlag zum heutigen Zustand an einer
+ * geplanten Trottoirüberfahrt, z. B. das Lichtsignal nach OSM) */
+export const QUELLEN_BESTAETIGBAR: readonly Quelle[] = [...QUELLEN_ANNAHME, 'vorschlag']
 
 export type Querungstyp = 'fgs' | 'furt' | 'ohne_vortritt' | 'lsa' | 'trottoirueberfahrt' | 'mehrzweck'
 export const QUERUNGSTYPEN: readonly Querungstyp[] = ['fgs', 'furt', 'ohne_vortritt', 'lsa', 'trottoirueberfahrt', 'mehrzweck']

@@ -13,10 +13,13 @@ import { themenAnsicht, themaGliederung } from './bedarf/themenansicht'
 import { ABSCHNITTE, nachAbschnitt } from './bedarf/themen'
 import { FELD_DEFS } from './bedarf/felder'
 import { sichtbar } from './bedarf/feldhilfen'
-import { zusammenfassungBlatt } from './bedarf/zusammenfassung'
+import { zfEingabeBlatt, zusammenfassungBlatt } from './bedarf/zusammenfassung'
+import { beurteile } from './bedarf/entscheid'
+import { Q3_OK, fall } from './bedarf/testfaelle'
 import { handSetzen } from './bedarf/fallBedarf'
 import { regelGruppen, regelZeilen } from './bedarf/regeluebersicht'
 import { BedarfAbschnitt, BefundblattAnzeige, zusatzTexte } from './BedarfPanel'
+import { LsaEinmuendung } from './tue/LsaEinmuendung'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number): [number, number] => wgs(O[0] + x, O[1] + y)
@@ -181,5 +184,61 @@ describe('Nur Fragen der Trottoirüberfahrt; Alternative Fussgängerstreifen auf
     const g = tueFall({ innerorts: true }, null)
     const html2 = renderToStaticMarkup(<BedarfAbschnitt fall={g} blaetter={[blatt(g)]} vorgabe={OHNE.vorgabe} aendern={() => {}} setAlternative={() => {}} />)
     expect(html2).not.toContain('Alternative Fussgängerstreifen prüfen')
+  })
+})
+
+describe('Planung statt heutiger Zustand: Lichtsignal, Fahrstreifen, Zone als Vorschlag (27.10.2026)', () => {
+  // heutiges Lichtsignal am Knoten (OSM, 3 m vom Knoten der Einmündung)
+  const OSM_LSA: OsmDaten = { ...OSM, ampeln: [{ id: 99, tags: { highway: 'traffic_signals' }, lat: ll(-40, 3)[0], lon: ll(-40, 3)[1] }] }
+  const { 'q3.lsaKnoten': _l, ...ohneLsa } = OK
+  void _l
+  const mit = (f: Fall) => befundblaetter(rechneFall(OSM_LSA, AV, [], 12, f, null), f, { ...OHNE, geo: { osm: OSM_LSA, av: AV } })[0]
+  it('Lichtsignal nach OSM an der Trottoirüberfahrt: Vorschlag, Q3-M7 offen zum Bestätigen statt «nicht zulässig»', () => {
+    const b = mit(tueFall(ohneLsa))
+    expect(b.gebildet.herkunft.get('q3.lsaKnoten')).toMatchObject({ zustand: 'vorbelegt', quelle: 'vorschlag' })
+    expect(b.gebildet.herkunft.get('q3.lsaKnoten')?.text).toMatch(/: bleibt es mit der Überfahrt bestehen\?$/)
+    expect(b.befund.alle.find(x => x.id === 'Q3-M7')).toMatchObject({ zustand: 'offen', bestaetigen: true, fehlend: ['q3.lsaKnoten'] })
+    const z = zusammenfassungBlatt(b)
+    expect(z.antwort).not.toMatch(/nicht zulässig/)
+    expect(Object.values(zfEingabeBlatt(b).fragen)).toContain('Bitte bestätigen: ja (heutiger Zustand)?')
+  })
+  it('bestätigt bzw. von Hand «ja»: Muss; «nein» in der Zeile des Streifens: kein Verstoss; «automatisch»: wieder Vorschlag', () => {
+    const best = mit(tueFall({ ...ohneLsa }))
+    void best
+    const ja = mit(tueFall({ ...ohneLsa, 'q3.lsaKnoten': true }))
+    expect(ja.befund.alle.find(x => x.id === 'Q3-M7')).toMatchObject({ zustand: 'verletzt', staerke: 'hart' })
+    const f = tueFall(ohneLsa)
+    f.bedarf = handSetzen(f.bedarf, 'q3.lsaKnoten', true, 'bestaetigt')
+    expect(mit(f).befund.alle.find(x => x.id === 'Q3-M7')).toMatchObject({ zustand: 'verletzt', staerke: 'hart' })
+    const nein = mit(tueFall({ ...ohneLsa, 'q3.lsaKnoten': false }))
+    expect(nein.befund.alle.find(x => x.id === 'Q3-M7')).toBeUndefined()
+    expect(nein.befund.erfuellt).toContain('Q3-M7')
+    const auto = tueFall({ ...ohneLsa, 'q3.lsaKnoten': false })
+    auto.bedarf = handSetzen(auto.bedarf, 'q3.lsaKnoten', null, 'hand')
+    expect(mit(auto).gebildet.herkunft.get('q3.lsaKnoten')).toMatchObject({ zustand: 'vorbelegt', quelle: 'vorschlag' })
+  })
+  it('Zeile des Streifens: «Lichtsignal an der Einmündung» zeigt die Vorbelegung bzw. die Handeingabe des Bedarfs', () => {
+    const f = tueFall(ohneLsa)
+    const html = renderToStaticMarkup(<LsaEinmuendung fall={f} blatt={mit(f)} aendern={() => {}} />)
+    expect(html).toContain('Lichtsignal an der Einmündung')
+    expect(html).toContain('automatisch (ja, aus OSM)')
+    const g = tueFall({ ...ohneLsa, 'q3.lsaKnoten': false })
+    expect(renderToStaticMarkup(<LsaEinmuendung fall={g} blatt={mit(g)} aendern={() => {}} />)).toMatch(/<option value="nein" selected="">nein</)
+  })
+  it('ohne Trottoirüberfahrt (Fussgängerstreifen an der Einmündung): Lichtsignal wie bisher aus OSM', () => {
+    const b = mit(tueFall({ innerorts: true, lage: 'einmuendung' }, null))
+    expect(b.gebildet.herkunft.get('q3.lsaKnoten')).toMatchObject({ zustand: 'vorbelegt', quelle: 'osm' })
+  })
+  it('Fahrstreifen und Zone als Vorschlag: Q3-7, Q3-8, Q3-M2 offen zum Bestätigen; als Tatsache bzw. von Hand wie bisher', () => {
+    const e = fall({ typ: 'trottoirueberfahrt', lage: 'einmuendung', q3: { ...Q3_OK, nEinm: 2, nHaupt: 2, zoneEinm: 't30', eingangstor: false, hauptInZone: false } })
+    const q = (vorschlag: boolean) => (p: string) => (vorschlag && ['q3.nEinm', 'q3.nHaupt', 'q3.zoneEinm'].includes(p) ? 'vorschlag' as const : 'osm' as const)
+    const v = beurteile(e, { quelleVon: q(true) }), t = beurteile(e, { quelleVon: q(false) })
+    for (const id of ['Q3-7', 'Q3-8', 'Q3-M2']) {
+      expect(v.alle.find(x => x.id === id), id).toMatchObject({ zustand: 'offen', bestaetigen: true })
+      expect(t.alle.find(x => x.id === id)?.zustand, id).toBe('verletzt')
+    }
+    // ohne Trottoirüberfahrt bleibt die Option an der Einmündung wie bisher (keine Bestätigung verlangt)
+    const fgs = beurteile({ ...e, typ: { wert: 'fgs', quelle: 'hand' } }, { quelleVon: q(true) })
+    expect(fgs.empfehlung.zusatz.join(' ')).toContain('nicht zulässig wegen')
   })
 })

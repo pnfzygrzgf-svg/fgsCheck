@@ -91,15 +91,19 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     // Korrektur M2: ein hartes Verbot, das nur mit Tatsachen gilt, beruht hier auf einer Annahme bzw. Schätzung → offen, bis sie
     // bestätigt ist («Vorschlag bestätigen» macht den Wert zur Handeingabe mit Quelle «bestätigt»)
     let bestaetigen = false
-    if (def.nurMitBestaetigung && r !== 'offen' && r !== null && r.verletzt) {
-      const unbestaetigt = (def.nurMitBestaetigung === true ? def.eingaben : def.nurMitBestaetigung).filter(f => {
+    // Trottoirüberfahrt (27.10.2026): heutiger Zustand nach OSM als «Vorschlag» gilt für die Planung erst bestätigt; die dazu neu
+    // bestätigungspflichtigen Regeln wirken nur bei einer beurteilten Trottoirüberfahrt (an der Einmündung sonst wie bisher)
+    const unbest = (q: Quelle) => QUELLEN_ANNAHME.includes(q) || (q === 'vorschlag' && def.gruppe === 'Q3')
+    const nmb = def.nurMitBestaetigung && (tue || !NUR_TUE_BESTAETIGUNG.includes(id))
+    if (nmb && r !== 'offen' && r !== null && r.verletzt) {
+      const unbestaetigt = (def.nurMitBestaetigung === true ? def.eingaben : def.nurMitBestaetigung!).filter(f => {
         if (f.includes('.')) {
           const [o, u] = f.split('.'), q = opt.quelleVon?.(f) ?? null
           const w = (e[o as keyof BedarfEingaben]?.wert as Record<string, unknown> | null | undefined)?.[u]
-          return w !== null && w !== undefined && q !== null && QUELLEN_ANNAHME.includes(q)
+          return w !== null && w !== undefined && q !== null && unbest(q)
         }
         const x = e[f as keyof BedarfEingaben]
-        return x && x.wert !== null && x.quelle !== null && QUELLEN_ANNAHME.includes(x.quelle)
+        return x && x.wert !== null && x.quelle !== null && unbest(x.quelle)
       })
       if (unbestaetigt.length) {
         r = 'offen'
@@ -298,6 +302,8 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
   }
 }
 
+/** Regeln, die erst an einer beurteilten Trottoirüberfahrt eine Bestätigung verlangen (heutiger Zustand ≠ Planung; 27.10.2026) */
+const NUR_TUE_BESTAETIGUNG: readonly string[] = ['Q3-7', 'Q3-8', 'Q3-M2', 'Q3-M7']
 const Q3_IDS: BefundId[] = ['Q3-1', 'Q3-2', 'Q3-3', 'Q3-5', 'Q3-6', 'Q3-7', 'Q3-8', 'Q3-9', 'Q3-10', 'Q3-11', 'Q3-12',
   'Q3-M1', 'Q3-M2', 'Q3-M3', 'Q3-M4', 'Q3-M5', 'Q3-M6', 'Q3-M7', 'Q3-M8', 'Q3-M9', 'Q3-M10', 'Q3-B']
 /** beurteilte Trottoirüberfahrt: Reihenfolge der Prüfliste (VSS 40 242 Tab. 1 und 2, dann Bern); an der Einmündung sonst Q3_IDS */

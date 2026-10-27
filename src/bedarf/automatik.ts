@@ -419,7 +419,9 @@ export function automatik(x: AutoEingang): void {
       const dA = ampeln.map(a => dist(ll2p(a), k.p)).sort((a, b) => a - b)[0] ?? Infinity
       if (dA <= AUTO.knotenLsaJaM + 1e-9) {
         setze('knotenLsa', true, 'osm', `Lichtsignal ${ganz(dA)} m vom Knoten (OSM)${tag('highway=traffic_signals')}`)
-        setze('q3.lsaKnoten', true, 'osm', `Lichtsignal ${ganz(dA)} m vom Knoten (OSM)`)
+        // Trottoirüberfahrt (27.10.2026): das Lichtsignal ist der heutige Zustand; die Planung hebt es in der Regel auf → Vorschlag
+        if (st.some(s => s.trottoirueberfahrt)) setze('q3.lsaKnoten', true, 'vorschlag', `Lichtsignal ${ganz(dA)} m vom Knoten (OSM): bleibt es mit der Überfahrt bestehen?`)
+        else setze('q3.lsaKnoten', true, 'osm', `Lichtsignal ${ganz(dA)} m vom Knoten (OSM)`)
       } else if (dA > AUTO.knotenLsaNeinM) {
         setze('knotenLsa', false, 'annahme', `kein Lichtsignal in OSM innerhalb ${AUTO.knotenLsaNeinM} m vom Knoten (OSM oft unvollständig)`)
         setze('q3.lsaKnoten', false, 'annahme', `kein Lichtsignal in OSM innerhalb ${AUTO.knotenLsaNeinM} m vom Knoten`)
@@ -676,8 +678,10 @@ export function automatik(x: AutoEingang): void {
   const ksFs = st.map(s => s.knotensicht).map(k => (k && !('fehler' in k) ? k.fahrstreifen : undefined)).find(x => !!x)
   if (ksFs) {
     const fs = (x: KsFahrstreifen, wer: string) => `${wer} ${x.strasse}: ${x.n} je Richtung ${x.quelle === 'osm' ? `(OSM ${x.tag})` : '(ohne OSM-Angabe angenommen)'}`
-    setze('q3.nEinm', ksFs.seite.n, ksFs.seite.quelle, fs(ksFs.seite, 'Seitenstrasse'))
-    if (ksFs.haupt) setze('q3.nHaupt', ksFs.haupt.n, ksFs.haupt.quelle, fs(ksFs.haupt, 'Hauptstrasse'))
+    // mehr als ein Fahrstreifen nach OSM ist der heutige Zustand: als Vorschlag, gilt für die Planung erst bestätigt (27.10.2026)
+    const q = (x: KsFahrstreifen): Quelle => (x.quelle === 'osm' && x.n > 1 ? 'vorschlag' : x.quelle)
+    setze('q3.nEinm', ksFs.seite.n, q(ksFs.seite), fs(ksFs.seite, 'Seitenstrasse'))
+    if (ksFs.haupt) setze('q3.nHaupt', ksFs.haupt.n, q(ksFs.haupt), fs(ksFs.haupt, 'Hauptstrasse'))
   } else if (nR && ueberSeite) setze('q3.nEinm', Math.max(...nR), w.nRichtung!.quelle, `wie Fahrstreifen je Richtung (${w.nRichtung!.text})`)
   if (dtv !== undefined && ueberSeite) {
     setze('q3.dtvEinm', dtv, w.dtv!.quelle, `wie DTV (${w.dtv!.text})`)
@@ -685,7 +689,12 @@ export function automatik(x: AutoEingang): void {
     setze('q3.mivEinmHoch', hoch, 'annahme', `DTV ${ganz(dtv)} ${hoch ? 'ab' : 'unter'} ${ganz(AUTO.mivEinmHoch)}: ${hoch ? 'viel' : 'wenig'} Verkehr angenommen`)
   }
   const tr = w.tempoRegime
-  if (tr && ueberSeite) setze('q3.zoneEinm', tr.wert === 't30_zone' ? 't30' : tr.wert === 'begegnungszone' ? 'bgz' : 'keine', tr.quelle, `wie Strecke oder Zone (${tr.text})`)
+  if (tr && ueberSeite) {
+    const z = tr.wert === 't30_zone' ? 't30' : tr.wert === 'begegnungszone' ? 'bgz' : 'keine'
+    // Trottoirüberfahrt: eine Zone aus den Daten ist der heutige Zustand (die Planung kann ein Eingangstor setzen) → Vorschlag (27.10.2026)
+    const vorschlag = z !== 'keine' && st.some(s => s.trottoirueberfahrt) && !['hand', 'bestaetigt'].includes(tr.quelle)
+    setze('q3.zoneEinm', z, vorschlag ? 'vorschlag' : tr.quelle, `wie Strecke oder Zone (${tr.text})${vorschlag ? ': gilt sie auch mit der Überfahrt?' : ''}`)
+  }
 }
 
 /** Art eines Vortrittszeichens: highway=give_way|stop bzw. Signal CH:3.02 (Kein Vortritt) / CH:3.01 (Stop) in traffic_sign */

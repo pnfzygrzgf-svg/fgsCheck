@@ -36,7 +36,7 @@ import { ZUSTAND_ANZEIGE, annahmenJePunkt, eintragSatz, fragenFelder, grundKopf,
 import { HAND_QUELLEN, QUELLE_TEXT, gleicherWert, handSetzen, handPruefen, ebeneSetzen, type BedarfEbenen, type Herkunft } from './bedarf/fallBedarf'
 import type { BefundBlatt } from './bedarf/befundblatt'
 import type { Ebene, Eintrag } from './bedarf/typen'
-import { QUELLEN_ANNAHME, type Quelle } from './bedarf/eingaben'
+import { QUELLEN_ANNAHME, QUELLEN_BESTAETIGBAR, type Quelle } from './bedarf/eingaben'
 import { mitTiteln, regelName, regelTitel } from './bedarf/regelname'
 import { EBENE_WORT, LEGENDE, THEMEN, gruppeVonThema, mitEinheit, pruefUebersicht, themaName, verbindlichkeitVon } from './bedarf/themen'
 import { BLOCK_GRUENDE, hatInhalt, themaGliederung, themenAnsicht, type ThemaFrage, type ThemaTeil, type ThemenAnsicht } from './bedarf/themenansicht'
@@ -279,7 +279,7 @@ function HerkunftZelle({ d, h, quelle, zurueck, offen, hinweis, bestaetigen }: {
     <span className="quelle-chip hand">von Hand</span>{' '}{zurueckKnopf}
   </>
   if (h.zustand === 'vorbelegt') return <><span className={`quelle-chip q-${h.quelle}`} title={`${d.name}: ${tooltipText(h.text)}`}>{QUELLE_TEXT[h.quelle!]}</span>
-    {bestaetigen && h.vorbelegt && QUELLEN_ANNAHME.includes(h.quelle!) && <>{' '}<button type="button" className="zweit klein"
+    {bestaetigen && h.vorbelegt && QUELLEN_BESTAETIGBAR.includes(h.quelle!) && <>{' '}<button type="button" className="zweit klein"
       title={`Annahme übernehmen: ${tooltipText(h.text)} (wird Handeingabe «bestätigt»; ein Verbot, das auf ihr beruht, gilt dann)`}
       aria-label={`${d.name}: Vorschlag bestätigen`} onClick={bestaetigen}>Vorschlag bestätigen</button></>}
     {!(d.art.art === 'bool' || d.art.art === 'wahl') && <>{' '}<button type="button" className="zweit klein"
@@ -941,7 +941,7 @@ function frageText(f: ThemaFrage, blaetter: readonly BefundBlatt[]): string {
 function themaFrageZeile(f: ThemaFrage, blaetter: readonly BefundBlatt[], eingabe: ErwEingabe): FrageZeile {
   const ziel = f.eingabe ? f.ziel! : f.feld
   const b0 = blaetter[0], h = b0.gebildet.herkunft.get(ziel)
-  const best = f.bestaetigen && h?.zustand === 'vorbelegt' && !!h.quelle && QUELLEN_ANNAHME.includes(h.quelle)
+  const best = f.bestaetigen && h?.zustand === 'vorbelegt' && !!h.quelle && QUELLEN_BESTAETIGBAR.includes(h.quelle)
   return { ziel, art: !f.eingabe ? 'text' : best ? 'bestaetigen' : 'eingabe', frage: frageText(f, blaetter), nach: <Fuer regeln={f.regeln} />,
     ...(f.eingabe ? { id: feldZeileId(ziel), hilfe: { kontexte: eingabe.kontexte, hinweis: b0.vorbelegt.feldHinweise?.[ziel] },
       bedarf: feldBedarfText(eingabe.bedarf.get(ziel)) ?? undefined } : {}) }

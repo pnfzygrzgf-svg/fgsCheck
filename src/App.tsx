@@ -45,6 +45,7 @@ import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type Pl
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
   streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, type StreifenQuerung } from './fall'
 import { tueMasse, type KsPhase } from './tue/karte'
+import { LsaEinmuendung } from './tue/LsaEinmuendung'
 import { handSetzen } from './bedarf/fallBedarf'
 import { FARBE_HERAN, FARBE_WARTEND, FARBE_WARTEND_TROTTOIR } from './fahrzeuge'
 import { inFeldSchreiben, inMetern, istZahlenfeld, messKlick, messLaenge, messPunkt, messText, messWert, type Messung } from './messen'
@@ -2489,10 +2490,11 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
         {s.querung && <span className="klein"> (ohne Vortritt)</span>}
       </h2>
       <div className="klein zeile">
+        {s.trottoirueberfahrt ? <LsaEinmuendung fall={fall} blatt={blatt} aendern={aendern} /> : <>
         Lichtsignal: <select value={se.lsa ?? ''} onChange={e => setzeS({ lsa: (e.target.value || undefined) as 'ja' | 'nein' | undefined })}>
           <option value="">automatisch ({s.lsa === 'ja' ? 'ja' : 'nein'}{s.lsa === 'ja' && s.lsaQuelle !== 'von Hand' ? ', aus OSM' : ''})</option>
           <option value="ja">ja (von Hand)</option><option value="nein">nein (von Hand)</option>
-        </select>
+        </select></>}
         {' '}<label title={'Kein Fussgängerstreifen: Streifen nicht prüfen (Bestand ohne Markierung). Für eine geplante bzw. bestehende ' +
           'Querung ohne Vortritt stattdessen unten «Querung» wählen: sie wird mit der Sichtweite nach VSS 40 240 Z. 8.2 geprüft.'}>
           <input type="checkbox" checked={!!se.keinFgs} onChange={e => setzeS({ keinFgs: e.target.checked, typ: e.target.checked ? undefined : se.typ })} /> kein FGS</label>

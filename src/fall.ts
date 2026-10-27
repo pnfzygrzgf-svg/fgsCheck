@@ -389,7 +389,8 @@ export function vonHandAusFall(fall: Fall): VonHand {
   return {
     spur: (fid, kennung) => z(fid, kennung)?.spur ?? null,
     streichen: (fid, kennung) => !!z(fid, kennung)?.streichen,
-    lsa: fid => fall.streifen[fid]?.lsa ?? null,
+    // Trottoirüberfahrt: kein Lichtsignal der Querung selbst (das an der Einmündung steht im Bedarf, 27.10.2026)
+    lsa: fid => (istTrottoirueberfahrt(fall, fid) ? null : fall.streifen[fid]?.lsa ?? null),
     // Trottoirüberfahrt: gerechnet wie ein Fussgängerstreifen, rechneFall legt die Zufahrten nur für die Vorbelegung ab
     keinFgs: fid => !!fall.streifen[fid]?.keinFgs,
     tempoKennung: (fid, kennung) => z(fid, kennung)?.tempo ?? null,
