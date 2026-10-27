@@ -16,9 +16,12 @@ import { KnotensichtBericht, KnotensichtBlock } from './KnotensichtBlock'
 import { BedarfAbschnitt } from '../BedarfPanel'
 import { TUE_NUR_EINMUENDUNG } from '../texte'
 import { kurzHinweis, KS_EINBAHN, KS_EINBAHN_VELO } from './kurztexte'
-import { tueFlaeche, tueMasse } from './karte'
+import { augePlausibel, augenNachVerschieben, tueFlaeche, tueMasse } from './karte'
+import { streifenTitel } from '../benennung'
+import { KS_DURCHGEHEND } from './kurztexte'
 import { tueFahrzeuge } from '../fahrzeuge'
 import { breiteVorbelegung, knotensichtGueltig, wartezeitSchaetzen } from './texte'
+import { fahrbahnOeffnung } from '../bedarf/vorbelegung'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number) => wgs(O[0] + x, O[1] + y)
@@ -474,12 +477,27 @@ describe('Knotensicht: Winkel, Breite, Länge des überfahrbaren Rands und Warte
     expect(breiteVorbelegung({ ...k0, breite: 2.6, breiteQuelle: 'av_quer' })).toMatchObject({ wert: 2.6, quelle: 'rechnung' })
     expect(breiteVorbelegung({ ...k0, breiteQuelle: 'eingabe' })).toBeNull()
   })
-  it('Länge des überfahrbaren Rands: Länge der gezeichneten Streifenachse (Rechnung)', () => {
-    expect(w['q3.ueberfahrbarM']).toMatchObject({ wert: 8, quelle: 'rechnung' })
-    expect(w['q3.ueberfahrbarM']!.text).toBe('Länge des gezeichneten Streifens entlang der Hauptstrasse, 8,0 m; mit Flächen (Plan) als neue ' +
-      'Trottoirränder den Streifen neu zeichnen')
-    const lang = blatt(fallTue(() => {}, lv(-46, -8), lv(-33.5, -8))).vorbelegt.werte['q3.ueberfahrbarM']
-    expect(lang?.wert).toBe(12.5)
+  it('Länge des überfahrbaren Rands: Fahrbahnöffnung an der Bordkante (AV mit Flächen (Plan)); ohne AV keine Vorbelegung', () => {
+    // Mündung des Querwegs in der AV: x = -43 bis -37 (6 m)
+    const mitAv = blatt(fallTue(), { av: avParsen(avRoh()) }).vorbelegt
+    expect(mitAv.werte['q3.ueberfahrbarM']).toMatchObject({ wert: 6, quelle: 'rechnung',
+      text: 'Fahrbahnöffnung an der Bordkante der Hauptstrasse: 6,0 m (AV mit Flächen (Plan))' })
+    expect(w['q3.ueberfahrbarM']).toBeUndefined()
+    // breite Mündung (20 m) und Streifen 24 m: 20 m; Plan-Trottoir über 10 m der Mündung: 10 m
+    const breit = (): GeoJson => ({ features: [
+      flaeche('Strasse_Weg', [lv(-300, -4), lv(-50, -4), lv(-50, -200), lv(-30, -200), lv(-30, -4), lv(300, -4), lv(300, 4), lv(-300, 4)]),
+      flaeche('Trottoir', rechteck(-300, 4, 300, 7)), flaeche('Trottoir', rechteck(-300, -7, -50, -4)), flaeche('Trottoir', rechteck(-30, -7, 300, -4))] })
+    const b = (plan: boolean) => {
+      const f = fallTue(x => { if (plan) x.flaechenPlan = [{ id: 'plan-1', art: 'trottoir', ring: rechteck(-50.5, -12, -40, -4) }] }, lv(-52, -9), lv(-28, -9))
+      return befundblaetter(rechnen(f, {}, breit()), f, { vorgabe: { bern: false, kantonBE: false }, geo: { av: avParsen(breit()) } })[0].vorbelegt.werte['q3.ueberfahrbarM']
+    }
+    expect(b(false)?.wert).toBe(20)
+    expect(b(true)?.wert).toBe(10)
+  })
+  it('Fahrbahnöffnung: nur Strasse_Weg zählt (Insel bzw. Trottoir auf der Linie nicht); ohne Fahrbahn offen mit Hinweis', () => {
+    const av = avParsen({ features: [flaeche('Strasse_Weg', rechteck(0, 0, 10, 2)), flaeche('Verkehrsinsel', rechteck(4, 0, 6, 2))] })
+    expect(fahrbahnOeffnung([lv(-5, 1), lv(15, 1)], av)).toBeCloseTo(10, 1)
+    expect(fahrbahnOeffnung([lv(-5, 5), lv(15, 5)], av)).toBe(0)
   })
   it('ohne gültige Knotensicht (durchgehende Strasse bzw. Fehler): keine Vorbelegung', () => {
     const k0 = ks(rechnen(fallTue()).streifen[0].knotensicht)
@@ -489,7 +507,7 @@ describe('Knotensicht: Winkel, Breite, Länge des überfahrbaren Rands und Warte
   })
   it('Panel: vorbelegte Angaben sichtbar im Thema (nicht in «Weitere Angaben» eingeklappt), mit Sprungziel', () => {
     const f = fallTue()
-    const html = renderToStaticMarkup(<BedarfAbschnitt fall={f} blaetter={[blatt(f)]} vorgabe={{ bern: false, kantonBE: false }} aendern={() => {}} />)
+    const html = renderToStaticMarkup(<BedarfAbschnitt fall={f} blaetter={[blatt(f, { av: avParsen(avRoh()) })]} vorgabe={{ bern: false, kantonBE: false }} aendern={() => {}} />)
     const vor = html.indexOf('<div class="thema-vorbelegt">'), weitere = html.indexOf('<details class="thema-angaben">', vor)
     expect(vor).toBeGreaterThan(0)
     for (const p of ['q3-winkel', 'q3-breiteM', 'q3-ueberfahrbarM']) {
@@ -519,5 +537,32 @@ describe('Knotensicht: Winkel, Breite, Länge des überfahrbaren Rands und Warte
     const hand = blatt(fallTue(x => { x.bedarf = { felder: { 'q3.wartezeitEinmS': { wert: 40, quelle: 'hand' } } } }),
       { verkehrsdaten: { linien: [haupt, seite], bereich: BEREICH } })
     expect(hand.gebildet.eingaben.q3.wert?.wartezeitEinmS).toBe(40)
+  })
+})
+
+describe('Überfahrt verschieben und benennen (27.10.2026)', () => {
+  const s = { p0: lv(-44, -8), p1: lv(-36, -8) }
+  it('Auge von Hand bleibt, solange es zur verschobenen Überfahrt passt; sonst entfällt es (Phase genannt)', () => {
+    expect(augePlausibel(lv(-38.5, -4), s)).toBe(true)
+    expect(augePlausibel(lv(-60, -4), s)).toBe(false)       // seitlich ausserhalb der Überfahrt
+    expect(augePlausibel(lv(-40, -30), s)).toBe(false)      // zu weit weg
+    const e = { typ: 'trottoirueberfahrt' as const, tueD: lv(-38.5, -4), tueDtrottoir: lv(-38.5, -10) }
+    expect(augenNachVerschieben(e, s)).toEqual({ e, zurueck: [] })
+    const weit = augenNachVerschieben(e, { p0: lv(-90, -8), p1: lv(-82, -8) })
+    expect(weit.zurueck).toEqual(['Fahrbahn', 'Trottoir'])
+    expect(weit.e).toEqual({ typ: 'trottoirueberfahrt' })
+  })
+  it('Name: «Trottoirüberfahrt 1» statt «Streifen 1»; eigener Name bleibt; Fussgängerstreifen unverändert', () => {
+    expect(streifenTitel('hand-1', [], true)).toBe('Trottoirüberfahrt 1')
+    expect(streifenTitel('hand-1')).toBe('Streifen 1')
+    expect(streifenTitel('hand-1', [{ id: 'hand-1', p0: s.p0, p1: s.p1, breite: 4, herkunft: 'gezeichnet', name: 'Mittelstrasse' }], true)).toBe('Mittelstrasse')
+  })
+  it('Bericht und Block der Knotensicht ohne «Streifen» bei der Überfahrt', () => {
+    const f = fallTue()
+    const html = text(renderToStaticMarkup(<KnotensichtBericht ks={{ fehler: 'x', ohneZufahrt: true }} fgsId="hand-1" titel={x => x} />))
+    expect(html).toContain('die Überfahrt quert keine Einmündung'); expect(html).not.toMatch(/Streifen/)
+    const k = ks(rechnen(f).streifen[0].knotensicht)
+    expect(text(renderToStaticMarkup(<KnotensichtBlock ks={{ ...k, durchgehend: true, unklar: [KS_DURCHGEHEND] }} fgsId="hand-1" titel={x => x}
+      lage={null} breiteHand={null} setzeBreite={() => {}} />))).not.toMatch(/Der Streifen/)
   })
 })

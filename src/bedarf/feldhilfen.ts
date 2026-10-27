@@ -506,7 +506,8 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   'q3.randDurchgehend': { was: 'Ja, wenn der Trottoirrand entlang der Hauptstrasse ohne Rücksprung über die Einmündung läuft. Bei ' +
     'Längsparkierung darf er bis zur Parklinie vorgezogen sein (Werkzeug «Vorgezogener Seitenraum»).' },
   'q3.ueberfahrbarM': { was: 'Länge des abgesenkten, überfahrbaren Rands entlang der Hauptstrasse, in Metern.',
-    vorschlag: 'mit gerechneter Knotensicht die Länge des gezeichneten Streifens; für neue Trottoirränder den Streifen mit Flächen (Plan) neu zeichnen.' },
+    vorschlag: 'mit gerechneter Knotensicht die Fahrbahnöffnung an der Bordkante der Hauptstrasse, so weit die Überfahrt reicht (AV mit ' +
+      'Flächen (Plan): eine geplante Trottoirfläche verkürzt sie); ohne Fahrbahn an der Bordkante offen.' },
   'q3.begrenzung': { was: 'Womit der Bereich, den Fahrzeuge befahren dürfen, seitlich abgegrenzt ist.' },
   'q3.erkennbar': { was: 'Ja, wenn Fahrende aus der Seitenstrasse mindestens 10 m vorher sehen, dass sie über ein Trottoir fahren; auch bei ' +
     'Schnee sollte das so bleiben.' },

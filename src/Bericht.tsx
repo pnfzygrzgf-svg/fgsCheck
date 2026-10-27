@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { type Fall, type Fixpunkt, type StreifenHand, type FlaechePlan, PLAN_ARTEN, streifenHerkunftText, ortOhneUebergangText, inselStandard } from './fall'
+import { type Fall, type Fixpunkt, type StreifenHand, type FlaechePlan, PLAN_ARTEN, streifenHerkunftText, ortOhneUebergangText, inselStandard, istTrottoirueberfahrt } from './fall'
 import { planTitel, planFlaecheM2, PLAN_NAME } from './rechner/planflaechen'
 import { standardGeometrie, standardAngepasst } from './rechner/standardinsel'
 import { planStandardText } from './rechner/seitenraum'
@@ -298,14 +298,17 @@ function zufahrtName(r: FallRechnung | null, key: string, namen: Namen, hand: St
   const i = key.indexOf('|'), fid = key.slice(0, i), kennung = key.slice(i + 1)
   const s = r?.streifen.find(x => x.fgsId === fid)
   const z = s?.zufahrten.find(x => x.kennung === kennung), e = s?.entfallen.find(x => x.kennung === kennung)
-  const t = streifenTitel(fid, hand)
+  const t = streifenTitel(fid, hand, !!s?.trottoirueberfahrt)
   return z ? `${t}, ${zufahrtText(namen.get(fid), z.zufahrt)}` : e ? `${t}, ${entfallenText(namen.get(fid), e)}` :
     `${t}, Zufahrt mit Kennung ${kennung} (ohne passende Zufahrt)`
 }
 
 function eingabenListe(fall: Fall, r: FallRechnung | null, namen: Namen): string[] {
   const aus: string[] = [], hand = fall.streifenHand
-  for (const s of fall.streifenHand) aus.push(`${streifenTitel(s.id, hand)}: ${f1(dist(s.p0, s.p1))} m lang, ${f1(s.breite)} m breit, ${streifenHerkunftText(s)}`)
+  // Trottoirüberfahrt (27.10.2026): «Trottoirüberfahrt 1», Achse ohne die Zeichenbreite (Masse aus der Knotensicht)
+  for (const s of fall.streifenHand) aus.push(istTrottoirueberfahrt(fall, s.id)
+    ? `${streifenTitel(s.id, hand, true)}: Achse ${f1(dist(s.p0, s.p1))} m, ${streifenHerkunftText(s)}`
+    : `${streifenTitel(s.id, hand)}: ${f1(dist(s.p0, s.p1))} m lang, ${f1(s.breite)} m breit, ${streifenHerkunftText(s)}`)
   for (const h of fall.hindernisse) aus.push(h.art === 'insel' ? 'Insel von Hand (teilt den Streifen wie eine AV-Verkehrsinsel, ersetzt die Insel nach OSM und Luftbild)' :
     `Hindernis: ${hindernisText(h)}` + ((h.art === 'hecke' || h.art === 'mauer' || h.art === 'uebrige') ?
     (h.sichtbehindernd ? ', sichtbehindernd' : ', nicht sichtbehindernd') : '') + (h.art === 'parkfeld' ? `, Klasse ${h.klasse}` : ''))
@@ -323,7 +326,7 @@ function eingabenListe(fall: Fall, r: FallRechnung | null, namen: Namen): string
     if (e.keinFgs) teile.push('kein FGS')
     if (e.typ === 'trottoirueberfahrt') teile.push('Trottoirüberfahrt')
     else if (e.typ) teile.push(`Querung ohne Vortritt (${e.typ === 'furt' ? 'Furt, Insel ohne Balken' : 'Nase, Einengung bzw. ohne bauliche Massnahme'})`)
-    if (teile.length) aus.push(`${streifenTitel(k, hand)}: ${teile.join(', ')}`)
+    if (teile.length) aus.push(`${streifenTitel(k, hand, istTrottoirueberfahrt(fall, k))}: ${teile.join(', ')}`)
   }
   const verworfen = Object.keys(fall.vorschlaege).length
   if (verworfen) aus.push(`${verworfen} Vorschläge bzw. amtliche Felder verworfen (zählen nicht)`)
@@ -342,7 +345,7 @@ function eingabenListe(fall: Fall, r: FallRechnung | null, namen: Namen): string
 }
 
 function hinweisListe(r: FallRechnung, fall: Fall, luftbildStand: LuftbildStand, ausserhalb: Ausserhalb[], namen: Namen): string[] {
-  const t = (id: string) => streifenTitel(id, fall.streifenHand)
+  const t = (id: string) => streifenTitel(id, fall.streifenHand, istTrottoirueberfahrt(fall, id))
   const aus: string[] = []
   if (r.hinweis) aus.push(r.hinweis)
   // Streifen ausserhalb der Abdeckung: beim Streifen (StreifenTabelle); hier nur die ohne eigenes Ergebnis (jeder Hinweis einmal)
@@ -422,13 +425,14 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen }: { s: S
   namen: ZufahrtNamen | undefined; alle: StreifenErgebnis[]; alleNamen: Map<string, ZufahrtNamen> }) {
   return (
     <section className="bericht-block">
-      <h3>{streifenTitel(s.fgsId, fall.streifenHand)}{s.strasse ? ` – ${s.strasse}` : ''}: {streifenStatus(s)}
+      <h3>{streifenTitel(s.fgsId, fall.streifenHand, !!s.trottoirueberfahrt)}{s.strasse ? ` – ${s.strasse}` : ''}{s.trottoirueberfahrt ? '' : `: ${streifenStatus(s)}`}
         {s.querung ? ' (Querung ohne Vortritt)' : ''}</h3>
-      <p className="klein">Länge {f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m, Breite {f1(s.bw)} m · Zuordnung OSM: {s.netzQuelle} ·
+      <p className="klein">{s.trottoirueberfahrt ? `Achse der Überfahrt ${f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m`
+        : `Länge ${f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m, Breite ${f1(s.bw)} m`} · Zuordnung OSM: {s.netzQuelle} ·
         Bordkanten: {s.randQuelle === 'AV' ? 'AV' : 'angenommen'} · Lichtsignal: {s.lsa === 'ja' ? `ja (${s.lsaQuelle ?? 'OSM'})` : 'nein'}</p>
       {ausserhalb && <p className="klein"><b>Ausserhalb der geladenen Daten:</b> {ausserhalbText(ausserhalb)}</p>}
       {s.keinFgsHinweis && <p className="klein"><b>Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug.</b></p>}
-      {s.trottoirueberfahrt && <KnotensichtBericht ks={s.knotensicht} fgsId={s.fgsId} titel={id => streifenTitel(id, fall.streifenHand)} />}
+      {s.trottoirueberfahrt && <KnotensichtBericht ks={s.knotensicht} fgsId={s.fgsId} titel={id => streifenTitel(id, fall.streifenHand, true)} />}
       {s.markierungHinweis && <p className="klein"><b>Vermutlich Fussgängerstreifen (Markierung in OSM nicht erfasst), bitte prüfen.</b></p>}
       {s.lsa === 'ja' && <p className="klein">Mit Lichtsignal gilt die {LESENAME.AHBE} nicht; die Rechnung wird trotzdem gezeigt.</p>}
       {s.querung && <p className="klein"><b>Querung ohne Vortritt</b> ({s.querung.typ === 'furt' ? 'Furt, Insel ohne Balken' :
@@ -588,7 +592,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
           {rechnung.hinweis && <p><b>{rechnung.hinweis}</b></p>}
           {!rechnung.streifen.length && <p>Kein Streifen gebildet. {rechnung.meldungen.join(' ')}</p>}
           <ul className="bericht-status">
-            {rechnung.streifen.map(s => <li key={s.fgsId}>{streifenTitel(s.fgsId, fall.streifenHand)}{s.strasse ? ` (${s.strasse})` : ''}{s.querung ?
+            {rechnung.streifen.map(s => <li key={s.fgsId}>{streifenTitel(s.fgsId, fall.streifenHand, !!s.trottoirueberfahrt)}{s.strasse ? ` (${s.strasse})` : ''}{s.querung ?
               ' – Querung ohne Vortritt' : ''}: <b>{streifenStatus(s)}</b>
               {' '}– {s.trottoirueberfahrt ? 'Knotensicht mit dem SichtweitenCheck prüfen, Sicht auf die Wartefläche nicht geprüft'
                 : s.status === 'kein_fgs' ? 'von Hand als kein Fussgängerstreifen bezeichnet, Zufahrten nicht ausgewiesen'

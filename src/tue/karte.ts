@@ -45,3 +45,21 @@ export function ksFahrzeugStand(f: { rolle: string; phase?: 'fahrbahn' | 'trotto
   if (f.rolle === 'fb') return f.phase === phase ? 'hervor' : 'blass'
   return phase === 'fahrbahn' ? 'normal' : 'aus'
 }
+
+/** Auge von Hand nach dem Verschieben der Überfahrt noch plausibel: Lot auf die neue Achse innerhalb der Überfahrt und höchstens so weit
+ * davon (27.10.2026) */
+export const AUGE_MAX_ABSTAND_M = 15
+export function augePlausibel(auge: P, s: { p0: P; p1: P }): boolean {
+  const ux = s.p1[0] - s.p0[0], uy = s.p1[1] - s.p0[1], L = Math.hypot(ux, uy)
+  if (!(L > 0)) return false
+  const t = ((auge[0] - s.p0[0]) * ux + (auge[1] - s.p0[1]) * uy) / L
+  const d = Math.abs((auge[0] - s.p0[0]) * uy - (auge[1] - s.p0[1]) * ux) / L
+  return t >= 0 && t <= L && d <= AUGE_MAX_ABSTAND_M
+}
+/** Augen von Hand (tueD, tueDtrottoir) nach dem Verschieben: unplausible entfallen; zurueck: welche Phasen zurückgesetzt wurden */
+export function augenNachVerschieben<E extends { tueD?: P; tueDtrottoir?: P }>(e: E, s: { p0: P; p1: P }): { e: E; zurueck: string[] } {
+  const aus = { ...e }, zurueck: string[] = []
+  if (aus.tueD && !augePlausibel(aus.tueD, s)) { delete aus.tueD; zurueck.push('Fahrbahn') }
+  if (aus.tueDtrottoir && !augePlausibel(aus.tueDtrottoir, s)) { delete aus.tueDtrottoir; zurueck.push('Trottoir') }
+  return { e: aus, zurueck }
+}

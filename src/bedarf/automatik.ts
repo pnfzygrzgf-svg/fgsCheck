@@ -312,7 +312,7 @@ export function automatik(x: AutoEingang): void {
   if (n) {
     if (kreiselD !== null) {
       setze('lage', 'kreisel', 'osm', `Kreisel ${ganz(kreiselD)} m vom Streifen (OSM)${tag('junction=roundabout')}`)
-      setze('q3.kreisel', true, 'osm', 'Kreisel am Streifen (OSM)')
+      setze('q3.kreisel', true, 'osm', st.some(s => s.trottoirueberfahrt) ? 'Kreisel an der Überfahrt (OSM)' : 'Kreisel am Streifen (OSM)')
     } else if (knoten) {
       const k = knoten
       if (x.aus) x.aus.knoten = k.id
@@ -654,7 +654,7 @@ export function automatik(x: AutoEingang): void {
   // Trottoirüberfahrt (27.10.2026): die Knotensicht erkennt einen Streifen quer über die Hauptstrasse → «quert die Hauptstrasse» (Q3-5)
   const ueberHaupt = st.map(s => s.knotensicht).find(k => !!k && 'fehler' in k && !!k.ueberHauptstrasse)
   if (ueberHaupt && 'fehler' in ueberHaupt && ueberHaupt.ueberHauptstrasse)
-    setze('q3.ueber', 'haupt', 'osm', `Streifen quer über die ${ueberHaupt.ueberHauptstrasse.haupt} (OSM, Knotensicht)`)
+    setze('q3.ueber', 'haupt', 'osm', `Überfahrt quer über die ${ueberHaupt.ueberHauptstrasse.haupt} (OSM, Knotensicht)`)
 
   // ── A4 Kopien ──
   if (fb) setze('lsaZeiten.L', fb.wert, fb.quelle, `wie Fahrbahnbreite (${fb.text})`)

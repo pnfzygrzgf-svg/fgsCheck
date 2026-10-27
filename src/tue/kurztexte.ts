@@ -6,7 +6,7 @@
 // Ergebnis unsicher (unklar): dann belegt die Knotensicht die Frage im Bedarf nicht vor.
 
 /** Hinweis «durchgehende Strasse»: die Überfahrt gehört über die einmündende Strasse */
-export const KS_DURCHGEHEND = 'Der Streifen quert die durchgehende Strasse: eine Trottoirüberfahrt gehört über die einmündende Strasse ' +
+export const KS_DURCHGEHEND = 'Die Überfahrt quert die durchgehende Strasse: eine Trottoirüberfahrt gehört über die einmündende Strasse ' +
   '(VSS 40 242 Ziffer 14.2).'
 /** Hinweis: Streifen quer über die Hauptstrasse (27.10.2026) */
 export const ksUeberHaupt = (haupt: string, seite: string): string =>

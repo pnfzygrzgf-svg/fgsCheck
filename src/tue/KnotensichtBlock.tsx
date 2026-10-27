@@ -65,7 +65,7 @@ export function KnotensichtBlock({ ks, fgsId, titel, lage, breiteHand, setzeBrei
   if (!ks) inhalt = <p>wird gerechnet …</p>
   else if ('fehler' in ks && ks.ueberHauptstrasse) inhalt = <p className="warnung">{ks.fehler}</p>
   else if ('fehler' in ks) inhalt = ks.ohneZufahrt
-    ? <p className="warnung">Der Streifen quert keine Einmündung: Trottoirüberfahrten gibt es {TUE_NUR_EINMUENDUNG}.</p>
+    ? <p className="warnung">Die Überfahrt quert keine Einmündung: Trottoirüberfahrten gibt es {TUE_NUR_EINMUENDUNG}.</p>
     : <p className="warnung">Nicht gerechnet: {ks.fehler}</p>
   else if (ks.streifenId && ks.streifenId !== fgsId) inhalt = <p>Gerechnet für die ganze Querung, siehe {titel(ks.streifenId)}.</p>
   else {
@@ -116,7 +116,7 @@ function TempoWahl({ ks, tempoHand, setzeTempo }: { ks: Knotensicht; tempoHand: 
 /** Abschnitt im Bericht (am Streifen mit Trottoirüberfahrt) */
 export function KnotensichtBericht({ ks, fgsId, titel }: { ks: KnotensichtAntwort | undefined; fgsId: string; titel: (id: string) => string }) {
   if (!ks || 'fehler' in ks) return <p className="klein"><b>{KS_TITEL}:</b> nicht gerechnet{ks ? ` – ${'ohneZufahrt' in ks && ks.ohneZufahrt
-    ? `der Streifen quert keine Einmündung; Trottoirüberfahrten gibt es ${TUE_NUR_EINMUENDUNG}` : ks.fehler}` : ''}. Die Sicht auf die
+    ? `die Überfahrt quert keine Einmündung; Trottoirüberfahrten gibt es ${TUE_NUR_EINMUENDUNG}` : ks.fehler}` : ''}. Die Sicht auf die
     Wartefläche gilt hier nicht.</p>
   if (ks.streifenId && ks.streifenId !== fgsId) return <p className="klein"><b>{KS_TITEL}:</b> gerechnet für die ganze Querung, siehe
     {' '}{titel(ks.streifenId)}.</p>

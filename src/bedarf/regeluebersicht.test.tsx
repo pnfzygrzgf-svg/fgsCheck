@@ -69,12 +69,13 @@ describe('Regelübersicht', () => {
     // jede Regel unter jedem ihrer Werke (nach Quelle keine doppelten Anker)
     expect([...quelle.matchAll(/ id="regel-/g)].length).toBe(0)
     expect(nummernOhneTitel(text(thema))).toEqual([])
-    // lesbar (Nutzertest 23.10.2026): keine Bedingungssyntax, jede Regel mit «Prüft:» und «Gilt für:», Felder als Textlinks
+    // lesbar (Nutzertest 23.10.2026): keine Bedingungssyntax, jede Regel mit «Prüft:» und «Gilt für:», Felder mit Knopf «zum Feld»
     expect(text(thema)).not.toMatch(/offen oder| und Mit |: offen\b/)
     expect((thema.match(/<dt>Prüft:<\/dt>/g) ?? []).length).toBe(REGEL_IDS.length)
     expect((thema.match(/<dt>Gilt für:<\/dt>/g) ?? []).length).toBe(REGEL_IDS.length)
     expect(thema).not.toContain('frage-knopf klein')
-    expect(thema).toContain('class="feld-link"')
+    // Felder mit Knopf «zum Feld» (27.10.2026: kleiner Knopf wie «Wert ändern»)
+    expect(thema).toMatch(/<button type="button" class="zweit klein" title="zum Feld springen: Wert ansehen bzw. ändern" aria-label="zum Feld: [^"]+">zum Feld<\/button>/)
     expect(thema.toLowerCase()).not.toContain('zebra')
     expect(text(thema)).toContain(`${new Set(regelGruppen(z, 'thema').filter(g => g.schluessel.startsWith('thema-')).flatMap(g => g.zeilen)).size} Regeln.`)
   })

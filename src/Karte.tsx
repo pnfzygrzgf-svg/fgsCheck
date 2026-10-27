@@ -707,20 +707,25 @@ export default function Karte(props: {
       ebene.addTo(eb.hind)
     }
     for (const s of streifenHand) {
-      L.polyline([ll(s.p0), ll(s.p1)], { color: '#fde047', weight: 3, dashArray: '6 4' })
-        .bindTooltip(`${esc(cb.current.streifenTitel(s.id))} (Streifen von Hand)`)
+      // Trottoirüberfahrt (27.10.2026): in ihrer Randfarbe, «Überfahrt» statt «Streifen»
+      const tue = !!rechnung?.streifen.find(x => x.fgsId === s.id)?.trottoirueberfahrt
+      L.polyline([ll(s.p0), ll(s.p1)], { color: tue ? TUE_RAND : '#fde047', weight: 3, dashArray: '6 4' })
+        .bindTooltip(`${esc(cb.current.streifenTitel(s.id))} (${tue ? 'Überfahrt' : 'Streifen'} von Hand${s.id === bearbeiten ? ', Enden ziehen' : ''})`)
         .addTo(eb.hind)
     }
     // Ecken des bearbeiteten Objekts verschieben
-    const ecken = (id: string, pts: P[]) => pts.forEach((p, i) => {
-      L.marker(ll(p), { draggable: true, icon: L.divIcon({ className: 'ecke', iconSize: [12, 12] }) })
+    // Enden eines Streifens (auch der Trottoirüberfahrt, 27.10.2026) im Pane der Griffe über Fahrzeugen, Sichtdreiecken und der
+    // Überfahrt, damit nichts sie verdeckt
+    const ecken = (id: string, pts: P[], oben = false) => pts.forEach((p, i) => {
+      L.marker(ll(p), { draggable: true, icon: L.divIcon({ className: 'ecke', iconSize: [12, 12] }),
+        ...(oben ? { pane: GRIFF_PANE, zIndexOffset: 1000 } : {}) })
         .on('dragend', (e: L.LeafletEvent) => { const g = (e.target as L.Marker).getLatLng(); cb.current.onEcke(id, i, lv95(g.lat, g.lng)) })
         .addTo(eb.hind)
     })
     const h = hindernisse.find(x => x.id === bearbeiten)
     if (h) ecken(h.id, h.art === 'parkfeld' ? h.ring : h.art === 'baum' ? [h.p] : h.art === 'laengsparkierung' ? h.linie : h.ring ?? h.linie ?? [])
     const sh = streifenHand.find(x => x.id === bearbeiten)
-    if (sh) ecken(sh.id, [sh.p0, sh.p1])
+    if (sh) ecken(sh.id, [sh.p0, sh.p1], true)
     const fp = fixpunkte.find(x => x.id === bearbeiten)
     if (fp) ecken(fp.id, [fp.p])
     const pl = flaechenPlan.find(x => x.id === bearbeiten)

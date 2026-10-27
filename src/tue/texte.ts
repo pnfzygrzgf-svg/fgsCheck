@@ -75,12 +75,14 @@ export function breiteVorbelegung(k: Knotensicht): { wert: number; quelle: 'rech
   }
 }
 
-/** Länge des überfahrbaren Rands als Vorschlag (27.10.2026): Länge der gezeichneten Streifenachse entlang der Hauptstrasse */
+/** Länge des überfahrbaren Rands als Vorschlag (27.10.2026): Fahrbahnöffnung an der Bordkante der Hauptstrasse (AV mit Flächen (Plan),
+ * vorbelegung.fahrbahnOeffnung) */
 export const ueberfahrbarVorbelegung = (laengeM: number): { wert: number; text: string } => {
   const l = Math.round(laengeM * 10) / 10
-  return { wert: l, text: `Länge des gezeichneten Streifens entlang der Hauptstrasse, ${l.toFixed(1).replace('.', ',')} m; mit Flächen (Plan) ` +
-    'als neue Trottoirränder den Streifen neu zeichnen' }
+  return { wert: l, text: `Fahrbahnöffnung an der Bordkante der Hauptstrasse: ${l.toFixed(1).replace('.', ',')} m (AV mit Flächen (Plan))` }
 }
+/** keine Fahrbahn an der Bordkante: Länge offen */
+export const UEBERFAHRBAR_OHNE = 'an der Bordkante der Hauptstrasse keine Fahrbahn gefunden (AV mit Flächen (Plan)): Länge von Hand angeben'
 
 /** Zeitlückenmodell für die Wartezeit beim Ausfahren (27.10.2026): Spitzenstunde 10 % des DTV (beide Richtungen), Grenzzeitlücke tc,
  * Folgezeitlücke tf */

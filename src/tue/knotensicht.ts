@@ -203,7 +203,7 @@ const HERKUNFT_WORT: Record<KsTempoHerkunft, string> = { hand: 'von Hand', geopo
 export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number; zufahrt: string } | null): KnotensichtAntwort {
   const kx = d.kx ?? kontextBauen(d.osm, d.av)
   const z = z0 ?? zufahrtFinden(kx, s)
-  if (!z) return { fehler: `kein Knoten mit gequerter Einmündung bis ${KNOTEN_M} m vom Streifen (OSM)`, ohneZufahrt: true }
+  if (!z) return { fehler: `kein Knoten mit gequerter Einmündung bis ${KNOTEN_M} m von der Überfahrt (OSM)`, ohneZufahrt: true }
   const kp = kx.netz.p(z.knoten)
   // Streifen quer über die Hauptstrasse (27.10.2026): die Achse zwischen den Enden schneidet einen anderen Arm des Knotens; dann gehört
   // die Überfahrt quer über die Seitenstrasse, die Knotensicht entfällt
@@ -383,10 +383,10 @@ export function knotensichtAnfuegen(r: { streifen: StreifenErgebnis[] }, roh: { 
         const se = best ? fall.streifen[best.s.fgsId] : undefined
         ks = best ? knotensichtTue(d, { fgsId: best.s.fgsId, p0: best.s.p0, p1: best.s.p1, rand: best.s.rand, breite, tempoHand,
           dHand: se?.tueD ?? null, dTrottoirHand: se?.tueDtrottoir ?? null }, best.z)
-          : { fehler: `kein Knoten mit gequerter Einmündung bis ${KNOTEN_M} m vom Streifen (OSM)`, ohneZufahrt: true }
+          : { fehler: `kein Knoten mit gequerter Einmündung bis ${KNOTEN_M} m von der Überfahrt (OSM)`, ohneZufahrt: true }
         // Teile queren verschiedene Einmündungen: gerechnet wird die nächste, mit Hinweis
         if (!('fehler' in ks) && new Set(kand.map(x => `${x.z!.knoten}|${x.z!.zufahrt}`)).size > 1)
-          ks.hinweise.unshift(`Die Teilstreifen queren verschiedene Einmündungen: gerechnet für ${ks.zufahrtName} (am nächsten beim Streifen).`)
+          ks.hinweise.unshift(`Die Teile der Überfahrt queren verschiedene Einmündungen: gerechnet für ${ks.zufahrtName} (am nächsten bei der Überfahrt).`)
       } catch (e) { ks = fehler(e) }
       for (const s of teile) s.knotensicht = ks
     }

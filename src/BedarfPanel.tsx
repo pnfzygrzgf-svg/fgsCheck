@@ -796,16 +796,16 @@ function RegelNr({ id, druck = false }: { id: string; druck?: boolean }) {
   return <a href={`#${regelAnker(id)}`} className="werk-link" title="in der Regelübersicht"
     onClick={e => { e.preventDefault(); e.stopPropagation(); regelZeigen(id) }}>({id})</a>
 }
-/** «ändern» hinter dem Verweis auf die Regelübersicht (27.10.2026): springt zur Eingabe des Werts, auf dem der Befund beruht (nur
- * Felder mit Wert, nicht im Bericht); mehrere Felder je mit Namen */
+/** Knopf «Wert ändern» am Ende der Befundzeile (27.10.2026): springt zur Eingabe des Werts, auf dem der Befund beruht (nur Felder mit
+ * Wert, nicht im Bericht); bei mehreren Feldern je ein Knopf mit dem Namen */
 function Aendern({ id, druck = false }: { id: string; druck?: boolean }) {
   const sprung = useContext(FeldSprung), hatWert = useContext(WertFeld)
   if (druck || !sprung || !hatWert) return null
   const fs = aenderFelder(id, hatWert)
   if (!fs.length) return null
-  const link = (p: string, text: string) => <a key={p} href={`#${feldZeileId(p)}`} className="werk-link" title={`${feldName(p)} ändern (zum Feld)`}
-    onClick={e => { e.preventDefault(); e.stopPropagation(); sprung(p) }}>{text}</a>
-  return <> · {fs.length === 1 ? link(fs[0], 'ändern') : <>ändern: {fs.map((p, i) => <Fragment key={p}>{i ? ', ' : ''}{link(p, feldName(p))}</Fragment>)}</>}</>
+  return <span className="wert-aendern">{fs.map(p => <Fragment key={p}>{' '}<button type="button" className="zweit klein" title={`${feldName(p)}: zum Feld`}
+    aria-label={`${feldName(p)} ändern`} onClick={e => { e.preventDefault(); e.stopPropagation(); sprung(p) }}>
+    {fs.length === 1 ? 'Wert ändern' : `Wert ändern: ${feldName(p)}`}</button></Fragment>)}</span>
 }
 /** kleiner Verweis «in der Regelübersicht» hinter der Fundstelle (nicht im Bericht) */
 function InUebersicht({ id, druck = false }: { id: string; druck?: boolean }) {
@@ -923,9 +923,9 @@ function EintragZeile({ x, druck, mitDetail, begriffe }: { x: Eintrag; druck: bo
     {offen ? <>{x.fehlend?.length ? <Fragen felder={x.fehlend} regel={x.id} /> : 'Angabe fehlt'}{istSoll(x) ? ` (${T(istSoll(x))})` : ''}</> : T(eintragSatz(x))}
     {mitDetail && x.detail ? <> ({T(x.detail)})</> : null}</>
   const det = <span className="klein">{regelTitel(x.id)} <RegelNr id={x.id} druck={druck} /> · <QuelleMitVerweis id={x.id} quelle={x.quelle} druck={druck} />
-    <InUebersicht id={x.id} druck={druck} />{!offen && <Aendern id={x.id} druck={druck} />}
+    <InUebersicht id={x.id} druck={druck} />
     {x.detail && !mitDetail ? <> · {T(x.detail)}</> : null}{x.normHinweis ? <> · <VerweisText text={T(x.normHinweis)} druck={druck} /></> : null}
-    {!druck && <BegriffVerweise texte={eintragTexte(x)} nur={begriffe} />}</span>
+    {!druck && <BegriffVerweise texte={eintragTexte(x)} nur={begriffe} />}{!offen && <Aendern id={x.id} druck={druck} />}</span>
   if (druck) return <li className={kl}>{zeile}<div>{det}</div></li>
   return <li className={kl}><details className="eintrag-details"><summary>{zeile}</summary>{det}</details></li>
 }

@@ -65,12 +65,13 @@ export function zufahrtAzimut(z: { richtung: number; art?: string; knotenM?: num
 /** Herkunft einer Zufahrt in 16 Teilen (Tooltip), aus der Fahrlinie (zufahrtAzimut) */
 export const zufahrtHerkunft16 = (z: Parameters<typeof zufahrtAzimut>[0], breite = 0) => R16[teil(zufahrtAzimut(z, breite), 16)]
 
-/** Anzeigename eines Streifens: eigener Name eines Streifens von Hand, sonst «Streifen 1» bzw. «Streifen <Nr.>» */
-export function streifenTitel(fgsId: string, hand: StreifenHand[] = []): string {
+/** Anzeigename eines Streifens: eigener Name eines Streifens von Hand, sonst «Streifen 1» bzw. «Streifen <Nr.>»; Trottoirüberfahrt
+ * (tue, 27.10.2026): «Trottoirüberfahrt 1» (die Kennung bleibt) */
+export function streifenTitel(fgsId: string, hand: StreifenHand[] = [], tue = false): string {
   const name = hand.find(x => x.id === fgsId)?.name?.trim()
   if (name) return name
   const m = /^hand-(\d+)$/.exec(fgsId)
-  return `Streifen ${m ? m[1] : fgsId}`
+  return `${tue ? 'Trottoirüberfahrt' : 'Streifen'} ${m ? m[1] : fgsId}`
 }
 /** Kurzform für Beschriftungen im Bild (mehrere Streifen): Name bzw. Nummer */
 export function streifenKurz(fgsId: string, hand: StreifenHand[] = []): string {

@@ -44,7 +44,7 @@ import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type Pl
   ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, streifenHandTeilen, teilungZuruecknehmbar,
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
   streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, type StreifenQuerung } from './fall'
-import { tueMasse, type KsPhase } from './tue/karte'
+import { augenNachVerschieben, tueMasse, type KsPhase } from './tue/karte'
 import { LsaEinmuendung } from './tue/LsaEinmuendung'
 import { handSetzen } from './bedarf/fallBedarf'
 import { FARBE_HERAN, FARBE_WARTEND, FARBE_WARTEND_TROTTOIR } from './fahrzeuge'
@@ -1361,6 +1361,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const g = fangen(p, av ?? [], fangRadius())
     // Ecke einer Fläche (Plan): auf AV bzw. andere Plan-Flächen fangen (ohne AV: wie geklickt)
     const pp = fall?.flaechenPlan?.some(x => x.id === id) ? planFangen(p, id) : p
+    // Trottoirüberfahrt (27.10.2026): Ende fängt auf die AV wie beim Zeichnen; Augen von Hand bleiben nur, wenn sie zur verschobenen
+    // Überfahrt noch passen (sonst wieder gerechnet, mit Meldung)
+    const s0 = fall?.streifenHand.find(x => x.id === id)
+    const tue = !!fall && !!s0 && istTrottoirueberfahrt(fall, id)
+    const q = tue ? fangen(p, av ?? [], fangRadius()).p : p
+    const augen = tue && s0 && fall?.streifen[id] ? augenNachVerschieben(fall.streifen[id], i === 0 ? { p0: q, p1: s0.p1 } : { p0: s0.p0, p1: q }) : null
     aendern(f => {
     const fp = f.fixpunkte?.find(x => x.id === id)
     if (fp) { fp.p = g.p; fp.art = g.art; if (g.avArt) fp.avArt = g.avArt; else delete fp.avArt; return f }
@@ -1382,9 +1388,15 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       if (h.quelle !== 'hand' && !(h.name ?? '').endsWith(' (angepasst)')) h.name = (h.name ?? '') + ' (angepasst)'
     }
     const s = f.streifenHand.find(x => x.id === id)
-    if (s) { if (i === 0) s.p0 = p; else s.p1 = p; s.angepasst = true }
+    if (s) {
+      if (i === 0) s.p0 = q; else s.p1 = q
+      s.angepasst = true
+      if (augen && f.streifen[id]) f.streifen[id] = augen.e
+    }
     return f
-  }) }, [aendern, av, fall])
+  })
+  if (augen?.zurueck.length) setMeldung(`Überfahrt verschoben: Auge von Hand (Phase ${augen.zurueck.join(' und ')}) passt nicht mehr und ist wieder gerechnet.`)
+  }, [aendern, av, fall])
   // nach dem Laden: die beim Laden verschobenen Fixpunkte fangen
   useEffect(() => {
     if (!av || !fangOffen.current.size) return
@@ -1610,7 +1622,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const zNamen = useMemo(() => new Map((rechnung?.streifen ?? []).map(s => [s.fgsId, zufahrtNamen(s, w => osmWegNamen.get(w) ?? null)])),
     [rechnung, osmWegNamen])
   const handListe = fall?.streifenHand
-  const titel = useCallback((id: string) => streifenTitel(id, handListe ?? []), [handListe])
+  // Trottoirüberfahrt (27.10.2026): «Trottoirüberfahrt 1» statt «Streifen 1»
+  const streifenWahl = fall?.streifen
+  const titel = useCallback((id: string) => streifenTitel(id, handListe ?? [], streifenWahl?.[id]?.typ === 'trottoirueberfahrt' && !streifenWahl[id]?.keinFgs),
+    [handListe, streifenWahl])
   // Bedarfsmodul E1: Ebenen nach dem Ort (BFS bzw. Kanton der AV-Fläche an der Streifenmitte, sonst aller geladenen AV-Flächen)
   const bedarfVorgabe = useMemo(() => {
     const m = rechnung?.streifen[0]?.m
@@ -1962,14 +1977,17 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             anzahl={geplantZahl} offen={geplantOffen} setOffen={setGeplantOffen} geplant={<>
             {fall.streifenHand.length > 0 && (
               <>
-                <h3>Streifen von Hand (ersetzen den Streifen aus OSM)</h3>
+                <h3>{fall.streifenHand.every(s => istTrottoirueberfahrt(fall, s.id)) ? 'Trottoirüberfahrten von Hand'
+                  : fall.streifenHand.some(s => istTrottoirueberfahrt(fall, s.id)) ? 'Streifen und Trottoirüberfahrten von Hand (ersetzen den Streifen aus OSM)'
+                  : 'Streifen von Hand (ersetzen den Streifen aus OSM)'}</h3>
                 <ul className="liste">
                   {fall.streifenHand.map(s => (
                     <li key={s.id}>
                       <span className="farbe" style={{ background: '#fde047' }} />
                       {/* Name: erst beim Verlassen bzw. Enter übernommen (TextFeld), sonst rechnete jeder Tastendruck neu */}
-                      <TextFeld wert={s.name ?? ''} max={STREIFEN_NAME_MAX} platzhalter={streifenTitel(s.id)} titel={'Name des Streifens ' +
-                        '(erscheint in Panel, Karte und Bericht statt «' + streifenTitel(s.id) + '»); leer: Nummer. Enter bzw. Feld verlassen übernimmt'}
+                      <TextFeld wert={s.name ?? ''} max={STREIFEN_NAME_MAX} platzhalter={streifenTitel(s.id, [], istTrottoirueberfahrt(fall, s.id))}
+                        titel={`Name ${istTrottoirueberfahrt(fall, s.id) ? 'der Überfahrt' : 'des Streifens'} ` +
+                        '(erscheint in Panel, Karte und Bericht statt «' + streifenTitel(s.id, [], istTrottoirueberfahrt(fall, s.id)) + '»); leer: Nummer. Enter bzw. Feld verlassen übernimmt'}
                         setze={t => aendern(f => { const y = f.streifenHand.find(z => z.id === s.id); if (y) { if (t) y.name = t; else delete y.name } return f })} />
                       : {f1(dist(s.p0, s.p1))} m lang,{' '}
                       {/* Breite (Balkenlänge) änderbar; setzt «angepasst» nicht: das beschreibt verschobene Enden, die Breite steht
@@ -1981,7 +1999,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                         aendern(f => { const y = f.streifenHand.find(z => z.id === s.id); if (y) y.breite = x; return f })
                       }} /> m breit, </>}{streifenHerkunftText(s)}
                       <span className="aktionen">
-                        <button className="zweit klein" title="Enden auf der Karte verschieben" onClick={() => setBearbeiten(b => (b === s.id ? null : s.id))}>
+                        <button className="zweit klein" title={istTrottoirueberfahrt(fall, s.id) ? 'Überfahrt verschieben: Enden auf der Karte ziehen (fangen auf die AV)'
+                          : 'Enden auf der Karte verschieben'} onClick={() => setBearbeiten(b => (b === s.id ? null : s.id))}>
                           {bearbeiten === s.id ? 'fertig' : 'verschieben'}</button>
                         <button className="zweit klein" onClick={() => aendern(f => { f.streifenHand = f.streifenHand.filter(x => x.id !== s.id); return f })}>löschen</button>
                       </span>
@@ -2491,7 +2510,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
     <section className="streifen">
       <h2>
         <span className="farbe" style={{ background: STATUS_FARBE[s.status] ?? '#64748b' }} />
-        {streifenTitel(s.fgsId, fall.streifenHand)} {s.strasse && <>– {s.strasse}</>}: {streifenStatus(s)}
+        {streifenTitel(s.fgsId, fall.streifenHand, !!s.trottoirueberfahrt)} {s.strasse && <>– {s.strasse}</>}{s.trottoirueberfahrt ? null : <>: {streifenStatus(s)}</>}
         {s.querung && <span className="klein"> (ohne Vortritt)</span>}
       </h2>
       <div className="klein zeile">
@@ -2516,7 +2535,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           <option value="trottoirueberfahrt">{TUE_OPTION}{nichtEinmuendung ? ` – ${TUE_NUR_EINMUENDUNG}` : ''}</option>
         </select>
       </div>
-      {s.trottoirueberfahrt && <KnotensichtBlock ks={s.knotensicht} fgsId={s.fgsId} titel={id => streifenTitel(id, fall.streifenHand)}
+      {s.trottoirueberfahrt && <KnotensichtBlock ks={s.knotensicht} fgsId={s.fgsId} titel={id => streifenTitel(id, fall.streifenHand, true)}
         lage={nichtEinmuendung ? lage : null}
         breiteHand={tueBreiteHand(fall)} setzeBreite={m => aendern(f => {
           const felder = { ...(f.bedarf?.felder ?? {}) }
@@ -2542,9 +2561,10 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
       {s.querung && <p className="klein">Querung ohne Vortritt: Sichtweite nach <VerweisText text="VSS 40 240" />, Ziffer 8.2, max(v · L / 1,2 m/s; Anhaltesichtweite) mit
         L = {f1(s.querung.L)} m{s.querung.ganzeFahrbahn ? ' (Insel nur markiert: ganze Fahrbahn)' : ''}; kein Fussgängerstreifen.</p>}
       <p className="klein">Zuordnung OSM: {s.netzQuelle} · Bordkanten: {s.randQuelle === 'AV' ? 'AV' : 'angenommen'} ·
-        Länge {f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m, Breite {f1(s.bw)} m</p>
+        {s.trottoirueberfahrt ? <>Achse der Überfahrt {f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m (Masse der Überfahrt: Knotensicht)</>
+          : <>Länge {f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m, Breite {f1(s.bw)} m</>}</p>
       {ausserhalb && <p className="klein warnung"><b>Ausserhalb der geladenen Daten:</b> {ausserhalbText(ausserhalb)}{' '}
-        <button className="zweit klein" onClick={neuLaden}>um {streifenTitel(s.fgsId, fall.streifenHand)} neu laden</button></p>}
+        <button className="zweit klein" onClick={neuLaden}>um {streifenTitel(s.fgsId, fall.streifenHand, !!s.trottoirueberfahrt)} neu laden</button></p>}
       {s.keinFgsHinweis && <p className="keinfgs klein">Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug.</p>}
       {s.markierungHinweis && <p className="pruefen klein">Vermutlich Fussgängerstreifen (Markierung in OSM nicht erfasst), bitte prüfen.</p>}
       {s.lsa === 'ja' && <p className="klein">Mit Lichtsignal gilt die <VerweisText text="Arbeitshilfe Fussgängerstreifen Kanton Bern" /> nicht; die Rechnung wird trotzdem gezeigt.</p>}

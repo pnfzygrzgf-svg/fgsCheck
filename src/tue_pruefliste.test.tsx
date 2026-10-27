@@ -187,14 +187,15 @@ describe('Nur Fragen der Trottoirüberfahrt; Alternative Fussgängerstreifen auf
     const panel = renderToStaticMarkup(<BedarfAbschnitt fall={tueFall(ohneAusf)} blaetter={[b]} vorgabe={OHNE.vorgabe} aendern={() => {}} setAlternative={() => {}} />)
     expect(panel).toMatch(/<details class="thema-teil thema-ausfuehrung"><summary><b>Ausführung/)
   })
-  it('Befundzeile mit Wert: «ändern» neben «in der Regelübersicht», springt zum Feld; im Bericht nicht (27.10.2026)', () => {
+  it('Befundzeile mit Wert: Knopf «Wert ändern» am Ende der Zeile, springt zum Feld; im Bericht nicht (27.10.2026)', () => {
     const f = tueFall({ ...OK, 'q3.ueberfahrbarM': 30 })
     const b = blatt(f)
     expect(b.befund.alle.find(x => x.id === 'F5d')?.zustand).toBe('verletzt')
     const panel = renderToStaticMarkup(<BedarfAbschnitt fall={f} blaetter={[b]} vorgabe={OHNE.vorgabe} aendern={() => {}} setAlternative={() => {}} />)
     const zeile = panel.slice(panel.indexOf('Länge des überfahrbaren Rands'))
-    expect(zeile).toMatch(/in der Regelübersicht<\/a> · <a href="#feld-q3-ueberfahrbarM" class="werk-link" title="Länge des überfahrbaren Randabschlusses ändern \(zum Feld\)">ändern<\/a>/)
-    expect(renderToStaticMarkup(<BefundblattAnzeige b={b} druck />)).not.toContain('>ändern<')
+    expect(zeile).toMatch(/in der Regelübersicht<\/a>/)
+    expect(zeile).toMatch(/<span class="wert-aendern"> <button type="button" class="zweit klein" title="Länge des überfahrbaren Randabschlusses: zum Feld" aria-label="Länge des überfahrbaren Randabschlusses ändern">Wert ändern<\/button><\/span><\/span><\/details>/)
+    expect(renderToStaticMarkup(<BefundblattAnzeige b={b} druck />)).not.toContain('Wert ändern')
     // Felder ohne Wert bzw. Schalter: kein «ändern»
     expect(aenderFelder('F5d', p => p === 'q3.ueberfahrbarM')).toEqual(['q3.ueberfahrbarM'])
     expect(aenderFelder('F5d', () => false)).toEqual([])

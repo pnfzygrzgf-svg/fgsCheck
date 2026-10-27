@@ -23,6 +23,8 @@
 // (Schulen, Kindergärten, Heime), Fusswegnetz, taktile Markierungen, Nutzungszonen, ÖV-Linien; Vortrittsrolle in automatik.ts.
 
 import { type P, dot, sub, add, dist, imPolygon, abstandStrecke, segSchnitt } from '../geo'
+import type { AvFlaeche } from '../daten/av'
+import { avMitPlan } from '../rechner/planflaechen'
 import type { StreifenErgebnis } from '../rechner/typen'
 import { zufahrtNamen } from '../benennung'
 import { erkennungSatz, erkennungZusatz } from '../texte'
@@ -37,7 +39,7 @@ import { imBereich, HALT_TEXT, type Bereich, type HaltestellenErgebnis, type Oev
 import type { VerkehrsdatenErgebnis, VdLinie } from '../daten/verkehrsdaten'
 import { automatik, avInselBei, kopfUeberstandAv, zufSicht, type AutoGeo } from './automatik'
 import { tag } from './lesetext'
-import { WARTE_TC_S, WARTE_TF_S, breiteVorbelegung, knotensichtGueltig, knotensichtVorbelegung, ueberfahrbarVorbelegung, wartezeitSchaetzen,
+import { WARTE_TC_S, WARTE_TF_S, breiteVorbelegung, knotensichtGueltig, knotensichtVorbelegung, ueberfahrbarVorbelegung, wartezeitSchaetzen, UEBERFAHRBAR_OHNE,
   winkelVorbelegung } from '../tue/texte'
 import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
 import { automatikC, strassentypBern, tempoAusHierarchie, vsigVorbelegen, zoneNachVsig } from './automatikC'
@@ -70,7 +72,7 @@ export const TEIL_MAX_M = 12
 export const streifenTyp = (s: StreifenErgebnis): 'fgs' | 'furt' | 'ohne_vortritt' | 'trottoirueberfahrt' | 'kein' =>
   s.trottoirueberfahrt ? 'trottoirueberfahrt' : s.status === 'kein_fgs' ? 'kein' : s.querung?.typ ?? 'fgs'
 /** Herkunft des Querungstyps aus der Wahl «Trottoirüberfahrt» am Streifen */
-export const TUE_WAHL_TEXT = 'Wahl am Streifen: Trottoirüberfahrt'
+export const TUE_WAHL_TEXT = 'Wahl in der Sichtprüfung: Trottoirüberfahrt'
 
 /** Vorbelegung einer Querung: Werte; Hinweise zur Querung; feldHinweise: Hinweis ohne Wert je Feld (das Feld bleibt offen, z. B.
  * Haltestelle in der Nähe: Fahrbahn oder Bucht wählen). Die Hinweise ohne Wert stehen mit dem Feldnamen auch in hinweise. */
@@ -401,10 +403,21 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
     setze('q3.winkel', wi.wert, 'rechnung', wi.text)
     const br = breiteVorbelegung(ks)
     if (br) setze('q3.breiteM', br.wert, br.quelle, br.text)
-    const tue = st.filter(s => s.trottoirueberfahrt)
-    if (tue.length) {
-      const ue = ueberfahrbarVorbelegung(Math.max(...tue.map(s => dist(s.p0, s.p1))))
-      setze('q3.ueberfahrbarM', ue.wert, 'rechnung', ue.text)
+    // Länge des überfahrbaren Rands: Fahrbahnöffnung an der Bordkante (AV mit Flächen (Plan)), ohne AV bzw. Fahrbahn offen
+    const tue = st.find(s => s.trottoirueberfahrt)
+    if (tue && geo.av?.length) {
+      // Vorderkante (Bordkante der Hauptstrasse) über die Ausdehnung des Streifens: seine Enden auf die Linie der Kante gelotet, etwas
+      // zum hinteren Rand hin versetzt; ohne Kante die Streifenachse
+      const kante = ks.karte.kanten[0]
+      let linie: [P, P] = [tue.p0, tue.p1]
+      if (kante && dist(kante[0], kante[1]) > 0) {
+        const u = einheit(sub(kante[1], kante[0])), v = add(ks.karte.vorderkante, einheit(sub(ks.karte.hinterkante, ks.karte.vorderkante)), OEFFNUNG_VERSATZ_M)
+        const lot = (p: P): P => add(v, u, dot(sub(p, v), u))
+        linie = [lot(tue.p0), lot(tue.p1)]
+      }
+      const l = fahrbahnOeffnung(linie, avMitPlan(geo.av, fall.flaechenPlan).av)
+      if (l >= 0.05) { const ue = ueberfahrbarVorbelegung(l); setze('q3.ueberfahrbarM', ue.wert, 'rechnung', ue.text) }
+      else feldHinweis('q3.ueberfahrbarM', UEBERFAHRBAR_OHNE)
     }
     // Wartezeit beim Ausfahren: aus dem DTV der Hauptstrasse geschätzt (Annahme), ohne Verkehrszahlen offen
     wartezeitVorbelegen(st, geo.verkehrsdaten ?? null, setze, feldHinweis)
@@ -672,6 +685,30 @@ function dtvVorbelegen(st: StreifenErgebnis[], spuren: P[][], vd: VerkehrsdatenE
   const teile = je.length > 1 ? `, Summe von ${je.length} Fahrbahnen (${je.map(x => ganz(x.wert!)).join(' + ')})` : ''
   setze('dtv', summe, 'geoportal', `DTV ${ganz(summe)}${namen ? ` ${namen}` : ''} (${herkunft(alle)})${teile}` +
     (grenze.length ? `; Grenze zweier Abschnitte (${grenze.join('; ')}): höherer Wert` : ''))
+}
+
+/** Vorderkante der Überfahrt um so viel zum hinteren Rand hin versetzt (die Bordkante selbst ist die Grenze der AV-Flächen) */
+const OEFFNUNG_VERSATZ_M = 0.3
+/** Messschritt entlang der Bordkante */
+const OEFFNUNG_SCHRITT_M = 0.05
+/**
+ * Fahrbahnöffnung (27.10.2026): Länge der Teile der Linie über Fahrbahn (AV Strasse_Weg, mit Flächen (Plan) verschnitten: Plan-Trottoir
+ * zählt als Trottoir, Plan-Fahrbahn als Fahrbahn). Eine Insel bzw. ein Trottoir auf der Linie zählt nicht
+ */
+export function fahrbahnOeffnung(linie: [P, P], av: readonly AvFlaeche[]): number {
+  const L = dist(linie[0], linie[1])
+  if (!(L > 0)) return 0
+  const fb = av.filter(f => f.art === 'Strasse_Weg').map(f => {
+    const xs = f.ringe.flat().map(p => p[0]), ys = f.ringe.flat().map(p => p[1])
+    return { ringe: f.ringe, box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }
+  })
+  const n = Math.max(1, Math.ceil(L / OEFFNUNG_SCHRITT_M))
+  let k = 0
+  for (let i = 0; i < n; i++) {
+    const p = add(linie[0], sub(linie[1], linie[0]), (i + 0.5) / n)
+    if (fb.some(f => p[0] >= f.box[0] && p[0] <= f.box[2] && p[1] >= f.box[1] && p[1] <= f.box[3] && imPolygon(p, f.ringe))) k++
+  }
+  return (k * L) / n
 }
 
 /** Hauptstrasse ohne Verkehrszahlen: die Wartezeit bleibt offen */
