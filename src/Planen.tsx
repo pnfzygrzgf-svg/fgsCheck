@@ -70,7 +70,7 @@ export function StreifenPlanenOben({ geladen, werkzeug, waehlen }: { geladen: bo
       `${NACHLADEN_M} m um einen Ort liegen (dann lädt die App dort nach); sonst bzw. ohne geladenen Ort beginnt am Streifen ` +
       'ein neuer Fall. Die App lädt AV, OSM und Kataster um den Streifen, rechnet und vermasst ihn.'}>Streifen planen</button>
     {' '}<button type="button" className={tue ? 'aktiv' : 'zweit'} aria-pressed={tue} onClick={() => waehlen('tue')}
-      title="Neue Trottoirüberfahrt: beide Enden über der Einmündung anklicken; die App lädt die Daten und prüft sie">Trottoirüberfahrt</button></>
+      title="Neue Trottoirüberfahrt: beide Enden über der Einmündung anklicken; die App lädt die Daten und prüft sie">Trottoirüberfahrt planen</button></>
 }
 
 /** Werkzeugknöpfe (aktiv hervorgehoben, aria-pressed); gesperrt: Werkzeug -> Grund (Knopf gesperrt, Grund als Tooltip) */

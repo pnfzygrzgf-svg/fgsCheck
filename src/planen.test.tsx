@@ -41,11 +41,11 @@ describe('Werkzeuggruppe Planen', () => {
     expect(g).toMatch(/disabled="" title="zuerst eine Fläche \(Plan\)"[^>]*>Ecke runden</)
   })
 
-  it('ohne Ort: nur «Streifen planen» und «Trottoirüberfahrt» oben, keine Gruppe; mit Ort: oben keiner (keine Doppelung)', () => {
+  it('ohne Ort: nur «Streifen planen» und «Trottoirüberfahrt planen» oben, keine Gruppe; mit Ort: oben keiner (keine Doppelung)', () => {
     const oben = renderToStaticMarkup(<StreifenPlanenOben geladen={false} werkzeug={null} waehlen={nichts} />)
-    expect(knoepfe(oben)).toEqual(['Streifen planen', 'Trottoirüberfahrt'])
+    expect(knoepfe(oben)).toEqual(['Streifen planen', 'Trottoirüberfahrt planen'])
     // Trottoirüberfahrt gewählt: dieser Knopf aktiv; die Hilfe steht oben
-    expect(renderToStaticMarkup(<StreifenPlanenOben geladen={false} werkzeug="tue" waehlen={nichts} />)).toMatch(/class="aktiv" aria-pressed="true"[^>]*>Trottoirüberfahrt</)
+    expect(renderToStaticMarkup(<StreifenPlanenOben geladen={false} werkzeug="tue" waehlen={nichts} />)).toMatch(/class="aktiv" aria-pressed="true"[^>]*>Trottoirüberfahrt planen</)
     expect(hilfeOrt('tue', false, false)).toBe('oben')
     expect(renderToStaticMarkup(<PlanenGruppe geladen={false} werkzeug={null} waehlen={nichts} hilfe={null} anzahl={2} offen
       setOffen={nichts} geplant={<p>LISTE</p>} />)).toBe('')
