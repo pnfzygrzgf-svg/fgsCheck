@@ -1812,7 +1812,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
               if (d) dateiGewaehlt(d)
               e.target.value = '' }} /></label>
           {/* mit geladenem Ort steht «Streifen planen» in der Gruppe Planen (Planen.tsx) */}
-          <StreifenPlanenOben geladen={!!(fall && daten)} aktiv={werkzeug === 'streifen'} waehlen={() => werkzeugWaehlen('streifen')} />
+          <StreifenPlanenOben geladen={!!(fall && daten)} werkzeug={werkzeug} waehlen={werkzeugWaehlen} />
           {fall && <button onClick={speichern}>Fall speichern</button>}
           {ortGemerkt && <button className="zweit" onClick={ortWiederherstellen} title={'Den zuletzt bearbeiteten Fall ohne ' +
             `OSM-Übergang (z. B. geplanter Streifen; ${eingabenZahl(ortGemerkt)} Eingaben, Stand ${ortGemerkt.gespeichert?.slice(0, 10) ??

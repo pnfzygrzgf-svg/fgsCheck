@@ -1,7 +1,7 @@
 // ── Werkzeuggruppe «Planen» (23.10.2026) und die Werkzeuge für «Eingaben von Hand» ──
 //
 // Planen (Streifen, Trottoirüberfahrt, Mittelinsel, Seitenraum, Fläche (Plan), Ecke runden, Fixpunkt) steht über der Reiterleiste und ist damit in
-// beiden Reitern sichtbar, sobald ein Ort geladen ist; ohne Ort steht nur «Streifen planen» in der Knopfzeile (beginnt einen neuen
+// beiden Reitern sichtbar, sobald ein Ort geladen ist; ohne Ort stehen «Streifen planen» und «Trottoirüberfahrt» in der Knopfzeile (beginnt einen neuen
 // Fall). «Eingaben von Hand» behält die Korrekturen am Bestand. Reine Oberfläche: die Werkzeuge selbst bleiben in App.tsx.
 
 import type { ReactNode } from 'react'
@@ -57,14 +57,18 @@ export function hilfeOrt(w: Werkzeug, geladen: boolean, reiterBedarf: boolean): 
 
 const eintrag = (w: W) => WERKZEUGE.find(x => x[0] === w)!
 
-/** «Streifen planen» in der Knopfzeile: nur ohne geladenen Ort (dort beginnt am Streifen ein neuer Fall) */
-export function StreifenPlanenOben({ geladen, aktiv, waehlen }: { geladen: boolean; aktiv: boolean; waehlen: () => void }) {
+/** «Streifen planen» und «Trottoirüberfahrt» in der Knopfzeile: nur ohne geladenen Ort (dort beginnt am Streifen ein neuer Fall;
+ * Trottoirüberfahrt seit 27.10.2026 direkt) */
+export function StreifenPlanenOben({ geladen, werkzeug, waehlen }: { geladen: boolean; werkzeug: Werkzeug; waehlen: (w: 'streifen' | 'tue') => void }) {
   if (geladen) return null
-  return <button type="button" className={aktiv ? 'aktiv' : 'zweit'} aria-pressed={aktiv} onClick={waehlen}
+  const aktiv = werkzeug === 'streifen', tue = werkzeug === 'tue'
+  return <><button type="button" className={aktiv ? 'aktiv' : 'zweit'} aria-pressed={aktiv} onClick={() => waehlen('streifen')}
     title={'Neuen Fussgängerstreifen zeichnen, auch ohne OSM-Übergang: beide Wartebereiche anklicken. Zum laufenden Fall kommt ' +
       `er, wenn er ganz innert ${NACHLADEN_M} m um den geladenen Ort liegt oder alle Streifen von Hand zusammen ganz innert ` +
       `${NACHLADEN_M} m um einen Ort liegen (dann lädt die App dort nach); sonst bzw. ohne geladenen Ort beginnt am Streifen ` +
       'ein neuer Fall. Die App lädt AV, OSM und Kataster um den Streifen, rechnet und vermasst ihn.'}>Streifen planen</button>
+    {' '}<button type="button" className={tue ? 'aktiv' : 'zweit'} aria-pressed={tue} onClick={() => waehlen('tue')}
+      title="Neue Trottoirüberfahrt: beide Enden über der Einmündung anklicken; die App lädt die Daten und prüft sie">Trottoirüberfahrt</button></>
 }
 
 /** Werkzeugknöpfe (aktiv hervorgehoben, aria-pressed); gesperrt: Werkzeug -> Grund (Knopf gesperrt, Grund als Tooltip) */
