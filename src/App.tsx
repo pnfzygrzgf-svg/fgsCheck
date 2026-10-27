@@ -44,6 +44,7 @@ import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type Pl
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
   streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, type StreifenQuerung } from './fall'
 import { tueMasse } from './tue/karte'
+import { inFeldSchreiben, istZahlenfeld, messKlick, messLaenge, messPunkt, messText, messWert, type Messung } from './messen'
 import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_M, ORT_TOL_M, streifenMitte, streifenAbstand, planEntscheid,
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
   querungAusserhalb, querungWegText, querungVerschobenText, type OrtEntscheid, type Ausserhalb } from './abdeckung'
@@ -109,11 +110,11 @@ const STREIFEN_MIN_M = 1.0                      // Streifen von Hand: kürzeste 
 const AV_NAME: Record<string, string> = { Strasse_Weg: 'Fahrbahn', Gebaeude: 'Gebäude' }
 
 const MIN_PUNKTE: Record<Exclude<Werkzeug, null>, number> = { parkfeld: 3, flaeche: 3, insel: 3, laengs: 2, hecke: 2, mauer: 2, streifen: 2, tue: 2,
-  spurB: 2, baum: 1, fixpunkt: 1, planflaeche: 3, eckeRunden: 1, mittelinsel: 1, seitenraum: 1 }
+  spurB: 2, baum: 1, fixpunkt: 1, planflaeche: 3, eckeRunden: 1, mittelinsel: 1, seitenraum: 1, messen: 2 }
 const WERKZEUG_NAME: Record<Exclude<Werkzeug, null>, string> = { parkfeld: 'Parkfeld', flaeche: 'übriges Hindernis (Fläche)', insel: 'Insel',
   laengs: 'Längsparkierung', hecke: 'Hecke', mauer: 'Mauer', streifen: 'Streifen planen', tue: 'Trottoirüberfahrt', spurB: 'Fahrlinie selbst zeichnen', baum: 'Baum',
   fixpunkt: 'Fixpunkt', planflaeche: 'Fläche (Plan)', eckeRunden: 'Ecke runden', mittelinsel: 'Mittelinsel (Standard)',
-  seitenraum: 'Vorgezogener Seitenraum' }
+  seitenraum: 'Vorgezogener Seitenraum', messen: 'Messen' }
 /** Textfeld, übernommen erst beim Verlassen bzw. mit Enter (Escape: zurück); leer = kein eigener Text */
 function TextFeld({ wert, setze, platzhalter, titel, max = 80 }: { wert: string; setze: (x: string) => void; platzhalter?: string
   titel?: string; max?: number }) {
@@ -221,6 +222,20 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [werkzeug, setWerkzeug] = useState<Werkzeug>(null)
   // Trottoirüberfahrt: Alternative Fussgängerstreifen mit Fragen prüfen (nur in der Sitzung, nicht im Fall; 27.10.2026)
   const [alternative, setAlternative] = useState(false)
+  // Werkzeug «Messen» (27.10.2026): laufende Messung und das zuletzt angeklickte Zahlenfeld im Panel (nur Sitzung, nicht im Fall)
+  const [messung, setMessung] = useState<Messung | null>(null)
+  const zahlenfeld = useRef<HTMLInputElement | null>(null)
+  const [zahlenfeldName, setZahlenfeldName] = useState<string | null>(null)
+  useEffect(() => {
+    const fokus = (e: FocusEvent) => {
+      const el = e.target as Element | null
+      if (!istZahlenfeld(el) || !el.closest('.panel')) return
+      zahlenfeld.current = el
+      setZahlenfeldName(el.getAttribute('aria-label') ?? el.getAttribute('title')?.split(/[;,(]/)[0] ?? 'Zahlenfeld')
+    }
+    document.addEventListener('focusin', fokus)
+    return () => document.removeEventListener('focusin', fokus)
+  }, [])
   // Reiter im Panel (Sichtprüfung / Bedarf und Querungstyp, reiter.ts): Wahl im laufenden Fall, nur in der Sitzung; null = Vorgabe
   // nach dem Fall. Ein neuer Fall (Übergang, geplanter Streifen, Fall-Datei) beginnt wieder mit der Vorgabe
   const [reiterWahl, setReiterWahl] = useState<Reiter | null>(null)
@@ -1294,6 +1309,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // Fangen der Ecken einer Fläche (Plan): AV-Stützpunkte und Ecken der übrigen Plan-Flächen (ohneId: die eben bearbeitete)
   const planFangen = (p: P, ohneId: string | null): P => fangen(p, [...(av ?? []), ...planAlsAv(fall?.flaechenPlan, ohneId)], fangRadius()).p
   const klick = useCallback((p: P) => {
+    if (werkzeug === 'messen') { const q = messPunkt(p, av ?? [], fangRadius()); setMessung(m => messKlick(m, q)); return }
     if (werkzeug === 'eckeRunden') { eckeRundenBei(p); return }
     if (werkzeug === 'mittelinsel') { mittelinselBei(p); return }
     if (werkzeug === 'seitenraum') { seitenraumBei(p); return }
@@ -1306,7 +1322,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   }, [werkzeug, fertig, av, fall, bearbeiten, rundenR, inselOrt, inselK, inselStreifen, inselNetz, inselFahrbahn, rechnung])
 
   const doppelklick = useCallback(() => {
-    if (werkzeug === 'eckeRunden' || werkzeug === 'mittelinsel' || werkzeug === 'seitenraum') return
+    if (werkzeug === 'eckeRunden' || werkzeug === 'mittelinsel' || werkzeug === 'seitenraum' || werkzeug === 'messen') return
     // Doppelklick setzt zwei Klicks ab: den doppelten letzten Punkt weglassen
     const z = zeichnungRef.current
     const pts = z.length >= 2 && dist(z[z.length - 1], z[z.length - 2]) < 0.3 ? z.slice(0, -1) : z
@@ -1389,7 +1405,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   }
 
   const werkzeugWaehlen = (w: Werkzeug) => {
-    setZeichnung([]); setBearbeiten(null); setWerkzeug(x => (x === w ? null : w))
+    setZeichnung([]); setBearbeiten(null); setMessung(null); setWerkzeug(x => (x === w ? null : w))
   }
   /** Knopf der Gruppe Planen; «Ecke runden» nimmt die gewählte Fläche (Plan), sonst die zuletzt gezeichnete (Wahl in der Hilfe) */
   const planWaehlen = (w: Exclude<Werkzeug, null>) => {
@@ -1406,6 +1422,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     if (!werkzeug) return
     if (werkzeug === 'eckeRunden') { setBearbeiten(null); setRundenFehler(null); setRundenAngebot(null) }
     if (werkzeug === 'mittelinsel') setInselOrt(null)
+    setMessung(null)
     setZeichnung([]); zeichnungRef.current = []; setSpurFuer(null); setWerkzeug(null)
   }
   useEffect(() => {
@@ -1740,7 +1757,21 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       <div><button className="zweit" onClick={() => setWerkzeug(null)}>Abbrechen</button></div>
     </div>
   )
-  const werkzeugHilfe = werkzeug === 'mittelinsel' ? inselHilfe : werkzeug === 'seitenraum' ? srHilfe : werkzeug === 'eckeRunden' ? (
+  // Messen: Länge mit «übernehmen» in das zuletzt angeklickte Zahlenfeld des Panels (auf 0,05 m gerundet)
+  const messM = messLaenge(messung)
+  const messHilfe = (
+    <div className="werkzeughilfe">
+      <b>Messen:</b> {messM !== null ? <>{messText(messM)} ({[messung!.a, messung!.b!].map(q => (q.art === 'frei' ? 'frei' : 'gefangen')).join(', ')}){' '}
+        {zahlenfeldName ? <button className="klein" title={`${messWert(messM)} m in «${zahlenfeldName}» schreiben`} onClick={() => {
+          const el = zahlenfeld.current
+          if (el && el.isConnected) inFeldSchreiben(el, messWert(messM)); else setZahlenfeldName(null)
+        }}>übernehmen</button> : <button className="klein" disabled>zuerst ein Zahlenfeld anklicken</button>}</>
+        : messung ? 'zweiten Punkt anklicken' : 'ersten Punkt anklicken'}
+      <div className="klein">Fang auf Vermessungspunkte der AV im Umkreis von {FANG_PX} Bildschirmpunkten, sonst freier Punkt; Esc beendet.</div>
+      <div><button className="zweit" onClick={() => { setMessung(null); setWerkzeug(null) }}>fertig</button></div>
+    </div>
+  )
+  const werkzeugHilfe = werkzeug === 'messen' ? messHilfe : werkzeug === 'mittelinsel' ? inselHilfe : werkzeug === 'seitenraum' ? srHilfe : werkzeug === 'eckeRunden' ? (
     <div className="werkzeughilfe">
       <b>Ecke runden{rundenPlan ? ` (${planTitel(rundenPlan.id)})` : ''}:</b>{(fall?.flaechenPlan?.length ?? 0) > 1 && <>{' '}
         <label>Fläche <select value={bearbeiten ?? ''} onChange={e => { setBearbeiten(e.target.value || null); setRundenFehler(null)
@@ -1794,7 +1825,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         inselGriffe={alleGriffe} onInselZug={griffZug} onInselLos={griffLos}
         onRundenAngebot={ja => { if (ja) angebotAnnehmen(); else setRundenAngebot(null) }} fixpunkte={fall?.fixpunkte ?? LEER_FIX} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
         flaechenPlan={fall?.flaechenPlan ?? LEER_PLAN}
-        masslinien={masslinien} zufahrtNamen={zNamen} streifenTitel={titel}
+        masslinien={masslinien} messung={werkzeug === 'messen' ? messung : null} zufahrtNamen={zNamen} streifenTitel={titel}
         onUebergang={pruefen} onZufahrt={key => { setAuswahl(key); if (key) zurSicht() }}
         onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => { setBearbeiten(b => (b === id ? null : id)); zurSicht() }}
         onAusschnitt={ausschnitt} hinweis={suchHinweis} kartenRef={kartenRef} />

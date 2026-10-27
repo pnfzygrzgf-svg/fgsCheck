@@ -19,6 +19,7 @@ import { schildLage, zufahrtNr, zufahrtText, type ZufahrtNamen } from './benennu
 import { ortZoom, type Ort } from './daten/ortssuche'
 import { KS_LAGE } from './tue/texte'
 import { tueFlaeche } from './tue/karte'
+import { messLaenge, messText, type Messung } from './messen'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
@@ -135,10 +136,12 @@ export function standortFehlerText(code: number): string {
 }
 
 export type Werkzeug = null | 'parkfeld' | 'laengs' | 'baum' | 'hecke' | 'mauer' | 'flaeche' | 'insel' | 'streifen' | 'tue' | 'spurB' | 'fixpunkt' |
-  'planflaeche' | 'eckeRunden' | 'mittelinsel' | 'seitenraum'
+  'planflaeche' | 'eckeRunden' | 'mittelinsel' | 'seitenraum' | 'messen'
 /** Masslinie ab Fixpunkt (rechner/vermassung.fixpunktMasse): von, bis, Beschriftung */
 export interface Masslinie { von: P; bis: P; text: string }
 export const FIXPUNKT_FARBE = '#be185d'
+/** Werkzeug «Messen» */
+export const MESS_FARBE = '#6d28d9'
 /** Fixpunkt als kleines Kreuz im Quadrat (Karte; Bericht zeichnet dasselbe als SVG) */
 const fixIcon = (blass: boolean) => L.divIcon({ className: 'fixpunkt' + (blass ? ' blass' : ''), iconSize: [14, 14],
   html: '<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><rect x="1" y="1" width="12" height="12" fill="#ffffff" ' +
@@ -222,6 +225,7 @@ export default function Karte(props: {
   fixVorschlaege: { p: P; text: string }[]           // vorgeschlagene Fixpunkte (blass; Tooltip, Klick übernimmt)
   onFixVorschlag?: (p: P) => void                    // Klick auf einen vorgeschlagenen Fixpunkt: übernehmen
   masslinien: Masslinie[]
+  messung?: Messung | null                             // Werkzeug «Messen»: Strecke mit Länge (messen.ts), nicht im Fall
   zufahrtNamen: Map<string, ZufahrtNamen>                  // Anzeige (benennung.ts) je Streifen: Nummer, Strasse und Herkunft
   streifenTitel: (fgsId: string) => string                 // Anzeige: Name bzw. «Streifen 1»
   onUebergang: (k: OsmKnoten) => void
@@ -311,7 +315,7 @@ export default function Karte(props: {
     const eb: Record<string, L.LayerGroup> = {
       av: L.layerGroup().addTo(map), plan: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
       nr: L.layerGroup().addTo(map),
-      hind: L.layerGroup().addTo(map), fix: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
+      hind: L.layerGroup().addTo(map), fix: L.layerGroup().addTo(map), mess: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
       standort: L.layerGroup().addTo(map), ecken: L.layerGroup().addTo(map), inselVorschau: L.layerGroup().addTo(map),
       griffe: L.layerGroup().addTo(map),
     }
@@ -808,6 +812,23 @@ export default function Karte(props: {
         .addTo(eb.fix)
     }
   }, [fixpunkte, fixVorschlaege, masslinien, bearbeiten, werkzeug])
+
+  // Werkzeug «Messen»: Strecke mit Länge (zwei Nachkommastellen), gefangene Punkte als Quadrat, freie als Kreis
+  const messung = props.messung ?? null
+  useEffect(() => {
+    const eb = ebenenRef.current
+    if (!eb) return
+    eb.mess.clearLayers()
+    if (!messung) return
+    for (const q of [messung.a, messung.b]) if (q) L.circleMarker(ll(q.p), { radius: q.art === 'frei' ? 4 : 5, color: MESS_FARBE, weight: 2,
+      fillColor: '#ffffff', fillOpacity: 1, interactive: false }).addTo(eb.mess)
+    const x = messLaenge(messung)
+    if (x === null || !messung.b) return
+    L.polyline([ll(messung.a.p), ll(messung.b.p)], { color: MESS_FARBE, weight: 2.5, interactive: false }).addTo(eb.mess)
+    const mitte: P = [(messung.a.p[0] + messung.b.p[0]) / 2, (messung.a.p[1] + messung.b.p[1]) / 2]
+    L.marker(ll(mitte), { interactive: false, keyboard: false, icon: L.divIcon({ className: 'masstext messtext', iconSize: [0, 0],
+      html: `<span>${esc(messText(x))}</span>` }) }).addTo(eb.mess)
+  }, [messung])
 
   // gewählte Zufahrt hervorheben
   useEffect(() => {

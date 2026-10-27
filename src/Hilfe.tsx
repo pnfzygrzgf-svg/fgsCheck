@@ -95,7 +95,7 @@ export function Anleitung() {
             «bestätigen»; in Bern lädt die App die amtlichen Parkfelder der Stadt, sie zählen sofort. Die Rechnung läuft nach jeder
             Änderung neu.</li>
             <li><b>Gruppe «Planen»:</b> über den Reitern, in beiden sichtbar, sobald ein Ort geladen ist: «Streifen planen»,
-            «Mittelinsel (Standard)», «Vorgezogener Seitenraum», «Fläche (Plan)», «Ecke runden» und «Fixpunkt»; darunter die Hilfe zum
+            «Trottoirüberfahrt», «Mittelinsel (Standard)», «Vorgezogener Seitenraum», «Fläche (Plan)», «Ecke runden», «Fixpunkt» und «Messen»; darunter die Hilfe zum
             gewählten Werkzeug und aufklappbar «Geplante Elemente» (Streifen von Hand, Fixpunkte, Flächen (Plan)). Esc beendet ein
             Werkzeug. «Eingaben von Hand» im Reiter «Sichtprüfung» bleibt für den Bestand.</li>
             <li><b>Streifen planen:</b> «Streifen planen» (in der Gruppe «Planen», ohne geladenen Ort neben «Fall laden») wählen, die Breite (Balkenlänge) einstellen und auf der
@@ -172,6 +172,9 @@ export function Anleitung() {
             das Längsmass die schiefe Kante auf der Höhe des Fixpunkts. Fixpunkte lassen sich benennen, verschieben (fangen wieder) und
             löschen, stehen in der Fall-Datei und im Bericht und ändern die Sichtprüfung nicht. Punkte der AV sind keine vermarkten
             Grenzpunkte: ihre Lage hat die Genauigkeit der AV-Bodenbedeckung.</li>
+            <li><b>Messen:</b> zwei Punkte auf der Karte anklicken; jeder Klick fängt wie der Fixpunkt einen Vermessungspunkt der AV, sonst
+            gilt der freie Punkt. Die Strecke steht mit zwei Nachkommastellen auf der Karte; «übernehmen» schreibt sie, auf 0,05 m gerundet,
+            in das zuletzt angeklickte Zahlenfeld. Frei gemessen am Luftbild etwa 10 cm genau je Bildpunkt; nichts davon kommt in den Fall.</li>
             <li><b>Bedarf und Querungstyp:</b> der gleichnamige Reiter beurteilt, ob ein Fussgängerstreifen zulässig
             ist, welcher Querungstyp passt (Fussgängerstreifen, mit Schutzinsel, mit Lichtsignal, Querung ohne Vortritt, Trottoirüberfahrt)
             und welche Elemente und Masse nötig sind. Grundlage sind {V('VSS 40 241')}, {V('VSS 40 240')}, {V('VSS 40 242')}, {V('VSS 40 837')}, {V('SN 640 075')} und weitere (nur

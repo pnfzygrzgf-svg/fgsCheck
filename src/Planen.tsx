@@ -38,10 +38,12 @@ export const WERKZEUGE: [W, string, string][] = [
     'anklicken), z. B. den geplanten Bordkantenradius an einer Einmündung'],
   ['fixpunkt', 'Fixpunkt', 'Gebäudeecke bzw. Punkt der AV anklicken: die App fängt den nächsten AV-Stützpunkt im Umkreis von ' +
     `${FANG_PX} Bildschirmpunkten, sonst freier Punkt. Für die Vermassung der Streifen von Hand, ohne Einfluss auf die Rechnung`],
+  // Messen (27.10.2026): Strecke zwischen zwei Punkten, nicht im Fall
+  ['messen', 'Messen', 'zwei Punkte anklicken; Fang auf Vermessungspunkte; Wert in ein Zahlenfeld übernehmen'],
 ]
 
 /** Gruppe Planen, in dieser Reihenfolge */
-export const PLAN_WERKZEUGE: W[] = ['streifen', 'tue', 'mittelinsel', 'seitenraum', 'planflaeche', 'eckeRunden', 'fixpunkt']
+export const PLAN_WERKZEUGE: W[] = ['streifen', 'tue', 'mittelinsel', 'seitenraum', 'planflaeche', 'eckeRunden', 'fixpunkt', 'messen']
 /** «Eingaben von Hand»: Korrekturen am Bestand */
 export const BESTAND_WERKZEUGE: W[] = ['parkfeld', 'laengs', 'baum', 'hecke', 'mauer', 'flaeche', 'insel']
 

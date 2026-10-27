@@ -152,6 +152,11 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .masstext { pointer-events: none; }
 .masstext span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-size: 12px; font-weight: 700;
   color: #be185d; text-shadow: 0 0 2px #ffffff, 0 0 2px #ffffff, 0 0 4px #ffffff; }
+/* Werkzeug «Messen» (27.10.2026): Länge in der Farbe der Messlinie, etwas grösser */
+.messtext span { color: #6d28d9; font-size: 13px; }
+/* Gliederung eines Themas nach der Prüfliste der Norm (Trottoirüberfahrt, 27.10.2026) */
+.thema-abschnitt { margin: 0.6em 0 0.2em; }
+.thema-unter { margin: 0.3em 0 0.1em; }
 /* Nummernschild einer Zufahrt (17.10.2026, wie .arm-nr im SichtweitenCheck): weisser Kreis, dunkler Rand und Zahl; gewählte
    Zufahrt Bernstein mit weisser Zahl. Leaflet setzt .leaflet-marker-icon auf display: block: Zahl über die Zeilenhöhe
    (22 px − 2 × 2 px Rand) und text-align zentriert. Bei mehreren Streifen rechts daneben der Streifen (weiss mit Halo). */
