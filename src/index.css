@@ -154,7 +154,8 @@ button.aktiv { background: var(--accent); color: #ffffff; }
   color: #be185d; text-shadow: 0 0 2px #ffffff, 0 0 2px #ffffff, 0 0 4px #ffffff; }
 /* Werkzeug «Messen» (27.10.2026): Länge in der Farbe der Messlinie, etwas grösser */
 .messtext span { color: #6d28d9; font-size: 13px; }
-/* Gliederung eines Themas nach der Prüfliste der Norm (Trottoirüberfahrt, 27.10.2026) */
+/* Gruppen der Themen und Gliederung eines Themas nach der Norm (27.10.2026) */
+.themen-gruppe { margin: 0.8em 0 0.2em; font-size: 0.9em; }
 .thema-abschnitt { margin: 0.6em 0 0.2em; }
 .thema-unter { margin: 0.3em 0 0.1em; }
 /* Nummernschild einer Zufahrt (17.10.2026, wie .arm-nr im SichtweitenCheck): weisser Kreis, dunkler Rand und Zahl; gewählte

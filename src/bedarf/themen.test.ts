@@ -5,8 +5,8 @@ import { beurteile } from './entscheid'
 import { grundpruefung } from './grundpruefung'
 import { fall, TESTFAELLE, type Abw } from './testfaelle'
 import {
-  ERWEITERT_IDS, EBENE_WORT, LEGENDE, PAARE, STAERKE_WORT, THEMEN, mitEinheit, nachThema, pruefUebersicht, rang, themaName, themaVon,
-  verbindlichkeit, verbindlichkeitVon, zaehlText,
+  ERWEITERT_IDS, EBENE_WORT, LEGENDE, PAARE, STAERKE_WORT, THEMEN, mitEinheit, nachThema, pruefUebersicht, themaName, themaVon,
+  verbindlichkeit, verbindlichkeitVon, zaehlText, normVergleich,
 } from './themen'
 import { EBENEN, STAERKEN, type RegelDef } from './typen'
 
@@ -93,7 +93,7 @@ describe('Verbindlichkeit in Worten (Muss/Soll/Hinweis)', () => {
 })
 
 describe('Befundblatt nach Thema und Prüfübersicht (alle Testfälle mal Varianten)', () => {
-  it('nach Thema: alle Einträge genau einmal, Themen in der Reihenfolge THEMEN, im Thema Muss, mit Bericht, Soll, Hinweis, offen', () => {
+  it('nach Thema: alle Einträge genau einmal, Themen in der Reihenfolge THEMEN, im Thema nach der Norm (Ziffer; 27.10.2026)', () => {
     let n = 0
     for (const { name, b } of laeufe()) {
       const g = nachThema(b.alle)
@@ -101,8 +101,8 @@ describe('Befundblatt nach Thema und Prüfübersicht (alle Testfälle mal Varian
       const pos = g.map(x => THEMEN.indexOf(x.thema))
       expect(pos, name).toEqual([...pos].sort((a, c) => a - c))
       for (const x of g) {
-        const r = x.eintraege.map(rang)
-        expect(r, name).toEqual([...r].sort((a, c) => a - c))
+        const r = x.eintraege.map(e => e.id)
+        expect(r, name).toEqual([...r].sort((a, c) => normVergleich(a, c) || r.indexOf(a) - r.indexOf(c)))
       }
       n++
     }

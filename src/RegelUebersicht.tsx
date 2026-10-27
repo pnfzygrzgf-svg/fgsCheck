@@ -51,7 +51,8 @@ export function RegelUebersicht({ anfang = 'thema', anfangFilter = {} }: { anfan
       <label>Suche: <input type="search" value={f.suche ?? ''} placeholder="Titel oder Nummer" onChange={e => setF({ ...f, suche: e.target.value })} /></label>
     </div>
     <p className="klein">{aktiv} Regeln{f.werk || f.thema || f.suche ? ' (gefiltert)' : ''}.</p>
-    {gruppen.map(g => <details key={g.schluessel} className="regel-gruppe" id={nach === 'quelle' && g.schluessel.startsWith('werk-') ? regelWerkAnker(g.schluessel.slice(5)) : undefined}>
+    {gruppen.map(g => <Fragment key={g.schluessel}>{g.ober && <p className="themen-gruppe"><b>{abkLesbar(g.ober)}</b></p>}
+      <details className="regel-gruppe" id={nach === 'quelle' && g.schluessel.startsWith('werk-') ? regelWerkAnker(g.schluessel.slice(5)) : undefined}>
       <summary><b>{g.name}</b> <span className="klein">({g.zeilen.length})</span></summary>
       <ul className="regel-liste">{g.zeilen.map(z => <li key={z.id} id={nach === 'thema' ? regelAnker(z.id) : undefined}>
         {/* Nutzertest 23.10.2026: kurz und in Alltagssprache, Nummer klein grau beim Titel */}
@@ -67,6 +68,6 @@ export function RegelUebersicht({ anfang = 'thema', anfangFilter = {} }: { anfan
               onClick={() => feldSpringen(a.pfad)}>{a.name}</button></Fragment>)}</dd></>}
         </dl>
       </li>)}</ul>
-    </details>)}
+    </details></Fragment>)}
   </div>
 }

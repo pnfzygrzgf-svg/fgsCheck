@@ -38,7 +38,7 @@ import type { BefundBlatt } from './bedarf/befundblatt'
 import type { Ebene, Eintrag } from './bedarf/typen'
 import { QUELLEN_ANNAHME, type Quelle } from './bedarf/eingaben'
 import { mitTiteln, regelName, regelTitel } from './bedarf/regelname'
-import { EBENE_WORT, LEGENDE, THEMEN, mitEinheit, pruefUebersicht, themaName, verbindlichkeitVon } from './bedarf/themen'
+import { EBENE_WORT, LEGENDE, THEMEN, gruppeVonThema, mitEinheit, pruefUebersicht, themaName, verbindlichkeitVon } from './bedarf/themen'
 import { BLOCK_GRUENDE, hatInhalt, themaGliederung, themenAnsicht, type ThemaFrage, type ThemaTeil, type ThemenAnsicht } from './bedarf/themenansicht'
 import { FELD_HILFEN, SICHTBAR, bedingungText, bezuegeImFall, feldZiel, frageVon, leerText, schalterText, sichtbar, wozuTeilen,
   type SichtKontext } from './bedarf/feldhilfen'
@@ -1095,7 +1095,12 @@ function ErweiterteAnzeige({ blaetter, ansicht, druck = false, eingabe }: { blae
   const annahmen = blaetter.map(b => ({ b, punkte: annahmenPunkte(b, ansicht.ablauf.find(a => a.b === b)?.xs ?? [], druck, begriffe) }))
     .filter(x => x.punkte.length)
   return <>
-    {themen.map(t => <ThemaAnzeige key={t.thema.id} t={t} blaetter={blaetter} druck={druck} eingabe={eingabe} begriffe={begriffe} />)}
+    {/* Gruppen nach der Gliederung der Normen (27.10.2026): Überschrift mit Kapitel und Seite vor dem ersten Thema der Gruppe */}
+    {themen.map((t, i) => {
+      const g = gruppeVonThema(t.thema.id), neu = !i || gruppeVonThema(themen[i - 1].thema.id) !== g
+      return <Fragment key={t.thema.id}>{neu && <p className="themen-gruppe"><b>{T(g)}</b></p>}
+        <ThemaAnzeige t={t} blaetter={blaetter} druck={druck} eingabe={eingabe} begriffe={begriffe} /></Fragment>
+    })}
     {ohne.length > 0 && <p className="klein thema-ohne">Ohne Befund: {ohne.map((t, i) => <Fragment key={t.thema.id}>{i ? ', ' : ''}<span
       title={t.ohneBefund.map(regelTitel).join(', ')}>{t.thema.name}</span></Fragment>)}</p>}
     {eingabe && nWeitere > 0 && <details className="befund-thema bedarf-thema thema-angaben" id={themaId('weitere')}>

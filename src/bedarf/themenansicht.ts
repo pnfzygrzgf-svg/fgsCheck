@@ -13,7 +13,7 @@
 // (Trottoirüberfahrt, LSA-Zeiten), stehen als Zeile mit Sprung zur ersten Angabe und zählen als offen.
 
 import { FELD_DEF, FELD_DEFS, OBJEKTE, istGrundFeld, istObjektFeld } from './felder'
-import { ABSCHNITTE, THEMEN, abschnittVon, istWeiche, nachThema, pruefUebersicht, themaVon, type ThemaDef } from './themen'
+import { ABSCHNITTE, THEMEN, abschnittVon, istWeiche, nachThema, normVergleich, pruefUebersicht, themaVon, type ThemaDef } from './themen'
 import { bezuege, feldZiel, gilt, schaltet, type SichtKontext } from './feldhilfen'
 import { KATALOG, type RegelId } from './katalog'
 import type { BefundBlatt } from './befundblatt'
@@ -185,6 +185,10 @@ export function themenAnsicht(blaetter: readonly BefundBlatt[]): ThemenAnsicht {
     // nicht und gäben sonst einem Thema Inhalt, das im Fall nicht greift, z. B. Trottoirüberfahrt nur wegen der Lage)
     for (const r of x.regeln) { const tr = themaVon(r); if (tr && tr !== t && !istWeiche(r)) verweis(tr, { feld: x.ziel ?? x.feld, regeln: [r], wo: t }) }
   }
+  // Fragen im Thema in der Reihenfolge der Norm (27.10.2026): nach der ersten Regel des Themas, die sie braucht
+  const erste = (t: Thema, rs: readonly string[]) => [...rs].filter(id => themaVon(id) === t).sort(normVergleich)[0] ?? rs[0]
+  for (const [t, fs] of fragenJe) fragenJe.set(t, fs.map((f, i) => ({ f, i })).sort((a, b) => normVergleich(erste(t, a.f.regeln), erste(t, b.f.regeln)) || a.i - b.i)
+    .map(x => x.f))
   // Felder der Grundprüfung: Verweis in jedem Thema der Regeln, die sie brauchen
   for (const [ziel, regeln] of grundRef) for (const r of regeln) { const t = themaVon(r); if (t) verweis(t, { feld: ziel, regeln: [r], wo: 'grund' }) }
   const ohneAngabenJe = new Map<Thema, string[]>()

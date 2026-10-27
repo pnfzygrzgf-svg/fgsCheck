@@ -45,9 +45,24 @@ const THEMA_DEF = {
   ohneVortritt: { name: 'Ohne Vortritt und Mehrzweckstreifen', umfang: 'Furt, Querung ohne Vortritt, Mehrzweckstreifen' },
 } as const satisfies Record<Thema, { name: string; umfang: string }>
 
-/** Anzeigereihenfolge der Themen */
-const REIHE: readonly Thema[] = ['zulaessigkeit', 'nachfrage', 'sicht', 'insel', 'fahrstreifen', 'lage', 'ausruestung', 'beleuchtung',
-  'lichtsignal', 'trottoirueberfahrt', 'ohneVortritt']
+/**
+ * Gruppen der Themen nach der Gliederung der Normen (27.10.2026: die erweiterte Prüfung neben der Norm lesen): Fussgängerstreifen nach
+ * VSS 40 241 Kap. C und D, dann Lichtsignal, Trottoirüberfahrt und Querung ohne Vortritt. Überschrift mit Kapitel und Seite.
+ */
+export const THEMEN_GRUPPEN: readonly { titel: string; themen: readonly Thema[] }[] = [
+  { titel: 'Anordnungsvoraussetzungen (VSS 40 241 Kap. C, S. 6–10)', themen: ['zulaessigkeit', 'nachfrage', 'sicht', 'fahrstreifen'] },
+  { titel: 'Positionierung (VSS 40 241 Kap. D, Z. 18–20, S. 10–11)', themen: ['lage'] },
+  { titel: 'Ausrüstung (VSS 40 241 Kap. D, Z. 21–29, S. 11–14)', themen: ['insel', 'ausruestung', 'beleuchtung'] },
+  { titel: 'Lichtsignalanlage (VSS 40 837)', themen: ['lichtsignal'] },
+  { titel: 'Trottoirüberfahrt (VSS 40 242)', themen: ['trottoirueberfahrt'] },
+  { titel: 'Querungstyp nach VSS 40 240', themen: ['ohneVortritt'] },
+]
+/** Anzeigereihenfolge der Themen (nach THEMEN_GRUPPEN) */
+const REIHE: readonly Thema[] = THEMEN_GRUPPEN.flatMap(g => g.themen)
+/** Überschrift der Gruppe, die mit diesem Thema beginnt (sonst null) */
+export const gruppeAb = (t: Thema): string | null => THEMEN_GRUPPEN.find(g => g.themen[0] === t)?.titel ?? null
+/** Gruppe eines Themas */
+export const gruppeVonThema = (t: Thema): string => THEMEN_GRUPPEN.find(g => g.themen.includes(t))!.titel
 
 /** Themen in Anzeigereihenfolge */
 export const THEMEN: readonly ThemaDef[] = REIHE.map(id => ({ id, ...THEMA_DEF[id] }))
@@ -152,13 +167,41 @@ export function rang(x: Pick<Eintrag, 'zustand' | 'staerke'>): number {
   return { hart: 0, hart_bericht: 1, weich: 2, hinweis: 3 }[x.staerke]
 }
 
-/** Einträge nach Thema (Reihenfolge THEMEN; Themen ohne Eintrag fehlen), im Thema nach Rang, sonst in der Reihenfolge der Auswertung */
+/** Einträge nach Thema (Reihenfolge THEMEN; Themen ohne Eintrag fehlen), im Thema nach der Norm (normVergleich, 27.10.2026), sonst in der
+ * Reihenfolge der Auswertung */
 export function nachThema(alle: readonly Eintrag[]): { thema: ThemaDef; eintraege: Eintrag[] }[] {
   return THEMEN.map(thema => ({
     thema,
     eintraege: alle.map((x, i) => ({ x, i })).filter(({ x }) => themaVon(x.id) === thema.id)
-      .sort((a, b) => rang(a.x) - rang(b.x) || a.i - b.i).map(({ x }) => x),
+      .sort((a, b) => normVergleich(a.x.id, b.x.id) || a.i - b.i).map(({ x }) => x),
   })).filter(g => g.eintraege.length > 0)
+}
+
+// ── Reihenfolge der Regeln im Thema nach der Norm (27.10.2026) ──
+
+/** Normen in der Reihenfolge, in der ihre Ziffern ordnen (erste Fundstelle aus einer dieser Normen zählt) */
+const NORM_REIHE = ['40241', '40240', '40242', '40837', '40213', '640075', '640850a', '640852', '640070']
+/** Lichtsignal: nach VSS 40 837 (Z. 16 Gelb, Z. 18 Grün, Z. 21 Vorsprung), dann SN 640 075, VSS 40 240 Tab. 3, dann Bern */
+const LSA_REIHE = ['I1', 'I2', 'I3a', 'I3b', 'I5', 'I4', 'I8', 'I6', 'I6-B', 'I7-B1', 'I7-B2', 'I7-B3', 'I7-B4']
+const KAT_INDEX = new Map(REGEL_IDS.map((id, i) => [id as string, i]))
+/** Schlüssel einer Regel: Norm, Ziffer als Zahlen; Regeln ohne Norm danach in der Reihenfolge des Katalogs */
+function normSchluessel(id: string): number[] {
+  const g = abschnittVon(id)
+  if (g) return [-1, g.rang]
+  const l = LSA_REIHE.indexOf(id)
+  // LSA-Zeiten nach den Regeln, wann ein Lichtsignal zu prüfen ist (VSS 40 240 Z. 17)
+  if (l >= 0) return [NORM_REIHE.indexOf('40837'), -1, l]
+  const q = (DEF[id]?.quellen ?? []).find(x => NORM_REIHE.includes(x.werk))
+  if (!q) return [NORM_REIHE.length, KAT_INDEX.get(id) ?? 0]
+  const m = /(?:Z\.|Ziff\.|Anh\.|Kap\.|Tab\.)\s*(\d+(?:\.\d+)*)/.exec(q.ziffer)
+  return [NORM_REIHE.indexOf(q.werk), ...(m ? m[1].split('.').map(Number) : [999])]
+}
+/** Vergleich zweier Regeln eines Themas nach der Norm (Ziffer der ersten Fundstelle aus einer Norm; Trottoirüberfahrt nach der Prüfliste,
+ * Lichtsignal nach VSS 40 837); gleich: 0 */
+export function normVergleich(a: string, b: string): number {
+  const x = normSchluessel(a), y = normSchluessel(b)
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] ?? -1) - (y[i] ?? -1); if (d) return d }
+  return 0
 }
 
 // ── Prüfübersicht ──

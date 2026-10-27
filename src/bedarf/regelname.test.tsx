@@ -130,9 +130,11 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
     // Bericht: nur die Zahl je Thema (Kann-Punkt Prüfung 23.10.2026)
     expect(druck).toContain('✓ 2 Regeln ohne Befund')
     expect(renderToStaticMarkup(<BefundblattAnzeige b={b} druck />)).not.toContain('<details')
-    // Thema Insel vor Lichtsignal, im Thema Soll vor Hinweis
-    expect(panel.indexOf('Insel nach Berner Tabelle ·')).toBeLessThan(panel.indexOf('Insel wünschenswert ·'))
-    expect(panel.indexOf('Insel wünschenswert ·')).toBeLessThan(panel.indexOf('Lichtsignal prüfen nach Berner Tabelle ·'))
+    // Thema Insel vor Lichtsignal; im Thema nach der Norm (27.10.2026): erst die Ziffer der VSS-Norm, dann der Berner Standard
+    expect(panel.indexOf('Insel wünschenswert ·')).toBeLessThan(panel.indexOf('Insel nach Berner Tabelle ·'))
+    expect(panel.indexOf('Insel nach Berner Tabelle ·')).toBeLessThan(panel.indexOf('Lichtsignal prüfen nach Berner Tabelle ·'))
+    // Themen in Gruppen nach VSS 40 241 (Kapitel und Seite ausgeschrieben)
+    expect(panel.indexOf('Anordnungsvoraussetzungen (VSS 40 241 Kapitel C, Seite 6–10)')).toBeLessThan(panel.indexOf('Ausrüstung (VSS 40 241 Kapitel D'))
   })
   it('Verdichtung: Grundprüfung eine Zeile je Punkt, Quelle einmal darunter, Nummern und Fundstellen nur in den Details je Punkt; offene Angaben als Frage', () => {
     const b = blatt({ beleuchtung: null, erkennungM: null }, { bern: false, kantonBE: false })

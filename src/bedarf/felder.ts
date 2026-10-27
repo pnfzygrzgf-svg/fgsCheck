@@ -169,18 +169,18 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'aufstellflaeche', gruppe: 'ausruestung', name: 'Warteflächen auf beiden Seiten', art: B },
   { pfad: 'parkierungSichtbehindernd', gruppe: 'ausruestung', name: 'Parkierte Autos verdecken die Sicht', art: B },
 
-  // ── LSA-Zeiten ──
+  // ── LSA-Zeiten (Reihenfolge nach VSS 40 837 Z. 16, 18, 21, dann SN 640 075, VSS 40 240 Tab. 3, Bern; 27.10.2026) ──
   { pfad: 'lsaZeiten.L', gruppe: 'lsa', name: 'Länge der Querung (Bord bis Bord)', art: m(0, 100) },
-  { pfad: 'lsaZeiten.teile', gruppe: 'lsa', name: 'Teilquerungen an der Insel', art: ms(2, 60) },
-  { pfad: 'lsaZeiten.inselB', gruppe: 'lsa', name: 'Inseltiefe (in Gehrichtung) für die LSA-Zeiten', art: m(0, 20) },
   { pfad: 'lsaZeiten.gelb', gruppe: 'lsa', name: 'Gelbzeit für Fussgänger', art: s(30) },
   { pfad: 'lsaZeiten.freigabe', gruppe: 'lsa', name: 'Grünzeit für Fussgänger', art: s(120) },
+  { pfad: 'lsaZeiten.teile', gruppe: 'lsa', name: 'Teilquerungen an der Insel', art: ms(2, 60) },
+  { pfad: 'lsaZeiten.inselB', gruppe: 'lsa', name: 'Inseltiefe (in Gehrichtung) für die LSA-Zeiten', art: m(0, 20) },
   { pfad: 'lsaZeiten.phasengleich', gruppe: 'lsa', name: 'Beide Teilquerungen gleichzeitig grün', art: B },
   { pfad: 'lsaZeiten.beideRichtungenImZyklus', gruppe: 'lsa', name: 'Beide Richtungen im selben Umlauf', art: B },
-  { pfad: 'lsaZeiten.wartezeit', gruppe: 'lsa', name: 'Wartezeit auf Grün', art: s(300) },
-  { pfad: 'lsaZeiten.vorstart', gruppe: 'lsa', name: 'Vorsprung der Fussgänger vor den Abbiegenden', art: { art: 'zahl', einheit: 's', min: -10, max: 30 } },
   { pfad: 'lsaZeiten.abbiegerKonflikt', gruppe: 'lsa', name: 'Abbiegende fahren während Fussgängergrün', art: B },
+  { pfad: 'lsaZeiten.vorstart', gruppe: 'lsa', name: 'Vorsprung der Fussgänger vor den Abbiegenden', art: { art: 'zahl', einheit: 's', min: -10, max: 30 } },
   { pfad: 'lsaZeiten.inselGeraet', gruppe: 'lsa', name: 'Taster und Zusatzgerät auf der Insel', art: B },
+  { pfad: 'lsaZeiten.wartezeit', gruppe: 'lsa', name: 'Wartezeit auf Grün', art: s(300) },
   { pfad: 'lsaZeiten.inselNurAnmeldung', gruppe: 'lsa', name: 'Grün nur auf Tastendruck', art: B },
 
   // ── Trottoirüberfahrt (Reihenfolge der Prüfliste VSS 40 242 Tab. 1 bis 3, dann Bern) ──

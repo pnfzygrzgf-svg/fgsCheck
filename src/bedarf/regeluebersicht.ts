@@ -9,7 +9,7 @@
 
 import { KATALOG, REGEL_IDS, type RegelId, type WerkId } from './katalog'
 import type { RegelDef, Thema } from './typen'
-import { ABSCHNITTE, THEMEN, abschnittVon, nachAbschnitt, themaName } from './themen'
+import { ABSCHNITTE, THEMEN, abschnittVon, gruppeAb, normVergleich, themaName } from './themen'
 import { GELTUNG, geltungKurz, regelPfade } from './feldhilfen'
 import { feldName } from './felder'
 import { grundPunktVon } from './grundpruefung'
@@ -88,7 +88,9 @@ export const regelZeilen = (): RegelZeile[] => REGEL_IDS.map(regelZeile)
 
 export type Gliederung = 'thema' | 'quelle'
 export interface RegelFilter { werk?: WerkId | ''; thema?: Thema | ''; suche?: string }
-export interface RegelGruppe { schluessel: string; name: string; zeilen: RegelZeile[] }
+export interface RegelGruppe { schluessel: string; name: string; zeilen: RegelZeile[]
+  /** Gliederung nach Thema: Überschrift der Themengruppe (Norm, Kapitel, Seite) vor dem ersten Thema der Gruppe */
+  ober?: string }
 
 /** Suche in Titel und Nummer (ohne Gross-/Kleinschreibung) */
 const passt = (z: RegelZeile, f: RegelFilter): boolean => {
@@ -106,7 +108,8 @@ export function regelGruppen(zeilen: readonly RegelZeile[], nach: Gliederung, f:
   const z = zeilen.filter(x => passt(x, f))
   const aktiv = z.filter(x => x.art === 'aktiv')
   const gruppen: RegelGruppe[] = nach === 'thema'
-    ? THEMEN.map(t => ({ schluessel: `thema-${t.id}`, name: t.name, zeilen: nachAbschnitt(aktiv.filter(x => x.thema === t.id), x => x.id) }))
+    ? THEMEN.map(t => ({ schluessel: `thema-${t.id}`, name: t.name, zeilen: aktiv.filter(x => x.thema === t.id).map((x, i) => ({ x, i }))
+      .sort((a, b) => normVergleich(a.x.id, b.x.id) || a.i - b.i).map(y => y.x), ...(gruppeAb(t.id) ? { ober: gruppeAb(t.id)! } : {}) }))
     : WERK_IDS.filter(w => !f.werk || w === f.werk).map(w => ({ schluessel: `werk-${w}`, name: LESENAME[w], zeilen: aktiv.filter(x => x.werke.includes(w)) }))
   gruppen.push({ schluessel: 'ablauf', name: 'Ablauf (Verzweigungen, Zusammenfassungen, Verweise)', zeilen: z.filter(x => x.art === 'ablauf') })
   gruppen.push({ schluessel: 'gestrichen', name: 'Gestrichen', zeilen: z.filter(x => x.art === 'gestrichen') })
