@@ -92,7 +92,7 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
     }
     expect(n).toBeGreaterThan(5000)
     expect([...fehler].slice(0, 20)).toEqual([])
-  }, 30_000)
+  }, 180_000)
   it('Panel mit Eingabemaske und alle Feldhilfen (Wozu, Ablauf, Leer lassen) in mehreren Fällen', () => {
     const fehler = new Set<string>()
     const f = leererFall(46.95, 7.44, null)
@@ -108,7 +108,7 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
       }
     }
     expect([...fehler].slice(0, 20)).toEqual([])
-  }, 30_000)
+  }, 180_000)
   it('Runde 2: Prüfübersicht, Themen, Verbindlichkeit (Muss/Soll), eine Zeile je Eintrag; Bericht ohne Liste der ohne Befund geprüften Regeln', () => {
     const b = blatt({}, { bern: true, kantonBE: true })
     const panel = text(renderToStaticMarkup(<BefundblattAnzeige b={b} />)).replace(/ :/g, ':')

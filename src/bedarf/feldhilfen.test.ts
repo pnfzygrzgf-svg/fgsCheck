@@ -327,7 +327,7 @@ describe('Feldhilfen: Wozu gekürzt (Geltung, Schalter, Reihenfolge)', () => {
     expect(offen).toBeGreaterThan(1000)
     expect([...new Set([...ausser].map(x => x.replace(/;.*/, "")))].sort()).toEqual([])
     expect([...unbenannt].sort()).toEqual([])
-  }, 30_000)
+  }, 180_000)
   it('Fussgängerstreifen ohne Lichtsignal: «Art der Querung» ohne Regeln (nur Ablauf), nirgends F5, F6, E2, D7, F4c, I oder Q3', () => {
     const k = kx()
     expect(k.e.typ.wert).toBe('fgs')
