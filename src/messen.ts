@@ -9,6 +9,8 @@ import { dist, type P } from './geo'
 import { fangen } from './fixpunkt'
 import type { AvFlaeche } from './daten/av'
 import type { FixpunktArt } from './fall'
+import { FELD_DEFS } from './bedarf/felder'
+import { frageVon } from './bedarf/feldhilfen'
 
 export interface MessPunkt { p: P; art: FixpunktArt }
 export interface Messung { a: MessPunkt; b: MessPunkt | null }
@@ -31,6 +33,16 @@ export const messWert = (x: number): string => (Math.round(x / 0.05) * 0.05).toF
 /** Zahlenfeld des Panels, in das «übernehmen» schreibt (Textfeld mit Dezimaltastatur bzw. Zahlfeld) */
 export const istZahlenfeld = (el: Element | null): el is HTMLInputElement =>
   !!el && el.tagName === 'INPUT' && ((el as HTMLInputElement).inputMode === 'decimal' || (el as HTMLInputElement).type === 'number')
+
+/** Feld der Maske, in das «übernehmen» schreiben darf: Bedarf nur Zahlenfelder in Metern (nicht °, %, km/h, Rampe, mehrere Werte);
+ * die übrigen Zahlenfelder des Panels (Streifenbreite, Flächen (Plan), Insel, Radius, Breite der Überfahrt) sind alle in Metern */
+export function inMetern(el: Element): boolean {
+  if (!el.classList.contains('bedarf-zahl')) return true
+  const zeile = el.closest('[id^="feld-"]')?.id ?? null
+  const label = el.getAttribute('aria-label') ?? ''
+  const d = FELD_DEFS.find(x => (zeile !== null && `feld-${x.pfad.replace(/\./g, '-')}` === zeile) || x.name === label || frageVon(x.pfad) === label)
+  return !!d && d.art.art === 'zahl' && d.art.einheit === 'm'
+}
 
 /** Wert in ein Zahlenfeld schreiben wie eine Eingabe (React sieht die Änderung) und danach mit Enter übernehmen (erst nach dem Neuzeichnen,
  * damit das Feld den neuen Text kennt); fertig: nach dem Übernehmen */

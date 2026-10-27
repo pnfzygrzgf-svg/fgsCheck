@@ -516,6 +516,24 @@ describe('Paket C: Vortrittsrolle an der Kreuzung (OSM-Vortrittszeichen)', () =>
     expect(w.lage).toMatchObject({ wert: 'knoten_belastet', quelle: 'osm' })
     expect(w.lage.text).toContain('«Stop»')
   })
+  it('Trottoirüberfahrt über die Zufahrt ohne Vortritt einer Kreuzung mit vier Armen (27.10.2026): Überfahrt über die einmündende Strasse, gegenüberliegende Einmündung', () => {
+    const vier = (osm: OsmDaten) => ({ ...osm, wege: [...osm.wege, weg(3, [[14, xs, 0], [40, xs, -200]], { highway: 'residential', name: 'Gegenweg', maxspeed: '30' })] })
+    const autoTue = (osm: OsmDaten, z: VortrittZeichen[]) => {
+      const w: Vorbelegung = {}
+      const geo: AutoGeo = { osm, av: AV, ladeort: O, osmRadiusM: 300, vortritt: { zeichen: z, bereich: { mitte: O, radiusM: 300, form: 'kreis' } } }
+      automatik({ st: g.streifen.map(s => ({ ...s, trottoirueberfahrt: true as const })), fall: fallMit(), geo, w, hinweise: [], rechner: {},
+        setze: (p, wert, quelle, text) => { w[p] = { wert, quelle, text } }, feldHinweis: () => {} })
+      return w
+    }
+    const w = autoTue(vier(tKnoten([[15, xs + 6, 0]])), [zeichen(15, xs + 6, 0, 'stop')])
+    expect(w.lage).toMatchObject({ wert: 'knoten_belastet' })
+    expect(w['q3.ueber']).toMatchObject({ wert: 'einmuendend', quelle: 'annahme' })
+    expect(w['q3.gegenueberEinm']).toMatchObject({ wert: true, quelle: 'osm' })
+    expect(w['q3.gegenueberEinm'].text).toMatch(/^Kreuzung mit 4 Armen: gegenüber «Hauptstrasse» \(OSM\)$/)
+    // Fussgängerstreifen an derselben Kreuzung: keine Vorbelegung der Trottoirüberfahrt
+    const { w: wf } = auto(vier(tKnoten([[15, xs + 6, 0]])), [zeichen(15, xs + 6, 0, 'stop')])
+    expect(wf['q3.gegenueberEinm']).toBeUndefined()
+  })
   it('ohne Zeichen bzw. Zeichen über 20 m vom Knoten: offen mit Hinweis; Zeichen auf beiden Strassen: Hinweis', () => {
     for (const z of [null, [], [zeichen(20, xs, 200)]]) {
       const { w, fh } = auto(tKnoten(), z)

@@ -251,10 +251,14 @@ export function Anleitung() {
                 <li>Werkzeug «Trottoirüberfahrt» (Planen) und beide Enden über die einmündende Strasse anklicken – oder einen Streifen
                   zeichnen und unter «Querung» «{TUE_OPTION}» wählen: grau gestrichelt in Trottoirfarbe, ohne Sicht auf die
                   Wartefläche; im Bedarf ist der Querungstyp damit gesetzt.</li>
-                <li>Im Reiter «Bedarf und Querungstyp» die Fragen im Thema Trottoirüberfahrt beantworten.</li>
+                <li>Im Reiter «Bedarf und Querungstyp» die Fragen im Thema Trottoirüberfahrt beantworten (Reihenfolge der Prüfliste der
+                  Norm). «Alternative Fussgängerstreifen prüfen» zeigt zusätzlich die Fragen zu einem Fussgängerstreifen an dieser Stelle; ohne
+                  den Knopf prüft die App ihn nur grob für die Empfehlung.</li>
                 <li>Die Knotensicht der Einbiegenden rechnet die App selbst (Kern des SichtweitenCheck): je Richtung zwei Phasen
                   (vom hinteren Rand der Überfahrt aufs Trottoir, vom vorderen Rand zur Fahrbahn); sie beantwortet
-                  «{feldName('q3.knotensichtOk')}», wenn beide Phasen ein klares Ergebnis haben.</li>
+                  «{feldName('q3.knotensichtOk')}», wenn beide Phasen ein klares Ergebnis haben. Auf der Karte stehen das wartende
+                  Fahrzeug je Phase und die Fahrzeuge am Ende der nötigen Sichtweite; am Fussgängerstreifen je Zufahrt ein Fahrzeug am letzten
+                  Sichtpunkt und eine wartende Person je Streifenende (nur Darstellung).</li>
               </ol></li>
             <li><b>Grundprüfung (Big Five, bfu):</b> oben im Reiter «Bedarf und Querungstyp» prüft ein Kasten die fünf Punkte der
             {V('bfu-Fachdokumentation «Fussgängerstreifen»')} und das Tempo als Vorbedingung, mit eigenen Regeln nach den Werten der bfu: Tempo

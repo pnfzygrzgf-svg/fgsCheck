@@ -139,7 +139,7 @@ describe('Zusammenfassung über alle Testfälle', () => {
     expect(zf({ fgsMitLsa: true }).wichtig).not.toContain('Grundprüfung')
     expect(zf({ typ: 'trottoirueberfahrt', lage: 'einmuendung' }).antwort).toBe('Eine Trottoirüberfahrt ist hier zulässig.')
     const tue = zf({ typ: 'trottoirueberfahrt' })
-    expect(tue.antwort).toMatch(/^Eine Trottoirüberfahrt ist hier nicht zulässig: Trottoirüberfahrt nicht an einer Einmündung; stattdessen passt ein Fussgängerstreifen/)
+    expect(tue.antwort).toMatch(/^Eine Trottoirüberfahrt ist hier nicht zulässig: die Querung liegt nicht an einer Einmündung über die Seitenstrasse; stattdessen passt ein Fussgängerstreifen/)
     expect(tue.grundIds).toContain('Q3-4')
     expect(zf({ typ: 'trottoirueberfahrt', lage: 'einmuendung', q3: null }).antwort).toBe('Vorläufig: Ob eine Trottoirüberfahrt hier zulässig ist, hängt von fehlenden Angaben ab.')
   })

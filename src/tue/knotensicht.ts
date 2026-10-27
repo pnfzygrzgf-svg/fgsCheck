@@ -257,16 +257,17 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   const voraus = (p: P): P => [p[0] + e.fbRichtung[0], p[1] + e.fbRichtung[1]]
   const fb = (Dachse: P, wo: string) => {
     const [mitte, richtung] = e.zufahrtVelo ? fbVeloLage(Dachse, voraus(Dachse)) : fbLage(Dachse, voraus(Dachse))
-    fahrzeuge.push({ art: e.zufahrtVelo ? 'velo' : 'auto', rolle: 'fb', mitte, richtung, text: `wartendes ${e.zufahrtVelo ? 'Velo' : 'Fahrzeug'}, Auge bei ${wo}` })
+    fahrzeuge.push({ art: e.zufahrtVelo ? 'velo' : 'auto', rolle: 'fb', mitte, richtung,
+      text: `wartendes ${e.zufahrtVelo ? 'Velo' : 'Fahrzeug'}, Auge der Ausfahrenden hinter dem ${wo} Rand` })
   }
-  if (tp) fb(tp.Dachse, "D'")
-  fb(e.Dachse, 'D')
+  if (tp) fb(tp.Dachse, 'hinteren')
+  fb(e.Dachse, 'vorderen')
   for (const rr of e.richtungen) {
     const seite = rr.lage === 'gegenueber' ? 'von gegenüber' : rr.lage
     const fa = rr.status !== 'keine_zufahrt' ? faLage(rr.sichtpunkte, Math.min(rr.massgebend, rr.sichtpunkte.length - 1)) : null
-    if (fa) fahrzeuge.push({ art: 'auto', rolle: 'fa', mitte: fa[0], richtung: fa[1], text: `Fahrzeug am Ende der Sichtweite A, ${seite}` })
+    if (fa) fahrzeuge.push({ art: 'auto', rolle: 'fa', mitte: fa[0], richtung: fa[1], text: `Fahrzeug am Ende der nötigen Sichtweite, ${seite}` })
     const vl = rr.velo ? veloLage(rr.velo.sichtpunkte, Math.min(rr.velo.A, rr.velo.sichtpunkte.length - 1)) : null
-    if (vl) fahrzeuge.push({ art: 'velo', rolle: 'fa', mitte: vl[0], richtung: vl[1], text: `Velo am Ende der Sichtweite A, ${seite}` })
+    if (vl) fahrzeuge.push({ art: 'velo', rolle: 'fa', mitte: vl[0], richtung: vl[1], text: `Velo am Ende der nötigen Sichtweite, ${seite}` })
   }
   const profile: Knotensicht['profile'] = {}
   for (const rr of e.richtungen) if (rr.profilLinie.length >= 2) profile[rr.richtung] = rr.profilLinie

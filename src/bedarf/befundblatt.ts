@@ -25,6 +25,7 @@ import { grundpruefung, type Grundpruefung } from './grundpruefung'
 import { ausgeblendeteBloeckeLeeren } from './feldhilfen'
 import { regelName, regelTitel } from './regelname'
 import { fundstelleKurz } from './quellen'
+import { nachAbschnitt, themaVon } from './themen'
 import type { Querungstyp } from './eingaben'
 import type { StreifenErgebnis, ZufahrtErgebnis } from '../rechner/typen'
 import type { Fall } from '../fall'
@@ -141,6 +142,8 @@ const regelVerweis = (id: string): string => `${regelTitel(id)} – ${fundstelle
 export function begruendung(b: Befund, typ: Querungstyp | null = null): string {
   const teile: string[] = []
   const verl = (ids: string[]) => [...new Set(b.alle.filter(x => x.zustand === 'verletzt' && ids.includes(x.id)).map(x => x.id))]
+  // beurteilte Trottoirüberfahrt (27.10.2026): nur aus ihren zwingenden Punkten und Merkmalen, nichts zum Fussgängerstreifen
+  if (typ === 'trottoirueberfahrt') return begruendungTue(b)
   if (b.zulaessigkeit === 'offen') {
     // Runde 5 (Stelle 6, F4): die wirklich offene Regel nennen, nicht die verletzten Soll-Regeln
     const offen = b.alle.filter(x => x.zustand === 'offen' && ['A2', 'C1', 'C2'].includes(x.id))
@@ -161,6 +164,20 @@ export function begruendung(b: Befund, typ: Querungstyp | null = null): string {
   return teile.join('. ')
 }
 const OHNE_VORTRITT_ANLAGE: readonly string[] = ['furt', 'ohne_vortritt', 'mehrzweck']
+
+/** Begründung einer beurteilten Trottoirüberfahrt: zwingende Punkte (Q3, Trottoirrand F5c) verletzt bzw. offen, sonst die nicht erfüllten
+ * Merkmale (Soll); leer, solange die Prüfung nicht gelaufen ist */
+function begruendungTue(b: Befund): string {
+  if (!b.ausgewertet.includes('Q3-4')) return ''
+  const zwingend = (id: string) => (id.startsWith('Q3') || id === 'F5c') && ['hart', 'hart_bericht'].includes(KATALOG[id as RegelId]?.staerke ?? '')
+  const ids = (z: 'verletzt' | 'offen', f: (id: string) => boolean) =>
+    nachAbschnitt([...new Set(b.alle.filter(x => x.zustand === z && f(x.id) && (z === 'offen' || x.staerke !== 'hinweis')).map(x => x.id))], x => x)
+  const hart = ids('verletzt', zwingend), offen = ids('offen', zwingend)
+  if (hart.length) return `Nicht zulässig: ${hart.map(regelVerweis).join('; ')}`
+  if (offen.length) return `Zulässigkeit offen, weil Angaben fehlen: ${offen.map(regelVerweis).join('; ')}`
+  const soll = ids('verletzt', id => themaVon(id) === 'trottoirueberfahrt' && KATALOG[id as RegelId]?.staerke === 'weich')
+  return `Zwingende Punkte ohne Befund (VSS 40 242 Tab. 1)${soll.length ? `. Merkmale bzw. Ausstattung nicht erfüllt: ${soll.map(regelVerweis).join('; ')}` : ''}`
+}
 /** was bei offener Zulässigkeit fehlt (Begründung) */
 const OFFEN_WEIL: Record<string, string> = {
   A2: 'nicht geklärt ist, ob eine Begegnungszone vorliegt', C1: 'das Tempo nicht geklärt ist',

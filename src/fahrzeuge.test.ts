@@ -41,17 +41,24 @@ describe('Trottoirüberfahrt: Fahrzeuge der Knotensicht', () => {
   const s = rechnen(fall(true, lv(-44, -8), lv(-36, -8))).streifen[0]
   const f = tueFahrzeuge(s)
   it('F_B je Phase (Auge bei D\' und D), F_A je Richtung am Ende von A, Velo auf dem Radstreifen; Autos mit Umriss und Scheibe', () => {
-    expect(f.filter(x => x.rolle === 'fb').map(x => x.text)).toEqual(["wartendes Fahrzeug, Auge bei D'", 'wartendes Fahrzeug, Auge bei D'])
-    expect(f.filter(x => x.rolle === 'fa' && x.art === 'auto').map(x => x.text)).toEqual(['Fahrzeug am Ende der Sichtweite A, links',
-      'Fahrzeug am Ende der Sichtweite A, rechts'])
+    expect(f.filter(x => x.rolle === 'fb').map(x => x.text)).toEqual(['wartendes Fahrzeug, Auge der Ausfahrenden hinter dem hinteren Rand',
+      'wartendes Fahrzeug, Auge der Ausfahrenden hinter dem vorderen Rand'])
+    expect(f.filter(x => x.rolle === 'fa' && x.art === 'auto').map(x => x.text)).toEqual(['Fahrzeug am Ende der nötigen Sichtweite, links',
+      'Fahrzeug am Ende der nötigen Sichtweite, rechts'])
     expect(f.filter(x => x.rolle === 'fa' && x.art === 'velo').length).toBe(2)
     for (const x of f.filter(y => y.art === 'auto')) { expect(x.umriss).toHaveLength(8); expect(x.scheibe).toHaveLength(4) }
   })
   it('Lenker beim Beobachtungspunkt: F_B der Phase Fahrbahn mit dem Auge bei D (Fahrersitz, rund 0,5 m neben der Achse)', () => {
     const ks = s.knotensicht
     if (!ks || 'fehler' in ks) throw new Error('keine Knotensicht')
-    const fbD = f.find(x => x.text === 'wartendes Fahrzeug, Auge bei D')!
+    const fbD = f.find(x => x.text === 'wartendes Fahrzeug, Auge der Ausfahrenden hinter dem vorderen Rand')!
     expect(dist(fbD.mitte, ks.karte.D)).toBeLessThan(Math.abs(LENKER_VOR_FRONT_M - PW_LAENGE_M / 2) + 0.6)
+  })
+  it('über die durchgehende Strasse bzw. ohne Einmündung: keine Fahrzeuge (27.10.2026)', () => {
+    const ks0 = s.knotensicht
+    if (!ks0 || 'fehler' in ks0) throw new Error('keine Knotensicht')
+    expect(tueFahrzeuge({ ...s, knotensicht: { ...ks0, durchgehend: true } })).toEqual([])
+    expect(tueFahrzeuge({ ...s, knotensicht: { fehler: 'kein Knoten', ohneZufahrt: true } })).toEqual([])
   })
   it('kein Fahrzeug der Knotensicht ohne Trottoirüberfahrt; keine Personen und Fahrzeuge des Fussgängerstreifens an der Überfahrt', () => {
     expect(fgsFahrzeuge(s)).toEqual([])
@@ -75,7 +82,7 @@ describe('Fussgängerstreifen: Fahrzeug je gerade Zufahrt, Person je Streifenend
       // fährt auf den Streifen zu: die Front liegt näher am Streifen als das Auge
       const front: P = [a.mitte[0] + a.richtung[0] * PW_LAENGE_M / 2, a.mitte[1] + a.richtung[1] * PW_LAENGE_M / 2]
       expect(dist(front, s.m)).toBeLessThan(dist(a.auge!, s.m))
-      expect(a.text).toBe(`Fahrzeug am Sichtpunkt, ${String(z.sichtweite).replace('.', ',')} m vor dem Streifen`)
+      expect(a.text).toBe(`Fahrzeug am Sichtpunkt, ${z.sichtweite.toFixed(1).replace('.', ',')} m vor dem Streifen`)
     }
   })
   it('eine wartende Person je Streifenende, 0,6 m hinter der Bordkante', () => {

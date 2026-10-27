@@ -44,7 +44,7 @@ import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type Pl
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
   streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, type StreifenQuerung } from './fall'
 import { tueMasse } from './tue/karte'
-import { inFeldSchreiben, istZahlenfeld, messKlick, messLaenge, messPunkt, messText, messWert, type Messung } from './messen'
+import { inFeldSchreiben, inMetern, istZahlenfeld, messKlick, messLaenge, messPunkt, messText, messWert, type Messung } from './messen'
 import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_M, ORT_TOL_M, streifenMitte, streifenAbstand, planEntscheid,
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
   querungAusserhalb, querungWegText, querungVerschobenText, type OrtEntscheid, type Ausserhalb } from './abdeckung'
@@ -230,6 +230,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const fokus = (e: FocusEvent) => {
       const el = e.target as Element | null
       if (!istZahlenfeld(el) || !el.closest('.panel')) return
+      // nur Felder in Metern (27.10.2026): ein anderes Zahlenfeld hebt die Wahl auf
+      if (!inMetern(el)) { zahlenfeld.current = null; setZahlenfeldName(null); return }
       zahlenfeld.current = el
       setZahlenfeldName(el.getAttribute('aria-label') ?? el.getAttribute('title')?.split(/[;,(]/)[0] ?? 'Zahlenfeld')
     }
@@ -1765,7 +1767,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         {zahlenfeldName ? <button className="klein" title={`${messWert(messM)} m in «${zahlenfeldName}» schreiben`} onClick={() => {
           const el = zahlenfeld.current
           if (el && el.isConnected) inFeldSchreiben(el, messWert(messM)); else setZahlenfeldName(null)
-        }}>übernehmen</button> : <button className="klein" disabled>zuerst ein Zahlenfeld anklicken</button>}</>
+        }}>übernehmen</button> : <button className="klein" disabled>zuerst ein Zahlenfeld in Metern anklicken</button>}</>
         : messung ? 'zweiten Punkt anklicken' : 'ersten Punkt anklicken'}
       <div className="klein">Fang auf Vermessungspunkte der AV im Umkreis von {FANG_PX} Bildschirmpunkten, sonst freier Punkt; Esc beendet.</div>
       <div><button className="zweit" onClick={() => { setMessung(null); setWerkzeug(null) }}>fertig</button></div>
@@ -2430,7 +2432,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
   const se = fall.streifen[s.fgsId] ?? {}
   // Lage der Querung im Bedarf (Vorbelegung bzw. von Hand): bekannt und keine Einmündung → Hinweis an der Trottoirüberfahrt
   const lage = blatt?.gebildet.eingaben.lage.wert ?? null
-  const nichtEinmuendung = lage !== null && lage !== 'einmuendung'
+  const nichtEinmuendung = lage !== null && lage !== 'einmuendung' && lage !== 'knoten_belastet'
   const setzeS = (e: Partial<typeof se>) => aendern(f => {
     const neu = { ...(f.streifen[s.fgsId] ?? {}), ...e }
     for (const k of Object.keys(neu) as (keyof typeof neu)[]) if (neu[k] === undefined || neu[k] === false) delete neu[k]

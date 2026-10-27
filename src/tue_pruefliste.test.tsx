@@ -16,7 +16,7 @@ import { sichtbar } from './bedarf/feldhilfen'
 import { zusammenfassungBlatt } from './bedarf/zusammenfassung'
 import { handSetzen } from './bedarf/fallBedarf'
 import { regelGruppen, regelZeilen } from './bedarf/regeluebersicht'
-import { BedarfAbschnitt, BefundblattAnzeige } from './BedarfPanel'
+import { BedarfAbschnitt, BefundblattAnzeige, zusatzTexte } from './BedarfPanel'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number): [number, number] => wgs(O[0] + x, O[1] + y)
@@ -154,6 +154,25 @@ describe('Nur Fragen der Trottoirüberfahrt; Alternative Fussgängerstreifen auf
     expect(ohne).toMatch(/^Eine Trottoirüberfahrt ist hier nicht zulässig: Trottoirrand zurückgesetzt/)
     expect(ohne).toContain('(nur grob geprüft)')
     expect(mit).not.toContain('grob')
+  })
+  it('Begründung und Zusätze: nur aus der Trottoirüberfahrt, nichts zum Fussgängerstreifen (Korrektur 27.10.2026)', () => {
+    const offen = blatt(tueFall({ innerorts: true, lage: 'einmuendung' }))
+    const nicht = blatt(tueFall({ ...OK, 'q3.randDurchgehend': false }))
+    const zone = blatt(tueFall({ ...OK, tempoRegime: 'begegnungszone', vSig: 20 }))
+    const ok = blatt(tueFall(OK))
+    for (const b of [offen, nicht, zone, ok]) {
+      expect(b.begruendung).not.toMatch(/Fussgängerstreifen|Insel|Lichtsignal|Begegnungszone/)
+      expect(zusatzTexte(b).join(' ')).not.toMatch(/Zusätzlich (prüfen|möglich)/)
+    }
+    expect(offen.begruendung).toMatch(/^Zulässigkeit offen, weil Angaben fehlen: /)
+    expect(nicht.begruendung).toMatch(/^Nicht zulässig: Trottoirrand gerade durch – /)
+    expect(ok.begruendung).toBe('Zwingende Punkte ohne Befund (VSS 40 242 Tab. 1)')
+    expect(zone.befund.empfehlung.grundlage).toEqual([])
+  })
+  it('Kreuzung über die Zufahrt ohne Vortritt: zulässig; über die Strasse mit Vortritt: nicht', () => {
+    expect(zusammenfassungBlatt(blatt(tueFall({ ...OK, lage: 'knoten_belastet' }))).antwort).toBe('Eine Trottoirüberfahrt ist hier zulässig.')
+    expect(zusammenfassungBlatt(blatt(tueFall({ ...OK, lage: 'knoten_berechtigt' }))).antwort)
+      .toMatch(/^Eine Trottoirüberfahrt ist hier nicht zulässig: die Querung liegt nicht an einer Einmündung über die Seitenstrasse/)
   })
   it('Knopf «Alternative Fussgängerstreifen prüfen» nur bei einer Trottoirüberfahrt', () => {
     const f = tueFall({ innerorts: true, lage: 'einmuendung' })

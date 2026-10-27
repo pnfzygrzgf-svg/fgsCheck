@@ -321,7 +321,9 @@ export const REGELN: Record<BefundId, RegelFn> = {
   'Q3-1': k => ja(!k.w('innerorts') || !k.s('q3', 'bebaut')),
   'Q3-2': k => ja(k.s('q3', 'gewerbe')),
   'Q3-3': k => ja(k.s('q3', 'anschlussGewerbe')),
-  'Q3-4': k => ja(k.w('lage') !== 'einmuendung'),
+  // an einem Knoten quer über die einmündende Strasse: Einmündung bzw. Kreuzung über die Zufahrt ohne Vortritt (27.10.2026: auch eine
+  // gegenüberliegende Einmündung, VSS 40 242 Tab. 2); Strecke, Kreisel und die Strasse mit Vortritt (Fall Q3-5) nicht
+  'Q3-4': k => ja(!['einmuendung', 'knoten_belastet'].includes(k.w('lage'))),
   'Q3-5': k => ja(k.s('q3', 'ueber') === 'haupt'),
   'Q3-6': k => ja(k.s('q3', 'vSigHaupt') > K['Q3-6'].werte.vMax, { ist: `${k.s('q3', 'vSigHaupt')} km/h` }),
   'Q3-7': k => ja(k.s('q3', 'nEinm') > K['Q3-7'].werte.nMax),
@@ -491,7 +493,13 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const l = k.s('q3', 'ueberfahrbarM'), W = K.F5d.werte
     return ja(l > W.max, { ist: fmt(l), soll: `≤ ${fmt(W.max)}` })
   },
-  F5e: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(k.s('q3', 'begrenzung') !== 'poller')),
+  // Randsteine bzw. Markierung an den Einlenkern: Soll; ganz ohne Begrenzung nur Hinweis auf Poller beidseits (27.10.2026)
+  F5e: k => {
+    if (k.o('typ') !== 'trottoirueberfahrt') return null
+    const b = k.s('q3', 'begrenzung')
+    if (b === 'keine') return ja(true, { staerke: 'hinweis', text: 'Poller oder Pfosten beidseits empfohlen (VSS 40 242 Z. 18, S. 22)' })
+    return ja(b === 'randstein', { staerke: 'weich' })
+  },
   F5f: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(!k.s('q3', 'erkennbar'))),
   F5g: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(['wechsel', 'beides'].includes(k.s('q3', 'belag')))),
   F5h: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(['absatz', 'beides'].includes(k.s('q3', 'belag')))),
@@ -499,7 +507,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (k.o('typ') !== 'trottoirueberfahrt') return null
     const g = k.s('q3', 'quergefaelle'), W = K.F5i.werte
     if (g > W.max) return ja(true, { staerke: 'hart', ist: `${fmt(g, 1)} %`, soll: `≤ ${W.max} %` })
-    return ja(g > W.regel, { staerke: 'hinweis', ist: `${fmt(g, 1)} %`, soll: `≤ ${W.max} %`, text: `Quergefälle über ${W.regel} %: in der Regel ${W.regel} %` })
+    return ja(g > W.regel, { staerke: 'hinweis', ist: `${fmt(g, 1)} %`, soll: `${W.regel} % (in der Regel)`, text: `Quergefälle über ${W.regel} %: in der Regel ${W.regel} %` })
   },
   F5j: k => {
     if (k.o('typ') !== 'trottoirueberfahrt') return null

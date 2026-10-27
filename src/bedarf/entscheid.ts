@@ -163,7 +163,8 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     pruefe('A2', still)
     if (k.hat('A2')) {
       if (tue) altEnde = true; else ende = 'begegnungszone'
-      Object.assign(empf, { typ: 'flaechig', elemente: ['Begegnungszone: flächiges Queren mit Vortritt'], grundlage: ['A2'] })
+      // Trottoirüberfahrt: nur die Alternative ist flächig; keine Grundlage (die Begründung stützt sich auf Q3 und F5)
+      Object.assign(empf, { typ: 'flaechig', elemente: ['Begegnungszone: flächiges Queren mit Vortritt'], grundlage: tue ? [] : ['A2'] })
     }
   }
   if (!ende && !altEnde) {
@@ -172,7 +173,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     pruefe('B1', still)
     if (k.hat('B1')) {
       if (tue) altEnde = true; else ende = 'flaechig'
-      Object.assign(empf, { typ: 'flaechig', elemente: ['Begegnungszone', 'Mehrzweckstreifen', 'dichte Querungen ohne Vortritt'], grundlage: ['B1'] })
+      Object.assign(empf, { typ: 'flaechig', elemente: ['Begegnungszone', 'Mehrzweckstreifen', 'dichte Querungen ohne Vortritt'], grundlage: tue ? [] : ['B1'] })
     }
   }
   if (!ende) {
@@ -245,7 +246,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
         else {
           const m = weich.length ? `; Merkmale nicht erfüllt: ${weich.join(', ')}` : ''
           if (tue) {
-            Object.assign(empf, { typ: 'Q3', elemente: ['Trottoirüberfahrt'] })
+            Object.assign(empf, { typ: 'Q3', elemente: ['Trottoirüberfahrt'], grundlage: [] })
             if (m || bernText) empf.zusatz.push(`Trottoirüberfahrt normkonform${bernText}${m}`)
           } else empf.zusatz.push(`Trottoirüberfahrt (Q3) normkonform möglich${bernText}${m}`)
         }

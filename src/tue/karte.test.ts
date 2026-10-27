@@ -17,4 +17,9 @@ describe('Trottoirüberfahrt: Fläche und Masse', () => {
     expect(tueMasse({ fehler: 'x' })).toBeNull()
     expect(tueFlaeche(ks([]))).toBeNull()
   })
+  it('über die durchgehende Strasse (keine Einmündung): weder Fläche noch Masse, nur die Achse', () => {
+    const k = { ...ks([[[0, 0], [8, 0]], [[0, 3.2], [8, 3.2]]]), durchgehend: true } as KnotensichtAntwort
+    expect(tueFlaeche(k)).toBeNull()
+    expect(tueMasse(k)).toBeNull()
+  })
 })

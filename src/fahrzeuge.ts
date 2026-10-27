@@ -9,6 +9,7 @@
 import { add, dist, einheit, sub, type P } from './geo'
 import { autoScheibe, autoUmriss, fbLage } from './knotensicht/rechner/fahrzeug'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
+import { tueGezeichnet } from './tue/karte'
 
 /** Abstand der wartenden Person hinter der Bordkante [m] (wie rechner/streifen.inselProbe) */
 export const WARTE_HINTER_RAND_M = 0.6
@@ -35,7 +36,8 @@ const auto = (f: Omit<FahrzeugForm, 'umriss' | 'scheibe'>): FahrzeugForm =>
 /** Fahrzeuge der Knotensicht einer Trottoirüberfahrt (leer ohne gerechnete Knotensicht bzw. bei anderem Streifen) */
 export function tueFahrzeuge(s: StreifenErgebnis): FahrzeugForm[] {
   const ks = s.knotensicht
-  if (!s.trottoirueberfahrt || !ks || 'fehler' in ks || (ks.streifenId && ks.streifenId !== s.fgsId)) return []
+  // ohne Einmündung bzw. über die durchgehende Strasse keine Fahrzeuge (sie stünden mitten auf der Hauptstrasse; 27.10.2026)
+  if (!s.trottoirueberfahrt || !tueGezeichnet(ks) || (ks.streifenId && ks.streifenId !== s.fgsId)) return []
   return (ks.karte.fahrzeuge ?? []).map(f => auto({ art: f.art, rolle: f.rolle, mitte: f.mitte, richtung: f.richtung, text: f.text }))
 }
 
@@ -64,7 +66,7 @@ export function fgsFahrzeuge(s: StreifenErgebnis): FahrzeugForm[] {
     if (!u) continue
     const [mitte, richtung] = fbLage(auge, add(auge, u))
     aus.push(auto({ art: 'auto', rolle: 'zufahrt', mitte, richtung, auge, zufahrt: `${z.fgsId}|${z.zufahrt}`,
-      text: `Fahrzeug am Sichtpunkt, ${String(z.sichtweite).replace('.', ',')} m vor dem Streifen` }))
+      text: `Fahrzeug am Sichtpunkt, ${z.sichtweite.toFixed(1).replace('.', ',')} m vor dem Streifen` }))
   }
   // Wartebereich je Ende wie gerechnet (Bordkante, Richtung vom Streifen weg); ohne: Bordkante, von der Streifenmitte weg
   for (const [r, a] of s.warte ?? s.rand.map(r => [r, einheit(sub(r, s.m))] as [P, P])) {

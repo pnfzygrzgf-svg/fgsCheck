@@ -6,16 +6,20 @@
 import type { P } from '../geo'
 import type { KnotensichtAntwort } from './knotensicht'
 
-/** Fläche der Überfahrt (vorderer Rand hin, hinterer Rand zurück); null ohne gerechnete Knotensicht */
+/** Knotensicht, die eine Überfahrt zeichnen darf: gerechnet und über eine Einmündung (nicht über die durchgehende Strasse; 27.10.2026) */
+export const tueGezeichnet = (ks: KnotensichtAntwort | undefined): ks is Exclude<KnotensichtAntwort, { fehler: string }> =>
+  !!ks && !('fehler' in ks) && !ks.durchgehend
+
+/** Fläche der Überfahrt (vorderer Rand hin, hinterer Rand zurück); null ohne gerechnete Knotensicht bzw. über die durchgehende Strasse */
 export function tueFlaeche(ks: KnotensichtAntwort | undefined): P[] | null {
-  if (!ks || 'fehler' in ks || ks.karte.kanten.length !== 2) return null
+  if (!tueGezeichnet(ks) || ks.karte.kanten.length !== 2) return null
   const [v, h] = ks.karte.kanten
   return [v[0], v[1], h[1], h[0]]
 }
 
 /** Masse der Überfahrt aus der Knotensicht: Breite (Trottoir quer zur Hauptstrasse) und Länge entlang der Hauptstrasse */
 export function tueMasse(ks: KnotensichtAntwort | undefined): { breite: number; laenge: number } | null {
-  if (!ks || 'fehler' in ks || !ks.karte.kanten.length) return null
+  if (!tueGezeichnet(ks) || !ks.karte.kanten.length) return null
   const [a, b] = ks.karte.kanten[0]
   return { breite: ks.breite, laenge: Math.hypot(b[0] - a[0], b[1] - a[1]) }
 }

@@ -739,14 +739,21 @@ export function typZeile(b: BefundBlatt): JSX.Element {
 export function zusatzTexte(b: BefundBlatt): string[] {
   const f = b.befund
   const felderVon = (ids: string[]) => new Set(ids.flatMap(id => f.offenFelder[id] ?? f.alle.find(x => x.id === id)?.fehlend ?? [])).size
+  // beurteilte Trottoirüberfahrt (27.10.2026): die Zusätze sprechen von ihr selbst, nicht von einer zusätzlichen Prüfung neben dem
+  // Fussgängerstreifen
+  const tue = istTue(b)
   return f.empfehlung.zusatz.map(z => {
     let m = /^Trottoirüberfahrt: Zulässigkeit offen \((.*)\)$/.exec(z)
+    if (m && tue) {
+      const n = felderVon(m[1].split(', '))
+      return `Für die zwingenden Punkte fehlen noch ${n === 1 ? '1 Angabe' : `${n} Angaben`} (Thema Trottoirüberfahrt der erweiterten Prüfung).`
+    }
     if (m) {
       const n = felderVon(m[1].split(', '))
       return `Zusätzlich prüfen: eine Trottoirüberfahrt über die Seitenstrasse; dafür fehlen noch ${n === 1 ? '1 Angabe' : `${n} Angaben`} (Thema Trottoirüberfahrt der erweiterten Prüfung).`
     }
     m = /^Trottoirüberfahrt hier nicht zulässig wegen (.*)$/.exec(z)
-    if (m) return `Eine Trottoirüberfahrt wäre hier nicht zulässig (${m[1].split(', ').map(regelTitel).join(', ')}).`
+    if (m) return `Eine Trottoirüberfahrt ${tue ? 'ist' : 'wäre'} hier nicht zulässig (${m[1].split(', ').map(regelTitel).join(', ')}).`
     m = /^Querung ohne Vortritt prüfen \((.*)\)$/.exec(z)
     if (m) {
       const ids = m[1].split(', ')
@@ -756,6 +763,7 @@ export function zusatzTexte(b: BefundBlatt): string[] {
     }
     if (/^Trottoirüberfahrt \(Q3\) normkonform möglich/.test(z)) return `Zusätzlich möglich: eine Trottoirüberfahrt über die Seitenstrasse${z.includes('Merkmale nicht erfüllt') ? ' (einige Merkmale nicht erfüllt, siehe Thema Trottoirüberfahrt)' : ''}.`
     if (/^Trottoirüberfahrt normkonform/.test(z)) return `Die Trottoirüberfahrt ist normkonform${z.includes('Merkmale') ? '; einige Merkmale nicht erfüllt (siehe Thema Trottoirüberfahrt)' : ''}.`
+    if (z === 'Trottoirüberfahrt nicht geprüft: Eingaben fehlen' && tue) return 'Für die Trottoirüberfahrt fehlen die Angaben (Thema Trottoirüberfahrt der erweiterten Prüfung).'
     if (z === 'Trottoirüberfahrt nicht geprüft: Eingaben fehlen') return 'Zusätzlich möglich: eine Trottoirüberfahrt über die Seitenstrasse; dafür fehlen die Angaben (Thema Trottoirüberfahrt der erweiterten Prüfung).'
     return `Zusätzlich: ${z}.`
   })

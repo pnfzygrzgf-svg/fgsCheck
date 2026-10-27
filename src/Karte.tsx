@@ -18,7 +18,7 @@ import Ortssuche from './Ortssuche'
 import { schildLage, zufahrtNr, zufahrtText, type ZufahrtNamen } from './benennung'
 import { ortZoom, type Ort } from './daten/ortssuche'
 import { KS_LAGE } from './tue/texte'
-import { tueFlaeche } from './tue/karte'
+import { tueFlaeche, tueGezeichnet } from './tue/karte'
 import { messLaenge, messText, type Messung } from './messen'
 import { fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
 
@@ -206,14 +206,16 @@ export const FAHRZEUG_ZOOM = 18
 const VELO_SYMBOL_PX = 30
 /** Person als Piktogramm fester Grösse (rund 0,6 m wären nur ein paar Bildpunkte) */
 const PERSON_PX = 14
+/** Fahrzeuge und Personen unter den Markern (markerPane 600: Griffe zum Verschieben, Schilder), über den Flächen */
+const FAHRZEUG_PANE = 'fahrzeuge'
 /** Fahrzeug bzw. Person in die Ebene zeichnen; interaktiv: Tooltip (beim Zeichnen nicht, Klicks gehen an die Karte) */
 function fahrzeugZeichnen(ebene: L.LayerGroup, f: FahrzeugForm, blass: boolean, interaktiv: boolean): void {
   const farbe = blass ? FAHRZEUG_BLASS : FAHRZEUG_FARBE
   if (f.art === 'auto' && f.umriss && f.scheibe) {
     const p = L.polygon(f.umriss.map(ll), { color: '#111827', weight: blass ? 1 : 1.5, opacity: blass ? 0.6 : 1, fillColor: farbe, fillOpacity: 0.9,
-      interactive: interaktiv, className: `fahrzeug fahrzeug-${f.rolle}` }).addTo(ebene)
+      interactive: interaktiv, className: `fahrzeug fahrzeug-${f.rolle}`, pane: FAHRZEUG_PANE }).addTo(ebene)
     if (interaktiv) p.bindTooltip(esc(f.text), { sticky: true })
-    L.polygon(f.scheibe.map(ll), { color: SCHEIBE_FARBE, weight: 1, fillColor: SCHEIBE_FARBE, fillOpacity: 0.9, interactive: false }).addTo(ebene)
+    L.polygon(f.scheibe.map(ll), { color: SCHEIBE_FARBE, weight: 1, fillColor: SCHEIBE_FARBE, fillOpacity: 0.9, interactive: false, pane: FAHRZEUG_PANE }).addTo(ebene)
     return
   }
   const n = Math.hypot(f.richtung[0], f.richtung[1]) || 1
@@ -238,7 +240,7 @@ function fahrzeugZeichnen(ebene: L.LayerGroup, f: FahrzeugForm, blass: boolean, 
       `<circle cx="10" cy="10" r="4" fill="#475569" stroke="#ffffff" stroke-width="1"/></svg>`
   }
   const m = L.marker(ll(f.mitte), { icon: L.divIcon({ className: f.art === 'velo' ? 'velo-symbol' : 'person-symbol', html, iconSize: [w, h],
-    iconAnchor: [w / 2, h / 2] }), interactive: interaktiv, keyboard: false }).addTo(ebene)
+    iconAnchor: [w / 2, h / 2] }), interactive: interaktiv, keyboard: false, pane: FAHRZEUG_PANE }).addTo(ebene)
   if (interaktiv) m.bindTooltip(esc(f.text), { sticky: true })
 }
 
@@ -362,6 +364,8 @@ export default function Karte(props: {
     // «Mittelinsel (Standard)»: Griffe über den Flächen, Markern und der Vorschau (Pane der Ecken 620), unter den Tooltips (650);
     // beim «Ecke runden» (Werkzeugmodus) sind sie nicht anklickbar
     map.createPane(GRIFF_PANE).style.zIndex = '630'
+    // Fahrzeuge und wartende Personen: unter den Markern (Griffe der Streifenenden beim Verschieben bleiben greifbar)
+    map.createPane(FAHRZEUG_PANE).style.zIndex = '590'
     const eb: Record<string, L.LayerGroup> = {
       av: L.layerGroup().addTo(map), plan: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
       nr: L.layerGroup().addTo(map), fahrzeug: L.layerGroup().addTo(map),
@@ -547,7 +551,8 @@ export default function Karte(props: {
         // Knotensicht (K4): Sichtdreiecke je Richtung (frei grün, verdeckt rot; Velo gestrichelt, Trottoir punktiert) und die
         // Beobachtungspunkte der beiden Phasen
         const ks = s.knotensicht
-        if (ks && !('fehler' in ks)) {
+        // über die durchgehende Strasse bzw. ohne Einmündung nur die Achse (und der Hinweis im Panel)
+        if (tueGezeichnet(ks)) {
           for (const d of ks.karte.dreiecke) for (const [ring, farbe, wie] of [[d.frei, STATUS_FARBE.frei, 'frei'], [d.verdeckt, STATUS_FARBE.verdeckt, 'verdeckt']] as const) {
             if (ring.length < 3) continue
             L.polygon(ring.map(ll), { color: farbe, weight: 1, dashArray: KS_STRICH[d.art], fillColor: farbe, fillOpacity: wie === 'frei' ? 0.1 : 0.2,
@@ -888,14 +893,16 @@ export default function Karte(props: {
     if (!eb) return
     eb.fahrzeug.clearLayers()
     if (!rechnung) return
+    // anklickbar (Tooltip) nur ohne Werkzeug und ohne «verschieben»: sonst fingen sie Klicks bzw. Griffe ab
+    const aktiv = !werkzeug && !bearbeiten
     for (const s of rechnung.streifen) {
-      for (const f of tueFahrzeuge(s)) fahrzeugZeichnen(eb.fahrzeug, f, false, !werkzeug)
+      for (const f of tueFahrzeuge(s)) fahrzeugZeichnen(eb.fahrzeug, f, false, aktiv)
       for (const f of fgsFahrzeuge(s)) {
         if (f.rolle === 'zufahrt' && (f.zufahrt === auswahl || zoom < FAHRZEUG_ZOOM)) continue
-        fahrzeugZeichnen(eb.fahrzeug, f, f.rolle === 'zufahrt', !werkzeug)
+        fahrzeugZeichnen(eb.fahrzeug, f, f.rolle === 'zufahrt', aktiv)
       }
     }
-  }, [rechnung, auswahl, zoom, werkzeug])
+  }, [rechnung, auswahl, zoom, werkzeug, bearbeiten])
 
   // gewählte Zufahrt hervorheben
   useEffect(() => {
@@ -907,7 +914,7 @@ export default function Karte(props: {
     if (!z) return
     // Fahrzeug am letzten Sichtpunkt der gewählten Zufahrt, kräftig
     const st = rechnung.streifen.find(s => s.fgsId === z.fgsId)
-    for (const f of st ? fgsFahrzeuge(st) : []) if (f.zufahrt === auswahl) fahrzeugZeichnen(eb.auswahl, f, false, true)
+    for (const f of st ? fgsFahrzeuge(st) : []) if (f.zufahrt === auswahl) fahrzeugZeichnen(eb.auswahl, f, false, !cb.current.werkzeug && !cb.current.bearbeiten)
     const farbe = STATUS_FARBE[z.status] ?? '#10b981'
     L.polygon(multiLl(z.feld), { color: farbe, weight: 2, fillColor: farbe, fillOpacity: 0.25, interactive: false }).addTo(eb.auswahl)
     for (const k of z.konflikte)

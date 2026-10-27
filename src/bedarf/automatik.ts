@@ -207,6 +207,22 @@ function armeVon(n: Netz, k: number): Arm[] {
   }
   return arme
 }
+/** Arm gegenüber der gequerten Strasse an einem Knoten mit mindestens vier Armen (Richtung höchstens 45° von der Gegenrichtung): Name
+ * des Wegs bzw. «ein weiterer Arm»; null ohne solchen Arm */
+export function armGegenueber(n: Netz, k: { p: P; arme: Arm[] }, strasse: ReadonlySet<number>, mitte: P): string | null {
+  if (k.arme.length < 4) return null
+  const richtung = (a: Arm): P => einheit(sub(a.pts[Math.min(1, a.pts.length - 1)], a.pts[0]))
+  const zumStreifen = einheit(sub(mitte, k.p))
+  const quer = k.arme.filter(a => strasse.has(a.wid) && a.pts.length > 1)
+    .sort((a, b) => dot(richtung(b), zumStreifen) - dot(richtung(a), zumStreifen))[0]
+  if (!quer) return null
+  const r = richtung(quer)
+  const g = k.arme.filter(a => a !== quer && a.pts.length > 1 && dot(richtung(a), r) <= -Math.SQRT1_2)
+    .sort((a, b) => dot(richtung(a), r) - dot(richtung(b), r))[0]
+  if (!g) return null
+  const name = n.wege.get(g.wid)?.w.tags.name?.trim()
+  return name ? `«${name}»` : 'ein weiterer Arm'
+}
 /** Knoten-Ids eines Arms bis d m ab dem Knoten */
 function armKnotenBis(a: Arm, d: number): number[] {
   const aus = [a.knoten[0]]
@@ -313,6 +329,13 @@ export function automatik(x: AutoEingang): void {
         // Paket C: Vortrittszeichen (OSM) auf einem Arm bis 20 m vom Knoten entscheiden die Rolle; ohne Zeichen bleibt sie offen
         const rolle = vortrittRolle(k, strasse, geo.vortritt ?? null)
         if (rolle?.lage) setze('lage', rolle.lage, 'osm', rolle.text)
+        // Trottoirüberfahrt an einer Kreuzung über die Zufahrt ohne Vortritt (27.10.2026): Überfahrt über die einmündende Strasse; mit
+        // einem Arm gegenüber zusätzlich «gegenüberliegende Einmündung» (VSS 40 242 Tab. 2)
+        if (rolle?.lage === 'knoten_belastet' && st.some(s => s.trottoirueberfahrt)) {
+          setze('q3.ueber', 'einmuendend', 'annahme', 'Querung über die einmündende Strasse (Kreuzung, die gequerte Strasse gewährt Vortritt)')
+          const g = armGegenueber(n, k, strasse, mitte)
+          if (g) setze('q3.gegenueberEinm', true, 'osm', `Kreuzung mit ${k.arme.length} Armen: gegenüber ${g} (OSM)`)
+        }
         else feldHinweis('lage', `Kreuzung ${ganz(k.d)} m entfernt (OSM). Bitte wählen: Führt die Querung über die Strasse mit Vortritt oder ` +
           `über die einmündende Strasse ohne Vortritt?${tag(`Knoten mit ${k.arme.length} Armen`)}` + (rolle ? ` (${rolle.text})` : ''))
       }

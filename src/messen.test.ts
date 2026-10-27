@@ -1,6 +1,6 @@
 // Werkzeug «Messen» (27.10.2026): Fang auf AV-Stützpunkte wie der Fixpunkt, Länge mit zwei Nachkommastellen, Übernahme auf 0,05 m
 import { describe, expect, it } from 'vitest'
-import { inFeldSchreiben, istZahlenfeld, messKlick, messLaenge, messPunkt, messText, messWert } from './messen'
+import { inFeldSchreiben, inMetern, istZahlenfeld, messKlick, messLaenge, messPunkt, messText, messWert } from './messen'
 import { FANG_PX } from './fixpunkt'
 import { PLAN_WERKZEUGE, WERKZEUGE, hilfeOrt } from './Planen'
 import type { AvFlaeche } from './daten/av'
@@ -48,6 +48,18 @@ describe('Messen', () => {
         expect(ereignisse).toEqual(['input', 'Enter'])
       }
     } finally { g.KeyboardEvent = vorher }
+  })
+  it('übernehmen nur in Felder in Metern: Bedarf nach der Einheit des Felds, übrige Zahlenfelder des Panels (Meter) immer', () => {
+    const el = (bedarf: boolean, zeile: string | null, label = '') => ({ classList: { contains: (c: string) => bedarf && c === 'bedarf-zahl' },
+      closest: () => (zeile ? { id: zeile } : null), getAttribute: (a: string) => (a === 'aria-label' ? label : null) }) as unknown as Element
+    expect(inMetern(el(true, 'feld-fahrbahnB'))).toBe(true)
+    expect(inMetern(el(true, 'feld-q3-ueberfahrbarM'))).toBe(true)
+    expect(inMetern(el(true, 'feld-achsWinkel'))).toBe(false)        // °
+    expect(inMetern(el(true, 'feld-q3-quergefaelle'))).toBe(false)   // %
+    expect(inMetern(el(true, 'feld-vSig'))).toBe(false)              // km/h
+    expect(inMetern(el(true, 'feld-q3-anrampung'))).toBe(false)      // Rampe: Neigung und Länge
+    expect(inMetern(el(true, null, 'Wie breit ist die Trottoirüberfahrt?'))).toBe(true)   // Frage ohne Feldzeile
+    expect(inMetern(el(false, null))).toBe(true)
   })
   it('Werkzeug am Ende der Gruppe Planen, Tooltip kurz, Hilfe in der Gruppe', () => {
     expect(PLAN_WERKZEUGE[PLAN_WERKZEUGE.length - 1]).toBe('messen')
