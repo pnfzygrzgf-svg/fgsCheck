@@ -13,6 +13,7 @@ import { befundblaetter } from '../bedarf/befundblatt'
 import { knotensichtAnfuegen, knotensichtTue, ksDatenAusRoh, zufahrtFinden, type Knotensicht, type KnotensichtAntwort } from './knotensicht'
 import { HOEHEN_QUELLE } from '../knotensicht/rechner/neigung'
 import { KnotensichtBericht, KnotensichtBlock } from './KnotensichtBlock'
+import { BedarfAbschnitt } from '../BedarfPanel'
 import { TUE_NUR_EINMUENDUNG } from '../texte'
 import { kurzHinweis, KS_EINBAHN, KS_EINBAHN_VELO } from './kurztexte'
 import { tueFlaeche, tueMasse } from './karte'
@@ -485,6 +486,16 @@ describe('Knotensicht: Winkel, Breite, Länge des überfahrbaren Rands und Warte
     expect(knotensichtGueltig([{ ...k0, durchgehend: true }])).toBeNull()
     expect(knotensichtGueltig([{ fehler: 'x' }])).toBeNull()
     expect(knotensichtGueltig([k0])).toBe(k0)
+  })
+  it('Panel: vorbelegte Angaben sichtbar im Thema (nicht in «Weitere Angaben» eingeklappt), mit Sprungziel', () => {
+    const f = fallTue()
+    const html = renderToStaticMarkup(<BedarfAbschnitt fall={f} blaetter={[blatt(f)]} vorgabe={{ bern: false, kantonBE: false }} aendern={() => {}} />)
+    const vor = html.indexOf('<div class="thema-vorbelegt">'), weitere = html.indexOf('<details class="thema-angaben">', vor)
+    expect(vor).toBeGreaterThan(0)
+    for (const p of ['q3-winkel', 'q3-breiteM', 'q3-ueberfahrbarM']) {
+      const i = html.indexOf(`id="feld-${p}"`)
+      expect(i, p).toBeGreaterThan(vor); if (weitere > 0) expect(i, p).toBeLessThan(weitere)
+    }
   })
   it('Wartezeit: Zeitlückenmodell bei DTV 5000 und 15 000', () => {
     // q = 0,1·DTV Fz/h; C = q·e^(−q·6/3600) / (1 − e^(−q·3/3600)); d = 3600/C

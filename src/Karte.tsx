@@ -21,6 +21,7 @@ import { KS_LAGE } from './tue/texte'
 import { ksDreieckSichtbar, ksFahrzeugStand, ksPhaseNach, tueFlaeche, tueGezeichnet, type KsPhase } from './tue/karte'
 import { messLaenge, messText, type Messung } from './messen'
 import { fahrzeugFarbe, fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
+import { erkennungBaender } from './erkennungKarte'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
@@ -71,6 +72,8 @@ export const STATUS_FARBE: Record<string, string> = {
   frei: '#10b981', verdeckt: '#dc2626', verdeckt_gebaeude: '#dc2626', verdeckt_hindernis: '#ea580c', verdeckt_baum: '#ca8a04',
   verdeckt_zweirad: '#a855f7', kein_fgs: '#64748b', ohne_zufahrt: '#64748b',
 }
+/** Erkennungsdistanz: Teil bis zum Soll, den die Rechnung nicht geprüft hat (Fahrlinie endet), grau gestrichelt */
+export const ERKENNUNG_UNGEPRUEFT = '#64748b'
 /** Querung ohne Vortritt (Bedarfsmodul E1): Umriss ohne Balken, weiss gestrichelt über dunklem Rand, in Karte und Bericht */
 export const OHNE_VORTRITT_FARBE = '#ffffff'
 export const STRICH_OHNE_VORTRITT = '6 4'
@@ -608,6 +611,22 @@ export default function Karte(props: {
         L.polygon(s.umriss.map(ll), { color: OHNE_VORTRITT_FARBE, weight: 2, dashArray: STRICH_OHNE_VORTRITT, fillColor: OHNE_VORTRITT_FARBE,
           fillOpacity: 0.12, interactive: false }).addTo(eb.sicht)
       } else L.polygon(s.umriss.map(ll), { color: '#fde047', weight: 2, fillColor: '#fde047', fillOpacity: 0.5, interactive: false }).addTo(eb.sicht)
+      // Erkennungsdistanz (27.10.2026) je gerade Zufahrt entlang der Fahrlinie: grün sichtbar, rot verdeckt bis zum Soll, grau nicht
+      // geprüft; das verdeckende Hindernis wie ein Konflikt. Die Sichtfelder (Sichtweite) bleiben, wie sie sind
+      for (const b of erkennungBaender(s)) {
+        const stil = { weight: 4, opacity: 0.95, lineCap: 'butt' as const, interactive: !cb.current.werkzeug }
+        const teile: { linie: P[]; farbe: string; strich?: string }[] = [{ linie: b.gruen, farbe: STATUS_FARBE.frei },
+          ...(b.fehlt ? [b.fehlt.art === 'verdeckt' ? { linie: b.fehlt.linie, farbe: STATUS_FARBE.verdeckt }
+            : { linie: b.fehlt.linie, farbe: ERKENNUNG_UNGEPRUEFT, strich: '6 4' }] : [])]
+        for (const { linie, farbe, strich } of teile) {
+          if (linie.length < 2) continue
+          L.polyline(linie.map(ll), { color: '#0f172a', weight: 7, opacity: 0.45, lineCap: 'butt', interactive: false }).addTo(eb.sicht)
+          L.polyline(linie.map(ll), { ...stil, color: farbe, ...(strich ? { dashArray: strich } : {}) }).bindTooltip(esc(b.text), { sticky: true }).addTo(eb.sicht)
+        }
+        const h = b.hindernisId ? [...hindernisse, ...(rechnung.vorschlaege ?? []).map(v => v.hindernis)].find(x => x.id === b.hindernisId) : undefined
+        if (h) (hindernisEbene(h, { color: '#7f1d1d', weight: 2, fillColor: '#dc2626', fillOpacity: 0.6, interactive: !cb.current.werkzeug }) as L.Path)
+          .bindTooltip(esc(b.text), { sticky: true }).addTo(eb.sicht)
+      }
     }
     // angenommene Inseln (nach OSM und Luftbild): gestrichelter Umriss, «prüfen»
     for (const z of rechnung.inseln ?? [])
@@ -626,7 +645,7 @@ export default function Karte(props: {
         .bindTooltip(`Streifen aus Luftbild (${lb.befund === 'erkannt' ? 'erkannt' : 'unsicher'}${lb.nurVorschlag ? ', mit Flächen (Plan) nur Vorschlag' : ''}), prüfen: ${t.nBalken} Balken, ` +
           `Balkenlänge ${t.bw.toFixed(1).replace('.', ',')} m`, { sticky: true }).addTo(eb.sicht)
     }
-  }, [rechnung, werkzeug, props.zufahrtNamen, ksPhase])
+  }, [rechnung, werkzeug, props.zufahrtNamen, ksPhase, hindernisse])
 
   // Nummernschilder der Zufahrten (benennung.ts) hinter dem letzten Sichtpunkt; Klick wählt die Zufahrt wie die Zeile im Panel
   // (auf der gewählten: Auswahl aufheben); gestrichene Zufahrten ohne Schild (keine Fahrlinie);

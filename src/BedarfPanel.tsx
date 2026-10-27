@@ -40,8 +40,8 @@ import { QUELLEN_ANNAHME, QUELLEN_BESTAETIGBAR, type Quelle } from './bedarf/ein
 import { mitTiteln, regelName, regelTitel } from './bedarf/regelname'
 import { EBENE_WORT, LEGENDE, THEMEN, gruppeVonThema, mitEinheit, pruefUebersicht, themaName, verbindlichkeitVon } from './bedarf/themen'
 import { BLOCK_GRUENDE, hatInhalt, themaGliederung, themenAnsicht, type ThemaFrage, type ThemaTeil, type ThemenAnsicht } from './bedarf/themenansicht'
-import { FELD_HILFEN, SICHTBAR, bedingungText, bezuegeImFall, feldZiel, frageVon, leerText, schalterText, sichtbar, wozuTeilen,
-  type SichtKontext } from './bedarf/feldhilfen'
+import { FELD_HILFEN, SICHTBAR, bedingungText, bezuegeImFall, feldZiel, frageVon, leerText, regelPfade, schalter, schalterText, sichtbar,
+  wozuTeilen, type SichtKontext } from './bedarf/feldhilfen'
 import { A2_OFFEN_TEXT, OHNE_ORTSLAGE_TEXT, typText, herkunftKurz } from './bedarf/befundblatt'
 import { offeneFragen, zusammenfassung, zfEingabeBlatt, type OffeneFrage } from './bedarf/zusammenfassung'
 import { lesetext, tooltipText } from './bedarf/lesetext'
@@ -50,7 +50,7 @@ import { bestaetigungsFelder, feldBedarf, feldBedarfText, type FeldBedarf } from
 import { begriffeImFall, begriffeIn } from './bedarf/begriffe'
 import { LESENAME, WERK_INFO, abkLesbar, werkText, fundstelleLink, fundstelleText, werkBezug, werkeImFall, werkLinks, werkVoll } from './bedarf/quellen'
 import { FundstelleLink, VerweisText, WerkLinks, WerkVerweis, hilfeZeigen } from './Verweise'
-import { KATALOG, WERKE, type WerkId } from './bedarf/katalog'
+import { KATALOG, WERKE, type RegelId, type WerkId } from './bedarf/katalog'
 import { reiterZeigen } from './reiter'
 import { regelAnker, regelZeigen } from './bedarf/regeluebersicht'
 
@@ -61,6 +61,14 @@ function T(text: string | undefined): string | undefined
 function T(text: string | undefined): string | undefined { return text === undefined ? text : abkLesbar(mitTiteln(text)) }
 
 const FeldSprung = createContext<((feld: string) => void) | null>(null)
+/** Feld hat einen Wert (vorbelegt bzw. von Hand): Befundzeilen bieten «ändern» (27.10.2026) */
+const WertFeld = createContext<((pfad: string) => boolean) | null>(null)
+/** Felder einer Regel, die ihre geprüfte Grösse tragen (ohne Schalter) und einen Wert haben */
+export function aenderFelder(id: string, hatWert: (pfad: string) => boolean): string[] {
+  if (!(id in KATALOG)) return []
+  const sch = schalter(id as RegelId)
+  return regelPfade(id as RegelId).filter(p => !sch.includes(p) && FELD_DEF.has(p) && hatWert(p))
+}
 /** Kennung der Zeile eines Felds in der Maske */
 export const feldZeileId = (pfad: string): string => `feld-${pfad.replace(/\./g, '-')}`
 
@@ -486,8 +494,10 @@ export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sich
     return f
   })
   const eingabe: ErwEingabe = { fall, aendern, zaehlt, alle: alleErw, kontexte, bedarf, bestaetig }
+  const hatWert = (p: string) => blaetter.some(b => { const h = b.gebildet.herkunft.get(p)
+    return !!h && (h.zustand === 'vorbelegt' || (h.zustand === 'hand' && h.wert !== null && h.wert !== undefined)) })
   return (
-    <FeldSprung.Provider value={springe}>
+    <FeldSprung.Provider value={springe}><WertFeld.Provider value={hatWert}>
     <section className="abschnitt bedarf" aria-labelledby="bedarf-titel">
       <div className="bedarf-kopf">
         <h2 id="bedarf-titel">Bedarf und Querungstyp</h2>
@@ -528,7 +538,7 @@ export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sich
         {ausgeblendet(verstecktErw, alleErw, setAlleErw)}
       </details>
     </section>
-    </FeldSprung.Provider>
+    </WertFeld.Provider></FeldSprung.Provider>
   )
 }
 
@@ -786,6 +796,17 @@ function RegelNr({ id, druck = false }: { id: string; druck?: boolean }) {
   return <a href={`#${regelAnker(id)}`} className="werk-link" title="in der Regelübersicht"
     onClick={e => { e.preventDefault(); e.stopPropagation(); regelZeigen(id) }}>({id})</a>
 }
+/** «ändern» hinter dem Verweis auf die Regelübersicht (27.10.2026): springt zur Eingabe des Werts, auf dem der Befund beruht (nur
+ * Felder mit Wert, nicht im Bericht); mehrere Felder je mit Namen */
+function Aendern({ id, druck = false }: { id: string; druck?: boolean }) {
+  const sprung = useContext(FeldSprung), hatWert = useContext(WertFeld)
+  if (druck || !sprung || !hatWert) return null
+  const fs = aenderFelder(id, hatWert)
+  if (!fs.length) return null
+  const link = (p: string, text: string) => <a key={p} href={`#${feldZeileId(p)}`} className="werk-link" title={`${feldName(p)} ändern (zum Feld)`}
+    onClick={e => { e.preventDefault(); e.stopPropagation(); sprung(p) }}>{text}</a>
+  return <> · {fs.length === 1 ? link(fs[0], 'ändern') : <>ändern: {fs.map((p, i) => <Fragment key={p}>{i ? ', ' : ''}{link(p, feldName(p))}</Fragment>)}</>}</>
+}
 /** kleiner Verweis «in der Regelübersicht» hinter der Fundstelle (nicht im Bericht) */
 function InUebersicht({ id, druck = false }: { id: string; druck?: boolean }) {
   if (druck) return null
@@ -902,7 +923,7 @@ function EintragZeile({ x, druck, mitDetail, begriffe }: { x: Eintrag; druck: bo
     {offen ? <>{x.fehlend?.length ? <Fragen felder={x.fehlend} regel={x.id} /> : 'Angabe fehlt'}{istSoll(x) ? ` (${T(istSoll(x))})` : ''}</> : T(eintragSatz(x))}
     {mitDetail && x.detail ? <> ({T(x.detail)})</> : null}</>
   const det = <span className="klein">{regelTitel(x.id)} <RegelNr id={x.id} druck={druck} /> · <QuelleMitVerweis id={x.id} quelle={x.quelle} druck={druck} />
-    <InUebersicht id={x.id} druck={druck} />
+    <InUebersicht id={x.id} druck={druck} />{!offen && <Aendern id={x.id} druck={druck} />}
     {x.detail && !mitDetail ? <> · {T(x.detail)}</> : null}{x.normHinweis ? <> · <VerweisText text={T(x.normHinweis)} druck={druck} /></> : null}
     {!druck && <BegriffVerweise texte={eintragTexte(x)} nur={begriffe} />}</span>
   if (druck) return <li className={kl}>{zeile}<div>{det}</div></li>
@@ -984,6 +1005,10 @@ function ThemaAnzeige({ t, blaetter, druck, eingabe, begriffe }: { t: ThemaTeil;
   const felder = eingabe ? t.felder.filter(p => eingabe.alle || eingabe.zaehlt(p)).map(p => FELD_DEF.get(p)!) : []
   // beurteilte Trottoirüberfahrt: ihr Thema ist die Prüfung, offen (27.10.2026)
   const tue = t.thema.id === 'trottoirueberfahrt' && blaetter.some(b => b.gebildet.eingaben.typ.wert === 'trottoirueberfahrt')
+  // beurteilte Trottoirüberfahrt (27.10.2026): von der App vorbelegte Angaben sichtbar im Thema (prüfen, bei Bedarf ändern), nicht in
+  // «Alle Angaben» versteckt
+  const vorbelegt = (p: string) => tue && blaetter.some(b => b.gebildet.herkunft.get(p)?.zustand === 'vorbelegt')
+  const felderVor = felder.filter(d => vorbelegt(d.pfad)), felderRest = felder.filter(d => !vorbelegt(d.pfad))
   // Gliederung nach der Prüfliste der Norm (themen.ABSCHNITTE): Überschriften mit Tabelle und Seite
   const glied = themaGliederung(t)
   const eintraegeListe = (es: ThemaTeil['eintraege']) => es.map(({ b, xs }) => {
@@ -1033,8 +1058,12 @@ function ThemaAnzeige({ t, blaetter, druck, eingabe, begriffe }: { t: ThemaTeil;
       const kopf = <><span className="grund-symbol" aria-hidden="true">✓</span> {zahlWort(t.ohneBefund.length, 'Regel', 'Regeln')} ohne Befund</>
       return druck ? <p className="klein">{kopf}</p> : <RegelListe ids={t.ohneBefund} druck={false} kopf={kopf} />
     })()}
-    {eingabe && felder.length > 0 && <details className="thema-angaben"><summary className="klein">Alle Angaben ({felder.length})</summary>
-      <Maske fall={eingabe.fall} blatt={b0} aendern={eingabe.aendern} felder={felder} flach ohneKoepfe zaehlt={eingabe.zaehlt} alle={eingabe.alle}
+    {eingabe && felderVor.length > 0 && <div className="thema-vorbelegt"><p className="klein">Von der App vorbelegt (prüfen; ein anderer Wert
+      gilt als Eingabe von Hand):</p>
+      <Maske fall={eingabe.fall} blatt={b0} aendern={eingabe.aendern} felder={felderVor} flach ohneKoepfe zaehlt={eingabe.zaehlt} alle={eingabe.alle}
+        kontexte={eingabe.kontexte} bedarf={eingabe.bedarf} bestaetig={eingabe.bestaetig} /></div>}
+    {eingabe && felderRest.length > 0 && <details className="thema-angaben"><summary className="klein">{felderVor.length ? 'Weitere Angaben' : 'Alle Angaben'} ({felderRest.length})</summary>
+      <Maske fall={eingabe.fall} blatt={b0} aendern={eingabe.aendern} felder={felderRest} flach ohneKoepfe zaehlt={eingabe.zaehlt} alle={eingabe.alle}
         kontexte={eingabe.kontexte} bedarf={eingabe.bedarf} bestaetig={eingabe.bestaetig} /></details>}
   </ErwTeil>
 }

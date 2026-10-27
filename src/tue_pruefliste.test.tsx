@@ -18,7 +18,7 @@ import { beurteile } from './bedarf/entscheid'
 import { Q3_OK, fall } from './bedarf/testfaelle'
 import { handSetzen } from './bedarf/fallBedarf'
 import { regelGruppen, regelZeilen } from './bedarf/regeluebersicht'
-import { BedarfAbschnitt, BefundblattAnzeige, zusatzTexte } from './BedarfPanel'
+import { BedarfAbschnitt, BefundblattAnzeige, aenderFelder, eingabeUebernehmen, zusatzTexte } from './BedarfPanel'
 import { LsaEinmuendung } from './tue/LsaEinmuendung'
 
 const O: P = [2600000, 1200000]
@@ -186,6 +186,27 @@ describe('Nur Fragen der Trottoirüberfahrt; Alternative Fussgängerstreifen auf
     // Panel: eingeklappt
     const panel = renderToStaticMarkup(<BedarfAbschnitt fall={tueFall(ohneAusf)} blaetter={[b]} vorgabe={OHNE.vorgabe} aendern={() => {}} setAlternative={() => {}} />)
     expect(panel).toMatch(/<details class="thema-teil thema-ausfuehrung"><summary><b>Ausführung/)
+  })
+  it('Befundzeile mit Wert: «ändern» neben «in der Regelübersicht», springt zum Feld; im Bericht nicht (27.10.2026)', () => {
+    const f = tueFall({ ...OK, 'q3.ueberfahrbarM': 30 })
+    const b = blatt(f)
+    expect(b.befund.alle.find(x => x.id === 'F5d')?.zustand).toBe('verletzt')
+    const panel = renderToStaticMarkup(<BedarfAbschnitt fall={f} blaetter={[b]} vorgabe={OHNE.vorgabe} aendern={() => {}} setAlternative={() => {}} />)
+    const zeile = panel.slice(panel.indexOf('Länge des überfahrbaren Rands'))
+    expect(zeile).toMatch(/in der Regelübersicht<\/a> · <a href="#feld-q3-ueberfahrbarM" class="werk-link" title="Länge des überfahrbaren Randabschlusses ändern \(zum Feld\)">ändern<\/a>/)
+    expect(renderToStaticMarkup(<BefundblattAnzeige b={b} druck />)).not.toContain('>ändern<')
+    // Felder ohne Wert bzw. Schalter: kein «ändern»
+    expect(aenderFelder('F5d', p => p === 'q3.ueberfahrbarM')).toEqual(['q3.ueberfahrbarM'])
+    expect(aenderFelder('F5d', () => false)).toEqual([])
+    expect(aenderFelder('F5d', () => true)).not.toContain('typ')
+  })
+  it('Eingabe über einen Vorschlag: anderer Wert ist eine Eingabe von Hand (Quelle hand), gleicher Wert bleibt Vorbelegung', () => {
+    for (const p of ['q3.winkel', 'q3.breiteM', 'q3.ueberfahrbarM', 'q3.wartezeitEinmS']) expect(FELD_DEFS.find(d => d.pfad === p)!.quelle, p).toBeUndefined()
+    const h = { zustand: 'vorbelegt' as const, quelle: 'rechnung' as const, text: '', vorbelegt: { wert: 8, quelle: 'rechnung' as const, text: '' } }
+    const gesetzt: unknown[] = []
+    expect(eingabeUebernehmen(h, 12, x => { gesetzt.push(x); return true })).toBe(true)
+    expect(eingabeUebernehmen(h, 8, x => { gesetzt.push(x); return true })).toBe(true)
+    expect(gesetzt).toEqual([12])
   })
   it('nicht zulässig: Alternative in einem Satz, «nur grob geprüft» ohne, ohne Zusatz mit Knopf; Trottoirrand zurückgesetzt zählt mit', () => {
     const f = tueFall({ ...OK, 'q3.randDurchgehend': false })

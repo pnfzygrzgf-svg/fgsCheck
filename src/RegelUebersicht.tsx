@@ -64,7 +64,7 @@ export function RegelUebersicht({ anfang = 'thema', anfangFilter = {} }: { anfan
           <dt>Wo:</dt><dd>{abkLesbar(z.wo)}</dd>
           <dt>Quelle:</dt><dd><QuelleMitVerweis id={z.id} quelle="" /></dd>
           {z.angaben.length > 0 && <><dt>Braucht:</dt><dd>{z.angaben.map((a, i) => <Fragment key={a.pfad}>{i ? ' · ' : ''}
-            <button type="button" className="feld-link" title="zum Feld springen" aria-label={`zum Feld: ${a.name}`}
+            <button type="button" className="feld-link" title="zum Feld springen: Wert ansehen bzw. ändern" aria-label={`zum Feld: ${a.name}`}
               onClick={() => feldSpringen(a.pfad)}>{a.name}</button></Fragment>)}</dd></>}
         </dl>
       </li>)}</ul>

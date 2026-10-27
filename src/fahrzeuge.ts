@@ -3,7 +3,7 @@
 // Nur Darstellung, ohne Wirkung auf die Rechnung. Die Umrisse kommen aus dem Kern des SichtweitenCheck (knotensicht/rechner/fahrzeug.ts,
 // unverändert): Personenwagen 4,5 × 1,8 m, Lenker 2,0 m hinter der Front.
 // - Trottoirüberfahrt: die Fahrzeuge der Knotensicht (F_B wartend je Phase, F_A am Ende der Sichtweite A je Richtung; tue/knotensicht.ts).
-// - Fussgängerstreifen: je gerade Zufahrt ein Fahrzeug mit dem Auge auf dem letzten Sichtpunkt, entlang der Fahrlinie zum Streifen hin;
+// - Fussgängerstreifen: je Zufahrt (gerade und abbiegende) ein Fahrzeug mit dem Auge auf dem letzten Sichtpunkt, entlang der Fahrlinie zum Streifen hin;
 //   je Streifenende eine wartende Person 0,6 m hinter der Bordkante (wie die Rechnung den Wartebereich prüft, rechner/streifen.ts).
 
 import { add, dist, einheit, sub, type P } from './geo'
@@ -75,12 +75,13 @@ function richtungZumStreifen(z: ZufahrtErgebnis, p: P): P | null {
 /** gerade Zufahrt mit Sichtpunkten (abbiegende und von Hand gestrichene nicht; gestrichene stehen unter entfallen) */
 export const geradeZufahrt = (z: ZufahrtErgebnis): boolean => z.art !== 'abbiegend' && z.sichtpunkte.length > 0
 
-/** Fahrzeuge (je gerade Zufahrt) und wartende Personen (je Streifenende) eines Fussgängerstreifens; leer bei Trottoirüberfahrt */
+/** Fahrzeuge (je Zufahrt mit Sichtpunkten) und wartende Personen (je Streifenende) eines Fussgängerstreifens; leer bei Trottoirüberfahrt */
 export function fgsFahrzeuge(s: StreifenErgebnis): FahrzeugForm[] {
   if (s.trottoirueberfahrt) return []
   const aus: FahrzeugForm[] = []
+  // je Zufahrt mit Sichtpunkten, gerade und abbiegende (27.10.2026: auch Abbieger, entlang ihrer gebogenen Fahrlinie zum Streifen hin)
   for (const z of s.zufahrten) {
-    if (!geradeZufahrt(z)) continue
+    if (!z.sichtpunkte.length) continue
     const auge = z.sichtpunkte[z.sichtpunkte.length - 1]
     const u = richtungZumStreifen(z, auge)
     if (!u) continue

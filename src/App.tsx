@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type L from 'leaflet'
-import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
+import Karte, { AV_FARBEN, STATUS_FARBE, ERKENNUNG_UNGEPRUEFT, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
   OHNE_VORTRITT_FARBE, TUE_RAND, FAHRZEUG_ZOOM,
   hindernisText, hindernisFarbe, FIXPUNKT_FARBE, PLAN_FARBEN, planMarke, NrMarke, type Werkzeug, type KartenHinweis, type Masslinie } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
@@ -2290,6 +2290,11 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           {rechnung?.streifen.some(s => !s.trottoirueberfahrt && s.zufahrten.length) && <li><span className="farbe" style={{ background: FARBE_HERAN }} />Fahrzeug
             am letzten Sichtpunkt: blau (gewählte Zufahrt; die übrigen blass ab Zoom {FAHRZEUG_ZOOM}), <span className="farbe rund" style={{ background: AV_FARBEN.Trottoir,
             borderColor: '#334155' }} />wartende Person am Streifenende</li>}
+          {rechnung?.streifen.some(s => !s.trottoirueberfahrt && s.zufahrten.some(z => z.erkennungM)) && <li>Erkennungsdistanz entlang der
+            Fahrlinie: <span className="farbe" style={{ background: STATUS_FARBE.frei }} />Markierung sichtbar, <span className="farbe"
+            style={{ background: STATUS_FARBE.verdeckt }} />verdeckt bis zum Soll (doppelte Sichtweite, höchstens 110 m; das verdeckende
+            Hindernis rot), <span className="farbe gestrichelt" style={{ background: ERKENNUNG_UNGEPRUEFT }} />nicht geprüft (Fahrlinie
+            endet)</li>}
           <li><span className="farbe" style={{ background: QUELLE_FARBE.hand }} />von Hand, <span className="farbe" style={{ background: QUELLE_FARBE.osm }} />aus OSM (gestrichelt: Vorschlag, prüfen),
             <span className="farbe" style={{ background: QUELLE_FARBE.kataster }} />aus Baumkataster</li>
           <li><span className="farbe gestrichelt" style={{ borderColor: INSEL_FARBE, borderWidth: 2 }} />{INSEL_TEXT};

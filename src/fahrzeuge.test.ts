@@ -95,6 +95,32 @@ describe('Fussgängerstreifen: Fahrzeug je gerade Zufahrt, Person je Streifenend
   })
 })
 
+describe('Fussgängerstreifen an der Einmündung: auch abbiegende Zufahrten mit Fahrzeug (27.10.2026)', () => {
+  // Streifen über den Querweg, 8 m vor der Hauptstrasse: gerade Zufahrt aus dem Querweg, Abbieger von der Hauptstrasse
+  const s = rechnen(fall(false, lv(-44, -8), lv(-36, -8))).streifen[0]
+  const autos = fgsFahrzeuge(s).filter(x => x.rolle === 'zufahrt')
+  it('je Zufahrt mit Sichtpunkten ein Auto, Auge auf dem letzten Sichtpunkt, entlang der Fahrlinie zum Streifen hin', () => {
+    const abb = s.zufahrten.filter(z => z.art === 'abbiegend' && z.sichtpunkte.length)
+    expect(abb.length).toBeGreaterThan(0)
+    expect(autos.map(x => x.zufahrt).sort()).toEqual(s.zufahrten.filter(z => z.sichtpunkte.length).map(z => `${z.fgsId}|${z.zufahrt}`).sort())
+    for (const z of abb) {
+      const a = autos.find(x => x.zufahrt === `${z.fgsId}|${z.zufahrt}`)!
+      expect(a.auge).toEqual(z.sichtpunkte[z.sichtpunkte.length - 1])
+      // Richtung wie die Fahrlinie beim Auge (zum Streifen hin: zum vorherigen Stützpunkt)
+      const sp = z.spur
+      let i = 0
+      sp.forEach((q, k) => { if (dist(q, a.auge!) < dist(sp[i], a.auge!)) i = k })
+      const [p, q] = i > 0 ? [sp[i], sp[i - 1]] : [sp[1], sp[0]]
+      const u = [q[0] - p[0], q[1] - p[1]], l = Math.hypot(u[0], u[1])
+      expect(a.richtung[0] * u[0] / l + a.richtung[1] * u[1] / l).toBeGreaterThan(0.99)
+    }
+  })
+  it('abbiegende Zufahrt ohne Sichtpunkte: kein Fahrzeug, kein Fehler', () => {
+    const ohne = { ...s, zufahrten: s.zufahrten.map(z => (z.art === 'abbiegend' ? { ...z, sichtpunkte: [] } : z)) }
+    expect(fgsFahrzeuge(ohne).filter(x => x.rolle === 'zufahrt').length).toBe(s.zufahrten.filter(z => z.art !== 'abbiegend' && z.sichtpunkte.length).length)
+  })
+})
+
 describe('Farben nach Rolle (27.10.2026)', () => {
   it('wartend grau, am Ende der Sichtweite bzw. herannahend am Fussgängerstreifen blau (nicht gewählt blass)', () => {
     expect(fahrzeugFarbe({ rolle: 'fb' })).toBe(FARBE_WARTEND)
