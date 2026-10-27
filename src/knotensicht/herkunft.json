@@ -2,8 +2,8 @@
  "hinweis": "Wortgleiche Kopie des Rechenkerns aus dem SichtweitenCheck (scripts/knotensicht_holen.mjs). Nicht von Hand ändern; der Test src/tue/herkunft.test.ts prüft die SHA-256 je Datei.",
  "quelle": "SichtweitenCheck",
  "version": "0.6.0",
- "commit": "f2cba8270bdae592972204ab9a5c0c497f8eaefd",
- "datum": "2026-10-27T18:28:05+01:00",
+ "commit": "448555216a80c58b6ae744d913a08ec7637e39ab",
+ "datum": "2026-10-27T20:24:33+01:00",
  "kern": 33,
  "tests": 16,
  "ausgelasseneTests": [

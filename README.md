@@ -287,6 +287,56 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Der Rechenkern in `src/knotensicht/` ist eine wortgleiche Kopie aus dem SichtweitenCheck (Version, Commit und Prüfsummen in
   `src/knotensicht/herkunft.json`, geprüft von `src/tue/herkunft.test.ts`). Nicht von Hand ändern: Änderungen gehören in den
   SichtweitenCheck, danach `node scripts/knotensicht_holen.mjs <Pfad zu SichtweitenCheckWeb>`.
+  Geprüft wird die Trottoirüberfahrt nach der Prüfliste der VSS 40 242 (Kapitel E) in deren Reihenfolge, mit Zwischentiteln und
+  Seitenangaben (`ABSCHNITTE` in `src/bedarf/themen.ts`): zwingende Voraussetzungen (Tab. 1, S. 28; Regeln Q3-1 bis Q3-12),
+  Merkmale zur Anordnung (Tab. 2, S. 30; Q3-M1 bis Q3-M10) und Ausstattung (Tab. 3, S. 32 und 34; F5a bis F5n, 11 Felder von
+  Hand: Trottoirrand, überfahrbarer Rand, Begrenzung, Erkennbarkeit, Belag und Absatz, Quergefälle, Randabschluss, Randsteine,
+  Signalisation, Markierung, Aufmerksamkeitsfelder), zuletzt die Berner Tabelle. Zulässig ist sie an einer Einmündung und an
+  einer Kreuzung über die Zufahrt ohne Vortritt (Lage «knoten_belastet»; dann «gegenüberliegende Einmündung» aus OSM vorbelegt).
+  Bei einer Trottoirüberfahrt erscheinen nur ihre Fragen (`SICHTBAR`, `nurFgsBeiTue`); ein Fussgängerstreifen als Alternative läuft
+  still mit, seine Fragen erst nach «Alternative Fussgängerstreifen prüfen» (Sitzungszustand). Die Regeln F2–F4, F7 und E2b/E2c
+  laufen bei einer Trottoirüberfahrt nicht. Werkzeug «Trottoirüberfahrt planen» auch ohne geladenen Ort (`src/Planen.tsx`).
+  Karte: gerechnete Überfahrt zwischen Bordkante und hinterem Rand (`src/tue/karte.ts`), ohne Einmündung nur die Achse;
+  Fahrzeuge der Knotensicht und am Fussgängerstreifen je gerade Zufahrt ein Fahrzeug am letzten Sichtpunkt sowie wartende
+  Personen 0,6 m hinter der Bordkante (`src/fahrzeuge.ts`, Umrisse aus `src/knotensicht/rechner/fahrzeug.ts`; nur Anzeige,
+  die Rechnung gibt dafür `warte` je Streifen aus). Werkzeug «Messen» (`src/messen.ts`): zwei Punkte mit Fang auf AV-Stützpunkte,
+  Mass auf der Karte, «übernehmen» ins zuletzt angeklickte Zahlenfeld in Metern (auf 0,05 m gerundet, nicht im Fall gespeichert).
+  AV-Vorschau beim Planen ohne geladenen Ort (`src/avVorschau.ts`): «Streifen planen» bzw. «Trottoirüberfahrt planen» lädt ab Zoom 17
+  nur die AV-Bodenbedeckung ±150 m um die Kartenmitte (geodienste.ch, Anzeige und Fang der Enden), lädt nach dem Verschieben um mehr
+  als 100 m nach und übergibt den Ausschnitt dem neuen Fall, wenn beide Enden innert 30 m um die Vorschaumitte liegen; Esc, ein
+  anderes Werkzeug oder ein geladener Fall entfernt sie. Die Enden der geplanten Streifen fangen immer auf AV-Punkte (`FANG_PX`).
+  Fahrzeugfarben nach Rolle und Phase (`fahrzeugFarbe`): wartend, Sicht auf die Fahrbahn grau; wartend, Sicht aufs Trottoir ocker; am
+  Ende der Sichtweite bzw. am letzten Sichtpunkt blau. Die beiden wartenden Fahrzeuge lassen sich am Auge ziehen: der Punkt steht je
+  Streifen als `tueD` (Phase Fahrbahn) bzw. `tueDtrottoir` (Phase Trottoir, LV95) in der Fall-Datei (optional, keine neue Version)
+  und geht als `D` bzw. `Dtrottoir` an den Kern (SichtweitenCheck f2cba82); «Standort zurücksetzen» im Block Knotensicht. Dort steht
+  auch «Planung: Tempo der Hauptstrasse» (schreibt «Tempo auf der Hauptstrasse» von Hand in den Bedarf).
+  Ein Klick auf ein wartendes Fahrzeug zeigt nur die Sicht seiner Phase (Schalter «Sicht zeigen: beide | Fahrbahn | Trottoir» im
+  Block, Sitzungszustand; das andere Fahrzeug bleibt durchscheinend anklickbar, der Bericht zeigt beide Phasen).
+  Heutiger Zustand bei einer geplanten Trottoirüberfahrt: Lichtsignal am Knoten, Fahrstreifen über 1 je Richtung und Zone aus
+  OSM kommen nur als «Vorschlag» (Q3-M7, Q3-7, Q3-8, Q3-M2 mit Bestätigungspflicht; hart erst von Hand bzw. bestätigt). In der Zeile
+  des Streifens heisst die Auswahl dann «Lichtsignal an der Einmündung» und schreibt q3.lsaKnoten (`src/tue/LsaEinmuendung.tsx`).
+  Vorschläge aus der Rechnung für die Trottoirüberfahrt (Quelle «Rechnung», Hand geht vor): Winkel der Einmündung (Knotensicht,
+  OSM-Netz), Breite (AV-Trottoir, auf 2,00–3,50 m begrenzt; als Eingabe der Knotensicht zählt nur eine Breite von Hand, Quelle
+  «Rechnung» wird übergangen), Länge des überfahrbaren Rands (Fahrbahnöffnung, siehe unten). Wartezeit beim Ausfahren als
+  Annahme aus dem DTV der Hauptstrasse (Bern; `wartezeitSchaetzen`: Spitzenstunde 10 %, Zeitlückenmodell tc 6 s, tf 3 s, mittlere
+  Wartezeit 3600/C), ohne Verkehrszahlen offen. Die Prüfliste trennt Machbarkeit (Tab. 1, Tab. 2, Breite, Trottoirrand, Länge)
+  von der Ausführung (übrige Tab.-3-Punkte, Abschnitt «Ausführung (erst bei der Umsetzung)», eingeklappt, `ausfuehrungOffen` in
+  der Prüfübersicht): offene Ausführungspunkte zählen nicht als fehlende Angaben und machen nichts vorläufig.
+  Erkennungsdistanz auf der Karte (`src/erkennungKarte.ts`): je gerade Zufahrt ein Band entlang der Fahrlinie, grün bis zur
+  Erkennungsdistanz, rot bis zum Soll (doppelte Sichtweite, höchstens 110 m), grau gestrichelt wo nicht geprüft; das verdeckende
+  Hindernis rot wie ein Konflikt. Fahrzeuge am letzten Sichtpunkt auch für abbiegende Zufahrten. Befundzeilen im Panel haben einen
+  Knopf «Wert ändern» zum geprüften Feld; bei der Trottoirüberfahrt stehen die vorbelegten Angaben offen im Thema («Von der App vorbelegt»).
+  Die Länge des überfahrbaren Rands ist die Fahrbahnöffnung an der Bordkante der Hauptstrasse (Vorderkante der Knotensicht, AV mit
+  Flächen (Plan): eine geplante Trottoirfläche verkürzt sie). Trottoirüberfahrten heissen in Liste, Karte und Bericht «Trottoirüberfahrt 1»
+  (`streifenTitel`), lassen sich an den Enden verschieben (Griffe in der obersten Ebene, Fang auf die AV); ein Auge von Hand bleibt nur,
+  wenn es noch zur verschobenen Überfahrt passt (`augePlausibel`).
+  Quert der gezeichnete Streifen die Fahrbahn der Hauptstrasse, rechnet die App keine Knotensicht (Hinweis, «quert die Hauptstrasse»
+  aus OSM vorbelegt, Q3-5); Fahrstreifen der Seiten- und Hauptstrasse aus den OSM-Tags der Wege am Knoten (`fahrstreifenTags`).
+  Die erweiterte Prüfung ist nach den Normen gegliedert (`THEMEN_GRUPPEN` in `themen.ts`): Anordnungsvoraussetzungen (VSS 40 241 Kap. C,
+  S. 6–10: Zulässigkeit, Nachfrage, Sicht, Fahrstreifen und Verkehr), Positionierung (Kap. D, Z. 18–20, S. 10–11: Lage und
+  Abstände), Ausrüstung (Kap. D, Z. 21–29, S. 11–14: Insel, Masse und Ausrüstung, Beleuchtung), Lichtsignalanlage (VSS 40 837),
+  Trottoirüberfahrt (VSS 40 242), Querungstyp nach VSS 40 240; innerhalb eines Themas nach der Ziffer der ersten Quelle. Die
+  Grundprüfung (bfu) bleibt davor.
   Im Panel stehen Sichtprüfung und Bedarf in zwei Reitern (`src/ReiterLeiste.tsx`, Logik in `src/reiter.ts`: Vorgabe nach dem
   Fall, Pfeiltasten, Zustand der Zulässigkeit in Wort und Symbol, Teaserzeile im Reiter Sichtprüfung).
   Vorbelegung aus Geodaten (`vorbelegung.ts`, `src/daten/haltestellen.ts`, `verkehrsdaten.ts`, `geoportal.ts`): Bushaltestelle
@@ -473,7 +523,9 @@ wählen und als Custom domain `fgscheck.ch` eintragen. Der Referenzvergleich (`s
   Bestätigung. In Bern rechnet die Sichtprüfung mit dem signalisierten Tempo des Geoportals. Fall-Dateien mit
   Bedarfsangaben haben die Version 3. Breite des Bereichs neben der Karte ziehbar. Zwei Reiter «Sichtprüfung» und
   «Bedarf und Querungstyp»; Trottoirüberfahrt als Werkzeug bzw. am Streifen wählbar, mit Knotensicht der Einbiegenden
-  (Rechenkern aus dem SichtweitenCheck); Tempo 20 als
+  (Rechenkern aus dem SichtweitenCheck), geprüft nach der Prüfliste VSS 40 242 (Tab. 1 bis 3, Ausstattung neu), auch an
+  Kreuzungen über die Zufahrt ohne Vortritt; erweiterte Prüfung nach der Gliederung der Normen mit Seitenangaben; Werkzeug
+  «Messen»; Fahrzeuge und wartende Personen auf der Karte; Vermessung schon beim Planen ohne Ort; wartende Fahrzeuge der Knotensicht ziehbar, Planungstempo im Block; Tempo 20 als
   Begegnungszone vorgeschlagen; Erkennungsdistanz des Streifens aus dem Sichtrechner; Street View je Zufahrt.
 
 ## Lizenz
