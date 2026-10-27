@@ -99,7 +99,8 @@ export function Anleitung() {
             gewählten Werkzeug und aufklappbar «Geplante Elemente» (Streifen von Hand, Fixpunkte, Flächen (Plan)). Esc beendet ein
             Werkzeug. «Eingaben von Hand» im Reiter «Sichtprüfung» bleibt für den Bestand.</li>
             <li><b>Streifen planen:</b> «Streifen planen» (in der Gruppe «Planen», ohne geladenen Ort neben «Fall laden») wählen, die Breite (Balkenlänge) einstellen und auf der
-            Karte die beiden Wartebereiche gegenüber anklicken – auch dort, wo OSM keinen Übergang kennt. Die App prüft den Streifen
+            Karte die beiden Wartebereiche gegenüber anklicken – auch dort, wo OSM keinen Übergang kennt. Ohne geladenen Ort zeigt die App
+            dabei ab Zoom 17 schon die Amtliche Vermessung um die Kartenmitte (nur Anzeige; die Enden fangen auf ihre Punkte). Die App prüft den Streifen
             als Fussgängerstreifen (Zufahrten, Tempo, Sichtweiten, Hindernisse). Zum laufenden Fall kommt er, wenn er ganz innert
             {' '}{NACHLADEN_M} m um den geladenen Ort liegt oder alle Streifen von Hand zusammen ganz innert {NACHLADEN_M} m um einen
             Ort liegen (die App lädt dann um ihre Mitte nach); sonst bzw. ohne geladenen Ort beginnt am Streifen ein neuer Fall, und

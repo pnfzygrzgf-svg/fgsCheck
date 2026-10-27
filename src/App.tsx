@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
-  OHNE_VORTRITT_FARBE, TUE_RAND, FAHRZEUG_FARBE, FAHRZEUG_ZOOM,
+  OHNE_VORTRITT_FARBE, TUE_RAND, FAHRZEUG_ZOOM,
   hindernisText, hindernisFarbe, FIXPUNKT_FARBE, PLAN_FARBEN, planMarke, NrMarke, type Werkzeug, type KartenHinweis, type Masslinie } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
 import { ladeOsmRoh, osmParsen, ladeUebergaenge, markierung, istFgs, overpassSperre, strassennamen, namenKarte, knotenLage, type OsmKnoten,
   type StrassenMitte, wegTags, strassenlampen, vortrittsZeichen, LAMPEN_RADIUS_M } from './daten/osm'
-import { istAbbruch } from './daten/holen'
+import { istAbbruch, type Abruf } from './daten/holen'
+import { AvVorschau } from './avVorschau'
 import { baumQuelleFuer, type BaumQuelle, type KatasterBaum } from './daten/baumkataster'
 import { parkQuelleFuer, istParkId, type ParkQuelle, type KatasterFeld } from './daten/parkkataster'
 import { bernZustaendig, bernErgebnis, GEODATEN_BERN, GEOPORTAL_BERN, type BernLaden } from './daten/geoportal'
@@ -44,6 +45,7 @@ import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type Pl
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
   streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, type StreifenQuerung } from './fall'
 import { tueMasse } from './tue/karte'
+import { FARBE_HERAN, FARBE_WARTEND } from './fahrzeuge'
 import { inFeldSchreiben, inMetern, istZahlenfeld, messKlick, messLaenge, messPunkt, messText, messWert, type Messung } from './messen'
 import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_M, ORT_TOL_M, streifenMitte, streifenAbstand, planEntscheid,
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
@@ -222,6 +224,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [werkzeug, setWerkzeug] = useState<Werkzeug>(null)
   // Trottoirüberfahrt: Alternative Fussgängerstreifen mit Fragen prüfen (nur in der Sitzung, nicht im Fall; 27.10.2026)
   const [alternative, setAlternative] = useState(false)
+  // Vorschau der AV beim Planen ohne geladenen Ort (27.10.2026, avVorschau.ts): nur Anzeige und Fang, nicht im Fall
+  const [, setVorschauNr] = useState(0)
+  const vorschau = useRef<AvVorschau | null>(null)
+  if (!vorschau.current) vorschau.current = new AvVorschau(() => setVorschauNr(x => x + 1))
   // Werkzeug «Messen» (27.10.2026): laufende Messung und das zuletzt angeklickte Zahlenfeld im Panel (nur Sitzung, nicht im Fall)
   const [messung, setMessung] = useState<Messung | null>(null)
   const zahlenfeld = useRef<HTMLInputElement | null>(null)
@@ -544,6 +550,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const ausschnitt = useCallback(() => {
     const map = kartenRef.current, st = suche.current
     if (!map) return
+    if (planOhneOrtRef.current) { window.clearTimeout(vorschauTimer.current); vorschauTimer.current = window.setTimeout(vorschauPruefen, 400) }
     clearTimeout(st.timer)
     if (!sichtBox(map)) { setSuchHinweis(ZU_WEIT); return }
     setSuchHinweis(h => (h?.text === ZU_WEIT.text ? null : h))
@@ -558,7 +565,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
   // ---------------------------------------------------------------- Laden
   /** Daten um einen Ort laden (Übergang oder Ort aus der Fall-Datei); fallNeu: mitgebrachte Eingaben */
-  const laden = useCallback(async (lat: number, lon: number, nid: number | null, fallNeu: Fall | null) => {
+  const laden = useCallback(async (lat: number, lon: number, nid: number | null, fallNeu: Fall | null, avVorab: Abruf<GeoJson> | null = null) => {
     abbruchRef.current?.abort()
     const ctrl = new AbortController()
     abbruchRef.current = ctrl
@@ -585,7 +592,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     }
     try {
       const [ra, ro, rs] = await Promise.all([
-        ladeAvRoh(e, n, AV_RADIUS_M, ctrl.signal).then(r => { setzeQuelle('av', { name: AV_NAME,
+        // Vorschau der AV am selben Ort (Planen ohne Ort): keine zweite Abfrage
+        (avVorab ? Promise.resolve(avVorab) : ladeAvRoh(e, n, AV_RADIUS_M, ctrl.signal)).then(r => { setzeQuelle('av', { name: AV_NAME,
           objekte: `${r.daten.features?.length ?? 0} Flächen`, ms: r.ms, bytes: r.bytes, server: r.quelle }); return r }, quelleFehler('av', AV_NAME)),
         ladeOsmRoh(lat, lon, OSM_RADIUS_M, ctrl.signal).then(r => { setzeQuelle('osm', { name: OSM_NAME, ms: r.ms, bytes: r.bytes,
           server: r.quelle }); return r }, quelleFehler('osm', OSM_NAME)),
@@ -1317,6 +1325,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     if (werkzeug === 'seitenraum') { seitenraumBei(p); return }
     if (werkzeug === 'baum' || werkzeug === 'fixpunkt') { fertig([p]); return }
     if (werkzeug === 'planflaeche') p = planFangen(p, null)
+    // Enden eines Streifens bzw. einer Trottoirüberfahrt fangen auf AV-Stützpunkte (auch der Vorschau; 27.10.2026)
+    if (werkzeug === 'streifen' || werkzeug === 'tue') p = fangen(p, av ?? vorschau.current?.stand?.av ?? [], fangRadius()).p
     const neu = [...zeichnungRef.current, p]
     zeichnungRef.current = neu
     if ((werkzeug === 'streifen' || werkzeug === 'tue') && neu.length === 2) { fertig(neu); return }
@@ -1443,14 +1453,17 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   /** Neuer Fall am gezeichneten Streifen (nur dieser Streifen, ohne OSM-Übergang); die Karte bleibt, wo sie ist. reicht: weitester
    * Punkt des Streifens vom bisherigen Ladeort (null ohne geladenen Ort) */
   const planFall = (neu: { p0: P; p1: P; breite: number }, reicht: number | null, tue = false) => {
-    const [lat, lon] = wgs(...streifenMitte(neu))
+    // liegt der Streifen in der Abdeckung der AV-Vorschau, lädt der Fall an ihrer Mitte und nimmt sie als AV (27.10.2026)
+    const vs = fall ? null : vorschau.current?.fuer([neu.p0, neu.p1]) ?? null
+    const m0 = vs ? vs.mitte : streifenMitte(neu)
+    const [lat, lon] = wgs(m0[0], m0[1])
     const f = leererFall(lat, lon, null)
     const id = naechsteHandId(f)
     f.streifenHand.push({ id, ...neu, herkunft: 'gezeichnet' })
     if (tue) f.streifen[id] = { typ: 'trottoirueberfahrt' }
     const bisher = fall && hatEingaben(fall) ? fall.ort.uebergang : null
     setGewaehlt(null); setGespeichert(null); neuerFallImOrt(); reiterNeu()
-    laden(lat, lon, null, f)
+    laden(lat, lon, null, f, vs?.abruf ?? null)
     const weit = reicht !== null ? ` (reicht bis ${abstandText(reicht)} vom bisherigen Ort)` : ''
     setLadeHinweis({ text: `Neuer Fall am geplanten ${streifenTitel(id)}${weit}: AV, OSM und Kataster werden um den Streifen geladen.` +
       (bisher !== null ? ` Der bisherige Fall bleibt beim OSM-Übergang ${bisher} im Browser gemerkt.` : ''), verwerfen: false })
@@ -1565,6 +1578,22 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [quellenOffen, setQuellenOffen] = useState(false)
   useEffect(() => { if (quellenFehler) setQuellenOffen(true) }, [quellenFehler])
   const kantone = useMemo(() => [...new Set((av ?? []).map(f => f.kanton).filter(Boolean))].sort(), [av])
+  // Planen ohne geladenen Ort: AV-Vorschau um die Kartenmitte (avVorschau.ts), beim Werkzeug an und nach dem Verschieben (verzögert)
+  const planOhneOrt = (werkzeug === 'streifen' || werkzeug === 'tue') && !(fall && daten)
+  const planOhneOrtRef = useRef(planOhneOrt)
+  planOhneOrtRef.current = planOhneOrt
+  const vorschauTimer = useRef<number | undefined>(undefined)
+  const vorschauPruefen = useCallback(() => {
+    const map = kartenRef.current
+    if (!map) return
+    const c = map.getCenter()
+    void vorschau.current!.aktualisieren(planOhneOrtRef.current, lv95(c.lat, c.lng), map.getZoom())
+  }, [])
+  useEffect(() => { vorschauPruefen() }, [planOhneOrt, vorschauPruefen])
+  const vs = planOhneOrt ? vorschau.current!.stand : null
+  const avKarte = av ?? vs?.av ?? null
+  const kantoneKarte = useMemo(() => [...new Set((avKarte ?? []).map(f => f.kanton).filter(Boolean))].sort(), [avKarte])
+  const vorschauHinweis = planOhneOrt && vorschau.current!.hinweis ? { text: vorschau.current!.hinweis } : null
   // Strassennamen für die Karte ohne eigenen Abruf: vor dem Klick die Wegmitten aus der Übergangssuche (alle Ausschnitte im
   // Cache), nach dem Klick im Umkreis OSM_RADIUS_M um den Übergang vorrangig die genaueren aus dem Umkreis-Abruf (Wegmitten aus
   // der Geometrie); je Name höchstens eine Beschriftung pro rund 120 m (daten/osm.namenKarte)
@@ -1820,7 +1849,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
   return (
     <div className="app" style={{ '--panel-breite': `${panelBreite}px` } as CSSProperties}>
-      <Karte mitte={START} av={av} kantone={kantone} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
+      <Karte mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? LEER_HIND} streifenHand={fall?.streifenHand ?? LEER_HAND}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} rundenR={rundenR}
         rundenAngebot={angebotKarte} rundenVorschau={rundenVorschau} inselVorschau={inselVorschau}
@@ -1830,7 +1859,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         masslinien={masslinien} messung={werkzeug === 'messen' ? messung : null} zufahrtNamen={zNamen} streifenTitel={titel}
         onUebergang={pruefen} onZufahrt={key => { setAuswahl(key); if (key) zurSicht() }}
         onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => { setBearbeiten(b => (b === id ? null : id)); zurSicht() }}
-        onAusschnitt={ausschnitt} hinweis={suchHinweis} kartenRef={kartenRef} />
+        onAusschnitt={ausschnitt} hinweis={vorschauHinweis ?? suchHinweis} kartenRef={kartenRef} />
       <Trenner breite={panelBreite} setze={setPanelBreite} onFertig={trennerFertig} />
       <aside className="panel">
         <h1>{onStartseite
@@ -2246,10 +2275,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li>Knotensicht: <span className="farbe" style={{ background: STATUS_FARBE.frei }} />frei,
             <span className="farbe" style={{ background: STATUS_FARBE.verdeckt }} />verdeckt; Auto durchgezogen, Velo gestrichelt, Trottoir
             punktiert; <span className="farbe rund" style={{ background: '#ffffff', borderColor: '#111827' }} />Auge der Ausfahrenden</li>}
-          {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li><span className="farbe" style={{ background: FAHRZEUG_FARBE }} />Fahrzeuge:
-            wartend auf der Zufahrt, am Ende der Sichtweite auf der Hauptstrasse</li>}
-          {rechnung?.streifen.some(s => !s.trottoirueberfahrt && s.zufahrten.length) && <li><span className="farbe" style={{ background: FAHRZEUG_FARBE }} />Fahrzeug
-            am letzten Sichtpunkt (gewählte Zufahrt; die übrigen blass ab Zoom {FAHRZEUG_ZOOM}), <span className="farbe rund" style={{ background: AV_FARBEN.Trottoir,
+          {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li>Fahrzeuge: <span className="farbe" style={{ background: FARBE_WARTEND }} />wartend
+            auf der Zufahrt: grau; <span className="farbe" style={{ background: FARBE_HERAN }} />am Ende der Sichtweite auf der Hauptstrasse: blau</li>}
+          {rechnung?.streifen.some(s => !s.trottoirueberfahrt && s.zufahrten.length) && <li><span className="farbe" style={{ background: FARBE_HERAN }} />Fahrzeug
+            am letzten Sichtpunkt: blau (gewählte Zufahrt; die übrigen blass ab Zoom {FAHRZEUG_ZOOM}), <span className="farbe rund" style={{ background: AV_FARBEN.Trottoir,
             borderColor: '#334155' }} />wartende Person am Streifenende</li>}
           <li><span className="farbe" style={{ background: QUELLE_FARBE.hand }} />von Hand, <span className="farbe" style={{ background: QUELLE_FARBE.osm }} />aus OSM (gestrichelt: Vorschlag, prüfen),
             <span className="farbe" style={{ background: QUELLE_FARBE.kataster }} />aus Baumkataster</li>

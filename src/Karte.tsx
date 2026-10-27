@@ -20,7 +20,7 @@ import { ortZoom, type Ort } from './daten/ortssuche'
 import { KS_LAGE } from './tue/texte'
 import { tueFlaeche, tueGezeichnet } from './tue/karte'
 import { messLaenge, messText, type Messung } from './messen'
-import { fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
+import { fahrzeugFarbe, fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
@@ -196,9 +196,7 @@ export function hindernisText(h: Hindernis): string {
 }
 
 // ── Fahrzeuge und wartende Personen (27.10.2026, wie der SichtweitenCheck; fahrzeuge.ts) ──
-/** Fahrzeuge: neutral grau mit weisser Windschutzscheibe; blass: nicht gewählte Zufahrt am Fussgängerstreifen */
-export const FAHRZEUG_FARBE = '#6b7280'
-const FAHRZEUG_BLASS = '#cbd5e1'
+/** Fahrzeuge mit weisser Windschutzscheibe, Farbe nach der Rolle (fahrzeuge.fahrzeugFarbe) */
 const SCHEIBE_FARBE = '#ffffff'
 /** Fahrzeuge der nicht gewählten Zufahrten erst ab diesem Zoom (Personenwagen 4,5 × 1,8 m) */
 export const FAHRZEUG_ZOOM = 18
@@ -210,7 +208,7 @@ const PERSON_PX = 14
 const FAHRZEUG_PANE = 'fahrzeuge'
 /** Fahrzeug bzw. Person in die Ebene zeichnen; interaktiv: Tooltip (beim Zeichnen nicht, Klicks gehen an die Karte) */
 function fahrzeugZeichnen(ebene: L.LayerGroup, f: FahrzeugForm, blass: boolean, interaktiv: boolean): void {
-  const farbe = blass ? FAHRZEUG_BLASS : FAHRZEUG_FARBE
+  const farbe = fahrzeugFarbe(f, blass)
   if (f.art === 'auto' && f.umriss && f.scheibe) {
     const p = L.polygon(f.umriss.map(ll), { color: '#111827', weight: blass ? 1 : 1.5, opacity: blass ? 0.6 : 1, fillColor: farbe, fillOpacity: 0.9,
       interactive: interaktiv, className: `fahrzeug fahrzeug-${f.rolle}`, pane: FAHRZEUG_PANE }).addTo(ebene)

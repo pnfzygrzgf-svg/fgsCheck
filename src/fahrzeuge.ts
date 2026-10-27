@@ -11,6 +11,17 @@ import { autoScheibe, autoUmriss, fbLage } from './knotensicht/rechner/fahrzeug'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 import { tueGezeichnet } from './tue/karte'
 
+/** Farben (27.10.2026): wartendes Fahrzeug F_B grau, Fahrzeug am Ende der Sichtweite F_A bzw. das herannahende am Fussgängerstreifen blau
+ * (hebt sich von den grünen und roten Sichtfeldern und vom gelben Streifen ab); blass: nicht gewählte Zufahrt */
+export const FARBE_WARTEND = '#4b5563'
+export const FARBE_HERAN = '#2563eb'
+export const FARBE_HERAN_BLASS = '#93c5fd'
+/** Füllfarbe eines Fahrzeugs nach seiner Rolle; Person: Trottoirfarbe (Karte) */
+export function fahrzeugFarbe(f: Pick<FahrzeugForm, 'rolle'>, blass = false): string {
+  if (f.rolle === 'fb') return FARBE_WARTEND
+  return blass ? FARBE_HERAN_BLASS : FARBE_HERAN
+}
+
 /** Abstand der wartenden Person hinter der Bordkante [m] (wie rechner/streifen.inselProbe) */
 export const WARTE_HINTER_RAND_M = 0.6
 

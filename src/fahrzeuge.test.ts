@@ -7,7 +7,7 @@ import { avParsen, type GeoJson } from './daten/av'
 import { rechneFall } from './rechner'
 import { leererFall, type Fall } from './fall'
 import { knotensichtAnfuegen } from './tue/knotensicht'
-import { fgsFahrzeuge, geradeZufahrt, tueFahrzeuge, WARTE_HINTER_RAND_M } from './fahrzeuge'
+import { FARBE_HERAN, FARBE_HERAN_BLASS, FARBE_WARTEND, fahrzeugFarbe, fgsFahrzeuge, geradeZufahrt, tueFahrzeuge, WARTE_HINTER_RAND_M } from './fahrzeuge'
 import { LENKER_VOR_FRONT_M, PW_LAENGE_M } from './knotensicht/rechner/fahrzeug'
 
 const O: P = [2600000, 1200000]
@@ -90,5 +90,15 @@ describe('Fussgängerstreifen: Fahrzeug je gerade Zufahrt, Person je Streifenend
     expect(p.length).toBe(2)
     expect(p.every(x => x.text === 'Wartende Person')).toBe(true)
     for (const x of p) expect(Math.min(...s.rand.map(r => dist(r, x.mitte)))).toBeCloseTo(WARTE_HINTER_RAND_M, 1)
+  })
+})
+
+describe('Farben nach Rolle (27.10.2026)', () => {
+  it('wartend grau, am Ende der Sichtweite bzw. herannahend am Fussgängerstreifen blau (nicht gewählt blass)', () => {
+    expect(fahrzeugFarbe({ rolle: 'fb' })).toBe(FARBE_WARTEND)
+    expect(fahrzeugFarbe({ rolle: 'fa' })).toBe(FARBE_HERAN)
+    expect(fahrzeugFarbe({ rolle: 'zufahrt' })).toBe(FARBE_HERAN)
+    expect(fahrzeugFarbe({ rolle: 'zufahrt' }, true)).toBe(FARBE_HERAN_BLASS)
+    expect(FARBE_WARTEND).not.toBe(FARBE_HERAN)
   })
 })
