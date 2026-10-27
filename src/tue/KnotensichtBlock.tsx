@@ -55,6 +55,7 @@ export function KnotensichtBlock({ ks, fgsId, titel, lage, breiteHand, setzeBrei
   let inhalt: ReactNode
   const ohneZufahrt = !!ks && 'fehler' in ks && !!ks.ohneZufahrt
   if (!ks) inhalt = <p>wird gerechnet …</p>
+  else if ('fehler' in ks && ks.ueberHauptstrasse) inhalt = <p className="warnung">{ks.fehler}</p>
   else if ('fehler' in ks) inhalt = ks.ohneZufahrt
     ? <p className="warnung">Der Streifen quert keine Einmündung: Trottoirüberfahrten gibt es {TUE_NUR_EINMUENDUNG}.</p>
     : <p className="warnung">Nicht gerechnet: {ks.fehler}</p>

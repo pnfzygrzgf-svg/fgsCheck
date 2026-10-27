@@ -27,7 +27,8 @@ import { STRASSENTYP_TEXT } from '../knotensicht/rechner/sichtweite'
 import { B_INNERORTS_M } from '../knotensicht/rechner/beobachtung'
 import { D_MFZ_M } from '../knotensicht/rechner/hauptachsen'
 import { faLage, fbLage, fbVeloLage, veloLage } from '../knotensicht/rechner/fahrzeug'
-import { kurzHinweise, KS_DURCHGEHEND, KS_EINBAHN, KS_EINBAHN_VELO } from './kurztexte'
+import { kurzHinweise, ksUeberHaupt, KS_DURCHGEHEND, KS_EINBAHN, KS_EINBAHN_VELO } from './kurztexte'
+import { fahrstreifenTags } from '../rechner/fahrstreifen'
 import { HOEHEN_QUELLE } from '../knotensicht/rechner/neigung'
 import { KEINE_ALLE_EINGABEN, TUE_BREITE_MAX, TUE_BREITE_MIN, TEMPO_MIN, TEMPO_MAX, type HoehenVorgabe, type Lage, type Richtung, type RichtungStatus,
   type TueBreiteQuelle, type TuePhase, type TempoAmtlichLinie } from '../knotensicht/rechner/typen'
@@ -59,6 +60,14 @@ function linieKreuzt(l: P[], A: P, B: P): boolean {
   }
   return false
 }
+/** Fahrstreifen je Richtung eines Arms nach den OSM-Tags seines Wegs (grösserer Wert der beiden Richtungen); ohne Angabe 1 (Annahme) */
+function fsVon(osm: OsmDaten, a: { wid: number; name: string } | null): KsFahrstreifen {
+  const t = (a && osm.wege.find(w => w.id === a.wid)?.tags) ?? {}
+  const n = [fahrstreifenTags(t, true), fahrstreifenTags(t, false)].flatMap(x => (x ? [x[0]] : []))
+  const tag = ['lanes', 'lanes:forward', 'lanes:backward', 'oneway'].filter(k => t[k]).map(k => `${k}=${t[k]}`).join(', ')
+  return n.length ? { n: Math.max(...n), quelle: 'osm', strasse: strassenName(a?.name), tag } : { n: 1, quelle: 'annahme', strasse: strassenName(a?.name), tag }
+}
+
 /** Herkunft der Rechnung (Panel, Bericht) */
 export const KS_QUELLE = `SichtweitenCheck ${herkunft.version} (${herkunft.commit.slice(0, 7)})`
 
@@ -107,8 +116,15 @@ export interface Knotensicht {
   /** Linien der Höhenprofile (App lädt sie und rechnet mit hoehen[hoehenSchluessel] neu) */
   profile: Partial<Record<keyof HoehenVorgabe, P[]>>
   hoehenSchluessel: string
+  /** Fahrstreifen je Richtung der Seitenstrasse (Zufahrt) und der Hauptstrasse am Knoten (Vorbelegung im Bedarf; 27.10.2026) */
+  fahrstreifen?: { seite: KsFahrstreifen; haupt: KsFahrstreifen | null }
 }
-export type KnotensichtAntwort = Knotensicht | { fehler: string; ohneZufahrt?: true }
+/** Fahrstreifen je Richtung einer Strasse am Knoten nach OSM (lanes, lanes:forward/backward, oneway), sonst 1 als Annahme */
+export interface KsFahrstreifen { n: number; quelle: 'osm' | 'annahme'; strasse: string; tag: string }
+/** Streifen quer über die Hauptstrasse statt über die Seitenstrasse (27.10.2026): keine Knotensicht, Hinweis, Vorbelegung «quert die
+ * Hauptstrasse»; Namen der beiden Strassen */
+export interface KsUeberHaupt { haupt: string; seite: string }
+export type KnotensichtAntwort = Knotensicht | { fehler: string; ohneZufahrt?: true; ueberHauptstrasse?: KsUeberHaupt }
 
 export interface KsDaten {
   osm: OsmDaten; av: AvFlaeche[]; kx?: Kontext
@@ -181,6 +197,23 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   const z = z0 ?? zufahrtFinden(kx, s)
   if (!z) return { fehler: `kein Knoten mit gequerter Einmündung bis ${KNOTEN_M} m vom Streifen (OSM)`, ohneZufahrt: true }
   const kp = kx.netz.p(z.knoten)
+  // Streifen quer über die Hauptstrasse (27.10.2026): die Achse zwischen den Enden schneidet einen anderen Arm des Knotens; dann gehört
+  // die Überfahrt quer über die Seitenstrasse, die Knotensicht entfällt
+  const info = knotenInfo(kx.netz, z.knoten)
+  const zArm = info?.arme.find(a => a.key === z.zufahrt)
+  const reichweite = Math.max(...[s.p0, s.p1].map(p => Math.hypot(p[0] - kp[0], p[1] - kp[1]))) + VERL_M
+  const gekreuzt = (info?.arme ?? []).filter(a => linieKreuzt(kx.netz.armLinie([a.wid, a.i, a.sd], reichweite), s.p0, s.p1))
+  if (gekreuzt.some(a => a.key !== z.zufahrt)) {
+    // Hauptstrasse: gekreuzter Arm der Strasse mit Vortritt; Seitenstrasse: gekreuzter Arm ohne Vortritt (sonst die gefundene Zufahrt)
+    const vt = (a: { key: string }) => !!info?.vortritt?.includes(a.key)
+    const h = gekreuzt.find(vt) ?? gekreuzt.find(a => a.key !== z.zufahrt)!
+    const sArm = gekreuzt.find(a => !vt(a) && a !== h) ?? (zArm && zArm !== h ? zArm : null)
+    const haupt = strassenName(h.name), seite = strassenName(sArm?.name)
+    return { fehler: ksUeberHaupt(haupt, seite), ueberHauptstrasse: { haupt, seite } }
+  }
+  // Fahrstreifen je Richtung nach OSM: Seitenstrasse = Zufahrt, Hauptstrasse = ein Arm der Strasse mit Vortritt
+  const hArm = info?.arme.find(a => a.key !== z.zufahrt && info.vortritt?.includes(a.key)) ?? null
+  const fahrstreifen = { seite: fsVon(d.osm, zArm ?? null), haupt: hArm ? fsVon(d.osm, hArm) : null }
   // Zuständigkeit nach der AV ohne Flächen (Plan)
   const tempoAmtlich = d.vsig && bernZustaendig(kp, d.avBestand ?? d.av) ? vsigRechnung(d.vsig.linien, d.vsig.bereich.mitte, d.vsig.bereich.radiusM) : null
   const bh = typeof s.breite === 'number' ? { wert: s.breite, annahme: false } : s.breite
@@ -293,7 +326,7 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
     annahmeGrund, annahmen, hinweise: allg.texte,
     karte: { D: e.D, Dtrottoir: tp?.D ?? null, vorderkante: t.vorderkante, hinterkante: t.hinterkante,
       kanten: u ? [kante(t.vorderkante), kante(t.hinterkante)] : [], dreiecke, fahrzeuge },
-    profile, hoehenSchluessel,
+    profile, hoehenSchluessel, fahrstreifen,
   }
 }
 

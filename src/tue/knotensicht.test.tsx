@@ -14,6 +14,8 @@ import { HOEHEN_QUELLE } from '../knotensicht/rechner/neigung'
 import { KnotensichtBericht, KnotensichtBlock } from './KnotensichtBlock'
 import { TUE_NUR_EINMUENDUNG } from '../texte'
 import { kurzHinweis, KS_EINBAHN, KS_EINBAHN_VELO } from './kurztexte'
+import { tueFlaeche, tueMasse } from './karte'
+import { tueFahrzeuge } from '../fahrzeuge'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number) => wgs(O[0] + x, O[1] + y)
@@ -339,5 +341,41 @@ describe('Knotensicht: zweite Review (Einbahn, Veloachse, Handwerte)', () => {
     expect(k.annahmeGrund).toEqual(expect.arrayContaining(['Breite angenommen', 'Tempo angenommen']))
     const h = ks(rechnen(fallTue(x => { x.bedarf = { felder: { 'q3.vSigHaupt': { wert: 50, quelle: 'hand' } } } })).streifen[0].knotensicht)
     expect(h.richtungen.map(r => r.tempoHerkunft)).toEqual(['hand', 'hand'])
+  })
+})
+
+describe('Knotensicht: Streifen quer über die Hauptstrasse statt über die Seitenstrasse (27.10.2026)', () => {
+  // schräg über die Hauptstrasse beim Knoten (wie Mittelstrasse/Länggassstrasse): schneidet die Hauptstrasse und den Querweg
+  const ueber = fallTue(() => {}, lv(-50, 6), lv(-34, -9))
+  const a = rechnen(ueber).streifen[0].knotensicht
+  it('erkannt: Hinweis, keine Knotensicht (keine Fläche, keine Fahrzeuge, keine Masse)', () => {
+    expect(a).toMatchObject({ ueberHauptstrasse: { haupt: 'Hauptstrasse', seite: 'Querweg' } })
+    expect(a && 'fehler' in a && a.fehler).toBe('Die Überfahrt quert die Hauptstrasse; sie gehört quer über die Seitenstrasse (Querweg), beide Enden auf dem Trottoir der Hauptstrasse.')
+    const s = { ...rechnen(ueber).streifen[0] }
+    expect(tueFlaeche(s.knotensicht)).toBeNull()
+    expect(tueMasse(s.knotensicht)).toBeNull()
+    expect(tueFahrzeuge(s)).toEqual([])
+    expect(text(renderToStaticMarkup(<KnotensichtBlock ks={a} fgsId="hand-1" titel={x => x} lage={null} breiteHand={null} setzeBreite={() => {}} />)))
+      .toContain('Die Überfahrt quert die Hauptstrasse')
+  })
+  it('Bedarf: «quert die Hauptstrasse» aus OSM, Überfahrt über die Hauptstrasse nicht zulässig (Muss)', () => {
+    const b = befundblaetter(rechnen(ueber), ueber, { vorgabe: { bern: false, kantonBE: false }, geo: { osm: osmParsen(OSM_ROH), av: avParsen(avRoh()) } })[0]
+    expect(b.gebildet.eingaben.q3.wert?.ueber).toBe('haupt')
+    expect(b.gebildet.herkunft.get('q3.ueber')).toMatchObject({ zustand: 'vorbelegt', quelle: 'osm' })
+    expect(b.befund.alle.find(x => x.id === 'Q3-5')).toMatchObject({ zustand: 'verletzt', staerke: 'hart' })
+  })
+  it('über die Seitenstrasse: Knotensicht wie bisher; Fahrstreifen aus OSM am Knoten (Hauptstrasse lanes=2: 1 je Richtung)', () => {
+    const k = ks(rechnen(fallTue()).streifen[0].knotensicht)
+    expect('ueberHauptstrasse' in k).toBe(false)
+    expect(k.fahrstreifen).toEqual({ seite: { n: 1, quelle: 'annahme', strasse: 'Querweg', tag: '' },
+      haupt: { n: 1, quelle: 'annahme', strasse: 'Hauptstrasse', tag: '' } })
+    const osm2 = { elements: OSM_ROH.elements.map(e => (e.id === 1 ? { ...e, tags: { ...e.tags, lanes: '2' } } : e)) }
+    const f = fallTue()
+    const r = rechneFall(osmParsen(osm2), avParsen(avRoh()), [], null, f, null, null, null, null)
+    knotensichtAnfuegen(r, { osm: osm2, av: avRoh() }, f, REST)
+    expect(ks(r.streifen[0].knotensicht).fahrstreifen?.haupt).toEqual({ n: 1, quelle: 'osm', strasse: 'Hauptstrasse', tag: 'lanes=2' })
+    const b = befundblaetter(r, f, { vorgabe: { bern: false, kantonBE: false }, geo: { osm: osmParsen(osm2), av: avParsen(avRoh()) } })[0]
+    expect(b.gebildet.herkunft.get('q3.nEinm')).toMatchObject({ zustand: 'vorbelegt', quelle: 'annahme' })
+    expect(b.gebildet.eingaben.q3.wert).toMatchObject({ nEinm: 1, nHaupt: 1, ueber: 'einmuendend' })
   })
 })

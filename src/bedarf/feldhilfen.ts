@@ -465,12 +465,14 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   'q3.gewerbe': { was: 'Ja, wenn die Umgebung vor allem Industrie oder Gewerbe ist; dort passt keine Trottoirüberfahrt.',
     vorschlag: 'in Bern aus dem Nutzungszonenplan (Geoportal): Industrie- und Gewerbezone bzw. Gewerbegebiet Matte am Streifen «ja», andere Zone «nein».' },
   'q3.anschlussGewerbe': { was: 'Ja, wenn die Seitenstrasse zu Betrieben mit Lieferverkehr oder zu landwirtschaftlich genutztem Land führt.' },
-  'q3.ueber': { was: 'Welche Fahrbahn die Trottoirüberfahrt quert. Möglich ist sie nur über die einmündende Seitenstrasse, nie über die Hauptstrasse.', vorschlag: '«die Seitenstrasse» als Annahme, wenn die Lage eine Einmündung ist bzw. (Trottoirüberfahrt) eine Kreuzung über die Zufahrt ohne Vortritt.' },
+  'q3.ueber': { was: 'Welche Fahrbahn die Trottoirüberfahrt quert. Möglich ist sie nur über die einmündende Seitenstrasse, nie über die Hauptstrasse.', vorschlag: '«die Seitenstrasse» als Annahme, wenn die Lage eine Einmündung ist bzw. (Trottoirüberfahrt) eine Kreuzung über die Zufahrt ohne Vortritt; «die Hauptstrasse», wenn der Streifen nach OSM quer über die Hauptstrasse führt.' },
   'q3.vSigHaupt': { was: 'Signalisiertes Tempo auf der Strasse, entlang der das Trottoir durchläuft, in km/h.',
     vorschlag: 'bei einer Querung über die Seitenstrasse das Tempo der abbiegenden Zufahrten aus dem Sichtrechner.' },
   'q3.vSigEinm': { was: 'Signalisiertes Tempo in der einmündenden Seitenstrasse, in km/h (für die Berner Tabelle).', vorschlag: 'wie das signalisierte Tempo.' },
-  'q3.nEinm': { was: 'Wie viele Fahrstreifen die Seitenstrasse je Richtung hat.', vorschlag: 'wie die Fahrstreifen je Richtung (grösster Wert).' },
-  'q3.nHaupt': { was: 'Wie viele Fahrstreifen die Hauptstrasse je Richtung hat.' },
+  'q3.nEinm': { was: 'Wie viele Fahrstreifen die Seitenstrasse je Richtung hat.', vorschlag: 'an einer Trottoirüberfahrt aus OSM am Knoten ' +
+    '(lanes, ohne Angabe 1 als Annahme), sonst wie die Fahrstreifen je Richtung (grösster Wert).' },
+  'q3.nHaupt': { was: 'Wie viele Fahrstreifen die Hauptstrasse je Richtung hat.', vorschlag: 'an einer Trottoirüberfahrt aus OSM am Knoten ' +
+    '(lanes der Strasse mit Vortritt, ohne Angabe 1 als Annahme).' },
   'q3.trottoirBeidseits': { was: 'Ja, wenn das Trottoir entlang der Hauptstrasse vor und nach der Einmündung weitergeht.' },
   'q3.winkel': { was: 'Winkel zwischen Seiten- und Hauptstrasse in Grad; 90 = rechtwinklig.' },
   'q3.knotensichtOk': { was: 'Ja, wenn Ausfahrende aus der Seitenstrasse genug weit sehen (Knotensicht nach VSS 40 273); die App rechnet sie an der Trottoirüberfahrt.',

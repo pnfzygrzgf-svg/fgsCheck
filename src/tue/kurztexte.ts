@@ -8,6 +8,9 @@
 /** Hinweis «durchgehende Strasse»: die Überfahrt gehört über die einmündende Strasse */
 export const KS_DURCHGEHEND = 'Der Streifen quert die durchgehende Strasse: eine Trottoirüberfahrt gehört über die einmündende Strasse ' +
   '(VSS 40 242 Ziffer 14.2).'
+/** Hinweis: Streifen quer über die Hauptstrasse (27.10.2026) */
+export const ksUeberHaupt = (haupt: string, seite: string): string =>
+  `Die Überfahrt quert die ${haupt}; sie gehört quer über die Seitenstrasse (${seite}), beide Enden auf dem Trottoir der Hauptstrasse.`
 export const KS_AV_KNAPP = 'AV-Ausschnitt reicht nicht bis ans Ende der nötigen Sicht: weiter weg fehlen Gebäude.'
 /** Einbahn vom Knoten weg ohne Velo gegen die Einbahn: niemand fährt aus */
 export const KS_EINBAHN = 'Die einmündende Strasse ist eine Einbahn vom Knoten weg: hier fährt niemand aus; nur prüfen, wenn Velos gegen ' +

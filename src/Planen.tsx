@@ -25,7 +25,7 @@ export const WERKZEUGE: [W, string, string][] = [
   // die gezeichneten Streifen heissen «Streifen von Hand»
   ['streifen', 'Streifen planen', 'beide Wartebereiche anklicken (Achse quer über die Fahrbahn)'],
   // Trottoirüberfahrt (23.10.2026): wie «Streifen planen», der Streifen bekommt gleich die Wahl «Trottoirüberfahrt»
-  ['tue', 'Trottoirüberfahrt', 'über eine Einmündung: beide Enden anklicken; geprüft wird die Knotensicht der Einbiegenden'],
+  ['tue', 'Trottoirüberfahrt', 'beide Enden auf dem Trottoir der Hauptstrasse, links und rechts der Seitenstrasse anklicken; geprüft wird die Knotensicht der Ausfahrenden'],
   ['mittelinsel', 'Mittelinsel (Standard)', 'Schutzinsel mit Rollstuhlfurt nach Masterplan Fussverkehr Stadt Bern, Standards, E1, als ' +
     'Flächen (Plan) der Art Insel einfügen'],
   ['seitenraum', 'Vorgezogener Seitenraum', 'nahe einem Streifenende klicken: Fläche (Plan) Trottoir 0,20 m über die Parklinie ' +
@@ -70,7 +70,7 @@ export function StreifenPlanenOben({ geladen, werkzeug, waehlen }: { geladen: bo
       `${NACHLADEN_M} m um einen Ort liegen (dann lädt die App dort nach); sonst bzw. ohne geladenen Ort beginnt am Streifen ` +
       'ein neuer Fall. Die App lädt AV, OSM und Kataster um den Streifen, rechnet und vermasst ihn.'}>Streifen planen</button>
     {' '}<button type="button" className={tue ? 'aktiv' : 'zweit'} aria-pressed={tue} onClick={() => waehlen('tue')}
-      title="Neue Trottoirüberfahrt: beide Enden über der Einmündung anklicken; die App lädt die Daten und prüft sie">Trottoirüberfahrt planen</button></>
+      title="Neue Trottoirüberfahrt: beide Enden auf dem Trottoir der Hauptstrasse, links und rechts der Seitenstrasse anklicken; die App lädt die Daten und prüft sie">Trottoirüberfahrt planen</button></>
 }
 
 /** Werkzeugknöpfe (aktiv hervorgehoben, aria-pressed); gesperrt: Werkzeug -> Grund (Knopf gesperrt, Grund als Tooltip) */

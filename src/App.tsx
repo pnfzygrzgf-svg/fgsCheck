@@ -2337,7 +2337,9 @@ function MasseAnzeige({ s, e, kopieren, namen, fixpunkte, vorschlaege, setzen, u
         <div>Ende A liegt im {v.seiteA}en (erster Punkt). Achse A–B {f2(v.laengeM)} m, {e.trottoirueberfahrt ? (() => {
           // Trottoirüberfahrt (27.10.2026): Breite und Länge der gerechneten Überfahrt statt der Zeichenbreite des Streifens
           const m = tueMasse(e.knotensicht)
-          return m ? `Überfahrt ${f2(m.breite)} m breit und ${f2(m.laenge)} m lang (Knotensicht)` : 'Masse der Überfahrt nach der Knotensicht (noch nicht gerechnet)'
+          const ks = e.knotensicht
+          return m ? `Überfahrt ${f2(m.breite)} m breit und ${f2(m.laenge)} m lang (Knotensicht)`
+            : ks && ('fehler' in ks || ks.durchgehend) ? 'keine Masse der Überfahrt (siehe Knotensicht)' : 'Masse der Überfahrt nach der Knotensicht (noch nicht gerechnet)'
         })() : `Breite ${f2(v.breiteM)} m`}, Winkel zur
           Fahrbahnachse {v.winkelGrad !== null ? `${f1(v.winkelGrad)}° (90° = senkrecht; ${v.winkelQuelle})` : `– (${v.winkelQuelle})`}.</div>
         <div>Abstand zum Fahrbahnrand entlang der Achse (+ vor dem Rand, − darüber hinaus): {v.randAbstandM ? <>Ende A

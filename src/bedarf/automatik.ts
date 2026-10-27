@@ -16,6 +16,7 @@ import { type P, add, sub, dot, dist, einheit, rechts, links, lv95, imPolygon, a
 import type { StreifenErgebnis, ZufahrtErgebnis } from '../rechner/typen'
 import type { Fall, PlanSeitenraum } from '../fall'
 import type { Quelle } from './eingaben'
+import type { KsFahrstreifen } from '../tue/knotensicht'
 import type { Vorbelegung } from './fallBedarf'
 import { HW_ALLE, istFgs, istLsaUebergang, markierung, type OsmDaten, type OsmKnoten, type OsmWeg, type VortrittZeichen } from '../daten/osm'
 import type { AvFlaeche } from '../daten/av'
@@ -648,6 +649,11 @@ export function automatik(x: AutoEingang): void {
     }
   }
 
+  // Trottoirüberfahrt (27.10.2026): die Knotensicht erkennt einen Streifen quer über die Hauptstrasse → «quert die Hauptstrasse» (Q3-5)
+  const ueberHaupt = st.map(s => s.knotensicht).find(k => !!k && 'fehler' in k && !!k.ueberHauptstrasse)
+  if (ueberHaupt && 'fehler' in ueberHaupt && ueberHaupt.ueberHauptstrasse)
+    setze('q3.ueber', 'haupt', 'osm', `Streifen quer über die ${ueberHaupt.ueberHauptstrasse.haupt} (OSM, Knotensicht)`)
+
   // ── A4 Kopien ──
   if (fb) setze('lsaZeiten.L', fb.wert, fb.quelle, `wie Fahrbahnbreite (${fb.text})`)
   if (L?.length === 2) setze('lsaZeiten.teile', L, w.querdistanzL!.quelle, `wie Länge jeder Teilquerung (${w.querdistanzL!.text})`)
@@ -665,7 +671,14 @@ export function automatik(x: AutoEingang): void {
     const namen = [...new Set(abb.map(z => z.strasse).filter(Boolean))].join(', ')
     setze('q3.vSigHaupt', vH, q, `Tempo der Hauptstrasse${namen ? ` (${namen})` : ''} ${vH} km/h (Sichtrechner, ${q === 'geoportal' ? 'Geoportal' : q === 'hand' ? 'von Hand' : 'OSM'})`)
   }
-  if (nR && ueberSeite) setze('q3.nEinm', Math.max(...nR), w.nRichtung!.quelle, `wie Fahrstreifen je Richtung (${w.nRichtung!.text})`)
+  // Trottoirüberfahrt mit Knotensicht (27.10.2026): Fahrstreifen der Seiten- und der Hauptstrasse aus OSM am Knoten (die des Streifens
+  // gehören zur gequerten Strasse und passen nur, wenn er über die Seitenstrasse führt); sonst wie bisher
+  const ksFs = st.map(s => s.knotensicht).map(k => (k && !('fehler' in k) ? k.fahrstreifen : undefined)).find(x => !!x)
+  if (ksFs) {
+    const fs = (x: KsFahrstreifen, wer: string) => `${wer} ${x.strasse}: ${x.n} je Richtung ${x.quelle === 'osm' ? `(OSM ${x.tag})` : '(ohne OSM-Angabe angenommen)'}`
+    setze('q3.nEinm', ksFs.seite.n, ksFs.seite.quelle, fs(ksFs.seite, 'Seitenstrasse'))
+    if (ksFs.haupt) setze('q3.nHaupt', ksFs.haupt.n, ksFs.haupt.quelle, fs(ksFs.haupt, 'Hauptstrasse'))
+  } else if (nR && ueberSeite) setze('q3.nEinm', Math.max(...nR), w.nRichtung!.quelle, `wie Fahrstreifen je Richtung (${w.nRichtung!.text})`)
   if (dtv !== undefined && ueberSeite) {
     setze('q3.dtvEinm', dtv, w.dtv!.quelle, `wie DTV (${w.dtv!.text})`)
     const hoch = dtv >= AUTO.mivEinmHoch

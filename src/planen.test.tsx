@@ -34,7 +34,7 @@ describe('Werkzeuggruppe Planen', () => {
     expect(PLAN_WERKZEUGE.map(w => WERKZEUGE.find(x => x[0] === w)![1])).toEqual(PLAN_NAMEN)
     // «Trottoirüberfahrt» direkt nach «Streifen planen», mit eigener Kurzhilfe
     expect(PLAN_WERKZEUGE.indexOf('tue')).toBe(PLAN_WERKZEUGE.indexOf('streifen') + 1)
-    expect(gruppeTitel('tue')).toBe('Trottoirüberfahrt: über eine Einmündung: beide Enden anklicken; geprüft wird die Knotensicht der Einbiegenden')
+    expect(gruppeTitel('tue')).toBe('Trottoirüberfahrt: beide Enden auf dem Trottoir der Hauptstrasse, links und rechts der Seitenstrasse anklicken; geprüft wird die Knotensicht der Ausfahrenden')
     // gesperrt (Ecke runden ohne Fläche (Plan)): Knopf gesperrt, Grund als Tooltip
     const g = renderToStaticMarkup(<PlanenGruppe geladen werkzeug={null} waehlen={nichts} hilfe={null} anzahl={0} offen={false}
       setOffen={nichts} geplant={null} gesperrt={{ eckeRunden: 'zuerst eine Fläche (Plan)' }} />)
