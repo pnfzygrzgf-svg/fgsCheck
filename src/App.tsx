@@ -44,7 +44,7 @@ import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type Pl
   ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, streifenHandTeilen, teilungZuruecknehmbar,
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
   streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, type StreifenQuerung } from './fall'
-import { tueMasse } from './tue/karte'
+import { tueMasse, type KsPhase } from './tue/karte'
 import { handSetzen } from './bedarf/fallBedarf'
 import { FARBE_HERAN, FARBE_WARTEND, FARBE_WARTEND_TROTTOIR } from './fahrzeuge'
 import { inFeldSchreiben, inMetern, istZahlenfeld, messKlick, messLaenge, messPunkt, messText, messWert, type Messung } from './messen'
@@ -225,6 +225,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [werkzeug, setWerkzeug] = useState<Werkzeug>(null)
   // Trottoirüberfahrt: Alternative Fussgängerstreifen mit Fragen prüfen (nur in der Sitzung, nicht im Fall; 27.10.2026)
   const [alternative, setAlternative] = useState(false)
+  // Knotensicht: gezeigte Phase (Klick auf ein wartendes Fahrzeug bzw. Wahl im Block; nur Sitzung, 27.10.2026)
+  const [ksPhase, setKsPhase] = useState<KsPhase>('beide')
   // Vorschau der AV beim Planen ohne geladenen Ort (27.10.2026, avVorschau.ts): nur Anzeige und Fang, nicht im Fall
   const [, setVorschauNr] = useState(0)
   const vorschau = useRef<AvVorschau | null>(null)
@@ -572,7 +574,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     abbruchRef.current = ctrl
     auftrag.current++
     setRechnung(null); setAuswahl(null); setAv(null); setDaten(null); setWerkzeug(null); setZeichnung([]); setBearbeiten(null)
-    setAlternative(false); setKataster(null); setParkKat(null); setBernGeo(null); setWechsel(null); setLadeFehler(false)
+    setAlternative(false); setKsPhase('beide'); setKataster(null); setParkKat(null); setBernGeo(null); setWechsel(null); setLadeFehler(false)
     const nr = ++ladeNr.current
     const erinnert = !fallNeu && nid !== null ? fallErinnern(nid) : null
     // Fall aus dem Browser, dessen Streifen von Hand nur um den gespeicherten Ort abgedeckt sind (Ort nach dem Verschieben an die
@@ -1859,6 +1861,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         flaechenPlan={fall?.flaechenPlan ?? LEER_PLAN}
         masslinien={masslinien} messung={werkzeug === 'messen' ? messung : null} zufahrtNamen={zNamen} streifenTitel={titel}
         onUebergang={pruefen} onZufahrt={key => { setAuswahl(key); if (key) zurSicht() }}
+        ksPhase={ksPhase} onKsPhase={setKsPhase}
         onTueAuge={(fid, phase, p) => aendern(f => {
           f.streifen[fid] = { ...(f.streifen[fid] ?? {}), [phase === 'fahrbahn' ? 'tueD' : 'tueDtrottoir']: p }
           return f
@@ -2235,7 +2238,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           <StreifenAnzeige key={s.fgsId} s={s} fall={fall} auswahl={auswahl} setAuswahl={setAuswahl} aendern={aendern} namen={zNamen.get(s.fgsId)}
             alleStreifen={rechnung?.streifen ?? []} alleNamen={zNamen} blatt={blaetter.find(b => b.streifen.includes(s.fgsId)) ?? null}
             gewaehlteZ={gewaehlteZ} spurZeichnen={key => { setSpurFuer(key); setZeichnung([]); setWerkzeug('spurB') }}
-            ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null} neuLaden={() => umStreifenLaden(s.fgsId)} />
+            ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null} neuLaden={() => umStreifenLaden(s.fgsId)} ksPhase={ksPhase} setKsPhase={setKsPhase} />
         ))}
         {rechnung && <p className="klein">Rechenzeit {Math.round(rechnung.ms)} ms (Web Worker).</p>}
           </>} />
@@ -2457,8 +2460,10 @@ function StreetViewZufahrt({ url, nr }: { url: string | null; nr: string }) {
 /** Tooltip gedeckter Abbiegezufahrten (nur mit GEDECKT_RECHNEN, seit 14.10.2026 standardmässig aus) */
 const GEDECKT_TITEL = 'Geprüft; den Weg ab dem Knoten prüft die gerade Zufahrt mit; das Ergebnis zählt trotzdem'
 
-function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, spurZeichnen, ausserhalb, neuLaden, namen, alleStreifen, alleNamen, blatt }: {
+function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, spurZeichnen, ausserhalb, neuLaden, namen, alleStreifen, alleNamen, blatt,
+  ksPhase, setKsPhase }: {
   s: StreifenErgebnis; fall: Fall; auswahl: string | null; setAuswahl: (k: string | null) => void
+  ksPhase: KsPhase; setKsPhase: (p: KsPhase) => void   // Knotensicht: gezeigte Phase (Karte und Block gleich)
   blatt: BefundBlatt | null          // Bedarf der Querung: Lage (Hinweis zur Trottoirüberfahrt) und OSM-Knoten (SichtweitenCheck)
   alleStreifen: StreifenErgebnis[]; alleNamen: Map<string, ZufahrtNamen>   // für «geprüft beim anderen Teil» bzw. die gerade Zufahrt
   namen: ZufahrtNamen | undefined    // Zufahrten nach Strasse und Herkunft (benennung.ts)
@@ -2521,6 +2526,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
         })}
         // Auge von Hand (27.10.2026): am Streifen, an dem die Knotensicht rechnet
         augeVonHand={(() => { const e = fall.streifen[s.fgsId]; return e ? [...(e.tueD ? ['fahrbahn' as const] : []), ...(e.tueDtrottoir ? ['trottoir' as const] : [])] : null })()}
+        phase={ksPhase} setzePhase={setKsPhase}
         augeZuruecksetzen={() => aendern(f => {
           const e = f.streifen[s.fgsId]
           if (e) { const { tueD: _d, tueDtrottoir: _t, ...rest } = e; void _d; void _t; f.streifen[s.fgsId] = rest }

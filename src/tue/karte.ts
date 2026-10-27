@@ -23,3 +23,25 @@ export function tueMasse(ks: KnotensichtAntwort | undefined): { breite: number; 
   const [a, b] = ks.karte.kanten[0]
   return { breite: ks.breite, laenge: Math.hypot(b[0] - a[0], b[1] - a[1]) }
 }
+
+// ── Sicht je Phase zeigen (27.10.2026): Klick auf ein wartendes Fahrzeug bzw. Wahl im Block Knotensicht; nur Sitzung ──
+
+/** gezeigte Phase der Knotensicht: beide, nur Sicht auf die Fahrbahn (Auto, Velo) bzw. nur aufs Trottoir */
+export type KsPhase = 'beide' | 'fahrbahn' | 'trottoir'
+
+/** nach einem Klick auf das wartende Fahrzeug einer Phase: diese Phase; nochmals dieselbe: wieder beide */
+export const ksPhaseNach = (jetzt: KsPhase, geklickt: Exclude<KsPhase, 'beide'>): KsPhase => (jetzt === geklickt ? 'beide' : geklickt)
+
+/** Sichtdreieck zeigen? (Fahrbahn: Auto und Velo; Trottoir: Trottoir) */
+export const ksDreieckSichtbar = (art: 'auto' | 'velo' | 'trottoir', phase: KsPhase): boolean =>
+  phase === 'beide' || (phase === 'trottoir') === (art === 'trottoir')
+
+/**
+ * Fahrzeug der Knotensicht in der gezeigten Phase: «normal», «hervor» (gewähltes wartendes Fahrzeug), «blass» (wartendes Fahrzeug der
+ * anderen Phase, bleibt anklickbar zum Wechseln) bzw. «aus» (Fahrzeuge am Ende der Sichtweite gehören zur Sicht auf die Fahrbahn)
+ */
+export function ksFahrzeugStand(f: { rolle: string; phase?: 'fahrbahn' | 'trottoir' }, phase: KsPhase): 'normal' | 'hervor' | 'blass' | 'aus' {
+  if (phase === 'beide') return 'normal'
+  if (f.rolle === 'fb') return f.phase === phase ? 'hervor' : 'blass'
+  return phase === 'fahrbahn' ? 'normal' : 'aus'
+}

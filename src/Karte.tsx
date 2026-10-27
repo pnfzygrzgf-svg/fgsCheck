@@ -18,7 +18,7 @@ import Ortssuche from './Ortssuche'
 import { schildLage, zufahrtNr, zufahrtText, type ZufahrtNamen } from './benennung'
 import { ortZoom, type Ort } from './daten/ortssuche'
 import { KS_LAGE } from './tue/texte'
-import { tueFlaeche, tueGezeichnet } from './tue/karte'
+import { ksDreieckSichtbar, ksFahrzeugStand, ksPhaseNach, tueFlaeche, tueGezeichnet, type KsPhase } from './tue/karte'
 import { messLaenge, messText, type Messung } from './messen'
 import { fahrzeugFarbe, fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
 
@@ -207,10 +207,13 @@ const PERSON_PX = 14
 /** Fahrzeuge und Personen unter den Markern (markerPane 600: Griffe zum Verschieben, Schilder), über den Flächen */
 const FAHRZEUG_PANE = 'fahrzeuge'
 /** Fahrzeug bzw. Person in die Ebene zeichnen; interaktiv: Tooltip (beim Zeichnen nicht, Klicks gehen an die Karte) */
-function fahrzeugZeichnen(ebene: L.LayerGroup, f: FahrzeugForm, blass: boolean, interaktiv: boolean): L.Layer[] {
+function fahrzeugZeichnen(ebene: L.LayerGroup, f: FahrzeugForm, blass: boolean, interaktiv: boolean,
+  stand: 'normal' | 'hervor' | 'blass' = 'normal'): L.Layer[] {
   const farbe = fahrzeugFarbe(f, blass)
   if (f.art === 'auto' && f.umriss && f.scheibe) {
-    const p = L.polygon(f.umriss.map(ll), { color: '#111827', weight: blass ? 1 : 1.5, opacity: blass ? 0.6 : 1, fillColor: farbe, fillOpacity: 0.9,
+    // gewählte Phase: kräftiger Rand; andere Phase: durchscheinend (zum Wechseln anklickbar)
+    const p = L.polygon(f.umriss.map(ll), { color: '#111827', weight: stand === 'hervor' ? 3.5 : blass ? 1 : 1.5, opacity: blass ? 0.6 : 1,
+      fillColor: farbe, fillOpacity: stand === 'blass' ? 0.35 : 0.9,
       interactive: interaktiv, className: `fahrzeug fahrzeug-${f.rolle}${f.phase ? ` fahrzeug-${f.phase}` : ''}`, pane: FAHRZEUG_PANE }).addTo(ebene)
     if (interaktiv) p.bindTooltip(esc(f.text), { sticky: true })
     const sch = L.polygon(f.scheibe.map(ll), { color: SCHEIBE_FARBE, weight: 1, fillColor: SCHEIBE_FARBE, fillOpacity: 0.9, interactive: false, pane: FAHRZEUG_PANE }).addTo(ebene)
@@ -247,7 +250,7 @@ function fahrzeugZeichnen(ebene: L.LayerGroup, f: FahrzeugForm, blass: boolean, 
  * Wartendes Fahrzeug der Knotensicht ziehbar (27.10.2026): Griff am Auge (Beobachtungspunkt), das Fahrzeug folgt beim Ziehen; beim
  * Loslassen der neue Punkt an die App (Knotensicht wird neu gerechnet)
  */
-function augeGriff(ebene: L.LayerGroup, f: FahrzeugForm, teile: L.Layer[], los: (p: P) => void): void {
+function augeGriff(ebene: L.LayerGroup, f: FahrzeugForm, teile: L.Layer[], los: (p: P) => void, klick?: () => void): void {
   if (!f.auge) return
   const start = L.latLng(ll(f.auge))
   const urLagen = teile.map(t => (t instanceof L.Polygon ? (t.getLatLngs() as L.LatLng[][])[0].map(x => L.latLng(x.lat, x.lng))
@@ -263,6 +266,8 @@ function augeGriff(ebene: L.LayerGroup, f: FahrzeugForm, teile: L.Layer[], los: 
       })
     })
     .on('dragend', (e: L.LeafletEvent) => { const g = (e.target as L.Marker).getLatLng(); los(lv95(g.lat, g.lng)) })
+    // Klick ohne Ziehen (Leaflet meldet nach einem Zug keinen Klick): Phase zeigen
+    .on('click', (e: L.LeafletEvent) => { L.DomEvent.stopPropagation(e as L.LeafletMouseEvent); klick?.() })
     .addTo(ebene)
 }
 
@@ -306,6 +311,8 @@ export default function Karte(props: {
   onDoppelklick: () => void
   onEcke: (id: string, i: number, p: P) => void
   onTueAuge?: (fgsId: string, phase: 'fahrbahn' | 'trottoir', p: P) => void   // wartendes Fahrzeug der Knotensicht gezogen (Auge von Hand)
+  ksPhase?: KsPhase                                  // gezeigte Phase der Knotensicht (Sitzung)
+  onKsPhase?: (p: KsPhase) => void
   onHindernis: (id: string) => void
   onAusschnitt: () => void                           // nach jedem Verschieben bzw. Zoomen (moveend)
   hinweis: KartenHinweis | null
@@ -318,6 +325,7 @@ export default function Karte(props: {
   fixVorschlagRef.current = props.onFixVorschlag
   const elRef = useRef<HTMLDivElement>(null)
   const ebenenRef = useRef<Record<string, L.LayerGroup> | null>(null)
+  const ksPhase: KsPhase = props.ksPhase ?? 'beide'
   // Zoomstufe (Fahrzeuge der nicht gewählten Zufahrten erst ab FAHRZEUG_ZOOM)
   const [zoom, setZoom] = useState(19)
   // Griffe der Mittelinseln je Gruppe: nur beim Überfahren der Insel bzw. des Griffs oder bei gewählter Insel sichtbar
@@ -436,8 +444,8 @@ export default function Karte(props: {
     map.attributionControl.addAttribution('© OpenStreetMap-Mitwirkende')
     map.on('click', (e: L.LeafletMouseEvent) => {
       if (cb.current.werkzeug) { cb.current.onKlick(lv95(e.latlng.lat, e.latlng.lng)); return }
-      // Klick auf eine leere Stelle (nicht auf ein Objekt der Karte) hebt die Auswahl der Zufahrt auf
-      if (!(e.originalEvent.target as Element | null)?.closest?.('.leaflet-interactive')) cb.current.onZufahrt(null)
+      // Klick auf eine leere Stelle (nicht auf ein Objekt der Karte) hebt die Auswahl der Zufahrt auf und zeigt beide Phasen der Knotensicht
+      if (!(e.originalEvent.target as Element | null)?.closest?.('.leaflet-interactive')) { cb.current.onZufahrt(null); cb.current.onKsPhase?.('beide') }
     })
     map.on('dblclick', () => { if (cb.current.werkzeug) cb.current.onDoppelklick() })
     map.on('moveend', () => { markerAbgleich(); namenAbgleich(); cb.current.onAusschnitt() })
@@ -576,7 +584,8 @@ export default function Karte(props: {
         const ks = s.knotensicht
         // über die durchgehende Strasse bzw. ohne Einmündung nur die Achse (und der Hinweis im Panel)
         if (tueGezeichnet(ks)) {
-          for (const d of ks.karte.dreiecke) for (const [ring, farbe, wie] of [[d.frei, STATUS_FARBE.frei, 'frei'], [d.verdeckt, STATUS_FARBE.verdeckt, 'verdeckt']] as const) {
+          // gezeigte Phase (Klick auf ein wartendes Fahrzeug bzw. Wahl im Block): nur ihre Sichtdreiecke
+          for (const d of ks.karte.dreiecke.filter(x => ksDreieckSichtbar(x.art, ksPhase))) for (const [ring, farbe, wie] of [[d.frei, STATUS_FARBE.frei, 'frei'], [d.verdeckt, STATUS_FARBE.verdeckt, 'verdeckt']] as const) {
             if (ring.length < 3) continue
             L.polygon(ring.map(ll), { color: farbe, weight: 1, dashArray: KS_STRICH[d.art], fillColor: farbe, fillOpacity: wie === 'frei' ? 0.1 : 0.2,
               interactive: !cb.current.werkzeug })
@@ -617,7 +626,7 @@ export default function Karte(props: {
         .bindTooltip(`Streifen aus Luftbild (${lb.befund === 'erkannt' ? 'erkannt' : 'unsicher'}${lb.nurVorschlag ? ', mit Flächen (Plan) nur Vorschlag' : ''}), prüfen: ${t.nBalken} Balken, ` +
           `Balkenlänge ${t.bw.toFixed(1).replace('.', ',')} m`, { sticky: true }).addTo(eb.sicht)
     }
-  }, [rechnung, werkzeug, props.zufahrtNamen])
+  }, [rechnung, werkzeug, props.zufahrtNamen, ksPhase])
 
   // Nummernschilder der Zufahrten (benennung.ts) hinter dem letzten Sichtpunkt; Klick wählt die Zufahrt wie die Zeile im Panel
   // (auf der gewählten: Auswahl aufheben); gestrichene Zufahrten ohne Schild (keine Fahrlinie);
@@ -920,17 +929,24 @@ export default function Karte(props: {
     const aktiv = !werkzeug && !bearbeiten
     for (const s of rechnung.streifen) {
       for (const f of tueFahrzeuge(s)) {
-        const teile = fahrzeugZeichnen(eb.fahrzeug, f, false, aktiv)
+        const stand = ksFahrzeugStand(f, ksPhase)
+        if (stand === 'aus') continue
+        const teile = fahrzeugZeichnen(eb.fahrzeug, f, false, aktiv, stand)
+        // Klick (ohne Ziehen) auf ein wartendes Fahrzeug: nur die Sicht seiner Phase zeigen, nochmals: beide
+        if (aktiv && f.rolle === 'fb' && f.phase) for (const t of teile) t.on('click', (e: L.LeafletEvent) => {
+          L.DomEvent.stopPropagation(e as L.LeafletMouseEvent); cb.current.onKsPhase?.(ksPhaseNach(cb.current.ksPhase ?? 'beide', f.phase!))
+        })
         // ziehbar: Phase Fahrbahn immer, Phase Trottoir, sobald der Kern das Auge von Hand kennt; nicht während eines Werkzeugs
         if (aktiv && f.rolle === 'fb' && f.phase && f.ziehbar && cb.current.onTueAuge)
-          augeGriff(eb.fahrzeug, f, teile, p => cb.current.onTueAuge?.(s.fgsId, f.phase!, p))
+          augeGriff(eb.fahrzeug, f, teile, p => cb.current.onTueAuge?.(s.fgsId, f.phase!, p),
+            () => cb.current.onKsPhase?.(ksPhaseNach(cb.current.ksPhase ?? 'beide', f.phase!)))
       }
       for (const f of fgsFahrzeuge(s)) {
         if (f.rolle === 'zufahrt' && (f.zufahrt === auswahl || zoom < FAHRZEUG_ZOOM)) continue
         fahrzeugZeichnen(eb.fahrzeug, f, f.rolle === 'zufahrt', aktiv)
       }
     }
-  }, [rechnung, auswahl, zoom, werkzeug, bearbeiten])
+  }, [rechnung, auswahl, zoom, werkzeug, bearbeiten, ksPhase])
 
   // gewählte Zufahrt hervorheben
   useEffect(() => {

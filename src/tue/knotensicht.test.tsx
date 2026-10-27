@@ -425,6 +425,13 @@ describe('Knotensicht: Auge von Hand und Planungstempo (27.10.2026)', () => {
     const fgs = (d?: P) => fallTue(x => { x.streifen['hand-1'] = d ? { tueD: d } : {} })
     expect(rechnungsSchluessel(fgs(hand))).toBe(rechnungsSchluessel(fgs()))
   })
+  it('Block: «Sicht zeigen: beide | Fahrbahn | Trottoir», die gezeigte Phase gedrückt (wie auf der Karte)', () => {
+    const html = renderToStaticMarkup(<KnotensichtBlock ks={k0} fgsId="hand-1" titel={x => x} lage={null} breiteHand={null} setzeBreite={() => {}}
+      phase="trottoir" setzePhase={() => {}} />)
+    expect(text(html)).toContain('Sicht zeigen: beide Fahrbahn Trottoir')
+    expect(html).toMatch(/aria-pressed="true" class="aktiv klein">Trottoir</)
+    expect(html.match(/aria-pressed="true"/g)).toHaveLength(1)
+  })
   it('Planung: Tempo der Hauptstrasse im Block wählen → Bedarf von Hand → Knotensicht mit diesem Tempo', () => {
     let gesetzt: number | null = -1
     const html = renderToStaticMarkup(<KnotensichtBlock ks={k0} fgsId="hand-1" titel={x => x} lage={null} breiteHand={null} setzeBreite={() => {}}
