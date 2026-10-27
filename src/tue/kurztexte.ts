@@ -39,6 +39,11 @@ const REGELN: Regel[] = [
   [/^Die Zufahrt ist (nach OSM )?eine Einbahn vom Knoten weg/, () => null],
   [/spitzer Winkel/, () => 'Spitzer Winkel: Seiten links und rechts prüfen.'],
   [/^Kreisverkehr/, () => 'Kreisverkehr: Ergebnis nur zur Orientierung.'],
+  // Auge von Hand (27.10.2026; Kern: «D von Hand …»)
+  [/^D von Hand ([\d,]+) m hinter der .*: weniger als ([\d,]+) m/, m => `Auge von Hand ${m[1]} m hinter dem vorderen Rand: weniger als ${m[2]} m (VSS 40 273 Ziffer 12).`],
+  [/^D von Hand liegt (\d+) m vom Nullpunkt entfernt/, m => `Auge von Hand ${m[1]} m vom vorderen Rand entfernt: Lage prüfen.`],
+  [/^D' von Hand ([\d,]+) m hinter .*: weniger als ([\d,]+) m/, m => `Auge von Hand (Trottoir) ${m[1]} m hinter dem hinteren Rand: weniger als ${m[2]} m (VSS 40 273 Ziffer 13.2).`],
+  [/^D' von Hand liegt (\d+) m vom hinteren Rand entfernt/, m => `Auge von Hand (Trottoir) ${m[1]} m vom hinteren Rand entfernt: Lage prüfen.`],
   [/^D liegt in einem Gebäude/, () => 'Das Auge der Ausfahrenden liegt in einem Gebäude: Lage prüfen.'],
   [/^D liegt im Hindernis «([^»]+)»/, m => `Das Auge der Ausfahrenden liegt in «${m[1]}»: dieses Hindernis zählt nicht.`],
   [/^Die Achse läuft bis A durch «([^»]+)»/, m => `Die Fahr- bzw. Gehlinie läuft durch «${m[1]}»: dafür nicht gerechnet, Lage prüfen.`],

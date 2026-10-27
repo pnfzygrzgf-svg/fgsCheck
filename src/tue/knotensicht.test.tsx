@@ -7,7 +7,8 @@ import { wgs, type P } from '../geo'
 import { osmParsen } from '../daten/osm'
 import { avParsen, type GeoJson } from '../daten/av'
 import { rechneFall } from '../rechner'
-import { leererFall, rechnungsSchluessel, type Fall } from '../fall'
+import { fallLesen, fallSchreiben, leererFall, rechnungsSchluessel, type Fall } from '../fall'
+import { handSetzen } from '../bedarf/fallBedarf'
 import { befundblaetter } from '../bedarf/befundblatt'
 import { knotensichtAnfuegen, knotensichtTue, ksDatenAusRoh, zufahrtFinden, type Knotensicht, type KnotensichtAntwort } from './knotensicht'
 import { HOEHEN_QUELLE } from '../knotensicht/rechner/neigung'
@@ -377,5 +378,62 @@ describe('Knotensicht: Streifen quer über die Hauptstrasse statt über die Seit
     const b = befundblaetter(r, f, { vorgabe: { bern: false, kantonBE: false }, geo: { osm: osmParsen(osm2), av: avParsen(avRoh()) } })[0]
     expect(b.gebildet.herkunft.get('q3.nEinm')).toMatchObject({ zustand: 'vorbelegt', quelle: 'annahme' })
     expect(b.gebildet.eingaben.q3.wert).toMatchObject({ nEinm: 1, nHaupt: 1, ueber: 'einmuendend' })
+  })
+})
+
+describe('Knotensicht: Auge von Hand und Planungstempo (27.10.2026)', () => {
+  const k0 = ks(rechnen(fallTue()).streifen[0].knotensicht)
+  const hand: P = lv(-41, -15)
+  const mitAuge = fallTue(x => { x.streifen['hand-1'] = { ...x.streifen['hand-1'], tueD: hand } })
+  const k1 = ks(rechnen(mitAuge).streifen[0].knotensicht)
+  it('gezogenes Fahrzeug der Phase Fahrbahn: Feld gesetzt, an den Kern als D, Auge dort, Sichtdreiecke neu', () => {
+    expect(k1.karte.D).toEqual(hand)
+    expect(k1.karte.fahrzeuge!.find(f => f.phase === 'fahrbahn')).toMatchObject({ auge: hand, vonHand: true, ziehbar: true })
+    expect(JSON.stringify(k1.karte.dreiecke)).not.toBe(JSON.stringify(k0.karte.dreiecke))
+    expect(k1.annahmen.join(' ')).toContain('Auge der Ausfahrenden für die Fahrbahn von Hand')
+    // Hinweis des Kerns (Auge zu nah bzw. weit) kurz im Block
+    const nah = ks(rechnen(fallTue(x => { x.streifen['hand-1'] = { ...x.streifen['hand-1'], tueD: lv(-41, -6) } })).streifen[0].knotensicht)
+    expect(nah.hinweise.join(' ')).toMatch(/Auge von Hand [\d,]+ m hinter dem vorderen Rand: weniger als/)
+  })
+  it('gezogenes Fahrzeug der Phase Trottoir: an den Kern als Dtrottoir, Auge dort, Sicht aufs Trottoir neu; Hinweis kurz', () => {
+    const dt: P = lv(-41, -18)
+    const t = ks(rechnen(fallTue(x => { x.streifen['hand-1'] = { ...x.streifen['hand-1'], tueDtrottoir: dt } })).streifen[0].knotensicht)
+    expect(t.karte.Dtrottoir).toEqual(dt)
+    expect(t.karte.fahrzeuge!.find(f => f.phase === 'trottoir')).toMatchObject({ auge: dt, vonHand: true, ziehbar: true })
+    expect(JSON.stringify(t.karte.dreiecke.filter(d => d.art === 'trottoir'))).not.toBe(JSON.stringify(k0.karte.dreiecke.filter(d => d.art === 'trottoir')))
+    const nah = ks(rechnen(fallTue(x => { x.streifen['hand-1'] = { ...x.streifen['hand-1'], tueDtrottoir: lv(-41, -8.5) } })).streifen[0].knotensicht)
+    expect(nah.hinweise.join(' ')).toMatch(/Auge von Hand \(Trottoir\) [\d,]+ m hinter dem hinteren Rand: weniger als 3,00 m/)
+  })
+  it('zurücksetzen: ohne Feld wie gerechnet; Block mit «Auge von Hand» und «Standort zurücksetzen»', () => {
+    const ohne = fallTue(x => { x.streifen['hand-1'] = { typ: 'trottoirueberfahrt' } })
+    expect(JSON.stringify(ks(rechnen(ohne).streifen[0].knotensicht).karte)).toBe(JSON.stringify(k0.karte))
+    const html = text(renderToStaticMarkup(<KnotensichtBlock ks={k1} fgsId="hand-1" titel={x => x} lage={null} breiteHand={null} setzeBreite={() => {}}
+      augeVonHand={['fahrbahn']} augeZuruecksetzen={() => {}} />))
+    expect(html).toContain('Auge von Hand Sicht auf die Fahrbahn')
+    expect(html).toContain('Standort zurücksetzen')
+  })
+  it('Fall-Datei: Auge von Hand bleibt erhalten; ungültig mit Hinweis übergangen; Rechnungsschlüssel nur an der Trottoirüberfahrt', () => {
+    const [f2, h] = fallLesen(fallSchreiben(mitAuge))
+    expect(f2.streifen['hand-1'].tueD).toEqual(hand)
+    expect(h).toEqual([])
+    const kaputt = JSON.parse(fallSchreiben(mitAuge))
+    kaputt.streifen['hand-1'].tueD = [1, 2]
+    const [f3, h3] = fallLesen(JSON.stringify(kaputt))
+    expect(f3.streifen['hand-1'].tueD).toBeUndefined()
+    expect(h3.join(' ')).toContain('Auge von Hand ungültig')
+    expect(rechnungsSchluessel(mitAuge)).not.toBe(rechnungsSchluessel(fallTue()))
+    const fgs = (d?: P) => fallTue(x => { x.streifen['hand-1'] = d ? { tueD: d } : {} })
+    expect(rechnungsSchluessel(fgs(hand))).toBe(rechnungsSchluessel(fgs()))
+  })
+  it('Planung: Tempo der Hauptstrasse im Block wählen → Bedarf von Hand → Knotensicht mit diesem Tempo', () => {
+    let gesetzt: number | null = -1
+    const html = renderToStaticMarkup(<KnotensichtBlock ks={k0} fgsId="hand-1" titel={x => x} lage={null} breiteHand={null} setzeBreite={() => {}}
+      tempoHand={null} setzeTempo={v => { gesetzt = v }} />)
+    expect(text(html)).toContain('Planung: Tempo der Hauptstrasse aus den Daten 20 km/h 30 km/h 40 km/h 50 km/h 60 km/h 80 km/h · jetzt 50 km/h (OSM)')
+    void gesetzt
+    const f = fallTue(x => { x.bedarf = handSetzen(x.bedarf, 'q3.vSigHaupt', 30, 'hand') })
+    expect(f.bedarf?.felder['q3.vSigHaupt']).toEqual({ wert: 30, quelle: 'hand' })
+    const k = ks(rechnen(f).streifen[0].knotensicht)
+    expect(k.richtungen.map(r => [r.tempo, r.tempoHerkunft])).toEqual([[30, 'hand'], [30, 'hand']])
   })
 })

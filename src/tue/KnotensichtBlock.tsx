@@ -49,8 +49,13 @@ export const breiteUngueltig = (b: number | null): boolean => b !== null && (b <
 /** Block im Reiter Sichtprüfung. ks: Ergebnis (fehlt: Rechnung läuft); fgsId: dieser Streifen, titel: Name eines Streifens (Querung mit
  * Teilstreifen: gerechnet einmal, an einem Teil); lage: Lage laut Bedarf, wenn keine Einmündung; breite: Eingabe von Hand (Bedarf) mit
  * Setzer (null = wieder automatisch) */
-export function KnotensichtBlock({ ks, fgsId, titel, lage, breiteHand, setzeBreite }: { ks: KnotensichtAntwort | undefined; fgsId: string
-  titel: (id: string) => string; lage: string | null; breiteHand: number | null; setzeBreite: (m: number | null) => void }) {
+export function KnotensichtBlock({ ks, fgsId, titel, lage, breiteHand, setzeBreite, augeVonHand = null, augeZuruecksetzen, tempoHand = null,
+  setzeTempo }: { ks: KnotensichtAntwort | undefined; fgsId: string
+  titel: (id: string) => string; lage: string | null; breiteHand: number | null; setzeBreite: (m: number | null) => void
+  /** Auge von Hand (27.10.2026): welche Phasen, Zurücksetzen */
+  augeVonHand?: ('fahrbahn' | 'trottoir')[] | null; augeZuruecksetzen?: () => void
+  /** Planung: Tempo der Hauptstrasse von Hand (Bedarf «Tempo auf der Hauptstrasse»), null = aus den Daten */
+  tempoHand?: number | null; setzeTempo?: (v: number | null) => void }) {
   const d = FELD_DEF.get('lage')
   let inhalt: ReactNode
   const ohneZufahrt = !!ks && 'fehler' in ks && !!ks.ohneZufahrt
@@ -69,6 +74,11 @@ export function KnotensichtBlock({ ks, fgsId, titel, lage, breiteHand, setzeBrei
         <label>Wie breit ist die Überfahrt? <input type="number" step="0.1" min={TUE_BREITE_MIN} max={TUE_BREITE_MAX} style={{ width: '4.5em' }}
           value={breiteHand ?? ''} placeholder={f2(ks.breite)} aria-label="Breite der Überfahrt von Hand in Metern"
           onChange={e => { const v = e.target.value === '' ? null : Number(e.target.value); setzeBreite(v !== null && Number.isFinite(v) && v > 0 ? v : null) }} /> m</label></p>
+      {setzeTempo && <TempoWahl ks={ks} tempoHand={tempoHand} setzeTempo={setzeTempo} />}
+      {augeVonHand && augeVonHand.length > 0 && <p><span className="quelle-chip hand">Auge von Hand</span>{' '}
+        {augeVonHand.map(p => (p === 'fahrbahn' ? 'Sicht auf die Fahrbahn' : 'Sicht aufs Trottoir')).join(', ')}{' '}
+        {augeZuruecksetzen && <button type="button" className="zweit klein" onClick={augeZuruecksetzen}
+          title="Auge der Ausfahrenden wieder wie gerechnet">Standort zurücksetzen</button>}</p>}
       {breiteUngueltig(breiteHand) && <p className="warnung">Breite von Hand {f2(breiteHand!)} m nicht verwendet: zulässig sind {f2(TUE_BREITE_MIN)} bis {f2(TUE_BREITE_MAX)} m.</p>}
       {!ks.neigungGemessen && <p className="pruefen">Längsneigung 0 % angenommen: Höhenmodell noch nicht geladen bzw. nicht verfügbar.</p>}
       {hw.length > 0 && <ul className="annahmen">{hw.map(h => <li key={h}>{h}</li>)}</ul>}
@@ -79,6 +89,21 @@ export function KnotensichtBlock({ ks, fgsId, titel, lage, breiteHand, setzeBrei
   // Lage laut Bedarf keine Einmündung: nur, wenn nicht schon «quert keine Einmündung» dasteht
   const lageHinweis = lage && !ohneZufahrt && <p className="warnung">Lage laut Bedarf: {d ? wertText(d, lage) : lage} – Trottoirüberfahrten gibt es {TUE_NUR_EINMUENDUNG}.</p>
   return <div className="tue klein"><b>{KS_TITEL}</b>{lageHinweis}{inhalt}</div>
+}
+
+/** Tempi zur Wahl für die Planung (km/h) */
+export const TEMPI_PLANUNG = [20, 30, 40, 50, 60, 80]
+/** Planung: Tempo der Hauptstrasse (27.10.2026): aktueller Wert mit Herkunft und Auswahl; schreibt «Tempo auf der Hauptstrasse» im Bedarf */
+function TempoWahl({ ks, tempoHand, setzeTempo }: { ks: Knotensicht; tempoHand: number | null; setzeTempo: (v: number | null) => void }) {
+  const r = ks.richtungen.find(x => x.auto || x.velo)
+  const jetzt = r ? `${r.tempo} km/h (${HERKUNFT[r.tempoHerkunft]})` : 'ohne Verkehr'
+  return <p><label>Planung: Tempo der Hauptstrasse{' '}
+    <select value={tempoHand ?? ''} aria-label="Planung: Tempo der Hauptstrasse"
+      onChange={e => setzeTempo(e.target.value === '' ? null : Number(e.target.value))}>
+      <option value="">aus den Daten</option>
+      {[...new Set([...TEMPI_PLANUNG, ...(tempoHand !== null ? [tempoHand] : [])])].sort((a, b) => a - b)
+        .map(v => <option key={v} value={v}>{v} km/h</option>)}
+    </select></label> · jetzt {jetzt}</p>
 }
 
 /** Abschnitt im Bericht (am Streifen mit Trottoirüberfahrt) */

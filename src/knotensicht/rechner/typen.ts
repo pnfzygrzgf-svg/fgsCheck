@@ -64,6 +64,7 @@ export interface KnotenEingaben {
   alleArme?: boolean                // Rechtsvortritt: jeden Arm gegen seinen rechten Nachbarn prüfen (Tabelle im Panel)
   // K0, fehlt in älteren Fällen (= kein Modus)
   trottoirueberfahrt?: TrottoirueberfahrtEingabe | null   // Trottoirüberfahrt über diese Einmündung (VSS 40 242 Ziffer 14.4)
+  Dtrottoir?: P | null              // K0: Beobachtungspunkt D' der Phase Trottoir von Hand (nur mit Trottoirüberfahrt; auf der Karte gezogen)
 }
 /** Trottoirüberfahrt über die Einmündung der Zufahrt (K0): gesetzt = Modus an. breite: Breite der Überfahrt von Hand [m]; geht der
  *  AV vor (Reihenfolge: Eingabe, AV-Trottoir quer über die Zufahrt, schmaleres angrenzendes AV-Trottoir, Annahme; trottoirueberfahrt.ts) */
@@ -235,6 +236,10 @@ export interface TueErgebnis {
                               // Kurve der weitere Schnitt des hinteren Rands der Arme mit der Achse
   abstand: number             // hinterer Rand hinter dem Fahrbahnrand [m]: Breite plus Vorlauf (AV-Trottoir hinter Radweg bzw. Grünstreifen)
   durchgehend: boolean        // die Zufahrt ist ein Arm der durchgehenden Strasse (VSS 40 242 Ziffer 14.2: keine Einmündung)
+  D: P                        // Beobachtungspunkt der Phase Fahrbahn (= ergebnis.D)
+  Dquelle: 'hand' | 'rechnung'
+  Dtrottoir: P                // Beobachtungspunkt D' der Phase Trottoir (= ergebnis.trottoirPruefung.D)
+  DtrottoirQuelle: 'hand' | 'rechnung'
   vorderkante: P              // Bordkante (Fahrbahnrand der Vortrittsstrasse) auf der Zufahrtsachse: Nullpunkt der Phase Fahrbahn
   hinterkante: P              // hinterer Rand der Überfahrt auf der Zufahrtsachse: Nullpunkt der Phase Trottoir
   gehlinie: number            // Abstand der Gehlinie vom hinteren Rand der Überfahrt [m] (0,50)

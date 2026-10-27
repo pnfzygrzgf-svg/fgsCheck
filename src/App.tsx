@@ -45,7 +45,8 @@ import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type Pl
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
   streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, type StreifenQuerung } from './fall'
 import { tueMasse } from './tue/karte'
-import { FARBE_HERAN, FARBE_WARTEND } from './fahrzeuge'
+import { handSetzen } from './bedarf/fallBedarf'
+import { FARBE_HERAN, FARBE_WARTEND, FARBE_WARTEND_TROTTOIR } from './fahrzeuge'
 import { inFeldSchreiben, inMetern, istZahlenfeld, messKlick, messLaenge, messPunkt, messText, messWert, type Messung } from './messen'
 import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_M, ORT_TOL_M, streifenMitte, streifenAbstand, planEntscheid,
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
@@ -1858,6 +1859,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         flaechenPlan={fall?.flaechenPlan ?? LEER_PLAN}
         masslinien={masslinien} messung={werkzeug === 'messen' ? messung : null} zufahrtNamen={zNamen} streifenTitel={titel}
         onUebergang={pruefen} onZufahrt={key => { setAuswahl(key); if (key) zurSicht() }}
+        onTueAuge={(fid, phase, p) => aendern(f => {
+          f.streifen[fid] = { ...(f.streifen[fid] ?? {}), [phase === 'fahrbahn' ? 'tueD' : 'tueDtrottoir']: p }
+          return f
+        })}
         onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => { setBearbeiten(b => (b === id ? null : id)); zurSicht() }}
         onAusschnitt={ausschnitt} hinweis={vorschauHinweis ?? suchHinweis} kartenRef={kartenRef} />
       <Trenner breite={panelBreite} setze={setPanelBreite} onFertig={trennerFertig} />
@@ -2275,8 +2280,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li>Knotensicht: <span className="farbe" style={{ background: STATUS_FARBE.frei }} />frei,
             <span className="farbe" style={{ background: STATUS_FARBE.verdeckt }} />verdeckt; Auto durchgezogen, Velo gestrichelt, Trottoir
             punktiert; <span className="farbe rund" style={{ background: '#ffffff', borderColor: '#111827' }} />Auge der Ausfahrenden</li>}
-          {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li>Fahrzeuge: <span className="farbe" style={{ background: FARBE_WARTEND }} />wartend
-            auf der Zufahrt: grau; <span className="farbe" style={{ background: FARBE_HERAN }} />am Ende der Sichtweite auf der Hauptstrasse: blau</li>}
+          {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li>Fahrzeuge: <span className="farbe" style={{ background: FARBE_WARTEND }} />wartend,
+            Sicht auf die Fahrbahn: grau; <span className="farbe" style={{ background: FARBE_WARTEND_TROTTOIR }} />wartend, Sicht aufs Trottoir: ocker;
+            {' '}<span className="farbe" style={{ background: FARBE_HERAN }} />am Ende der Sichtweite: blau. Wartende am Auge ziehen: Standort von Hand</li>}
           {rechnung?.streifen.some(s => !s.trottoirueberfahrt && s.zufahrten.length) && <li><span className="farbe" style={{ background: FARBE_HERAN }} />Fahrzeug
             am letzten Sichtpunkt: blau (gewählte Zufahrt; die übrigen blass ab Zoom {FAHRZEUG_ZOOM}), <span className="farbe rund" style={{ background: AV_FARBEN.Trottoir,
             borderColor: '#334155' }} />wartende Person am Streifenende</li>}
@@ -2504,6 +2510,20 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           const felder = { ...(f.bedarf?.felder ?? {}) }
           if (m === null) delete felder['q3.breiteM']; else felder['q3.breiteM'] = { wert: m, quelle: 'hand' }
           f.bedarf = { ...(f.bedarf ?? {}), felder }
+          return f
+        })}
+        // Planung: Tempo der Hauptstrasse (27.10.2026) = Bedarf «Tempo auf der Hauptstrasse» von Hand; «aus den Daten» entfernt die Eingabe
+        tempoHand={(() => { const h = fall.bedarf?.felder['q3.vSigHaupt']; return h?.quelle === 'hand' && typeof h.wert === 'number' ? h.wert : null })()}
+        setzeTempo={v => aendern(f => {
+          const b = handSetzen(f.bedarf, 'q3.vSigHaupt', v, 'hand')
+          if (b) f.bedarf = b; else delete f.bedarf
+          return f
+        })}
+        // Auge von Hand (27.10.2026): am Streifen, an dem die Knotensicht rechnet
+        augeVonHand={(() => { const e = fall.streifen[s.fgsId]; return e ? [...(e.tueD ? ['fahrbahn' as const] : []), ...(e.tueDtrottoir ? ['trottoir' as const] : [])] : null })()}
+        augeZuruecksetzen={() => aendern(f => {
+          const e = f.streifen[s.fgsId]
+          if (e) { const { tueD: _d, tueDtrottoir: _t, ...rest } = e; void _d; void _t; f.streifen[s.fgsId] = rest }
           return f
         })} />}
       {s.querung && <p className="klein">Querung ohne Vortritt: Sichtweite nach <VerweisText text="VSS 40 240" />, Ziffer 8.2, max(v · L / 1,2 m/s; Anhaltesichtweite) mit

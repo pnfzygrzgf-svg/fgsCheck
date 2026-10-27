@@ -259,7 +259,9 @@ export function Anleitung() {
                   (vom hinteren Rand der Überfahrt aufs Trottoir, vom vorderen Rand zur Fahrbahn); sie beantwortet
                   «{feldName('q3.knotensichtOk')}», wenn beide Phasen ein klares Ergebnis haben. Auf der Karte stehen das wartende
                   Fahrzeug je Phase und die Fahrzeuge am Ende der nötigen Sichtweite; am Fussgängerstreifen je Zufahrt ein Fahrzeug am letzten
-                  Sichtpunkt und eine wartende Person je Streifenende (nur Darstellung).</li>
+                  Sichtpunkt und eine wartende Person je Streifenende (nur Darstellung). Die beiden wartenden Fahrzeuge (grau: Sicht auf die
+                  Fahrbahn, ocker: Sicht aufs Trottoir) lassen sich am Auge ziehen, etwa nach der Markierung in der Seitenstrasse; «Standort
+                  zurücksetzen» im Block Knotensicht gilt wieder die Rechnung. Dort lässt sich auch das geplante Tempo der Hauptstrasse wählen.</li>
               </ol></li>
             <li><b>Grundprüfung (Big Five, bfu):</b> oben im Reiter «Bedarf und Querungstyp» prüft ein Kasten die fünf Punkte der
             {V('bfu-Fachdokumentation «Fussgängerstreifen»')} und das Tempo als Vorbedingung, mit eigenen Regeln nach den Werten der bfu: Tempo

@@ -207,14 +207,14 @@ const PERSON_PX = 14
 /** Fahrzeuge und Personen unter den Markern (markerPane 600: Griffe zum Verschieben, Schilder), über den Flächen */
 const FAHRZEUG_PANE = 'fahrzeuge'
 /** Fahrzeug bzw. Person in die Ebene zeichnen; interaktiv: Tooltip (beim Zeichnen nicht, Klicks gehen an die Karte) */
-function fahrzeugZeichnen(ebene: L.LayerGroup, f: FahrzeugForm, blass: boolean, interaktiv: boolean): void {
+function fahrzeugZeichnen(ebene: L.LayerGroup, f: FahrzeugForm, blass: boolean, interaktiv: boolean): L.Layer[] {
   const farbe = fahrzeugFarbe(f, blass)
   if (f.art === 'auto' && f.umriss && f.scheibe) {
     const p = L.polygon(f.umriss.map(ll), { color: '#111827', weight: blass ? 1 : 1.5, opacity: blass ? 0.6 : 1, fillColor: farbe, fillOpacity: 0.9,
-      interactive: interaktiv, className: `fahrzeug fahrzeug-${f.rolle}`, pane: FAHRZEUG_PANE }).addTo(ebene)
+      interactive: interaktiv, className: `fahrzeug fahrzeug-${f.rolle}${f.phase ? ` fahrzeug-${f.phase}` : ''}`, pane: FAHRZEUG_PANE }).addTo(ebene)
     if (interaktiv) p.bindTooltip(esc(f.text), { sticky: true })
-    L.polygon(f.scheibe.map(ll), { color: SCHEIBE_FARBE, weight: 1, fillColor: SCHEIBE_FARBE, fillOpacity: 0.9, interactive: false, pane: FAHRZEUG_PANE }).addTo(ebene)
-    return
+    const sch = L.polygon(f.scheibe.map(ll), { color: SCHEIBE_FARBE, weight: 1, fillColor: SCHEIBE_FARBE, fillOpacity: 0.9, interactive: false, pane: FAHRZEUG_PANE }).addTo(ebene)
+    return [p, sch]
   }
   const n = Math.hypot(f.richtung[0], f.richtung[1]) || 1
   // Bildschirm: x nach Osten, y nach Süden; CSS-Drehung im Uhrzeigersinn
@@ -240,6 +240,30 @@ function fahrzeugZeichnen(ebene: L.LayerGroup, f: FahrzeugForm, blass: boolean, 
   const m = L.marker(ll(f.mitte), { icon: L.divIcon({ className: f.art === 'velo' ? 'velo-symbol' : 'person-symbol', html, iconSize: [w, h],
     iconAnchor: [w / 2, h / 2] }), interactive: interaktiv, keyboard: false, pane: FAHRZEUG_PANE }).addTo(ebene)
   if (interaktiv) m.bindTooltip(esc(f.text), { sticky: true })
+  return [m]
+}
+
+/**
+ * Wartendes Fahrzeug der Knotensicht ziehbar (27.10.2026): Griff am Auge (Beobachtungspunkt), das Fahrzeug folgt beim Ziehen; beim
+ * Loslassen der neue Punkt an die App (Knotensicht wird neu gerechnet)
+ */
+function augeGriff(ebene: L.LayerGroup, f: FahrzeugForm, teile: L.Layer[], los: (p: P) => void): void {
+  if (!f.auge) return
+  const start = L.latLng(ll(f.auge))
+  const urLagen = teile.map(t => (t instanceof L.Polygon ? (t.getLatLngs() as L.LatLng[][])[0].map(x => L.latLng(x.lat, x.lng))
+    : t instanceof L.Marker ? [t.getLatLng()] : []))
+  L.marker(start, { draggable: true, keyboard: false, zIndexOffset: 900,
+    icon: L.divIcon({ className: 'auge-griff' + (f.vonHand ? ' hand' : ''), iconSize: [14, 14] }) })
+    .bindTooltip(`${esc(f.text)}<br><i>ziehen: Standort von Hand</i>`)
+    .on('drag', (e: L.LeafletEvent) => {
+      const g = (e.target as L.Marker).getLatLng(), dLat = g.lat - start.lat, dLng = g.lng - start.lng
+      teile.forEach((t, i) => {
+        const neu = urLagen[i].map(x => L.latLng(x.lat + dLat, x.lng + dLng))
+        if (t instanceof L.Polygon) t.setLatLngs(neu); else if (t instanceof L.Marker && neu[0]) t.setLatLng(neu[0])
+      })
+    })
+    .on('dragend', (e: L.LeafletEvent) => { const g = (e.target as L.Marker).getLatLng(); los(lv95(g.lat, g.lng)) })
+    .addTo(ebene)
 }
 
 export default function Karte(props: {
@@ -281,6 +305,7 @@ export default function Karte(props: {
   onKlick: (p: P) => void
   onDoppelklick: () => void
   onEcke: (id: string, i: number, p: P) => void
+  onTueAuge?: (fgsId: string, phase: 'fahrbahn' | 'trottoir', p: P) => void   // wartendes Fahrzeug der Knotensicht gezogen (Auge von Hand)
   onHindernis: (id: string) => void
   onAusschnitt: () => void                           // nach jedem Verschieben bzw. Zoomen (moveend)
   hinweis: KartenHinweis | null
@@ -894,7 +919,12 @@ export default function Karte(props: {
     // anklickbar (Tooltip) nur ohne Werkzeug und ohne «verschieben»: sonst fingen sie Klicks bzw. Griffe ab
     const aktiv = !werkzeug && !bearbeiten
     for (const s of rechnung.streifen) {
-      for (const f of tueFahrzeuge(s)) fahrzeugZeichnen(eb.fahrzeug, f, false, aktiv)
+      for (const f of tueFahrzeuge(s)) {
+        const teile = fahrzeugZeichnen(eb.fahrzeug, f, false, aktiv)
+        // ziehbar: Phase Fahrbahn immer, Phase Trottoir, sobald der Kern das Auge von Hand kennt; nicht während eines Werkzeugs
+        if (aktiv && f.rolle === 'fb' && f.phase && f.ziehbar && cb.current.onTueAuge)
+          augeGriff(eb.fahrzeug, f, teile, p => cb.current.onTueAuge?.(s.fgsId, f.phase!, p))
+      }
       for (const f of fgsFahrzeuge(s)) {
         if (f.rolle === 'zufahrt' && (f.zufahrt === auswahl || zoom < FAHRZEUG_ZOOM)) continue
         fahrzeugZeichnen(eb.fahrzeug, f, f.rolle === 'zufahrt', aktiv)

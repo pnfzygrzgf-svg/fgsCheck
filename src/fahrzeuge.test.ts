@@ -7,7 +7,7 @@ import { avParsen, type GeoJson } from './daten/av'
 import { rechneFall } from './rechner'
 import { leererFall, type Fall } from './fall'
 import { knotensichtAnfuegen } from './tue/knotensicht'
-import { FARBE_HERAN, FARBE_HERAN_BLASS, FARBE_WARTEND, fahrzeugFarbe, fgsFahrzeuge, geradeZufahrt, tueFahrzeuge, WARTE_HINTER_RAND_M } from './fahrzeuge'
+import { FARBE_HERAN, FARBE_HERAN_BLASS, FARBE_WARTEND, FARBE_WARTEND_TROTTOIR, fahrzeugFarbe, fgsFahrzeuge, geradeZufahrt, tueFahrzeuge, WARTE_HINTER_RAND_M } from './fahrzeuge'
 import { LENKER_VOR_FRONT_M, PW_LAENGE_M } from './knotensicht/rechner/fahrzeug'
 
 const O: P = [2600000, 1200000]
@@ -41,8 +41,9 @@ describe('Trottoirüberfahrt: Fahrzeuge der Knotensicht', () => {
   const s = rechnen(fall(true, lv(-44, -8), lv(-36, -8))).streifen[0]
   const f = tueFahrzeuge(s)
   it('F_B je Phase (Auge bei D\' und D), F_A je Richtung am Ende von A, Velo auf dem Radstreifen; Autos mit Umriss und Scheibe', () => {
-    expect(f.filter(x => x.rolle === 'fb').map(x => x.text)).toEqual(['wartendes Fahrzeug, Auge der Ausfahrenden hinter dem hinteren Rand',
-      'wartendes Fahrzeug, Auge der Ausfahrenden hinter dem vorderen Rand'])
+    expect(f.filter(x => x.rolle === 'fb').map(x => x.text)).toEqual(['wartendes Fahrzeug, Sicht aufs Trottoir, Auge hinter dem hinteren Rand',
+      'wartendes Fahrzeug, Sicht auf die Fahrbahn, Auge hinter dem vorderen Rand'])
+    expect(f.filter(x => x.rolle === 'fb').map(x => [x.phase, x.ziehbar ?? false])).toEqual([['trottoir', true], ['fahrbahn', true]])
     expect(f.filter(x => x.rolle === 'fa' && x.art === 'auto').map(x => x.text)).toEqual(['Fahrzeug am Ende der nötigen Sichtweite, links',
       'Fahrzeug am Ende der nötigen Sichtweite, rechts'])
     expect(f.filter(x => x.rolle === 'fa' && x.art === 'velo').length).toBe(2)
@@ -51,7 +52,8 @@ describe('Trottoirüberfahrt: Fahrzeuge der Knotensicht', () => {
   it('Lenker beim Beobachtungspunkt: F_B der Phase Fahrbahn mit dem Auge bei D (Fahrersitz, rund 0,5 m neben der Achse)', () => {
     const ks = s.knotensicht
     if (!ks || 'fehler' in ks) throw new Error('keine Knotensicht')
-    const fbD = f.find(x => x.text === 'wartendes Fahrzeug, Auge der Ausfahrenden hinter dem vorderen Rand')!
+    const fbD = f.find(x => x.phase === 'fahrbahn')!
+    expect(fbD.auge).toEqual(ks.karte.D)
     expect(dist(fbD.mitte, ks.karte.D)).toBeLessThan(Math.abs(LENKER_VOR_FRONT_M - PW_LAENGE_M / 2) + 0.6)
   })
   it('über die durchgehende Strasse bzw. ohne Einmündung: keine Fahrzeuge (27.10.2026)', () => {
@@ -96,6 +98,9 @@ describe('Fussgängerstreifen: Fahrzeug je gerade Zufahrt, Person je Streifenend
 describe('Farben nach Rolle (27.10.2026)', () => {
   it('wartend grau, am Ende der Sichtweite bzw. herannahend am Fussgängerstreifen blau (nicht gewählt blass)', () => {
     expect(fahrzeugFarbe({ rolle: 'fb' })).toBe(FARBE_WARTEND)
+    expect(fahrzeugFarbe({ rolle: 'fb', phase: 'fahrbahn' })).toBe(FARBE_WARTEND)
+    expect(fahrzeugFarbe({ rolle: 'fb', phase: 'trottoir' })).toBe(FARBE_WARTEND_TROTTOIR)
+    expect(new Set([FARBE_WARTEND, FARBE_WARTEND_TROTTOIR, FARBE_HERAN]).size).toBe(3)
     expect(fahrzeugFarbe({ rolle: 'fa' })).toBe(FARBE_HERAN)
     expect(fahrzeugFarbe({ rolle: 'zufahrt' })).toBe(FARBE_HERAN)
     expect(fahrzeugFarbe({ rolle: 'zufahrt' }, true)).toBe(FARBE_HERAN_BLASS)

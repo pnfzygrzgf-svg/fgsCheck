@@ -152,6 +152,9 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .masstext { pointer-events: none; }
 .masstext span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-size: 12px; font-weight: 700;
   color: #be185d; text-shadow: 0 0 2px #ffffff, 0 0 2px #ffffff, 0 0 4px #ffffff; }
+/* Griff am Auge eines wartenden Fahrzeugs der Knotensicht (27.10.2026): ziehen setzt den Standort von Hand; von Hand gesetzt gefüllt */
+.auge-griff { border: 2px solid #111827; border-radius: 50%; background: #ffffff; cursor: grab; box-sizing: border-box; }
+.auge-griff.hand { background: #111827; }
 /* Werkzeug «Messen» (27.10.2026): Länge in der Farbe der Messlinie, etwas grösser */
 .messtext span { color: #6d28d9; font-size: 13px; }
 /* Gruppen der Themen und Gliederung eines Themas nach der Norm (27.10.2026) */

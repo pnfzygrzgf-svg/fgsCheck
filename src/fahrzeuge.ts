@@ -11,14 +11,16 @@ import { autoScheibe, autoUmriss, fbLage } from './knotensicht/rechner/fahrzeug'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 import { tueGezeichnet } from './tue/karte'
 
-/** Farben (27.10.2026): wartendes Fahrzeug F_B grau, Fahrzeug am Ende der Sichtweite F_A bzw. das herannahende am Fussgängerstreifen blau
- * (hebt sich von den grünen und roten Sichtfeldern und vom gelben Streifen ab); blass: nicht gewählte Zufahrt */
+/** Farben (27.10.2026): wartendes Fahrzeug mit Sicht auf die Fahrbahn grau, mit Sicht aufs Trottoir ocker, Fahrzeug am Ende der
+ * Sichtweite bzw. das herannahende am Fussgängerstreifen blau (hebt sich von den grünen und roten Sichtfeldern und vom gelben Streifen
+ * ab); blass: nicht gewählte Zufahrt */
 export const FARBE_WARTEND = '#4b5563'
+export const FARBE_WARTEND_TROTTOIR = '#b45309'
 export const FARBE_HERAN = '#2563eb'
 export const FARBE_HERAN_BLASS = '#93c5fd'
 /** Füllfarbe eines Fahrzeugs nach seiner Rolle; Person: Trottoirfarbe (Karte) */
-export function fahrzeugFarbe(f: Pick<FahrzeugForm, 'rolle'>, blass = false): string {
-  if (f.rolle === 'fb') return FARBE_WARTEND
+export function fahrzeugFarbe(f: Pick<FahrzeugForm, 'rolle' | 'phase'>, blass = false): string {
+  if (f.rolle === 'fb') return f.phase === 'trottoir' ? FARBE_WARTEND_TROTTOIR : FARBE_WARTEND
   return blass ? FARBE_HERAN_BLASS : FARBE_HERAN
 }
 
@@ -39,6 +41,11 @@ export interface FahrzeugForm {
   zufahrt?: string
   /** Auge (Lenker) bzw. Standort der Person */
   auge?: P
+  /** wartendes Fahrzeug der Knotensicht: Phase (Sicht auf die Fahrbahn bzw. aufs Trottoir) und ob das Auge von Hand gesetzt ist */
+  phase?: 'fahrbahn' | 'trottoir'
+  vonHand?: boolean
+  /** auf der Karte ziehbar (Auge von Hand; Phase Trottoir erst, wenn der Kern es kennt) */
+  ziehbar?: boolean
 }
 
 const auto = (f: Omit<FahrzeugForm, 'umriss' | 'scheibe'>): FahrzeugForm =>
@@ -49,7 +56,9 @@ export function tueFahrzeuge(s: StreifenErgebnis): FahrzeugForm[] {
   const ks = s.knotensicht
   // ohne Einmündung bzw. über die durchgehende Strasse keine Fahrzeuge (sie stünden mitten auf der Hauptstrasse; 27.10.2026)
   if (!s.trottoirueberfahrt || !tueGezeichnet(ks) || (ks.streifenId && ks.streifenId !== s.fgsId)) return []
-  return (ks.karte.fahrzeuge ?? []).map(f => auto({ art: f.art, rolle: f.rolle, mitte: f.mitte, richtung: f.richtung, text: f.text }))
+  return (ks.karte.fahrzeuge ?? []).map(f => auto({ art: f.art, rolle: f.rolle, mitte: f.mitte, richtung: f.richtung, text: f.text,
+    ...(f.phase ? { phase: f.phase } : {}), ...(f.auge ? { auge: f.auge } : {}), ...(f.vonHand ? { vonHand: true } : {}),
+    ...(f.ziehbar ? { ziehbar: true } : {}) }))
 }
 
 /** Fahrtrichtung zum Streifen beim Punkt p: Fahrlinie (spur beginnt am Streifen) vom nächsten Stützpunkt zum vorherigen */

@@ -54,7 +54,10 @@ export interface Fixpunkt { id: string; p: P; art: FixpunktArt; name?: string; a
  * Vorbelegung des Bedarfs (rechneFall), Querungstyp im Bedarf.
  * keinFgs und typ schliessen sich aus (keinFgs geht vor). Fehlt typ: Fussgängerstreifen. Eine ältere App ohne die
  * Trottoirüberfahrt übergeht den Wert mit «Querungstyp ungültig» und prüft den Streifen als Fussgängerstreifen */
-export interface StreifenEingabe { lsa?: 'ja' | 'nein'; keinFgs?: boolean; typ?: StreifenQuerung }
+export interface StreifenEingabe { lsa?: 'ja' | 'nein'; keinFgs?: boolean; typ?: StreifenQuerung
+  /** Trottoirüberfahrt (27.10.2026): Auge der Ausfahrenden von Hand (LV95), Phase Fahrbahn bzw. Phase Trottoir (auf der Karte gezogen);
+   * fehlt: wie die Knotensicht es setzt. Ältere Apps übergehen die Felder (keine neue Version) */
+  tueD?: P; tueDtrottoir?: P }
 export const QUERUNG_OHNE_VORTRITT: QuerungOhneVortritt[] = ['furt', 'ohne_vortritt']
 /** Querungsart am Streifen (Auswahl «Querung»): ohne Vortritt bzw. Trottoirüberfahrt; Fussgängerstreifen ohne Wert */
 export type StreifenQuerung = QuerungOhneVortritt | 'trottoirueberfahrt'
@@ -346,6 +349,13 @@ export function fallLesen(text: string): [Fall, string[]] {
         : 'Querung ohne Vortritt'} zugleich – «kein FGS» gilt, Querungstyp übergangen`)
       else { e.typ = v.typ as StreifenQuerung; gemeldet = false }
     }
+    // Auge von Hand an der Trottoirüberfahrt: Punkt in LV95 im Gebiet, sonst mit Hinweis übergangen
+    for (const f of ['tueD', 'tueDtrottoir'] as const) {
+      if (v[f] === undefined) continue
+      const p = v[f]
+      if (Array.isArray(p) && p.length === 2 && p.every(x => typeof x === 'number' && Number.isFinite(x)) && imLv95(p as P)) e[f] = [p[0], p[1]]
+      else hinweise.push(`Streifen-Eingabe ${k}: Auge von Hand ungültig, übergangen`)
+    }
     if (Object.keys(e).length) fall.streifen[k] = e
     else if (Object.keys(v).length && !gemeldet) hinweise.push(`Streifen-Eingabe ${k} ungültig, übergangen`)
   }
@@ -403,8 +413,16 @@ export const inselMarkiert = (fall: Fall): boolean => fall.bedarf?.felder['insel
  * Gleicher Schlüssel: keine neue Rechnung nach einer Bedarf-Eingabe (App)
  */
 export function rechnungsSchluessel(f: Fall): string {
-  const { bedarf: _b, gespeichert: _g, ergebnis: _e, ...rest } = f
+  const { bedarf: _b, gespeichert: _g, ergebnis: _e, ...rest0 } = f
   void _b; void _g; void _e
+  // Auge von Hand zählt nur an einer Trottoirüberfahrt (sonst ohne Wirkung auf die Rechnung)
+  const ohneAuge = Object.values(f.streifen).some(e => (e.tueD || e.tueDtrottoir) && (e.typ !== 'trottoirueberfahrt' || e.keinFgs))
+  const rest = ohneAuge ? { ...rest0, streifen: Object.fromEntries(Object.entries(f.streifen).map(([k, e]) => {
+    if (e.typ === 'trottoirueberfahrt' && !e.keinFgs) return [k, e]
+    const { tueD: _d, tueDtrottoir: _t, ...x } = e
+    void _d; void _t
+    return [k, x]
+  })) } : rest0
   const tue = Object.values(f.streifen).some(e => e.typ === 'trottoirueberfahrt' && !e.keinFgs)
   return stabil([rest, inselMarkiert(f), ...(tue ? (['q3.breiteM', 'q3.vSigHaupt'] as const).flatMap(k => [f.bedarf?.felder[k]?.wert ?? null, f.bedarf?.felder[k]?.quelle ?? null]) : [])])
 }

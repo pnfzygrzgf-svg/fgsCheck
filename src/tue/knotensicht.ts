@@ -90,7 +90,10 @@ export interface KsRichtung {
 export interface KsDreieck { art: 'auto' | 'velo' | 'trottoir'; lage: Lage; frei: P[]; verdeckt: P[] }
 /** Fahrzeug der Knotensicht für die Karte (27.10.2026, wie der SichtweitenCheck): F_B wartend auf der Zufahrt je Phase (Lenker bei D' bzw.
  * D), F_A am Ende der Sichtweite A je Richtung (Auto, Velo auf dem Radstreifen nach Tab. 3); Mitte und Fahrtrichtung, Tooltip */
-export interface KsFahrzeug { art: 'auto' | 'velo'; rolle: 'fb' | 'fa'; mitte: P; richtung: P; text: string }
+export interface KsFahrzeug { art: 'auto' | 'velo'; rolle: 'fb' | 'fa'; mitte: P; richtung: P; text: string
+  /** wartend: Phase (Fahrbahn bzw. Trottoir), Auge (Beobachtungspunkt) und ob von
+   * Hand gesetzt (27.10.2026: auf der Karte ziehbar) */
+  phase?: 'fahrbahn' | 'trottoir'; auge?: P; vonHand?: boolean; ziehbar?: boolean }
 export interface Knotensicht {
   quelle: string
   /** Streifen, an dem gerechnet wurde (Querung mit Teilstreifen: einmal je Querung) */
@@ -145,7 +148,10 @@ export interface KsDaten {
 }
 export interface KsStreifen { fgsId?: string; p0: P; p1: P; rand: [P, P]; breite: number | HandWert | null
   /** Tempo der Hauptstrasse von Hand (Bedarf), km/h */
-  tempoHand?: number | HandWert | null }
+  tempoHand?: number | HandWert | null
+  /** Auge der Ausfahrenden von Hand (27.10.2026, Fall: StreifenEingabe.tueD bzw. tueDtrottoir): Phase Fahrbahn (Kern: D) bzw. Trottoir
+   * (Kern: Dtrottoir, seit SichtweitenCheck f2cba82) */
+  dHand?: P | null; dTrottoirHand?: P | null }
 
 const einheit = (v: P): P => { const l = Math.hypot(v[0], v[1]); return l > 0 ? [v[0] / l, v[1] / l] : [1, 0] }
 
@@ -224,7 +230,9 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   const hindernisse = zaehlend(d)
   const rechne = (hoehen: HoehenVorgabe | null) => rechneKnoten(d.osm, d.av, {
     knoten: z.knoten, zufahrt: z.zufahrt,
-    eingaben: { ...KEINE_ALLE_EINGABEN, tempo: { links: th, rechts: th }, trottoirueberfahrt: { breite } },
+    eingaben: { ...KEINE_ALLE_EINGABEN, tempo: { links: th, rechts: th }, trottoirueberfahrt: { breite },
+      // Auge von Hand (27.10.2026): Phase Fahrbahn als D des Kerns, Phase Trottoir als Dtrottoir
+      ...(s.dHand ? { D: s.dHand } : {}), ...(s.dTrottoirHand ? { Dtrottoir: s.dTrottoirHand } : {}) },
     hindernisse: { hindernisse, verworfen: d.verworfen, park: null, baeume: null },
     avZentrum: d.avZentrum, hoehen, tempoAmtlich,
   }, kx, d.avRadius)
@@ -288,13 +296,15 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   // Fahrzeuge (27.10.2026): F_B je Phase mit dem Lenker beim Beobachtungspunkt (Velo gegen die Einbahn: das Velo), F_A am Ende von A
   const fahrzeuge: KsFahrzeug[] = []
   const voraus = (p: P): P => [p[0] + e.fbRichtung[0], p[1] + e.fbRichtung[1]]
-  const fb = (Dachse: P, wo: string) => {
+  const fb = (Dachse: P, auge: P, phase: 'fahrbahn' | 'trottoir', vonHand: boolean) => {
     const [mitte, richtung] = e.zufahrtVelo ? fbVeloLage(Dachse, voraus(Dachse)) : fbLage(Dachse, voraus(Dachse))
-    fahrzeuge.push({ art: e.zufahrtVelo ? 'velo' : 'auto', rolle: 'fb', mitte, richtung,
-      text: `wartendes ${e.zufahrtVelo ? 'Velo' : 'Fahrzeug'}, Auge der Ausfahrenden hinter dem ${wo} Rand` })
+    fahrzeuge.push({ art: e.zufahrtVelo ? 'velo' : 'auto', rolle: 'fb', mitte, richtung, phase, auge, vonHand,
+      ziehbar: true,
+      text: `wartendes ${e.zufahrtVelo ? 'Velo' : 'Fahrzeug'}, Sicht ${phase === 'trottoir' ? 'aufs Trottoir, Auge hinter dem hinteren'
+        : 'auf die Fahrbahn, Auge hinter dem vorderen'} Rand${vonHand ? ' (von Hand)' : ''}` })
   }
-  if (tp) fb(tp.Dachse, 'hinteren')
-  fb(e.Dachse, 'vorderen')
+  if (tp) fb(tp.Dachse, tp.D, 'trottoir', !!s.dTrottoirHand)
+  fb(e.Dachse, e.D, 'fahrbahn', !!s.dHand)
   for (const rr of e.richtungen) {
     const seite = rr.lage === 'gegenueber' ? 'von gegenüber' : rr.lage
     const fa = rr.status !== 'keine_zufahrt' ? faLage(rr.sichtpunkte, Math.min(rr.massgebend, rr.sichtpunkte.length - 1)) : null
@@ -309,9 +319,11 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   // eigene kurze Annahmen (statt der Texte des Kerns)
   const annahmen = [
     e.regelung === 'stop' ? 'Ausfahrt mit Stop (OSM).' : 'Ausfahrt ohne Vortritt (Trottoirüberfahrt).',
-    `${e.zufahrtVelo ? 'Auge der Velofahrenden auf ihrer Achse (gegen die Einbahn)' : 'Auge der Ausfahrenden am Fahrersitz'}, ` +
-      `${f2(e.B)} m hinter dem vorderen Rand${e.radwegRand ? ' bzw. dem Radweg' : ''} (Fahrbahn) und ${f2(B_INNERORTS_M)} m hinter dem ` +
-      'hinteren Rand (Trottoir).',
+    s.dHand ? `Auge der Ausfahrenden für die Fahrbahn von Hand, ${f2(e.Dlage.laengs)} m hinter dem vorderen Rand; für das Trottoir ` +
+      `${s.dTrottoirHand ? 'ebenfalls von Hand' : `${f2(B_INNERORTS_M)} m hinter dem hinteren Rand`}.`
+      : `${e.zufahrtVelo ? 'Auge der Velofahrenden auf ihrer Achse (gegen die Einbahn)' : 'Auge der Ausfahrenden am Fahrersitz'}, ` +
+      `${f2(e.B)} m hinter dem vorderen Rand${e.radwegRand ? ' bzw. dem Radweg' : ''} (Fahrbahn) und ${s.dTrottoirHand
+        ? 'von Hand' : `${f2(B_INNERORTS_M)} m hinter dem hinteren Rand`} (Trottoir).`,
     `Gehlinie ${f2(t.gehlinie)} m vor dem hinteren Rand der Überfahrt; Fahrlinie der Autos ${f2(D_MFZ_M)} m vom rechten Fahrbahnrand.`,
     `Tempo ${mitVerkehr.map(x => `${x.lage === 'gegenueber' ? 'von gegenüber' : `von ${x.lage}`} ${x.tempo} km/h (${HERKUNFT_WORT[x.tempoHerkunft]})`).join(', ') || '–'}.`,
     neigungGemessen ? 'Längsneigung aus dem Höhenmodell (swissALTI3D).' : 'Längsneigung 0 % (Höhenmodell nicht geladen bzw. nicht verfügbar).',
@@ -365,7 +377,10 @@ export function knotensichtAnfuegen(r: { streifen: StreifenErgebnis[] }, roh: { 
       try {
         const kand = teile.map(s => ({ s, z: zufahrtFinden(d.kx!, s) })).filter(x => x.z)
         const best = kand.sort((a, b) => a.z!.d - b.z!.d)[0]
-        ks = best ? knotensichtTue(d, { fgsId: best.s.fgsId, p0: best.s.p0, p1: best.s.p1, rand: best.s.rand, breite, tempoHand }, best.z)
+        // Auge von Hand (27.10.2026): gespeichert am Streifen, an dem gerechnet wird
+        const se = best ? fall.streifen[best.s.fgsId] : undefined
+        ks = best ? knotensichtTue(d, { fgsId: best.s.fgsId, p0: best.s.p0, p1: best.s.p1, rand: best.s.rand, breite, tempoHand,
+          dHand: se?.tueD ?? null, dTrottoirHand: se?.tueDtrottoir ?? null }, best.z)
           : { fehler: `kein Knoten mit gequerter Einmündung bis ${KNOTEN_M} m vom Streifen (OSM)`, ohneZufahrt: true }
         // Teile queren verschiedene Einmündungen: gerechnet wird die nächste, mit Hinweis
         if (!('fehler' in ks) && new Set(kand.map(x => `${x.z!.knoten}|${x.z!.zufahrt}`)).size > 1)
