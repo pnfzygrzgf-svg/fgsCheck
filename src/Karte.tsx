@@ -20,6 +20,7 @@ import { ortZoom, type Ort } from './daten/ortssuche'
 import { KS_LAGE } from './tue/texte'
 import { tueFlaeche } from './tue/karte'
 import { messLaenge, messText, type Messung } from './messen'
+import { fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
@@ -194,6 +195,53 @@ export function hindernisText(h: Hindernis): string {
   return `${h.name ?? art} (${q})`
 }
 
+// ── Fahrzeuge und wartende Personen (27.10.2026, wie der SichtweitenCheck; fahrzeuge.ts) ──
+/** Fahrzeuge: neutral grau mit weisser Windschutzscheibe; blass: nicht gewählte Zufahrt am Fussgängerstreifen */
+export const FAHRZEUG_FARBE = '#6b7280'
+const FAHRZEUG_BLASS = '#cbd5e1'
+const SCHEIBE_FARBE = '#ffffff'
+/** Fahrzeuge der nicht gewählten Zufahrten erst ab diesem Zoom (Personenwagen 4,5 × 1,8 m) */
+export const FAHRZEUG_ZOOM = 18
+/** Velo als Piktogramm fester Grösse (wie der SichtweitenCheck: 1,8 × 0,6 m wäre bei Zoom 18 nur wenige Bildpunkte gross) */
+const VELO_SYMBOL_PX = 30
+/** Person als Piktogramm fester Grösse (rund 0,6 m wären nur ein paar Bildpunkte) */
+const PERSON_PX = 14
+/** Fahrzeug bzw. Person in die Ebene zeichnen; interaktiv: Tooltip (beim Zeichnen nicht, Klicks gehen an die Karte) */
+function fahrzeugZeichnen(ebene: L.LayerGroup, f: FahrzeugForm, blass: boolean, interaktiv: boolean): void {
+  const farbe = blass ? FAHRZEUG_BLASS : FAHRZEUG_FARBE
+  if (f.art === 'auto' && f.umriss && f.scheibe) {
+    const p = L.polygon(f.umriss.map(ll), { color: '#111827', weight: blass ? 1 : 1.5, opacity: blass ? 0.6 : 1, fillColor: farbe, fillOpacity: 0.9,
+      interactive: interaktiv, className: `fahrzeug fahrzeug-${f.rolle}` }).addTo(ebene)
+    if (interaktiv) p.bindTooltip(esc(f.text), { sticky: true })
+    L.polygon(f.scheibe.map(ll), { color: SCHEIBE_FARBE, weight: 1, fillColor: SCHEIBE_FARBE, fillOpacity: 0.9, interactive: false }).addTo(ebene)
+    return
+  }
+  const n = Math.hypot(f.richtung[0], f.richtung[1]) || 1
+  // Bildschirm: x nach Osten, y nach Süden; CSS-Drehung im Uhrzeigersinn
+  const grad = Math.atan2(-f.richtung[1] / n, f.richtung[0] / n) * 180 / Math.PI
+  let html: string, w: number, h: number
+  if (f.art === 'velo') {
+    // Vogelperspektive, Fahrt nach rechts: Räder, Rahmen, Lenker quer, Kopf; am Ende der Sichtweite (Radstreifen) gestrichelt
+    w = VELO_SYMBOL_PX; h = Math.round(VELO_SYMBOL_PX / 3)
+    const st = f.rolle === 'fa' ? ' stroke-dasharray="3 2"' : ''
+    html = `<svg viewBox="0 0 60 20" width="${w}" height="${h}" style="display:block;overflow:visible;transform:rotate(${grad}deg)">` +
+      `<rect x="2" y="7" width="20" height="6" rx="3" fill="${farbe}" stroke="#111827" stroke-width="1.5"${st}/>` +
+      `<rect x="38" y="7" width="20" height="6" rx="3" fill="${farbe}" stroke="#111827" stroke-width="1.5"${st}/>` +
+      `<rect x="18" y="8.5" width="24" height="3" fill="${farbe}" stroke="#111827" stroke-width="1"/>` +
+      `<rect x="40" y="1" width="3" height="18" rx="1.5" fill="${farbe}" stroke="#111827" stroke-width="1"/>` +
+      `<circle cx="27" cy="10" r="5" fill="${farbe}" stroke="#111827" stroke-width="1.5"/></svg>`
+  } else {
+    // Person von oben: Schultern und Kopf, Blick zur Fahrbahn
+    w = h = PERSON_PX
+    html = `<svg viewBox="0 0 20 20" width="${w}" height="${h}" style="display:block;overflow:visible;transform:rotate(${grad}deg)">` +
+      `<ellipse cx="9" cy="10" rx="5" ry="8" fill="${AV_FARBEN.Trottoir}" stroke="#334155" stroke-width="1.5"/>` +
+      `<circle cx="10" cy="10" r="4" fill="#475569" stroke="#ffffff" stroke-width="1"/></svg>`
+  }
+  const m = L.marker(ll(f.mitte), { icon: L.divIcon({ className: f.art === 'velo' ? 'velo-symbol' : 'person-symbol', html, iconSize: [w, h],
+    iconAnchor: [w / 2, h / 2] }), interactive: interaktiv, keyboard: false }).addTo(ebene)
+  if (interaktiv) m.bindTooltip(esc(f.text), { sticky: true })
+}
+
 export default function Karte(props: {
   mitte: [number, number]
   av: AvFlaeche[] | null
@@ -245,6 +293,8 @@ export default function Karte(props: {
   fixVorschlagRef.current = props.onFixVorschlag
   const elRef = useRef<HTMLDivElement>(null)
   const ebenenRef = useRef<Record<string, L.LayerGroup> | null>(null)
+  // Zoomstufe (Fahrzeuge der nicht gewählten Zufahrten erst ab FAHRZEUG_ZOOM)
+  const [zoom, setZoom] = useState(19)
   // Griffe der Mittelinseln je Gruppe: nur beim Überfahren der Insel bzw. des Griffs oder bei gewählter Insel sichtbar
   const griffe = useRef(new Map<string, { mk: L.Marker; fest: boolean }>())
   const griffZeit = useRef(new Map<string, number>())
@@ -314,14 +364,14 @@ export default function Karte(props: {
     map.createPane(GRIFF_PANE).style.zIndex = '630'
     const eb: Record<string, L.LayerGroup> = {
       av: L.layerGroup().addTo(map), plan: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
-      nr: L.layerGroup().addTo(map),
+      nr: L.layerGroup().addTo(map), fahrzeug: L.layerGroup().addTo(map),
       hind: L.layerGroup().addTo(map), fix: L.layerGroup().addTo(map), mess: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
       standort: L.layerGroup().addTo(map), ecken: L.layerGroup().addTo(map), inselVorschau: L.layerGroup().addTo(map),
       griffe: L.layerGroup().addTo(map),
     }
     L.control.layers({ 'Luftbild (SWISSIMAGE)': luftbild, 'Landeskarte (swisstopo)': landeskarte }, { 'Amtliche Vermessung': eb.av,
       'Flächen (Plan)': eb.plan,
-      'OSM-Übergänge': eb.osm, 'Strassennamen (OSM)': eb.namen, 'Sichtfelder': eb.sicht, 'Nummern der Zufahrten': eb.nr, 'Hindernisse': eb.hind,
+      'OSM-Übergänge': eb.osm, 'Strassennamen (OSM)': eb.namen, 'Sichtfelder': eb.sicht, 'Nummern der Zufahrten': eb.nr, 'Fahrzeuge': eb.fahrzeug, 'Hindernisse': eb.hind,
       'Fixpunkte und Masse': eb.fix },
     { collapsed: true }).addTo(map)
     L.control.scale({ imperial: false }).addTo(map)
@@ -364,6 +414,7 @@ export default function Karte(props: {
     })
     map.on('dblclick', () => { if (cb.current.werkzeug) cb.current.onDoppelklick() })
     map.on('moveend', () => { markerAbgleich(); namenAbgleich(); cb.current.onAusschnitt() })
+    map.on('zoomend', () => setZoom(map.getZoom()))
     kartenRef.current = map
     ebenenRef.current = eb
     return () => { map.remove(); kartenRef.current = null; ebenenRef.current = null }
@@ -830,6 +881,22 @@ export default function Karte(props: {
       html: `<span>${esc(messText(x))}</span>` }) }).addTo(eb.mess)
   }, [messung])
 
+  // Fahrzeuge und wartende Personen (27.10.2026, fahrzeuge.ts): Trottoirüberfahrt (Knotensicht) immer; am Fussgängerstreifen die Personen
+  // immer, die Fahrzeuge der nicht gewählten Zufahrten blass erst ab Zoom FAHRZEUG_ZOOM (die gewählte kräftig in der Auswahl)
+  useEffect(() => {
+    const eb = ebenenRef.current
+    if (!eb) return
+    eb.fahrzeug.clearLayers()
+    if (!rechnung) return
+    for (const s of rechnung.streifen) {
+      for (const f of tueFahrzeuge(s)) fahrzeugZeichnen(eb.fahrzeug, f, false, !werkzeug)
+      for (const f of fgsFahrzeuge(s)) {
+        if (f.rolle === 'zufahrt' && (f.zufahrt === auswahl || zoom < FAHRZEUG_ZOOM)) continue
+        fahrzeugZeichnen(eb.fahrzeug, f, f.rolle === 'zufahrt', !werkzeug)
+      }
+    }
+  }, [rechnung, auswahl, zoom, werkzeug])
+
   // gewählte Zufahrt hervorheben
   useEffect(() => {
     const eb = ebenenRef.current
@@ -838,6 +905,9 @@ export default function Karte(props: {
     if (!rechnung || !auswahl) return
     const z = rechnung.streifen.flatMap(s => s.zufahrten).find(x => zufahrtKey(x) === auswahl)
     if (!z) return
+    // Fahrzeug am letzten Sichtpunkt der gewählten Zufahrt, kräftig
+    const st = rechnung.streifen.find(s => s.fgsId === z.fgsId)
+    for (const f of st ? fgsFahrzeuge(st) : []) if (f.zufahrt === auswahl) fahrzeugZeichnen(eb.auswahl, f, false, true)
     const farbe = STATUS_FARBE[z.status] ?? '#10b981'
     L.polygon(multiLl(z.feld), { color: farbe, weight: 2, fillColor: farbe, fillOpacity: 0.25, interactive: false }).addTo(eb.auswahl)
     for (const k of z.konflikte)

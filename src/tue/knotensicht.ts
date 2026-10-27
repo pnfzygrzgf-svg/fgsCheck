@@ -26,6 +26,7 @@ import { knotenInfo } from '../knotensicht/rechner/knoten'
 import { STRASSENTYP_TEXT } from '../knotensicht/rechner/sichtweite'
 import { B_INNERORTS_M } from '../knotensicht/rechner/beobachtung'
 import { D_MFZ_M } from '../knotensicht/rechner/hauptachsen'
+import { faLage, fbLage, fbVeloLage, veloLage } from '../knotensicht/rechner/fahrzeug'
 import { kurzHinweise, KS_DURCHGEHEND, KS_EINBAHN, KS_EINBAHN_VELO } from './kurztexte'
 import { HOEHEN_QUELLE } from '../knotensicht/rechner/neigung'
 import { KEINE_ALLE_EINGABEN, TUE_BREITE_MAX, TUE_BREITE_MIN, TEMPO_MIN, TEMPO_MAX, type HoehenVorgabe, type Lage, type Richtung, type RichtungStatus,
@@ -78,6 +79,9 @@ export interface KsRichtung {
   hinweise: { fahrbahn: string[]; trottoir: string[] }
 }
 export interface KsDreieck { art: 'auto' | 'velo' | 'trottoir'; lage: Lage; frei: P[]; verdeckt: P[] }
+/** Fahrzeug der Knotensicht für die Karte (27.10.2026, wie der SichtweitenCheck): F_B wartend auf der Zufahrt je Phase (Lenker bei D' bzw.
+ * D), F_A am Ende der Sichtweite A je Richtung (Auto, Velo auf dem Radstreifen nach Tab. 3); Mitte und Fahrtrichtung, Tooltip */
+export interface KsFahrzeug { art: 'auto' | 'velo'; rolle: 'fb' | 'fa'; mitte: P; richtung: P; text: string }
 export interface Knotensicht {
   quelle: string
   /** Streifen, an dem gerechnet wurde (Querung mit Teilstreifen: einmal je Querung) */
@@ -99,7 +103,7 @@ export interface Knotensicht {
   annahmeGrund: string[]
   /** kurze Annahmen (eigene Texte) und Hinweise zur ganzen Knotensicht (kurztexte.ts) */
   annahmen: string[]; hinweise: string[]
-  karte: { D: P; Dtrottoir: P | null; vorderkante: P; hinterkante: P; kanten: [P, P][]; dreiecke: KsDreieck[] }
+  karte: { D: P; Dtrottoir: P | null; vorderkante: P; hinterkante: P; kanten: [P, P][]; dreiecke: KsDreieck[]; fahrzeuge?: KsFahrzeug[] }
   /** Linien der Höhenprofile (App lädt sie und rechnet mit hoehen[hoehenSchluessel] neu) */
   profile: Partial<Record<keyof HoehenVorgabe, P[]>>
   hoehenSchluessel: string
@@ -248,6 +252,22 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   const halb = Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]) / 2
   const u = achse ? einheit([achse[achse.length > 3 ? 3 : 1][0] - achse[0][0], achse[achse.length > 3 ? 3 : 1][1] - achse[0][1]]) : null
   const kante = (p: P): [P, P] => [[p[0] - u![0] * halb, p[1] - u![1] * halb], [p[0] + u![0] * halb, p[1] + u![1] * halb]]
+  // Fahrzeuge (27.10.2026): F_B je Phase mit dem Lenker beim Beobachtungspunkt (Velo gegen die Einbahn: das Velo), F_A am Ende von A
+  const fahrzeuge: KsFahrzeug[] = []
+  const voraus = (p: P): P => [p[0] + e.fbRichtung[0], p[1] + e.fbRichtung[1]]
+  const fb = (Dachse: P, wo: string) => {
+    const [mitte, richtung] = e.zufahrtVelo ? fbVeloLage(Dachse, voraus(Dachse)) : fbLage(Dachse, voraus(Dachse))
+    fahrzeuge.push({ art: e.zufahrtVelo ? 'velo' : 'auto', rolle: 'fb', mitte, richtung, text: `wartendes ${e.zufahrtVelo ? 'Velo' : 'Fahrzeug'}, Auge bei ${wo}` })
+  }
+  if (tp) fb(tp.Dachse, "D'")
+  fb(e.Dachse, 'D')
+  for (const rr of e.richtungen) {
+    const seite = rr.lage === 'gegenueber' ? 'von gegenüber' : rr.lage
+    const fa = rr.status !== 'keine_zufahrt' ? faLage(rr.sichtpunkte, Math.min(rr.massgebend, rr.sichtpunkte.length - 1)) : null
+    if (fa) fahrzeuge.push({ art: 'auto', rolle: 'fa', mitte: fa[0], richtung: fa[1], text: `Fahrzeug am Ende der Sichtweite A, ${seite}` })
+    const vl = rr.velo ? veloLage(rr.velo.sichtpunkte, Math.min(rr.velo.A, rr.velo.sichtpunkte.length - 1)) : null
+    if (vl) fahrzeuge.push({ art: 'velo', rolle: 'fa', mitte: vl[0], richtung: vl[1], text: `Velo am Ende der Sichtweite A, ${seite}` })
+  }
   const profile: Knotensicht['profile'] = {}
   for (const rr of e.richtungen) if (rr.profilLinie.length >= 2) profile[rr.richtung] = rr.profilLinie
   if (e.zufahrtProfil.length >= 2) profile.zufahrt = e.zufahrtProfil
@@ -271,7 +291,7 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
     phaseTrottoir: t.phaseTrottoir, phaseFahrbahn: t.phaseFahrbahn, richtungen, ok, unklar: [...new Set(unklar)], durchgehend, neigungGemessen,
     annahmeGrund, annahmen, hinweise: allg.texte,
     karte: { D: e.D, Dtrottoir: tp?.D ?? null, vorderkante: t.vorderkante, hinterkante: t.hinterkante,
-      kanten: u ? [kante(t.vorderkante), kante(t.hinterkante)] : [], dreiecke },
+      kanten: u ? [kante(t.vorderkante), kante(t.hinterkante)] : [], dreiecke, fahrzeuge },
     profile, hoehenSchluessel,
   }
 }

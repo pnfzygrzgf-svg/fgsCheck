@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
-  OHNE_VORTRITT_FARBE, TUE_RAND,
+  OHNE_VORTRITT_FARBE, TUE_RAND, FAHRZEUG_FARBE, FAHRZEUG_ZOOM,
   hindernisText, hindernisFarbe, FIXPUNKT_FARBE, PLAN_FARBEN, planMarke, NrMarke, type Werkzeug, type KartenHinweis, type Masslinie } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
@@ -2244,6 +2244,11 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li>Knotensicht: <span className="farbe" style={{ background: STATUS_FARBE.frei }} />frei,
             <span className="farbe" style={{ background: STATUS_FARBE.verdeckt }} />verdeckt; Auto durchgezogen, Velo gestrichelt, Trottoir
             punktiert; <span className="farbe rund" style={{ background: '#ffffff', borderColor: '#111827' }} />Auge der Ausfahrenden</li>}
+          {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li><span className="farbe" style={{ background: FAHRZEUG_FARBE }} />Fahrzeuge:
+            wartend auf der Zufahrt, am Ende der Sichtweite auf der Hauptstrasse</li>}
+          {rechnung?.streifen.some(s => !s.trottoirueberfahrt && s.zufahrten.length) && <li><span className="farbe" style={{ background: FAHRZEUG_FARBE }} />Fahrzeug
+            am letzten Sichtpunkt (gewählte Zufahrt; die übrigen blass ab Zoom {FAHRZEUG_ZOOM}), <span className="farbe rund" style={{ background: AV_FARBEN.Trottoir,
+            borderColor: '#334155' }} />wartende Person am Streifenende</li>}
           <li><span className="farbe" style={{ background: QUELLE_FARBE.hand }} />von Hand, <span className="farbe" style={{ background: QUELLE_FARBE.osm }} />aus OSM (gestrichelt: Vorschlag, prüfen),
             <span className="farbe" style={{ background: QUELLE_FARBE.kataster }} />aus Baumkataster</li>
           <li><span className="farbe gestrichelt" style={{ borderColor: INSEL_FARBE, borderWidth: 2 }} />{INSEL_TEXT};

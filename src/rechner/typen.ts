@@ -108,6 +108,8 @@ export interface StreifenErgebnis {
   /** Trottoirüberfahrt: Knotensicht der Einbiegenden (K2, Kern des SichtweitenCheck; tue/knotensicht.ts), im Worker angefügt; fehlt
    * ohne Trottoirüberfahrt */
   knotensicht?: KnotensichtAntwort
+  /** Wartebereich je Ende (Bordkante, Richtung vom Streifen weg) wie gerechnet; Karte: wartende Person 0,6 m dahinter (27.10.2026) */
+  warte?: [P, P][]
 }
 
 /** Querung ohne Vortritt: Furt (Insel ohne Balken) bzw. Nase, Einengung, ohne bauliche Massnahme */

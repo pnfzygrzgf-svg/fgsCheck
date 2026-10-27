@@ -257,7 +257,8 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
       erg.length ? erg.reduce((b, e) => (RANG_STATUS[e.status] > RANG_STATUS[b] ? e.status : b), 'frei') : 'ohne_zufahrt'
     aus.push({ fgsId: fid, uebergangId: s.uebergangId, p0: s.p0, p1: s.p1, bw: s.bw, m: s.m, umriss: umrissRing(s), ann,
       rand: s.rand, randQuelle: s.randQuelle, strasse: s.strasse ?? '', netzQuelle: s.netzQuelle ?? '', lsa, lsaQuelle: lsaQ,
-      zufahrten: erg, entfallen: ent, status, annahmen: annahmenS, ...(ov && !keinFgs ? { querung: ov } : {}) })
+      zufahrten: erg, entfallen: ent, status, annahmen: annahmenS, ...(ov && !keinFgs ? { querung: ov } : {}),
+      ...(s.warte.length ? { warte: s.warte.map(w => [w[0], w[1]] as [P, P]) } : {}) })
   }
   return aus
 }
