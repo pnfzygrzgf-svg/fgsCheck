@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { AvFlaeche } from './daten/av'
@@ -273,6 +273,8 @@ function augeGriff(ebene: L.LayerGroup, f: FahrzeugForm, teile: L.Layer[], los: 
     .on('click', (e: L.LeafletEvent) => { L.DomEvent.stopPropagation(e as L.LeafletMouseEvent); klick?.() })
     .addTo(ebene)
 }
+
+const KARTE_STUFEN = [30, 45, 70]   // Kartenhöhe auf dem Smartphone in % der Fensterhöhe
 
 export default function Karte(props: {
   mitte: [number, number]
@@ -1012,10 +1014,30 @@ export default function Karte(props: {
 
   const ortWaehlen = (o: Ort) => kartenRef.current?.setView([o.lat, o.lon], ortZoom(o.art))
   const hinweise = [props.hinweis, standortHinweis].filter((h): h is KartenHinweis => !!h)
+  // Kartenhöhe auf dem Smartphone (seit 28.10.2026, wie VeloroutenCheck): Knopf ▾/▴ schaltet 30 → 45 → 70 % der Fensterhöhe; nur
+  // unter 700 px sichtbar (index.css .karte-hoehe; vorher fest 60 %, dem Panel blieben bei 375 × 812 px rund 325 px). Der Browser
+  // merkt sich die Stufe (nur Bequemlichkeit).
+  const [stufe, setStufe] = useState(() => {
+    try { const v = Number(localStorage.getItem('fgs.karteStufe')); return KARTE_STUFEN.includes(v) ? v : 45 } catch { return 45 }
+  })
+  const stufeWeiter = () => setStufe(v => {
+    const neu = KARTE_STUFEN[(KARTE_STUFEN.indexOf(v) + 1) % KARTE_STUFEN.length]
+    try { localStorage.setItem('fgs.karteStufe', String(neu)) } catch { /* ohne Speicher: nur für diese Sitzung */ }
+    return neu
+  })
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => kartenRef.current?.invalidateSize())
+    return () => cancelAnimationFrame(raf)
+  }, [stufe, kartenRef])
   return (
-    <div className="kartenrahmen">
+    <div className="kartenrahmen" style={{ '--karte-h': `${stufe}dvh` } as CSSProperties}>
       <PlanMuster />
       <div ref={elRef} className="karte" />
+      <button type="button" className="karte-hoehe" onClick={stufeWeiter}
+              aria-label={`Kartenhöhe ${stufe} % – ${stufe === 70 ? 'kleiner' : 'grösser'}`}
+              title={`Karte ${stufe === 70 ? 'kleiner' : 'grösser'} (jetzt ${stufe} % der Höhe)`}>
+        {stufe === 70 ? '▴' : '▾'}
+      </button>
       <div className="kartenkopf">
         <Ortssuche onOrt={ortWaehlen} />
         {hinweise.map(h => (
