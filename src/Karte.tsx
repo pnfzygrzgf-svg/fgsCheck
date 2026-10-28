@@ -389,6 +389,8 @@ export default function Karte(props: {
   useEffect(() => {
     if (!elRef.current || kartenRef.current) return
     const map = L.map(elRef.current, { maxZoom: 22, doubleClickZoom: false }).setView(mitte, 19)
+    // Quellenangabe: auf dem Smartphone einzeilig gekürzt (index.css), Tippen klappt sie auf (seit 28.10.2026, wie VeloroutenCheck)
+    map.attributionControl.getContainer()?.addEventListener('click', ev => (ev.currentTarget as HTMLElement).classList.toggle('offen'))
     const luftbild = L.tileLayer(HINTERGRUND_LUFTBILD, { maxZoom: 22, maxNativeZoom: 20, attribution: '© swisstopo' }).addTo(map)
     const landeskarte = L.tileLayer(HINTERGRUND_KARTE, { maxZoom: 22, maxNativeZoom: 18, attribution: '© swisstopo' })
     const namenPane = map.createPane(NAMEN_PANE)

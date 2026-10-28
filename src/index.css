@@ -91,6 +91,11 @@ select { max-width: 100%; }
     color: var(--text-strong); font-size: 18px; cursor: pointer; }
   .karte-hoehe:hover { filter: none; background: #f4f4f4; }
   .leaflet-left { margin-left: env(safe-area-inset-left); }
+  /* Quellenangabe einzeilig, Platz für den Massstab links lassen; Tippen klappt sie auf (Karte.tsx). Vorher zweizeilig über dem
+     unteren Kartenrand (Nutzerbefund 28.10.2026) */
+  .leaflet-control-attribution { max-width: calc(100vw - 90px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-size: 10px; cursor: pointer; }
+  .leaflet-control-attribution.offen { white-space: normal; }
 }
 @media (max-width: 700px) { .regel-nr, .quelle-chip, .begriff-knopf, .quellen-tabelle { font-size: 12px; } }   /* kleine Schriften mindestens 12 px */
 /* Zufahrten-Tabelle auf schmalen Bildschirmen in der Breite des Panels (bei 375 px vorher 382 px, das Panel scrollte seitlich) */
@@ -501,3 +506,26 @@ button.feld-link, button.feld-link.klein { background: none; border: none; paddi
 button.feld-link:hover { filter: none; text-decoration-thickness: 2px; }
 /* Fragen-Knöpfe mit «klein»: sonst gewinnt button.klein:not(.zweit) (weisse Schrift) und die Schrift ist auf hellem Grund unsichtbar */
 button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; border: none; }
+
+/* Tabellen im Reiter «Bedarf und Querungstyp» auf dem Smartphone gestapelt statt in Spalten (Nutzerbefund 28.10.2026: bei 390 px
+   Grundprüfung 503 px, Bedarfsmasken bis 418 px, Befundmasse 387 px breit; das Panel scrollte seitlich, Texte waren abgeschnitten).
+   Grundprüfung: Thema und «Details» oben, Stand und Text darunter; Masken: Frage über Feld und Herkunft; Befundmasse in Spalten fester
+   Breite mit Umbruch. */
+@media (max-width: 700px) {
+  .grund-tabelle, .grund-tabelle tbody { display: block; width: 100%; }
+  .grund-tabelle tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; padding: 4px 0; border-top: 1px solid var(--border); }
+  .grund-tabelle th, .grund-tabelle td { border-top: none; white-space: normal !important; padding: 1px 6px; }
+  .grund-tabelle th { grid-column: 1; grid-row: 1; }
+  .grund-tabelle td.grund-auf-zelle { grid-column: 2; grid-row: 1; }
+  .grund-tabelle td:not(.grund-auf-zelle) { grid-column: 1 / -1; }
+  .grund-tabelle tr.grund-detail { border-top: none; padding-top: 0; }
+  .grund-tabelle tr.grund-detail td { padding: 0 6px 4px 10px; }
+  .bedarf-maske, .bedarf-maske tbody { display: block; width: 100%; }
+  .bedarf-maske tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; align-items: center; padding: 3px 0;
+    border-bottom: 1px solid #f1f5f9; }
+  .bedarf-maske td { padding: 1px 4px; }
+  .bedarf-maske td:first-child, .bedarf-maske tr.bedarf-block th, .bedarf-maske td[colspan] { width: auto; grid-column: 1 / -1; }
+  .bedarf-maske select { max-width: 100%; }
+  table.befund-masse { table-layout: fixed; width: 100%; }
+  .befund-masse td, .befund-masse th { overflow-wrap: anywhere; }
+}
