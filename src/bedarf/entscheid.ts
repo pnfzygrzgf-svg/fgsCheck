@@ -242,7 +242,8 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
         const ids: BefundId[] = tue ? ['Q3-4', ...Q3_IDS, 'F5c'] : Q3_IDS
         const hart = ids.filter(id => regelDef(id).staerke === 'hart' && k.hat(id))
         const hartOffen = ids.filter(id => regelDef(id).staerke === 'hart' && k.istOffen(id))
-        const weich = ids.filter(id => regelDef(id).staerke === 'weich' && k.hat(id))
+        // beurteilte Trottoirüberfahrt (28.10.2026): auch die Soll-Regeln der Machbarkeit (Breite, Länge des überfahrbaren Rands)
+        const weich = [...ids, ...(tue ? ['F5a', 'F5d'] as BefundId[] : [])].filter(id => regelDef(id).staerke === 'weich' && k.hat(id))
         const bern = k.ergebnisse.get('Q3-B')
         const bernText = bern && bern !== 'offen' && bern.ist ? ` (Bern-Tabelle: ${bern.ist})` : ''
         if (hart.length) empf.zusatz.push(`Trottoirüberfahrt hier nicht zulässig wegen ${hart.join(', ')}`)

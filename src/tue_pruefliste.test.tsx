@@ -18,7 +18,7 @@ import { beurteile } from './bedarf/entscheid'
 import { Q3_OK, fall } from './bedarf/testfaelle'
 import { handSetzen } from './bedarf/fallBedarf'
 import { regelGruppen, regelZeilen } from './bedarf/regeluebersicht'
-import { BedarfAbschnitt, BefundblattAnzeige, aenderFelder, eingabeUebernehmen, zusatzTexte } from './BedarfPanel'
+import { BedarfAbschnitt, BefundblattAnzeige, aenderFelder, eingabeUebernehmen, tueMerkmaleNichtErfuellt, zusatzTexte } from './BedarfPanel'
 import { LsaEinmuendung } from './tue/LsaEinmuendung'
 
 const O: P = [2600000, 1200000]
@@ -200,6 +200,32 @@ describe('Nur Fragen der Trottoirüberfahrt; Alternative Fussgängerstreifen auf
     expect(aenderFelder('F5d', p => p === 'q3.ueberfahrbarM')).toEqual(['q3.ueberfahrbarM'])
     expect(aenderFelder('F5d', () => false)).toEqual([])
     expect(aenderFelder('F5d', () => true)).not.toContain('typ')
+  })
+  it('normkonform: nicht erfüllte Merkmale mit Namen (Reihenfolge der Prüfliste, höchstens drei, dann «und n weitere»), im Panel als Sprung (28.10.2026)', () => {
+    const satz = (hand: Record<string, unknown>) => {
+      const b = blatt(tueFall({ ...OK, ...hand }))
+      return { b, ids: tueMerkmaleNichtErfuellt(b), text: zusatzTexte(b).find(z => z.startsWith('Die Trottoirüberfahrt ist normkonform')) }
+    }
+    const eins = satz({ 'q3.veloSchule': true })
+    expect(eins.ids).toEqual(['Q3-M6'])
+    expect(eins.text).toBe('Die Trottoirüberfahrt ist normkonform; nicht erfüllt: Veloroute oder Schulweg.')
+    const drei = satz({ 'q3.veloSchule': true, 'q3.lkwGelegentlich': false, 'q3.ueberfahrbarM': 30 })
+    expect(drei.ids).toEqual(['Q3-M4', 'Q3-M6', 'F5d'])
+    expect(drei.text).toBe('Die Trottoirüberfahrt ist normkonform; nicht erfüllt: Lastwagenverkehr, Veloroute oder Schulweg, Länge des überfahrbaren Rands.')
+    const fuenf = satz({ 'q3.veloSchule': true, 'q3.lkwGelegentlich': false, 'q3.ueberfahrbarM': 30, 'q3.einmSiedlungsorientiert': false, 'q3.wartezeitEinmS': 40 })
+    expect(fuenf.ids).toEqual(['Q3-M1', 'Q3-M3', 'Q3-M4', 'Q3-M6', 'F5d'])
+    expect(fuenf.text).toBe('Die Trottoirüberfahrt ist normkonform; nicht erfüllt: Seitenstrasse als Quartierstrasse, Wartezeit beim Ausfahren, ' +
+      'Lastwagenverkehr (und 2 weitere Merkmale).')
+    // Ausführung und Hinweise nicht; Panel: Namen als Sprung zur Befundzeile (data-regel), Bericht nur Text
+    const mitAusf = satz({ 'q3.veloSchule': true, 'q3.begrenzung': 'keine' })
+    expect(mitAusf.ids).toEqual(['Q3-M6'])
+    const html = renderToStaticMarkup(<BedarfAbschnitt fall={tueFall({ ...OK, 'q3.veloSchule': true })} blaetter={[eins.b]} vorgabe={OHNE.vorgabe}
+      aendern={() => {}} setAlternative={() => {}} />)
+    expect(html).toContain('nicht erfüllt: <button type="button" class="frage-knopf" title="zur Befundzeile im Thema Trottoirüberfahrt">Veloroute oder Schulweg</button>.')
+    expect(html).toContain('data-regel="Q3-M6"')
+    const bericht = renderToStaticMarkup(<BefundblattAnzeige b={eins.b} druck />)
+    expect(bericht).toContain('Die Trottoirüberfahrt ist normkonform; nicht erfüllt: Veloroute oder Schulweg.')
+    expect(bericht).not.toContain('data-regel')
   })
   it('Eingabe über einen Vorschlag: anderer Wert ist eine Eingabe von Hand (Quelle hand), gleicher Wert bleibt Vorbelegung', () => {
     for (const p of ['q3.winkel', 'q3.breiteM', 'q3.ueberfahrbarM', 'q3.wartezeitEinmS']) expect(FELD_DEFS.find(d => d.pfad === p)!.quelle, p).toBeUndefined()

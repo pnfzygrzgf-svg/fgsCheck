@@ -38,7 +38,8 @@ import type { BefundBlatt } from './bedarf/befundblatt'
 import type { Ebene, Eintrag } from './bedarf/typen'
 import { QUELLEN_ANNAHME, QUELLEN_BESTAETIGBAR, type Quelle } from './bedarf/eingaben'
 import { mitTiteln, regelName, regelTitel } from './bedarf/regelname'
-import { EBENE_WORT, LEGENDE, THEMEN, gruppeVonThema, mitEinheit, pruefUebersicht, themaName, verbindlichkeitVon } from './bedarf/themen'
+import { ABSCHNITTE, EBENE_WORT, LEGENDE, THEMEN, abschnittVon, gruppeVonThema, istAusfuehrung, mitEinheit, nachAbschnitt, pruefUebersicht, themaName,
+  verbindlichkeitVon } from './bedarf/themen'
 import { BLOCK_GRUENDE, hatInhalt, themaGliederung, themenAnsicht, type ThemaFrage, type ThemaTeil, type ThemenAnsicht } from './bedarf/themenansicht'
 import { FELD_HILFEN, SICHTBAR, bedingungText, bezuegeImFall, feldZiel, frageVon, leerText, regelPfade, schalter, schalterText, sichtbar,
   wozuTeilen, type SichtKontext } from './bedarf/feldhilfen'
@@ -719,9 +720,12 @@ export function ZusammenfassungAnzeige({ b, titel, druck = false, imBlock }: { b
 function TypAnzeige({ b, druck = false, ohneKopf = false }: { b: BefundBlatt; druck?: boolean; ohneKopf?: boolean }) {
   const begr = <>{b.begruendung && <><VerweisText text={T(b.begruendung)} druck={druck} />.</>}</>
   const zusatz = zusatzTexte(b)
+  // Panel: im Satz «normkonform; nicht erfüllt: …» springen die Namen zur Befundzeile (28.10.2026)
+  const normkonform = istTue(b) ? tueNormkonformText(b) : null
   return <>
     {!ohneKopf && <p className="befund-typ">{typZeile(b)}</p>}
-    {zusatz.length > 0 && <p className="klein">{zusatz.join(' ')}</p>}
+    {zusatz.length > 0 && <p className="klein">{zusatz.map((z, i) => <Fragment key={i}>{i ? ' ' : ''}{!druck && z === normkonform
+      ? <TueNormkonform b={b} /> : z}</Fragment>)}</p>}
     {b.begruendung && (druck ? <p className="klein">{begr}</p>
       : <details className="klein bedarf-begruendung"><summary>Begründung</summary>{begr}</details>)}
   </>
@@ -743,6 +747,47 @@ export function typZeile(b: BefundBlatt): JSX.Element {
   if (anlage) return <><b>Beurteilt:</b> {anlage}{b.gebildet.eingaben.neuanlage.wert === true ? ' (geplant)' : ''}; {fgs} (siehe Zusammenfassung)</>
   if (f.zulaessigkeit === 'offen') return <><b>Falls zulässig:</b> {T(t)}. Ob er zulässig ist, ist noch offen (siehe Zusammenfassung).</>
   return <><b>Empfohlen:</b> {T(t)}{f.empfehlung.vorlaeufig && <> – vorläufig, es fehlen Angaben (siehe Zusammenfassung)</>}</>
+}
+
+/**
+ * Beurteilte Trottoirüberfahrt (28.10.2026): nicht erfüllte Soll-Regeln der Prüfliste ohne die Ausführung und ohne Bern (Tab. 2 und
+ * Machbarkeit), in der Reihenfolge der Prüfliste; Hinweise nicht
+ */
+export function tueMerkmaleNichtErfuellt(b: BefundBlatt): string[] {
+  const bern = (ABSCHNITTE.trottoirueberfahrt ?? []).findIndex(a => a.titel === 'Bern')
+  const ids = [...new Set(b.befund.alle.filter(x => x.zustand === 'verletzt' && x.staerke === 'weich').map(x => x.id))]
+    .filter(id => { const a = abschnittVon(id); return !!a && a.abschnitt !== bern && !istAusfuehrung(id) && (KATALOG as Record<string, { thema?: string }>)[id]?.thema === 'trottoirueberfahrt' })
+  return nachAbschnitt(ids, x => x)
+}
+/** höchstens so viele nicht erfüllte Merkmale mit Namen, dann «und n weitere» */
+const MERKMALE_MAX = 3
+const weitereMerkmale = (n: number): string => (n === 1 ? ' (und 1 weiteres Merkmal)' : ` (und ${n} weitere Merkmale)`)
+/** Satz «normkonform; nicht erfüllt: …» als Text */
+function tueNormkonformText(b: BefundBlatt): string {
+  const ids = tueMerkmaleNichtErfuellt(b)
+  if (!ids.length) return 'Die Trottoirüberfahrt ist normkonform.'
+  const n = ids.slice(0, MERKMALE_MAX).map(regelTitel), rest = ids.length - n.length
+  return `Die Trottoirüberfahrt ist normkonform; nicht erfüllt: ${n.join(', ')}${rest > 0 ? weitereMerkmale(rest) : ''}.`
+}
+/** zur Befundzeile einer Regel im Thema springen (Aufklapper öffnen, Zeile zeigen); Kennung data-regel an der Zeile */
+function befundZeigen(id: string): void {
+  const el = document.querySelector<HTMLElement>(`[data-regel="${id}"]`)
+  if (!el) return
+  const hin = () => {
+    for (let d: HTMLElement | null = el.parentElement; d; d = d.parentElement) if (d instanceof HTMLDetailsElement) d.open = true
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    el.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true })
+  }
+  if (reiterZeigen(el)) window.setTimeout(hin, 0); else hin()
+}
+/** derselbe Satz im Panel: die Namen springen zur Befundzeile */
+function TueNormkonform({ b }: { b: BefundBlatt }) {
+  const ids = tueMerkmaleNichtErfuellt(b)
+  if (!ids.length) return <>Die Trottoirüberfahrt ist normkonform.</>
+  const k = ids.slice(0, MERKMALE_MAX), rest = ids.length - k.length
+  return <>Die Trottoirüberfahrt ist normkonform; nicht erfüllt: {k.map((id, i) => <Fragment key={id}>{i ? ', ' : ''}<button type="button"
+    className="frage-knopf" title="zur Befundzeile im Thema Trottoirüberfahrt" onClick={e => { e.preventDefault(); e.stopPropagation(); befundZeigen(id) }}>
+    {regelTitel(id)}</button></Fragment>)}{rest > 0 ? weitereMerkmale(rest) : ''}.</>
 }
 
 /** Zusätze der Empfehlung ohne Codes (Runde 5, Stellen 29, 30): Trottoirüberfahrt bzw. Querung ohne Vortritt in Worten */
@@ -772,7 +817,7 @@ export function zusatzTexte(b: BefundBlatt): string[] {
         `${c3offen ? '; ob auch wenig Leute queren, ist noch offen' : ''}.`
     }
     if (/^Trottoirüberfahrt \(Q3\) normkonform möglich/.test(z)) return `Zusätzlich möglich: eine Trottoirüberfahrt über die Seitenstrasse${z.includes('Merkmale nicht erfüllt') ? ' (einige Merkmale nicht erfüllt, siehe Thema Trottoirüberfahrt)' : ''}.`
-    if (/^Trottoirüberfahrt normkonform/.test(z)) return `Die Trottoirüberfahrt ist normkonform${z.includes('Merkmale') ? '; einige Merkmale nicht erfüllt (siehe Thema Trottoirüberfahrt)' : ''}.`
+    if (/^Trottoirüberfahrt normkonform/.test(z)) return tueNormkonformText(b)
     if (z === 'Trottoirüberfahrt nicht geprüft: Eingaben fehlen' && tue) return 'Für die Trottoirüberfahrt fehlen die Angaben (Thema Trottoirüberfahrt der erweiterten Prüfung).'
     if (z === 'Trottoirüberfahrt nicht geprüft: Eingaben fehlen') return 'Zusätzlich möglich: eine Trottoirüberfahrt über die Seitenstrasse; dafür fehlen die Angaben (Thema Trottoirüberfahrt der erweiterten Prüfung).'
     return `Zusätzlich: ${z}.`
@@ -927,7 +972,8 @@ function EintragZeile({ x, druck, mitDetail, begriffe }: { x: Eintrag; druck: bo
     {x.detail && !mitDetail ? <> · {T(x.detail)}</> : null}{x.normHinweis ? <> · <VerweisText text={T(x.normHinweis)} druck={druck} /></> : null}
     {!druck && <BegriffVerweise texte={eintragTexte(x)} nur={begriffe} />}{!offen && <Aendern id={x.id} druck={druck} />}</span>
   if (druck) return <li className={kl}>{zeile}<div>{det}</div></li>
-  return <li className={kl}><details className="eintrag-details"><summary>{zeile}</summary>{det}</details></li>
+  // Trottoirüberfahrt (28.10.2026): Sprungziel aus der Zusammenfassung («nicht erfüllt: …»); andere Regeln ohne Kennung
+  return <li className={kl} {...(/^(Q3|F5)/.test(x.id) ? { 'data-regel': x.id } : {})}><details className="eintrag-details"><summary>{zeile}</summary>{det}</details></li>
 }
 
 /** Eingaben der erweiterten Prüfung im Panel (ohne: Bericht bzw. reine Anzeige) */
