@@ -88,6 +88,14 @@ export function fgsFahrzeuge(s: StreifenErgebnis): FahrzeugForm[] {
     const [mitte, richtung] = fbLage(auge, add(auge, u))
     aus.push(auto({ art: 'auto', rolle: 'zufahrt', mitte, richtung, auge, zufahrt: `${z.fgsId}|${z.zufahrt}`,
       text: `Fahrzeug am Sichtpunkt, ${z.sichtweite.toFixed(1).replace('.', ',')} m vor dem Streifen` }))
+    // Velo (29.10.2026): am letzten Sichtpunkt der Veloachse, zum Streifen hin
+    const v = z.velo
+    if (v && v.sichtpunkte.length >= 2) {
+      const p = v.sichtpunkte[v.sichtpunkte.length - 1], q = v.sichtpunkte[v.sichtpunkte.length - 2]
+      const uv = einheit(sub(q, p))
+      if (uv[0] || uv[1]) aus.push({ art: 'velo', rolle: 'zufahrt', mitte: p, richtung: uv, auge: p, zufahrt: `${z.fgsId}|${z.zufahrt}`,
+        text: `Velo am Sichtpunkt, ${String(v.bisM ?? v.soll).replace('.', ',')} m vor dem Streifen (VSS 40 273 Tab. 3)` })
+    }
   }
   // Wartebereich je Ende wie gerechnet (Bordkante, Richtung vom Streifen weg); ohne: Bordkante, von der Streifenmitte weg
   for (const [r, a] of s.warte ?? s.rand.map(r => [r, einheit(sub(r, s.m))] as [P, P])) {

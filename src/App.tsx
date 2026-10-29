@@ -2330,7 +2330,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             übriges Hindernis, <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_baum }} />Baum,
             <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_zweirad }} />Zweirad-Feld (Velo/Motorrad)</li>
           {rechnung?.streifen.some(s => s.zufahrten.some(z => z.velo)) && <li><span className="farbe gestrichelt" style={{ borderColor: STATUS_FARBE.frei,
-            borderStyle: 'dashed' }} />Sicht vom Velo (Radstreifen bzw. Radweg; VSS 40 273 Tab. 3), gestrichelt</li>}
+            borderStyle: 'dashed' }} />Sicht vom Velo (Radstreifen bzw. Radweg; VSS 40 273 Tab. 3), gestrichelt; gewählte Zufahrt mit Sichtpunkten
+            und Velo (blau) am letzten Sichtpunkt, die übrigen Velos ab Zoom {FAHRZEUG_ZOOM}</li>}
           {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li>Knotensicht: <span className="farbe" style={{ background: STATUS_FARBE.frei }} />frei,
             <span className="farbe" style={{ background: STATUS_FARBE.verdeckt }} />verdeckt; Auto durchgezogen, Velo gestrichelt, Trottoir
             punktiert; <span className="farbe rund" style={{ background: '#ffffff', borderColor: '#111827' }} />Auge der Ausfahrenden</li>}

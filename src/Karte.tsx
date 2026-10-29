@@ -581,7 +581,7 @@ export default function Karte(props: {
         // Sicht vom Velo (29.10.2026): gestrichelt wie die Velo-Dreiecke der Knotensicht
         if (z.velo) {
           const fv = STATUS_FARBE[z.velo.frei ? 'frei' : 'verdeckt']
-          L.polygon(multiLl(z.velo.feld), { color: fv, weight: 1, dashArray: KS_STRICH.velo, fillColor: fv, fillOpacity: 0.06, interactive: !cb.current.werkzeug })
+          L.polygon(multiLl(z.velo.feld), { color: fv, weight: 1, dashArray: KS_STRICH.velo, fillColor: fv, fillOpacity: 0.1, interactive: !cb.current.werkzeug })
             .bindTooltip(`Sicht vom Velo ${esc(zufahrtText(cb.current.zufahrtNamen.get(z.fgsId), z.zufahrt))}: ${z.velo.frei ? 'frei' : `verdeckt, frei bis ${z.velo.freiBisM} m`}, ` +
               `Soll ${z.velo.soll} m (VSS 40 273 Tab. 3)${z.velo.ebikeHinweis ? '; mit Verbot für schnelle E-Bikes gälte eben 30 m' : ''}`, { sticky: true })
             .addTo(eb.sicht)
@@ -997,6 +997,15 @@ export default function Karte(props: {
     for (const f of st ? fgsFahrzeuge(st) : []) if (f.zufahrt === auswahl) fahrzeugZeichnen(eb.auswahl, f, false, !cb.current.werkzeug && !cb.current.bearbeiten)
     const farbe = STATUS_FARBE[z.status] ?? '#10b981'
     L.polygon(multiLl(z.feld), { color: farbe, weight: 2, fillColor: farbe, fillOpacity: 0.25, interactive: false }).addTo(eb.auswahl)
+    // Sicht vom Velo (29.10.2026): wie das Sichtfeld des Fahrzeugs, gestrichelt, mit den Sichtpunkten der Veloachse
+    if (z.velo) {
+      const fv = STATUS_FARBE[z.velo.frei ? 'frei' : 'verdeckt']
+      L.polygon(multiLl(z.velo.feld), { color: fv, weight: 2, dashArray: KS_STRICH.velo, fillColor: fv, fillOpacity: 0.25, interactive: false }).addTo(eb.auswahl)
+      for (const k of z.velo.konflikte) L.polygon(multiLl(k.geom), { color: '#7f1d1d', weight: 2, dashArray: KS_STRICH.velo, fillColor: '#dc2626', fillOpacity: 0.6 })
+        .bindTooltip(`${esc(k.layer)} im Sichtfeld des Velos, ${k.abstand.toFixed(1)} m vom Streifen`).addTo(eb.auswahl)
+      z.velo.sichtpunkte.forEach((p, i) => L.circleMarker(ll(p), { radius: i === z.velo!.sichtpunkte.length - 1 ? 4 : 2, color: '#111827', weight: 1,
+        dashArray: '2 2', fillColor: '#ffffff', fillOpacity: 1, interactive: false }).addTo(eb.auswahl))
+    }
     for (const k of z.konflikte)
       L.polygon(multiLl(k.geom), { color: '#7f1d1d', weight: 2, fillColor: '#dc2626', fillOpacity: 0.6 })
         .bindTooltip(`${esc(k.layer)}: ${k.klasse === 'baum' ? 'Stamm' : `${k.flaeche.toFixed(1)} m²`} im Sichtfeld, ${k.abstand.toFixed(1)} m vom Streifen`)

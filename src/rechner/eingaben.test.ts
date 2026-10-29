@@ -912,3 +912,24 @@ describe('Hofzufahrt (highway=service): bfu-Knotenregel ab der Einmündung (29.1
     for (const p of z.sichtpunkte) expect(dist(p, lv(0, 0))).toBeLessThan(20)
   })
 })
+
+describe('Velo auf der Karte (29.10.2026)', () => {
+  it('Velo-Symbol am letzten Sichtpunkt der Veloachse, zum Streifen hin, nur mit z.velo', async () => {
+    const { fgsFahrzeuge } = await import('../fahrzeuge')
+    const r = rechneFall(daten({ cycleway: 'lane' }), AV, [], 12, fallMit(() => {}), null)
+    const s = r.streifen[0]
+    const velos = fgsFahrzeuge(s).filter(f => f.art === 'velo')
+    const mitVelo = s.zufahrten.filter(z => z.velo)
+    expect(velos.map(f => f.zufahrt).sort()).toEqual(mitVelo.map(z => `${z.fgsId}|${z.zufahrt}`).sort())
+    for (const z of mitVelo) {
+      const f = velos.find(x => x.zufahrt === `${z.fgsId}|${z.zufahrt}`)!
+      const sp = z.velo!.sichtpunkte
+      expect(f.mitte).toEqual(sp[sp.length - 1])
+      expect(f.rolle).toBe('zufahrt')
+      expect(f.text).toBe(`Velo am Sichtpunkt, ${z.velo!.soll} m vor dem Streifen (VSS 40 273 Tab. 3)`)
+      // zum Streifen hin: der Schritt in Fahrtrichtung bringt näher an den Streifen
+      expect(dist([f.mitte[0] + f.richtung[0], f.mitte[1] + f.richtung[1]], s.m)).toBeLessThan(dist(f.mitte, s.m))
+    }
+    expect(fgsFahrzeuge(rechneFall(daten(), AV, [], 12, fallMit(() => {}), null).streifen[0]).some(f => f.art === 'velo')).toBe(false)
+  })
+})
