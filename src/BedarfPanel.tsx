@@ -1201,10 +1201,13 @@ function annahmenPunkte(b: BefundBlatt, ablauf: readonly Eintrag[], druck: boole
 function ErweiterteAnzeige({ blaetter, ansicht, druck = false, eingabe }: { blaetter: readonly BefundBlatt[]; ansicht: ThemenAnsicht
   druck?: boolean; eingabe?: ErwEingabe }) {
   const mehrere = blaetter.length > 1
-  const themen = ansicht.themen.filter(hatInhalt)
-  const ohne = ansicht.themen.filter(t => !hatInhalt(t) && t.geprueft > 0)
+  // Panel (29.10.2026): jedes geprüfte Thema als eigene Zeile, auch ohne Befund (eingeklappt); der Bericht bleibt knapp
+  const einzeln = !!eingabe && !druck
+  const themen = ansicht.themen.filter(t => hatInhalt(t) || (einzeln && t.geprueft > 0))
+  const ohne = einzeln ? [] : ansicht.themen.filter(t => !hatInhalt(t) && t.geprueft > 0)
   const begriffe = begriffeJeEintrag([...themen.flatMap(t => t.eintraege.flatMap(e => e.xs)), ...ansicht.ablauf.flatMap(a => a.xs)])
-  const weitere = eingabe ? [...ansicht.themen.filter(t => !hatInhalt(t)).map(t => ({ id: t.thema.id, name: t.thema.name, defs: t.felder })),
+  const weitere = eingabe ? [...ansicht.themen.filter(t => !hatInhalt(t) && !(einzeln && t.geprueft > 0))
+    .map(t => ({ id: t.thema.id, name: t.thema.name, defs: t.felder })),
     { id: 'ohne', name: 'Ohne Thema', defs: ansicht.ohneThema }].map(x => ({ ...x, defs: x.defs.filter(p => eingabe.alle || eingabe.zaehlt(p))
       .map(p => FELD_DEF.get(p)!) })).filter(x => x.defs.length) : []
   const nWeitere = weitere.reduce((n, x) => n + x.defs.length, 0)
@@ -1216,7 +1219,8 @@ function ErweiterteAnzeige({ blaetter, ansicht, druck = false, eingabe }: { blae
     {themen.map((t, i) => {
       const g = gruppeVonThema(t.thema.id), neu = !i || gruppeVonThema(themen[i - 1].thema.id) !== g
       return <Fragment key={t.thema.id}>{neu && <p className="themen-gruppe"><b>{T(g)}</b></p>}
-        <ThemaAnzeige t={t} blaetter={blaetter} druck={druck} eingabe={eingabe} begriffe={begriffe} /></Fragment>
+        {hatInhalt(t) ? <ThemaAnzeige t={t} blaetter={blaetter} druck={druck} eingabe={eingabe} begriffe={begriffe} />
+          : <ThemaOhneBefund t={t} blaetter={blaetter} eingabe={eingabe!} />}</Fragment>
     })}
     {ohne.length > 0 && <p className="klein thema-ohne">Ohne Befund: {ohne.map((t, i) => <Fragment key={t.thema.id}>{i ? ', ' : ''}<span
       title={t.ohneBefund.map(regelTitel).join(', ')}>{t.thema.name}</span></Fragment>)}</p>}
@@ -1232,6 +1236,28 @@ function ErweiterteAnzeige({ blaetter, ansicht, druck = false, eingabe }: { blae
         <ul className="annahmen-liste klein">{punkte}</ul></Fragment>)}
     </ErwTeil>}
   </>
+}
+
+/** Ergebnis einer ohne Befund geprüften Regel in einer Zeile: Sicht je Zufahrt mit frei bis und Soll (H1, E3), sonst «ohne Befund» */
+function ohneBefundZeilen(id: string, blaetter: readonly BefundBlatt[]): string[] {
+  const s = blaetter.flatMap(b => b.sicht.filter(x => x.regel === id))
+  if (!s.length) return [`${regelTitel(id)}: ohne Befund`]
+  return s.map(x => `${regelTitel(id)}: ${x.name} ${x.frei ? `frei${x.freiBisM !== undefined ? ` bis ${x.freiBisM} m` : ''}` : x.status}, ` +
+    `Soll ${String(x.soll).replace('.', ',')} m`)
+}
+/** Thema ohne Befund, Frage und Verweis, aber mit geprüften Regeln (Panel, 29.10.2026): eingeklappte Zeile «✓ n Regeln ohne Befund»,
+ * aufgeklappt die Regeln mit ihrem Ergebnis und die Angaben des Themas */
+function ThemaOhneBefund({ t, blaetter, eingabe }: { t: ThemaTeil; blaetter: readonly BefundBlatt[]; eingabe: ErwEingabe }) {
+  const felder = t.felder.filter(p => eingabe.alle || eingabe.zaehlt(p)).map(p => FELD_DEF.get(p)!)
+  return <details className="befund-thema bedarf-thema thema-ohne-befund" id={themaId(t.thema.id)}>
+    <summary title={t.thema.umfang}><b>{t.thema.name}</b> <span className="klein thema-zahl"><span className="grund-symbol" aria-hidden="true">✓</span>
+      {' '}{zahlWort(t.ohneBefund.length || t.geprueft, 'Regel', 'Regeln')} ohne Befund</span></summary>
+    <ul className="klein">{(t.ohneBefund.length ? t.ohneBefund : []).flatMap(id => ohneBefundZeilen(id, blaetter).map((z, i) =>
+      <li key={`${id}-${i}`}><span className="grund-symbol" aria-hidden="true">✓</span> {T(z)}<InUebersicht id={id} /></li>))}</ul>
+    {felder.length > 0 && <div className="thema-angaben"><p className="klein">Angaben ({felder.length}):</p>
+      <Maske fall={eingabe.fall} blatt={blaetter[0]} aendern={eingabe.aendern} felder={felder} flach ohneKoepfe zaehlt={eingabe.zaehlt} alle={eingabe.alle}
+        kontexte={eingabe.kontexte} bedarf={eingabe.bedarf} bestaetig={eingabe.bestaetig} /></div>}
+  </details>
 }
 
 /** Erweiterte Prüfung einer Querung ohne Eingaben (Bericht; im Panel steht sie mit Eingaben in BedarfAbschnitt); ohneTyp: Empfehlung

@@ -343,3 +343,22 @@ describe('Offene Angaben einer Trottoirüberfahrt in der Reihenfolge der Prüfli
     expect(ent.indexOf('q3.bebaut')).toBeLessThan(ent.indexOf('q3.randDurchgehend'))
   })
 })
+
+describe('Erweiterte Prüfung im Panel: Themen ohne Befund als eigene Zeile (29.10.2026)', () => {
+  it('jedes geprüfte Thema ohne Inhalt eingeklappt mit «✓ n Regeln ohne Befund»; keine Zeile «Ohne Befund:» im Panel, im Bericht weiter', () => {
+    const f = tueFall(OK)
+    const b = blatt(f)
+    const ohne = themenAnsicht([b]).themen.filter(t => !(t.eintraege.length || t.fragen.length || t.verweise.length || t.bloecke.length ||
+      t.ohneAngaben.length) && t.geprueft > 0)
+    expect(ohne.length).toBeGreaterThan(0)
+    const panel = renderToStaticMarkup(<BedarfAbschnitt fall={f} blaetter={[b]} vorgabe={OHNE.vorgabe} aendern={() => {}} setAlternative={() => {}} />)
+    for (const t of ohne) {
+      const n = t.ohneBefund.length || t.geprueft
+      expect(panel, t.thema.id).toMatch(new RegExp(`<details class="befund-thema bedarf-thema thema-ohne-befund" id="thema-${t.thema.id}"><summary[^>]*><b>` +
+        `${t.thema.name}</b>[^]*?${n} ${n === 1 ? 'Regel' : 'Regeln'} ohne Befund</span></summary>`))
+      expect(panel, t.thema.id).not.toMatch(new RegExp(`<details class="befund-thema bedarf-thema thema-ohne-befund" id="thema-${t.thema.id}" open`))
+    }
+    expect(panel).not.toContain('Ohne Befund: ')
+    expect(renderToStaticMarkup(<BefundblattAnzeige b={b} druck />)).toContain('Ohne Befund: ')
+  })
+})

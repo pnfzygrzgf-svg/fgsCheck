@@ -831,3 +831,4 @@ describe('Kurvenregel im Thema Sicht (29.10.2026)', () => {
     expect(ohne.panel).not.toContain('feld-kurve-b1')
   })
 })
+
