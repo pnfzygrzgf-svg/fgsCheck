@@ -10,6 +10,7 @@
 // (geo.strassentyp, gebildet in vorbelegung.ts) hat Vorrang vor der OSM-Annahme, auch wenn er offen bleibt (Hinweis). Die übrigen
 // Regeln des Pakets C stehen in automatikC.ts.
 
+import { ohneLuftbildUebergang, LUFTBILD_UEBERGANG_TEXT } from '../daten/luftbildFgs'
 import { tag } from './lesetext'
 import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
 import { type P, add, sub, dot, dist, einheit, rechts, links, lv95, imPolygon, abstandStrecke, segSchnitt } from '../geo'
@@ -261,7 +262,8 @@ export function automatik(x: AutoEingang): void {
   const { st, fall, geo, w, setze, feldHinweis, rechner } = x
   const gerade = st.flatMap(s => s.zufahrten.filter(z => z.art !== 'abbiegend'))
   const zuf = st.flatMap(s => s.zufahrten)
-  const osm = geo.osm ?? null
+  // der synthetische Übergang aus dem Luftbild (daten/luftbildFgs.ts) ist kein OSM-Beleg: weder Nachbar noch Tags des eigenen Übergangs
+  const osm = geo.osm ? ohneLuftbildUebergang(geo.osm) : null
   const av = geo.av?.length ? new AvIndex(geo.av) : null
   const n = osm ? netzBauen(osm) : null
   // Querungsachse über alle Teilstreifen (Bord bis Bord, je 1 m darüber)
@@ -554,7 +556,10 @@ export function automatik(x: AutoEingang): void {
   const handIds = new Set(fall.streifenHand.map(h => h.id))
   const vonHand = st.some(s => handIds.has(s.fgsId))
   const mk = fall.ort.markierung
-  if (!vonHand) setze('neuanlage', false, mk && istFgs(mk) ? 'osm' : 'rechnung', mk && istFgs(mk)
+  // Übergang aus dem Luftbild (ETH-Modell), nicht in OSM: Bestand nur angenommen, Quelle Luftbild
+  const lbU = eigenId !== null && eigenId < 0 && (!!fall.ort.herkunft || st.some(s => !!s.luftbildUebergang))
+  if (lbU) setze('neuanlage', false, 'luftbild', `${vonHand ? 'Streifen von Hand am ' : ''}${LUFTBILD_UEBERGANG_TEXT}: Bestand angenommen – prüfen`)
+  else if (!vonHand) setze('neuanlage', false, mk && istFgs(mk) ? 'osm' : 'rechnung', mk && istFgs(mk)
     ? 'bestehender Übergang (OSM mit Markierung bzw. Lichtsignal)' : 'Streifen aus OSM und AV bzw. Luftbild erkannt: Bestand')
   else if (eigenId !== null && mk && istFgs(mk)) setze('neuanlage', false, 'osm', 'Streifen von Hand an einem markierten OSM-Übergang: Bestand')
   else if (eigenId === null || (mk && !istFgs(mk)))

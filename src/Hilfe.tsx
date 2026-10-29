@@ -299,7 +299,8 @@ export function Anleitung() {
           <li>Amtliche Vermessung frei über geodienste.ch: 19 Kantone ganz, Wallis teilweise (z. B. ohne Sitten und Brig) und
             Liechtenstein. LU, VD, NE, NW, OW und JU geben sie nur mit Freigabe ab: dort rechnet die App nicht.</li>
             <li>Streifen aus dem Luftbild (ETH-Modell): fester Stand je Stadt, nur Bern, Zürich und Basel, nur an Strassen für
-            Fahrzeuge; Kandidaten mit einem OSM-Übergang in 15 m blendet die App aus. Findet die eigene Erkennung dort keine Balken,
+            Fahrzeuge und nur von beiden Modellen der ETH bzw. in beiden Berner Flügen gefunden; Kandidaten mit einem OSM-Übergang in
+            15 m blendet die App aus. Findet die eigene Erkennung dort keine Balken,
             steht «im Luftbild kein Streifen bestätigt».</li>
             <li>Streifen im Luftbild: nur gelbe Streifen, Balken bis rund 6 m; weisse Streifen erkennt die App nicht. Mehrere Streifen
             an einem Knoten und sehr breite Streifen bildet sie nicht immer richtig: dann mit «Streifen planen» von Hand zeichnen.</li>

@@ -15,7 +15,7 @@
 // eine Fall-Datei bzw. der Browser-Speicher den Übergang wieder einfügen kann.
 
 import { type P, wgs, lv95, dist, sub, dot, add } from '../geo'
-import type { OsmKnoten } from './osm'
+import type { OsmKnoten, OsmDaten } from './osm'
 import { holeText, AbrufFehler } from './holen'
 import type { Box } from '../ausschnitt'
 
@@ -166,6 +166,15 @@ export function kandidatKnoten(id: number, h: LuftbildHerkunft): OsmKnoten {
 /** Übergang aus dem Luftbild (synthetisch, Tag source) */
 export const istLuftbildUebergang = (t: Record<string, string> | undefined): boolean => t?.source === LUFTBILD_FGS_QUELLE &&
   t.highway === 'crossing'
+
+/**
+ * OSM-Daten ohne den synthetischen Übergang und seinen Fussweg (für alles, was OSM als Beleg liest: Abstände zu anderen Übergängen,
+ * Tags des eigenen Übergangs, Arme mit Querung im Bedarfsmodul). Ohne solche Elemente dasselbe Objekt.
+ */
+export function ohneLuftbildUebergang(osm: OsmDaten): OsmDaten {
+  const u = osm.uebergaenge.filter(x => !istLuftbildUebergang(x.tags)), q = osm.querungen.filter(w => w.tags.source !== LUFTBILD_FGS_QUELLE)
+  return u.length === osm.uebergaenge.length && q.length === osm.querungen.length ? osm : { ...osm, uebergaenge: u, querungen: q }
+}
 
 /** Herkunft aus der Fall-Datei prüfen (null, wenn ungültig) */
 export function herkunftLesen(x: unknown): LuftbildHerkunft | null {

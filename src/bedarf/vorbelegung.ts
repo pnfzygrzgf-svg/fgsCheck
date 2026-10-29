@@ -140,7 +140,11 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   // Querungstyp aus der Querungsart der Streifen (Panel: «Querung» je Streifen)
   const typen = [...new Set(st.map(streifenTyp))]
   const mitLsa = st.some(s => s.lsa === 'ja')
-  if (typen.length === 1 && typen[0] === 'fgs') setze('typ', mitLsa ? 'lsa' : 'fgs', 'rechnung', mitLsa
+  // Übergang aus dem Luftbild (ETH-Modell), nicht in OSM: Fussgängerstreifen nur aus dem Luftbild (daten/luftbildFgs.ts)
+  const lbU = st.some(s => !!s.luftbildUebergang)
+  if (typen.length === 1 && typen[0] === 'fgs' && lbU && !mitLsa) setze('typ', 'fgs', 'luftbild',
+    `Fussgängerstreifen im Luftbild erkannt (ETH-Modell), nicht in OSM – prüfen`)
+  else if (typen.length === 1 && typen[0] === 'fgs') setze('typ', mitLsa ? 'lsa' : 'fgs', 'rechnung', mitLsa
     ? 'Streifen als Fussgängerstreifen mit Lichtsignal gerechnet' : 'Streifen als Fussgängerstreifen gerechnet')
   else if (typen.length === 1 && typen[0] === 'trottoirueberfahrt') setze('typ', typen[0], 'hand', TUE_WAHL_TEXT)
   // unmarkierte OSM-Querung ohne Wahl am Streifen (29.10.2026): Annahme aus OSM

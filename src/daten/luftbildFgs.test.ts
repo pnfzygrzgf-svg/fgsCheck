@@ -8,9 +8,10 @@ import { bildAusPixeln } from '../rechner/luftbild'
 import { rechneFall } from '../rechner'
 import { leererFall, fallLesen, fallSchreiben, ohneUebergang, rechnungsSchluessel } from '../fall'
 import { streifenTitel } from '../benennung'
+import { querungen, vorbelegen } from '../bedarf/vorbelegung'
 import {
   snapshotLesen, dateienImAusschnitt, ladeLuftbildFgs, luftbildFgsCacheLeeren, kandidatenAnzeigen, osmMitLuftbildUebergang, herkunftAus,
-  kandidatKnoten, istLuftbildUebergang, herkunftLesen, flugText, kandidatTooltip, LUFTBILD_UEBERGANG_TEXT, KEIN_STREIFEN_TEXT, OSM_NAH_M,
+  kandidatKnoten, istLuftbildUebergang, herkunftLesen, ohneLuftbildUebergang, flugText, kandidatTooltip, LUFTBILD_UEBERGANG_TEXT, KEIN_STREIFEN_TEXT, OSM_NAH_M,
   WEG_MAX_M, type LuftbildKandidat, type LuftbildFgsSnapshot,
 } from './luftbildFgs'
 
@@ -251,5 +252,58 @@ describe('Fall-Datei mit Herkunft', () => {
     expect(b.ort.herkunft).toBeUndefined()
     expect(hb).toHaveLength(1)
     expect(herkunftLesen({ art: 'anders', p: k.p, conf: 0.5, jahre: [] })).toBeNull()
+  })
+})
+
+describe('Bedarf: der Übergang aus dem Luftbild ist kein OSM-Beleg', () => {
+  // Hauptstrasse mit einem echten OSM-Fussgängerstreifen 60 m östlich (Knoten 50 auf dem Weg)
+  const rohMit = () => {
+    const kn = [[10, -300, 0], [50, 60, 0], [13, 300, 0]] as const
+    return { elements: [
+      { type: 'way', id: 1, tags: { highway: 'tertiary', name: 'Hauptstrasse', maxspeed: '50' }, nodes: kn.map(k => k[0]), geometry: kn.map(k => ll(k[1], k[2])) },
+      { type: 'node', id: 50, ...ll(60, 0), tags: { highway: 'crossing', crossing: 'marked' } },
+    ] }
+  }
+  const AV2: AvFlaeche[] = [
+    { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: 351, ringe: [rechteck(-300, -4, 300, 4)] },
+    { art: 'Trottoir', kanton: 'BE', qualitaet: 'AV93', bfs: 351, ringe: [rechteck(-300, 4, 300, 7)] },
+    { art: 'Trottoir', kanton: 'BE', qualitaet: 'AV93', bfs: 351, ringe: [rechteck(-300, -7, 300, -4)] },
+  ]
+  it('ohneLuftbildUebergang: Knoten und Fussweg weg, sonst dasselbe Objekt', () => {
+    const k = kand(0, 1, 0)
+    const mit = osmParsen(osmMitLuftbildUebergang(rohMit(), k.id, herkunftAus(k)) as Parameters<typeof osmParsen>[0])
+    const ohne = ohneLuftbildUebergang(mit)
+    expect(ohne.uebergaenge.map(u => u.id)).toEqual([50])
+    expect(ohne.querungen).toEqual([])
+    const osm = osmParsen(rohMit() as unknown as Parameters<typeof osmParsen>[0])
+    expect(ohneLuftbildUebergang(osm)).toBe(osm)
+  })
+  it('Neuanlage und Querungstyp mit Quelle Luftbild, Abstand zum nächsten Streifen nur zu OSM-Übergängen, nie die eigene Kennung', () => {
+    const k = kand(0, 1, 0)
+    const osm = osmParsen(osmMitLuftbildUebergang(rohMit(), k.id, herkunftAus(k)) as Parameters<typeof osmParsen>[0])
+    const f = leererFall(ll(0, 1).lat, ll(0, 1).lon, k.id)
+    f.ort.herkunft = herkunftAus(k)
+    f.ort.markierung = 'markiert'
+    const r = rechneFall(osm, AV2, [], k.id, f, null)
+    expect(r.streifen).toHaveLength(1)
+    const v = vorbelegen(querungen(r.streifen)[0], f, [], { osm, av: AV2, ladeort: lv(0, 0), osmRadiusM: 300 })
+    expect(v.werte.neuanlage).toMatchObject({ wert: false, quelle: 'luftbild' })
+    expect(v.werte.neuanlage.text).toContain(LUFTBILD_UEBERGANG_TEXT)
+    expect(v.werte.typ).toMatchObject({ wert: 'fgs', quelle: 'luftbild' })
+    expect(v.werte.typ.text).toContain('ETH-Modell')
+    expect(v.werte.abstandFgsM).toMatchObject({ wert: 60, quelle: 'osm' })
+    expect(JSON.stringify(v)).not.toContain(String(k.id))
+    // derselbe Ort als OSM-Übergang (Knoten 12 auf dem Weg): Quellen wie bisher OSM bzw. Sichtrechner
+    const roh2 = rohMit()
+    roh2.elements[0].nodes = [10, 12, 50, 13] as never
+    ;(roh2.elements[0] as { geometry: unknown[] }).geometry = [ll(-300, 0), ll(0, 0), ll(60, 0), ll(300, 0)]
+    roh2.elements.push({ type: 'node', id: 12, ...ll(0, 0), tags: { highway: 'crossing', crossing: 'marked' } } as never)
+    const osm2 = osmParsen(roh2 as unknown as Parameters<typeof osmParsen>[0])
+    const f2 = leererFall(ll(0, 0).lat, ll(0, 0).lon, 12)
+    f2.ort.markierung = 'markiert'
+    const r2 = rechneFall(osm2, AV2, [], 12, f2, null)
+    const v2 = vorbelegen(querungen(r2.streifen)[0], f2, [], { osm: osm2, av: AV2, ladeort: lv(0, 0), osmRadiusM: 300 })
+    expect(v2.werte.neuanlage).toMatchObject({ wert: false, quelle: 'osm' })
+    expect(v2.werte.typ).toMatchObject({ wert: 'fgs', quelle: 'rechnung' })
   })
 })
