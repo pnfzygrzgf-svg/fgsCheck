@@ -365,8 +365,14 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Nicht geprüfte Themen stehen im Panel als graue Zeile mit Grund («Sicht – nicht geprüft: Begegnungszone, flächiges Queren»).
   Sicht vom Velo (VSS 40 241 Z. 14, S. 6; VSS 40 273 Tab. 3): an geraden Zufahrten eines Fussgängerstreifens mit Radstreifen (OSM-Abzug)
   bzw. Radweg (`cycleway…=track`) eine zweite Prüfung von der Veloachse (Mitte des Radstreifens bzw. 0,5 m vom Fahrbahnrand), Soll nach
-  `veloSichtweite` des Kerns, Längsneigung 0 % angenommen, Hinweis zu schnellen E-Bikes über 30 km/h; Ausgabefeld `ZufahrtErgebnis.velo`,
+  `veloSichtweite` des Kerns; die Spalte wählt die App nach der Längsneigung der Fahrlinie aus dem Höhenmodell swissALTI3D (50 m vor
+  dem Streifen, gleicher Abruf und Cache wie die Kurvenregel; ohne Profil 0 %; `src/veloSicht.ts`), Hinweis zu schnellen E-Bikes über
+  30 km/h mit dem Wert zur Neigung; «geprüft bis x m», wenn die Fahrlinie vor dem Soll endet; Ausgabefeld `ZufahrtErgebnis.velo`,
   Zeile «↳ Velo» in der Zufahrtstabelle, gestrichelter Kegel auf der Karte, Soll-Regel H1-V im Thema Sicht. Velorouten lösen sie nicht aus.
+  Hofzufahrten (`src/rechner/abbiegen.ts`): eine Abbiegezufahrt über `highway=service` bzw. `pedestrian` oder einen Weg ausserhalb der
+  Strassentypen gilt als Hof- bzw. Garagenzufahrt: beurteilt nach der bfu-Knotenregel (Radius → 10–24 m) nur ab der Einmündung, die
+  Fahrlinie endet dort (mindestens 5 m); mündet sie weiter weg als diese Sicht, ist sie keine Zufahrt («Hier nicht geprüfte
+  Richtungen», die Strecke prüft die gerade Zufahrt). Strassen (residential, living_street, unclassified, tertiary …) unverändert.
   Trottoirüberfahrten heissen in Liste, Karte und Bericht «Trottoirüberfahrt 1»
   (`streifenTitel`), lassen sich an den Enden verschieben (Griffe in der obersten Ebene, Fang auf die AV); ein Auge von Hand bleibt nur,
   wenn es noch zur verschobenen Überfahrt passt (`augePlausibel`).
@@ -488,7 +494,8 @@ Keine Anmeldung, kein eigener Server; gerechnet wird im Browser. Eingaben bleibe
 selbst speichert; an keinen Dienst gehen Eingaben oder Ergebnisse. Im Browser (localStorage) liegt je Übergang mit Eingaben ein
 Eintrag `fgsCheck.fall.<Übergang>` (Eingaben, Bezeichnung, Koordinaten); Übergänge ohne Eingaben werden nicht gespeichert
 (`fallMerken` in `src/fall.ts`), «Eingaben verwerfen» bzw. das Löschen aller Eingaben entfernt den Eintrag. Alle Einträge
-löscht man über die Website-Daten der Seite im Browser. Der Browser fragt direkt an (die Dienste sehen technisch die
+löscht man über die Website-Daten der Seite im Browser. Die zuletzt gesehene Kartenansicht (Mitte und Zoom) liegt unter
+`fgsCheck.karteAnsicht`; nach einem Neuladen öffnet die Karte dort. Der Browser fragt direkt an (die Dienste sehen technisch die
 IP-Adresse):
 
 | Dienst | Inhalt der Anfrage |
@@ -496,7 +503,7 @@ IP-Adresse):
 | wmts.geo.admin.ch (swisstopo) | Kartenkacheln (Luftbild bzw. Landeskarte) des sichtbaren Ausschnitts |
 | api3.geo.admin.ch (swisstopo, SearchServer) | Ortssuche: der eingegebene Suchbegriff (Ort, Adresse, Strasse, PLZ) |
 | wms.geo.admin.ch, api3.geo.admin.ch | Luftbild ±30 m um den Übergang, Kartenbild des Berichts; Flugjahr der 1-km-Kachel |
-| api3.geo.admin.ch (swisstopo, Höhenprofil) | an einer Trottoirüberfahrt bis vier Linien der Knotensicht und, mit einer Kurve vor dem Streifen, die Fahrlinie der Zufahrt (50 m, Koordinaten) für das Längsgefälle der Kurvenregel |
+| api3.geo.admin.ch (swisstopo, Höhenprofil) | an einer Trottoirüberfahrt bis vier Linien der Knotensicht und, mit einer Kurve vor dem Streifen, bzw. mit Radstreifen oder Radweg die Fahrlinie der Zufahrt (50 m, Koordinaten) für die Längsneigung (Kurvenregel, Sicht vom Velo) |
 | geodienste.ch (AV-WFS) | Rechteck ±150 m um den Übergang (BBOX) |
 | Overpass: overpass.osm.ch, ersatzweise overpass-api.de, overpass.kumi.systems, overpass.private.coffee | Kartenausschnitt (Übergänge und Strassennamen) mit Rand (Suche, automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m |
 | map.bern.ch (nur Stadt Bern) | Rechteck ±150 m (amtliche Parkfelder, Baumkataster, Haltestellen, Verkehrsdaten) |

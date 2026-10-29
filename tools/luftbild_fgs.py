@@ -36,9 +36,9 @@
 #
 # Braucht GDAL (osgeo) und Netz (Overpass, overpass.osm.ch). Aufruf aus dem Ordner fgsCheckWeb:
 #   python3 tools/luftbild_fgs.py <stadt> <ordner mit funde_*.jsonl> [weitere Ordner …]
-#   z. B. python3 tools/luftbild_fgs.py bern ~/Documents/VeloroutenCheck/_lokal/luftbild_erkennung \
-#                                            ~/Documents/VeloroutenCheck/_lokal/luftbild_erkennung/bern2026
-#         python3 tools/luftbild_fgs.py zurich ~/Documents/VeloroutenCheck/_lokal/luftbild_erkennung/zuerich
+#   z. B. python3 tools/luftbild_fgs.py bern <Ordner der Läufe 2024> \
+#                                            <Ordner der Läufe 2026>
+#         python3 tools/luftbild_fgs.py zurich <Ordner der Läufe Zürich>
 # ─────────────────────────────────────────────────────────────────────────────
 import datetime, json, math, os, sys, time, urllib.parse, urllib.request
 from osgeo import osr
