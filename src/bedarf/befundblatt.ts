@@ -196,6 +196,11 @@ function sollGrund(q: string): string {
   if (m) return `VSS 40 240 Z. 8.2, L ${m[1]}`
   return q === 'bis Knoten (Strassenende)' ? 'bis Strassenende' : q
 }
+/** «verdeckt durch …» aus Konflikten */
+function statusKurzK(k: readonly { klasse: string; layer: string }[]): string {
+  const arten = [...new Set(k.map(konfliktName))].slice(0, 3)
+  return `verdeckt${arten.length ? ` durch ${arten.join(', ')}` : ''}`
+}
 function statusKurz(z: ZufahrtErgebnis): string {
   if (z.status === 'frei') return 'frei'
   const arten = [...new Set(z.konflikte.map(konfliktName))].slice(0, 3)
@@ -345,7 +350,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     befund.alle = befund.alle.filter(x => !['H1', 'E3', 'E3a', 'D5-4'].includes(x.id))
     befund.masse = befund.masse.filter(mz => !mz.regeln.some(id => ['H1', 'E3'].includes(id)))
     const neu: Eintrag[] = []
-    const eintrag = (regel: 'H1' | 'E3' | 'E3a', x: Partial<Eintrag> & Pick<Eintrag, 'zustand' | 'staerke'>): Eintrag =>
+    const eintrag = (regel: 'H1' | 'E3' | 'E3a' | 'H1-V', x: Partial<Eintrag> & Pick<Eintrag, 'zustand' | 'staerke'>): Eintrag =>
       ({ id: regel, ebene: 'Norm', text: KATALOG[regel].ergebnis, quelle: quellText(regel), ...x })
     // Querung ohne Vortritt (29.10.2026): Ausnahme nach VSS 40 240 Z. 8.2 (E3a) bei wenig Querenden und wenig Verkehr; offen zählt nicht
     const e = gebildet.eingaben
@@ -355,6 +360,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     const fgText = typeof fgW === 'number' ? String(fgW) : `Klasse ${fgK ?? '?'}`
     // Korrektur S1: Einträge zur Sicht nur für Regeln, die der Baum erreicht hat (nicht ausserorts, Begegnungszone, flächig, Typ offen …)
     const erreichtR = (r: 'H1' | 'E3') => befund.ausgewertet.includes(r)
+    let veloGeprueft = false
     for (const s of g.streifen) {
       const st = streifenTyp(s)
       // «kein FGS» und Trottoirüberfahrt (Wahl am Streifen): keine Sicht auf die Wartefläche gerechnet
@@ -394,6 +400,15 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
           ...(z.freiBisM !== undefined ? { freiBisM: z.freiBisM } : {}) })
         const soll = `${String(z.sichtweite).replace('.', ',')} m frei (${z.sichtweiteQuelle})`
         const wo = g.streifen.length > 1 ? `${titel(s.fgsId)}, ${zName(s.fgsId, z.zufahrt)}` : zName(s.fgsId, z.zufahrt)
+        // Sicht vom Velo (29.10.2026): Fussgängerstreifen, Zufahrt mit Radstreifen bzw. Radweg (Sichtrechner); verdeckt: Soll-Befund
+        if (!ov && z.velo && erreichtR('H1')) {
+          const v = z.velo
+          veloGeprueft = true
+          if (!v.frei) neu.push(eintrag('H1-V', { staerke: 'weich', zustand: 'verletzt', ist: `frei bis ${v.freiBisM} m`, soll: `${v.soll} m`,
+            detail: `${wo}, Velo (${v.fuehrung === 'radstreifen' ? 'Radstreifen' : 'Radweg'}): frei bis ${v.freiBisM} m, Soll ${v.soll} m ` +
+              `(VSS 40 273 ${v.sollText.replace(/^Tab\. 3, /, 'Tab. 3, ')}, Längsneigung 0 % angenommen); ${statusKurzK(v.konflikte)}` +
+              (v.ebikeHinweis ? '; sind schnelle E-Bikes verboten, gilt eben 30 m' : '') }))
+        }
         if (frei && bis === undefined) {
           // abbiegende Zufahrten: das Tempo des Sichtrechners ist das der Querstrasse, das Soll kommt aus ihr bzw. dem Kurvenradius
           // (wie in der Grundprüfung); signalisiertes Tempo und V85 der Querung gelten dort nicht (Nachprüfung)
@@ -456,7 +471,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     const erreicht = (['H1', 'E3'] as const).filter(r => befund.ausgewertet.includes(r))
     const d54 = befund.ausgewertet.includes('D5-4')
     const offenSicht = neu.filter(x => x.zustand === 'offen')
-    if (neu.some(x => x.zustand === 'verletzt' && x.id !== 'E3a')) befund.alle.push({ id: 'D5-4', ebene: 'Norm', staerke: 'hinweis', zustand: 'verletzt',
+    if (neu.some(x => x.zustand === 'verletzt' && x.id !== 'E3a' && x.id !== 'H1-V')) befund.alle.push({ id: 'D5-4', ebene: 'Norm', staerke: 'hinweis', zustand: 'verletzt',
       text: KATALOG['D5-4'].ergebnis, quelle: quellText('D5-4') })
     else if (d54 && offenSicht.length) befund.alle.push({ id: 'D5-4', ebene: 'Norm', staerke: 'hinweis', zustand: 'offen',
       text: KATALOG['D5-4'].ergebnis, quelle: quellText('D5-4'), fehlend: [...new Set(offenSicht.flatMap(x => x.fehlend ?? []))] })
@@ -490,6 +505,11 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     // (Korrektur A3: nur wenn der Baum H1 bzw. E3 erreicht hat; D5-4 erfüllt, wenn eine erreichte Sichtregel erfüllt ist)
     const mitEintrag = new Set(befund.alle.map(x => x.id))
     const sichtErfuellt = erreicht.filter(r => sicht.some(x => x.regel === r) && !mitEintrag.has(r))
+    // Sicht vom Velo: geprüft, wo eine Zufahrt Radstreifen bzw. Radweg hat; ohne Eintrag erfüllt
+    if (veloGeprueft) {
+      befund.ausgewertet = [...new Set([...befund.ausgewertet, 'H1-V'])]
+      if (!mitEintrag.has('H1-V')) sichtErfuellt.push('H1-V' as 'H1')
+    }
     befund.erfuellt = [...new Set([...befund.erfuellt.filter(id => !['H1', 'E3', 'E3a', 'D5-4'].includes(id)), ...sichtErfuellt,
       ...(d54 && sichtErfuellt.length ? ['D5-4'] : [])])].filter(id => !mitEintrag.has(id))
   }

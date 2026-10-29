@@ -578,6 +578,14 @@ export default function Karte(props: {
         L.polygon(multiLl(z.feld), { color: farbe, weight: 1, fillColor: farbe, fillOpacity: 0.1, interactive: !cb.current.werkzeug })
           .bindTooltip(`Sichtfeld ${esc(zufahrtText(cb.current.zufahrtNamen.get(z.fgsId), z.zufahrt))}${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(z.status.replace('_', ' '))}`, { sticky: true })
           .on('click', () => { if (!cb.current.werkzeug) cb.current.onZufahrt(zufahrtKey(z)) }).addTo(eb.sicht)
+        // Sicht vom Velo (29.10.2026): gestrichelt wie die Velo-Dreiecke der Knotensicht
+        if (z.velo) {
+          const fv = STATUS_FARBE[z.velo.frei ? 'frei' : 'verdeckt']
+          L.polygon(multiLl(z.velo.feld), { color: fv, weight: 1, dashArray: KS_STRICH.velo, fillColor: fv, fillOpacity: 0.06, interactive: !cb.current.werkzeug })
+            .bindTooltip(`Sicht vom Velo ${esc(zufahrtText(cb.current.zufahrtNamen.get(z.fgsId), z.zufahrt))}: ${z.velo.frei ? 'frei' : `verdeckt, frei bis ${z.velo.freiBisM} m`}, ` +
+              `Soll ${z.velo.soll} m (VSS 40 273 Tab. 3)${z.velo.ebikeHinweis ? '; mit Verbot für schnelle E-Bikes gälte eben 30 m' : ''}`, { sticky: true })
+            .addTo(eb.sicht)
+        }
       }
       if (s.trottoirueberfahrt) {
         // Trottoirüberfahrt (27.10.2026): die gerechnete Überfahrt zwischen vorderem und hinterem Rand (Trottoirfarbe, grau gestrichelt),

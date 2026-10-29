@@ -198,7 +198,7 @@ export function nachThema(alle: readonly Eintrag[]): { thema: ThemaDef; eintraeg
 // ── Reihenfolge der Regeln im Thema nach der Norm (27.10.2026) ──
 
 /** Normen in der Reihenfolge, in der ihre Ziffern ordnen (erste Fundstelle aus einer dieser Normen zählt) */
-const NORM_REIHE = ['40241', '40240', '40242', '40837', '40213', '640075', '640850a', '640852', '640070']
+const NORM_REIHE = ['40241', '40240', '40242', '40837', '40273', '40213', '640075', '640850a', '640852', '640070']
 /** Lichtsignal: nach VSS 40 837 (Z. 16 Gelb, Z. 18 Grün, Z. 21 Vorsprung), dann SN 640 075, VSS 40 240 Tab. 3, dann Bern */
 const LSA_REIHE = ['I1', 'I2', 'I3a', 'I3b', 'I5', 'I4', 'I8', 'I6', 'I6-B', 'I7-B1', 'I7-B2', 'I7-B3', 'I7-B4']
 const KAT_INDEX = new Map(REGEL_IDS.map((id, i) => [id as string, i]))

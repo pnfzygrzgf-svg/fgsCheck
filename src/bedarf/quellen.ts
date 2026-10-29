@@ -44,6 +44,8 @@ export const WERK_INFO: Readonly<Record<WerkId, WerkInfo>> = {
     'eine einmündende Strasse weiterführt.', gilt: NORM },
   '40837': { ebene: 'Norm', was: 'VSS 40 837 ist die Norm des VSS für die Zeiten an Lichtsignalanlagen, etwa wie lange Grün und Gelb ' +
     'für Fussgänger mindestens dauern.', gilt: NORM },
+  '40273': { ebene: 'Norm', was: 'VSS 40 273 ist die Norm des VSS für die Sicht an Knoten; fgsCheck nutzt daraus die Sichtweiten ' +
+    'für den Veloverkehr.', gilt: NORM },
   '40213': { ebene: 'Norm', was: 'VSS 40 213 ist die Norm des VSS für bauliche Elemente, die den Verkehr verlangsamen, etwa ' +
     'Einengungen und Trottoirnasen.', gilt: NORM },
   '640075': { ebene: 'Norm', was: 'SN 640 075 ist die Schweizer Norm für einen Strassenraum ohne Hindernisse, damit ihn auch Menschen ' +
@@ -151,7 +153,7 @@ export function werkBezug(w: WerkId): string | null {
 /** Name eines Werks im Lesetext: verständlich, ohne Ausgabe und Kennungen (die stehen im Quellenverzeichnis) */
 export const LESENAME: Readonly<Record<WerkId, string>> = {
   '40241': 'VSS-Norm 40 241 Fussgängerstreifen', '40240': 'VSS-Norm 40 240 Querungsanlagen', '40242': 'VSS-Norm 40 242 Trottoirüberfahrten',
-  '40837': 'VSS-Norm 40 837 Lichtsignalanlagen', '40213': 'VSS-Norm 40 213 Verkehrsberuhigungselemente',
+  '40837': 'VSS-Norm 40 837 Lichtsignalanlagen', '40273': 'VSS-Norm 40 273 Sicht in Knoten', '40213': 'VSS-Norm 40 213 Verkehrsberuhigungselemente',
   '640075': 'Norm SN 640 075 Hindernisfreier Verkehrsraum', '640850a': 'Norm SN 640 850a Markierungen',
   '640852': 'Norm SN 640 852 Taktil-visuelle Markierungen', '640070': 'Norm SN 640 070 Fussgängerverkehr',
   VOT30: 'Tempo-30-Zonen-Verordnung (SR 741.213.3)', SSV: 'Signalisationsverordnung (SSV)', VRV: 'Verkehrsregelnverordnung (VRV)',

@@ -832,3 +832,48 @@ describe('Kurvenregel im Thema Sicht (29.10.2026)', () => {
   })
 })
 
+
+describe('Sicht vom Velo an Zufahrten mit Radstreifen (29.10.2026)', () => {
+  it('nur mit Radstreifen bzw. Radweg nach OSM; Soll nach VSS 40 273 Tab. 3; verdeckt: Soll-Befund «Sicht vom Velo»', () => {
+    const ohne = rechneFall(daten(), AV, [], 12, fallMit(() => {}), null)
+    expect(ohne.streifen[0].zufahrten.some(z => z.velo)).toBe(false)
+    const r = rechneFall(daten({ cycleway: 'lane' }), AV, [], 12, fallMit(() => {}), null)
+    const zv = r.streifen[0].zufahrten.filter(z => z.velo)
+    expect(zv.length).toBeGreaterThan(0)
+    for (const z of zv) expect(z.velo).toMatchObject({ fuehrung: 'radstreifen', soll: 50, frei: true })
+    const tw = rechneFall(daten({ cycleway: 'track' }), AV, [], 12, fallMit(() => {}), null).streifen[0].zufahrten.filter(z => z.velo)
+    expect(tw.every(z => z.velo!.fuehrung === 'radweg' && z.velo!.vomRandM === 0.5)).toBe(true)
+    // Parkfeld an der Veloachse: verdeckt, Befund weich mit Ist/Soll
+    const z0 = zv[0]
+    const p = z0.velo!.sichtpunkte[Math.floor(z0.velo!.sichtpunkte.length / 2)]
+    const f = fallMit(x => {
+      x.hindernisse.push({ id: 'pv', art: 'parkfeld', klasse: 'auto', ring: [[p[0] - 2, p[1] - 0.6], [p[0] + 2, p[1] - 0.6], [p[0] + 2, p[1] + 0.6], [p[0] - 2, p[1] + 0.6]], quelle: 'hand' })
+      x.bedarf = { felder: { innerorts: { wert: true, quelle: 'hand' }, vSig: { wert: 50, quelle: 'hand' } } }
+    })
+    const rv = rechneFall(daten({ cycleway: 'lane' }), AV, [], 12, f, null)
+    const v = rv.streifen[0].zufahrten.find(z => z.zufahrt === z0.zufahrt)!.velo!
+    expect(v.frei).toBe(false)
+    expect(v.freiBisM).toBeLessThan(50)
+    const [b] = befundblaetter(rv, f, { vorgabe: { bern: false, kantonBE: false } })
+    const e = b.befund.alle.find(x => x.id === 'H1-V')
+    expect(b.befund.ausgewertet).toContain('H1')
+    {
+      expect(e).toMatchObject({ staerke: 'weich', zustand: 'verletzt', ist: `frei bis ${v.freiBisM} m`, soll: '50 m' })
+      expect(e!.detail).toMatch(/Velo \(Radstreifen\): frei bis \d+ m, Soll 50 m \(VSS 40 273 Tab\. 3, über 30 km\/h, Spalte 0 %, Längsneigung 0 % angenommen\); verdeckt durch Parkfeld; sind schnelle E-Bikes verboten, gilt eben 30 m/)
+    }
+  })
+})
+
+describe('Erweiterte Prüfung im Panel: nicht geprüfte Themen sichtbar (29.10.2026)', () => {
+  it('Begegnungszone: Thema «Sicht» als graue Zeile «nicht geprüft» mit Grund und Fundstelle', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server')
+    const { createElement } = await import('react')
+    const { BedarfAbschnitt } = await import('../BedarfPanel')
+    const f = fallMit(x => { x.bedarf = { felder: { innerorts: { wert: true, quelle: 'hand' }, vSig: { wert: 20, quelle: 'hand' },
+      tempoRegime: { wert: 'begegnungszone', quelle: 'hand' } } } })
+    const bl = befundblaetter(rechneFall(daten(), AV, [], 12, f, null), f, { vorgabe: { bern: false, kantonBE: false } })
+    expect(bl[0].befund.ende).toBe('begegnungszone')
+    const panel = renderToStaticMarkup(createElement(BedarfAbschnitt, { fall: f, blaetter: bl, vorgabe: { bern: false, kantonBE: false }, aendern: () => {} }))
+    expect(panel).toMatch(/<details class="befund-thema bedarf-thema thema-nicht-geprueft grau" id="thema-sicht"><summary[^>]*><b>Sicht<\/b> <span class="klein">– nicht geprüft: Begegnungszone, flächiges Queren \(VSS 40 240 Ziffer 20, Seite 19\)<\/span><\/summary>/)
+  })
+})

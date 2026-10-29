@@ -636,6 +636,8 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (h.offenV85 && !verletzt) throw new Offen(['v85'])
     return ja(verletzt, { ist: fmtListe(sicht, 1), soll: `≥ ${fmt(h.soll, 0)}`, detail: h.text, normHinweis: h.normHinweis })
   },
+  // Sicht vom Velo (29.10.2026): nur aus dem Sichtrechner (befundblatt.ts), ohne Eingabe
+  'H1-V': () => null,
   H1b: k => {
     const v85 = k.o('v85')
     if (v85 === null) return null

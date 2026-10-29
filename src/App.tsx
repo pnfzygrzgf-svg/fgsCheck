@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, ERKENNUNG_UNGEPRUEFT, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
   OHNE_VORTRITT_FARBE, TUE_RAND, FAHRZEUG_ZOOM,
@@ -2329,6 +2329,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             (Auto-Parkfeld, Gebäude), <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_hindernis }} />Hecke, Mauer,
             übriges Hindernis, <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_baum }} />Baum,
             <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_zweirad }} />Zweirad-Feld (Velo/Motorrad)</li>
+          {rechnung?.streifen.some(s => s.zufahrten.some(z => z.velo)) && <li><span className="farbe gestrichelt" style={{ borderColor: STATUS_FARBE.frei,
+            borderStyle: 'dashed' }} />Sicht vom Velo (Radstreifen bzw. Radweg; VSS 40 273 Tab. 3), gestrichelt</li>}
           {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li>Knotensicht: <span className="farbe" style={{ background: STATUS_FARBE.frei }} />frei,
             <span className="farbe" style={{ background: STATUS_FARBE.verdeckt }} />verdeckt; Auto durchgezogen, Velo gestrichelt, Trottoir
             punktiert; <span className="farbe rund" style={{ background: '#ffffff', borderColor: '#111827' }} />Auge der Ausfahrenden</li>}
@@ -2609,8 +2611,8 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           <thead><tr><th>Zufahrt</th><th>Tempo</th><th title="Sichtweite, die frei sein muss (nach Tempo bzw. Kurvenradius)">nötige Sicht</th>
             <th>Ergebnis</th></tr></thead>
           <tbody>
-            {nachNr(s.zufahrten, namen).map(z => (
-              <tr key={z.zufahrt} className={zufahrtKey(z) === auswahl ? 'aktiv' : ''}
+            {nachNr(s.zufahrten, namen).map(z => (<Fragment key={z.zufahrt}>
+              <tr className={zufahrtKey(z) === auswahl ? 'aktiv' : ''}
                 title={`Fahrtrichtung ${z.richtung}° (Zufahrt «${z.zufahrt}», ab Osten gegen den Uhrzeigersinn); Fahrt von ${zufahrtHerkunft16(z, s.bw)}` +
                   (z.deckung ? `. ${GEDECKT_TITEL}` : '')}
                 onClick={() => setAuswahl(zufahrtKey(z) === auswahl ? null : zufahrtKey(z))}>
@@ -2627,7 +2629,17 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
                   {z.unter5m && <div className="klein warnung">Parkfeld unter 5 m</div>}
                   {z.erkennungM && <div className="klein" title={ERKENNUNG_TITEL}>{erkennungText(z.erkennungM)}</div>}</td>
               </tr>
-            ))}
+              {/* Sicht vom Velo (29.10.2026): zweite Prüfung von der Veloachse, nur mit Radstreifen bzw. Radweg */}
+              {z.velo && <tr className="velo-zeile">
+                <td className="klein">↳ Velo ({z.velo.fuehrung === 'radstreifen' ? 'Radstreifen' : 'Radweg nach OSM'}, Achse {f1(z.velo.vomRandM)} m vom Rand)</td>
+                <td />
+                <td title={`Herleitung: VSS 40 273 ${z.velo.sollText}; Längsneigung 0 % angenommen`}>{z.velo.soll} m<div className="klein">(VSS 40 273 Tab. 3)</div></td>
+                <td><span className="farbe" style={{ background: STATUS_FARBE[z.velo.frei ? 'frei' : 'verdeckt'] }} />
+                  Velo: {z.velo.frei ? 'frei' : `verdeckt, frei bis ${z.velo.freiBisM} m`}, Soll {z.velo.soll} m
+                  {z.velo.bisM !== undefined && <div className="klein warnung">geprüft bis {z.velo.bisM} m</div>}
+                  {z.velo.ebikeHinweis && <div className="klein" title="VSS 40 273 Tab. 3">mit Verbot für schnelle E-Bikes gälte eben 30 m</div>}</td>
+              </tr>}
+            </Fragment>))}
             {!s.zufahrten.length && <tr><td colSpan={4} className="klein">keine Zufahrt</td></tr>}
           </tbody>
         </table>

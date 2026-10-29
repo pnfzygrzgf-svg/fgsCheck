@@ -98,7 +98,8 @@ describe('Erweiterte Prüfung nach Thema: Felder, Fragen, Sprünge (Panel)', () 
     let n = 0
     for (const [name, felder] of FAELLE) {
       const f = fallMit(felder), b = blattR(f), html = panel(f, b), a = themenAnsicht([b])
-      const mitTeil = new Set(a.themen.filter(hatInhalt).map(t => t.thema.id))
+      // eigene Zeile: Themen mit Inhalt, seit 29.10.2026 im Panel auch geprüfte ohne Befund und nicht geprüfte
+      const mitTeil = new Set(a.themen.filter(t => html.includes(`id="${themaId(t.thema.id)}"`)).map(t => t.thema.id))
       for (const t of a.themen) {
         for (const p of t.felder) {
           const i = html.indexOf(`id="${feldZeileId(p)}"`)

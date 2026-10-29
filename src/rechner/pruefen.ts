@@ -33,6 +33,7 @@ import { type SpurHand, spurVersetzen, liniePunkte } from './spurhand'
 import type { ParkRaster } from './hindernisse'
 import { abbiegeZufahrt, SPUR_MIN_M, type AbbiegeKontext } from './abbiegen'
 import { freiBis } from './freibis'
+import { D_VELO_M, RADSTREIFEN_M, veloSichtweite } from '../knotensicht/rechner/velo'
 import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvexeHuelle, enthaelt, abstandMulti, huelle, abstandLinieMulti } from './poly'
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
 import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt, QuerungOhneVortritt } from './typen'
@@ -188,6 +189,35 @@ function schluessel(ergebnisse: ZufahrtErgebnis[], art: string, grad: number): s
 }
 
 interface StreifenX extends Streifen { netzQuelle?: string; strasse?: string }
+
+/** Radweg neben der Strasse nach den OSM-Tags des Wegs (cycleway bzw. cycleway:both/right/left = track) */
+const radwegTag = (t: Record<string, string>): boolean => ['cycleway', 'cycleway:both', 'cycleway:right', 'cycleway:left'].some(k => t[k] === 'track')
+/**
+ * Sicht des Veloverkehrs (29.10.2026; VSS 40 241 Z. 14 mit VSS 40 273 Tab. 3): Sichtpunkte der Fahrlinie seitlich auf die Veloachse
+ * versetzt (Radstreifen: seine Mitte, RADSTREIFEN_M breit innerhalb der Velostreifen-Linie; Radweg nach OSM: D_VELO_M vom Fahrbahnrand
+ * als Annahme), bis zur Sichtweite nach Tab. 3 (Längsneigung 0 %); Sichtfeld und Konflikte wie beim Fahrzeug. Ohne Radstreifen bzw.
+ * Radweg: nichts (kein Aufwand)
+ */
+function veloSicht(fs: { veloR: number; vomRand: number } | null, tags: Record<string, string> | null, sichtpunkte: P[], ref: [P, P][],
+  tempo: number, sf: (p: P[]) => Multi, kf: (f: Multi, p: P[]) => Konflikt[]): import('./typen').VeloSicht | undefined {
+  const art = fs && fs.veloR > 0 ? 'radstreifen' as const : tags && radwegTag(tags) ? 'radweg' as const : null
+  if (!art || !fs || sichtpunkte.length < 2 || !ref.length) return undefined
+  const vomRandV = art === 'radstreifen' ? Math.max(D_VELO_M, fs.veloR - RADSTREIFEN_M / 2) : D_VELO_M
+  const delta = fs.vomRand - vomRandV
+  const alle = sichtpunkte.map((p, k) => add(p, ref[Math.min(k, ref.length - 1)][1], delta))
+  const vs = veloSichtweite(tempo, 0)
+  const pts: P[] = [alle[0]]
+  let l = 0
+  for (let k = 1; k < alle.length; k++) {
+    const d = dist(alle[k - 1], alle[k])
+    if (l + d >= vs.A - 1e-6) { if (d > 0) pts.push(add(alle[k - 1], sub(alle[k], alle[k - 1]), (vs.A - l) / d)); l = vs.A; break }
+    l += d; pts.push(alle[k])
+  }
+  const feld = sf(pts), konflikte = kf(feld, pts)
+  return { fuehrung: art, vomRandM: Math.round(vomRandV * 100) / 100, soll: vs.A, sollText: vs.text, frei: !konflikte.length,
+    freiBisM: freiBis(pts, konflikte, sf, kf, Math.min(l, vs.A)), ...(l < vs.A - 1 ? { bisM: Math.floor(l + 1e-6) } : {}),
+    ebikeHinweis: vs.zeile === 'ueber30', konflikte, feld, sichtpunkte: pts }
+}
 
 /** pruefen: alle Teilstreifen -> Ergebnisse */
 export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
@@ -824,6 +854,8 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     const freiBisM = freiBis(sichtpunkte, konflikte, sf, kf, sw)
     // Erkennungsdistanz (zusätzliches Ausgabefeld, nur Fussgängerstreifen: eine Querung ohne Vortritt hat keine Balken)
     const erkennungM = ov ? undefined : erkennungGerade()
+    // Velo (29.10.2026): zweite Sicht von der Veloachse, nur Fussgängerstreifen mit Radstreifen bzw. Radweg nach OSM
+    const velo = ov ? undefined : veloSicht(fs, zf.g !== null && netz ? netz.w(zf.g.wid).t : null, sichtpunkte, ref, tempo, sf, kf)
     ergebnisse.push({
       fgsId: fid, zufahrt: schluessel([...bisher, ...ergebnisse], art, gradD), kennung: kennungG, richtung: gradD, art,
       strasse: zf.name || null, ueberStrasse: null, knotenM: null, tempo, tempoQuelle: tempoQ,
@@ -843,6 +875,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       ...(fso ? { fahrstreifenOsmN: fso.n } : {}),
       freiBisM,
       ...(erkennungM ? { erkennungM } : {}),
+      ...(velo ? { velo } : {}),
     })
   } else if (!hatGerade) {
     const ende = sg !== null && sg.endeM !== null ? `Spur endet nach ${sg.endeM.toFixed(1)} m (${sg.endeGrund})` : ''

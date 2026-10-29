@@ -39,7 +39,7 @@ import type { Ebene, Eintrag } from './bedarf/typen'
 import { QUELLEN_ANNAHME, QUELLEN_BESTAETIGBAR, type Quelle, KURVE_BEDINGUNGEN } from './bedarf/eingaben'
 import { mitTiteln, regelName, regelTitel } from './bedarf/regelname'
 import { ABSCHNITTE, EBENE_WORT, LEGENDE, THEMEN, abschnittVon, gruppeVonThema, istAusfuehrung, mitEinheit, nachAbschnitt, pruefUebersicht, themaName,
-  verbindlichkeitVon } from './bedarf/themen'
+  themaVon, verbindlichkeitVon } from './bedarf/themen'
 import { BLOCK_GRUENDE, hatInhalt, themaGliederung, themenAnsicht, type ThemaFrage, type ThemaTeil, type ThemenAnsicht } from './bedarf/themenansicht'
 import { FELD_HILFEN, SICHTBAR, bedingungText, bezuegeImFall, feldZiel, frageVon, leerText, regelPfade, schalter, schalterText, sichtbar,
   wozuTeilen, type SichtKontext } from './bedarf/feldhilfen'
@@ -1203,10 +1203,14 @@ function ErweiterteAnzeige({ blaetter, ansicht, druck = false, eingabe }: { blae
   const mehrere = blaetter.length > 1
   // Panel (29.10.2026): jedes geprüfte Thema als eigene Zeile, auch ohne Befund (eingeklappt); der Bericht bleibt knapp
   const einzeln = !!eingabe && !druck
-  const themen = ansicht.themen.filter(t => hatInhalt(t) || (einzeln && t.geprueft > 0))
+  // nicht geprüfte Themen (29.10.2026): eigene graue Zeile mit dem Grund (z. B. Baum endet in der Begegnungszone)
+  const uebersicht = einzeln ? pruefUebersicht(blaetter[0].befund, { ebenen: blaetter[0].ebenen, typ: blaetter[0].gebildet.eingaben.typ.wert }) : null
+  const ngZeile = (t: ThemaTeil) => uebersicht?.themen.find(x => x.thema.id === t.thema.id)
+  const nichtGeprueft = (t: ThemaTeil) => einzeln && !hatInhalt(t) && t.geprueft === 0 && (ngZeile(t)?.nichtGeprueft ?? 0) > 0
+  const themen = ansicht.themen.filter(t => hatInhalt(t) || (einzeln && t.geprueft > 0) || nichtGeprueft(t))
   const ohne = einzeln ? [] : ansicht.themen.filter(t => !hatInhalt(t) && t.geprueft > 0)
   const begriffe = begriffeJeEintrag([...themen.flatMap(t => t.eintraege.flatMap(e => e.xs)), ...ansicht.ablauf.flatMap(a => a.xs)])
-  const weitere = eingabe ? [...ansicht.themen.filter(t => !hatInhalt(t) && !(einzeln && t.geprueft > 0))
+  const weitere = eingabe ? [...ansicht.themen.filter(t => !hatInhalt(t) && !(einzeln && t.geprueft > 0) && !nichtGeprueft(t))
     .map(t => ({ id: t.thema.id, name: t.thema.name, defs: t.felder })),
     { id: 'ohne', name: 'Ohne Thema', defs: ansicht.ohneThema }].map(x => ({ ...x, defs: x.defs.filter(p => eingabe.alle || eingabe.zaehlt(p))
       .map(p => FELD_DEF.get(p)!) })).filter(x => x.defs.length) : []
@@ -1220,7 +1224,9 @@ function ErweiterteAnzeige({ blaetter, ansicht, druck = false, eingabe }: { blae
       const g = gruppeVonThema(t.thema.id), neu = !i || gruppeVonThema(themen[i - 1].thema.id) !== g
       return <Fragment key={t.thema.id}>{neu && <p className="themen-gruppe"><b>{T(g)}</b></p>}
         {hatInhalt(t) ? <ThemaAnzeige t={t} blaetter={blaetter} druck={druck} eingabe={eingabe} begriffe={begriffe} />
-          : <ThemaOhneBefund t={t} blaetter={blaetter} eingabe={eingabe!} />}</Fragment>
+          : t.geprueft > 0 ? <ThemaOhneBefund t={t} blaetter={blaetter} eingabe={eingabe!} />
+          : <ThemaNichtGeprueft t={t} blaetter={blaetter} eingabe={eingabe!} grund={ngZeile(t)?.grund}
+            regeln={[...(uebersicht?.nichtGeprueftWegen.keys() ?? [])].filter(id => themaVon(id) === t.thema.id)} />}</Fragment>
     })}
     {ohne.length > 0 && <p className="klein thema-ohne">Ohne Befund: {ohne.map((t, i) => <Fragment key={t.thema.id}>{i ? ', ' : ''}<span
       title={t.ohneBefund.map(regelTitel).join(', ')}>{t.thema.name}</span></Fragment>)}</p>}
@@ -1254,6 +1260,26 @@ function ThemaOhneBefund({ t, blaetter, eingabe }: { t: ThemaTeil; blaetter: rea
       {' '}{zahlWort(t.ohneBefund.length || t.geprueft, 'Regel', 'Regeln')} ohne Befund</span></summary>
     <ul className="klein">{(t.ohneBefund.length ? t.ohneBefund : []).flatMap(id => ohneBefundZeilen(id, blaetter).map((z, i) =>
       <li key={`${id}-${i}`}><span className="grund-symbol" aria-hidden="true">✓</span> {T(z)}<InUebersicht id={id} /></li>))}</ul>
+    {felder.length > 0 && <div className="thema-angaben"><p className="klein">Angaben ({felder.length}):</p>
+      <Maske fall={eingabe.fall} blatt={blaetter[0]} aendern={eingabe.aendern} felder={felder} flach ohneKoepfe zaehlt={eingabe.zaehlt} alle={eingabe.alle}
+        kontexte={eingabe.kontexte} bedarf={eingabe.bedarf} bestaetig={eingabe.bestaetig} /></div>}
+  </details>
+}
+
+/** Grund «nicht geprüft» lesbar (Begegnungszone mit Fundstelle) */
+const GRUND_LESBAR: Readonly<Record<string, string>> = {
+  'Baum endet: Begegnungszone': 'Begegnungszone, flächiges Queren (VSS 40 240 Z. 20, S. 19)',
+  'Baum endet: flächige Nachfrage': 'flächiges Queren',
+  'Baum endet: ausserorts': 'ausserorts',
+}
+/** Thema, dessen Regeln der Ablauf nicht prüft (Panel, 29.10.2026): eingeklappte graue Zeile mit dem Grund, aufgeklappt die Regeln und
+ * die Angaben des Themas */
+function ThemaNichtGeprueft({ t, blaetter, eingabe, grund, regeln }: { t: ThemaTeil; blaetter: readonly BefundBlatt[]; eingabe: ErwEingabe
+  grund?: string; regeln: readonly string[] }) {
+  const felder = t.felder.filter(p => eingabe.alle || eingabe.zaehlt(p)).map(p => FELD_DEF.get(p)!)
+  return <details className="befund-thema bedarf-thema thema-nicht-geprueft grau" id={themaId(t.thema.id)}>
+    <summary title={t.thema.umfang}><b>{t.thema.name}</b> <span className="klein">– nicht geprüft{grund ? `: ${T(GRUND_LESBAR[grund] ?? grund)}` : ''}</span></summary>
+    {regeln.length > 0 && <p className="klein">Nicht geprüft: <Titel ids={regeln} /></p>}
     {felder.length > 0 && <div className="thema-angaben"><p className="klein">Angaben ({felder.length}):</p>
       <Maske fall={eingabe.fall} blatt={blaetter[0]} aendern={eingabe.aendern} felder={felder} flach ohneKoepfe zaehlt={eingabe.zaehlt} alle={eingabe.alle}
         kontexte={eingabe.kontexte} bedarf={eingabe.bedarf} bestaetig={eingabe.bestaetig} /></div>}

@@ -71,8 +71,28 @@ export interface ZufahrtErgebnis {
    * eigenen Fahrstreifen sehen, geprüft bis zum Doppelten der Sichtweite nach Tempo (höchstens 110 m) bzw. bis zum Ende der Fahrlinie.
    * Nur gerade Zufahrten von Fussgängerstreifen; 2D ohne Gelände (Annahme). Zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll */
   erkennungM?: Erkennung
+  /** Sicht des Veloverkehrs (29.10.2026; VSS 40 241 Z. 14 mit VSS 40 273 Tab. 3): zweite Prüfung von der Veloachse, nur gerade Zufahrten
+   * eines Fussgängerstreifens mit Radstreifen bzw. Radweg nach OSM. Zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll */
+  velo?: VeloSicht
   deckung?: string                // Abbiegezufahrt, die ab dem Knoten von der geraden Zufahrt gedeckt ist (nur mit GEDECKT_RECHNEN,
                                   // seit 14.10.2026 standardmässig aus): Text wie beim Entfallen «Knoten … m vor dem Streifen; …»
+}
+
+/** Sicht von der Veloachse einer Zufahrt (ZufahrtErgebnis.velo) */
+export interface VeloSicht {
+  fuehrung: 'radstreifen' | 'radweg'
+  /** Veloachse ab dem rechten Fahrbahnrand [m] */
+  vomRandM: number
+  /** nötige Sichtweite nach VSS 40 273 Tab. 3 (Längsneigung 0 % angenommen) und ihre Herleitung */
+  soll: number; sollText: string
+  frei: boolean
+  /** frei bis [m ab dem Streifenrand] (wie freiBisM) */
+  freiBisM: number
+  /** Fahrlinie kürzer als das Soll: nur bis hier geprüft */
+  bisM?: number
+  /** über 30 km/h: mit Verbot für schnelle E-Bikes gälte eben 30 m (Tab. 3) */
+  ebikeHinweis: boolean
+  konflikte: Konflikt[]; feld: Multi; sichtpunkte: P[]
 }
 
 export interface StreifenErgebnis {
