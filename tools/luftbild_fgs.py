@@ -28,7 +28,7 @@
 # nie eine OSM-Kennung (die sind positiv).
 #
 # Erzeugt public/luftbild_fgs_<stadt>.json =
-#   { "quelle", "modell", "flug", "flugjahre", "erzeugt", "osm_stand", "filter", "bbox": [lon_min, lat_min, lon_max, lat_max],
+#   { "quelle", "modell", "flug", "flugjahre", "bild_je_jahr", "erzeugt", "osm_stand", "filter", "bbox": [lon_min, lat_min, lon_max, lat_max],
 #     "kandidaten": [{ "id", "p": [E, N] (0,1 m), "conf" (0,01), "jahre": [..], "richtung": Grad | null }] }
 #
 # Braucht GDAL (osgeo) und Netz (Overpass, overpass.osm.ch). Aufruf aus dem Ordner fgsCheckWeb:
@@ -55,6 +55,7 @@ OVERPASS = ["https://overpass.osm.ch/api/interpreter", "https://overpass-api.de/
 KACHEL_GRAD = 0.03          # Overpass-Abfrage in Kacheln (rund 2,3 × 3,3 km)
 BILD_NAMEN = {"swissimage": "SWISSIMAGE 10 cm © swisstopo",
               "bern2026": "Orthofoto Stadt Bern 19.03.2026, 10 cm © Geodaten Stadt Bern"}
+BILD_KURZ = {"swissimage": "SWISSIMAGE", "bern2026": "Orthofoto Stadt Bern"}
 
 lv95 = osr.SpatialReference(); lv95.ImportFromEPSG(2056)
 wgs = osr.SpatialReference(); wgs.ImportFromEPSG(4326)
@@ -144,7 +145,8 @@ def zusammenfassen(funde):
     for g in gruppen.values():
         best = max(g, key=lambda f: f["conf"])
         aus.append({"m": best["m"], "conf": best["conf"], "richtung": best["richtung"],
-                    "jahre": sorted({f["jahr"] for f in g if f["jahr"]}), "bilder": {f["bild"] for f in g}})
+                    "jahre": sorted({f["jahr"] for f in g if f["jahr"]}), "bilder": {f["bild"] for f in g},
+                    "jahrbild": {f["jahr"]: f["bild"] for f in g if f["jahr"]}})
     return aus
 
 
@@ -256,6 +258,9 @@ def main():
     print(f"5. ohne OSM-Übergang in {UEBERGANG_M:g} m: {len(ohne)}")
     bilder = set().union(*(g["bilder"] for g in ohne)) if ohne else set()
     jahre = sorted({j for g in ohne for j in g["jahre"]})
+    jahrbild = {}
+    for g in ohne:
+        jahrbild.update(g["jahrbild"])
     flug = " und ".join(BILD_NAMEN[b] for b in ("swissimage", "bern2026") if b in bilder)
     ohne.sort(key=lambda g: (g["m"][0], g["m"][1]))
     ll = [ZU_WGS.TransformPoint(*g["m"])[:2] for g in ohne]
@@ -266,6 +271,7 @@ def main():
                   "und paper, Klasse crosswalk",
         "flug": flug,
         "flugjahre": jahre,
+        "bild_je_jahr": {str(j): BILD_KURZ[b] for j, b in sorted(jahrbild.items())},   # Kurzname des Luftbilds je Flugjahr (Tooltip)
         "erzeugt": datetime.date.today().isoformat(),
         "osm_stand": stand or datetime.date.today().isoformat(),   # Stand der Overpass-Daten, sonst Tag der Abfrage
         "filter": {"zusammenfassen_m": ZUSAMMEN_M, "conf_min": CONF_MIN, "strasse_m": STRASSE_M, "osm_uebergang_m": UEBERGANG_M},
