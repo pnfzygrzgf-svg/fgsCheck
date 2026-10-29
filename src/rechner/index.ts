@@ -11,6 +11,7 @@ import { ANN_RAND_ARTEN, streifenAusUebergang, neuerStreifen, umrissRing, gequer
   sehneStreifen, handGruppen, type Streifen, type InselZusatz } from './streifen'
 import { vermassung } from './vermassung'
 import { streifenImBild, type Bild, type Erkennung, type TeilErkannt } from './luftbild'
+import { istLuftbildUebergang, luftbildUebergangHinweis, LUFTBILD_FGS_QUELLE } from '../daten/luftbildFgs'
 import { pruefen, type Kontext, R2_FLAECHEN } from './pruefen'
 import { eckCacheLeeren } from './abbiegen'
 import { HindernisDaten, type Hindernis } from './hindernisse'
@@ -93,7 +94,9 @@ export function luftbildStreifen(osm: OsmDaten, kx: Kontext, nid: number, bild: 
   const auf = (p: P) => kx.fahrbahn.enthaelt(p) || !!kx.brueckenumriss?.enthaelt(p) ||
     R2_FLAECHEN.includes(kx.flaechenR2?.art(p) ?? '')
   // Plausibilität der Teilstreifen: AV-Inseln und die OSM-Querung(en) am Knoten
-  const querungen = (osm.querungen ?? []).filter(w => w.knoten.includes(nid)).map(w => w.geom.map(([la, lo]) => lv95(la, lo)))
+  // (ohne den Fussweg, der beim Übergang aus dem Luftbild nur die Richtung trägt: er ist kein Beleg für Teilstreifen)
+  const querungen = (osm.querungen ?? []).filter(w => w.knoten.includes(nid) && w.tags.source !== LUFTBILD_FGS_QUELLE)
+    .map(w => w.geom.map(([la, lo]) => lv95(la, lo)))
   const andereKnoten = osm.uebergaenge.filter(x => x.id !== nid).map(x => lv95(x.lat, x.lon)).filter(p => dist(p, c) <= 60)
   const erkennung = opt.erkennung ?? streifenImBild(bild, c, gw.dWeg, auf, { insel: p => kx.inseln.enthaelt(p), querungen, andereKnoten })
   if (erkennung.befund === 'nicht_gefunden') return { erkennung, teile: [], streifen: [], insel: null }
@@ -155,6 +158,9 @@ export interface FallRechnung extends Rechnung {
                                      // von Hand an einem Übergang ohne FGS «Heute kein Fussgängerstreifen …», sonst leer
   inseln: InselZusatz[]              // angenommene Inseln (nach OSM und Luftbild) der gerechneten Streifen, für die Karte
   inselTeilt: boolean                // Luftbild «unsicher»: der Streifen aus OSM + AV ist an der Insel aus dem Luftbild geteilt
+  /** Übergang aus dem Luftbild (ETH-Modell), nicht in OSM (daten/luftbildFgs.ts); bestaetigt: die eigene Erkennung hat den Streifen
+   * erkannt (Streifen aus dem Luftbild). Fehlt bei OSM-Übergängen und Orten ohne Übergang */
+  luftbildUebergang?: { bestaetigt: boolean }
   planFlaechen?: number              // wirksame Flächen (Plan) von Hand in der Rechnung (fehlt ohne; planflaechen.avMitPlan)
   /** Parkierung unter einem vorgezogenen Seitenraum (seitenraum.parkOhneSeitenraum): entfällt in der Sichtprüfung ganz bzw. zum
    * überdeckten Teil; dazu OSM-Vorschläge darunter (nur Anzeige). Fehlt ohne Element */
@@ -300,6 +306,13 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const planung = quelle === 'hand' && !!u && !!mk && !istFgs(mk)
   const annahme = erg.length > 0 && erg.every(s => s.querungAnnahme)
   const hinweis = u && mk ? (planung ? planungHinweis(mk, u.tags) : annahme ? erg[0].querungAnnahme! : markierungHinweis(mk, u.tags)) : ''
+  // Übergang aus dem Luftbild (ETH-Modell, 29.10.2026): Herkunft und Befund der eigenen Luftbild-Erkennung an Fall und Streifen;
+  // ohne bestätigten Streifen bleibt der Hinweis «im Luftbild kein Streifen bestätigt» (Streifen aus OSM + AV, unsicher)
+  const lbU = !!u && istLuftbildUebergang(u.tags)
+  const lbHinweis = lbU ? luftbildUebergangHinweis(luftbild ? luftbild.befund : null, quelle === 'hand') : ''
+  // der Knoten liegt nie auf einem OSM-Weg: diese Meldung gilt hier nicht
+  if (lbU) meldungen = meldungen.filter(m => !m.startsWith('Übergang liegt nicht auf einem befahrbaren OSM-Weg'))
+  if (lbU && quelle !== 'hand') for (const s of erg) s.luftbildUebergang = lbHinweis
   // Trottoirüberfahrt (Wahl am Streifen): gerechnet wie ein Fussgängerstreifen, gekennzeichnet; ohne Hinweis zur Markierung. Die
   // Zufahrten kommen am Ende nach nurVorbelegung (Anzeige wie «kein FGS»)
   for (const s of erg) if (istTrottoirueberfahrt(fall, s.fgsId)) s.trottoirueberfahrt = true
@@ -327,7 +340,8 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   }
   const inseln = [...new Set(streifen.flatMap(s => s.inseln))].filter(z => z.herkunft !== 'hand')
   return { streifen: erg, meldungen, ms: performance.now() - t0, vorschlaege: [...offen, ...kat, ...katPark], streifenQuelle: quelle,
-    markierung: mk, hinweis, luftbild, parkVerworfen, doppelt, inseln, inselTeilt,
+    markierung: mk, hinweis: lbU ? lbHinweis : hinweis, luftbild, parkVerworfen, doppelt, inseln, inselTeilt,
+    ...(lbU ? { luftbildUebergang: { bestaetigt: quelle === 'luftbild' || (luftbild?.befund === 'erkannt' && !!luftbild.nurVorschlag) } } : {}),
     ...(fall.flaechenPlan?.length ? { planFlaechen: new Set(plan.teile.map(t => t.id)).size } : {}),
     ...(srErsetzt ? { seitenraumErsetzt: srErsetzt } : {}) }
 }

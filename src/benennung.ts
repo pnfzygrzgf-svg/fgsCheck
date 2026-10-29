@@ -71,14 +71,19 @@ export function streifenTitel(fgsId: string, hand: StreifenHand[] = [], tue = fa
   const name = hand.find(x => x.id === fgsId)?.name?.trim()
   if (name) return name
   const m = /^hand-(\d+)$/.exec(fgsId)
-  return `${tue ? 'Trottoirüberfahrt' : 'Streifen'} ${m ? m[1] : fgsId}`
+  return `${tue ? 'Trottoirüberfahrt' : 'Streifen'} ${m ? m[1] : luftbildNr(fgsId) ?? fgsId}`
+}
+/** Streifen am Übergang aus dem Luftbild (negative Kennung, daten/luftbildFgs.ts): «Luftbild» bzw. «Luftbild-2» statt der langen Zahl */
+function luftbildNr(fgsId: string): string | null {
+  const m = /^-\d+(-\d+)?$/.exec(fgsId)
+  return m ? `Luftbild${m[1] ?? ''}` : null
 }
 /** Kurzform für Beschriftungen im Bild (mehrere Streifen): Name bzw. Nummer */
 export function streifenKurz(fgsId: string, hand: StreifenHand[] = []): string {
   const name = hand.find(x => x.id === fgsId)?.name?.trim()
   if (name) return name
   const m = /^hand-(\d+)$/.exec(fgsId)
-  return m ? m[1] : fgsId
+  return m ? m[1] : luftbildNr(fgsId) ?? fgsId
 }
 
 export interface ZufahrtName {

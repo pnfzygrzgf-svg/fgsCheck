@@ -11,6 +11,7 @@
 // Danach wie in Python: zufahrten (Inselteile), raender, wartebereiche, annaeherungsbereich, ann_am_rand, streifen_h,
 // rand_am_umriss.
 
+import { LUFTBILD_FGS_QUELLE } from '../daten/luftbildFgs'
 import { type P, add, dist, dot, einheit, links, rechts, sub, median, lv95, imPolygon } from '../geo'
 import type { OsmNetz } from './netz'
 import type { OsmWeg } from '../daten/osm'
@@ -492,7 +493,8 @@ export function streifenAusUebergang(u: UebergangWahl, netz: OsmNetz, fahrbahn: 
     if (g[0] !== 0 || g[1] !== 0) {
       if (w <= Math.cos(45 * Math.PI / 180)) {
         n = dot(g, n) >= 0 ? g : [-g[0], -g[1]]
-        achseText = `entlang des OSM-Fusswegs ${fwq.id}`
+        // Übergang aus dem Luftbild (daten/luftbildFgs.ts): der Fussweg trägt nur die Richtung des ETH-Modells
+        achseText = fwq.tags.source === LUFTBILD_FGS_QUELLE ? 'entlang der Richtung aus dem Luftbild (ETH-Modell)' : `entlang des OSM-Fusswegs ${fwq.id}`
       }
       if (fwq.tags.footway === 'crossing') {
         const ls = pts.map(p => dot(sub(p, c), n))

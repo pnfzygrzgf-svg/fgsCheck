@@ -10,6 +10,7 @@ import type { SpurHand } from './rechner/spurhand'
 import type { VonHand } from './rechner/pruefen'
 import type { QuerungOhneVortritt } from './rechner/typen'
 import { bedarfLesen, bedarfLeer, type BedarfBlock } from './bedarf/fallBedarf'
+import { herkunftLesen, type LuftbildHerkunft } from './daten/luftbildFgs'
 
 /**
  * Versionen der Fall-Datei (Korrektur 16.10.2026, Prüfbefund S2): 1 = bisher; 2 = mit Flächen (Plan) (Feld flaechenPlan). Version 2
@@ -104,7 +105,12 @@ export const PLAN_ECKEN_MAX = 500
 export interface Fall {
   app: 'fgsCheck'
   version: number
-  ort: { lat: number; lon: number; uebergang: number | null; bezeichnung?: string; markierung?: Markierung }
+  ort: { lat: number; lon: number; uebergang: number | null; bezeichnung?: string; markierung?: Markierung
+    /** Übergang aus dem Luftbild (ETH-Modell), nicht in OSM (seit 29.10.2026; daten/luftbildFgs.ts): uebergang ist dann die negative
+     * Kennung des Kandidaten, herkunft trägt Lage, Richtung, Sicherheit und Flugjahre, damit die App den Übergang beim Laden wieder
+     * einfügt. Fehlt bei OSM-Übergängen (alte Dateien unverändert, keine neue Version: eine ältere App findet den Übergang nicht in
+     * OSM und meldet das, statt still anders zu rechnen) */
+    herkunft?: LuftbildHerkunft }
   quellen: { osm?: string; av?: string; baumkataster?: string; parkkataster?: string; luftbild?: string; geladen?: string
     /** Geoportal Stadt Bern für die Vorbelegung des Bedarfsmoduls (seit 20.10.2026) */
     haltestellen?: string; verkehrsdaten?: string
@@ -260,6 +266,12 @@ export function fallLesen(text: string): [Fall, string[]] {
   const fall = leererFall(ort.lat, ort.lon, zahl(ort.uebergang) ? ort.uebergang : null)
   if (typeof ort.bezeichnung === 'string') fall.ort.bezeichnung = ort.bezeichnung
   if (MARKIERUNGEN.includes(ort.markierung as Markierung)) fall.ort.markierung = ort.markierung as Markierung
+  if (ort.herkunft !== undefined) {
+    // nur zu einem Übergang aus dem Luftbild (negative Kennung)
+    const h = fall.ort.uebergang !== null && fall.ort.uebergang < 0 ? herkunftLesen(ort.herkunft) : null
+    if (h) fall.ort.herkunft = h
+    else hinweise.push('Herkunft des Übergangs (Luftbild) ungültig, übergangen')
+  }
   /** Liste bzw. Objekt nur, wenn vorhanden und vom richtigen Typ; sonst Hinweis */
   const liste = (k: string, name: string): unknown[] => {
     const x = roh[k]
@@ -458,11 +470,12 @@ export function fallVergessen(uebergang: number): void {
   try { localStorage.removeItem(SPEICHER + uebergang) } catch { /* ohne Speicher */ }
 }
 
-/** Fall ohne OSM-Übergang (Kopie): Übergang und dessen Markierung weg, sonst unverändert */
+/** Fall ohne OSM-Übergang (Kopie): Übergang, dessen Markierung und Herkunft (Luftbild) weg, sonst unverändert */
 export function ohneUebergang(f: Fall): Fall {
   const neu: Fall = structuredClone(f)
   neu.ort.uebergang = null
   delete neu.ort.markierung
+  delete neu.ort.herkunft
   return neu
 }
 
