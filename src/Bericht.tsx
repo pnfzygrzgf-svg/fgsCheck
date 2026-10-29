@@ -38,6 +38,7 @@ import { streifenTitel, zufahrtLang, zufahrtNr, zufahrtText, entfallenNr, entfal
 /** Zufahrt-Namen je Streifen (benennung.zufahrtNamen, in der App gerechnet) */
 type Namen = Map<string, ZufahrtNamen>
 import { ausserhalbText, nichtAbgedecktText, type Ausserhalb } from './abdeckung'
+import { LUFTBILD_UEBERGANG_TEXT, KEIN_STREIFEN_TEXT, NICHT_GEPRUEFT_TEXT, herkunftText } from './daten/luftbildFgs'
 import { BefundblattAnzeige, GrundpruefungAnzeige, VerzeichnisBericht, ZusammenfassungAnzeige, annahmeInTabelle, eingabenTabelle, querungTitel } from './BedarfPanel'
 import type { BefundBlatt } from './bedarf/befundblatt'
 import { AHS_40240 } from './bedarf/tabellen'
@@ -435,6 +436,7 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen }: { s: S
       {s.querungAnnahme && <p className="klein"><b>{s.querungAnnahme}</b></p>}
       {s.trottoirueberfahrt && <KnotensichtBericht ks={s.knotensicht} fgsId={s.fgsId} titel={id => streifenTitel(id, fall.streifenHand, true)} />}
       {s.markierungHinweis && <p className="klein"><b>Vermutlich Fussgängerstreifen (Markierung in OSM nicht erfasst), bitte prüfen.</b></p>}
+      {s.luftbildUebergang && <p className="klein"><b>{s.luftbildUebergang}</b></p>}
       {s.lsa === 'ja' && <p className="klein">Mit Lichtsignal gilt die {LESENAME.AHBE} nicht; die Rechnung wird trotzdem gezeigt.</p>}
       {s.querung && <p className="klein"><b>Querung ohne Vortritt</b> ({s.querung.typ === 'furt' ? 'Furt, Insel ohne Balken' :
         'Nase, Einengung bzw. ohne bauliche Massnahme'}), kein Fussgängerstreifen: Sichtweite nach VSS 40 240, Ziffer 8.2, max(v · L / 1,2 m/s;
@@ -555,8 +557,12 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
             </td></tr>
             {strassen.length > 0 && <tr><td>Strasse (OSM)</td><td>{strassen.join(', ')}</td></tr>}
             <tr><td>Koordinaten</td><td>LV95 E {tausender(e)}, N {tausender(n)} · WGS84 {fall.ort.lat.toFixed(6)}, {fall.ort.lon.toFixed(6)}</td></tr>
-            <tr><td>OSM-Übergang</td><td>{fall.ort.uebergang !== null ? <>Knoten {fall.ort.uebergang}{mk ? ` (${UEBERGANG_TEXT[mk] ?? mk})` : ''}</> :
-              ortOhneUebergangText(fall)}</td></tr>
+            {fall.ort.herkunft && fall.ort.uebergang !== null && fall.ort.uebergang < 0
+              ? <tr><td>Übergang</td><td>{LUFTBILD_UEBERGANG_TEXT} ({herkunftText(fall.ort.herkunft)}){!rechnung.luftbildUebergang ||
+                rechnung.streifenQuelle === 'hand' ? '' : rechnung.luftbildUebergang.bestaetigt ? '; im Luftbild Streifen erkannt'
+                : `; ${rechnung.luftbild ? KEIN_STREIFEN_TEXT : NICHT_GEPRUEFT_TEXT}`}</td></tr>
+              : <tr><td>OSM-Übergang</td><td>{fall.ort.uebergang !== null ? <>Knoten {fall.ort.uebergang}{mk ? ` (${UEBERGANG_TEXT[mk] ?? mk})` : ''}</> :
+              ortOhneUebergangText(fall)}</td></tr>}
             <tr><td>Streifen aus</td><td>{rechnung.streifenQuelle === 'hand' ? 'Eingabe von Hand' : rechnung.streifenQuelle === 'luftbild' ? 'Luftbild (erkannt, prüfen)' : 'OSM und AV'}</td></tr>
             {(fall.flaechenPlan?.length ?? 0) > 0 && <tr><td>Bodenbedeckung</td><td>Rechnung mit geplanter Bodenbedeckung (von Hand):
               AV mit {fall.flaechenPlan!.length} Fläche(n) (Plan), siehe «Eingaben von Hand»</td></tr>}

@@ -24,6 +24,7 @@ import { FARBE_VELO, VELO_SICHT_FARBE, fahrzeugFarbe, fgsFahrzeuge, tueFahrzeuge
 import { erkennungBaender } from './erkennungKarte'
 import { veloSoll, type VeloSoll } from './veloSicht'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
+import { LUFTBILD_FGS_NAME, kandidatTooltip, type KandidatAnzeige, type LuftbildKandidat } from './daten/luftbildFgs'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
@@ -184,6 +185,9 @@ const markerStil = (mk: string, g: boolean): L.CircleMarkerOptions => ({
   dashArray: mk === 'vermutlich' ? '3 3' : undefined,
   fillColor: UEBERGANG_FARBE[mk], fillOpacity: mk === 'vermutlich' ? 0.45 : 0.95,
 })
+/** Streifen aus dem Luftbild (ETH-Modell), nicht in OSM: hohles gelbes Quadrat, gestrichelt (anders als die runden OSM-Übergänge) */
+export const LB_FGS_FARBE = '#eab308'
+const lbFgsIcon = (g: boolean) => L.divIcon({ className: 'lbfgs-marke' + (g ? ' gewaehlt' : ''), iconSize: g ? [18, 18] : [14, 14] })
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!))
 const multiLl = (m: Multi) => m.map(poly => poly.map(r => r.map(ll)))
 export const zufahrtKey = (z: ZufahrtErgebnis) => `${z.fgsId}|${z.zufahrt}`
@@ -290,6 +294,9 @@ export default function Karte(props: {
   av: AvFlaeche[] | null
   kantone: string[]
   uebergaenge: OsmKnoten[]
+  /** Streifen aus dem Luftbild (ETH-Modell), nicht in OSM (daten/luftbildFgs.ts); gewählt über gewaehlt (negative Kennung) */
+  luftbildKandidaten?: KandidatAnzeige[]
+  onLuftbildKandidat?: (k: LuftbildKandidat) => void
   strassennamen: Strassenname[]                      // aus der Übergangssuche und den OSM-Daten des gewählten Übergangs (daten/osm.namenKarte)
   gewaehlt: number | null
   rechnung: FallRechnung | null
@@ -416,7 +423,7 @@ export default function Karte(props: {
     // Fahrzeuge und wartende Personen: unter den Markern (Griffe der Streifenenden beim Verschieben bleiben greifbar)
     map.createPane(FAHRZEUG_PANE).style.zIndex = '590'
     const eb: Record<string, L.LayerGroup> = {
-      av: L.layerGroup().addTo(map), plan: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
+      av: L.layerGroup().addTo(map), plan: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), lbfgs: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
       nr: L.layerGroup().addTo(map), fahrzeug: L.layerGroup().addTo(map),
       hind: L.layerGroup().addTo(map), fix: L.layerGroup().addTo(map), mess: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
       standort: L.layerGroup().addTo(map), ecken: L.layerGroup().addTo(map), inselVorschau: L.layerGroup().addTo(map),
@@ -424,7 +431,7 @@ export default function Karte(props: {
     }
     L.control.layers({ 'Luftbild (SWISSIMAGE)': luftbild, 'Landeskarte (swisstopo)': landeskarte }, { 'Amtliche Vermessung': eb.av,
       'Flächen (Plan)': eb.plan,
-      'OSM-Übergänge': eb.osm, 'Strassennamen (OSM)': eb.namen, 'Sichtfelder': eb.sicht, 'Nummern der Zufahrten': eb.nr, 'Fahrzeuge': eb.fahrzeug, 'Hindernisse': eb.hind,
+      'OSM-Übergänge': eb.osm, [LUFTBILD_FGS_NAME]: eb.lbfgs, 'Strassennamen (OSM)': eb.namen, 'Sichtfelder': eb.sicht, 'Nummern der Zufahrten': eb.nr, 'Fahrzeuge': eb.fahrzeug, 'Hindernisse': eb.hind,
       'Fixpunkte und Masse': eb.fix },
     { collapsed: true }).addTo(map)
     L.control.scale({ imperial: false }).addTo(map)
@@ -576,6 +583,24 @@ export default function Karte(props: {
     const x = gewaehlt === null ? undefined : n.get(gewaehlt)
     if (x && ebenenRef.current?.osm.hasLayer(x.m)) x.m.bringToFront()
   }, [gewaehlt])
+
+  // Streifen aus dem Luftbild (ETH-Modell), nicht in OSM: wenige Marker, bei jeder Änderung neu (Klick prüft wie ein OSM-Übergang)
+  const lbKand = props.luftbildKandidaten
+  useEffect(() => {
+    const eb = ebenenRef.current
+    if (!eb) return
+    eb.lbfgs.clearLayers()
+    for (const k of lbKand ?? []) {
+      const g = k.id === gewaehlt
+      L.marker([k.lat, k.lon], { icon: lbFgsIcon(g), keyboard: false, zIndexOffset: g ? 500 : 0 })
+        .bindTooltip(`<b>${esc(kandidatTooltip(k))}</b><br><i>Klick: prüfen</i>`)
+        .on('click', e => {
+          if (cb.current.werkzeug) return
+          L.DomEvent.stopPropagation(e); cb.current.onLuftbildKandidat?.(k)
+        })
+        .addTo(eb.lbfgs)
+    }
+  }, [lbKand, gewaehlt])
 
   // Ergebnis: Streifen, Annäherungsbereiche, Sichtfelder
   useEffect(() => {

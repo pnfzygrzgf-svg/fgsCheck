@@ -65,7 +65,9 @@ export function Anleitung() {
             zwischen Karte und rechtem Bereich lässt sich ziehen (bzw. mit den Pfeiltasten verschieben); die Breite bleibt gespeichert.</li>
             <li><b>Übergang wählen:</b> einen Punkt anklicken. Gelb: Fussgängerstreifen in OSM, gelb gestrichelt: vermutlich, violett: Lichtsignal, grau: kein
             Fussgängerstreifen. Die App lädt Amtliche Vermessung, OSM und das Luftbild und rechnet im Browser. Den Streifen sucht sie im Luftbild, sonst bildet sie ihn aus OSM und AV. Um den Übergang
-            stehen danach die genaueren Strassennamen aus diesem Abruf (Ebene «Strassennamen (OSM)»).</li>
+            stehen danach die genaueren Strassennamen aus diesem Abruf (Ebene «Strassennamen (OSM)»). Gelbe gestrichelte Quadrate (Bern,
+            Zürich, Basel): Fussgängerstreifen, die ein Modell der ETH Zürich im Luftbild erkannt hat und die in OSM fehlen; ein Klick prüft
+            sie wie einen OSM-Übergang. Oft sind es Fehlalarme: am Luftbild prüfen.</li>
             <li><b>Zwei Reiter:</b> sobald gerechnet ist, teilt sich der rechte Bereich in «Sichtprüfung» und «Bedarf und Querungstyp».
             Die Sichtprüfung prüft einen bestehenden bzw. gezeichneten Streifen (Zufahrten, Sichtweiten, Hindernisse, Eingaben von
             Hand); oben steht in einer Zeile, was der Bedarf ergibt, ein Klick darauf wechselt den Reiter. «Bedarf und Querungstyp»
@@ -296,6 +298,9 @@ export function Anleitung() {
         <ul>
           <li>Amtliche Vermessung frei über geodienste.ch: 19 Kantone ganz, Wallis teilweise (z. B. ohne Sitten und Brig) und
             Liechtenstein. LU, VD, NE, NW, OW und JU geben sie nur mit Freigabe ab: dort rechnet die App nicht.</li>
+            <li>Streifen aus dem Luftbild (ETH-Modell): fester Stand je Stadt, nur Bern, Zürich und Basel, nur an Strassen für
+            Fahrzeuge; Kandidaten mit einem OSM-Übergang in 15 m blendet die App aus. Findet die eigene Erkennung dort keine Balken,
+            steht «im Luftbild kein Streifen bestätigt».</li>
             <li>Streifen im Luftbild: nur gelbe Streifen, Balken bis rund 6 m; weisse Streifen erkennt die App nicht. Mehrere Streifen
             an einem Knoten und sehr breite Streifen bildet sie nicht immer richtig: dann mit «Streifen planen» von Hand zeichnen.</li>
             <li>Parkfelder amtlich nur in der Stadt Bern; sonst von Hand zeichnen bzw. Vorschläge aus OSM bestätigen. Private
@@ -386,6 +391,8 @@ export function Datenschutz() {
               Baumkataster, Haltestellen, Verkehrsdaten, Richtplan Fussverkehr, Strassenhierarchie und Strassentypen, signalisierte
               Höchstgeschwindigkeit, Volksschulen und Kindergärten (±200 m), taktil-visuelle Markierungen, Nutzungszonen und ÖV-Linien.</li>
           </ul>
+          Die Streifen aus dem Luftbild (ETH-Modell) liegen als Datei je Stadt auf dieser Seite: dafür geht keine Anfrage an einen
+          anderen Dienst.
           Der eigene Standort (Standort-Knopf) wird nur im Browser ermittelt und auf der Karte gezeigt, nicht gespeichert und
           nicht gesendet; die Dienste erhalten wie sonst nur den Kartenausschnitt.</li>
         <li>Street View: die Links «Street View ↗» öffnen Google Maps erst auf Klick in einem neuen Fenster; dabei gehen die

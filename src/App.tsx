@@ -8,6 +8,9 @@ import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NA
 import { ladeOsmRoh, osmParsen, ladeUebergaenge, markierung, istFgs, overpassSperre, strassennamen, namenKarte, knotenLage, type OsmKnoten,
   type StrassenMitte, wegTags, strassenlampen, vortrittsZeichen, LAMPEN_RADIUS_M } from './daten/osm'
 import { istAbbruch, type Abruf } from './daten/holen'
+import { dateienImAusschnitt, ladeLuftbildFgs, kandidatenAnzeigen, herkunftAus, kandidatKnoten, osmMitLuftbildUebergang, ETH_MODELL_QUELLE, flugText,
+  ETH_MODELL_URL, ETH_MODELL_CODE, herkunftText,
+  type LuftbildFgsSnapshot, type LuftbildHerkunft, type LuftbildKandidat } from './daten/luftbildFgs'
 import { AvVorschau } from './avVorschau'
 import { baumQuelleFuer, type BaumQuelle, type KatasterBaum } from './daten/baumkataster'
 import { parkQuelleFuer, istParkId, type ParkQuelle, type KatasterFeld } from './daten/parkkataster'
@@ -191,6 +194,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const auftrag = useRef(0)
   const [uebergaenge, setUebergaenge] = useState<OsmKnoten[]>([])
   const [gewaehlt, setGewaehlt] = useState<OsmKnoten | null>(null)
+  // Streifen aus dem Luftbild (ETH-Modell), die in OSM fehlen (daten/luftbildFgs.ts): geladene Snapshots und die abgesuchten
+  // Ausschnitte der Übergangssuche (nur dort ist der Abgleich mit OSM möglich)
+  const [lbSnaps, setLbSnaps] = useState<LuftbildFgsSnapshot[]>([])
+  const [suchBoxen, setSuchBoxen] = useState<Box[]>([])
   const [daten, setDaten] = useState<Daten | null>(null)
   const [av, setAv] = useState<AvFlaeche[] | null>(null)
   const [fall, setFall] = useState<Fall | null>(null)
@@ -523,12 +530,24 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const gesperrtHinweis = (ms: number): KartenHinweis =>
     ({ text: `Overpass ausgelastet: nächste Übergangssuche in rund ${Math.ceil(ms / 1000)} s` })
 
+  // Snapshot der Stadt im Ausschnitt (statische Datei der eigenen Seite), mit der Übergangssuche ab SUCHE_ZOOM, je Datei einmal
+  const lbLaedt = useRef(new Set<string>())
+  const luftbildFgsLaden = useCallback((b: Box) => {
+    for (const datei of dateienImAusschnitt(b)) {
+      if (lbLaedt.current.has(datei)) continue
+      lbLaedt.current.add(datei)
+      ladeLuftbildFgs(datei).then(sn => setLbSnaps(l => (l.some(x => x.datei === sn.datei) ? l : [...l, sn])),
+        () => { lbLaedt.current.delete(datei) })
+    }
+  }, [])
+
   const suchen = useCallback(async () => {
     const map = kartenRef.current, st = suche.current
     clearTimeout(st.timer)
     if (!map) return
     const sicht = sichtBox(map)
     if (!sicht) { setSuchHinweis(ZU_WEIT); return }
+    luftbildFgsLaden(sicht)
     // schon abgesucht bzw. die laufende Suche deckt den Ausschnitt: nichts abfragen
     const treffer = imCache(st.cache, sicht)
     if (treffer) {
@@ -559,6 +578,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       st.cache = aufnehmen(st.cache, { box, daten: r.daten, namen: r.namen })
       const alle = vereinigen(st.cache)
       setUebergaenge(alle)
+      setSuchBoxen(st.cache.map(c => c.box))
       setNamenAusschnitt(vereinigenNamen(st.cache))
       setzeQuelle('suche', { name: SUCHE_NAME, objekte: `${r.daten.length} Übergänge und ${r.namen.length} benannte Strassenstücke im ` +
         `Ausschnitt, ${alle.length} Übergänge angezeigt (letzte ${st.cache.length} Ausschnitte)`, ms: r.ms, bytes: r.bytes, server: r.quelle })
@@ -580,7 +600,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       // inzwischen verschoben: den jetzt gezeigten Ausschnitt abfragen (suchen prüft Cache, Sperre und Abstand)
       if (st.nachher && !ctrl.signal.aborted) { st.nachher = false; suchen() }
     }
-  }, [])
+  }, [luftbildFgsLaden])
   /** nach jedem Verschieben bzw. Zoomen: Hinweis sofort, Suche nach einer Pause */
   const ausschnitt = useCallback(() => {
     const map = kartenRef.current, st = suche.current
@@ -600,7 +620,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
   // ---------------------------------------------------------------- Laden
   /** Daten um einen Ort laden (Übergang oder Ort aus der Fall-Datei); fallNeu: mitgebrachte Eingaben */
-  const laden = useCallback(async (lat: number, lon: number, nid: number | null, fallNeu: Fall | null, avVorab: Abruf<GeoJson> | null = null) => {
+  const laden = useCallback(async (lat: number, lon: number, nid: number | null, fallNeu: Fall | null, avVorab: Abruf<GeoJson> | null = null,
+    herkunft: LuftbildHerkunft | null = null) => {
     abbruchRef.current?.abort()
     const ctrl = new AbortController()
     abbruchRef.current = ctrl
@@ -613,7 +634,11 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     // Streifenmitte gelegt, OSM-Übergang höchstens QUERUNG_M daneben, abdeckung.ts): dort laden statt am Übergangsknoten
     if (erinnert?.streifenHand.length && nichtAbgedeckt(erinnert.streifenHand, lv95(lat, lon)).length &&
       !nichtAbgedeckt(erinnert.streifenHand, lv95(erinnert.ort.lat, erinnert.ort.lon)).length) ({ lat, lon } = erinnert.ort)
-    setFall(fallNeu ?? erinnert ?? leererFall(lat, lon, nid))
+    const start = fallNeu ?? erinnert ?? leererFall(lat, lon, nid)
+    // Übergang aus dem Luftbild (negative Kennung): Herkunft aus der Wahl bzw. aus dem Fall (Datei, Browser); ohne sie findet die
+    // Rechnung den Übergang nicht (Meldung «nicht in den OSM-Daten»)
+    const lbHerkunft = nid !== null && nid < 0 ? herkunft ?? start.ort.herkunft ?? null : null
+    setFall(lbHerkunft && !start.ort.herkunft ? { ...start, ort: { ...start.ort, herkunft: lbHerkunft } } : start)
     setLadeHinweis(erinnert && eingabenZahl(erinnert) ? { text: `Eingaben zu diesem Übergang aus dem Browser übernommen ` +
       `(${eingabenZahl(erinnert)} Einträge, Stand ${erinnert.gespeichert?.slice(0, 10) ?? 'unbekannt'}).`, verwerfen: true } : null)
     setMeldung('AV und OSM werden geladen …')
@@ -655,7 +680,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       if (bernHier) setBernGeo({ nr, halte: { laedt: true }, vd: { laedt: true }, c: Object.fromEntries(BERN_C_KEYS.map(k => [k, { laedt: true }])) })
       setMeldung('Rechnung läuft …')
       // das Luftbild zieht der Effekt «Luftbild nachladen» nach (nur am OSM-Übergang und wenn die Suche nicht abgeschaltet ist)
-      setDaten({ osm: ro.daten, av: ra.daten, sosf: rs ? rs.daten : null, nid, bfs, luftbild: null, flugjahr: '', ort: [e, n] })
+      // Übergang aus dem Luftbild: als Knoten (mit Fussweg für die Richtung) in die OSM-Antwort, dann rechnet alles wie an einem OSM-Übergang
+      const osmRoh = lbHerkunft && nid !== null ? osmMitLuftbildUebergang(ro.daten, nid, lbHerkunft) : ro.daten
+      setDaten({ osm: osmRoh, av: ra.daten, sosf: rs ? rs.daten : null, nid, bfs, luftbild: null, flugjahr: '', ort: [e, n] })
       setFall(f => f ? { ...f, quellen: { osm: ro.quelle, av: `${ra.quelle}, Kanton ${[...new Set(avF.map(x => x.kanton))].join(', ')}`,
         geladen: new Date().toISOString().slice(0, 10) } } : f)
       // Bedarfsmodul (Vorbelegung): Haltestellen und Verkehrsdaten aus dem Geoportal der Stadt Bern, nicht blockierend (ohne sie
@@ -728,6 +755,16 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     wechseln(`Übergang ${k.id} prüfen: der bisherige Fall wird ersetzt.`, 'Übergang laden', () => {
       setGewaehlt(k); setGespeichert(null); neuerFallImOrt(); reiterNeu()
       laden(k.lat, k.lon, k.id, null)
+    })
+  }
+
+  /** Streifen aus dem Luftbild (ETH-Modell) prüfen: synthetischer Übergang am Kandidaten, sonst wie ein OSM-Übergang */
+  const pruefenLuftbild = (k: LuftbildKandidat) => {
+    if (werkzeug) { setMeldung('Zeichnen läuft: zuerst «Fertig» oder «Abbrechen», dann einen anderen Übergang wählen.'); return }
+    wechseln('Übergang aus dem Luftbild prüfen: der bisherige Fall wird ersetzt.', 'Übergang laden', () => {
+      const h = herkunftAus(k), kn = kandidatKnoten(k.id, h)
+      setGewaehlt(kn); setGespeichert(null); neuerFallImOrt(); reiterNeu()
+      laden(kn.lat, kn.lon, k.id, null, null, h)
     })
   }
 
@@ -1616,8 +1653,18 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // gewählter Übergang immer dabei, auch wenn sein Ausschnitt aus dem Cache der Suche gefallen ist
   const sichtbar = useMemo(() => {
     const l = nurMarkiert ? uebergaenge.filter(k => istFgs(markierung(k.tags)) || k.id === gewaehlt?.id) : uebergaenge
-    return gewaehlt && !l.some(k => k.id === gewaehlt.id) ? [...l, gewaehlt] : l
+    // ein gewählter Übergang aus dem Luftbild (negative Kennung) steht in der eigenen Ebene (lbKandidaten), nicht bei den OSM-Übergängen
+    return gewaehlt && gewaehlt.id > 0 && !l.some(k => k.id === gewaehlt.id) ? [...l, gewaehlt] : l
   }, [uebergaenge, nurMarkiert, gewaehlt])
+  // Streifen aus dem Luftbild (ETH-Modell): in abgesuchten Ausschnitten, ohne OSM-Übergang in 15 m; der gewählte immer dabei
+  const lbHerkunft = fall?.ort.herkunft, lbId = fall?.ort.uebergang ?? null
+  const lbKandidaten = useMemo(() => {
+    const l = kandidatenAnzeigen(lbSnaps, suchBoxen, uebergaenge)
+    if (!lbHerkunft || lbId === null || lbId >= 0 || l.some(k => k.id === lbId)) return l
+    const [lat, lon] = wgs(lbHerkunft.p[0], lbHerkunft.p[1])
+    return [...l, { id: lbId, p: lbHerkunft.p, conf: lbHerkunft.conf, jahre: lbHerkunft.jahre, richtung: lbHerkunft.richtung, lat, lon,
+      flug: flugText(lbHerkunft.jahre, Object.assign({}, ...lbSnaps.map(x => x.bildJeJahr))) }]
+  }, [lbSnaps, suchBoxen, uebergaenge, lbHerkunft, lbId])
   const verwaist = useMemo(() => (fall && rechnung && rechnungFall === rechenFall ? eingabenVerwaist(fall, rechnung.streifen) : []),
     [fall, rechnung, rechnungFall, rechenFall])
   // «Geladene Quellen» eingeklappt; hat eine Quelle einen Fehler, klappt der Abschnitt auf (und die Überschrift nennt ihn)
@@ -1901,6 +1948,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   return (
     <div className="app" style={{ '--panel-breite': `${panelBreite}px` } as CSSProperties}>
       <Karte mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
+        luftbildKandidaten={lbKandidaten} onLuftbildKandidat={pruefenLuftbild}
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? LEER_HIND} streifenHand={fall?.streifenHand ?? LEER_HAND}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} rundenR={rundenR}
         rundenAngebot={angebotKarte} rundenVorschau={rundenVorschau} inselVorschau={inselVorschau}
@@ -1980,7 +2028,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         {ladeHinweis && fall && (
           <p className="klein hinweisbox">{ladeHinweis.text}{' '}
             {ladeHinweis.verwerfen && <button className="zweit klein" onClick={() => {
-              setFall(leererFall(fall.ort.lat, fall.ort.lon, fall.ort.uebergang)); setLadeHinweis(null)
+              const leer = leererFall(fall.ort.lat, fall.ort.lon, fall.ort.uebergang)
+              if (fall.ort.herkunft) leer.ort.herkunft = fall.ort.herkunft     // Übergang aus dem Luftbild bleibt
+              setFall(leer); setLadeHinweis(null)
             }}>Eingaben verwerfen</button>}{' '}
             <button className="zweit klein" onClick={() => setLadeHinweis(null)}>ausblenden</button></p>
         )}
@@ -1993,7 +2043,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             })}>entfernen</button></p>
         )}
         {rechnung?.hinweis && <p className={rechnung.markierung && istFgs(rechnung.markierung) ? 'pruefen' :
-          rechnung.streifenQuelle === 'hand' ? 'hinweisbox' : 'keinfgs'}>{rechnung.hinweis}</p>}
+          rechnung.streifenQuelle === 'hand' ? 'hinweisbox' : 'keinfgs'}>{rechnung.hinweis}{fall?.ort.herkunft && rechnung.luftbildUebergang
+          ? ` (${herkunftText(fall.ort.herkunft)})` : ''}</p>}
         {/* Streifen ausserhalb der Abdeckung: beim Streifen (StreifenAnzeige); hier gesammelt nur die ohne eigenes Ergebnis */}
         {ausserhalbOhne.length > 0 && (
           <p className="klein warnung">{nichtAbgedecktText(ausserhalbOhne, titel)}{' '}
@@ -2322,6 +2373,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             <span className="farbe rund gestrichelt" style={{ background: UEBERGANG_FARBE.vermutlich, borderColor: '#a16207', opacity: 0.6 }} />vermutlich
             (crossing=uncontrolled ohne Markierungs-Tag), <span className="farbe rund" style={{ background: UEBERGANG_FARBE.lsa }} />mit Lichtsignal,
             <span className="farbe rund" style={{ background: UEBERGANG_FARBE.unmarkiert }} />unmarkiert bzw. ohne Angabe (kein FGS)</li>
+          <li><span className="farbe lbfgs-marke" />Streifen aus dem Luftbild (ETH-Modell), nicht in OSM: Kandidat zum Prüfen (Klick: wie ein
+            OSM-Übergang prüfen)</li>
           <li><span className="farbe" style={{ background: '#fde047' }} />Streifen, <span className="farbe gestrichelt" style={{ background: '#e2e8f0',
             borderColor: '#0f172a', borderStyle: 'dashed', boxShadow: `inset 0 0 0 1px ${OHNE_VORTRITT_FARBE}` }} />Querung ohne Vortritt (ohne Balken, weiss
             gestrichelt; Sichtweite nach <VerweisText text="VSS 40 240" />, Ziffer 8.2), <span className="farbe gestrichelt" style={{ background: AV_FARBEN.Trottoir,
@@ -2388,6 +2441,11 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           Luftbild und Streifen-Erkennung {LUFTBILD_QUELLE}{daten?.flugjahr ? ` (Flugjahr ${daten.flugjahr})` : ''} · Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '…'}, geodienste.ch ·
           Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}{hoehenWerte || kurveNeigung ? ' · Höhenmodell swissALTI3D © swisstopo' : ''}.
         </p>
+        <p className="klein">
+          Streifen aus dem Luftbild, die in OSM fehlen: {ETH_MODELL_QUELLE} (<a href={ETH_MODELL_URL} target="_blank" rel="noopener noreferrer">Artikel ↗</a>,{' '}
+          <a href={ETH_MODELL_CODE} target="_blank" rel="noopener noreferrer">Code ↗</a>); Snapshot je Stadt (Bern, Zürich, Basel) mit Abgleich
+          © OpenStreetMap-Mitwirkende, nur Hinweis zum Prüfen.
+        </p>
         <p className="klein">Die App ersetzt keine Beurteilung vor Ort. Eingaben bleiben im Browser bzw. in der Fall-Datei.</p>
         <h3>Quellen der Prüfungen</h3>
         <QuellenTabelle />
@@ -2415,6 +2473,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             ...(fall.quellen.verkehrsdaten ? [`Verkehrsmenge DTV (Vorbelegung Bedarf): ${VD_QUELLE}, DTV = 16·Nt + 8·Nn (${GEOPORTAL_BERN}, ` +
               'ArcGIS REST map.bern.ch)'] : []),
             ...BERN_C_KEYS.filter(k => fall.quellen[k]).map(bernDienstBericht),
+            ...(fall.ort.herkunft ? [`Übergang aus dem Luftbild (nicht in OSM): ${ETH_MODELL_QUELLE}`] : []),
             ...(hoehenWerte ? ['Längsneigung der Knotensicht: Höhenmodell swissALTI3D © swisstopo (Profile, api3.geo.admin.ch)'] : []),
             ...(kurveNeigung ? ['Längsgefälle der Kurvenregel: Höhenmodell swissALTI3D © swisstopo (Profil entlang der Fahrlinie, api3.geo.admin.ch)'] : [])]}
           ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} />
@@ -2616,6 +2675,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
       {s.keinFgsHinweis && <p className="keinfgs klein">Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug.</p>}
       {s.querungAnnahme && <p className="pruefen klein">{s.querungAnnahme}</p>}
       {s.markierungHinweis && <p className="pruefen klein">Vermutlich Fussgängerstreifen (Markierung in OSM nicht erfasst), bitte prüfen.</p>}
+      {s.luftbildUebergang && <p className="pruefen klein">{s.luftbildUebergang}</p>}
       {s.lsa === 'ja' && <p className="klein">Mit Lichtsignal gilt die <VerweisText text="Arbeitshilfe Fussgängerstreifen Kanton Bern" /> nicht; die Rechnung wird trotzdem gezeigt.</p>}
       {s.annahmen.length > 0 && <ul className="annahmen">{s.annahmen.map(a => <li key={a}>{a}</li>)}</ul>}
       {s.status !== 'kein_fgs' && (

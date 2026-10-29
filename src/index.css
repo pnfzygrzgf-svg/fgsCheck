@@ -149,6 +149,10 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .masse > div > div { margin: 2px 0; }
 .aktionen { margin-left: auto; display: flex; gap: 4px; }
 .farbe.gestrichelt { background: transparent; border: 2px dashed; }
+/* Streifen aus dem Luftbild (ETH-Modell), nicht in OSM: hohles Quadrat, gelb gestrichelt mit dunklem Schatten (Karte und Legende) */
+.lbfgs-marke { box-sizing: border-box; border: 2px dashed #eab308; background: rgba(234, 179, 8, 0.08); box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.55); cursor: pointer; }
+.lbfgs-marke.gewaehlt { border-width: 3px; box-shadow: 0 0 0 2px #0f172a; }
+.farbe.lbfgs-marke { width: 12px; height: 12px; }
 .zeile { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
 .spur { margin: 6px 0; }
 .ecke { background: #ffffff; border: 2px solid #0f172a; border-radius: 50%; cursor: move; }
