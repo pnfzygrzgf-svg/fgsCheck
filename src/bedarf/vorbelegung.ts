@@ -43,6 +43,8 @@ import { tag } from './lesetext'
 import { WARTE_TC_S, WARTE_TF_S, breiteVorbelegung, knotensichtGueltig, knotensichtVorbelegung, ueberfahrbarVorbelegung, wartezeitSchaetzen, UEBERFAHRBAR_OHNE,
   winkelVorbelegung } from '../tue/texte'
 import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
+import { KURVE_GEFAELLE_MAX, KURVE_NAH_M, KURVE_WEIT_M, KURVE_WINKEL_MIN, kurveGeometrie, kurveProfilSchluessel, kurveZufahrt } from './kurvenregel'
+import type { NeigungMessung } from '../knotensicht/rechner/typen'
 import { automatikC, strassentypBern, tempoAusHierarchie, vsigVorbelegen, zoneNachVsig } from './automatikC'
 import { GEOPORTAL_BERN, type BernErgebnis } from '../daten/geoportal'
 import type { RichtplanDaten } from '../daten/richtplanFussverkehr'
@@ -258,8 +260,8 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   // Tram (OSM-Gleis); quert eines, bestimmt die Automatik (AV bzw. OSM embedded) die Art, sonst Hinweis (unten)
   if (st.every(s => s.tram === false)) setze('tram', 'keins', 'osm', 'kein Tramgleis in OSM am Streifen')
 
-  // Kurve: Sichtweite nach Tab. 1, solange die Voraussetzungen für Tab. 2 nicht bestätigt sind
-  setze('kurve.fuenfBedingungen', false, 'annahme', 'Sichtweite nach Tab. 1 (Voraussetzungen für die Kurvenregel nicht bestätigt)')
+  // Kurve: ohne bestätigte Voraussetzungen Sichtweite nach Tempo (fallBedarf: Kurve als Annahme); die fünf Voraussetzungen der
+  // Kurvenregel belegt automatik.ts (A7) aus der Zufahrt mit der Kurve vor
 
   // Insel: Teilstreifen auf einer Achse sind an einer Insel geteilt
   if (st.length === 1) setze('insel.vorhanden', false, 'rechnung', 'Streifen nicht an einer Insel geteilt')
@@ -401,6 +403,8 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
     if (i >= 0) hinweise.splice(i, 1)
   }
   automatikC({ st, geo, w, setze, feldHinweis, feldHinweisWeg, hinweise })
+  // Kurvenregel (29.10.2026): die fünf Voraussetzungen aus der Zufahrt mit der Kurve (kurvenregel.ts)
+  kurvenregelVorbelegen(st, fall, w, geo.kurveNeigung ?? null, setze, feldHinweis)
   // Trottoirüberfahrt (K4): die Knotensicht (tue/knotensicht.ts) beantwortet «Sicht beim Ausfahren», nur mit eindeutigem Ergebnis beider
   // Phasen; sonst bleibt die Frage offen (Hinweis). Eine Handeingabe geht vor (fallBedarf)
   const kv = knotensichtVorbelegung(g.streifen.flatMap(s => (s.knotensicht ? [s.knotensicht] : [])))
@@ -437,6 +441,50 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
     hinweise.push('Ein Tramgleis nach OSM quert die Querung: Art (Fahrbahn bzw. Eigentrassee) von Hand wählen')
   return { werte: w, hinweise, feldHinweise, rechner, ...(aus.knoten !== undefined ? { knoten: aus.knoten } : {}),
     ...(strittig.length && !w.tempoRegime ? { strittig } : {}) }
+}
+
+/**
+ * Kurvenregel (VSS 40 241 Z. 14, S. 7; 29.10.2026): Vorbelegung der fünf Voraussetzungen aus der Zufahrt mit der Kurve (kleinster
+ * Radius): (1) innerorts und 50 km/h, (2) Fahrstreifen je Richtung, (3) Abstand vom Kurvenende, (4) Richtungsänderung,
+ * (5) Längsgefälle aus dem Höhenmodell. Ohne Kurve nichts (die Fragen sind dann ausgeblendet)
+ */
+export function kurvenregelVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vorbelegung, neigung: Readonly<Record<string, NeigungMessung>> | null,
+  setze: Setze, feldHinweis: FeldHinweis): void {
+  const z = kurveZufahrt(st)
+  if (!z) return
+  const Z = '(VSS 40 241 Z. 14, S. 7)'
+  // (1) innerorts (von Hand bzw. vorbelegt) und Tempo der Zufahrt in der Kurve
+  const hi = fall.bedarf?.felder.innerorts
+  const io = hi && typeof hi.wert === 'boolean' ? { wert: hi.wert, quelle: hi.quelle } : w.innerorts && typeof w.innerorts.wert === 'boolean'
+    ? { wert: w.innerorts.wert as boolean, quelle: w.innerorts.quelle } : null
+  const tempoBekannt = z.tempoQuelle !== 'Ersatz'
+  const tq: Quelle = z.tempoQuelle === TEMPO_QUELLE_AMTLICH ? 'geoportal' : z.tempoQuelle === 'Korrektur' ? 'hand' : 'osm'
+  const annahme = (q: Quelle) => q === 'annahme' || q === 'schaetzung'
+  if (io?.wert === false) setze('kurve.b1Innerorts50', false, io.quelle === 'hand' ? 'rechnung' : io.quelle, `ausserorts: Kurvenregel gilt nicht ${Z}`)
+  else if (tempoBekannt && z.tempo !== 50) setze('kurve.b1Innerorts50', false, tq, `Tempo der Zufahrt in der Kurve ${z.tempo} km/h, nicht 50 km/h ${Z}`)
+  else if (io?.wert === true && tempoBekannt) setze('kurve.b1Innerorts50', true, annahme(io.quelle) ? 'annahme' : tq,
+    `innerorts${annahme(io.quelle) ? ' (angenommen)' : ''}, Tempo der Zufahrt in der Kurve 50 km/h ${Z}`)
+  else feldHinweis('kurve.b1Innerorts50', `${io ? 'Tempo der Zufahrt in der Kurve unbekannt' : 'innerorts noch offen'}: von Hand angeben ${Z}`)
+  // (2) Fahrstreifen je Richtung der Zufahrt
+  const nOsm = z.fahrstreifenOsmN ?? null
+  const nFs = nOsm ?? (z.mehrstreifig === null ? null : z.mehrstreifig ? 2 : 1)
+  if (nFs !== null) setze('kurve.b2EinFahrstreifen', nFs <= 1, nOsm !== null ? 'osm' : 'annahme',
+    `${nFs} Fahrstreifen je Richtung in der Kurve (${nOsm !== null ? 'OSM, lanes' : 'aus der Fahrbahnbreite geschätzt'}) ${Z}`)
+  // (3) und (4) aus der Fahrlinie des Sichtrechners
+  const g = kurveGeometrie(z)
+  if (g && g.endeM !== null) {
+    const t = `Kurvenende ${ganz(g.endeM)} m vor dem Streifen (Fahrlinie des Sichtrechners)`
+    if (g.endeM <= KURVE_NAH_M) setze('kurve.b3NachKurvenende', true, 'rechnung', `${t} ${Z}`)
+    else if (g.endeM > KURVE_WEIT_M) setze('kurve.b3NachKurvenende', false, 'rechnung', `${t} ${Z}`)
+    else feldHinweis('kurve.b3NachKurvenende', `${t}: von Hand beurteilen ${Z}`)
+  }
+  if (g) setze('kurve.b4Winkel60', g.winkel >= KURVE_WINKEL_MIN, 'rechnung', `Richtungsänderung der Fahrlinie über die Kurve rund ${g.winkel}° ` +
+    `(Sichtrechner, OSM-Weg) ${Z}`)
+  // (5) Längsgefälle aus dem Höhenmodell entlang der Fahrlinie
+  const m = neigung?.[kurveProfilSchluessel(z)]
+  if (m && m.i !== null) setze('kurve.b5Gefaelle5', Math.abs(m.i) <= KURVE_GEFAELLE_MAX, 'rechnung',
+    `Längsneigung ${String(Math.abs(m.i)).replace('.', ',')} % auf ${ganz(m.laenge)} m vor dem Streifen (Höhenmodell swissALTI3D) ${Z}`)
+  else feldHinweis('kurve.b5Gefaelle5', `Höhenmodell nicht verfügbar: Längsgefälle von Hand angeben ${Z}`)
 }
 
 /** Kurzname einer Quelle in Herkunftstexten */
@@ -503,8 +551,8 @@ export function erkennungVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vorbe
 }
 
 // ── Geodaten (Abschnitt 18 der Regeln) ──
-type Setze = (pfad: string, wert: unknown, quelle: Quelle, text: string) => void
-type FeldHinweis = (pfad: string, text: string) => void
+export type Setze = (pfad: string, wert: unknown, quelle: Quelle, text: string) => void
+export type FeldHinweis = (pfad: string, text: string) => void
 const wegId = (x: string | null | undefined): number | null => {
   const n = Number(String(x ?? '').replace(/^w/, ''))
   return x && Number.isInteger(n) && n > 0 ? n : null

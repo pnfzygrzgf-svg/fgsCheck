@@ -376,7 +376,8 @@ export function Datenschutz() {
               Luftbild-Ausschnitt ±30 m um den gewählten Übergang und das Kartenbild des Berichts (wms.geo.admin.ch), Flugjahr der
               1-km-Kachel (api3.geo.admin.ch);
               bei der Ortssuche der eingegebene Suchbegriff (api3.geo.admin.ch); an einer Trottoirüberfahrt bis vier Linien der Knotensicht
-              (Koordinaten) für Höhenprofile (api3.geo.admin.ch).</li>
+              (Koordinaten) für Höhenprofile (api3.geo.admin.ch); mit einer Kurve vor dem Streifen die Fahrlinie der Zufahrt (50 m,
+              Koordinaten) für das Längsgefälle der Kurvenregel (api3.geo.admin.ch).</li>
             <li>geodienste.ch (Amtliche Vermessung): Rechteck ±150 m um den Übergang bzw. die geplanten Streifen.</li>
             <li>Overpass (OpenStreetMap): Kartenausschnitt (Übergänge und Strassennamen) mit etwas Rand bei der Suche (automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m um den
               Übergang bzw. die geplanten Streifen; Server {erster}

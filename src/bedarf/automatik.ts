@@ -16,6 +16,7 @@ import { type P, add, sub, dot, dist, einheit, rechts, links, lv95, imPolygon, a
 import type { StreifenErgebnis, ZufahrtErgebnis } from '../rechner/typen'
 import type { Fall, PlanSeitenraum } from '../fall'
 import type { Quelle } from './eingaben'
+import type { NeigungMessung } from '../knotensicht/rechner/typen'
 import type { KsFahrstreifen } from '../tue/knotensicht'
 import type { Vorbelegung } from './fallBedarf'
 import { HW_ALLE, istFgs, istLsaUebergang, markierung, type OsmDaten, type OsmKnoten, type OsmWeg, type VortrittZeichen } from '../daten/osm'
@@ -83,6 +84,9 @@ export interface AutoGeo {
   strassentyp?: { wert: 'verkehrsorientiert' | 'siedlungsorientiert' | null; quelle: Quelle; text: string } | null
   /** Vortrittszeichen (give_way, stop) und Verkehrsschilder nach OSM mit abgedecktem Bereich (überall; Paket C) */
   vortritt?: { zeichen: VortrittZeichen[]; bereich: Bereich } | null
+  /** Kurvenregel (29.10.2026): Längsneigung aus dem Höhenmodell entlang der Fahrlinie der Zufahrt mit der Kurve, je
+   * kurvenregel.kurveProfilSchluessel; fehlt der Eintrag: lädt noch bzw. nicht verfügbar */
+  kurveNeigung?: Readonly<Record<string, NeigungMessung>> | null
 }
 
 /** ganzeStrasse: Wert ist die Länge der ganzen Strasse (Runde 4, Abstände bei beidseitigem Strassenende) */

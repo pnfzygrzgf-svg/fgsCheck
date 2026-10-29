@@ -36,7 +36,7 @@ import { ZUSTAND_ANZEIGE, annahmenJePunkt, eintragSatz, fragenFelder, grundKopf,
 import { HAND_QUELLEN, QUELLE_TEXT, gleicherWert, handSetzen, handPruefen, ebeneSetzen, type BedarfEbenen, type Herkunft } from './bedarf/fallBedarf'
 import type { BefundBlatt } from './bedarf/befundblatt'
 import type { Ebene, Eintrag } from './bedarf/typen'
-import { QUELLEN_ANNAHME, QUELLEN_BESTAETIGBAR, type Quelle } from './bedarf/eingaben'
+import { QUELLEN_ANNAHME, QUELLEN_BESTAETIGBAR, type Quelle, KURVE_BEDINGUNGEN } from './bedarf/eingaben'
 import { mitTiteln, regelName, regelTitel } from './bedarf/regelname'
 import { ABSCHNITTE, EBENE_WORT, LEGENDE, THEMEN, abschnittVon, gruppeVonThema, istAusfuehrung, mitEinheit, nachAbschnitt, pruefUebersicht, themaName,
   verbindlichkeitVon } from './bedarf/themen'
@@ -1024,6 +1024,27 @@ function RegelListe({ ids, kopf, druck }: { ids: readonly string[]; kopf: ReactN
 /** Text eines Felds im Verweis: Name des Felds bzw. die Frage (Objekt, Hinweis) */
 const verweisText = (feld: string): string => (FELD_DEF.has(feld) ? feldName(feld) : frageVon(feld))
 
+/** die fünf Voraussetzungen der Kurvenregel (Felder der Maske) */
+const KURVE_FELDER: readonly string[] = KURVE_BEDINGUNGEN.map(u => `kurve.${u}`)
+/**
+ * Kurvenregel (VSS 40 241 Z. 14, S. 7; 29.10.2026): die fünf Voraussetzungen mit Wert und Herkunft, im Panel als Eingaben (offene
+ * zählen als Fragen des Themas), im Bericht als Liste; darunter, ob die Regel gilt
+ */
+function KurvenregelBlock({ b, druck, eingabe }: { b: BefundBlatt; druck: boolean; eingabe?: ErwEingabe }) {
+  const k = b.gebildet.eingaben.kurve.wert
+  const stand = k?.fuenfBedingungen ? 'gilt: Sicht nach dem Kurvenradius' : k?.vorschlag ? 'möglich, aber mit Annahmen: bitte bestätigen'
+    : KURVE_BEDINGUNGEN.some(u => k?.[u] === false) ? 'gilt nicht: Sicht nach dem Tempo' : 'noch offen: Sicht nach dem Tempo, bis alle fünf ja sind'
+  const kopf = <div className="thema-abschnitt"><b>{T('Kurvenregel (VSS 40 241 Z. 14, S. 7)')}</b> <span className="klein">– {stand}</span></div>
+  if (eingabe && !druck) return <div className="thema-teil kurvenregel">{kopf}
+    <Maske fall={eingabe.fall} blatt={b} aendern={eingabe.aendern} felder={KURVE_FELDER.map(p => FELD_DEF.get(p)!)} flach ohneKoepfe
+      zaehlt={eingabe.zaehlt} alle={eingabe.alle} kontexte={eingabe.kontexte} bedarf={eingabe.bedarf} bestaetig={eingabe.bestaetig} /></div>
+  return <div className="thema-teil kurvenregel">{kopf}<ul className="klein">{KURVE_FELDER.map(p => {
+    const h = b.gebildet.herkunft.get(p), w = h?.zustand === 'hand' ? h.wert : h?.zustand === 'vorbelegt' ? h.vorbelegt?.wert : null
+    return <li key={p}>{frageVon(p)} {w === true ? 'ja' : w === false ? 'nein' : 'offen'}{h && h.zustand !== 'offen' && h.zustand !== 'rechner'
+      ? ` (${h.zustand === 'hand' ? 'von Hand' : `${QUELLE_TEXT[h.quelle!]}: ${lesetext(h.text)}`})` : ''}</li>
+  })}</ul></div>
+}
+
 /** Kopf eines Themas: Name und Zählung in Symbol und Wort */
 function ThemaZahl({ t }: { t: ThemaTeil }) {
   return <span className="klein thema-zahl">{themaZahl(t).map(([s, w], i) => <Fragment key={s}>{i ? ' · ' : ''}<span className="grund-symbol"
@@ -1048,7 +1069,10 @@ function ErwTeil({ titel, zahl, druck, offen: offen0 = false, id, umfang, childr
 function ThemaAnzeige({ t, blaetter, druck, eingabe, begriffe }: { t: ThemaTeil; blaetter: readonly BefundBlatt[]; druck: boolean
   eingabe?: ErwEingabe; begriffe: ReadonlyMap<Eintrag, string[]> }) {
   const b0 = blaetter[0], mehrere = blaetter.length > 1
-  const felder = eingabe ? t.felder.filter(p => eingabe.alle || eingabe.zaehlt(p)).map(p => FELD_DEF.get(p)!) : []
+  // Kurvenregel (29.10.2026): die fünf Voraussetzungen im Thema Sicht als eigener Block (nur mit Kurve), nicht unter «Alle Angaben»
+  const kurveBlock = t.thema.id === 'sicht' && blaetter.some(b => (b.gebildet.eingaben.kurve.wert?.radius ?? null) !== null)
+  const felder = eingabe ? t.felder.filter(p => (eingabe.alle || eingabe.zaehlt(p)) && !(kurveBlock && KURVE_FELDER.includes(p)))
+    .map(p => FELD_DEF.get(p)!) : []
   // beurteilte Trottoirüberfahrt: ihr Thema ist die Prüfung, offen (27.10.2026)
   const tue = t.thema.id === 'trottoirueberfahrt' && blaetter.some(b => b.gebildet.eingaben.typ.wert === 'trottoirueberfahrt')
   // beurteilte Trottoirüberfahrt (27.10.2026): von der App vorbelegte Angaben sichtbar im Thema (prüfen, bei Bedarf ändern), nicht in
@@ -1094,7 +1118,8 @@ function ThemaAnzeige({ t, blaetter, druck, eingabe, begriffe }: { t: ThemaTeil;
         {g.unter && <div className="klein thema-unter"><i>{g.unter}</i></div>}
         {eintraegeListe(g.eintraege)}{fragenListe(g.fragen)}{verweisZeilen(g.verweise)}
       </div>
-    }) : <>{eintraegeListe(t.eintraege)}{fragenListe(t.fragen)}</>}
+    }) : <>{eintraegeListe(t.eintraege)}{fragenListe(kurveBlock && eingabe ? t.fragen.filter(f => !KURVE_FELDER.includes(f.ziel ?? '')) : t.fragen)}</>}
+    {kurveBlock && <KurvenregelBlock b={b0} druck={druck} eingabe={eingabe} />}
     {t.bloecke.map(x => <div key={x.block} className="klein thema-block"><span className="grund-symbol" aria-hidden="true">?</span> Nicht geprüft:
       {' '}{x.text} {!druck && <><Frage feld={x.ziel} text="Angaben eingeben" />{' '}</>}
       <RegelListe ids={x.regeln} druck={druck} kopf={`(${zahlWort(x.regeln.length, 'Regel', 'Regeln')})`} /></div>)}

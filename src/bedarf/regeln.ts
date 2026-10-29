@@ -62,7 +62,8 @@ const hinweisTab2 = (t: { sicht: number; norm: number }): string | undefined =>
  * (40 241 Z. 14). offenV85: Anzeichen ohne Messung, V85 wäre nötig.
  */
 /** Kurvenregel (VSS 40 241 Z. 14, S. 7): die fünf Voraussetzungen und dazu innerorts mit signalisiert 50 km/h (29.10.2026) */
-export const kurvenregelGilt = (k: Kontext): boolean => !!k.w('kurve').fuenfBedingungen && k.o('innerorts') === true && k.o('vSig') === 50
+export const kurvenregelGilt = (k: Kontext): boolean => !!k.w('kurve').fuenfBedingungen && k.w('kurve').radius !== null &&
+  k.o('innerorts') === true && k.o('vSig') === 50
 function hSoll(k: Kontext): { soll: number; text: string; offenV85: boolean; normHinweis?: string } {
   const kurve = k.w('kurve')
   if (kurvenregelGilt(k)) {

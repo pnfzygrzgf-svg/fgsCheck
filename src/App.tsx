@@ -32,6 +32,8 @@ import { KnotensichtBlock } from './tue/KnotensichtBlock'
 import { tueBreiteHand } from './tue/texte'
 import type { Knotensicht } from './tue/knotensicht'
 import { ladeNeigung } from './knotensicht/daten/hoehen'
+import { kurveProfilLinie, kurveProfilSchluessel, kurveZufahrt } from './bedarf/kurvenregel'
+import type { NeigungMessung } from './knotensicht/rechner/typen'
 import type { HoehenVorgabe } from './knotensicht/rechner/typen'
 import Bericht from './Bericht'
 import { Anleitung, BegriffeListe, Datenschutz, Fusszeile, QuellenTabelle, RechnungGrundlagen } from './Hilfe'
@@ -465,6 +467,31 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       })
     }
   }, [rechnung, hoehenWerte])
+
+  // Kurvenregel (29.10.2026): Längsgefälle entlang der Fahrlinie der Zufahrt mit der Kurve (50 m vor dem Streifen) aus demselben
+  // Höhenprofil-Dienst wie die Knotensicht; einmal je Ladevorgang und Zufahrt, Fehler: Frage offen mit Hinweis
+  const [kurveNeigung, setKurveNeigung] = useState<{ nr: number; werte: Record<string, NeigungMessung> } | null>(null)
+  const kurveLaeuft = useRef(new Set<string>())
+  useEffect(() => {
+    const ctrl = abbruchRef.current, nr = ladeNr.current
+    if (!rechnung || !ctrl || ctrl.signal.aborted) return
+    const z = kurveZufahrt(rechnung.streifen)
+    if (!z) return
+    const key = kurveProfilSchluessel(z), lauf = `${nr}|${key}`
+    const linie = kurveProfilLinie(z)
+    if (linie.length < 2 || kurveLaeuft.current.has(lauf)) return
+    kurveLaeuft.current.add(lauf)
+    setzeQuelle('hoehen', { name: HOEHEN_NAME })
+    ladeNeigung(linie, ctrl.signal).then(([m, a]) => {
+      if (ctrl.signal.aborted || ladeNr.current !== nr) return
+      setKurveNeigung(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [key]: m } }))
+      setzeQuelle('hoehen', typeof a === 'string' ? { name: HOEHEN_NAME, fehler: `${a} (Kurvenregel: Gefälle offen)` }
+        : { name: HOEHEN_NAME, objekte: '1 Profil (Kurvenregel)', ms: a.ms, bytes: a.bytes, server: a.quelle })
+    }, err => {
+      if (ctrl.signal.aborted || istAbbruch(err)) return
+      setzeQuelle('hoehen', { name: HOEHEN_NAME, fehler: `${(err as Error).message} (Kurvenregel: Gefälle offen)` })
+    })
+  }, [rechnung])
 
   const aendern = useCallback((f: (x: Fall) => Fall) => setFall(x => (x ? f(structuredClone(x)) : x)), [])
 
@@ -1659,8 +1686,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       nutzungszonen: c ? bernErgebnis(c.nutzungszonen, bq) : null,
       oevLinien: c ? bernErgebnis(c.oevLinien, bq) : null,
       vortritt: { zeichen: vortrittsZeichen(daten.osm), bereich: { mitte: daten.ort, radiusM: OSM_RADIUS_M, form: 'kreis' } },
+      kurveNeigung: kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null,
     }
-  }, [daten, bernGeo, streifenBern, av])
+  }, [daten, bernGeo, streifenBern, av, kurveNeigung])
   const blaetter = useMemo(() => (fall && rechnung && rechnung.streifen.length ? befundblaetter(rechnung, fall, { vorgabe: bedarfVorgabe,
     titel, zufahrt: (fid, z) => zufahrtText(zNamen.get(fid), z), geo: geoVor, ...(alternative ? { alternative } : {}) }) : []),
   [fall, rechnung, bedarfVorgabe, titel, zNamen, geoVor, alternative])
@@ -2346,7 +2374,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <h3>Daten</h3>
         <p className="klein">
           Luftbild und Streifen-Erkennung {LUFTBILD_QUELLE}{daten?.flugjahr ? ` (Flugjahr ${daten.flugjahr})` : ''} · Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '…'}, geodienste.ch ·
-          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}{hoehenWerte ? ' · Höhenmodell swissALTI3D © swisstopo' : ''}.
+          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}{hoehenWerte || kurveNeigung ? ' · Höhenmodell swissALTI3D © swisstopo' : ''}.
         </p>
         <p className="klein">Die App ersetzt keine Beurteilung vor Ort. Eingaben bleiben im Browser bzw. in der Fall-Datei.</p>
         <h3>Quellen der Prüfungen</h3>
@@ -2375,7 +2403,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             ...(fall.quellen.verkehrsdaten ? [`Verkehrsmenge DTV (Vorbelegung Bedarf): ${VD_QUELLE}, DTV = 16·Nt + 8·Nn (${GEOPORTAL_BERN}, ` +
               'ArcGIS REST map.bern.ch)'] : []),
             ...BERN_C_KEYS.filter(k => fall.quellen[k]).map(bernDienstBericht),
-            ...(hoehenWerte ? ['Längsneigung der Knotensicht: Höhenmodell swissALTI3D © swisstopo (Profile, api3.geo.admin.ch)'] : [])]}
+            ...(hoehenWerte ? ['Längsneigung der Knotensicht: Höhenmodell swissALTI3D © swisstopo (Profile, api3.geo.admin.ch)'] : []),
+            ...(kurveNeigung ? ['Längsgefälle der Kurvenregel: Höhenmodell swissALTI3D © swisstopo (Profil entlang der Fahrlinie, api3.geo.admin.ch)'] : [])]}
           ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} />
       )}
     </div>

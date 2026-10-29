@@ -322,6 +322,8 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
   const ein = gebildet.eingaben
   if (ein.kurve.wert?.fuenfBedingungen === true && !(ein.innerorts.wert === true && ein.vSig.wert === 50))
     hinweise.push('Kurvenregel gilt nur innerorts bei 50 km/h: Sichtweite nach dem Tempo (VSS 40 241 Z. 14, S. 7)')
+  if (ein.kurve.wert?.vorschlag) hinweise.push('Kurvenregel möglich: alle fünf Voraussetzungen ja, aber mit Annahmen; bis zur Bestätigung ' +
+    'gilt die Sichtweite nach dem Tempo (VSS 40 241 Z. 14, S. 7)')
   // H4 mit dem Radius aus dem Sichtrechner nur, wenn das Soll nach Radius strenger ist als das nach Tempo (Automatik Paket A)
   const rH = gebildet.herkunft.get('kurve.radius'), r = gebildet.eingaben.kurve.wert?.radius ?? null, vSig = gebildet.eingaben.vSig.wert
   if (rH?.zustand === 'vorbelegt' && r !== null && befund.alle.some(x => x.id === 'H4')) {
@@ -577,6 +579,8 @@ export function annahmeZeilen(a: string, gebildet: Gebildet): string[] {
     const wert = h.zustand === 'hand' ? h.wert : h.vorbelegt?.wert
     return [`${feldName(p)}: ${d ? wertText(d, wert) : m[2]}${h.zustand === 'vorbelegt' ? ` – ${herkunftKurz(h.text)}` : ` (${m[2]} von Hand)`}`]
   })
+  // Kurve ohne angenommene Voraussetzung (29.10.2026): Sicht nach dem Tempo, keine eigene Annahme-Zeile
+  if (!zeilen.length && m[1] === 'kurve') return []
   return zeilen.length ? zeilen : [`${feldName(m[1])}: ${m[2]}`]
 }
 

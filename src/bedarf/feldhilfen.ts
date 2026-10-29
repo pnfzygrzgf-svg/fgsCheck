@@ -21,6 +21,8 @@ import { FELD_DEF, istObjektFeld } from './felder'
 import type { BedarfEingaben, FeldName } from './eingaben'
 import type { Ebene, RegelDef } from './typen'
 import { regelName } from './regelname'
+/** Kurvenregel: die fünf Voraussetzungen (Unterfelder von kurve) */
+const KB = ['kurve.b1Innerorts50', 'kurve.b2EinFahrstreifen', 'kurve.b3NachKurvenende', 'kurve.b4Winkel60', 'kurve.b5Gefaelle5']
 
 /** Werke als Kurztext für «Wozu» (statt SR-Nummer bzw. vollem Titel) */
 export const WERK_KURZ: Record<WerkId, string> = {
@@ -53,8 +55,8 @@ export const UNTERFELDER: Partial<Record<RegelId, readonly string[]>> = {
   F7a: ['randabschluss.art', 'randabschluss.hoeheMm', 'randabschluss.breiteM'], F7b: ['randabschluss.art'],
   G3b: ['fusswegAchse.rechtwinkligUneinsehbar', 'fusswegAchse.versatz', 'fusswegAchse.umlaufschranke'],
   G7: ['hvl.vorhanden', 'hvl.laengeM', 'hvl.beidseits'], G7b: ['hvl.vorhanden'],
-  H1: ['kurve.fuenfBedingungen', 'kurve.radius'], 'D5-4': ['kurve.fuenfBedingungen', 'kurve.radius', ...IV], H2: ['kurve.fuenfBedingungen', 'kurve.radius'],
-  H3a: ['kurve.fuenfBedingungen', 'kurve.radius'], H3b: ['kurve.fuenfBedingungen', 'kurve.radius'], H4: ['kurve.radius'],
+  H1: [...KB, 'kurve.radius'], 'D5-4': [...KB, 'kurve.radius', ...IV], H2: [...KB, 'kurve.radius'],
+  H3a: [...KB, 'kurve.radius'], H3b: [...KB, 'kurve.radius'], H4: ['kurve.radius'],
   'B5-1': ['kurve.radius'], 'B5-1b': ['kurve.radius'],
   E1c: IV, 'I6-B': ['insel.vorhanden'], 'I7-B2': ['insel.vorhanden'], 'I7-B3': ['insel.vorhanden'], I8: ['insel.vorhanden'],
 }
@@ -301,15 +303,31 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   'kurve.radius': {
     was: 'Radius der Kurve bzw. des Abbiegens unmittelbar vor der Querung, in Metern. In engen Kurven fahren die Autos langsamer, ' +
       'die nötige Sichtweite richtet sich dann nach dem Radius.',
-    leer: 'Leer: keine Kurve vor der Querung; die Sichtweite richtet sich nach dem Tempo. Ist «Sicht nach Kurvenradius anwendbar» ' +
-      'bejaht, bleibt die Sicht ohne Radius offen.',
+    leer: 'Leer: keine Kurve vor der Querung; die Sichtweite richtet sich nach dem Tempo. Erst mit Radius erscheinen die fünf ' +
+      'Voraussetzungen der Kurvenregel.',
     vorschlag: 'aus dem Sichtrechner: kleinster Abbiegeradius bzw. Kreiselring (geschätzt: Annahme); ohne Abbieger zeigt das Feld das Ergebnis des Sichtrechners.',
   },
-  'kurve.fuenfBedingungen': {
-    was: 'Ja, wenn alle fünf zutreffen; dann Sicht nach Kurvenradius, ohne V85-Messung: (1) Kurve und Streifen auf einer ' +
-      'Strasse mit Vortritt, innerorts mit 50 km/h; (2) ein Fahrstreifen je Richtung in der Kurve; (3) Streifen gleich nach ' +
-      'dem Kurvenende; (4) Kurve dreht mindestens 60°; (5) Gefälle höchstens 5 % (VSS 40 241 Z. 14, S. 7; Tab. 2, S. 7; Abb. 2, S. 8).',
-    vorschlag: '«nein» als Annahme, bis die Voraussetzungen bestätigt sind (Sicht nach Tempo).',
+  // Kurvenregel (29.10.2026): gilt nur, wenn alle fünf ja sind; dann Sicht nach Kurvenradius, ohne V85-Messung
+  'kurve.b1Innerorts50': {
+    was: 'Ja, wenn Kurve und Streifen innerorts auf einer Strasse mit Vortritt liegen, mit 50 km/h als allgemeinem Tempo. Erste der ' +
+      'fünf Voraussetzungen der Kurvenregel (VSS 40 241 Z. 14, S. 7; Tab. 2, S. 7; Abb. 2, S. 8); mit allen fünf braucht es keine V85-Messung.',
+    vorschlag: 'aus «Innerorts» und dem Tempo der Zufahrt in der Kurve: ja bei innerorts und 50 km/h, sonst nein.',
+  },
+  'kurve.b2EinFahrstreifen': {
+    was: 'Ja, wenn die Kurve je Richtung nur einen Fahrstreifen hat (VSS 40 241 Z. 14, S. 7).',
+    vorschlag: 'aus den Fahrstreifen der Zufahrt nach OSM (lanes), ohne Angabe aus der Fahrbahnbreite geschätzt (Annahme).',
+  },
+  'kurve.b3NachKurvenende': {
+    was: 'Ja, wenn der Streifen gleich nach dem Ende der Kurve liegt (VSS 40 241 Z. 14, S. 7; Abb. 2, S. 8).',
+    vorschlag: 'aus der Fahrlinie des Sichtrechners: Abstand vom Ende der Kurve bis zum Streifen; bis 10 m ja, über 30 m nein, dazwischen offen.',
+  },
+  'kurve.b4Winkel60': {
+    was: 'Ja, wenn die Kurve die Fahrtrichtung um 60° oder mehr ändert (VSS 40 241 Z. 14, S. 7).',
+    vorschlag: 'aus der Fahrlinie des Sichtrechners (OSM-Weg): Richtungsänderung über die Kurve.',
+  },
+  'kurve.b5Gefaelle5': {
+    was: 'Ja, wenn die Strasse vor dem Streifen höchstens 5 % Längsgefälle hat (VSS 40 241 Z. 14, S. 7).',
+    vorschlag: 'aus dem Höhenmodell swissALTI3D entlang der Fahrlinie (50 m vor dem Streifen); ohne Höhenmodell offen.',
   },
   sichtVorh: {
     was: `Wie weit Fahrende je Zufahrt auf die Wartefläche am Streifen sehen, in Metern (${MIT_SLASH}). Nur nötig, wenn das ` +
@@ -565,6 +583,8 @@ const INSEL_BAULICH: Bedingung = { alle: [INSEL, { feld: 'insel.art', ist: ['bau
 const OHNE_BAULICH: Bedingung = { alle: [typ('ohne_vortritt'), ja('ohneBaulich')] }
 const HVL_G7: Bedingung = { alle: [FGS, ja('haltenSichtrelevantUeber5m')] }
 const alle = (...b: Bedingung[]): Bedingung => ({ alle: b })
+/** Kurvenregel: die fünf Voraussetzungen nur mit einer Kurve (Radius) und bei Fussgängerstreifen bzw. offenem Typ */
+const KURVE_DA = alle(FGS_ODER_OFFEN, { feld: 'kurve.radius', gesetzt: true })
 
 /**
  * Wann ein Feld zählt (fehlt: immer). Abgeleitet aus dem Ablauf in entscheid.ts und grundpruefung.ts und aus den Regeln, die ohne
@@ -605,7 +625,8 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   mzsBreiteM: typ('mehrzweck'),
   mzsMitFgs: typ('mehrzweck'),
   'kurve.radius': FGS_ODER_OFFEN,
-  'kurve.fuenfBedingungen': FGS_ODER_OFFEN,
+  'kurve.b1Innerorts50': KURVE_DA, 'kurve.b2EinFahrstreifen': KURVE_DA, 'kurve.b3NachKurvenende': KURVE_DA, 'kurve.b4Winkel60': KURVE_DA,
+  'kurve.b5Gefaelle5': KURVE_DA,
   erkennungM: FGS_ODER_OFFEN,
   // Insel
   'insel.art': INSEL, 'insel.breite': INSEL, 'insel.furt': INSEL, durchfahrt: INSEL, veloQuerung: alle(INSEL_BAULICH, KANTON),
@@ -1005,7 +1026,11 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   mzsBreiteM: 'Wie breit ist der Mehrzweckstreifen?',
   mzsMitFgs: 'Führt ein Fussgängerstreifen über den Mehrzweckstreifen?',
   'kurve.radius': 'Wie eng ist die Kurve vor der Querung (Radius)?',
-  'kurve.fuenfBedingungen': 'Sind alle Bedingungen für die Sicht nach dem Kurvenradius erfüllt (siehe «?»)?',
+  'kurve.b1Innerorts50': 'Liegt die Kurve innerorts auf einer Strasse mit Vortritt und 50 km/h?',
+  'kurve.b2EinFahrstreifen': 'Hat die Kurve nur einen Fahrstreifen je Richtung?',
+  'kurve.b3NachKurvenende': 'Liegt der Streifen unmittelbar nach dem Kurvenende?',
+  'kurve.b4Winkel60': 'Ändert die Kurve die Richtung um mindestens 60°?',
+  'kurve.b5Gefaelle5': 'Ist das Längsgefälle höchstens 5 %?',
   sichtVorh: 'Wie weit sieht man je Zufahrt auf die Wartefläche (von Hand gemessen)?',
   erkennungM: 'Ab welcher Entfernung sehen Fahrende den Streifen (Markierung oder Signal)?',
   // Insel

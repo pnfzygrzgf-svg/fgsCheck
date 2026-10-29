@@ -153,6 +153,8 @@ describe('Feldhilfen: Eingabelisten des Katalogs gegen die Regeln (Messung)', ()
         const pf = new Set([...regelPfade(id), ...(KATALOG[id] as RegelDef).eingaben])
         for (const f of s) {
           if (pf.has(f) || (istObjektFeld(f) && [...pf].some(p => p.startsWith(`${f}.`)))) continue
+          // abgeleitet aus den fünf Voraussetzungen der Kurvenregel (fallBedarf, 29.10.2026)
+          if ((f === 'kurve.fuenfBedingungen' || f === 'kurve.vorschlag') && [...pf].some(p => p.startsWith('kurve.b'))) continue
           fehlt.set(id, (fehlt.get(id) ?? new Set()).add(f))
         }
       }

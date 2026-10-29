@@ -11,7 +11,7 @@
 // es zählt nicht als offen, die Maske zeigt das Ergebnis des Sichtrechners.
 
 import { FELD_DEF, OBJEKTE, feldName, istObjektFeld, unterfelder, wertGueltig, bereichText, type ObjektFeld } from './felder'
-import { FELDNAMEN, leereEingaben, type BedarfEingaben, type Feld, type FeldName, type Quelle } from './eingaben'
+import { FELDNAMEN, KURVE_BEDINGUNGEN, QUELLEN_ANNAHME, leereEingaben, type BedarfEingaben, type Feld, type FeldName, type Quelle } from './eingaben'
 
 /** Handeingabe eines Felds bzw. Unterfelds */
 export interface HandFeld { wert: unknown; quelle: Quelle }
@@ -52,6 +52,12 @@ export function bedarfLesen(roh: unknown): [BedarfBlock | null, string[]] {
   if (roh.felder !== undefined && !istObjekt(roh.felder)) h.push('Bedarf: Felder ungültig (kein Objekt), übergangen')
   else for (const [pfad, v] of Object.entries(roh.felder ?? {})) {
     if (VERBOTEN.includes(pfad) || pfad === ZONE_GESTRICHEN) continue
+    // alte Fall-Dateien (bis 29.10.2026): eine Frage «Sicht nach Kurvenradius anwendbar»; ja = alle fünf Voraussetzungen ja
+    if (pfad === 'kurve.fuenfBedingungen') {
+      if (istObjekt(v) && v.wert === true && (HAND_QUELLEN as readonly unknown[]).includes(v.quelle))
+        for (const u of KURVE_BEDINGUNGEN) b.felder[`kurve.${u}`] = { wert: true, quelle: v.quelle as Quelle }
+      continue
+    }
     const d = FELD_DEF.get(pfad)
     if (!d) { h.push(`Bedarf-Feld «${pfad}» unbekannt, übergangen`); continue }
     if (!istObjekt(v)) { h.push(`Bedarf-Feld «${pfad}» ungültig (kein Objekt), übergangen`); continue }
@@ -157,6 +163,20 @@ export function eingabenBilden(vor: Vorbelegung, block: BedarfBlock | null | und
     const us = unterfelder(f)
     const werte = new Map(us.map(u => [u, wert(`${f}.${u}`)] as const))
     const gesetzt = us.filter(u => werte.get(u))
+    // Kurve (29.10.2026): immer da; ohne Angaben Sicht nach Tempo als Annahme (wie bisher die Vorbelegung «nein»)
+    if (f === 'kurve') {
+      const obj: Record<string, unknown> = Object.fromEntries(us.map(u => [u, werte.get(u) ? structuredClone(werte.get(u)!.wert) : null]))
+      const b = KURVE_BEDINGUNGEN.map(u => werte.get(u))
+      const alleJa = b.every(x => x?.wert === true)
+      const angenommen = b.some(x => !!x && !x.hand && QUELLEN_ANNAHME.includes(x.quelle))
+      obj.fuenfBedingungen = alleJa && !angenommen
+      if (alleJa && angenommen) obj.vorschlag = true
+      const qs = us.map(u => werte.get(u)).filter(x => !!x)
+      // Quelle: von Hand, sonst Annahme (ohne Angaben bzw. mit angenommener Voraussetzung), sonst die der ersten Voraussetzung
+      const bq = b.filter(x => !!x)
+      e.kurve = { wert: obj, quelle: qs.find(x => x!.hand)?.quelle ?? (!bq.length || angenommen ? 'annahme' : bq[0]!.quelle) } as Feld<unknown>
+      continue
+    }
     if (!gesetzt.length) continue
     const fehlt = OBJEKTE[f].pflicht.filter(u => !werte.get(u))
     if (fehlt.length) {

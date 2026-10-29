@@ -119,7 +119,12 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'mzsBreiteM', gruppe: 'lage', name: 'Breite des Mehrzweckstreifens', art: m(0, 10) },
   { pfad: 'mzsMitFgs', gruppe: 'lage', name: 'Fussgängerstreifen über den Mehrzweckstreifen', art: B },
   { pfad: 'kurve.radius', gruppe: 'lage', name: 'Kurvenradius vor der Querung', art: m(0, 1000) },
-  { pfad: 'kurve.fuenfBedingungen', gruppe: 'lage', name: 'Sicht nach Kurvenradius anwendbar', art: B },
+  // Kurvenregel (VSS 40 241 Z. 14, S. 7; 29.10.2026): fünf Voraussetzungen einzeln, «anwendbar» abgeleitet (alle ja)
+  { pfad: 'kurve.b1Innerorts50', gruppe: 'lage', name: 'Kurve innerorts mit 50 km/h auf einer Strasse mit Vortritt', art: B },
+  { pfad: 'kurve.b2EinFahrstreifen', gruppe: 'lage', name: 'Kurve mit einem Fahrstreifen je Richtung', art: B },
+  { pfad: 'kurve.b3NachKurvenende', gruppe: 'lage', name: 'Streifen gleich nach dem Kurvenende', art: B },
+  { pfad: 'kurve.b4Winkel60', gruppe: 'lage', name: 'Richtungsänderung der Kurve mindestens 60°', art: B },
+  { pfad: 'kurve.b5Gefaelle5', gruppe: 'lage', name: 'Längsgefälle höchstens 5 %', art: B },
   { pfad: 'sichtVorh', gruppe: 'lage', name: 'Sichtweite je Zufahrt, von Hand (ersetzt den Sichtrechner)', art: ms(undefined, 500) },
   { pfad: 'erkennungM', gruppe: 'lage', name: 'Ab welcher Distanz ist der Streifen erkennbar', art: m(0, 1000) },
 
@@ -251,7 +256,7 @@ export const OBJEKTE: { readonly [K in ObjektFeld]: { pflicht: readonly string[]
   hvl: { pflicht: ['vorhanden'] },
   fusswegAchse: { pflicht: ['rechtwinkligUneinsehbar'] },
   randabschluss: { pflicht: ['art'] },
-  kurve: { pflicht: ['fuenfBedingungen'] },
+  kurve: { pflicht: [] },
   lsaZeiten: { pflicht: [] },
   q3: { pflicht: [] },
 }

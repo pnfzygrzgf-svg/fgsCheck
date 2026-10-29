@@ -29,7 +29,8 @@ describe('Felder der Maske', () => {
     expect(unterfelder('hvl').sort()).toEqual(Object.keys(S0.hvl).sort())
     expect(unterfelder('fusswegAchse').sort()).toEqual(Object.keys(S0.fusswegAchse).sort())
     expect(unterfelder('randabschluss').sort()).toEqual(Object.keys(S0.randabschluss).sort())
-    expect(unterfelder('kurve').sort()).toEqual(Object.keys(S0.kurve).sort())
+    // Kurve: fuenfBedingungen (bzw. vorschlag) ist aus den fünf Voraussetzungen abgeleitet (29.10.2026)
+    expect(unterfelder('kurve').sort()).toEqual(Object.keys(S0.kurve).filter(k => k !== 'fuenfBedingungen').sort())
     expect(unterfelder('lsaZeiten').sort()).toEqual(Object.keys(S0.lsaZeiten).sort())
     expect(unterfelder('q3').sort()).toEqual(Object.keys(S0.q3).sort())
     expect(new Set(FELD_DEFS.map(d => d.pfad)).size).toBe(FELD_DEFS.length)
@@ -148,7 +149,7 @@ describe('Eingaben bilden: Vorbelegung, Hand, Objekte', () => {
     fahrbahnB: { wert: 7.4, quelle: 'rechnung', text: 'Bordkanten' },
     'insel.vorhanden': { wert: true, quelle: 'av', text: 'AV-Insel' },
     'insel.breite': { wert: 2.1, quelle: 'av', text: 'Lücke' },
-    'kurve.fuenfBedingungen': { wert: false, quelle: 'annahme', text: 'Tab. 1' },
+    'kurve.b2EinFahrstreifen': { wert: false, quelle: 'osm', text: '2 Fahrstreifen' },
   }
   it('Hand überschreibt Vorbelegung je Feld bzw. Unterfeld; Quelle des Objekts von Hand, sobald ein Unterfeld von Hand kommt', () => {
     const b = { felder: { vSig: { wert: 30, quelle: 'hand' as const }, 'insel.art': { wert: 'markiert', quelle: 'hand' as const } } }
@@ -156,7 +157,8 @@ describe('Eingaben bilden: Vorbelegung, Hand, Objekte', () => {
     expect(g.eingaben.vSig).toEqual({ wert: 30, quelle: 'hand' })
     expect(g.eingaben.fahrbahnB).toEqual({ wert: 7.4, quelle: 'rechnung' })
     expect(g.eingaben.insel).toEqual({ wert: { ...INSEL_KEINE, vorhanden: true, art: 'markiert', breite: 2.1 }, quelle: 'hand' })
-    expect(g.eingaben.kurve).toEqual({ wert: { radius: null, fuenfBedingungen: false }, quelle: 'annahme' })
+    expect(g.eingaben.kurve).toEqual({ wert: { radius: null, b1Innerorts50: null, b2EinFahrstreifen: false, b3NachKurvenende: null, b4Winkel60: null,
+      b5Gefaelle5: null, fuenfBedingungen: false }, quelle: 'osm' })
     expect(g.eingaben.dtv).toEqual({ wert: null, quelle: null })
     expect(g.herkunft.get('vSig')).toMatchObject({ zustand: 'hand', quelle: 'hand', wert: 30 })
     expect(g.herkunft.get('fahrbahnB')).toMatchObject({ zustand: 'vorbelegt', text: 'Bordkanten' })
