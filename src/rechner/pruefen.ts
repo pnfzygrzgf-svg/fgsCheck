@@ -33,7 +33,7 @@ import { type SpurHand, spurVersetzen, liniePunkte } from './spurhand'
 import type { ParkRaster } from './hindernisse'
 import { abbiegeZufahrt, SPUR_MIN_M, type AbbiegeKontext } from './abbiegen'
 import { freiBis } from './freibis'
-import { D_VELO_M, RADSTREIFEN_M, veloSichtweite } from '../knotensicht/rechner/velo'
+import { D_VELO_M, RADSTREIFEN_M, TAB3, veloSichtweite } from '../knotensicht/rechner/velo'
 import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvexeHuelle, enthaelt, abstandMulti, huelle, abstandLinieMulti } from './poly'
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
 import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt, QuerungOhneVortritt } from './typen'
@@ -205,17 +205,19 @@ function veloSicht(fs: { veloR: number; vomRand: number } | null, tags: Record<s
   const vomRandV = art === 'radstreifen' ? Math.max(D_VELO_M, fs.veloR - RADSTREIFEN_M / 2) : D_VELO_M
   const delta = fs.vomRand - vomRandV
   const alle = sichtpunkte.map((p, k) => add(p, ref[Math.min(k, ref.length - 1)][1], delta))
-  const vs = veloSichtweite(tempo, 0)
+  // geprüft bis zum grössten Wert der Zeile (Tab. 3 nach Tempo), damit die gemessene Längsneigung die Spalte ohne neue Rechnung wählt
+  const vs = veloSichtweite(tempo, 0), maxM = Math.max(...TAB3[vs.zeile])
   const pts: P[] = [alle[0]]
   let l = 0
   for (let k = 1; k < alle.length; k++) {
     const d = dist(alle[k - 1], alle[k])
-    if (l + d >= vs.A - 1e-6) { if (d > 0) pts.push(add(alle[k - 1], sub(alle[k], alle[k - 1]), (vs.A - l) / d)); l = vs.A; break }
+    if (l + d >= maxM - 1e-6) { if (d > 0) pts.push(add(alle[k - 1], sub(alle[k], alle[k - 1]), (maxM - l) / d)); l = maxM; break }
     l += d; pts.push(alle[k])
   }
   const feld = sf(pts), konflikte = kf(feld, pts)
-  return { fuehrung: art, vomRandM: Math.round(vomRandV * 100) / 100, soll: vs.A, sollText: vs.text, frei: !konflikte.length,
-    freiBisM: freiBis(pts, konflikte, sf, kf, Math.min(l, vs.A)), ...(l < vs.A - 1 ? { bisM: Math.floor(l + 1e-6) } : {}),
+  const freiBisM = freiBis(pts, konflikte, sf, kf, Math.min(l, maxM))
+  return { fuehrung: art, vomRandM: Math.round(vomRandV * 100) / 100, soll: vs.A, sollText: vs.text, frei: !konflikte.length || freiBisM >= vs.A - 1e-6,
+    zeile: vs.zeile, maxM, freiBisM, ...(l < vs.A - 1 ? { bisM: Math.floor(l + 1e-6) } : {}),
     ebikeHinweis: vs.zeile === 'ueber30', konflikte, feld, sichtpunkte: pts }
 }
 

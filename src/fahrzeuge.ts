@@ -10,6 +10,8 @@ import { add, dist, einheit, sub, type P } from './geo'
 import { autoScheibe, autoUmriss, fbLage } from './knotensicht/rechner/fahrzeug'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 import { tueGezeichnet } from './tue/karte'
+import { veloSoll } from './veloSicht'
+import type { NeigungMessung } from './knotensicht/rechner/typen'
 
 /** Farben (27.10.2026): wartendes Fahrzeug mit Sicht auf die Fahrbahn grau, mit Sicht aufs Trottoir ocker, Fahrzeug am Ende der
  * Sichtweite bzw. das herannahende am Fussgängerstreifen blau (hebt sich von den grünen und roten Sichtfeldern und vom gelben Streifen
@@ -61,6 +63,17 @@ export function tueFahrzeuge(s: StreifenErgebnis): FahrzeugForm[] {
     ...(f.ziehbar ? { ziehbar: true } : {}) }))
 }
 
+/** Punkt der Linie (ab dem Streifen) beim Abstand a (am Ende festgehalten), Richtung zum Streifen hin und der Abstand */
+function punktEntlang(l: P[], a: number): [P, P, number] {
+  let s = 0
+  for (let i = 1; i < l.length; i++) {
+    const d = dist(l[i - 1], l[i])
+    if (d > 0 && s + d >= a - 1e-9) return [add(l[i - 1], sub(l[i], l[i - 1]), (a - s) / d), einheit(sub(l[i - 1], l[i])), a]
+    s += d
+  }
+  const n = l.length
+  return [l[n - 1], einheit(sub(l[n - 2], l[n - 1])), s]
+}
 /** Fahrtrichtung zum Streifen beim Punkt p: Fahrlinie (spur beginnt am Streifen) vom nächsten Stützpunkt zum vorherigen */
 function richtungZumStreifen(z: ZufahrtErgebnis, p: P): P | null {
   const sp = z.spur
@@ -76,7 +89,7 @@ function richtungZumStreifen(z: ZufahrtErgebnis, p: P): P | null {
 export const geradeZufahrt = (z: ZufahrtErgebnis): boolean => z.art !== 'abbiegend' && z.sichtpunkte.length > 0
 
 /** Fahrzeuge (je Zufahrt mit Sichtpunkten) und wartende Personen (je Streifenende) eines Fussgängerstreifens; leer bei Trottoirüberfahrt */
-export function fgsFahrzeuge(s: StreifenErgebnis): FahrzeugForm[] {
+export function fgsFahrzeuge(s: StreifenErgebnis, neigung: Readonly<Record<string, NeigungMessung>> | null = null): FahrzeugForm[] {
   if (s.trottoirueberfahrt) return []
   const aus: FahrzeugForm[] = []
   // je Zufahrt mit Sichtpunkten, gerade und abbiegende (27.10.2026: auch Abbieger, entlang ihrer gebogenen Fahrlinie zum Streifen hin)
@@ -88,13 +101,12 @@ export function fgsFahrzeuge(s: StreifenErgebnis): FahrzeugForm[] {
     const [mitte, richtung] = fbLage(auge, add(auge, u))
     aus.push(auto({ art: 'auto', rolle: 'zufahrt', mitte, richtung, auge, zufahrt: `${z.fgsId}|${z.zufahrt}`,
       text: `Fahrzeug am Sichtpunkt, ${z.sichtweite.toFixed(1).replace('.', ',')} m vor dem Streifen` }))
-    // Velo (29.10.2026): am letzten Sichtpunkt der Veloachse, zum Streifen hin
-    const v = z.velo
-    if (v && v.sichtpunkte.length >= 2) {
-      const p = v.sichtpunkte[v.sichtpunkte.length - 1], q = v.sichtpunkte[v.sichtpunkte.length - 2]
-      const uv = einheit(sub(q, p))
+    // Velo (29.10.2026): auf der Veloachse beim Soll nach Tab. 3 (mit der gemessenen Längsneigung), zum Streifen hin
+    const v = z.velo, vs = veloSoll(z, neigung)
+    if (v && vs && v.sichtpunkte.length >= 2) {
+      const [p, uv, m] = punktEntlang(v.sichtpunkte, vs.A)
       if (uv[0] || uv[1]) aus.push({ art: 'velo', rolle: 'zufahrt', mitte: p, richtung: uv, auge: p, zufahrt: `${z.fgsId}|${z.zufahrt}`,
-        text: `Velo am Sichtpunkt, ${String(v.bisM ?? v.soll).replace('.', ',')} m vor dem Streifen (VSS 40 273 Tab. 3)` })
+        text: `Velo am Sichtpunkt, ${String(Math.round(m * 10) / 10).replace('.', ',')} m vor dem Streifen (VSS 40 273 Tab. 3; ${vs.neigungText})` })
     }
   }
   // Wartebereich je Ende wie gerechnet (Bordkante, Richtung vom Streifen weg); ohne: Bordkante, von der Streifenmitte weg

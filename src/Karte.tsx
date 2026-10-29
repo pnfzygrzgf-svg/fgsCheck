@@ -22,6 +22,8 @@ import { ksDreieckSichtbar, ksFahrzeugStand, ksPhaseNach, tueFlaeche, tueGezeich
 import { messLaenge, messText, type Messung } from './messen'
 import { fahrzeugFarbe, fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
 import { erkennungBaender } from './erkennungKarte'
+import { veloSoll, type VeloSoll } from './veloSicht'
+import type { NeigungMessung } from './knotensicht/rechner/typen'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
@@ -74,6 +76,11 @@ export const STATUS_FARBE: Record<string, string> = {
 }
 /** Erkennungsdistanz: Teil bis zum Soll, den die Rechnung nicht geprüft hat (Fahrlinie endet), grau gestrichelt */
 export const ERKENNUNG_UNGEPRUEFT = '#64748b'
+/** Tooltip der Sicht vom Velo: Ergebnis, Soll mit Längsneigung, schnelle E-Bikes (nur über 30 km/h) */
+function veloTooltip(namen: ZufahrtNamen | undefined, z: ZufahrtErgebnis, vs: VeloSoll): string {
+  return `Sicht vom Velo ${esc(zufahrtText(namen, z.zufahrt))}: ${vs.frei ? 'frei' : `verdeckt, frei bis ${z.velo!.freiBisM} m`}, Soll ${vs.A} m ` +
+    `(VSS 40 273 Tab. 3; ${esc(vs.neigungText)})${vs.ebikeA !== null ? `; mit Verbot für schnelle E-Bikes gälte ${vs.ebikeA} m` : ''}`
+}
 /** Querung ohne Vortritt (Bedarfsmodul E1): Umriss ohne Balken, weiss gestrichelt über dunklem Rand, in Karte und Bericht */
 export const OHNE_VORTRITT_FARBE = '#ffffff'
 export const STRICH_OHNE_VORTRITT = '6 4'
@@ -310,6 +317,8 @@ export default function Karte(props: {
   messung?: Messung | null                             // Werkzeug «Messen»: Strecke mit Länge (messen.ts), nicht im Fall
   zufahrtNamen: Map<string, ZufahrtNamen>                  // Anzeige (benennung.ts) je Streifen: Nummer, Strasse und Herkunft
   streifenTitel: (fgsId: string) => string                 // Anzeige: Name bzw. «Streifen 1»
+  /** Längsneigung der Fahrlinie je «fgsId|zufahrt» (Höhenprofil): Soll der Sicht vom Velo nach Tab. 3 */
+  neigung?: Readonly<Record<string, NeigungMessung>> | null
   onUebergang: (k: OsmKnoten) => void
   onZufahrt: (key: string | null) => void
   onKlick: (p: P) => void
@@ -579,11 +588,11 @@ export default function Karte(props: {
           .bindTooltip(`Sichtfeld ${esc(zufahrtText(cb.current.zufahrtNamen.get(z.fgsId), z.zufahrt))}${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(z.status.replace('_', ' '))}`, { sticky: true })
           .on('click', () => { if (!cb.current.werkzeug) cb.current.onZufahrt(zufahrtKey(z)) }).addTo(eb.sicht)
         // Sicht vom Velo (29.10.2026): gestrichelt wie die Velo-Dreiecke der Knotensicht
-        if (z.velo) {
-          const fv = STATUS_FARBE[z.velo.frei ? 'frei' : 'verdeckt']
+        const vs = veloSoll(z, props.neigung)
+        if (z.velo && vs) {
+          const fv = STATUS_FARBE[vs.frei ? 'frei' : 'verdeckt']
           L.polygon(multiLl(z.velo.feld), { color: fv, weight: 1, dashArray: KS_STRICH.velo, fillColor: fv, fillOpacity: 0.1, interactive: !cb.current.werkzeug })
-            .bindTooltip(`Sicht vom Velo ${esc(zufahrtText(cb.current.zufahrtNamen.get(z.fgsId), z.zufahrt))}: ${z.velo.frei ? 'frei' : `verdeckt, frei bis ${z.velo.freiBisM} m`}, ` +
-              `Soll ${z.velo.soll} m (VSS 40 273 Tab. 3)${z.velo.ebikeHinweis ? '; mit Verbot für schnelle E-Bikes gälte eben 30 m' : ''}`, { sticky: true })
+            .bindTooltip(veloTooltip(cb.current.zufahrtNamen.get(z.fgsId), z, vs), { sticky: true })
             .addTo(eb.sicht)
         }
       }
@@ -657,7 +666,7 @@ export default function Karte(props: {
         .bindTooltip(`Streifen aus Luftbild (${lb.befund === 'erkannt' ? 'erkannt' : 'unsicher'}${lb.nurVorschlag ? ', mit Flächen (Plan) nur Vorschlag' : ''}), prüfen: ${t.nBalken} Balken, ` +
           `Balkenlänge ${t.bw.toFixed(1).replace('.', ',')} m`, { sticky: true }).addTo(eb.sicht)
     }
-  }, [rechnung, werkzeug, props.zufahrtNamen, ksPhase, hindernisse])
+  }, [rechnung, werkzeug, props.zufahrtNamen, ksPhase, hindernisse, props.neigung])
 
   // Nummernschilder der Zufahrten (benennung.ts) hinter dem letzten Sichtpunkt; Klick wählt die Zufahrt wie die Zeile im Panel
   // (auf der gewählten: Auswahl aufheben); gestrichene Zufahrten ohne Schild (keine Fahrlinie);
@@ -977,12 +986,12 @@ export default function Karte(props: {
           augeGriff(eb.fahrzeug, f, teile, p => cb.current.onTueAuge?.(s.fgsId, f.phase!, p),
             () => cb.current.onKsPhase?.(ksPhaseNach(cb.current.ksPhase ?? 'beide', f.phase!)))
       }
-      for (const f of fgsFahrzeuge(s)) {
+      for (const f of fgsFahrzeuge(s, cb.current.neigung)) {
         if (f.rolle === 'zufahrt' && (f.zufahrt === auswahl || zoom < FAHRZEUG_ZOOM)) continue
         fahrzeugZeichnen(eb.fahrzeug, f, f.rolle === 'zufahrt', aktiv)
       }
     }
-  }, [rechnung, auswahl, zoom, werkzeug, bearbeiten, ksPhase])
+  }, [rechnung, auswahl, zoom, werkzeug, bearbeiten, ksPhase, props.neigung])
 
   // gewählte Zufahrt hervorheben
   useEffect(() => {
@@ -994,12 +1003,13 @@ export default function Karte(props: {
     if (!z) return
     // Fahrzeug am letzten Sichtpunkt der gewählten Zufahrt, kräftig
     const st = rechnung.streifen.find(s => s.fgsId === z.fgsId)
-    for (const f of st ? fgsFahrzeuge(st) : []) if (f.zufahrt === auswahl) fahrzeugZeichnen(eb.auswahl, f, false, !cb.current.werkzeug && !cb.current.bearbeiten)
+    for (const f of st ? fgsFahrzeuge(st, cb.current.neigung) : []) if (f.zufahrt === auswahl) fahrzeugZeichnen(eb.auswahl, f, false, !cb.current.werkzeug && !cb.current.bearbeiten)
     const farbe = STATUS_FARBE[z.status] ?? '#10b981'
     L.polygon(multiLl(z.feld), { color: farbe, weight: 2, fillColor: farbe, fillOpacity: 0.25, interactive: false }).addTo(eb.auswahl)
     // Sicht vom Velo (29.10.2026): wie das Sichtfeld des Fahrzeugs, gestrichelt, mit den Sichtpunkten der Veloachse
-    if (z.velo) {
-      const fv = STATUS_FARBE[z.velo.frei ? 'frei' : 'verdeckt']
+    const vs = veloSoll(z, cb.current.neigung)
+    if (z.velo && vs) {
+      const fv = STATUS_FARBE[vs.frei ? 'frei' : 'verdeckt']
       L.polygon(multiLl(z.velo.feld), { color: fv, weight: 2, dashArray: KS_STRICH.velo, fillColor: fv, fillOpacity: 0.25, interactive: false }).addTo(eb.auswahl)
       for (const k of z.velo.konflikte) L.polygon(multiLl(k.geom), { color: '#7f1d1d', weight: 2, dashArray: KS_STRICH.velo, fillColor: '#dc2626', fillOpacity: 0.6 })
         .bindTooltip(`${esc(k.layer)} im Sichtfeld des Velos, ${k.abstand.toFixed(1)} m vom Streifen`).addTo(eb.auswahl)
@@ -1019,7 +1029,7 @@ export default function Karte(props: {
         .bindTooltip(ende ? (i === 0 ? 'erster Sichtpunkt (am Streifen)' : `letzter Sichtpunkt (${String(z.sichtweite).replace('.', ',')} m)`) : 'Sichtpunkt')
         .addTo(eb.auswahl)
     })
-  }, [rechnung, auswahl])
+  }, [rechnung, auswahl, props.neigung])
 
   // Zeichnung in Arbeit
   useEffect(() => {

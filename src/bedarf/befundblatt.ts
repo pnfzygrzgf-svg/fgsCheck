@@ -21,6 +21,7 @@ import { FELD_DEFS, FELD_DEF, GRUPPEN, feldName, gruppeVon, gruppenName, wertTex
 import { lesetext } from './lesetext'
 import { QUELLEN_ANNAHME } from './eingaben'
 import { ahs } from './tabellen'
+import { veloSoll } from '../veloSicht'
 import { grundpruefung, type Grundpruefung } from './grundpruefung'
 import { ausgeblendeteBloeckeLeeren } from './feldhilfen'
 import { regelName, regelTitel } from './regelname'
@@ -402,12 +403,12 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
         const wo = g.streifen.length > 1 ? `${titel(s.fgsId)}, ${zName(s.fgsId, z.zufahrt)}` : zName(s.fgsId, z.zufahrt)
         // Sicht vom Velo (29.10.2026): Fussgängerstreifen, Zufahrt mit Radstreifen bzw. Radweg (Sichtrechner); verdeckt: Soll-Befund
         if (!ov && z.velo && erreichtR('H1')) {
-          const v = z.velo
+          const v = z.velo, vs = veloSoll(z, opt.geo?.kurveNeigung ?? null)!
           veloGeprueft = true
-          if (!v.frei) neu.push(eintrag('H1-V', { staerke: 'weich', zustand: 'verletzt', ist: `frei bis ${v.freiBisM} m`, soll: `${v.soll} m`,
-            detail: `${wo}, Velo (${v.fuehrung === 'radstreifen' ? 'Radstreifen' : 'Radweg'}): frei bis ${v.freiBisM} m, Soll ${v.soll} m ` +
-              `(VSS 40 273 ${v.sollText.replace(/^Tab\. 3, /, 'Tab. 3, ')}, Längsneigung 0 % angenommen); ${statusKurzK(v.konflikte)}` +
-              (v.ebikeHinweis ? '; sind schnelle E-Bikes verboten, gilt eben 30 m' : '') }))
+          if (!vs.frei) neu.push(eintrag('H1-V', { staerke: 'weich', zustand: 'verletzt', ist: `frei bis ${v.freiBisM} m`, soll: `${vs.A} m`,
+            detail: `${wo}, Velo (${v.fuehrung === 'radstreifen' ? 'Radstreifen' : 'Radweg'}): frei bis ${v.freiBisM} m, Soll ${vs.A} m ` +
+              `(VSS 40 273 ${vs.text}; ${vs.neigungText}); ${statusKurzK(v.konflikte)}` +
+              (vs.ebikeA !== null ? `; sind schnelle E-Bikes verboten, gilt ${vs.ebikeA} m` : '') }))
         }
         if (frei && bis === undefined) {
           // abbiegende Zufahrten: das Tempo des Sichtrechners ist das der Querstrasse, das Soll kommt aus ihr bzw. dem Kurvenradius

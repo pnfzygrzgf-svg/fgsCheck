@@ -34,6 +34,7 @@ import type { Knotensicht } from './tue/knotensicht'
 import { ladeNeigung } from './knotensicht/daten/hoehen'
 import { kurveProfilLinie, kurveProfilSchluessel, strassenKurve } from './bedarf/kurvenregel'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
+import { veloSoll } from './veloSicht'
 import type { HoehenVorgabe } from './knotensicht/rechner/typen'
 import Bericht from './Bericht'
 import { Anleitung, BegriffeListe, Datenschutz, Fusszeile, QuellenTabelle, RechnungGrundlagen } from './Hilfe'
@@ -468,29 +469,32 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     }
   }, [rechnung, hoehenWerte])
 
-  // Kurvenregel (29.10.2026): Längsgefälle entlang der Fahrlinie der Zufahrt mit der Kurve (50 m vor dem Streifen) aus demselben
-  // Höhenprofil-Dienst wie die Knotensicht; einmal je Ladevorgang und Zufahrt, Fehler: Frage offen mit Hinweis
+  // Längsneigung entlang der Fahrlinie (29.10.2026), 50 m vor dem Streifen, aus demselben Höhenprofil-Dienst wie die Knotensicht:
+  // für die Kurvenregel (Zufahrt mit der Strassenkurve) und die Sicht vom Velo (Zufahrten mit Radstreifen bzw. Radweg); einmal je
+  // Ladevorgang und Zufahrt. Fehlt das Profil (lädt, Fehler), gelten 0 % bzw. die Frage bleibt offen
   const [kurveNeigung, setKurveNeigung] = useState<{ nr: number; werte: Record<string, NeigungMessung> } | null>(null)
   const kurveLaeuft = useRef(new Set<string>())
   useEffect(() => {
     const ctrl = abbruchRef.current, nr = ladeNr.current
     if (!rechnung || !ctrl || ctrl.signal.aborted) return
-    const z = strassenKurve(rechnung.streifen)?.z
-    if (!z) return
-    const key = kurveProfilSchluessel(z), lauf = `${nr}|${key}`
-    const linie = kurveProfilLinie(z)
-    if (linie.length < 2 || kurveLaeuft.current.has(lauf)) return
-    kurveLaeuft.current.add(lauf)
-    setzeQuelle('hoehen', { name: HOEHEN_NAME })
-    ladeNeigung(linie, ctrl.signal).then(([m, a]) => {
-      if (ctrl.signal.aborted || ladeNr.current !== nr) return
-      setKurveNeigung(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [key]: m } }))
-      setzeQuelle('hoehen', typeof a === 'string' ? { name: HOEHEN_NAME, fehler: `${a} (Kurvenregel: Gefälle offen)` }
-        : { name: HOEHEN_NAME, objekte: '1 Profil (Kurvenregel)', ms: a.ms, bytes: a.bytes, server: a.quelle })
-    }, err => {
-      if (ctrl.signal.aborted || istAbbruch(err)) return
-      setzeQuelle('hoehen', { name: HOEHEN_NAME, fehler: `${(err as Error).message} (Kurvenregel: Gefälle offen)` })
-    })
+    const kz = strassenKurve(rechnung.streifen)?.z
+    const zs = [...(kz ? [kz] : []), ...rechnung.streifen.flatMap(s => s.zufahrten.filter(z => z.velo))]
+    for (const z of zs) {
+      const key = kurveProfilSchluessel(z), lauf = `${nr}|${key}`
+      const linie = kurveProfilLinie(z)
+      if (linie.length < 2 || kurveLaeuft.current.has(lauf)) continue
+      kurveLaeuft.current.add(lauf)
+      setzeQuelle('hoehen', { name: HOEHEN_NAME })
+      ladeNeigung(linie, ctrl.signal).then(([m, a]) => {
+        if (ctrl.signal.aborted || ladeNr.current !== nr) return
+        setKurveNeigung(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [key]: m } }))
+        setzeQuelle('hoehen', typeof a === 'string' ? { name: HOEHEN_NAME, fehler: `${a} (Längsneigung der Fahrlinie: 0 % bzw. offen)` }
+          : { name: HOEHEN_NAME, objekte: 'Profil der Fahrlinie', ms: a.ms, bytes: a.bytes, server: a.quelle })
+      }, err => {
+        if (ctrl.signal.aborted || istAbbruch(err)) return
+        setzeQuelle('hoehen', { name: HOEHEN_NAME, fehler: `${(err as Error).message} (Längsneigung der Fahrlinie: 0 % bzw. offen)` })
+      })
+    }
   }, [rechnung])
 
   const aendern = useCallback((f: (x: Fall) => Fall) => setFall(x => (x ? f(structuredClone(x)) : x)), [])
@@ -1901,6 +1905,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} rundenR={rundenR}
         rundenAngebot={angebotKarte} rundenVorschau={rundenVorschau} inselVorschau={inselVorschau}
         inselGriffe={alleGriffe} onInselZug={griffZug} onInselLos={griffLos}
+        neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null}
         onRundenAngebot={ja => { if (ja) angebotAnnehmen(); else setRundenAngebot(null) }} fixpunkte={fall?.fixpunkte ?? LEER_FIX} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
         flaechenPlan={fall?.flaechenPlan ?? LEER_PLAN}
         masslinien={masslinien} messung={werkzeug === 'messen' ? messung : null} zufahrtNamen={zNamen} streifenTitel={titel}
@@ -2287,7 +2292,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             alleStreifen={rechnung?.streifen ?? []} alleNamen={zNamen} blatt={blaetter.find(b => b.streifen.includes(s.fgsId)) ?? null}
             gewaehlteZ={gewaehlteZ} spurZeichnen={key => { setSpurFuer(key); setZeichnung([]); setWerkzeug('spurB') }}
             ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null} neuLaden={() => umStreifenLaden(s.fgsId)} ksPhase={ksPhase} setKsPhase={setKsPhase}
-            grau={!!rechnung && rechnung.streifenQuelle !== 'hand' && !!rechnung.markierung && !istFgs(rechnung.markierung)} />
+            grau={!!rechnung && rechnung.streifenQuelle !== 'hand' && !!rechnung.markierung && !istFgs(rechnung.markierung)}
+            neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null} />
         ))}
         {rechnung && <p className="klein">Rechenzeit {Math.round(rechnung.ms)} ms (Web Worker).</p>}
           </>} />
@@ -2519,10 +2525,12 @@ function StreetViewZufahrt({ url, nr }: { url: string | null; nr: string }) {
 const GEDECKT_TITEL = 'Geprüft; den Weg ab dem Knoten prüft die gerade Zufahrt mit; das Ergebnis zählt trotzdem'
 
 function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, spurZeichnen, ausserhalb, neuLaden, namen, alleStreifen, alleNamen, blatt,
-  ksPhase, setKsPhase, grau = false }: {
+  ksPhase, setKsPhase, grau = false, neigung = null }: {
   s: StreifenErgebnis; fall: Fall; auswahl: string | null; setAuswahl: (k: string | null) => void
   /** unmarkierte OSM-Querung (29.10.2026): ohne Wahl als Querung ohne Vortritt angenommen, Fussgängerstreifen ausdrücklich wählbar */
   grau?: boolean
+  /** Längsneigung der Fahrlinie je «fgsId|zufahrt» (Höhenprofil; Sicht vom Velo) */
+  neigung?: Readonly<Record<string, NeigungMessung>> | null
   ksPhase: KsPhase; setKsPhase: (p: KsPhase) => void   // Knotensicht: gezeigte Phase (Karte und Block gleich)
   blatt: BefundBlatt | null          // Bedarf der Querung: Lage (Hinweis zur Trottoirüberfahrt) und OSM-Knoten (SichtweitenCheck)
   alleStreifen: StreifenErgebnis[]; alleNamen: Map<string, ZufahrtNamen>   // für «geprüft beim anderen Teil» bzw. die gerade Zufahrt
@@ -2631,15 +2639,19 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
                   {z.erkennungM && <div className="klein" title={ERKENNUNG_TITEL}>{erkennungText(z.erkennungM)}</div>}</td>
               </tr>
               {/* Sicht vom Velo (29.10.2026): zweite Prüfung von der Veloachse, nur mit Radstreifen bzw. Radweg */}
-              {z.velo && <tr className="velo-zeile">
-                <td className="klein">↳ Velo ({z.velo.fuehrung === 'radstreifen' ? 'Radstreifen' : 'Radweg nach OSM'}, Achse {f1(z.velo.vomRandM)} m vom Rand)</td>
-                <td />
-                <td title={`Herleitung: VSS 40 273 ${z.velo.sollText}; Längsneigung 0 % angenommen`}>{z.velo.soll} m<div className="klein">(VSS 40 273 Tab. 3)</div></td>
-                <td><span className="farbe" style={{ background: STATUS_FARBE[z.velo.frei ? 'frei' : 'verdeckt'] }} />
-                  Velo: {z.velo.frei ? 'frei' : `verdeckt, frei bis ${z.velo.freiBisM} m`}, Soll {z.velo.soll} m
-                  {z.velo.bisM !== undefined && <div className="klein warnung">geprüft bis {z.velo.bisM} m</div>}
-                  {z.velo.ebikeHinweis && <div className="klein" title="VSS 40 273 Tab. 3">mit Verbot für schnelle E-Bikes gälte eben 30 m</div>}</td>
-              </tr>}
+              {z.velo && (() => {
+                const vs = veloSoll(z, neigung)!
+                return <tr className="velo-zeile">
+                  <td className="klein">↳ Velo ({z.velo.fuehrung === 'radstreifen' ? 'Radstreifen' : 'Radweg nach OSM'}, Achse {f1(z.velo.vomRandM)} m vom Rand)</td>
+                  <td />
+                  <td title={`Herleitung: VSS 40 273 ${vs.text}; ${vs.neigungText}`}>{vs.A} m<div className="klein">(VSS 40 273 Tab. 3)</div>
+                    <div className="klein">{vs.neigungText}</div></td>
+                  <td><span className="farbe" style={{ background: STATUS_FARBE[vs.frei ? 'frei' : 'verdeckt'] }} />
+                    Velo: {vs.frei ? 'frei' : `verdeckt, frei bis ${z.velo.freiBisM} m`}, Soll {vs.A} m
+                    {vs.nurBis !== undefined && <div className="klein warnung">geprüft bis {vs.nurBis} m, darüber nicht geprüft</div>}
+                    {vs.ebikeA !== null && <div className="klein" title="VSS 40 273 Tab. 3">mit Verbot für schnelle E-Bikes gälte {vs.ebikeA} m</div>}</td>
+                </tr>
+              })()}
             </Fragment>))}
             {!s.zufahrten.length && <tr><td colSpan={4} className="klein">keine Zufahrt</td></tr>}
           </tbody>

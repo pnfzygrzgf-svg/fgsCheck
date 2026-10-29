@@ -83,10 +83,13 @@ export interface VeloSicht {
   fuehrung: 'radstreifen' | 'radweg'
   /** Veloachse ab dem rechten Fahrbahnrand [m] */
   vomRandM: number
-  /** nötige Sichtweite nach VSS 40 273 Tab. 3 (Längsneigung 0 % angenommen) und ihre Herleitung */
+  /** nötige Sichtweite nach VSS 40 273 Tab. 3 bei Längsneigung 0 % und ihre Herleitung; mit gemessener Neigung wählt
+   * veloSicht.veloSoll die Spalte (die Rechnung prüft bis maxM, dem grössten Wert der Zeile) */
   soll: number; sollText: string
   frei: boolean
-  /** frei bis [m ab dem Streifenrand] (wie freiBisM) */
+  /** Zeile der Tab. 3 nach dem signalisierten Tempo und so weit geprüft [m] */
+  zeile: 'bis30' | 'ueber30'; maxM: number
+  /** frei bis [m ab dem Streifenrand] (wie freiBisM), höchstens maxM */
   freiBisM: number
   /** Fahrlinie kürzer als das Soll: nur bis hier geprüft */
   bisM?: number

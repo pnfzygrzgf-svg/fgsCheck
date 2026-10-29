@@ -859,7 +859,7 @@ describe('Sicht vom Velo an Zufahrten mit Radstreifen (29.10.2026)', () => {
     expect(b.befund.ausgewertet).toContain('H1')
     {
       expect(e).toMatchObject({ staerke: 'weich', zustand: 'verletzt', ist: `frei bis ${v.freiBisM} m`, soll: '50 m' })
-      expect(e!.detail).toMatch(/Velo \(Radstreifen\): frei bis \d+ m, Soll 50 m \(VSS 40 273 Tab\. 3, über 30 km\/h, Spalte 0 %, Längsneigung 0 % angenommen\); verdeckt durch Parkfeld; sind schnelle E-Bikes verboten, gilt eben 30 m/)
+      expect(e!.detail).toMatch(/Velo \(Radstreifen\): frei bis \d+ m, Soll 50 m \(VSS 40 273 Tab\. 3, über 30 km\/h, Spalte 0 %; Längsneigung 0 % angenommen \(Höhenmodell nicht verfügbar bzw\. lädt\)\); verdeckt durch Parkfeld; sind schnelle E-Bikes verboten, gilt 30 m/)
     }
   })
 })
@@ -923,13 +923,41 @@ describe('Velo auf der Karte (29.10.2026)', () => {
     expect(velos.map(f => f.zufahrt).sort()).toEqual(mitVelo.map(z => `${z.fgsId}|${z.zufahrt}`).sort())
     for (const z of mitVelo) {
       const f = velos.find(x => x.zufahrt === `${z.fgsId}|${z.zufahrt}`)!
-      const sp = z.velo!.sichtpunkte
-      expect(f.mitte).toEqual(sp[sp.length - 1])
       expect(f.rolle).toBe('zufahrt')
-      expect(f.text).toBe(`Velo am Sichtpunkt, ${z.velo!.soll} m vor dem Streifen (VSS 40 273 Tab. 3)`)
+      expect(f.text).toBe(`Velo am Sichtpunkt, ${z.velo!.soll} m vor dem Streifen (VSS 40 273 Tab. 3; Längsneigung 0 % angenommen (Höhenmodell nicht verfügbar bzw. lädt))`)
       // zum Streifen hin: der Schritt in Fahrtrichtung bringt näher an den Streifen
       expect(dist([f.mitte[0] + f.richtung[0], f.mitte[1] + f.richtung[1]], s.m)).toBeLessThan(dist(f.mitte, s.m))
     }
     expect(fgsFahrzeuge(rechneFall(daten(), AV, [], 12, fallMit(() => {}), null).streifen[0]).some(f => f.art === 'velo')).toBe(false)
+  })
+})
+
+describe('Sicht vom Velo mit gemessener Längsneigung (29.10.2026)', () => {
+  it('Spalte der Tab. 3 aus dem Profil (−5 %, 0 %, +3 %), ohne Profil 0 %; Ergebnis neu, sobald das Profil da ist', async () => {
+    const { veloSoll } = await import('../veloSicht')
+    const { fgsFahrzeuge } = await import('../fahrzeuge')
+    const r = rechneFall(daten({ cycleway: 'lane' }), AV, [], 12, fallMit(() => {}), null)
+    const z = r.streifen[0].zufahrten.find(x => x.velo)!
+    expect(z.velo!.maxM).toBe(55)
+    const key = `${z.fgsId}|${z.zufahrt}`
+    const m = (i: number | null) => ({ [key]: { i, quelle: 'swissALTI3D', laenge: 50, punkte: 20, hinweis: null } })
+    expect([veloSoll(z, m(-5))!.A, veloSoll(z, m(0))!.A, veloSoll(z, m(3))!.A, veloSoll(z, null)!.A]).toEqual([55, 50, 45, 50])
+    expect(veloSoll(z, m(-3))!.neigungText).toBe('Längsneigung −3 % (swissALTI3D)')
+    expect(veloSoll(z, m(null))!.neigungText).toBe('Längsneigung 0 % angenommen (Höhenmodell nicht verfügbar)')
+    expect(veloSoll(z, m(3))!.ebikeA).toBe(25)
+    // «frei bis» kleiner als das Soll bei −5 %, grösser bei +3 %: das Ergebnis folgt der Neigung ohne neue Rechnung
+    const zk = { ...z, velo: { ...z.velo!, freiBisM: 48, konflikte: [{ klasse: 'auto' as const, layer: 'Parkfeld', flaeche: 2, abstand: 49, geom: [] }] } }
+    expect([veloSoll(zk, m(-5))!.frei, veloSoll(zk, m(3))!.frei]).toEqual([false, true])
+    // Velo-Symbol beim Soll
+    const s = { ...r.streifen[0], zufahrten: r.streifen[0].zufahrten.map(x => (x === z ? zk : x)) }
+    const f = (n: Record<string, unknown> | null) => fgsFahrzeuge(s, n as never).find(x => x.art === 'velo' && x.zufahrt === key)!
+    expect(dist(f(m(3)).mitte, zk.velo.sichtpunkte[0])).toBeLessThan(dist(f(m(-5)).mitte, zk.velo.sichtpunkte[0]))
+    // Befundblatt: mit Profil −5 % ein Soll-Befund, mit +3 % keiner
+    const f0 = fallMit(x => { x.bedarf = { felder: { innerorts: { wert: true, quelle: 'hand' }, vSig: { wert: 50, quelle: 'hand' } } } })
+    const rk = { ...r, streifen: [s] }
+    const h1v = (n: Record<string, unknown>) => befundblaetter(rk, f0, { vorgabe: { bern: false, kantonBE: false }, geo: { kurveNeigung: n as never } })[0]
+      .befund.alle.find(x => x.id === 'H1-V')
+    expect(h1v(m(-5))?.detail).toContain('Soll 55 m (VSS 40 273 Tab. 3, über 30 km/h, Spalte ≤ −4 %; Längsneigung −5 % (swissALTI3D))')
+    expect(h1v(m(3))).toBeUndefined()
   })
 })
