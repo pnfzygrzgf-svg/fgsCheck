@@ -5,7 +5,7 @@ import { entfallen } from './rechner/zufahrten'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 
 /** alle Gründe, die der Rechner vergibt (src/rechner, nur gelesen) */
-const GRUENDE = ['einbahn_osm', 'richtungsfahrbahn', 'insel', 'teilstreifen', 'insel_einbahn', 'einspurig', 'einmuendung', 'gerade_verboten',
+const GRUENDE = ['hofzufahrt', 'einbahn_osm', 'richtungsfahrbahn', 'insel', 'teilstreifen', 'insel_einbahn', 'einspurig', 'einmuendung', 'gerade_verboten',
   'gedeckt', 'kein_zufluss', 'verbot', 'kreisel', 'wenden', 'nebenast', 'zu_steil', 'arm_schmal', 'arm_ohne_fahrbahn', 'geometrie',
   'wegende', 'einbahn_widerspruch', 'hand']
 const z = (zufahrt: string, richtung: number, osmWeg: string | null, art = 'beide', osmKnoten: string | null = null) =>

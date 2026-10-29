@@ -28,7 +28,8 @@ import {
   type Fs, fahrstreifenmitte, fahrstreifenArm, fahrstreifenUebernehmen, fsHinweis, querschnittAmKnoten, fahrbahnOsm,
   wegeAbschnitte, hochBei, abzugAusOsm, abzugAnnahme, fahrstreifenTags, BREITE_ERSATZ, LAGE_ERSATZ,
 } from './fahrstreifen'
-import { sichtweiteTab1, sichtweiteKurve, radiusRunden, tempoStart, tempoEntlang, amtlichEntlang, SICHTWEITE, type TempoAmtlich } from './tempo'
+import { sichtweiteTab1, sichtweiteKurve, radiusRunden, tempoStart, tempoEntlang, amtlichEntlang, SICHTWEITE, KURVE_SICHTWEITE, type TempoAmtlich } from './tempo'
+import { HW_ALLE } from '../daten/osm'
 import { type Streifen, randAmUmriss, umrissRing } from './streifen'
 import { type Multi, linieImPolygon, segmentieren, vereinigung, linienLaenge, abstandLinie, abstandPunkt } from './poly'
 import { type Zufahrt, type Entfallen, entfallen } from './zufahrten'
@@ -293,6 +294,8 @@ export interface AbbiegeKontext {
 
 const ringKnoten = (netz: OsmNetz, nid: number) => (netz.an.get(nid) ?? []).some(([w]) => netz.w(w).ring)
 
+/** Hofzufahrt: Arm über diese Wege (bzw. ausserhalb der Strassen HW_ALLE) nur ab der Einmündung, nach der bfu-Knotenregel */
+export const HOF_HW = ['service', 'pedestrian']
 /** Eine Abbiegezufahrt (Arm a) -> Ergebnis oder Entfallen */
 export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis | Entfallen {
   const { netz, fahrbahn, inseln, kreisel, s, zf, su, kbe, d, h, hAlt } = k
@@ -956,6 +959,14 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     return sk_ === null || sk_ >= swTab1B ? [swTab1B, 'VSS Tab. 1'] : [sk_, q_!]
   }
   const [swK, quelleK] = kurveSw(radiusB)
+  // Hofzufahrt (29.10.2026): Arm über highway=service (Hof-, Garagenzufahrt) bzw. ausserhalb der Strassen: bfu-Knotenregel nach dem
+  // Radius (10 bis 24 m), geprüft nur ab der Einmündung in die gequerte Strasse, nicht entlang des eigenen Wegs (Sichtfelder sonst durch
+  // Häuser); liegt die Einmündung weiter weg als diese Sicht, prüft die gerade Zufahrt die Strecke und der Arm ist keine Zufahrt
+  const hofHw = netz.w(a.wid).t.highway ?? ''
+  const hof = HOF_HW.includes(hofHw) || !HW_ALLE.includes(hofHw)
+  const skHof = hof ? sichtweiteKurve(Math.min(radiusB, KURVE_SICHTWEITE[3][0]))[0] ?? KURVE_SICHTWEITE[3][1] : 0
+  if (hof && bisKnoten > skHof) return weg('hofzufahrt', `highway=${hofHw || '?'}; Einmündung ${f1(bisKnoten)} m vor dem Streifen, ` +
+    `Sicht nach bfu ${skHof} m`)
   const kuerzer = hatG && !geradeDeckt
   // Text zur Deckung bei Kurvensichtweite sk: Entfallen-Text (Grund «gedeckt») bzw. Feld «deckung». Wortlaut seit 14.10.2026
   // ohne «gedeckt»/«deckt» (Nutzerentscheid; bis dahin «Knoten … m, Kurve … m, eigene Strasse … m»). Ohne deckende gerade
@@ -970,7 +981,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const quelleGedeckt = (q: string) => `${q === 'VSS Tab. 1' ? 'Kurvensichtweite, höchstens VSS Tab. 1' : `Kurvensichtweite (${q})`}; ab dem Knoten prüft die gerade Zufahrt mit`
   // gedeckt: bisher entfallen; mit GEDECKT_RECHNEN gerechnet mit der Kurvensichtweite (nicht «bis Knoten») und gezählt
   let deckung: string | null = null
-  if (gedecktBeiSw(swK)) {
+  if (!hof && gedecktBeiSw(swK)) {
     if (!gedecktRechnen) return weg('gedeckt', deckungText(swK))
     deckung = deckungText(swK)
   }
@@ -980,7 +991,10 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     (k.tempo !== tempoB ? `, Tempo ${k.tempo})` : ')')
   let swB: number, swQuelleB: string, swBBasis: number
   const bisB: [string, number][] = []
-  if (bisKnoten > swK && deckung === null) {
+  if (hof) {
+    swB = Math.max(Math.ceil(bisKnoten), SPUR_MIN_M); swQuelleB = `bfu Knotenregel ${skHof} m, bis Einmündung (Hofzufahrt)`
+    swBBasis = swB; bisB.push(['knoten', dj])
+  } else if (bisKnoten > swK && deckung === null) {
     swB = Math.min(Math.ceil(bisKnoten), k.swEigen); swQuelleB = quelleKnotenB
     swBBasis = k.swEigen; bisB.push(['knoten', dj])
   } else { swB = swK; swQuelleB = deckung !== null ? quelleGedeckt(quelleK) : quelleK; swBBasis = swB }
@@ -1107,6 +1121,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   if (fsB?.osm?.breit) hinweiseB.push('fahrstreifen_einspurig_breit')
   if (armOsm !== null || knotenHoch) hinweiseB.push('bruecke')
   if (lageHand) hinweiseB.push('spur_hand')
+  if (hof) hinweiseB.push('hofzufahrt')
   if (deckung !== null) hinweiseB.push('gedeckt')
   const fh = fsHinweis(fsoB, fsDvB)
   if (fh) hinweiseB.push(...fh.split(';'))

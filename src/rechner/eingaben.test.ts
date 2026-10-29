@@ -877,3 +877,38 @@ describe('Erweiterte Prüfung im Panel: nicht geprüfte Themen sichtbar (29.10.2
     expect(panel).toMatch(/<details class="befund-thema bedarf-thema thema-nicht-geprueft grau" id="thema-sicht"><summary[^>]*><b>Sicht<\/b> <span class="klein">– nicht geprüft: Begegnungszone, flächiges Queren \(VSS 40 240 Ziffer 20, Seite 19\)<\/span><\/summary>/)
   })
 })
+
+describe('Hofzufahrt (highway=service): bfu-Knotenregel ab der Einmündung (29.10.2026)', () => {
+  /** Hauptstrasse West–Ost, Querweg bei x = qx nach Süden mit dem Typ hw; Übergang bei x = 0 */
+  const osmQ = (qx: number, hw: string): OsmDaten => ({
+    wege: [weg(1, [[10, -200, 0], [11, qx, 0], [12, 0, 0], [13, 200, 0]], { highway: 'tertiary', name: 'Hauptstrasse', maxspeed: '50' }),
+      weg(2, [[11, qx, 0], [20, qx, -200]], { highway: hw, name: 'Querweg', maxspeed: '30' })],
+    tram: [], ampeln: [], querungen: [], relationen: [],
+    uebergaenge: [{ id: 12, tags: { highway: 'crossing', crossing: 'uncontrolled', 'crossing:markings': 'zebra' }, lat: ll(0, 0)[0], lon: ll(0, 0)[1] }],
+  })
+  const avQ = (qx: number): AvFlaeche[] => [
+    { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [[lv(-200, -4), lv(qx - 3, -4), lv(qx - 3, -200), lv(qx + 3, -200),
+      lv(qx + 3, -4), lv(200, -4), lv(200, 4), lv(-200, 4), lv(-200, -4)]] },
+    { art: 'Trottoir', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(-200, 4, 200, 7)] },
+    { art: 'Trottoir', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(qx + 4, -7, 200, -4)] },
+  ]
+  const lauf = (qx: number, hw: string) => {
+    const f = fallMit(x => { x.streifen['12'] = { typ: 'ohne_vortritt' } })
+    return rechneFall(osmQ(qx, hw), avQ(qx), [], 12, f, null).streifen[0]
+  }
+  it('Einmündung weiter weg als die Sicht nach bfu: keine Zufahrt («Hofzufahrt»); als Strasse (residential) eine Abbiegezufahrt wie bisher', () => {
+    const s = lauf(-40, 'service')
+    expect(s.zufahrten.some(z => z.art === 'abbiegend')).toBe(false)
+    expect(s.entfallen.find(e => e.art === 'abbiegend' && e.grund === 'hofzufahrt')?.quelle).toMatch(/^highway=service; Einmündung \d+,\d m vor dem Streifen, Sicht nach bfu \d+ m$/)
+    const r = lauf(-40, 'residential')
+    expect(r.zufahrten.find(z => z.art === 'abbiegend')?.netzHinweis).not.toContain('hofzufahrt')
+  })
+  it('Einmündung nahe am Streifen: Abbiegezufahrt nur bis zur Einmündung, Soll nach bfu-Knotenregel, gekennzeichnet', () => {
+    const z = lauf(-10, 'service').zufahrten.find(x => x.art === 'abbiegend')!
+    expect(z.netzHinweis).toContain('hofzufahrt')
+    expect(z.sichtweiteQuelle).toMatch(/^bfu Knotenregel \d+ m, bis Einmündung \(Hofzufahrt\)$/)
+    expect(z.sichtweite).toBeLessThanOrEqual(Math.max(Math.ceil(z.knotenM! + 0.1), 5))
+    // kein Sichtpunkt weiter als die Einmündung (plus wenige Meter) vom Streifen
+    for (const p of z.sichtpunkte) expect(dist(p, lv(0, 0))).toBeLessThan(20)
+  })
+})

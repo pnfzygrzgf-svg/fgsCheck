@@ -36,6 +36,7 @@ export const GRUND: Record<string, string> = {
   wegende: 'die Strasse endet kurz vor dem Streifen: von dort kommt niemand',
   einbahn_widerspruch: 'nicht geprüft: die Einbahn-Angaben in OSM widersprechen sich – bitte vor Ort prüfen',
   hand: 'von Hand ausgeschlossen',
+  hofzufahrt: 'Hof- bzw. Garagenzufahrt, die weiter weg einmündet als die Sicht nach der bfu-Knotenregel: die Strecke prüft die gerade Zufahrt',
 }
 /** Überschrift der Liste und Erklärung im Tooltip */
 export const ENTFALLEN_TITEL = 'Hier nicht geprüfte Richtungen'

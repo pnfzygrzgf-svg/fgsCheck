@@ -2617,7 +2617,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
                   (z.deckung ? `. ${GEDECKT_TITEL}` : '')}
                 onClick={() => setAuswahl(zufahrtKey(z) === auswahl ? null : zufahrtKey(z))}>
                 <td><NrMarke nr={zufahrtNr(namen, z.zufahrt)} gewaehlt={zufahrtKey(z) === auswahl} /><b>{zufahrtLang(namen, z.zufahrt)}</b>
-                  {z.deckung && <span className="klein"> (mitgeprüft)</span>}<div className="klein">{ART[z.art] ?? z.art}
+                  {z.deckung && <span className="klein"> (mitgeprüft)</span>}<div className="klein">{ART[z.art] ?? z.art}{z.netzHinweis.includes('hofzufahrt') ? ', Hofzufahrt (bfu Knotenregel, ab der Einmündung)' : ''}
                   {z.art === 'abbiegend' && z.ueberStrasse ? `, weiter auf ${z.ueberStrasse}` : ''}</div>
                   {z.lageQuelle === 'Hand' && <div className="klein">Fahrlinie von Hand</div>}
                   <StreetViewZufahrt url={zufahrtStreetView(z, s)} nr={zufahrtNr(namen, z.zufahrt) || z.zufahrt} /></td>
