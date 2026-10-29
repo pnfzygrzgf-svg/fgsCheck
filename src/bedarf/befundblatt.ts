@@ -318,6 +318,10 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
   for (const x of befund.alle) if (x.bestaetigen && x.fehlend?.length && x.fehlend.every(f => gebildet.herkunft.get(f)?.zustand === 'hand'))
     x.detail = DETAIL_HAND_ANNAHME
   const hinweise = [...typHinweis, ...vorbelegt.hinweise, ...gebildet.hinweise]
+  // Kurvenregel nur innerorts bei 50 km/h (29.10.2026): «ja» zu den fünf Voraussetzungen wirkt sonst nicht
+  const ein = gebildet.eingaben
+  if (ein.kurve.wert?.fuenfBedingungen === true && !(ein.innerorts.wert === true && ein.vSig.wert === 50))
+    hinweise.push('Kurvenregel gilt nur innerorts bei 50 km/h: Sichtweite nach dem Tempo (VSS 40 241 Z. 14, S. 7)')
   // H4 mit dem Radius aus dem Sichtrechner nur, wenn das Soll nach Radius strenger ist als das nach Tempo (Automatik Paket A)
   const rH = gebildet.herkunft.get('kurve.radius'), r = gebildet.eingaben.kurve.wert?.radius ?? null, vSig = gebildet.eingaben.vSig.wert
   if (rH?.zustand === 'vorbelegt' && r !== null && befund.alle.some(x => x.id === 'H4')) {

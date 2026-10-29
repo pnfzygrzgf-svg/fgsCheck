@@ -797,3 +797,15 @@ describe('Bedarf an der unmarkierten Querung und Längsparkierung ohne Vortritt 
     expect(lauf('ohne_vortritt')).toEqual({ wert: false, quelle: 'rechnung', text: 'keine Parkierung rechts an den Zufahrten (an 1 von 2 Zufahrten bekannt)' })
   })
 })
+
+describe('Kurvenregel nur innerorts bei 50 km/h: Hinweis im Befundblatt (29.10.2026)', () => {
+  it('«ja» zu den fünf Voraussetzungen bei 30 km/h: kurzer Hinweis; bei 50 km/h innerorts keiner', () => {
+    const hw = (v: number) => {
+      const f = fallMit(x => { x.bedarf = { felder: { innerorts: { wert: true, quelle: 'hand' }, vSig: { wert: v, quelle: 'hand' },
+        'kurve.radius': { wert: 25, quelle: 'hand' }, 'kurve.fuenfBedingungen': { wert: true, quelle: 'hand' } } } })
+      return befundblaetter(rechneFall(daten(), AV, [], 12, f, null), f, { vorgabe: { bern: false, kantonBE: false } })[0].hinweise
+    }
+    expect(hw(30)).toContain('Kurvenregel gilt nur innerorts bei 50 km/h: Sichtweite nach dem Tempo (VSS 40 241 Z. 14, S. 7)')
+    expect(hw(50).some(h => h.startsWith('Kurvenregel'))).toBe(false)
+  })
+})

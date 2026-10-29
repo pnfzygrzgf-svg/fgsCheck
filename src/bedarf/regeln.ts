@@ -61,9 +61,11 @@ const hinweisTab2 = (t: { sicht: number; norm: number }): string | undefined =>
  * für schnelleres Fahren oder gemessener V85 über vSig gilt V85 (Pflicht); mit nachgewiesener tieferer V85 darf V85 gelten
  * (40 241 Z. 14). offenV85: Anzeichen ohne Messung, V85 wäre nötig.
  */
+/** Kurvenregel (VSS 40 241 Z. 14, S. 7): die fünf Voraussetzungen und dazu innerorts mit signalisiert 50 km/h (29.10.2026) */
+export const kurvenregelGilt = (k: Kontext): boolean => !!k.w('kurve').fuenfBedingungen && k.o('innerorts') === true && k.o('vSig') === 50
 function hSoll(k: Kontext): { soll: number; text: string; offenV85: boolean; normHinweis?: string } {
   const kurve = k.w('kurve')
-  if (kurve.fuenfBedingungen) {
+  if (kurvenregelGilt(k)) {
     const t = sichtKurveTab2(k.s('kurve', 'radius'))
     if (t !== null) return { soll: t.sicht, text: `Tab. 2, Radius ${fmt(kurve.radius!, 0)} m`, offenV85: false, normHinweis: hinweisTab2(t) }
   }
@@ -641,7 +643,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
   },
   H2: k => {
     const kurve = k.w('kurve')
-    if (!kurve.fuenfBedingungen) return ja(false)
+    if (!kurvenregelGilt(k)) return ja(false)
     const t = sichtKurveTab2(k.s('kurve', 'radius'))
     return ja(t !== null, t !== null ? { soll: `≥ ${t.sicht}`, detail: `Radius ${fmt(kurve.radius!, 0)} m`, normHinweis: hinweisTab2(t) } : {})
   },

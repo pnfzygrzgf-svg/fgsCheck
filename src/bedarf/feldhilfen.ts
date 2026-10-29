@@ -306,9 +306,9 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     vorschlag: 'aus dem Sichtrechner: kleinster Abbiegeradius bzw. Kreiselring (geschätzt: Annahme); ohne Abbieger zeigt das Feld das Ergebnis des Sichtrechners.',
   },
   'kurve.fuenfBedingungen': {
-    was: 'Ja, wenn alle fünf zutreffen (dann Sicht nach Kurvenradius): (1) Kurve und Streifen auf einer Strasse mit Vortritt; ' +
-      '(2) je Richtung ein Fahrstreifen in der Kurve; (3) Streifen gleich nach dem Kurvenende; (4) Kurve dreht mindestens 60°; ' +
-      '(5) Gefälle höchstens 5 % (VSS 40 241 Z. 14, S. 7; Tab. 2, S. 7; Abb. 2, S. 8).',
+    was: 'Ja, wenn alle fünf zutreffen; dann Sicht nach Kurvenradius, ohne V85-Messung: (1) Kurve und Streifen auf einer ' +
+      'Strasse mit Vortritt, innerorts mit 50 km/h; (2) ein Fahrstreifen je Richtung in der Kurve; (3) Streifen gleich nach ' +
+      'dem Kurvenende; (4) Kurve dreht mindestens 60°; (5) Gefälle höchstens 5 % (VSS 40 241 Z. 14, S. 7; Tab. 2, S. 7; Abb. 2, S. 8).',
     vorschlag: '«nein» als Annahme, bis die Voraussetzungen bestätigt sind (Sicht nach Tempo).',
   },
   sichtVorh: {
