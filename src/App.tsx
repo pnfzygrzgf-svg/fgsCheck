@@ -50,7 +50,7 @@ import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type Pl
 import { augenNachVerschieben, tueMasse, type KsPhase } from './tue/karte'
 import { LsaEinmuendung } from './tue/LsaEinmuendung'
 import { handSetzen } from './bedarf/fallBedarf'
-import { FARBE_HERAN, FARBE_WARTEND, FARBE_WARTEND_TROTTOIR } from './fahrzeuge'
+import { FARBE_HERAN, FARBE_WARTEND, FARBE_WARTEND_TROTTOIR, FARBE_VELO, VELO_SICHT_FARBE } from './fahrzeuge'
 import { inFeldSchreiben, inMetern, istZahlenfeld, messKlick, messLaenge, messPunkt, messText, messWert, type Messung } from './messen'
 import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_M, ORT_TOL_M, streifenMitte, streifenAbstand, planEntscheid,
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
@@ -2335,12 +2335,15 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             (Auto-Parkfeld, Gebäude), <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_hindernis }} />Hecke, Mauer,
             übriges Hindernis, <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_baum }} />Baum,
             <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_zweirad }} />Zweirad-Feld (Velo/Motorrad)</li>
-          {rechnung?.streifen.some(s => s.zufahrten.some(z => z.velo)) && <li><span className="farbe gestrichelt" style={{ borderColor: STATUS_FARBE.frei,
-            borderStyle: 'dashed' }} />Sicht vom Velo (Radstreifen bzw. Radweg; VSS 40 273 Tab. 3), gestrichelt; gewählte Zufahrt mit Sichtpunkten
-            und Velo (blau) am letzten Sichtpunkt, die übrigen Velos ab Zoom {FAHRZEUG_ZOOM}</li>}
+          {rechnung?.streifen.some(s => s.zufahrten.some(z => z.velo)) && <li>Sicht vom Velo (Radstreifen bzw. Radweg; VSS 40 273 Tab. 3), gestrichelt:
+            Sichtfeld <span className="farbe gestrichelt" style={{ background: VELO_SICHT_FARBE.frei, borderStyle: 'dashed' }} />türkis frei,
+            {' '}<span className="farbe gestrichelt" style={{ background: VELO_SICHT_FARBE.verdeckt, borderStyle: 'dashed' }} />orange verdeckt;
+            {' '}<span className="farbe" style={{ background: FARBE_VELO }} />Velo violett beim Soll (gewählte Zufahrt mit Sichtpunkten, die übrigen
+            Velos ab Zoom {FAHRZEUG_ZOOM})</li>}
           {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li>Knotensicht: <span className="farbe" style={{ background: STATUS_FARBE.frei }} />frei,
-            <span className="farbe" style={{ background: STATUS_FARBE.verdeckt }} />verdeckt; Auto durchgezogen, Velo gestrichelt, Trottoir
-            punktiert; <span className="farbe rund" style={{ background: '#ffffff', borderColor: '#111827' }} />Auge der Ausfahrenden</li>}
+            <span className="farbe" style={{ background: STATUS_FARBE.verdeckt }} />verdeckt; Auto durchgezogen, Trottoir punktiert; Velo gestrichelt,
+            Sichtfeld <span className="farbe" style={{ background: VELO_SICHT_FARBE.frei }} />türkis frei, <span className="farbe"
+            style={{ background: VELO_SICHT_FARBE.verdeckt }} />orange verdeckt, Velo <span className="farbe" style={{ background: FARBE_VELO }} />violett; <span className="farbe rund" style={{ background: '#ffffff', borderColor: '#111827' }} />Auge der Ausfahrenden</li>}
           {rechnung?.streifen.some(s => s.trottoirueberfahrt) && <li>Fahrzeuge: <span className="farbe" style={{ background: FARBE_WARTEND }} />wartend,
             Sicht auf die Fahrbahn: grau; <span className="farbe" style={{ background: FARBE_WARTEND_TROTTOIR }} />wartend, Sicht aufs Trottoir: ocker;
             {' '}<span className="farbe" style={{ background: FARBE_HERAN }} />am Ende der Sichtweite: blau. Wartende am Auge ziehen: Standort von Hand</li>}

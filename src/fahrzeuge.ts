@@ -20,9 +20,15 @@ export const FARBE_WARTEND = '#4b5563'
 export const FARBE_WARTEND_TROTTOIR = '#b45309'
 export const FARBE_HERAN = '#2563eb'
 export const FARBE_HERAN_BLASS = '#93c5fd'
+/** Velo (29.10.2026): herannahendes Velo violett (Fussgängerstreifen und Knotensicht), nicht gewählt blass; Umriss weiss */
+export const FARBE_VELO = '#7c3aed'
+export const FARBE_VELO_BLASS = '#c4b5fd'
+/** Sichtfelder des Velos (Fussgängerstreifen, Knotensicht): frei türkis, verdeckt orange (die der Autos bleiben grün bzw. rot) */
+export const VELO_SICHT_FARBE = { frei: '#0d9488', verdeckt: '#ea580c' } as const
 /** Füllfarbe eines Fahrzeugs nach seiner Rolle; Person: Trottoirfarbe (Karte) */
-export function fahrzeugFarbe(f: Pick<FahrzeugForm, 'rolle' | 'phase'>, blass = false): string {
+export function fahrzeugFarbe(f: Pick<FahrzeugForm, 'rolle' | 'phase'> & Partial<Pick<FahrzeugForm, 'art'>>, blass = false): string {
   if (f.rolle === 'fb') return f.phase === 'trottoir' ? FARBE_WARTEND_TROTTOIR : FARBE_WARTEND
+  if (f.art === 'velo') return blass ? FARBE_VELO_BLASS : FARBE_VELO
   return blass ? FARBE_HERAN_BLASS : FARBE_HERAN
 }
 

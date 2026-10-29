@@ -7,7 +7,7 @@ import { avParsen, type GeoJson } from './daten/av'
 import { rechneFall } from './rechner'
 import { leererFall, type Fall } from './fall'
 import { knotensichtAnfuegen } from './tue/knotensicht'
-import { FARBE_HERAN, FARBE_HERAN_BLASS, FARBE_WARTEND, FARBE_WARTEND_TROTTOIR, fahrzeugFarbe, fgsFahrzeuge, geradeZufahrt, tueFahrzeuge, WARTE_HINTER_RAND_M } from './fahrzeuge'
+import { FARBE_VELO, FARBE_VELO_BLASS, VELO_SICHT_FARBE, FARBE_HERAN, FARBE_HERAN_BLASS, FARBE_WARTEND, FARBE_WARTEND_TROTTOIR, fahrzeugFarbe, fgsFahrzeuge, geradeZufahrt, tueFahrzeuge, WARTE_HINTER_RAND_M } from './fahrzeuge'
 import { LENKER_VOR_FRONT_M, PW_LAENGE_M } from './knotensicht/rechner/fahrzeug'
 
 const O: P = [2600000, 1200000]
@@ -122,6 +122,15 @@ describe('Fussgängerstreifen an der Einmündung: auch abbiegende Zufahrten mit 
 })
 
 describe('Farben nach Rolle (27.10.2026)', () => {
+  it('Velo (29.10.2026): herannahend violett, nicht gewählt blass; wartendes Velo der Knotensicht wie die Phase; Sichtfeld-Farben eigene', () => {
+    expect(fahrzeugFarbe({ rolle: 'zufahrt', art: 'velo' })).toBe(FARBE_VELO)
+    expect(fahrzeugFarbe({ rolle: 'zufahrt', art: 'velo' }, true)).toBe(FARBE_VELO_BLASS)
+    expect(fahrzeugFarbe({ rolle: 'fa', art: 'velo' })).toBe(FARBE_VELO)
+    expect(fahrzeugFarbe({ rolle: 'fa', art: 'auto' })).toBe(FARBE_HERAN)
+    expect(fahrzeugFarbe({ rolle: 'fb', art: 'velo', phase: 'fahrbahn' })).toBe(FARBE_WARTEND)
+    expect(FARBE_VELO).toBe('#7c3aed')
+    expect(VELO_SICHT_FARBE).toEqual({ frei: '#0d9488', verdeckt: '#ea580c' })
+  })
   it('wartend grau, am Ende der Sichtweite bzw. herannahend am Fussgängerstreifen blau (nicht gewählt blass)', () => {
     expect(fahrzeugFarbe({ rolle: 'fb' })).toBe(FARBE_WARTEND)
     expect(fahrzeugFarbe({ rolle: 'fb', phase: 'fahrbahn' })).toBe(FARBE_WARTEND)

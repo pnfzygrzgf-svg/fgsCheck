@@ -20,7 +20,7 @@ import { ortZoom, type Ort } from './daten/ortssuche'
 import { KS_LAGE } from './tue/texte'
 import { ksDreieckSichtbar, ksFahrzeugStand, ksPhaseNach, tueFlaeche, tueGezeichnet, type KsPhase } from './tue/karte'
 import { messLaenge, messText, type Messung } from './messen'
-import { fahrzeugFarbe, fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
+import { FARBE_VELO, VELO_SICHT_FARBE, fahrzeugFarbe, fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
 import { erkennungBaender } from './erkennungKarte'
 import { veloSoll, type VeloSoll } from './veloSicht'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
@@ -237,12 +237,14 @@ function fahrzeugZeichnen(ebene: L.LayerGroup, f: FahrzeugForm, blass: boolean, 
     // Vogelperspektive, Fahrt nach rechts: Räder, Rahmen, Lenker quer, Kopf; am Ende der Sichtweite (Radstreifen) gestrichelt
     w = VELO_SYMBOL_PX; h = Math.round(VELO_SYMBOL_PX / 3)
     const st = f.rolle === 'fa' ? ' stroke-dasharray="3 2"' : ''
+    // herannahendes Velo violett mit weissem Umriss (29.10.2026); wartendes Velo der Knotensicht wie bisher dunkel umrandet
+    const rand = f.rolle === 'fb' ? '#111827' : '#ffffff'
     html = `<svg viewBox="0 0 60 20" width="${w}" height="${h}" style="display:block;overflow:visible;transform:rotate(${grad}deg)">` +
-      `<rect x="2" y="7" width="20" height="6" rx="3" fill="${farbe}" stroke="#111827" stroke-width="1.5"${st}/>` +
-      `<rect x="38" y="7" width="20" height="6" rx="3" fill="${farbe}" stroke="#111827" stroke-width="1.5"${st}/>` +
-      `<rect x="18" y="8.5" width="24" height="3" fill="${farbe}" stroke="#111827" stroke-width="1"/>` +
-      `<rect x="40" y="1" width="3" height="18" rx="1.5" fill="${farbe}" stroke="#111827" stroke-width="1"/>` +
-      `<circle cx="27" cy="10" r="5" fill="${farbe}" stroke="#111827" stroke-width="1.5"/></svg>`
+      `<rect x="2" y="7" width="20" height="6" rx="3" fill="${farbe}" stroke="${rand}" stroke-width="1.5"${st}/>` +
+      `<rect x="38" y="7" width="20" height="6" rx="3" fill="${farbe}" stroke="${rand}" stroke-width="1.5"${st}/>` +
+      `<rect x="18" y="8.5" width="24" height="3" fill="${farbe}" stroke="${rand}" stroke-width="1"/>` +
+      `<rect x="40" y="1" width="3" height="18" rx="1.5" fill="${farbe}" stroke="${rand}" stroke-width="1"/>` +
+      `<circle cx="27" cy="10" r="5" fill="${farbe}" stroke="${rand}" stroke-width="1.5"/></svg>`
   } else {
     // Person von oben: Schultern und Kopf, Blick zur Fahrbahn
     w = h = PERSON_PX
@@ -590,7 +592,7 @@ export default function Karte(props: {
         // Sicht vom Velo (29.10.2026): gestrichelt wie die Velo-Dreiecke der Knotensicht
         const vs = veloSoll(z, props.neigung)
         if (z.velo && vs) {
-          const fv = STATUS_FARBE[vs.frei ? 'frei' : 'verdeckt']
+          const fv = VELO_SICHT_FARBE[vs.frei ? 'frei' : 'verdeckt']
           L.polygon(multiLl(z.velo.feld), { color: fv, weight: 1, dashArray: KS_STRICH.velo, fillColor: fv, fillOpacity: 0.1, interactive: !cb.current.werkzeug })
             .bindTooltip(veloTooltip(cb.current.zufahrtNamen.get(z.fgsId), z, vs), { sticky: true })
             .addTo(eb.sicht)
@@ -609,7 +611,8 @@ export default function Karte(props: {
         // über die durchgehende Strasse bzw. ohne Einmündung nur die Achse (und der Hinweis im Panel)
         if (tueGezeichnet(ks)) {
           // gezeigte Phase (Klick auf ein wartendes Fahrzeug bzw. Wahl im Block): nur ihre Sichtdreiecke
-          for (const d of ks.karte.dreiecke.filter(x => ksDreieckSichtbar(x.art, ksPhase))) for (const [ring, farbe, wie] of [[d.frei, STATUS_FARBE.frei, 'frei'], [d.verdeckt, STATUS_FARBE.verdeckt, 'verdeckt']] as const) {
+          for (const d of ks.karte.dreiecke.filter(x => ksDreieckSichtbar(x.art, ksPhase))) for (const [ring, farbe, wie] of [[d.frei, d.art === 'velo' ? VELO_SICHT_FARBE.frei : STATUS_FARBE.frei, 'frei'],
+            [d.verdeckt, d.art === 'velo' ? VELO_SICHT_FARBE.verdeckt : STATUS_FARBE.verdeckt, 'verdeckt']] as const) {
             if (ring.length < 3) continue
             L.polygon(ring.map(ll), { color: farbe, weight: 1, dashArray: KS_STRICH[d.art], fillColor: farbe, fillOpacity: wie === 'frei' ? 0.1 : 0.2,
               interactive: !cb.current.werkzeug })
@@ -1009,11 +1012,11 @@ export default function Karte(props: {
     // Sicht vom Velo (29.10.2026): wie das Sichtfeld des Fahrzeugs, gestrichelt, mit den Sichtpunkten der Veloachse
     const vs = veloSoll(z, cb.current.neigung)
     if (z.velo && vs) {
-      const fv = STATUS_FARBE[vs.frei ? 'frei' : 'verdeckt']
+      const fv = VELO_SICHT_FARBE[vs.frei ? 'frei' : 'verdeckt']
       L.polygon(multiLl(z.velo.feld), { color: fv, weight: 2, dashArray: KS_STRICH.velo, fillColor: fv, fillOpacity: 0.25, interactive: false }).addTo(eb.auswahl)
       for (const k of z.velo.konflikte) L.polygon(multiLl(k.geom), { color: '#7f1d1d', weight: 2, dashArray: KS_STRICH.velo, fillColor: '#dc2626', fillOpacity: 0.6 })
         .bindTooltip(`${esc(k.layer)} im Sichtfeld des Velos, ${k.abstand.toFixed(1)} m vom Streifen`).addTo(eb.auswahl)
-      z.velo.sichtpunkte.forEach((p, i) => L.circleMarker(ll(p), { radius: i === z.velo!.sichtpunkte.length - 1 ? 4 : 2, color: '#111827', weight: 1,
+      z.velo.sichtpunkte.forEach((p, i) => L.circleMarker(ll(p), { radius: i === z.velo!.sichtpunkte.length - 1 ? 4 : 2, color: FARBE_VELO, weight: 1,
         dashArray: '2 2', fillColor: '#ffffff', fillOpacity: 1, interactive: false }).addTo(eb.auswahl))
     }
     for (const k of z.konflikte)
