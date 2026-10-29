@@ -529,5 +529,7 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
   table.befund-masse { table-layout: fixed; width: 100%; }
   .befund-masse td, .befund-masse th { overflow-wrap: anywhere; }
 }
-/* nicht geprüftes Thema (29.10.2026): grau, eingeklappt */
-.befund-thema.thema-nicht-geprueft > summary { color: var(--text-muted); }
+/* nicht geprüftes Thema (29.10.2026): deutlich abgesetzt – blasser Text, gestrichelter Rahmen, kein Symbol in Farbe */
+.befund-thema.thema-nicht-geprueft { opacity: 0.55; border: 1px dashed #94a3b8; border-radius: 6px; padding: 2px 8px; background: #f8fafc; }
+.befund-thema.thema-nicht-geprueft > summary { color: #475569; font-style: italic; }
+.befund-thema.thema-nicht-geprueft[open] { opacity: 0.8; }

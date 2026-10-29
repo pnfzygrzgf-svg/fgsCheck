@@ -35,7 +35,10 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    Farben: gelb fgs-Markierung, gelb gestrichelt vermutlich markiert (`crossing=uncontrolled` ohne Markierungs-Tag;
    gerechnet als FGS, Hinweis «bitte prüfen»), violett Lichtsignal, grau unmarkiert bzw. ohne Angabe; das Häkchen «nur
    markierte Übergänge zeigen» blendet die grauen aus. Graue Übergänge werden ebenfalls gerechnet; Panel, Streifen und Fall-Datei
-   weisen sie aus als «Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug».
+   weisen sie aus als «Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug» – das gilt seit 29.10.2026 nur
+   noch mit der Wahl «Fussgängerstreifen (geplant bzw. zu prüfen)» unter «Querung». Vorgabe ist: Eine unmarkierte Querung (grau)
+   rechnet die App als Querung ohne Vortritt (Annahme aus OSM; Furt, wenn eine Insel da ist, sonst ohne bauliche Massnahme;
+   Sichtweite nach VSS 40 240 Z. 8.2), ausser der Sichtrechner findet dort ein Lichtsignal. Eine gespeicherte Wahl gilt immer.
    Mit Streifen von Hand an einem grauen Übergang steht stattdessen «Heute kein Fussgängerstreifen …; der Streifen von Hand
    wird als Fussgängerstreifen geprüft» (Planung, siehe 6.).
 3. Panel: je Streifen (bzw. Teilstreifen über einer Insel) die Zufahrten mit Tempo, Sichtweite, Lage des Sichtpunkts und
@@ -350,7 +353,21 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Hindernis rot wie ein Konflikt. Fahrzeuge am letzten Sichtpunkt auch für abbiegende Zufahrten. Befundzeilen im Panel haben einen
   Knopf «Wert ändern» zum geprüften Feld; bei der Trottoirüberfahrt stehen die vorbelegten Angaben offen im Thema («Von der App vorbelegt»).
   Die Länge des überfahrbaren Rands ist die Fahrbahnöffnung an der Bordkante der Hauptstrasse (Vorderkante der Knotensicht, AV mit
-  Flächen (Plan): eine geplante Trottoirfläche verkürzt sie). Trottoirüberfahrten heissen in Liste, Karte und Bericht «Trottoirüberfahrt 1»
+  Flächen (Plan): eine geplante Trottoirfläche verkürzt sie). Kurvenregel (VSS 40 241 Z. 14, S. 7; `src/bedarf/kurvenregel.ts`): statt
+  einer Ja/Nein-Frage fünf Voraussetzungen mit Herkunft (`kurve.b1Innerorts50` … `b5Gefaelle5`: innerorts und 50 km/h aus Ortslage und
+  Tempo, ein Fahrstreifen aus OSM, Kurvenende und Richtungsänderung ≥ 60° aus der Fahrlinie, Längsgefälle ≤ 5 % aus einem swissALTI3D-
+  Profil 50 m vor dem Streifen); «anwendbar» nur, wenn alle fünf ja und keine nur angenommen ist (sonst Vorschlag zum Bestätigen);
+  die Kurvenregel gilt nur innerorts bei 50 km/h, auch bei «ja» von Hand, und nur für eine Kurve der Strasse selbst: eine gerade
+  Zufahrt, deren Fahrlinie innerhalb der Sichtweite vor dem Streifen um mindestens 60° dreht (`kurve.radiusStrasse` aus der
+  Geometrie; unter 20 m kein Wert nach Tab. 2). Abbieger und Kreisel bleiben bei der bfu-Regel (`kurve.radius`). Alte Fall-Dateien:
+  `fuenfBedingungen: true` → alle fünf ja. Im Panel steht jedes geprüfte Thema als eigene, eingeklappte Zeile («Sicht ✓ 3 Regeln ohne
+  Befund»: je Regel eine Zeile mit Ist und Soll, darunter die Angaben des Themas); der Bericht behält die knappe Zeile «Ohne Befund».
+  Nicht geprüfte Themen stehen im Panel als graue Zeile mit Grund («Sicht – nicht geprüft: Begegnungszone, flächiges Queren»).
+  Sicht vom Velo (VSS 40 241 Z. 14, S. 6; VSS 40 273 Tab. 3): an geraden Zufahrten eines Fussgängerstreifens mit Radstreifen (OSM-Abzug)
+  bzw. Radweg (`cycleway…=track`) eine zweite Prüfung von der Veloachse (Mitte des Radstreifens bzw. 0,5 m vom Fahrbahnrand), Soll nach
+  `veloSichtweite` des Kerns, Längsneigung 0 % angenommen, Hinweis zu schnellen E-Bikes über 30 km/h; Ausgabefeld `ZufahrtErgebnis.velo`,
+  Zeile «↳ Velo» in der Zufahrtstabelle, gestrichelter Kegel auf der Karte, Soll-Regel H1-V im Thema Sicht. Velorouten lösen sie nicht aus.
+  Trottoirüberfahrten heissen in Liste, Karte und Bericht «Trottoirüberfahrt 1»
   (`streifenTitel`), lassen sich an den Enden verschieben (Griffe in der obersten Ebene, Fang auf die AV); ein Auge von Hand bleibt nur,
   wenn es noch zur verschobenen Überfahrt passt (`augePlausibel`).
   Quert der gezeichnete Streifen die Fahrbahn der Hauptstrasse, rechnet die App keine Knotensicht (Hinweis, «quert die Hauptstrasse»
@@ -479,7 +496,7 @@ IP-Adresse):
 | wmts.geo.admin.ch (swisstopo) | Kartenkacheln (Luftbild bzw. Landeskarte) des sichtbaren Ausschnitts |
 | api3.geo.admin.ch (swisstopo, SearchServer) | Ortssuche: der eingegebene Suchbegriff (Ort, Adresse, Strasse, PLZ) |
 | wms.geo.admin.ch, api3.geo.admin.ch | Luftbild ±30 m um den Übergang, Kartenbild des Berichts; Flugjahr der 1-km-Kachel |
-| api3.geo.admin.ch (swisstopo, Höhenprofil) | nur an einer Trottoirüberfahrt: bis vier Linien der Knotensicht (Koordinaten) |
+| api3.geo.admin.ch (swisstopo, Höhenprofil) | an einer Trottoirüberfahrt bis vier Linien der Knotensicht und, mit einer Kurve vor dem Streifen, die Fahrlinie der Zufahrt (50 m, Koordinaten) für das Längsgefälle der Kurvenregel |
 | geodienste.ch (AV-WFS) | Rechteck ±150 m um den Übergang (BBOX) |
 | Overpass: overpass.osm.ch, ersatzweise overpass-api.de, overpass.kumi.systems, overpass.private.coffee | Kartenausschnitt (Übergänge und Strassennamen) mit Rand (Suche, automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m |
 | map.bern.ch (nur Stadt Bern) | Rechteck ±150 m (amtliche Parkfelder, Baumkataster, Haltestellen, Verkehrsdaten) |
