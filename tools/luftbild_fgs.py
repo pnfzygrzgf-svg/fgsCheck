@@ -19,6 +19,8 @@
 #   5. kein OSM-Übergang in UEBERGANG_M: Knoten highway=crossing|traffic_signals bzw. mit crossing*, crossing_ref (ausser
 #      crossing=no), Weg footway=crossing. Die App blendet zur Laufzeit zusätzlich jeden Kandidaten aus, der in der geladenen
 #      Übergangssuche einen OSM-Übergang in 15 m hat (OSM inzwischen nachgeführt).
+#   6. bestätigt: hat der Lauf zwei Flüge (Bern), in beiden gefunden oder in einem von beiden Modellen mit Sicherheit ab
+#      CONF_EIN_FLUG_VON_ZWEI; mit einem Flug (Zürich, Basel) von beiden Modellen mit Sicherheit ab CONF_EIN_FLUG;
 #
 # Richtung: Azimut der langen Seite des Fund-Rechtecks (Grad ab Nord im Uhrzeigersinn, 0–179); bei einem fast quadratischen
 # Rechteck (lange : kurze Seite unter RICHTUNG_VERHAELTNIS) null. Die lange Seite liegt meist entlang der Gehrichtung
@@ -29,7 +31,8 @@
 #
 # Erzeugt public/luftbild_fgs_<stadt>.json =
 #   { "quelle", "modell", "flug", "flugjahre", "bild_je_jahr", "erzeugt", "osm_stand", "filter", "bbox": [lon_min, lat_min, lon_max, lat_max],
-#     "kandidaten": [{ "id", "p": [E, N] (0,1 m), "conf" (0,01), "jahre": [..], "richtung": Grad | null }] }
+#     "kandidaten": [{ "id", "p": [E, N] (0,1 m), "conf" (0,01), "jahre": [..], "richtung": Grad | null,
+#                       "modelle": 1|2 (paper/curriculum mit Fund), "fluege": Anzahl Flüge mit Fund }] }
 #
 # Braucht GDAL (osgeo) und Netz (Overpass, overpass.osm.ch). Aufruf aus dem Ordner fgsCheckWeb:
 #   python3 tools/luftbild_fgs.py <stadt> <ordner mit funde_*.jsonl> [weitere Ordner …]
@@ -48,6 +51,8 @@ ZUSAMMEN_M = 8.0
 CONF_MIN = 0.5
 STRASSE_M = 6.0
 UEBERGANG_M = 15.0
+CONF_EIN_FLUG_VON_ZWEI = 0.85   # zwei Flüge im Lauf (Bern): Kandidat aus nur einem Flug braucht beide Modelle und so viel Sicherheit
+CONF_EIN_FLUG = 0.7             # ein Flug im Lauf (Zürich, Basel): beide Modelle und so viel Sicherheit
 RICHTUNG_VERHAELTNIS = 1.25
 STRASSEN = ["motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link",
             "tertiary", "tertiary_link", "unclassified", "residential", "living_street"]
@@ -115,7 +120,7 @@ def funde_lesen(ordnerliste):
                     continue
                 p = [tuple(q) for q in f["poly"][:4]]
                 funde.append({"m": mitte(p), "conf": float(f["conf"]), "jahr": int(f["jahr"]) if f.get("jahr") else None,
-                              "bild": f.get("quelle", "swissimage"), "richtung": richtung(p)})
+                              "bild": f.get("quelle", "swissimage"), "richtung": richtung(p), "modell": m})
                 n += 1
             zahl[pfad] = n
     return funde, zahl
@@ -146,7 +151,8 @@ def zusammenfassen(funde):
         best = max(g, key=lambda f: f["conf"])
         aus.append({"m": best["m"], "conf": best["conf"], "richtung": best["richtung"],
                     "jahre": sorted({f["jahr"] for f in g if f["jahr"]}), "bilder": {f["bild"] for f in g},
-                    "jahrbild": {f["jahr"]: f["bild"] for f in g if f["jahr"]}})
+                    "jahrbild": {f["jahr"]: f["bild"] for f in g if f["jahr"]},
+                    "modelle": len({f["modell"] for f in g}), "fluege": len({(f["bild"], f["jahr"]) for f in g})})
     return aus
 
 
@@ -256,6 +262,15 @@ def main():
             continue
         ohne.append(g)
     print(f"5. ohne OSM-Übergang in {UEBERGANG_M:g} m: {len(ohne)}")
+    # 6. bestätigt (Sichtprüfung 29.10.2026 an den 19 Berner Kandidaten: in beiden Flügen 6 von 7 echt, nur in einem Flug kaum):
+    #    mit zwei Flügen in beiden gefunden, sonst beide Modelle und hohe Sicherheit
+    fluege_lauf = len({(f["bild"], f["jahr"]) for f in funde})
+    if fluege_lauf >= 2:
+        ohne = [g for g in ohne if g["fluege"] >= 2 or (g["modelle"] == 2 and g["conf"] >= CONF_EIN_FLUG_VON_ZWEI)]
+        print(f"6. in beiden Flügen bzw. ein Flug mit beiden Modellen und Sicherheit ab {CONF_EIN_FLUG_VON_ZWEI:g}: {len(ohne)}")
+    else:
+        ohne = [g for g in ohne if g["modelle"] == 2 and g["conf"] >= CONF_EIN_FLUG]
+        print(f"6. beide Modelle und Sicherheit ab {CONF_EIN_FLUG:g} (ein Flug): {len(ohne)}")
     bilder = set().union(*(g["bilder"] for g in ohne)) if ohne else set()
     jahre = sorted({j for g in ohne for j in g["jahre"]})
     jahrbild = {}
@@ -274,11 +289,13 @@ def main():
         "bild_je_jahr": {str(j): BILD_KURZ[b] for j, b in sorted(jahrbild.items())},   # Kurzname des Luftbilds je Flugjahr (Tooltip)
         "erzeugt": datetime.date.today().isoformat(),
         "osm_stand": stand or datetime.date.today().isoformat(),   # Stand der Overpass-Daten, sonst Tag der Abfrage
-        "filter": {"zusammenfassen_m": ZUSAMMEN_M, "conf_min": CONF_MIN, "strasse_m": STRASSE_M, "osm_uebergang_m": UEBERGANG_M},
+        "filter": {"zusammenfassen_m": ZUSAMMEN_M, "conf_min": CONF_MIN, "strasse_m": STRASSE_M, "osm_uebergang_m": UEBERGANG_M,
+                   **({"bestaetigt": f"beide Flüge, sonst beide Modelle und Sicherheit ab {CONF_EIN_FLUG_VON_ZWEI}"} if fluege_lauf >= 2
+                      else {"bestaetigt": f"beide Modelle und Sicherheit ab {CONF_EIN_FLUG}"})},
         "bbox": [round(min(x for x, _ in ll), 5), round(min(y for _, y in ll), 5), round(max(x for x, _ in ll), 5),
                  round(max(y for _, y in ll), 5)] if ll else None,
         "kandidaten": [{"id": kennung(*g["m"]), "p": [round(g["m"][0], 1), round(g["m"][1], 1)], "conf": round(g["conf"], 2),
-                        "jahre": g["jahre"], "richtung": g["richtung"]} for g in ohne],
+                        "jahre": g["jahre"], "richtung": g["richtung"], "modelle": g["modelle"], "fluege": g["fluege"]} for g in ohne],
     }
     ziel = os.path.join(ROOT, "public", f"luftbild_fgs_{stadt}.json")
     with open(ziel, "w", encoding="utf-8") as fh:
