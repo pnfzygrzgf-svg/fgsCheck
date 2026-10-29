@@ -62,13 +62,13 @@ const hinweisTab2 = (t: { sicht: number; norm: number }): string | undefined =>
  * (40 241 Z. 14). offenV85: Anzeichen ohne Messung, V85 wäre nötig.
  */
 /** Kurvenregel (VSS 40 241 Z. 14, S. 7): die fünf Voraussetzungen und dazu innerorts mit signalisiert 50 km/h (29.10.2026) */
-export const kurvenregelGilt = (k: Kontext): boolean => !!k.w('kurve').fuenfBedingungen && k.w('kurve').radius !== null &&
+export const kurvenregelGilt = (k: Kontext): boolean => !!k.w('kurve').fuenfBedingungen && (k.w('kurve').radiusStrasse ?? null) !== null &&
   k.o('innerorts') === true && k.o('vSig') === 50
 function hSoll(k: Kontext): { soll: number; text: string; offenV85: boolean; normHinweis?: string } {
   const kurve = k.w('kurve')
   if (kurvenregelGilt(k)) {
-    const t = sichtKurveTab2(k.s('kurve', 'radius'))
-    if (t !== null) return { soll: t.sicht, text: `Tab. 2, Radius ${fmt(kurve.radius!, 0)} m`, offenV85: false, normHinweis: hinweisTab2(t) }
+    const t = sichtKurveTab2(kurve.radiusStrasse!)
+    if (t !== null) return { soll: t.sicht, text: `Tab. 2, Radius ${fmt(kurve.radiusStrasse!, 0)} m`, offenV85: false, normHinweis: hinweisTab2(t) }
   }
   const vSig = k.w('vSig')
   const v85 = k.o('v85')
@@ -645,8 +645,8 @@ export const REGELN: Record<BefundId, RegelFn> = {
   H2: k => {
     const kurve = k.w('kurve')
     if (!kurvenregelGilt(k)) return ja(false)
-    const t = sichtKurveTab2(k.s('kurve', 'radius'))
-    return ja(t !== null, t !== null ? { soll: `≥ ${t.sicht}`, detail: `Radius ${fmt(kurve.radius!, 0)} m`, normHinweis: hinweisTab2(t) } : {})
+    const t = sichtKurveTab2(kurve.radiusStrasse!)
+    return ja(t !== null, t !== null ? { soll: `≥ ${t.sicht}`, detail: `Radius ${fmt(kurve.radiusStrasse!, 0)} m`, normHinweis: hinweisTab2(t) } : {})
   },
   H3a: k => {
     const S = hSollSicher(k), E = k.w('erkennungM')

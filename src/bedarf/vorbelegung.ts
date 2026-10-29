@@ -43,7 +43,7 @@ import { tag } from './lesetext'
 import { WARTE_TC_S, WARTE_TF_S, breiteVorbelegung, knotensichtGueltig, knotensichtVorbelegung, ueberfahrbarVorbelegung, wartezeitSchaetzen, UEBERFAHRBAR_OHNE,
   winkelVorbelegung } from '../tue/texte'
 import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
-import { KURVE_GEFAELLE_MAX, KURVE_NAH_M, KURVE_WEIT_M, KURVE_WINKEL_MIN, kurveGeometrie, kurveProfilSchluessel, kurveZufahrt } from './kurvenregel'
+import { KURVE_GEFAELLE_MAX, KURVE_NAH_M, KURVE_WEIT_M, KURVE_WINKEL_MIN, kurveProfilSchluessel, strassenKurve } from './kurvenregel'
 import type { NeigungMessung } from '../knotensicht/rechner/typen'
 import { automatikC, strassentypBern, tempoAusHierarchie, vsigVorbelegen, zoneNachVsig } from './automatikC'
 import { GEOPORTAL_BERN, type BernErgebnis } from '../daten/geoportal'
@@ -444,15 +444,19 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
 }
 
 /**
- * Kurvenregel (VSS 40 241 Z. 14, S. 7; 29.10.2026): Vorbelegung der fünf Voraussetzungen aus der Zufahrt mit der Kurve (kleinster
- * Radius): (1) innerorts und 50 km/h, (2) Fahrstreifen je Richtung, (3) Abstand vom Kurvenende, (4) Richtungsänderung,
- * (5) Längsgefälle aus dem Höhenmodell. Ohne Kurve nichts (die Fragen sind dann ausgeblendet)
+ * Kurvenregel (VSS 40 241 Z. 14, S. 7; 29.10.2026): nur an einer Kurve der Strasse selbst (gerade Zufahrt, Fahrlinie ändert die Richtung
+ * innerhalb der Sichtweite um mindestens 60°; kurvenregel.strassenKurve), nicht für Abbieger. Vorbelegt: Radius der Strassenkurve und die
+ * fünf Voraussetzungen: (1) innerorts und 50 km/h, (2) Fahrstreifen je Richtung, (3) Abstand vom Kurvenende, (4) Richtungsänderung,
+ * (5) Längsgefälle aus dem Höhenmodell. Ohne solche Kurve nichts (die Fragen sind dann ausgeblendet)
  */
 export function kurvenregelVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vorbelegung, neigung: Readonly<Record<string, NeigungMessung>> | null,
   setze: Setze, feldHinweis: FeldHinweis): void {
-  const z = kurveZufahrt(st)
-  if (!z) return
+  const sk = strassenKurve(st)
+  if (!sk) return
+  const z = sk.z
   const Z = '(VSS 40 241 Z. 14, S. 7)'
+  setze('kurve.radiusStrasse', sk.radius, 'rechnung', `Strassenkurve vor dem Streifen: Radius rund ${sk.radius} m, Richtungsänderung rund ` +
+    `${sk.winkel}° (Fahrlinie des Sichtrechners, OSM-Weg)`)
   // (1) innerorts (von Hand bzw. vorbelegt) und Tempo der Zufahrt in der Kurve
   const hi = fall.bedarf?.felder.innerorts
   const io = hi && typeof hi.wert === 'boolean' ? { wert: hi.wert, quelle: hi.quelle } : w.innerorts && typeof w.innerorts.wert === 'boolean'
@@ -471,14 +475,11 @@ export function kurvenregelVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vor
   if (nFs !== null) setze('kurve.b2EinFahrstreifen', nFs <= 1, nOsm !== null ? 'osm' : 'annahme',
     `${nFs} Fahrstreifen je Richtung in der Kurve (${nOsm !== null ? 'OSM, lanes' : 'aus der Fahrbahnbreite geschätzt'}) ${Z}`)
   // (3) und (4) aus der Fahrlinie des Sichtrechners
-  const g = kurveGeometrie(z)
-  if (g && g.endeM !== null) {
-    const t = `Kurvenende ${ganz(g.endeM)} m vor dem Streifen (Fahrlinie des Sichtrechners)`
-    if (g.endeM <= KURVE_NAH_M) setze('kurve.b3NachKurvenende', true, 'rechnung', `${t} ${Z}`)
-    else if (g.endeM > KURVE_WEIT_M) setze('kurve.b3NachKurvenende', false, 'rechnung', `${t} ${Z}`)
-    else feldHinweis('kurve.b3NachKurvenende', `${t}: von Hand beurteilen ${Z}`)
-  }
-  if (g) setze('kurve.b4Winkel60', g.winkel >= KURVE_WINKEL_MIN, 'rechnung', `Richtungsänderung der Fahrlinie über die Kurve rund ${g.winkel}° ` +
+  const t = `Kurvenende ${ganz(sk.endeM)} m vor dem Streifen (Fahrlinie des Sichtrechners)`
+  if (sk.endeM <= KURVE_NAH_M) setze('kurve.b3NachKurvenende', true, 'rechnung', `${t} ${Z}`)
+  else if (sk.endeM > KURVE_WEIT_M) setze('kurve.b3NachKurvenende', false, 'rechnung', `${t} ${Z}`)
+  else feldHinweis('kurve.b3NachKurvenende', `${t}: von Hand beurteilen ${Z}`)
+  setze('kurve.b4Winkel60', sk.winkel >= KURVE_WINKEL_MIN, 'rechnung', `Richtungsänderung der Fahrlinie über die Kurve rund ${sk.winkel}° ` +
     `(Sichtrechner, OSM-Weg) ${Z}`)
   // (5) Längsgefälle aus dem Höhenmodell entlang der Fahrlinie
   const m = neigung?.[kurveProfilSchluessel(z)]

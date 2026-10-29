@@ -322,6 +322,8 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
   const ein = gebildet.eingaben
   if (ein.kurve.wert?.fuenfBedingungen === true && !(ein.innerorts.wert === true && ein.vSig.wert === 50))
     hinweise.push('Kurvenregel gilt nur innerorts bei 50 km/h: Sichtweite nach dem Tempo (VSS 40 241 Z. 14, S. 7)')
+  const rS = ein.kurve.wert?.radiusStrasse ?? null
+  if (rS !== null && rS < 20) hinweise.push('Radius unter 20 m: kein Wert nach Tab. 2; Sicht nach dem Tempo (VSS 40 241 Z. 14, S. 7; Tab. 2, S. 7)')
   if (ein.kurve.wert?.vorschlag) hinweise.push('Kurvenregel möglich: alle fünf Voraussetzungen ja, aber mit Annahmen; bis zur Bestätigung ' +
     'gilt die Sichtweite nach dem Tempo (VSS 40 241 Z. 14, S. 7)')
   // H4 mit dem Radius aus dem Sichtrechner nur, wenn das Soll nach Radius strenger ist als das nach Tempo (Automatik Paket A)

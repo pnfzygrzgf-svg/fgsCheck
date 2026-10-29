@@ -1025,22 +1025,23 @@ function RegelListe({ ids, kopf, druck }: { ids: readonly string[]; kopf: ReactN
 const verweisText = (feld: string): string => (FELD_DEF.has(feld) ? feldName(feld) : frageVon(feld))
 
 /** die fünf Voraussetzungen der Kurvenregel (Felder der Maske) */
-const KURVE_FELDER: readonly string[] = KURVE_BEDINGUNGEN.map(u => `kurve.${u}`)
+const KURVE_FELDER: readonly string[] = ['kurve.radiusStrasse', ...KURVE_BEDINGUNGEN.map(u => `kurve.${u}`)]
 /**
  * Kurvenregel (VSS 40 241 Z. 14, S. 7; 29.10.2026): die fünf Voraussetzungen mit Wert und Herkunft, im Panel als Eingaben (offene
  * zählen als Fragen des Themas), im Bericht als Liste; darunter, ob die Regel gilt
  */
 function KurvenregelBlock({ b, druck, eingabe }: { b: BefundBlatt; druck: boolean; eingabe?: ErwEingabe }) {
   const k = b.gebildet.eingaben.kurve.wert
-  const stand = k?.fuenfBedingungen ? 'gilt: Sicht nach dem Kurvenradius' : k?.vorschlag ? 'möglich, aber mit Annahmen: bitte bestätigen'
+  const stand = (k?.radiusStrasse ?? 0) < 20 ? 'Radius unter 20 m: kein Wert nach Tab. 2, Sicht nach dem Tempo'
+    : k?.fuenfBedingungen ? 'gilt: Sicht nach dem Kurvenradius' : k?.vorschlag ? 'möglich, aber mit Annahmen: bitte bestätigen'
     : KURVE_BEDINGUNGEN.some(u => k?.[u] === false) ? 'gilt nicht: Sicht nach dem Tempo' : 'noch offen: Sicht nach dem Tempo, bis alle fünf ja sind'
-  const kopf = <div className="thema-abschnitt"><b>{T('Kurvenregel (VSS 40 241 Z. 14, S. 7)')}</b> <span className="klein">– {stand}</span></div>
+  const kopf = <div className="thema-abschnitt"><b>{T('Kurvenregel (VSS 40 241 Z. 14, S. 7)')}</b> <span className="klein">– {T(stand)}</span></div>
   if (eingabe && !druck) return <div className="thema-teil kurvenregel">{kopf}
     <Maske fall={eingabe.fall} blatt={b} aendern={eingabe.aendern} felder={KURVE_FELDER.map(p => FELD_DEF.get(p)!)} flach ohneKoepfe
       zaehlt={eingabe.zaehlt} alle={eingabe.alle} kontexte={eingabe.kontexte} bedarf={eingabe.bedarf} bestaetig={eingabe.bestaetig} /></div>
   return <div className="thema-teil kurvenregel">{kopf}<ul className="klein">{KURVE_FELDER.map(p => {
     const h = b.gebildet.herkunft.get(p), w = h?.zustand === 'hand' ? h.wert : h?.zustand === 'vorbelegt' ? h.vorbelegt?.wert : null
-    return <li key={p}>{frageVon(p)} {w === true ? 'ja' : w === false ? 'nein' : 'offen'}{h && h.zustand !== 'offen' && h.zustand !== 'rechner'
+    return <li key={p}>{frageVon(p)} {w === true ? 'ja' : w === false ? 'nein' : typeof w === 'number' ? `${String(w).replace('.', ',')} m` : 'offen'}{h && h.zustand !== 'offen' && h.zustand !== 'rechner'
       ? ` (${h.zustand === 'hand' ? 'von Hand' : `${QUELLE_TEXT[h.quelle!]}: ${lesetext(h.text)}`})` : ''}</li>
   })}</ul></div>
 }
@@ -1070,7 +1071,7 @@ function ThemaAnzeige({ t, blaetter, druck, eingabe, begriffe }: { t: ThemaTeil;
   eingabe?: ErwEingabe; begriffe: ReadonlyMap<Eintrag, string[]> }) {
   const b0 = blaetter[0], mehrere = blaetter.length > 1
   // Kurvenregel (29.10.2026): die fünf Voraussetzungen im Thema Sicht als eigener Block (nur mit Kurve), nicht unter «Alle Angaben»
-  const kurveBlock = t.thema.id === 'sicht' && blaetter.some(b => (b.gebildet.eingaben.kurve.wert?.radius ?? null) !== null)
+  const kurveBlock = t.thema.id === 'sicht' && blaetter.some(b => (b.gebildet.eingaben.kurve.wert?.radiusStrasse ?? null) !== null)
   const felder = eingabe ? t.felder.filter(p => (eingabe.alle || eingabe.zaehlt(p)) && !(kurveBlock && KURVE_FELDER.includes(p)))
     .map(p => FELD_DEF.get(p)!) : []
   // beurteilte Trottoirüberfahrt: ihr Thema ist die Prüfung, offen (27.10.2026)

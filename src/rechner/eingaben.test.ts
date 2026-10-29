@@ -802,7 +802,7 @@ describe('Kurvenregel nur innerorts bei 50 km/h: Hinweis im Befundblatt (29.10.2
   it('«ja» zu den fünf Voraussetzungen bei 30 km/h: kurzer Hinweis; bei 50 km/h innerorts keiner', () => {
     const hw = (v: number) => {
       const f = fallMit(x => { x.bedarf = { felder: { innerorts: { wert: true, quelle: 'hand' }, vSig: { wert: v, quelle: 'hand' },
-        'kurve.radius': { wert: 25, quelle: 'hand' }, ...Object.fromEntries(['b1Innerorts50', 'b2EinFahrstreifen', 'b3NachKurvenende', 'b4Winkel60',
+        'kurve.radius': { wert: 25, quelle: 'hand' }, 'kurve.radiusStrasse': { wert: 25, quelle: 'hand' }, ...Object.fromEntries(['b1Innerorts50', 'b2EinFahrstreifen', 'b3NachKurvenende', 'b4Winkel60',
           'b5Gefaelle5'].map(u => [`kurve.${u}`, { wert: true, quelle: 'hand' as const }])) } } })
       return befundblaetter(rechneFall(daten(), AV, [], 12, f, null), f, { vorgabe: { bern: false, kantonBE: false } })[0].hinweise
     }
@@ -812,12 +812,12 @@ describe('Kurvenregel nur innerorts bei 50 km/h: Hinweis im Befundblatt (29.10.2
 })
 
 describe('Kurvenregel im Thema Sicht (29.10.2026)', () => {
-  it('nur mit Kurve (Radius): Block mit den fünf Voraussetzungen, im Bericht als Liste', async () => {
+  it('nur mit Strassenkurve (Radius der Strassenkurve): Block mit den fünf Voraussetzungen, im Bericht als Liste', async () => {
     const { renderToStaticMarkup } = await import('react-dom/server')
     const { createElement } = await import('react')
     const { BedarfAbschnitt, BefundblattAnzeige } = await import('../BedarfPanel')
     const lauf = (radius: boolean) => {
-      const f = fallMit(x => { if (radius) x.bedarf = { felder: { 'kurve.radius': { wert: 25, quelle: 'hand' }, 'kurve.b1Innerorts50': { wert: true, quelle: 'hand' } } } })
+      const f = fallMit(x => { if (radius) x.bedarf = { felder: { 'kurve.radiusStrasse': { wert: 25, quelle: 'hand' }, 'kurve.b1Innerorts50': { wert: true, quelle: 'hand' } } } })
       const bl = befundblaetter(rechneFall(daten(), AV, [], 12, f, null), f, { vorgabe: { bern: false, kantonBE: false } })
       return { panel: renderToStaticMarkup(createElement(BedarfAbschnitt, { fall: f, blaetter: bl, vorgabe: { bern: false, kantonBE: false }, aendern: () => {} })),
         bericht: renderToStaticMarkup(createElement(BefundblattAnzeige, { b: bl[0], druck: true })) }

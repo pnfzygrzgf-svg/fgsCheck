@@ -32,7 +32,7 @@ import { KnotensichtBlock } from './tue/KnotensichtBlock'
 import { tueBreiteHand } from './tue/texte'
 import type { Knotensicht } from './tue/knotensicht'
 import { ladeNeigung } from './knotensicht/daten/hoehen'
-import { kurveProfilLinie, kurveProfilSchluessel, kurveZufahrt } from './bedarf/kurvenregel'
+import { kurveProfilLinie, kurveProfilSchluessel, strassenKurve } from './bedarf/kurvenregel'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import type { HoehenVorgabe } from './knotensicht/rechner/typen'
 import Bericht from './Bericht'
@@ -475,7 +475,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   useEffect(() => {
     const ctrl = abbruchRef.current, nr = ladeNr.current
     if (!rechnung || !ctrl || ctrl.signal.aborted) return
-    const z = kurveZufahrt(rechnung.streifen)
+    const z = strassenKurve(rechnung.streifen)?.z
     if (!z) return
     const key = kurveProfilSchluessel(z), lauf = `${nr}|${key}`
     const linie = kurveProfilLinie(z)

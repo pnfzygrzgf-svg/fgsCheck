@@ -278,7 +278,7 @@ describe('Vorlagen', () => {
     expect(zf({ fahrbahnB: 9, dtv: null }).antwort).toBe('Ein Fussgängerstreifen ist hier zulässig; vorläufig: ob eine Schutzinsel nötig ist, ist offen.')
   })
   it('Schlussrunde: Sicht am Knoten offen ohne fehlendes Feld bekommt die Frage zur Kurve', () => {
-    const z = zf({ kurve: { radius: 20, fuenfBedingungen: true }, sichtVorh: [25, 25] })
+    const z = zf({ kurve: { radius: 20, radiusStrasse: 20, fuenfBedingungen: true }, sichtVorh: [25, 25] })
     expect(z.fehlt?.felder).toContain('kurve.radius')
   })
   it('Katalog: Kurzsätze kurz, eigene Texte, nur bekannte Platzhalter; für Big Five und die häufigen Muss-Regeln vorhanden', () => {

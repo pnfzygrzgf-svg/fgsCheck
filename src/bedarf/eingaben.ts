@@ -61,7 +61,10 @@ export interface FusswegAchse { rechtwinkligUneinsehbar: boolean; versatz: boole
 export interface Randabschluss { art: 'vertikal' | 'schraeg' | 'hoch'; hoeheMm: number | null; breiteM: number | null }
 /** Kurve vor dem Streifen bzw. Knotenradius; die fünf Voraussetzungen der Kurvenregel (VSS 40 241 Z. 14, S. 7) einzeln (null: offen);
  * fuenfBedingungen (abgeleitet, fallBedarf): alle fünf ja und keine nur angenommen; vorschlag: alle ja, aber eine nur angenommen */
-export interface Kurve { radius: number | null; b1Innerorts50?: boolean | null; b2EinFahrstreifen?: boolean | null; b3NachKurvenende?: boolean | null
+export interface Kurve { radius: number | null
+  /** Radius der Strassenkurve vor dem Streifen (gerade Zufahrt, VSS 40 241 Z. 14; 29.10.2026); radius bleibt der Abbiege- bzw.
+   * Kreiselradius der bfu-Regel */
+  radiusStrasse?: number | null; b1Innerorts50?: boolean | null; b2EinFahrstreifen?: boolean | null; b3NachKurvenende?: boolean | null
   b4Winkel60?: boolean | null; b5Gefaelle5?: boolean | null; fuenfBedingungen: boolean; vorschlag?: boolean }
 /** die fünf Voraussetzungen der Kurvenregel (Unterfelder von kurve) */
 export const KURVE_BEDINGUNGEN = ['b1Innerorts50', 'b2EinFahrstreifen', 'b3NachKurvenende', 'b4Winkel60', 'b5Gefaelle5'] as const

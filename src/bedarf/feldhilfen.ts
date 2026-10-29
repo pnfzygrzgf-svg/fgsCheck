@@ -22,7 +22,7 @@ import type { BedarfEingaben, FeldName } from './eingaben'
 import type { Ebene, RegelDef } from './typen'
 import { regelName } from './regelname'
 /** Kurvenregel: die fünf Voraussetzungen (Unterfelder von kurve) */
-const KB = ['kurve.b1Innerorts50', 'kurve.b2EinFahrstreifen', 'kurve.b3NachKurvenende', 'kurve.b4Winkel60', 'kurve.b5Gefaelle5']
+const KB = ['kurve.radiusStrasse', 'kurve.b1Innerorts50', 'kurve.b2EinFahrstreifen', 'kurve.b3NachKurvenende', 'kurve.b4Winkel60', 'kurve.b5Gefaelle5']
 
 /** Werke als Kurztext für «Wozu» (statt SR-Nummer bzw. vollem Titel) */
 export const WERK_KURZ: Record<WerkId, string> = {
@@ -303,11 +303,16 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   'kurve.radius': {
     was: 'Radius der Kurve bzw. des Abbiegens unmittelbar vor der Querung, in Metern. In engen Kurven fahren die Autos langsamer, ' +
       'die nötige Sichtweite richtet sich dann nach dem Radius.',
-    leer: 'Leer: keine Kurve vor der Querung; die Sichtweite richtet sich nach dem Tempo. Erst mit Radius erscheinen die fünf ' +
-      'Voraussetzungen der Kurvenregel.',
+    leer: 'Leer: keine Kurve vor der Querung; die Sichtweite richtet sich nach dem Tempo. Gilt für Abbieger und Kreisel (bfu); ' +
+      'die Kurvenregel der Norm betrifft nur eine Kurve der Strasse selbst.',
     vorschlag: 'aus dem Sichtrechner: kleinster Abbiegeradius bzw. Kreiselring (geschätzt: Annahme); ohne Abbieger zeigt das Feld das Ergebnis des Sichtrechners.',
   },
-  // Kurvenregel (29.10.2026): gilt nur, wenn alle fünf ja sind; dann Sicht nach Kurvenradius, ohne V85-Messung
+  // Kurvenregel (29.10.2026): nur an einer Kurve der Strasse selbst; gilt, wenn alle fünf ja sind (dann Sicht nach Kurvenradius, ohne V85)
+  'kurve.radiusStrasse': {
+    was: 'Radius der Kurve der Strasse selbst vor dem Streifen, in Metern (nicht das Abbiegen an einer Einmündung). Unter 20 m ' +
+      'nennt VSS 40 241 Tab. 2, S. 7 keinen Wert; dann gilt die Sicht nach dem Tempo.',
+    vorschlag: 'aus der Fahrlinie des Sichtrechners (OSM-Weg) einer geraden Zufahrt, die vor dem Streifen um mindestens 60° dreht; sonst ausgeblendet.',
+  },
   'kurve.b1Innerorts50': {
     was: 'Ja, wenn Kurve und Streifen innerorts auf einer Strasse mit Vortritt liegen, mit 50 km/h als allgemeinem Tempo. Erste der ' +
       'fünf Voraussetzungen der Kurvenregel (VSS 40 241 Z. 14, S. 7; Tab. 2, S. 7; Abb. 2, S. 8); mit allen fünf braucht es keine V85-Messung.',
@@ -584,7 +589,7 @@ const OHNE_BAULICH: Bedingung = { alle: [typ('ohne_vortritt'), ja('ohneBaulich')
 const HVL_G7: Bedingung = { alle: [FGS, ja('haltenSichtrelevantUeber5m')] }
 const alle = (...b: Bedingung[]): Bedingung => ({ alle: b })
 /** Kurvenregel: die fünf Voraussetzungen nur mit einer Kurve (Radius) und bei Fussgängerstreifen bzw. offenem Typ */
-const KURVE_DA = alle(FGS_ODER_OFFEN, { feld: 'kurve.radius', gesetzt: true })
+const KURVE_DA = alle(FGS_ODER_OFFEN, { feld: 'kurve.radiusStrasse', gesetzt: true })
 
 /**
  * Wann ein Feld zählt (fehlt: immer). Abgeleitet aus dem Ablauf in entscheid.ts und grundpruefung.ts und aus den Regeln, die ohne
@@ -625,7 +630,7 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   mzsBreiteM: typ('mehrzweck'),
   mzsMitFgs: typ('mehrzweck'),
   'kurve.radius': FGS_ODER_OFFEN,
-  'kurve.b1Innerorts50': KURVE_DA, 'kurve.b2EinFahrstreifen': KURVE_DA, 'kurve.b3NachKurvenende': KURVE_DA, 'kurve.b4Winkel60': KURVE_DA,
+  'kurve.radiusStrasse': KURVE_DA, 'kurve.b1Innerorts50': KURVE_DA, 'kurve.b2EinFahrstreifen': KURVE_DA, 'kurve.b3NachKurvenende': KURVE_DA, 'kurve.b4Winkel60': KURVE_DA,
   'kurve.b5Gefaelle5': KURVE_DA,
   erkennungM: FGS_ODER_OFFEN,
   // Insel
@@ -1026,6 +1031,7 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   mzsBreiteM: 'Wie breit ist der Mehrzweckstreifen?',
   mzsMitFgs: 'Führt ein Fussgängerstreifen über den Mehrzweckstreifen?',
   'kurve.radius': 'Wie eng ist die Kurve vor der Querung (Radius)?',
+  'kurve.radiusStrasse': 'Wie eng ist die Kurve der Strasse vor dem Streifen (Radius)?',
   'kurve.b1Innerorts50': 'Liegt die Kurve innerorts auf einer Strasse mit Vortritt und 50 km/h?',
   'kurve.b2EinFahrstreifen': 'Hat die Kurve nur einen Fahrstreifen je Richtung?',
   'kurve.b3NachKurvenende': 'Liegt der Streifen unmittelbar nach dem Kurvenende?',

@@ -80,7 +80,7 @@ describe('Normbeispiele und Tabellen', () => {
     const soll: Record<number, number> = { 20: 24, 25: 35, 30: 40, 35: 45, 40: 50 }
     for (const [r, s] of Object.entries(soll).map(([r, s]) => [Number(r), s])) {
       expect(sichtKurveTab2(r)).toEqual({ sicht: s, norm: TAB2_40241[r] })
-      const b = beurteile(fall({ kurve: { radius: r, fuenfBedingungen: true }, sichtVorh: [s - 0.1, 80] }))
+      const b = beurteile(fall({ kurve: { radius: r, radiusStrasse: r, fuenfBedingungen: true }, sichtVorh: [s - 0.1, 80] }))
       const h1 = b.alle.find(x => x.id === 'H1')
       expect(h1?.staerke, `Radius ${r}`).toBe('hart')
       if (r === 20) expect(h1?.normHinweis).toContain('30 m')
@@ -92,12 +92,12 @@ describe('Normbeispiele und Tabellen', () => {
     expect(sichtKurveTab2(19)).toBeNull()
   })
   it('Kurvenregel nur innerorts bei 50 km/h (29.10.2026): sonst gilt Tab. 1 trotz «ja» zu den fünf Voraussetzungen', () => {
-    const h2 = (abw: Record<string, unknown>) => beurteile(fall({ kurve: { radius: 25, fuenfBedingungen: true }, sichtVorh: [36, 36], ...abw })).alle.find(x => x.id === 'H2')
+    const h2 = (abw: Record<string, unknown>) => beurteile(fall({ kurve: { radius: 25, radiusStrasse: 25, fuenfBedingungen: true }, sichtVorh: [36, 36], ...abw })).alle.find(x => x.id === 'H2')
     expect(h2({})?.zustand).toBe('verletzt')                   // Weiche: Sicht nach Radius
     expect(h2({ vSig: 30 })).toBeUndefined()
     expect(h2({ vSig: 60 })).toBeUndefined()
     // ausserorts endet der Baum vorher; die Regel selbst greift dort nicht
-    const b = beurteile(fall({ kurve: { radius: 25, fuenfBedingungen: true }, sichtVorh: [36, 36], vSig: 30 }))
+    const b = beurteile(fall({ kurve: { radius: 25, radiusStrasse: 25, fuenfBedingungen: true }, sichtVorh: [36, 36], vSig: 30 }))
     expect(b.alle.find(x => x.id === 'H1')?.soll ?? '').not.toContain('Tab. 2')
   })
   it('VSS 40 837 Z. 16 Gelb: ab- und aufgerundet zulässig (L 12 → 6 oder 7 s), begrenzt auf 2 bis 8 s (L 2 → 2, L 18 → 8)', () => {

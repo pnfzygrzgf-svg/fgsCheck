@@ -119,7 +119,9 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'mzsBreiteM', gruppe: 'lage', name: 'Breite des Mehrzweckstreifens', art: m(0, 10) },
   { pfad: 'mzsMitFgs', gruppe: 'lage', name: 'Fussgängerstreifen über den Mehrzweckstreifen', art: B },
   { pfad: 'kurve.radius', gruppe: 'lage', name: 'Kurvenradius vor der Querung', art: m(0, 1000) },
-  // Kurvenregel (VSS 40 241 Z. 14, S. 7; 29.10.2026): fünf Voraussetzungen einzeln, «anwendbar» abgeleitet (alle ja)
+  // Kurvenregel (VSS 40 241 Z. 14, S. 7; 29.10.2026): nur an einer Kurve der Strasse selbst (gerade Zufahrt), nicht für Abbieger;
+  // fünf Voraussetzungen einzeln, «anwendbar» abgeleitet (alle ja)
+  { pfad: 'kurve.radiusStrasse', gruppe: 'lage', name: 'Radius der Strassenkurve vor dem Streifen', art: m(0, 1000) },
   { pfad: 'kurve.b1Innerorts50', gruppe: 'lage', name: 'Kurve innerorts mit 50 km/h auf einer Strasse mit Vortritt', art: B },
   { pfad: 'kurve.b2EinFahrstreifen', gruppe: 'lage', name: 'Kurve mit einem Fahrstreifen je Richtung', art: B },
   { pfad: 'kurve.b3NachKurvenende', gruppe: 'lage', name: 'Streifen gleich nach dem Kurvenende', art: B },

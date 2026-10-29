@@ -157,7 +157,7 @@ describe('Eingaben bilden: Vorbelegung, Hand, Objekte', () => {
     expect(g.eingaben.vSig).toEqual({ wert: 30, quelle: 'hand' })
     expect(g.eingaben.fahrbahnB).toEqual({ wert: 7.4, quelle: 'rechnung' })
     expect(g.eingaben.insel).toEqual({ wert: { ...INSEL_KEINE, vorhanden: true, art: 'markiert', breite: 2.1 }, quelle: 'hand' })
-    expect(g.eingaben.kurve).toEqual({ wert: { radius: null, b1Innerorts50: null, b2EinFahrstreifen: false, b3NachKurvenende: null, b4Winkel60: null,
+    expect(g.eingaben.kurve).toEqual({ wert: { radius: null, radiusStrasse: null, b1Innerorts50: null, b2EinFahrstreifen: false, b3NachKurvenende: null, b4Winkel60: null,
       b5Gefaelle5: null, fuenfBedingungen: false }, quelle: 'osm' })
     expect(g.eingaben.dtv).toEqual({ wert: null, quelle: null })
     expect(g.herkunft.get('vSig')).toMatchObject({ zustand: 'hand', quelle: 'hand', wert: 30 })
