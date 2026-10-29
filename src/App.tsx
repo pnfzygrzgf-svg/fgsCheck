@@ -2258,7 +2258,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           <StreifenAnzeige key={s.fgsId} s={s} fall={fall} auswahl={auswahl} setAuswahl={setAuswahl} aendern={aendern} namen={zNamen.get(s.fgsId)}
             alleStreifen={rechnung?.streifen ?? []} alleNamen={zNamen} blatt={blaetter.find(b => b.streifen.includes(s.fgsId)) ?? null}
             gewaehlteZ={gewaehlteZ} spurZeichnen={key => { setSpurFuer(key); setZeichnung([]); setWerkzeug('spurB') }}
-            ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null} neuLaden={() => umStreifenLaden(s.fgsId)} ksPhase={ksPhase} setKsPhase={setKsPhase} />
+            ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null} neuLaden={() => umStreifenLaden(s.fgsId)} ksPhase={ksPhase} setKsPhase={setKsPhase}
+            grau={!!rechnung && rechnung.streifenQuelle !== 'hand' && !!rechnung.markierung && !istFgs(rechnung.markierung)} />
         ))}
         {rechnung && <p className="klein">Rechenzeit {Math.round(rechnung.ms)} ms (Web Worker).</p>}
           </>} />
@@ -2486,8 +2487,10 @@ function StreetViewZufahrt({ url, nr }: { url: string | null; nr: string }) {
 const GEDECKT_TITEL = 'Geprüft; den Weg ab dem Knoten prüft die gerade Zufahrt mit; das Ergebnis zählt trotzdem'
 
 function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, spurZeichnen, ausserhalb, neuLaden, namen, alleStreifen, alleNamen, blatt,
-  ksPhase, setKsPhase }: {
+  ksPhase, setKsPhase, grau = false }: {
   s: StreifenErgebnis; fall: Fall; auswahl: string | null; setAuswahl: (k: string | null) => void
+  /** unmarkierte OSM-Querung (29.10.2026): ohne Wahl als Querung ohne Vortritt angenommen, Fussgängerstreifen ausdrücklich wählbar */
+  grau?: boolean
   ksPhase: KsPhase; setKsPhase: (p: KsPhase) => void   // Knotensicht: gezeigte Phase (Karte und Block gleich)
   blatt: BefundBlatt | null          // Bedarf der Querung: Lage (Hinweis zur Trottoirüberfahrt) und OSM-Knoten (SichtweitenCheck)
   alleStreifen: StreifenErgebnis[]; alleNamen: Map<string, ZufahrtNamen>   // für «geprüft beim anderen Teil» bzw. die gerade Zufahrt
@@ -2529,7 +2532,9 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           'nach VSS 40 240 Z. 8.2 je Teilquerung, auf der Karte ohne Balken. Trottoirüberfahrt: keine Sicht auf die Wartefläche, ' +
           'massgebend ist die Knotensicht der Einbiegenden (hier gerechnet)'}
           onChange={e => setzeS({ typ: (STREIFEN_QUERUNGEN as string[]).includes(e.target.value) ? e.target.value as StreifenQuerung : undefined })}>
-          <option value="">Fussgängerstreifen</option>
+          {grau ? <><option value="">automatisch: ohne Vortritt ({!se.typ && s.querung?.typ === 'furt' ? 'Furt' : !se.typ && s.querung ? 'ohne bauliche Massnahme'
+            : 'nach der Insel'}), unmarkiert in OSM</option><option value="fgs">Fussgängerstreifen (geplant bzw. zu prüfen)</option></>
+            : <option value="">Fussgängerstreifen</option>}
           <option value="furt">ohne Vortritt: Furt (Insel ohne Balken)</option>
           <option value="ohne_vortritt">ohne Vortritt: Nase, Einengung bzw. ohne bauliche Massnahme</option>
           <option value="trottoirueberfahrt">{TUE_OPTION}{nichtEinmuendung ? ` – ${TUE_NUR_EINMUENDUNG}` : ''}</option>
@@ -2566,6 +2571,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
       {ausserhalb && <p className="klein warnung"><b>Ausserhalb der geladenen Daten:</b> {ausserhalbText(ausserhalb)}{' '}
         <button className="zweit klein" onClick={neuLaden}>um {streifenTitel(s.fgsId, fall.streifenHand, !!s.trottoirueberfahrt)} neu laden</button></p>}
       {s.keinFgsHinweis && <p className="keinfgs klein">Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug.</p>}
+      {s.querungAnnahme && <p className="pruefen klein">{s.querungAnnahme}</p>}
       {s.markierungHinweis && <p className="pruefen klein">Vermutlich Fussgängerstreifen (Markierung in OSM nicht erfasst), bitte prüfen.</p>}
       {s.lsa === 'ja' && <p className="klein">Mit Lichtsignal gilt die <VerweisText text="Arbeitshilfe Fussgängerstreifen Kanton Bern" /> nicht; die Rechnung wird trotzdem gezeigt.</p>}
       {s.annahmen.length > 0 && <ul className="annahmen">{s.annahmen.map(a => <li key={a}>{a}</li>)}</ul>}

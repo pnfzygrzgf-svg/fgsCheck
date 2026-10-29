@@ -239,8 +239,8 @@ export function Anleitung() {
             die Insel im Bedarf als «nur markiert» angegeben, gilt die ganze Fahrbahn. Sichtfeld und Hindernisse wie beim
             Fussgängerstreifen, ohne die Kurvenregeln; geprüft wird höchstens bis {REICHWEITE_SICHT_M} m ab dem Streifen (so weit reichen
             die geladenen Daten): ein höheres Soll erscheint mit «geprüft bis {REICHWEITE_SICHT_M} m, darüber nicht geprüft» und gilt in der
-            erweiterten Prüfung als offen. Ist die Sicht verdeckt, wo das Soll über der Anhaltesichtweite liegt, meldet sie das
-            vorerst gelb (ob die Anhaltesichtweite frei bleibt, prüft die App noch nicht getrennt). An einem Streifen mit Lichtsignal
+            erweiterten Prüfung als offen. Ist die Sicht verdeckt, entscheidet die freie Länge bis zum ersten Hindernis: unter
+            der Anhaltesichtweite rot (Muss), darüber gelb (Soll) bzw. bei wenig Querenden und wenig Verkehr die Ausnahme nach {V('VSS 40 240')}, Ziffer 8.2. An einem Streifen mit Lichtsignal
             gilt die Sichtweite nach {V('VSS 40 241')} nicht; die erweiterte Prüfung nennt den Sichtrechner dort nur als Hinweis. Ein Querungstyp
             von Hand, der der Querungsart der Streifen widerspricht, gilt nicht (Hinweis in der erweiterten Prüfung). «kein FGS» bleibt davon getrennt: der Streifen wird dann gar nicht geprüft.
             Ein Fall mit Eingaben zum Bedarf bzw. mit einer Querung ohne Vortritt hat die Version 3; ältere Fassungen der App lehnen ihn

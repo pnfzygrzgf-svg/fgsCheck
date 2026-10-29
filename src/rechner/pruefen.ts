@@ -32,6 +32,7 @@ import { OsmAchsen, achseWaehlen } from './achsen'
 import { type SpurHand, spurVersetzen, liniePunkte } from './spurhand'
 import type { ParkRaster } from './hindernisse'
 import { abbiegeZufahrt, SPUR_MIN_M, type AbbiegeKontext } from './abbiegen'
+import { freiBis } from './freibis'
 import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvexeHuelle, enthaelt, abstandMulti, huelle, abstandLinieMulti } from './poly'
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
 import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt, QuerungOhneVortritt } from './typen'
@@ -74,7 +75,7 @@ export interface VonHand {
   keinFgs?: (fid: string) => boolean
   /** Streifen als Querung ohne Vortritt (Bedarfsmodul E1): Sichtweite nach VSS 40 240 Z. 8.2 (ohneVortritt.ts); inselMarkiert: die
    * Insel ist nur markiert, L gilt über die ganze Fahrbahn. null bzw. fehlt: Fussgängerstreifen wie bisher */
-  querung?: (fid: string) => { typ: QuerungOhneVortritt; inselMarkiert: boolean } | null
+  querung?: (fid: string) => { typ: QuerungOhneVortritt; inselMarkiert: boolean; vorgabe?: true } | null
 }
 
 export interface Kontext {
@@ -188,25 +189,6 @@ function schluessel(ergebnisse: ZufahrtErgebnis[], art: string, grad: number): s
 
 interface StreifenX extends Streifen { netzQuelle?: string; strasse?: string }
 
-/** Schlüssel eines Konflikts (gleiches Objekt in zwei Läufen der Konfliktsuche) */
-const konfliktKey = (k: Konflikt) => `${k.klasse}|${k.id ?? ''}|${k.layer}|${k.abstand.toFixed(3)}`
-/**
- * Frei bis (Automatik Paket B, 21.10.2026): zusätzliches Ausgabefeld, ändert weder Status noch Soll. Ohne Konflikt die geprüfte
- * Länge sw; sonst die Länge entlang der Sichtpunkte bis zum letzten Sichtpunkt, dessen Sichtfeld (Sichtpunkte 0 bis k) noch keinen
- * der gemeldeten Konflikte trifft (Suche halbierend, das Sichtfeld wächst mit k). Abgerundet auf ganze Meter.
- */
-function freiBis(sp: P[], konflikte: Konflikt[], sf: (p: P[]) => Multi, kf: (f: Multi, p: P[]) => Konflikt[], sw: number): number {
-  if (!konflikte.length || sp.length < 2) return Math.floor(sw + 1e-6)
-  const ziel = new Set(konflikte.map(konfliktKey))
-  const trifft = (n: number) => { const pre = sp.slice(0, n); return kf(sf(pre), pre).some(k => ziel.has(konfliktKey(k))) }
-  if (trifft(1)) return 0
-  let lo = 1, hi = sp.length                      // lo: frei, hi: trifft (das ganze Sichtfeld enthält die Konflikte)
-  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (trifft(mid)) hi = mid; else lo = mid }
-  let l = 0
-  for (let i = 1; i < lo; i++) l += dist(sp[i - 1], sp[i])
-  return Math.floor(l + 1e-6)
-}
-
 /** pruefen: alle Teilstreifen -> Ergebnisse */
 export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
   const { netz, fahrbahn, gebaeude } = kx
@@ -229,7 +211,6 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
   const aus: StreifenErgebnis[] = []
   for (const s of S) {
     const fid = s.fgsId
-    const ov = ohneVortritt(s, S, kx.vonHand?.querung?.(fid) ?? null)
     let ann: [Poly, Poly] = [annaeherungsbereich(...s.warte[0].slice(0, 2) as [P, P], s.warte[0][2], s.warte[0][3]),
       annaeherungsbereich(...s.warte[1].slice(0, 2) as [P, P], s.warte[1][2], s.warte[1][3])]
     const annRand = s.warte.map(w => annAmRand(w, fahrbahn, flaechenRand))
@@ -239,6 +220,9 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
     let [lsa, lsaQ] = lsaEinordnen(netz, streifenPoly)
     const lsaHand = kx.vonHand?.lsa?.(fid) ?? null
     if (lsaHand) { lsa = lsaHand; lsaQ = 'von Hand' }
+    // angenommene Querung ohne Vortritt (unmarkierte OSM-Querung, 29.10.2026) nicht an einem Streifen mit Lichtsignal
+    const q = kx.vonHand?.querung?.(fid) ?? null
+    const ov = ohneVortritt(s, S, q && !(q.vorgabe && lsa === 'ja') ? q : null)
     const [zfs, entf0] = vorab.get(fid)!
     const ent: Entfallen[] = [...entf0]
     const erg: ZufahrtErgebnis[] = []

@@ -19,6 +19,7 @@ import { leererFall, fallLesen, fallSchreiben, zufahrtSchluessel, naechsteHandId
   type StreifenHand } from '../fall'
 import { markierung, markierungHinweis, planungHinweis, knotenLage } from '../daten/osm'
 import type { Konflikt } from './typen'
+import { befundblaetter } from '../bedarf/befundblatt'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number): [number, number] => wgs(O[0] + x, O[1] + y)
@@ -187,14 +188,48 @@ describe('Markierung des OSM-Übergangs (Variante B)', () => {
     expect(markierung({ crossing: 'uncontrolled' })).toBe('vermutlich')
     expect(markierung({ highway: 'crossing' })).toBe('unbelegt')
   })
-  it('unmarkierter Übergang: gerechnet, aber deutlich als «kein Fussgängerstreifen» ausgewiesen', () => {
+  it('unmarkierter Übergang (29.10.2026): als Querung ohne Vortritt angenommen; «Fussgängerstreifen» gewählt: wie bisher «kein Fussgängerstreifen»', () => {
     const r = rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), AV, [], 12, fallMit(() => {}), null)
     expect(r.markierung).toBe('unmarkiert')
-    expect(r.hinweis).toMatch(/^Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug/)
+    expect(r.hinweis).toBe('Unmarkierte Querung (OSM: crossing=unmarked): als Querung ohne Vortritt angenommen (ohne bauliche Massnahme), ' +
+      'Sichtweite nach VSS 40 240 Z. 8.2; für einen geplanten Fussgängerstreifen unter «Querung» Fussgängerstreifen wählen.')
     expect(r.streifen.length).toBeGreaterThan(0)
-    expect(r.streifen.every(s => s.keinFgsHinweis === r.hinweis)).toBe(true)
+    expect(r.streifen.every(s => s.querungAnnahme === r.hinweis && s.querung?.typ === 'ohne_vortritt' && !s.keinFgsHinweis)).toBe(true)
+    const g = rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), AV, [], 12, fallMit(x => { x.streifen['12'] = { typ: 'fgs' } }), null)
+    expect(g.hinweis).toMatch(/^Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug/)
+    expect(g.streifen.every(s => s.keinFgsHinweis === g.hinweis && !s.querung && !s.querungAnnahme)).toBe(true)
+    // gespeicherte Wahl bleibt: Furt von Hand ohne Annahme
+    const f = rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), AV, [], 12, fallMit(x => { x.streifen['12'] = { typ: 'furt' } }), null)
+    expect(f.streifen.every(s => s.querung?.typ === 'furt' && !s.querungAnnahme)).toBe(true)
+    // ohne Angabe zur Art (unbelegt) ebenso; vermutlich markiert (uncontrolled) bleibt Fussgängerstreifen
+    const u = rechneFall(daten({}, { highway: 'crossing' }), AV, [], 12, fallMit(() => {}), null)
+    expect(u.streifen.every(s => s.querung?.typ === 'ohne_vortritt' && s.querungAnnahme)).toBe(true)
+    const v = rechneFall(daten({}, { highway: 'crossing', crossing: 'uncontrolled' }), AV, [], 12, fallMit(() => {}), null)
+    expect(v.streifen.every(s => !s.querung && !s.querungAnnahme)).toBe(true)
     const m = rechneFall(daten(), AV, [], 12, fallMit(() => {}), null)
     expect([m.markierung, m.hinweis, m.streifen[0].keinFgsHinweis]).toEqual(['markiert', '', undefined])
+  })
+  it('unmarkierter Übergang mit Insel (AV-Verkehrsinsel bzw. Insel von Hand): als Furt angenommen; Fall-Datei ohne Wahl bleibt ohne typ', () => {
+    const avInsel: AvFlaeche[] = [
+      { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(-200, -4, 200, -1.2)] },
+      { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(-200, 1.2, 200, 4)] },
+      { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(-200, -1.2, -4, 1.2)] },
+      { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(4, -1.2, 200, 1.2)] },
+      { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(-43, -200, -37, -4)] },
+      { art: 'Verkehrsinsel', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [rechteck(-4, -1.2, 4, 1.2)] },
+      ...AV.slice(1),
+    ]
+    const r = rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), avInsel, [], 12, fallMit(() => {}), null)
+    expect(r.streifen.length).toBe(2)
+    expect(r.streifen.every(s => s.querung?.typ === 'furt' && s.querungAnnahme?.includes('(Furt)'))).toBe(true)
+    const h = fallMit(x => { x.hindernisse.push({ id: 'insel-1', art: 'insel', ring: [lv(-3, -0.5), lv(3, -0.5), lv(3, 1.5), lv(-3, 1.5)], quelle: 'hand' }) })
+    expect(rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), AV, [], 12, h, null).streifen.every(s => s.querung?.typ === 'furt')).toBe(true)
+    // Fall-Datei: ohne Wahl kein typ (unverändert), «Fussgängerstreifen» gewählt als typ «fgs» gelesen und geschrieben
+    const f0 = fallMit(() => {})
+    expect(JSON.parse(fallSchreiben(f0)).streifen).toEqual({})
+    const f1 = fallMit(x => { x.streifen['12'] = { typ: 'fgs' } })
+    const [g] = fallLesen(fallSchreiben(f1))
+    expect(g.streifen['12']).toEqual({ typ: 'fgs' })
   })
   it('Fall-Datei trägt Markierung und Ergebnis-Auszug', () => {
     const f = fallMit(x => { x.ort.markierung = 'unbelegt' })
@@ -503,10 +538,11 @@ describe('Planung: Streifen von Hand (16.10.2026)', () => {
       'Fussgängerstreifen geprüft.')
     const d = rechneFall(daten({}, { highway: 'crossing', 'crossing:markings': 'dots' }), AV, [], 12, fallMit(hand), null)
     expect(d.hinweis).toMatch(/^Heute kein Fussgängerstreifen \(OSM: crossing:markings=dots\)/)
-    // ohne Streifen von Hand bleibt «Kein Fussgängerstreifen» am Streifen aus OSM + AV; am Fussgängerstreifen kein Hinweis
+    // ohne Streifen von Hand: am Streifen aus OSM + AV die Querung ohne Vortritt (Annahme, 29.10.2026); am Fussgängerstreifen kein Hinweis
     const o = rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), AV, [], 12, fallMit(() => {}), null)
-    expect(o.hinweis).toMatch(/^Kein Fussgängerstreifen: Prüfung sinngemäss/)
-    expect(o.streifen.every(s => s.keinFgsHinweis === o.hinweis)).toBe(true)
+    expect(o.hinweis).toMatch(/^Unmarkierte Querung \(OSM: crossing=unmarked\): als Querung ohne Vortritt angenommen/)
+    expect(r.streifen.every(s => !s.querung && !s.querungAnnahme)).toBe(true)
+    expect(o.streifen.every(s => s.querungAnnahme === o.hinweis)).toBe(true)
     const z = rechneFall(daten(), AV, [], 12, fallMit(hand), null)
     expect([z.hinweis, z.streifen[0].keinFgsHinweis]).toEqual(['', undefined])
     // «kein FGS» von Hand bleibt wie bisher
@@ -717,5 +753,47 @@ describe('Planung: gesichert, Übergang weg, Bericht (Korrektur 16.10.2026)', ()
     expect(knotenLage(roh, 8)).toBeNull()                                  // ohne Länge
     expect(knotenLage({ elements: [{ type: 'node', id: 9, lat: 1, lon: 2 }] }, 9)).toEqual({ id: 9, lat: 1, lon: 2, tags: {} })
     expect([knotenLage(null, 7), knotenLage({}, 7)]).toEqual([null, null])
+  })
+})
+
+describe('Frei bis auch für abbiegende Zufahrten (29.10.2026)', () => {
+  it('freie Länge entlang der Sichtpunkte: ohne Hindernis die geprüfte Länge, mit Parkfeld im Sichtfeld kürzer', () => {
+    const f = (h: boolean) => fallMit(x => {
+      x.streifen['12'] = { typ: 'ohne_vortritt' }
+      if (h) x.hindernisse.push({ id: 'p1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-30, -3.8, -24, -2).slice(0, 4), quelle: 'hand' })
+    })
+    const abb = (h: boolean) => rechneFall(daten(), AV, [], 12, f(h), null).streifen[0].zufahrten.find(z => z.art === 'abbiegend')
+    const ohne = abb(false)
+    expect(ohne).toBeDefined()
+    expect(ohne!.freiBisM).toBe(Math.floor((ohne!.geprueftBisM ?? ohne!.sichtweite) + 1e-6))
+    const mit = abb(true)!
+    expect(mit.status).not.toBe('frei')
+    expect(mit.freiBisM!).toBeGreaterThan(0)
+    expect(mit.freiBisM!).toBeLessThan(ohne!.freiBisM!)
+  })
+})
+
+describe('Bedarf an der unmarkierten Querung und Längsparkierung ohne Vortritt (29.10.2026)', () => {
+  const OHNE = { vorgabe: { bern: false, kantonBE: false } }
+  it('Querungstyp: Annahme aus OSM (ohne Vortritt); Fussgängerstreifen gewählt: wie bisher gerechnet', () => {
+    const f = fallMit(() => {})
+    const r = rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), AV, [], 12, f, null)
+    const [b] = befundblaetter(r, f, OHNE)
+    expect(b.vorbelegt.werte.typ).toEqual({ wert: 'ohne_vortritt', quelle: 'annahme',
+      text: 'unmarkierte Querung (OSM): als Querung ohne Vortritt angenommen (ohne bauliche Massnahme)' })
+    const g = fallMit(x => { x.streifen['12'] = { typ: 'fgs' } })
+    const [c] = befundblaetter(rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), AV, [], 12, g, null), g, OHNE)
+    expect(c.vorbelegt.werte.typ).toMatchObject({ wert: 'fgs', quelle: 'rechnung' })
+  })
+  it('Längsparkierung: ohne Vortritt genügen die bekannten Zufahrten; beim Fussgängerstreifen braucht es alle (unverändert)', () => {
+    const lauf = (typ: 'ohne_vortritt' | undefined) => {
+      const f = fallMit(x => { if (typ) x.streifen['12'] = { typ } })
+      const r = rechneFall(daten(), AV, [], 12, f, null)
+      const z = r.streifen[0].zufahrten.find(x => x.art !== 'abbiegend')!
+      z.parkRechts = null
+      return befundblaetter(r, f, OHNE)[0].vorbelegt.werte.laengsparkierung
+    }
+    expect(lauf(undefined)).toBeUndefined()
+    expect(lauf('ohne_vortritt')).toEqual({ wert: false, quelle: 'rechnung', text: 'keine Parkierung rechts an den Zufahrten (an 1 von 2 Zufahrten bekannt)' })
   })
 })

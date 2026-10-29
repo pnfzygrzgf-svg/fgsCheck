@@ -59,9 +59,11 @@ export interface StreifenEingabe { lsa?: 'ja' | 'nein'; keinFgs?: boolean; typ?:
    * fehlt: wie die Knotensicht es setzt. Ältere Apps übergehen die Felder (keine neue Version) */
   tueD?: P; tueDtrottoir?: P }
 export const QUERUNG_OHNE_VORTRITT: QuerungOhneVortritt[] = ['furt', 'ohne_vortritt']
-/** Querungsart am Streifen (Auswahl «Querung»): ohne Vortritt bzw. Trottoirüberfahrt; Fussgängerstreifen ohne Wert */
-export type StreifenQuerung = QuerungOhneVortritt | 'trottoirueberfahrt'
-export const STREIFEN_QUERUNGEN: StreifenQuerung[] = [...QUERUNG_OHNE_VORTRITT, 'trottoirueberfahrt']
+/** Querungsart am Streifen (Auswahl «Querung»): ohne Vortritt bzw. Trottoirüberfahrt; Fussgängerstreifen ohne Wert. «fgs»
+ * (29.10.2026): Fussgängerstreifen ausdrücklich gewählt, an einer unmarkierten OSM-Querung (dort ist ohne Wert die Querung ohne
+ * Vortritt angenommen, rechneFall); eine ältere App übergeht den Wert («Querungstyp ungültig») und rechnet wie ohne Wert */
+export type StreifenQuerung = QuerungOhneVortritt | 'trottoirueberfahrt' | 'fgs'
+export const STREIFEN_QUERUNGEN: StreifenQuerung[] = [...QUERUNG_OHNE_VORTRITT, 'trottoirueberfahrt', 'fgs']
 /** Fläche (Plan) von Hand (seit 16.10.2026; rechner/planflaechen.ts): geplante Bodenbedeckung, ersetzt für die Rechnung die
  * AV-Flächen darunter (Trottoirnase, Fahrbahnverengung, verschobener Randstein, neue Insel). Ring ohne Schlusspunkt, LV95 */
 export type PlanArt = 'trottoir' | 'fahrbahn' | 'insel'
@@ -346,7 +348,7 @@ export function fallLesen(text: string): [Fall, string[]] {
       gemeldet = true
       if (!STREIFEN_QUERUNGEN.includes(v.typ as StreifenQuerung)) hinweise.push(`Streifen-Eingabe ${k}: Querungstyp ungültig, übergangen`)
       else if (e.keinFgs) hinweise.push(`Streifen-Eingabe ${k}: «kein FGS» und ${v.typ === 'trottoirueberfahrt' ? 'Trottoirüberfahrt'
-        : 'Querung ohne Vortritt'} zugleich – «kein FGS» gilt, Querungstyp übergangen`)
+        : v.typ === 'fgs' ? 'Fussgängerstreifen' : 'Querung ohne Vortritt'} zugleich – «kein FGS» gilt, Querungstyp übergangen`)
       else { e.typ = v.typ as StreifenQuerung; gemeldet = false }
     }
     // Auge von Hand an der Trottoirüberfahrt: Punkt in LV95 im Gebiet, sonst mit Hinweis übergangen
@@ -383,8 +385,9 @@ export function fallSchreiben(fall: Fall, ergebnis: FallErgebnis | null = null):
   return JSON.stringify({ ...rest, version: fallVersion(fall), gespeichert: new Date().toISOString(), ...(ergebnis ? { ergebnis } : {}) }, null, 1)
 }
 
-/** Eingaben des Falls als VonHand für die Rechnung */
-export function vonHandAusFall(fall: Fall): VonHand {
+/** Eingaben des Falls als VonHand für die Rechnung; vorgabe: Querungsart ohne Eingabe am Streifen (unmarkierte OSM-Querung:
+ * ohne Vortritt, 29.10.2026), sonst Fussgängerstreifen */
+export function vonHandAusFall(fall: Fall, vorgabe: QuerungOhneVortritt | null = null): VonHand {
   const z = (fid: string, kennung: string) => fall.zufahrten[zufahrtSchluessel(fid, kennung)]
   return {
     spur: (fid, kennung) => z(fid, kennung)?.spur ?? null,
@@ -396,7 +399,9 @@ export function vonHandAusFall(fall: Fall): VonHand {
     tempoKennung: (fid, kennung) => z(fid, kennung)?.tempo ?? null,
     querung: fid => {
       const e = fall.streifen[fid]
-      return e?.typ && !e.keinFgs && e.typ !== 'trottoirueberfahrt' ? { typ: e.typ, inselMarkiert: inselMarkiert(fall) } : null
+      if (e?.keinFgs || e?.typ === 'trottoirueberfahrt' || e?.typ === 'fgs') return null
+      if (e?.typ) return { typ: e.typ, inselMarkiert: inselMarkiert(fall) }
+      return vorgabe ? { typ: vorgabe, inselMarkiert: inselMarkiert(fall), vorgabe: true } : null
     },
   }
 }

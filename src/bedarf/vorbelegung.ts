@@ -37,6 +37,7 @@ import { feldName } from './felder'
 import { E1_KURZ } from '../rechner/standardinsel'
 import { imBereich, HALT_TEXT, type Bereich, type HaltestellenErgebnis, type OevHalt } from '../daten/haltestellen'
 import type { VerkehrsdatenErgebnis, VdLinie } from '../daten/verkehrsdaten'
+import { QUERUNG_ANNAHME_TEXT } from '../daten/osm'
 import { automatik, avInselBei, kopfUeberstandAv, zufSicht, type AutoGeo } from './automatik'
 import { tag } from './lesetext'
 import { WARTE_TC_S, WARTE_TF_S, breiteVorbelegung, knotensichtGueltig, knotensichtVorbelegung, ueberfahrbarVorbelegung, wartezeitSchaetzen, UEBERFAHRBAR_OHNE,
@@ -140,6 +141,9 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   if (typen.length === 1 && typen[0] === 'fgs') setze('typ', mitLsa ? 'lsa' : 'fgs', 'rechnung', mitLsa
     ? 'Streifen als Fussgängerstreifen mit Lichtsignal gerechnet' : 'Streifen als Fussgängerstreifen gerechnet')
   else if (typen.length === 1 && typen[0] === 'trottoirueberfahrt') setze('typ', typen[0], 'hand', TUE_WAHL_TEXT)
+  // unmarkierte OSM-Querung ohne Wahl am Streifen (29.10.2026): Annahme aus OSM
+  else if (typen.length === 1 && typen[0] !== 'kein' && st.every(s => s.querungAnnahme))
+    setze('typ', typen[0], 'annahme', `${QUERUNG_ANNAHME_TEXT} (${typen[0] === 'furt' ? 'Furt' : 'ohne bauliche Massnahme'})`)
   else if (typen.length === 1 && typen[0] !== 'kein') setze('typ', typen[0], 'hand', `Querungsart von Hand: ${typen[0] === 'furt' ? 'Furt' : 'ohne Vortritt'}`)
   else if (typen.length > 1) hinweise.push('Die Teilstreifen haben verschiedene Querungsarten: Querungstyp offen')
   else hinweise.push('Streifen als «kein FGS» nicht geprüft: Querungstyp offen')
@@ -235,6 +239,13 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
     const park = gerade.map(z => z.parkRechts)
     if (park.every(x => x !== null)) setze('laengsparkierung', park.some(x => !!x), 'rechnung', park.some(x => !!x)
       ? 'Parkierung rechts an der Zufahrt (OSM bzw. Parkfelder)' : 'keine Parkierung rechts an den Zufahrten')
+    // Querung ohne Vortritt (29.10.2026): die längere Fahrlinie kennt die Parkierung nicht an jeder Zufahrt; es zählen die bekannten
+    // (eine mit Parkierung genügt), damit E2b/E2c nicht ohne Not offen bleiben
+    else if (st.every(s => s.querung) && park.some(x => x !== null)) {
+      const bekannt = park.filter(x => x !== null).length
+      setze('laengsparkierung', park.some(x => !!x), 'rechnung', park.some(x => !!x) ? 'Parkierung rechts an einer Zufahrt (OSM bzw. Parkfelder)'
+        : `keine Parkierung rechts an den Zufahrten (an ${bekannt} von ${park.length} Zufahrten bekannt)`)
+    }
   }
   const zuf = zufSicht(st)
   if (zuf.length) {

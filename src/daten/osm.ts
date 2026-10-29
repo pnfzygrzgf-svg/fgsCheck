@@ -388,6 +388,16 @@ export function markierungHinweis(m: Markierung, t: Record<string, string>): str
   if (m === 'unbelegt') return `${KEIN_FGS_TEXT} (OSM ohne Angabe zur Art der Querung; falls vor Ort markiert, OSM-Tag nachführen).`
   return ''
 }
+/** Kurztext der Annahme (Bedarf, Herkunft des Querungstyps) */
+export const QUERUNG_ANNAHME_TEXT = 'unmarkierte Querung (OSM): als Querung ohne Vortritt angenommen'
+/** Hinweis am Streifen einer unmarkierten OSM-Querung (29.10.2026): als Querung ohne Vortritt angenommen (Furt bzw. ohne bauliche
+ * Massnahme), Sichtweite nach VSS 40 240 Z. 8.2; ein Fussgängerstreifen ist unter «Querung» wählbar */
+export function querungAnnahmeHinweis(m: Markierung, t: Record<string, string>, furt: boolean): string {
+  const osm = m === 'unmarkiert' ? (t.crossing === 'unmarked' ? 'crossing=unmarked' : `crossing:markings=${t['crossing:markings']}`)
+    : 'ohne Angabe zur Art der Querung'
+  return `Unmarkierte Querung (OSM: ${osm}): als Querung ohne Vortritt angenommen (${furt ? 'Furt' : 'ohne bauliche Massnahme'}), ` +
+    'Sichtweite nach VSS 40 240 Z. 8.2; für einen geplanten Fussgängerstreifen unter «Querung» Fussgängerstreifen wählen.'
+}
 /**
  * Hinweis bei Streifen von Hand an einem OSM-Übergang ohne Fussgängerstreifen (unmarkiert bzw. unbelegt; Planung eines neuen
  * Streifens, 16.10.2026): heute kein FGS, der Streifen von Hand wird aber als Fussgängerstreifen geprüft (statt KEIN_FGS_TEXT,

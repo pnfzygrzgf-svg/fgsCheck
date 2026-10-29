@@ -190,6 +190,12 @@ function offenWeil(x: Eintrag): string {
   return f.includes('tempoRegime') && f.includes('beduerfnis') ? `${zone}, und ${grund}` : f.includes('tempoRegime') ? zone : grund
 }
 
+/** Grund des Solls einer Querung ohne Vortritt kurz: Formel nach VSS 40 240 Z. 8.2 mit L bzw. Ende der Fahrlinie */
+function sollGrund(q: string): string {
+  const m = /^VSS 40 240 Z\. 8\.2 \(L ([^)]+)\)$/.exec(q)
+  if (m) return `VSS 40 240 Z. 8.2, L ${m[1]}`
+  return q === 'bis Knoten (Strassenende)' ? 'bis Strassenende' : q
+}
 function statusKurz(z: ZufahrtErgebnis): string {
   if (z.status === 'frei') return 'frei'
   const arten = [...new Set(z.konflikte.map(konfliktName))].slice(0, 3)
@@ -331,8 +337,14 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     befund.alle = befund.alle.filter(x => !['H1', 'E3', 'E3a', 'D5-4'].includes(x.id))
     befund.masse = befund.masse.filter(mz => !mz.regeln.some(id => ['H1', 'E3'].includes(id)))
     const neu: Eintrag[] = []
-    const eintrag = (regel: 'H1' | 'E3', x: Partial<Eintrag> & Pick<Eintrag, 'zustand' | 'staerke'>): Eintrag =>
+    const eintrag = (regel: 'H1' | 'E3' | 'E3a', x: Partial<Eintrag> & Pick<Eintrag, 'zustand' | 'staerke'>): Eintrag =>
       ({ id: regel, ebene: 'Norm', text: KATALOG[regel].ergebnis, quelle: quellText(regel), ...x })
+    // Querung ohne Vortritt (29.10.2026): Ausnahme nach VSS 40 240 Z. 8.2 (E3a) bei wenig Querenden und wenig Verkehr; offen zählt nicht
+    const e = gebildet.eingaben
+    const fgW = e.fg5h.wert, fgK = e.fgKlasse.wert, dtvW = e.dtv.wert
+    const fgUnter = typeof fgW === 'number' ? fgW < KATALOG.E3a.werte!.fgMax : fgK === '<100'
+    const e3aMoeglich = fgUnter && typeof dtvW === 'number' && dtvW < KATALOG.E3a.werte!.dtvMax
+    const fgText = typeof fgW === 'number' ? String(fgW) : `Klasse ${fgK ?? '?'}`
     // Korrektur S1: Einträge zur Sicht nur für Regeln, die der Baum erreicht hat (nicht ausserorts, Begegnungszone, flächig, Typ offen …)
     const erreichtR = (r: 'H1' | 'E3') => befund.ausgewertet.includes(r)
     for (const s of g.streifen) {
@@ -387,8 +399,27 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
             detail: `${wo}: Sichtfeld bis ${bis} m frei, darüber nicht geprüft (Reichweite der geladenen Daten)` }))
           continue
         }
-        // verdeckt: ohne Vortritt hart nur, wenn schon die geprüfte Strecke höchstens die Anhaltesichtweite ist; sonst weich, bis eine
-        // zweite Prüfung bis zur Anhaltesichtweite folgt (E2)
+        // verdeckt, ohne Vortritt (29.10.2026): nach der freien Länge des Sichtrechners (freiBisM) unter der Anhaltesichtweite hart, sonst
+        // weich bzw. Ausnahme E3a; nur ohne freie Länge (abbiegende Zufahrten) wie bisher: hart, wenn schon die geprüfte Strecke höchstens
+        // die Anhaltesichtweite ist, sonst vorerst weich
+        if (ov) {
+          const a = ahs(z.tempo), fb = z.freiBisM
+          const grund = sollGrund(z.sichtweiteQuelle), sw = String(z.sichtweite).replace('.', ',')
+          if (fb !== undefined) {
+            const zeile = `${wo}: frei bis ${fb} m, Soll ${sw} m (${grund}); ${statusKurz(z)}`
+            if (fb >= a - 1e-9 && e3aMoeglich) neu.push(eintrag('E3a', { staerke: 'weich', zustand: 'verletzt', ist: `${fgText} Querende, DTV ${dtvW}`,
+              detail: `${zeile}; Anhaltesichtweite ${a} m frei` }))
+            else neu.push(eintrag('E3', { staerke: fb < a - 1e-9 ? 'hart' : 'weich', zustand: 'verletzt', ist: `frei bis ${fb} m`, soll: `${sw} m`,
+              detail: fb < a - 1e-9 ? `${zeile}; unter der Anhaltesichtweite ${a} m` : zeile }))
+            continue
+          }
+          const geprueftOv = Math.min(z.sichtweite, bis ?? Infinity)
+          const hartOv = geprueftOv <= a + 1e-9
+          neu.push(eintrag('E3', { staerke: hartOv ? 'hart' : 'weich', zustand: 'verletzt', ist: statusKurz(z), soll: `${sw} m`,
+            detail: `${wo}: nicht frei, Soll ${sw} m (${grund}); ${statusKurz(z)}` +
+              (hartOv ? '' : `; freie Länge unbekannt: Befund vorerst weich`) }))
+          continue
+        }
         const geprueft = Math.min(z.sichtweite, bis ?? Infinity)
         const hart = !ov || geprueft <= ahs(z.tempo) + 1e-9
         neu.push(eintrag(regel, { staerke: hart ? 'hart' : 'weich', zustand: 'verletzt', ist: statusKurz(z), soll,
@@ -417,7 +448,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     const erreicht = (['H1', 'E3'] as const).filter(r => befund.ausgewertet.includes(r))
     const d54 = befund.ausgewertet.includes('D5-4')
     const offenSicht = neu.filter(x => x.zustand === 'offen')
-    if (neu.some(x => x.zustand === 'verletzt')) befund.alle.push({ id: 'D5-4', ebene: 'Norm', staerke: 'hinweis', zustand: 'verletzt',
+    if (neu.some(x => x.zustand === 'verletzt' && x.id !== 'E3a')) befund.alle.push({ id: 'D5-4', ebene: 'Norm', staerke: 'hinweis', zustand: 'verletzt',
       text: KATALOG['D5-4'].ergebnis, quelle: quellText('D5-4') })
     else if (d54 && offenSicht.length) befund.alle.push({ id: 'D5-4', ebene: 'Norm', staerke: 'hinweis', zustand: 'offen',
       text: KATALOG['D5-4'].ergebnis, quelle: quellText('D5-4'), fehlend: [...new Set(offenSicht.flatMap(x => x.fehlend ?? []))] })

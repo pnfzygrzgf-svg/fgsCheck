@@ -1,6 +1,6 @@
 // ── Einstieg der Rechnung: Daten aufbereiten, Streifen bilden, prüfen ──
 
-import { type OsmDaten, type Markierung, markierung, markierungHinweis, planungHinweis, istFgs } from '../daten/osm'
+import { type OsmDaten, type Markierung, markierung, markierungHinweis, planungHinweis, istFgs, querungAnnahmeHinweis } from '../daten/osm'
 import type { AvFlaeche } from '../daten/av'
 import type { KatasterBaum } from '../daten/baumkataster'
 import type { KatasterFeld } from '../daten/parkkataster'
@@ -281,20 +281,30 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
         .filter(Boolean).join(', ') + ' (in der Sichtprüfung; die Einträge bleiben).')
   }
   const kx = kontextBauen(osm, av, sosf, hindernisse)
-  kx.vonHand = vonHandAusFall(fall)
-  kx.tempoAmtlich = tempoAmtlich
-  const erg = streifen.length ? pruefen(streifen, kx) : []
   const u = nid !== null ? osm.uebergaenge.find(x => x.id === nid) : undefined
   const mk = u ? markierung(u.tags) : null
+  // unmarkierte OSM-Querung (Nutzerentscheid 29.10.2026): ohne Wahl am Streifen eine Querung ohne Vortritt (Annahme), Furt mit Insel
+  // (Teilstreifen über eine AV-Insel bzw. eine angenommene Insel nach OSM und Luftbild), sonst ohne bauliche Massnahme. Streifen von
+  // Hand bleiben ein geplanter Fussgängerstreifen
+  const grau = quelle !== 'hand' && !!u && !!mk && !istFgs(mk)
+  const furt = streifen.length > 1 || streifen.some(s => s.inseln.length > 0)
+  kx.vonHand = vonHandAusFall(fall, grau ? (furt ? 'furt' : 'ohne_vortritt') : null)
+  kx.tempoAmtlich = tempoAmtlich
+  const erg = streifen.length ? pruefen(streifen, kx) : []
+  if (grau) for (const s of erg) {
+    const e = fall.streifen[s.fgsId]
+    if (!e?.typ && !e?.keinFgs && s.querung) s.querungAnnahme = querungAnnahmeHinweis(mk!, u!.tags, s.querung.typ === 'furt')
+  }
   // Streifen von Hand an einem Übergang ohne Fussgängerstreifen (Planung, 16.10.2026): heute kein FGS, der Streifen von Hand
   // wird als Fussgängerstreifen geprüft – nur als Hinweis zum Fall, nicht «kein Fussgängerstreifen» am Streifen
   const planung = quelle === 'hand' && !!u && !!mk && !istFgs(mk)
-  const hinweis = u && mk ? (planung ? planungHinweis(mk, u.tags) : markierungHinweis(mk, u.tags)) : ''
+  const annahme = erg.length > 0 && erg.every(s => s.querungAnnahme)
+  const hinweis = u && mk ? (planung ? planungHinweis(mk, u.tags) : annahme ? erg[0].querungAnnahme! : markierungHinweis(mk, u.tags)) : ''
   // Trottoirüberfahrt (Wahl am Streifen): gerechnet wie ein Fussgängerstreifen, gekennzeichnet; ohne Hinweis zur Markierung. Die
   // Zufahrten kommen am Ende nach nurVorbelegung (Anzeige wie «kein FGS»)
   for (const s of erg) if (istTrottoirueberfahrt(fall, s.fgsId)) s.trottoirueberfahrt = true
   if (hinweis && !planung) for (const s of erg) {
-    if (s.trottoirueberfahrt) continue
+    if (s.trottoirueberfahrt || s.querungAnnahme) continue
     if (mk && istFgs(mk)) s.markierungHinweis = hinweis; else s.keinFgsHinweis = hinweis
   }
   // Streifen von Hand: Lage und Masse für den Plan (vermassung.ts), mit Umriss und Bordkanten der Rechnung

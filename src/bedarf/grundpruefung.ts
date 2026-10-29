@@ -231,7 +231,8 @@ function sichtRechner(k: Kontext, zs: GrundSicht[], ohneZufahrt: string[]): Roh 
       return { ...x, zustand: 'offen', text: `${z.name}: ${z.status}, frei bis ${m0(f)}, nötig ${unten === oben ? m0(oben) : `${zahl(unten)} bis ${m0(oben)}`}${hoeher}` }
     }
     if (z.soll <= unten + EPS) return { ...x, zustand: 'verletzt', text: `${z.name}: ${z.status} innerhalb ${m0(z.soll)}` }
-    return { ...x, zustand: 'offen', text: `${z.name}: ${z.status} innerhalb ${m0(z.soll)}; ob ${m0(unten)} frei sind, nicht getrennt geprüft` }
+    // Schutz: seit 29.10.2026 hat jede Zufahrt mit Sichtpunkten eine freie Länge (auch abbiegende); ohne sie bleibt es offen
+    return { ...x, zustand: 'offen', text: `${z.name}: ${z.status} innerhalb ${m0(z.soll)}; freie Länge unbekannt` }
   })
   const leer = ohneZufahrt.map(n => `${n}: keine Zufahrt geprüft`)
   const mit = liste.filter(x => x.unten !== null)

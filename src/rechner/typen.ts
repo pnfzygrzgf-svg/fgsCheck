@@ -92,6 +92,8 @@ export interface StreifenErgebnis {
   status: string
   annahmen: string[]
   keinFgsHinweis?: string    // unmarkierter Übergang: Prüfung sinngemäss, ohne Normbezug
+  /** unmarkierte OSM-Querung ohne Wahl am Streifen (29.10.2026): als Querung ohne Vortritt angenommen (Text des Hinweises) */
+  querungAnnahme?: string
   markierungHinweis?: string // Markierung in OSM nicht belegt (crossing=uncontrolled): vermutlich FGS, bitte prüfen
   vermassung?: Vermassung    // Streifen von Hand: Lage (LV95) und Masse für den Plan (rechneFall)
   /** Querung ohne Vortritt (von Hand, Bedarfsmodul E1): Sichtweite nach VSS 40 240 Z. 8.2 statt Tab. 1; L = Querdistanz der

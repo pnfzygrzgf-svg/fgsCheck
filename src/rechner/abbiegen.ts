@@ -11,6 +11,7 @@
 // Streifen aus dem Kataster (ABBIEGENDE_GEOMETRIE_ALT), Spur von Hand.
 // Brückenumriss (AV-Einzelobjekte) und R2-Flächen (übrige befestigte Flächen als Fahrbahn) seit E2 wie in Python.
 
+import { freiBis } from './freibis'
 import {
   type P, add, dist, dot, einheit, neg, rechts, sub, richtungGrad, wdiff,
 } from '../geo'
@@ -1117,12 +1118,15 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   if (eckFrage) annahmen.push(plF ? `Ecke nach ${plF} prüfen: ${eckFrage}` : `AV-Ecke prüfen: ${eckFrage}`)
   if (fsB?.abzugQuelle) annahmen.push(abzugAnnahme(fsB.abzugQuelle, true))
   const konflikte = k.konflikte(feldB, sichtpunkteB)
+  // frei bis (29.10.2026, wie bei geraden Zufahrten): Grundprüfung und Querung ohne Vortritt entscheiden Muss bzw. Soll danach
+  const freiBisM = freiBis(sichtpunkteB, konflikte, k.sichtfeld, k.konflikte, geprueftB ? geprueftB.bis : swB)
   const radiusOut = Number.isFinite(radiusB) ? radiusRunden(radiusB) : null
   return {
     fgsId: fid, zufahrt: `a${grad}`, kennung: kennungArm(a), richtung: grad, art: 'abbiegend',
     strasse: a.name || null, ueberStrasse: zf.name || null, knotenM: Math.round(bisKnoten * 10) / 10,
     tempo: tempoB, tempoQuelle: tempoQB, sichtweite: geprueftB ? geprueftB.soll : swB, sichtweiteQuelle: swQuelleB,
     ...(geprueftB ? { geprueftBisM: geprueftB.bis } : {}),
+    freiBisM,
     kurvenradiusM: radiusHand !== null ? radiusRunden(radiusHand) : radiusOut, radiusQuelle: radiusText ?? radiusQuelleB, ...konfliktFelder(konflikte), konflikte,
     spurHinweis: hinweisB, spurHinweisM: null, fahrbahnM: fsB ? Math.round(fsB.breite * 100) / 100 : null,
     parkRechts: fsB ? fsB.parkR : null, parkLinks: fsB ? fsB.parkL : null, velostreifenRechtsM: fsB ? fsB.veloR : null,

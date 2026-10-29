@@ -286,20 +286,36 @@ describe('Befundblatt', () => {
     expect(t.befund.alle.filter(e => ['E3', 'H1', 'D5-4'].includes(e.id))).toEqual([])
     expect(t.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toBeUndefined()
   })
-  it('ohne Vortritt verdeckt: weich, wo das Soll über der Anhaltesichtweite liegt; hart, wenn schon die Anhaltesichtweite nicht frei ist', () => {
-    const blatt = (b: number) => {
+  it('ohne Vortritt verdeckt (29.10.2026): nach der freien Länge frei bis < Anhaltesichtweite hart, sonst weich bzw. Ausnahme E3a; eine Zeile je Zufahrt', () => {
+    const blatt = (x0: number, hand: BedarfBlock = HAND) => {
+      const b = 3
       const av2 = [av('Strasse_Weg', rechteck(-300, -b, 300, b)), av('Trottoir', rechteck(-300, b, 300, b + 3)), av('Trottoir', rechteck(-300, -b - 3, 300, -b))]
       const fid = rechneFall(OSM, av2, [], 12, fallMit(), null).streifen[0].fgsId
       const f = fallMit(x => {
-        x.streifen[fid] = { typ: 'furt' }; x.bedarf = HAND
-        x.hindernisse.push({ id: 'p1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-12, -b, -7, -b + 2), quelle: 'hand' })
+        x.streifen[fid] = { typ: 'furt' }; x.bedarf = hand
+        x.hindernisse.push({ id: 'p1', art: 'parkfeld', klasse: 'auto', ring: rechteck(x0 - 5, -b, x0, -b + 2), quelle: 'hand' })
       })
-      return befundblaetter(rechneFall(OSM, av2, [], 12, f, null), f, OHNE_EBENEN)[0].befund.alle.filter(e => e.id === 'E3')
+      const r = rechneFall(OSM, av2, [], 12, f, null)
+      return { e: befundblaetter(r, f, OHNE_EBENEN)[0].befund.alle.filter(x => x.id === 'E3' || x.id === 'E3a'), z: r.streifen[0].zufahrten }
     }
-    const weich = blatt(3)                  // L 6 m, 50 km/h: Soll 69,5 m über der Anhaltesichtweite 55 m
-    expect(weich.map(e => [e.staerke, e.zustand])).toEqual([['weich', 'verletzt']])
-    expect(weich[0].detail).toContain('ob die Anhaltesichtweite (55 m) frei bleibt, ist nicht getrennt geprüft: Befund vorerst weich')
-    expect(blatt(2).map(e => [e.staerke, e.zustand])).toEqual([['hart', 'verletzt']])   // L 4 m: Soll = Anhaltesichtweite 55 m
+    // L 6 m, 50 km/h: Soll 69,5 m, Anhaltesichtweite 55 m
+    const nah = blatt(-7)
+    const fb = nah.z.find(z => z.status !== 'frei')!.freiBisM!
+    expect(fb).toBeLessThan(55)
+    expect(nah.e.map(x => [x.id, x.staerke, x.zustand])).toEqual([['E3', 'hart', 'verletzt']])
+    expect(nah.e[0].detail).toMatch(new RegExp(`: frei bis ${fb} m, Soll 69,5 m \\(VSS 40 240 Z\\. 8\\.2, L 6,0 m\\); verdeckt durch Parkfeld; unter der Anhaltesichtweite 55 m$`))
+    expect(nah.e[0].detail).not.toMatch(/Sichtrechner|vorerst weich/)
+    const fern = blatt(-45)
+    const fb2 = fern.z.find(z => z.status !== 'frei')!.freiBisM!
+    expect(fb2).toBeGreaterThanOrEqual(55)
+    expect(fern.e.map(x => [x.id, x.staerke, x.zustand])).toEqual([['E3', 'weich', 'verletzt']])
+    expect([fern.e[0].ist, fern.e[0].soll]).toEqual([`frei bis ${fb2} m`, '69,5 m'])
+    // wenig Querende und wenig Verkehr: Ausnahme E3a statt E3
+    const wenig = blatt(-45, { felder: { ...HAND.felder, dtv: { wert: 2000, quelle: 'hand' }, fgKlasse: { wert: '<100', quelle: 'schaetzung' } } })
+    expect(wenig.e.map(x => [x.id, x.staerke, x.zustand])).toEqual([['E3a', 'weich', 'verletzt']])
+    // auch so: unter der Anhaltesichtweite bleibt es hart
+    expect(blatt(-7, { felder: { ...HAND.felder, dtv: { wert: 2000, quelle: 'hand' }, fgKlasse: { wert: '<100', quelle: 'schaetzung' } } }).e
+      .map(x => [x.id, x.staerke])).toEqual([['E3', 'hart']])
   })
   it('Lichtsignal am Streifen: Typ «mit Lichtsignal», kein H1 aus dem Sichtrechner (40 241 gilt nicht), nur Hinweis', () => {
     const r0 = rechneFall(OSM, AV, [], 12, fallMit(), null)
