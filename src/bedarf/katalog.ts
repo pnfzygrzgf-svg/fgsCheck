@@ -41,7 +41,7 @@ export const WERKE = {
   '40240': N('VSS 40 240', 'Anlagen des Fussverkehrs; Querungsanlagen', '2025-07', 'VSS 40 240 «Anlagen des Fussverkehrs; Querungsanlagen»'),
   '40242': N('VSS 40 242', 'Trottoirüberfahrten', '2019-03', 'VSS 40 242 «Querungen für den Langsamverkehr; Trottoirüberfahrten»'),
   '40837': N('VSS 40 837', 'Lichtsignalanlagen; Übergangszeiten und Mindestzeiten', '2019-03', 'VSS 40 837 «Lichtsignalanlagen; Übergangszeiten und Mindestzeiten»'),
-  '40273': N('VSS 40 273', 'Sichtverhältnisse in Knoten', '2024-09', 'VSS 40 273 «Knoten; Sichtverhältnisse in Knoten in einer Ebene»'),
+  '40273': N('VSS 40 273', 'Sichtverhältnisse in Knoten', '2024-09', 'VSS 40 273 «Sichtverhältnisse in Knoten»'),
   '40213': N('VSS 40 213', 'Verkehrsberuhigungselemente', '2019-03', 'VSS 40 213 «Entwurf des Strassenraumes; Verkehrsberuhigungselemente»'),
   '640075': N('SN 640 075', 'Hindernisfreier Verkehrsraum (mit Anhang)', '2014-12', 'SN 640 075 «Fussgängerverkehr; Hindernisfreier Verkehrsraum» mit normativem Anhang'),
   '640850a': N('SN 640 850a', 'Markierungen; Ausgestaltung und Anwendungsbereiche', '2005-02', 'SN 640 850a «Markierungen; Ausgestaltung und Anwendungsbereiche»'),
