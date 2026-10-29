@@ -185,6 +185,8 @@ const markerStil = (mk: string, g: boolean): L.CircleMarkerOptions => ({
   dashArray: mk === 'vermutlich' ? '3 3' : undefined,
   fillColor: UEBERGANG_FARBE[mk], fillOpacity: mk === 'vermutlich' ? 0.45 : 0.95,
 })
+/** Schlüssel der zuletzt gesehenen Kartenansicht im Browser (nur Bequemlichkeit, darf fehlen) */
+const ANSICHT_SCHLUESSEL = 'fgsCheck.karteAnsicht'
 /** Streifen aus dem Luftbild (ETH-Modell), nicht in OSM: hohles gelbes Quadrat, gestrichelt (anders als die runden OSM-Übergänge) */
 export const LB_FGS_FARBE = '#eab308'
 const lbFgsIcon = (g: boolean) => L.divIcon({ className: 'lbfgs-marke' + (g ? ' gewaehlt' : ''), iconSize: g ? [18, 18] : [14, 14] })
@@ -406,7 +408,18 @@ export default function Karte(props: {
 
   useEffect(() => {
     if (!elRef.current || kartenRef.current) return
-    const map = L.map(elRef.current, { maxZoom: 22, doubleClickZoom: false }).setView(mitte, 19)
+    // letzte Kartenansicht dieses Browsers (29.10.2026): nach einem Neuladen dort weiter statt am Startort; nur in der Schweiz
+    const gemerkt = ((): { c: [number, number]; z: number } | null => {
+      try {
+        const v = JSON.parse(localStorage.getItem(ANSICHT_SCHLUESSEL) ?? 'null') as { c: [number, number]; z: number } | null
+        return v && v.c[0] > 45.7 && v.c[0] < 47.9 && v.c[1] > 5.9 && v.c[1] < 10.6 && v.z >= 8 && v.z <= 22 ? v : null
+      } catch { return null }
+    })()
+    const map = L.map(elRef.current, { maxZoom: 22, doubleClickZoom: false }).setView(gemerkt?.c ?? mitte, gemerkt?.z ?? 19)
+    map.on('moveend', () => {
+      const c = map.getCenter()
+      try { localStorage.setItem(ANSICHT_SCHLUESSEL, JSON.stringify({ c: [c.lat, c.lng], z: map.getZoom() })) } catch { /* ohne Speicher */ }
+    })
     // Quellenangabe: auf dem Smartphone einzeilig gekürzt (index.css), Tippen klappt sie auf (seit 28.10.2026, wie VeloroutenCheck)
     map.attributionControl.getContainer()?.addEventListener('click', ev => (ev.currentTarget as HTMLElement).classList.toggle('offen'))
     const luftbild = L.tileLayer(HINTERGRUND_LUFTBILD, { maxZoom: 22, maxNativeZoom: 20, attribution: '© swisstopo' }).addTo(map)
