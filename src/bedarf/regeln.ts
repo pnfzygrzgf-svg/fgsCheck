@@ -176,7 +176,9 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (!fgUnter(k, s)) return ja(false, { ist: fgIst(k), soll: `≥ ${s}`, grund: fgGenug(k, s) })
     const netz = k.w('netzQualifiziert')
     const v = !netz && !k.bed()
-    return ja(v, { ist: fgIst(k), soll: `≥ ${s}`, ...(v ? {} : { grund: ausnahmeGrund(k, netz) }) })
+    // 30.10.2026 (Nutzerentscheid): unter der Schwelle, aber Ausnahme nach VSS 40 241 Z. 16 → Masse-Zeile «zulässig (Ausnahme: …)»
+    // statt «erfüllt»; der Befund bleibt ohne Eintrag
+    return ja(v, { ist: fgIst(k), soll: `≥ ${s}`, ...(v ? {} : { grund: ausnahmeGrund(k, netz), ausnahme: `zulässig (Ausnahme: ${netz ? 'Querung im Fusswegnetz' : 'besonderer Grund für Vortritt'})` }) })
   },
   C3b: k => {
     const s = K.C3b.werte.fgMin

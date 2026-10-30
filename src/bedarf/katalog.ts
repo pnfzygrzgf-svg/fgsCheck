@@ -170,7 +170,7 @@ export const KATALOG = {
     quellen: [q('40241', 'Z. 16, S. 10')], werte: { fgMin: 100 }, einheit: 'Pers.' },
   C3c: { id: 'C3c', titel: 'Querende nur geschätzt', gruppe: 'C', thema: 'nachfrage', art: 'befund', ebene: 'Norm', staerke: 'hinweis', eingaben: ['fgQuelle', 'fg5h', 'fgKlasse'],
     pruefsatz: 'Ist die Zahl der Querenden nur geschätzt statt gezählt? Hinweis: das Ergebnis beruht dann auf einer Schätzklasse.',
-    bedingung: "fgQuelle == 'schaetzung'", ergebnis: 'Fussverkehr geschätzt (Klasse), nicht gezählt',
+    bedingung: "fgQuelle == 'schaetzung'", ergebnis: 'Fussverkehr geschätzt (Klasse), nicht gezählt; die Schwelle von 100 Querenden stammt aus VSS 40 241 Z. 16, S. 10',
     quellen: [q('ENTSCHEID', 'Skizze Entscheid 5')] },
   C4: { id: 'C4', titel: 'Wenig Fahrverkehr', gruppe: 'C', thema: 'fahrstreifen', art: 'befund', ebene: 'Norm', staerke: 'weich', eingaben: ['dtv'],
     pruefsatz: 'Fahren weniger als 3000 Fahrzeuge pro Tag (DTV)? Dann sollte es keinen Fussgängerstreifen geben, die Lücken im Verkehr genügen meist; Abweichung begründen.',

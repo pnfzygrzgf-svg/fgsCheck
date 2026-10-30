@@ -87,4 +87,11 @@ describe('erfüllt-Grund in Thema und Bericht', () => {
     const html = renderToStaticMarkup(<BefundblattAnzeige b={bl[0]} druck />)
     expect(html).toContain('Wenig Querende: ohne Befund – Querung im Fusswegnetz (von Hand)')
   })
+  it('Masse-Zeile «Querende» bei der Ausnahme: zulässig (Ausnahme) statt erfüllt (30.10.2026)', () => {
+    const z = (b: { masse: { groesse: string; zustand: string; zusatz?: string }[] }) => b.masse.find(m => m.groesse.startsWith('Querende'))
+    const netz = z(beurteile(mitQuelle(fall({ fg5h: 50, netzQualifiziert: true }), 'netzQualifiziert', 'geoportal'), BERN))
+    expect(netz).toMatchObject({ zustand: 'ausnahme', zusatz: 'zulässig (Ausnahme: Querung im Fusswegnetz)' })
+    const genug = z(beurteile(fall({ fg5h: 250 }), BERN))
+    expect(genug?.zustand).toBe('erfuellt')
+  })
 })
