@@ -15,11 +15,20 @@ export const RP_WMS_DECKKRAFT = 0.8
 /** Ausdehnung der Stadt Bern (WGS84, gerundet wie das Orthofoto in VeloroutenCheck: LV95 2588000–2605000 / 1196000–1205000) */
 export const BERN_GRENZEN = { s: 46.91, w: 7.27, n: 47.0, e: 7.51 } as const
 
-/** Parameter für L.tileLayer.wms */
+/** Parameter für L.tileLayer.wms (alle Layer in einem Bild; Tests und Übersicht) */
 export const rpWmsOptionen = () => ({
   layers: RP_WMS_LAYER.join(','), styles: '', format: 'image/png', transparent: true, version: '1.3.0', opacity: RP_WMS_DECKKRAFT,
   attribution: RP_WMS_QUELLE,
 })
+/** 30.10.2026: Flächen (Hinweise wie publikumsattraktive Bereiche, Massnahmen als Fläche) decken grosse Teile der Stadt ab und
+ * verdecken das Luftbild; sie kommen darum als eigenes, blasses Bild unter die Linien (Basisnetz, Symbollinie, Massnahmen als Linie) */
+export const RP_WMS_FLAECHEN = ['1', '6'] as const
+export const RP_WMS_LINIEN = ['4', '2', '5', '7'] as const
+export const RP_WMS_DECKKRAFT_FLAECHEN = 0.35
+export const rpWmsTeile = () => [
+  { ...rpWmsOptionen(), layers: RP_WMS_FLAECHEN.join(','), opacity: RP_WMS_DECKKRAFT_FLAECHEN },
+  { ...rpWmsOptionen(), layers: RP_WMS_LINIEN.join(','), attribution: '' },
+]
 
 /** Kartenausschnitt (WGS84) berührt die Stadt Bern: Ebene in der Ebenenwahl anbieten */
 export const rpWmsVerfuegbar = (b: { s: number; w: number; n: number; e: number }): boolean =>

@@ -5,7 +5,7 @@ import type { P } from './geo'
 import type { StreifenErgebnis } from './rechner/typen'
 import type { RichtplanDaten } from './daten/richtplanFussverkehr'
 import { fusswegnetzKarte, BASISNETZ_TEXT } from './fusswegnetzKarte'
-import { RP_WMS_URL, rpLegende, rpWmsOptionen, rpWmsVerfuegbar } from './daten/richtplanWms'
+import { RP_WMS_URL, rpLegende, rpWmsOptionen, rpWmsTeile, rpWmsVerfuegbar } from './daten/richtplanWms'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { RichtplanLegende } from './RichtplanLegende'
 
@@ -66,5 +66,10 @@ describe('WMS-Ebene «Richtplan Fussverkehr (Geoportal Bern)»', () => {
     expect(html).toContain('Richtplan Fussverkehr (Geoportal Bern) (Darstellung des Geoportals)')
     expect((html.match(/<img /g) ?? []).length).toBe(6)
     expect(html).toContain('alt="Basisnetz Fussweg (bestehend)"')
+  })
+  it('WMS in zwei Bildern: Flächen blass unten, Linien darüber (30.10.2026)', () => {
+    const [fl, li] = rpWmsTeile()
+    expect(fl).toMatchObject({ layers: '1,6' }); expect(fl.opacity).toBeCloseTo(0.35, 6)
+    expect(li).toMatchObject({ layers: '4,2,5,7', attribution: '' }); expect(li.opacity).toBeCloseTo(0.8, 6)
   })
 })

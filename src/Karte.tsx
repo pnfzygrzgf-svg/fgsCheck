@@ -26,7 +26,7 @@ import { veloSoll, type VeloSoll } from './veloSicht'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { LUFTBILD_FGS_NAME, kandidatTooltip, type KandidatAnzeige, type LuftbildKandidat } from './daten/luftbildFgs'
 import { FUSSWEGNETZ_FARBE, FUSSWEGNETZ_NAME, type FusswegnetzKarte } from './fusswegnetzKarte'
-import { RP_WMS_NAME, RP_WMS_URL, rpWmsOptionen, rpWmsVerfuegbar } from './daten/richtplanWms'
+import { RP_WMS_NAME, RP_WMS_URL, rpWmsTeile, rpWmsVerfuegbar } from './daten/richtplanWms'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
@@ -469,7 +469,7 @@ export default function Karte(props: {
     }
     // Richtplan Fussverkehr als WMS des Geoportals (30.10.2026): in der Ebenenwahl nur, solange die Karte die Stadt Bern zeigt;
     // anfangs aus. Wer die Stadt verlässt, verliert den Eintrag (keine Abfragen); zurück in Bern gilt die letzte Wahl wieder
-    const rpWms = L.tileLayer.wms(RP_WMS_URL, { ...rpWmsOptionen(), maxZoom: 22 })
+    const rpWms = L.layerGroup(rpWmsTeile().map(o => L.tileLayer.wms(RP_WMS_URL, { ...o, maxZoom: 22 })))
     let rpWmsDa = false, rpWmsWahl = false
     const rpWmsAbgleich = () => {
       const b = map.getBounds(), da = rpWmsVerfuegbar({ s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() })
