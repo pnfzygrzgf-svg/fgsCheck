@@ -83,6 +83,16 @@ describe('Gelände: Prüfung je Zufahrt', () => {
     expect(sl.find(x => x.x === 60)!.text).toBe('Sichtlinie 60 m vor dem Streifen auf die Markierung: verdeckt (Gelände (swissALTI3D))')
     expect(sl.find(x => x.x === 10)!.text).toBe('Sichtlinie 10 m vor dem Streifen auf die Markierung: in den Daten frei, Gelände frei')
   })
+  it('Bewuchs bleibt, wenn er vor der Geländegrenze beginnt, sonst entfällt er', () => {
+    const l = linien(XS)
+    const mit = (ab: number) => {
+      const zz = z({ wert: 110, bis: 'frei', bewuchsAb: ab, bewuchs: 'Gartenanlage' }, l)
+      return erkennungAnzeige(zz, { [gelaendeSchluessel(zz)!]: { stand: 'ok', abM: 52, frei: {}, abfragen: 13 } })!.e
+    }
+    expect(mit(30)).toMatchObject({ wert: 52, bewuchsAb: 30, bewuchs: 'Gartenanlage', hindernis: { klasse: 'gelaende' } })
+    expect(mit(70).bewuchsAb).toBeUndefined()
+    expect(mit(70).bewuchs).toBeUndefined()
+  })
   it('Gelände frei: Wert wie 2D, «mit Gelände»; Wert zwischen zwei Linien zusätzlich geprüft; nur bis zur 2D-Erkennungsdistanz', async () => {
     const e: Erkennung = { wert: 43, bis: 'verdeckt', hindernis: { klasse: 'gebaeude', name: 'Gebäude (AV)' } }
     const l = linien(XS)

@@ -132,8 +132,10 @@ export function erkennungAnzeige(z: Pick<ZufahrtErgebnis, 'fgsId' | 'zufahrt' | 
     return f === undefined ? l : f ? { ...l, gelaende: true } : { ...l, gelaende: false, befund: 'verdeckt' as const, grund: GELAENDE_NAME }
   })
   if (g.abM === null || g.abM >= e0.wert) return { e: { ...e0, gelaende: 'mit' }, linien }
-  const { ende: _ende, hindernis: _h, ...rest } = e0
-  return { e: { ...rest, wert: g.abM, bis: 'verdeckt', hindernis: { klasse: 'gelaende', name: GELAENDE_NAME }, gelaende: 'mit' }, linien }
+  // Bewuchs gilt nur, solange er vor der neuen Erkennungsdistanz beginnt
+  const { ende: _ende, hindernis: _h, bewuchsAb, bewuchs, ...rest } = e0
+  return { e: { ...rest, wert: g.abM, bis: 'verdeckt', hindernis: { klasse: 'gelaende', name: GELAENDE_NAME },
+    ...(bewuchsAb !== undefined && bewuchsAb < g.abM ? { bewuchsAb, bewuchs } : {}), gelaende: 'mit' }, linien }
 }
 
 /** Zusatz zur Erkennungsdistanz: «mit Gelände (swissALTI3D)», sonst «Gelände nicht geprüft» (bzw. «Höhenprofile laden») */

@@ -28,7 +28,7 @@ import { avMitPlan } from '../rechner/planflaechen'
 import { Fahrbahn, Inseln, intervalleImPolygon } from '../rechner/flaechen'
 import type { StreifenErgebnis } from '../rechner/typen'
 import { zufahrtNamen } from '../benennung'
-import { erkennungSatz, erkennungZusatz } from '../texte'
+import { erkennungBewuchs, erkennungSatz, erkennungZusatz } from '../texte'
 import { ERKENNUNG_FAKTOR, type Erkennung } from '../rechner/erkennung'
 import { erkennungAnzeige, type GelaendeStand } from '../erkennungGelaende'
 import { sichtFgs } from './tabellen'
@@ -667,16 +667,20 @@ export function erkennungVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vorbe
     })
   })
   if (!kand.length) return
-  const rang = (x: { e: Erkennung }) => x.e.wert + (x.e.bis === 'fahrlinie_endet' ? 0.5 : 0)
+  // Bewuchs (30.10.2026): als Erkennungsdistanz zählt der sicher freie Teil (bis zum Beginn des Bewuchses), wie ein gerechneter Wert
+  const sicher = (e: Erkennung) => e.bewuchsAb ?? e.wert
+  const rang = (x: { e: Erkennung }) => sicher(x.e) + (x.e.bis === 'fahrlinie_endet' && x.e.bewuchsAb === undefined ? 0.5 : 0)
   const min = kand.reduce((a, b) => (rang(b) < rang(a) ? b : a))
-  const text = `Sichtrechner: Streifen ${erkennungSatz(min.e)} (${min.name}, ${erkennungZusatz(min.e)}), ` +
+  const satz = min.e.bewuchsAb === undefined ? `Streifen ${erkennungSatz(min.e)}`
+    : `Streifen sicher frei bis ${min.e.bewuchsAb} m, ${erkennungBewuchs(min.e)}; in den Daten ${erkennungSatz(min.e)}`
+  const text = `Sichtrechner: ${satz} (${min.name}, ${erkennungZusatz(min.e)}), ` +
     `${min.e.gelaende === 'mit' ? 'mit Gelände (swissALTI3D)' : 'ohne Gelände'}; nur Markierung geprüft, ` +
     'blaue Tafel (Signal 4.11) nicht'
   const zahl = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? x : null)
   const hand = (p: string) => zahl(fall.bedarf?.felder[p]?.wert)
   const v = Math.max(...[zahl(w.vSig?.wert), hand('vSig'), hand('v85'), ...kand.map(k => k.tempo)].filter((x): x is number => x !== null))
   const noetig = ERKENNUNG_FAKTOR * sichtFgs(v)
-  if (min.e.bis === 'verdeckt' || min.e.wert >= noetig - 1e-9) setze('erkennungM', min.e.wert, 'annahme', text)
+  if (min.e.bis === 'verdeckt' || min.e.bewuchsAb !== undefined || min.e.wert >= noetig - 1e-9) setze('erkennungM', sicher(min.e), 'annahme', text)
   else feldHinweis('erkennungM', `${text}; nötig ${noetig} m (doppelte Sichtweite bei ${v} km/h), so weit nicht geprüft: von Hand angeben`)
 }
 

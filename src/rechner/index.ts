@@ -1,5 +1,6 @@
 // ── Einstieg der Rechnung: Daten aufbereiten, Streifen bilden, prüfen ──
 
+import { BEWUCHS_ARTEN } from './erkennung'
 import { type OsmDaten, type Markierung, markierung, markierungHinweis, planungHinweis, istFgs, querungAnnahmeHinweis, querungBgzHinweis } from '../daten/osm'
 import { querungen, zoneFuerSicht, type GeoVorbelegung } from '../bedarf/vorbelegung'
 import type { AvFlaeche } from '../daten/av'
@@ -43,6 +44,7 @@ export function kontextBauen(osm: OsmDaten | null, av: AvFlaeche[], sosf: AvFlae
     gebaeude: new Gebaeude(av),
     flaechenRand: new Flaechen(av, ANN_RAND_ARTEN),
     flaechenR2: new Flaechen(av, [...R2_FLAECHEN, 'Gebaeude']),
+    bewuchs: new Flaechen(av, BEWUCHS_ARTEN),
     brueckenumriss: bruecken.length ? { enthaelt: (p: P) => bruecken.some(r => abstandPunkt([r], p) <= BRUECKE_UMRISS_M) } : null,
     hindernisse: hindernisse.length ? new HindernisDaten(hindernisse) : null,
   }

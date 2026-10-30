@@ -82,7 +82,9 @@ export function Anleitung() {
             eigenen Fahrstreifen frei sichtbar ist («Streifen erkennbar ab …»; geprüft bis 110 m; Gebäude, Hecken, Mauern, Bäume und
             Auto-Parkfelder verdecken; endet die Fahrlinie vorher, «erkennbar auf mindestens …»). Danach prüft die App das Gelände
             entlang der Sichtlinien (alle 10 m ein Augpunkt) mit dem Höhenmodell swissALTI3D; schneidet es eine Linie, endet die
-            Erkennungsdistanz dort («Gelände»), ohne Antwort bleibt sie 2D («Gelände nicht geprüft»). Das ist eine Annahme und nur
+            Erkennungsdistanz dort («Gelände»), ohne Antwort bleibt sie 2D («Gelände nicht geprüft»). Sieht man die Markierung nur
+            über Bewuchs der AV (Wald, bestockte Fläche, Gartenanlage), heisst das «nicht sicher» (gelb; vor Ort oder in Street View
+            prüfen), und die Vorbelegung nimmt nur den sicher freien Teil. Das ist eine Annahme und nur
             für die Markierung, nicht für die blaue Tafel (Signal 4.11); im Bedarf belegt der kleinste Wert die Erkennungsdistanz vor. Zufahrten heissen nach der Strasse und der Herkunft der Fahrzeuge als Himmelsrichtung (z. B.
             «Glockenstrasse von Süden»), Abbieger nach der Strasse, aus der sie abbiegen; die
             Fahrtrichtung in Grad zeigt der Tooltip. Dazu tragen sie eine Nummer, auf der Karte als Schild hinter dem letzten

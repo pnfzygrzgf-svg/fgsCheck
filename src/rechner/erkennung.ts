@@ -20,13 +20,17 @@
 // - Sichtlinien (30.10.2026, zusätzliches Ausgabefeld ZufahrtErgebnis.erkennungLinien, ohne Wirkung auf die Erkennungsdistanz): dünn,
 //   ein Augpunkt alle LINIEN_ABSTAND_M ab dem Streifenrand bis zum letzten Augpunkt (dazu dieser), zwischen zwei Augpunkten gerade
 //   eingeschoben, je mit dem genutzten Zielpunkt (dem ersten freien, sonst dem ersten) und dem Befund. Die Karte zeigt sie auf Klick.
+// - Bewuchs (30.10.2026, Nutzerentscheid): kreuzt jede freie Sichtlinie eines Augpunkts AV-Bodenbedeckung mit Bewuchs (BEWUCHS_ARTEN;
+//   eine Fläche, in der Augpunkt bzw. Ziel liegt, zählt nicht), ist die Sicht dort nicht sicher frei: bewuchsAb nennt die Distanz, ab
+//   der das gilt (wie die Erkennungsdistanz vom Streifen aus gesucht und halbierend verfeinert), solange sie unter der
+//   Erkennungsdistanz liegt. Das ist kein Befund «verdeckt»: wert bleibt; die Vorbelegung nimmt den sicher freien Teil.
 // Grenzen: 2D, ohne Kuppen und Senken; nur die Markierung, die blaue Tafel (Signal 4.11) nicht. Das Ergebnis ist eine Annahme
 // («Sichtrechner, ohne Gelände»). Das Gelände prüft die App danach entlang der Sichtlinien mit dem Höhenmodell (erkennungGelaende.ts:
 // Augpunkt AUGHOEHE_M über dem Gelände, Ziel die Markierung am Boden); Sichtlinien mit Augpunkt bzw. Ziel auf einer Brücke
 // (AV-Einzelobjekt) sind dort nicht prüfbar (bruecke), das Höhenmodell kennt keine Brücken.
 
 import { type P, add, dist, dot, einheit, sub, segSchnitt } from '../geo'
-import type { Gebaeude, Teil } from './flaechen'
+import type { Flaechen, Gebaeude, Teil } from './flaechen'
 import { type HindernisDaten, linieTrifft } from './hindernisse'
 import { enthaelt, type Multi } from './poly'
 import { REICHWEITE_SICHT_M } from './ohneVortritt'
@@ -39,6 +43,10 @@ export const ERKENNUNG_FAKTOR = 2
 /** Zielpunkte bis so weit beidseits des ersten Sichtpunkts entlang der Streifenachse (halber Fahrstreifen, Annahme) */
 export const ZIEL_HALB_M = 1.5
 const ZIEL_VERSATZ = [0, -0.5, 0.5, -1, 1].map(f => f * ZIEL_HALB_M)
+/** AV-Bodenbedeckung mit Bewuchs (Art im WFS von geodienste.ch): Sicht darüber nicht sicher frei (Höhe und Dichte unbekannt) */
+export const BEWUCHS_ARTEN = ['geschlossener_Wald', 'Wytweide_dicht', 'uebrige_bestockte', 'Gartenanlage']
+export const BEWUCHS_NAME: Record<string, string> = { geschlossener_Wald: 'geschlossener Wald', Wytweide_dicht: 'Wytweide dicht',
+  uebrige_bestockte: 'übrige bestockte Fläche', Gartenanlage: 'Gartenanlage' }
 /** Augpunkt über der Fahrbahn [m] (Annahme wie oben: rund 1,1 m; Geländeprüfung der Sichtlinien in erkennungGelaende.ts) */
 export const AUGHOEHE_M = 1.1
 /** Baum näher am Augpunkt zählt nicht (wie konflikteSuchen) */
@@ -59,10 +67,13 @@ export interface Erkennung {
   /** nur Anzeige (erkennungGelaende.erkennungAnzeige), nie aus der Rechnung: Gelände entlang der Sichtlinien geprüft (mit), Profile
    * laden noch (laedt) bzw. nicht geprüft (ohne) */
   gelaende?: 'mit' | 'laedt' | 'ohne'
+  /** Bewuchs: ab hier [m, kleiner als wert] sieht man die Markierung nur über AV-Bodenbedeckung mit Bewuchs (Art bewuchs), nicht
+   * sicher frei */
+  bewuchsAb?: number; bewuchs?: string
 }
 /** Augpunkt: Lage und Abstand x ab dem Streifenrand entlang der Fahrlinie */
 export interface Augpunkt { p: P; x: number }
-export type LinienBefund = 'frei' | 'verdeckt'
+export type LinienBefund = 'frei' | 'bewuchs' | 'verdeckt'
 /** Sichtlinie vom Augpunkt (Abstand x ab dem Streifenrand) zum genutzten Zielpunkt der Markierung; grund: Name des Hindernisses;
  * bruecke: Augpunkt bzw. Ziel auf einer Brücke (Gelände nicht prüfbar); gelaende: nur Anzeige, Gelände geprüft (true frei, false
  * schneidet die Linie), fehlt: nicht geprüft */
@@ -131,16 +142,21 @@ function linieKreuzt(a: P, b: P, linie: P[]): boolean {
   return false
 }
 
-/** Sichtlinie vom Augpunkt: der erste freie Zielpunkt, sonst der erste mit dem Hindernis davor (wie verdecktVon) */
-function sichtLinie(auge: P, ziele: P[], kand: Kandidat[]): { befund: LinienBefund; ziel: P; grund?: string } {
+/** Sichtlinie vom Augpunkt: der erste Zielpunkt frei von Hindernissen und Bewuchs (frei), sonst der erste frei von Hindernissen
+ * (bewuchs, grund: AV-Art), sonst der erste mit dem Hindernis davor (verdeckt, wie verdecktVon) */
+function sichtLinie(auge: P, ziele: P[], kand: Kandidat[], gruen: Teil[]): { befund: LinienBefund; ziel: P; grund?: string } {
   const gilt = kand.filter(k => (k.baum ? dist(k.baum, auge) >= BAUM_AUGE_M : !(k.geom && enthaelt(k.geom, auge))))
-  let erstes: ErkennungHindernis | null = null
+  const g = gruen.filter(t => !enthaelt([t.poly], auge))
+  let erstes: ErkennungHindernis | null = null, ueber: { ziel: P; art: string } | null = null
   for (const z of ziele) {
     const sb = segBox(auge, z)
     const k = gilt.find(c => ueberlappt(c.box, sb) && (c.geom ? linieTrifft([auge, z], c.geom) : linieKreuzt(auge, z, c.linie!)))
-    if (!k) return { befund: 'frei', ziel: z }
-    erstes ??= k.info
+    if (k) { erstes ??= k.info; continue }
+    const t = g.find(c => ueberlappt(c.env, sb) && linieTrifft([auge, z], [c.poly]))
+    if (!t) return { befund: 'frei', ziel: z }
+    ueber ??= { ziel: z, art: t.art }
   }
+  if (ueber) return { befund: 'bewuchs', ziel: ueber.ziel, grund: ueber.art }
   return { befund: 'verdeckt', ziel: ziele[0], grund: erstes!.name }
 }
 
@@ -154,12 +170,12 @@ function augeBei(augen: Augpunkt[], x: number): P {
 }
 
 /** Dünne Sichtlinien: x = 0, LINIEN_ABSTAND_M, 2 · LINIEN_ABSTAND_M … bis zum letzten Augpunkt, dazu dieser */
-function sichtLinien(augen: Augpunkt[], ziele: P[], kand: Kandidat[], bruecke: Bruecke | null): ErkennungLinie[] {
+function sichtLinien(augen: Augpunkt[], ziele: P[], kand: Kandidat[], gruen: Teil[], bruecke: Bruecke | null): ErkennungLinie[] {
   const xEnde = augen[augen.length - 1].x, xs = [0]
   for (let x = LINIEN_ABSTAND_M; x < xEnde - 1e-6; x += LINIEN_ABSTAND_M) xs.push(x)
   if (xEnde > 1e-6) xs.push(xEnde)
   return xs.map(x => {
-    const auge = augeBei(augen, x), l = sichtLinie(auge, ziele, kand)
+    const auge = augeBei(augen, x), l = sichtLinie(auge, ziele, kand, gruen)
     return { x: Math.round(x * 100) / 100, auge, ziel: l.ziel, befund: l.befund, ...(l.grund ? { grund: l.grund } : {}),
       ...(bruecke && (bruecke.enthaelt(auge) || bruecke.enthaelt(l.ziel)) ? { bruecke: true as const } : {}) }
   })
@@ -184,11 +200,34 @@ function verdecktVon(auge: P, ziele: P[], kand: Kandidat[]): ErkennungHindernis 
  * dünnen Sichtlinien. ende: Grund, wenn die Fahrlinie vor der Prüfgrenze endet (sonst null).
  */
 export function erkennungRechnen(augen: Augpunkt[], ziele: P[], gebaeude: Gebaeude, hd: HindernisDaten | null,
-  ende: ErkennungEnde | null, opt: { bruecke?: Bruecke | null } = {}): ErkennungErgebnis | undefined {
+  ende: ErkennungEnde | null, opt: { bruecke?: Bruecke | null; bewuchs?: Flaechen | null } = {}): ErkennungErgebnis | undefined {
   if (!augen.length || !ziele.length) return undefined
-  const kand = kandidaten(boxVon([...augen.map(a => a.p), ...ziele]), gebaeude, hd)
+  const bereich = boxVon([...augen.map(a => a.p), ...ziele])
+  const kand = kandidaten(bereich, gebaeude, hd)
+  // Bewuchs im Bereich; eine Fläche, in der ein Zielpunkt liegt, zählt nicht
+  const gruen = opt.bewuchs ? opt.bewuchs.r.inBox(...bereich).filter(t => !ziele.some(z => enthaelt([t.poly], z))) : []
   const e = erkennung2D(augen, ziele, kand, ende)
-  return { e, linien: sichtLinien(augen, ziele, kand, opt.bruecke ?? null) }
+  const b = gruen.length ? bewuchsAb(augen, ziele, kand, gruen, e.wert) : null
+  return { e: b ? { ...e, bewuchsAb: b.ab, bewuchs: b.art } : e, linien: sichtLinien(augen, ziele, kand, gruen, opt.bruecke ?? null) }
+}
+
+/** Distanz, ab der die Sicht nur noch über Bewuchs geht (vom Streifen aus, halbierend verfeinert); null: bis wert sicher frei */
+function bewuchsAb(augen: Augpunkt[], ziele: P[], kand: Kandidat[], gruen: Teil[], wert: number): { ab: number; art: string } | null {
+  let sicher: Augpunkt | null = null
+  for (const a of augen) {
+    if (a.x > wert + 1e-6) break
+    const l = sichtLinie(a.p, ziele, kand, gruen)
+    if (l.befund === 'frei') { sicher = a; continue }
+    if (l.befund === 'verdeckt') return null
+    let lo = 0, hi = 1, art = l.grund!
+    if (sicher) for (let i = 0; i < VERFEINERN; i++) {
+      const t = (lo + hi) / 2, lx = sichtLinie(add(sicher.p, sub(a.p, sicher.p), t), ziele, kand, gruen)
+      if (lx.befund === 'frei') lo = t; else { hi = t; if (lx.befund === 'bewuchs') art = lx.grund! }
+    }
+    const ab = sicher ? Math.floor(sicher.x + (a.x - sicher.x) * lo + 1e-6) : 0
+    return ab < wert ? { ab, art } : null
+  }
+  return null
 }
 /** Umriss der Brücken (AV-Einzelobjekte, Kontext.brueckenumriss) */
 type Bruecke = { enthaelt(p: P): boolean }

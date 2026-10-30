@@ -56,4 +56,21 @@ describe('Erkennungsdistanz auf der Karte', () => {
     expect(erkennungSichtlinien(z({ wert: 33, bis: 'verdeckt' }))).toEqual([])
     expect(erkennungSichtlinien(z({ wert: 33, bis: 'verdeckt' }, { erkennungLinien: l, art: 'abbiegend' }))).toEqual([])
   })
+  it('Bewuchs (30.10.2026): grün bis zum Beginn, gelb «nicht sicher» bis zur Erkennungsdistanz, rot bis zum Soll; Sichtlinie gelb', () => {
+    const e: Erkennung = { wert: 40, bis: 'verdeckt', hindernis: { klasse: 'gebaeude', name: 'Gebäude (AV)' }, bewuchsAb: 25, bewuchs: 'Gartenanlage' }
+    const [b] = erkennungBaender(s([z(e)]))
+    expect(nah(b.gruen[0], [0, 1]) && nah(b.gruen[b.gruen.length - 1], [0, 26])).toBe(true)
+    expect(nah(b.gelb![0], [0, 26]) && nah(b.gelb![b.gelb!.length - 1], [0, 41])).toBe(true)
+    expect(b.fehlt!.art).toBe('verdeckt')
+    expect(nah(b.fehlt!.linie[0], [0, 41]) && nah(b.fehlt!.linie[b.fehlt!.linie.length - 1], [0, 49])).toBe(true)
+    expect(b.text).toBe('Erkennungsdistanz: Markierung ab 40 m sichtbar (in den Daten frei), ab 25 m nicht sicher (Bewuchs AV: Gartenanlage) – ' +
+      'vor Ort oder in Street View prüfen, Soll 48 m; verdeckt durch Gebäude; Gelände nicht geprüft')
+    // ohne Bewuchs kein gelbes Stück
+    expect(erkennungBaender(s([z({ wert: 40, bis: 'verdeckt' })]))[0].gelb).toBeNull()
+    const l: ErkennungLinie[] = [{ x: 30, auge: [0, 31], ziel: [0, 0.5], befund: 'bewuchs', grund: 'uebrige_bestockte' }]
+    const [sl] = erkennungSichtlinien(z(e, { erkennungLinien: l }))
+    expect(sl.art).toBe('bewuchs')
+    expect(sl.text).toBe('Sichtlinie 30 m vor dem Streifen auf die Markierung: nicht sicher (Bewuchs AV: übrige bestockte Fläche) – vor Ort ' +
+      'oder in Street View prüfen, Gelände nicht geprüft')
+  })
 })

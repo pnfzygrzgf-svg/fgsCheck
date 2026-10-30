@@ -95,6 +95,7 @@ export interface Kontext {
   hindernisse?: HindernisDaten | null
   brueckenumriss?: { enthaelt(p: P): boolean } | null     // AV-Einzelobjekte Bruecke_Passerelle (+0,5 m)
   flaechenR2?: Flaechen | null                           // AV uebrige_befestigte und Gebaeude (R2)
+  bewuchs?: Flaechen | null                              // AV-Bodenbedeckung mit Bewuchs (Erkennungsdistanz «nicht sicher», erkennung.ts)
   /** amtliches Tempo je Punkt der Spur (tempo.TempoAmtlich; Quelle «Geoportal»), Vorrang vor OSM, Hand geht vor */
   tempoAmtlich?: TempoAmtlich | null
 }
@@ -842,7 +843,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     const grenze = ERKENNUNG_MAX_M
     const ziele = zielPunkte(sichtpunkte[0], s)
     const hd = kx.hindernisse ?? null
-    const erkOpt = { bruecke: kx.brueckenumriss ?? null }
+    const erkOpt = { bruecke: kx.brueckenumriss ?? null, bewuchs: kx.bewuchs ?? null }
     // Augpunkt im Gebäude neben der Fahrbahn (Strasse wird schmaler, biegt ab, Linie von Hand daneben): auf die nächste Fahrbahn bis
     // 5 m, sonst endet die Fahrlinie dort (null)
     const aufLinie = (p: P): P | null => {

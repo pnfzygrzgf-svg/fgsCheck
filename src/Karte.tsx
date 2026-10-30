@@ -88,8 +88,12 @@ export const STATUS_FARBE: Record<string, string> = {
 }
 /** Erkennungsdistanz: Teil bis zum Soll, den die Rechnung nicht geprüft hat (Fahrlinie endet), grau gestrichelt */
 export const ERKENNUNG_UNGEPRUEFT = '#64748b'
+/** Erkennungsdistanz: Teil, in dem man die Markierung nur über Bewuchs (AV) sieht, «nicht sicher» (30.10.2026): helles Gelb, gut
+ * unterscheidbar von Velo-Kegel (Orange), Richtplan (Magenta), Fahrzeugen (Grau, Ocker, Blau, Violett) und Taktil (Weiss) */
+export const ERKENNUNG_BEWUCHS = '#facc15'
 /** Sichtlinien der Erkennungsdistanz (Klick auf das Band): Farben wie das Band */
-export const ERKENNUNG_LINIE_FARBE: Record<SichtlinieKarte['art'], string> = { frei: STATUS_FARBE.frei, verdeckt: STATUS_FARBE.verdeckt }
+export const ERKENNUNG_LINIE_FARBE: Record<SichtlinieKarte['art'], string> = { frei: STATUS_FARBE.frei, bewuchs: ERKENNUNG_BEWUCHS,
+  verdeckt: STATUS_FARBE.verdeckt }
 /** Sichtlinien über den Vektoren und dem Richtplan bzw. den taktilen Markierungen (401–403), unter den Fahrzeugen (590) */
 const ERK_PANE = 'erkennungLinien'
 /** Tooltip der Sicht vom Velo: Ergebnis, Soll mit Längsneigung, schnelle E-Bikes (nur über 30 km/h) */
@@ -932,6 +936,7 @@ export default function Karte(props: {
         const tip = `${esc(b.text)}<br><i>Klick: Sichtlinien zeigen bzw. ausblenden</i>`
         const stil = { weight: 4, opacity: 0.95, lineCap: 'butt' as const, interactive: !cb.current.werkzeug }
         const teile: { linie: P[]; farbe: string; strich?: string }[] = [{ linie: b.gruen, farbe: STATUS_FARBE.frei },
+          ...(b.gelb ? [{ linie: b.gelb, farbe: ERKENNUNG_BEWUCHS }] : []),
           ...(b.fehlt ? [b.fehlt.art === 'verdeckt' ? { linie: b.fehlt.linie, farbe: STATUS_FARBE.verdeckt }
             : { linie: b.fehlt.linie, farbe: ERKENNUNG_UNGEPRUEFT, strich: '6 4' }] : [])]
         for (const { linie, farbe, strich } of teile) {

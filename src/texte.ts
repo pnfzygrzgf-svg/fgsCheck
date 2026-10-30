@@ -4,7 +4,7 @@ import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 import type { Entfallen } from './rechner/zufahrten'
 import type { Hindernis } from './rechner/hindernisse'
 import { NEBENAST_GRAD } from './rechner/netz'
-import type { Erkennung } from './rechner/erkennung'
+import { BEWUCHS_NAME, type Erkennung } from './rechner/erkennung'
 
 export const f1 = (x: number) => x.toFixed(1).replace('.', ',')
 export const f2 = (x: number) => x.toFixed(2).replace('.', ',')
@@ -132,11 +132,17 @@ export const erkennungSatz = (e: Erkennung): string => `erkennbar ${e.bis === 'f
 /** Zusatz: Grund des Endes der Fahrlinie, «so weit geprüft» (frei bis zur Prüfgrenze) bzw. das verdeckende Hindernis */
 export const erkennungZusatz = (e: Erkennung): string => (e.bis === 'fahrlinie_endet' ? ENDE_TEXT[e.ende ?? 'wegende']
   : e.bis === 'frei' ? 'so weit geprüft' : `weiter entfernt verdeckt${e.hindernis ? `: ${HINDERNIS_TEXT[e.hindernis.klasse] ?? e.hindernis.name}` : ''}`)
-/** Zeile im Sicht-Reiter und Bericht: «Streifen erkennbar ab 64 m (weiter entfernt verdeckt: Gebäude)» */
-export const erkennungText = (e: Erkennung): string => `Streifen ${erkennungSatz(e)} (${erkennungZusatz(e)})`
+/** Bewuchs (30.10.2026): «ab 35 m nicht sicher (Bewuchs AV: Gartenanlage) – vor Ort oder in Street View prüfen»; leer ohne Bewuchs */
+export const erkennungBewuchs = (e: Erkennung): string => (e.bewuchsAb === undefined ? ''
+  : `ab ${e.bewuchsAb} m nicht sicher (Bewuchs AV: ${BEWUCHS_NAME[e.bewuchs ?? ''] ?? e.bewuchs ?? 'Bewuchs'}) – vor Ort oder in Street View prüfen`)
+/** Zeile im Sicht-Reiter und Bericht: «Streifen erkennbar ab 64 m (weiter entfernt verdeckt: Gebäude)»; mit Bewuchs «Streifen in den
+ * Daten frei bis 64 m, ab 35 m nicht sicher (Bewuchs AV: Gartenanlage) – vor Ort oder in Street View prüfen (…)» */
+export const erkennungText = (e: Erkennung): string => (e.bewuchsAb === undefined ? `Streifen ${erkennungSatz(e)} (${erkennungZusatz(e)})`
+  : `Streifen in den Daten frei bis ${erkennungWert(e)}, ${erkennungBewuchs(e)} (${erkennungZusatz(e)})`)
 /** Tooltip zur Erkennungsdistanz */
 export const ERKENNUNG_TITEL = 'Erkennungsdistanz aus dem Sichtrechner: Sicht von der Fahrlinie auf die Markierung im eigenen Fahrstreifen, ' +
-  'geprüft bis 110 m. Hindernisse: Gebäude, Hecken, Mauern, Bäume und Auto-Parkfelder. Gelände (Kuppen, Senken, Böschungen): danach ' +
+  'geprüft bis 110 m. Hindernisse: Gebäude, Hecken, Mauern, Bäume und Auto-Parkfelder; über Bewuchs der AV (Wald, bestockte Fläche, ' +
+  'Gartenanlage) nicht sicher frei. Gelände (Kuppen, Senken, Böschungen): danach ' +
   'entlang einzelner Sichtlinien (alle 10 m) aus dem Höhenmodell swissALTI3D, Auge 1,1 m über dem Boden; ohne Antwort 2D («Gelände ' +
   'nicht geprüft»). Annahme; nur die Markierung, die blaue Tafel (Signal 4.11) nicht.'
 
