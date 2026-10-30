@@ -49,7 +49,7 @@ import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type Pl
   naechsteFixId, FIXPUNKT_NAME_MAX, STREIFEN_NAME_MAX, leererFall, fallLesen, fallSchreiben, fallMerken, fallErinnern, fallVergessen,
   ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, streifenHandTeilen, teilungZuruecknehmbar,
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
-  streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, type StreifenQuerung } from './fall'
+  streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, annHandSetzen, annHandText, type StreifenQuerung } from './fall'
 import { augenNachVerschieben, tueMasse, type KsPhase } from './tue/karte'
 import { LsaEinmuendung } from './tue/LsaEinmuendung'
 import { handSetzen } from './bedarf/fallBedarf'
@@ -1972,6 +1972,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           f.streifen[fid] = { ...(f.streifen[fid] ?? {}), [phase === 'fahrbahn' ? 'tueD' : 'tueDtrottoir']: p }
           return f
         })}
+        onAnn={(id, k, h) => aendern(f => { const s = f.streifenHand.find(x => x.id === id); if (s) annHandSetzen(s, k, h); return f })}
         onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => { setBearbeiten(b => (b === id ? null : id)); zurSicht() }}
         onAusschnitt={ausschnitt} hinweis={vorschauHinweis ?? suchHinweis} kartenRef={kartenRef} />
       <Trenner breite={panelBreite} setze={setPanelBreite} onFertig={trennerFertig} />
@@ -2103,7 +2104,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                           onClick={teilungZurueck}>Teilung zurücknehmen</button></div>}
                       <MasseAnzeige s={s} e={rechnung?.streifen.find(x => x.fgsId === s.id) ?? null} kopieren={kopieren} namen={zNamen.get(s.id)}
                         fixpunkte={fall.fixpunkte ?? []} vorschlaege={fixVorschlag.get(s.id) ?? []}
-                        setzen={() => werkzeugWaehlen('fixpunkt')} uebernehmen={v => fixpunktSetzen(v.p, 'gebaeudeecke')} />
+                        setzen={() => werkzeugWaehlen('fixpunkt')} uebernehmen={v => fixpunktSetzen(v.p, 'gebaeudeecke')}
+                        annZuruecksetzen={k => aendern(f => { const x = f.streifenHand.find(y => y.id === s.id); if (x) annHandSetzen(x, k, null); return f })} />
                     </li>
                   ))}
                 </ul>
@@ -2497,8 +2499,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
 /** Lage und Masse eines Streifens von Hand (Vermassung aus der Rechnung, rechner/vermassung.ts), aufklappbar; Vermassung ab
  * Fixpunkt (fixpunkt.ts) mit Vorschlägen (nächste Gebäudeecke je Strassenseite) */
-function MasseAnzeige({ s, e, kopieren, namen, fixpunkte, vorschlaege, setzen, uebernehmen }: { s: StreifenHand; e: StreifenErgebnis | null
-  namen: ZufahrtNamen | undefined
+function MasseAnzeige({ s, e, kopieren, namen, fixpunkte, vorschlaege, setzen, uebernehmen, annZuruecksetzen }: { s: StreifenHand
+  e: StreifenErgebnis | null; namen: ZufahrtNamen | undefined
+  /** Annäherungsbereich eines Endes wieder wie gerechnet (30.10.2026) */
+  annZuruecksetzen: (k: 0 | 1) => void
   kopieren: (id: string, v: Vermassung) => void; fixpunkte: Fixpunkt[]; vorschlaege: FixVorschlag[]; setzen: () => void
   uebernehmen: (v: FixVorschlag) => void }) {
   const v = e?.vermassung ?? null
@@ -2522,6 +2526,10 @@ function MasseAnzeige({ s, e, kopieren, namen, fixpunkte, vorschlaege, setzen, u
         <div>Abstand zum Fahrbahnrand entlang der Achse (+ vor dem Rand, − darüber hinaus): {v.randAbstandM ? <>Ende A
           {' '}{vorzeichenText(v.randAbstandM[0])}, Ende B {vorzeichenText(v.randAbstandM[1])}; Fahrbahn {f2(v.fahrbahnM!)} m</> : '–'}
           {' '}({v.randQuelle}).</div>
+        {/* Annäherungsbereich je Ende (30.10.2026): von Hand verschoben bzw. verbreitert (Griffe beim Bearbeiten) oder wie gerechnet */}
+        <div>{([0, 1] as const).map(k => <span key={k}>{k ? '; ' : ''}{annHandText(k, s.ann?.[k], e.annBasis?.[k].breite)}{s.ann?.[k]
+          && <>{' '}<button className="zweit klein" onClick={() => annZuruecksetzen(k)} title="wieder wie gerechnet (Mitte des Streifenendes, Breite des Streifens)">
+            zurücksetzen</button></>}</span>)}{!s.ann && '. Beim Bearbeiten (Streifen gewählt) auf der Karte verschieben bzw. an den Seiten breiter oder schmaler ziehen'}.</div>
         {v.knoten.length > 0 && <div>Nächster Knoten stromauf (OSM, entlang der Strasse ab Streifenrand): {v.knoten.map(k =>
           `${zufahrtText(namen, k.zufahrt)} ${f1(k.abstandM)} m`).join('; ')}.</div>}
         <div><b>Vermassung ab Fixpunkt</b> (längs = entlang der Balken bzw. der Fahrbahn, quer = senkrecht dazu){' '}

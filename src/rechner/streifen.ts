@@ -20,6 +20,7 @@ import { type Fahrbahn, type Flaechen, type Inseln, intervalleImPolygon } from '
 import { ringSchnitt, randSpur, H_RAND_TOL_M, STREIFEN_ENDE_M, ENTLANG_MIN, RAND_BELEG_MIN_M } from './spur'
 import { type Poly, type Multi, abstandPunkt } from './poly'
 import { BALKEN_BREITE_M, type TeilErkannt } from './luftbild'
+import type { AnnHand } from './typen'
 
 export const RAND_ZUSCHLAG = 0.30
 export const ANN_TIEFE = 1.0
@@ -236,6 +237,16 @@ export function wartebereiche(s: Streifen, fahrbahn: Fahrbahn | null): [P, P, P,
 export function inselProbe(s: Streifen, k: number, r: P | null = null): P {
   if (s.warte.length) { const [rand, aussen] = s.warte[k]; return add(rand, aussen, 0.6) }
   return add(r!, s.n, k ? 0.6 : -0.6)
+}
+
+/** Richtung entlang der Bordkante eines Wartebereichs, positiv links der Achse A→B (n) */
+export function annRichtung(w: [P, P, P, number], n: P): P {
+  return dot(w[2], [-n[1], n[0]]) >= 0 ? w[2] : [-w[2][0], -w[2][1]]
+}
+/** Wartebereich eines Endes mit dem Annäherungsbereich von Hand (30.10.2026): Mitte entlang der Bordkante um versatz verschoben, Breite
+ * von Hand; ohne Vorgabe unverändert. Danach wie ohne Vorgabe: Trapez bzw. auf die AV-Bordkante gelegt (annAmRand) */
+export function warteMitHand(w: [P, P, P, number], n: P, h: AnnHand | null | undefined): [P, P, P, number] {
+  return h ? [add(w[0], annRichtung(w, n), h.versatz), w[1], w[2], h.breite] : w
 }
 
 /** annaeherungsbereich: Trapez, Grundlinie am Rand, 1 m tief, 45° nach aussen */

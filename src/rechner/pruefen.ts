@@ -25,7 +25,7 @@ import {
 } from './fahrstreifen'
 import { sichtweiteTab1, sichtweiteKurve, radiusRunden, tempoStart, tempoEntlang, amtlichEntlang, SICHTWEITE, type TempoAmtlich } from './tempo'
 import {
-  type Streifen, zufahrtenStreifen, raender, wartebereiche, annaeherungsbereich, annAmRand, umrissRing, randAmUmriss,
+  type Streifen, zufahrtenStreifen, raender, wartebereiche, annaeherungsbereich, annAmRand, umrissRing, randAmUmriss, annRichtung, warteMitHand,
 } from './streifen'
 import { type Zufahrt, type Entfallen, zufahrtenBilden, teilstreifenPaare, trennungKontext, entfallen } from './zufahrten'
 import { OsmAchsen, achseWaehlen } from './achsen'
@@ -36,7 +36,7 @@ import { freiBis } from './freibis'
 import { D_VELO_M, RADSTREIFEN_M, TAB3, veloSichtweite } from '../knotensicht/rechner/velo'
 import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvexeHuelle, enthaelt, abstandMulti, huelle, abstandLinieMulti } from './poly'
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
-import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt, QuerungOhneVortritt } from './typen'
+import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt, QuerungOhneVortritt, AnnBasis, AnnHand } from './typen'
 import { type Augpunkt, type Erkennung, type ErkennungEnde, ERKENNUNG_MAX_M, entlangLinie, erkennungRechnen, zielPunkte } from './erkennung'
 import { type OhneVortritt, sichtOhneVortritt, quelleOhneVortritt, annahmeOhneVortritt, weiteOhneVortritt, REICHWEITE_SICHT_M } from './ohneVortritt'
 
@@ -77,6 +77,8 @@ export interface VonHand {
   /** Streifen als Querung ohne Vortritt (Bedarfsmodul E1): Sichtweite nach VSS 40 240 Z. 8.2 (ohneVortritt.ts); inselMarkiert: die
    * Insel ist nur markiert, L gilt über die ganze Fahrbahn. null bzw. fehlt: Fussgängerstreifen wie bisher */
   querung?: (fid: string) => { typ: QuerungOhneVortritt; inselMarkiert: boolean; vorgabe?: true } | null
+  /** Annäherungsbereich je Ende von Hand (Streifen von Hand, 30.10.2026); null bzw. fehlt: wie gerechnet */
+  ann?: (fid: string) => readonly [AnnHand | null, AnnHand | null] | null
 }
 
 export interface Kontext {
@@ -243,6 +245,12 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
   const aus: StreifenErgebnis[] = []
   for (const s of S) {
     const fid = s.fgsId
+    // Annäherungsbereich von Hand (30.10.2026): nach den Zufahrten (die Inselprobe bleibt am Streifenende), vor Trapez und Sichtziel;
+    // die wartende Person (warte) folgt
+    const annH = kx.vonHand?.ann?.(fid) ?? null
+    const annBasis = s.quelle === 'hand' && s.warte.length === 2
+      ? s.warte.map(w => ({ rand: w[0], u: annRichtung(w, s.n), breite: w[3] })) as [AnnBasis, AnnBasis] : null
+    if (annBasis && annH) s.warte = s.warte.map((w, k) => warteMitHand(w, s.n, annH[k]))
     let ann: [Poly, Poly] = [annaeherungsbereich(...s.warte[0].slice(0, 2) as [P, P], s.warte[0][2], s.warte[0][3]),
       annaeherungsbereich(...s.warte[1].slice(0, 2) as [P, P], s.warte[1][2], s.warte[1][3])]
     const annRand = s.warte.map(w => annAmRand(w, fahrbahn, flaechenRand))
@@ -274,7 +282,8 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
     aus.push({ fgsId: fid, uebergangId: s.uebergangId, p0: s.p0, p1: s.p1, bw: s.bw, m: s.m, umriss: umrissRing(s), ann,
       rand: s.rand, randQuelle: s.randQuelle, strasse: s.strasse ?? '', netzQuelle: s.netzQuelle ?? '', lsa, lsaQuelle: lsaQ,
       zufahrten: erg, entfallen: ent, status, annahmen: annahmenS, ...(ov && !keinFgs ? { querung: ov } : {}),
-      ...(s.warte.length ? { warte: s.warte.map(w => [w[0], w[1]] as [P, P]) } : {}) })
+      ...(s.warte.length ? { warte: s.warte.map(w => [w[0], w[1]] as [P, P]) } : {}),
+      ...(annBasis ? { annBasis } : {}), ...(annBasis && annH ? { annHand: [annH[0] ?? null, annH[1] ?? null] as [AnnHand | null, AnnHand | null] } : {}) })
   }
   return aus
 }

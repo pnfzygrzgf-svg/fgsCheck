@@ -98,12 +98,27 @@ export interface VeloSicht {
   konflikte: Konflikt[]; feld: Multi; sichtpunkte: P[]
 }
 
+/** Annäherungsbereich eines Endes vor der Vorgabe von Hand (StreifenErgebnis.annBasis) */
+export interface AnnBasis { rand: P; u: P; breite: number }
+/** Annäherungsbereich eines Endes von Hand (Fall, StreifenHand.ann; 30.10.2026): Mitte entlang der Bordkante versetzt (m, positiv links
+ * der Achse A→B, bezogen auf die Mitte des Streifenendes) und Breite (m); unabhängig von der Breite des Streifens */
+export interface AnnHand { versatz: number; breite: number }
+/** Breite des Annäherungsbereichs von Hand: mindestens, höchstens (m) */
+export const ANN_HAND_BREITE: readonly [number, number] = [0.5, 15]
+/** Versatz von Hand höchstens (m, Betrag) */
+export const ANN_HAND_VERSATZ_MAX = 15
+
 export interface StreifenErgebnis {
   fgsId: string
   uebergangId: string
   p0: P; p1: P; bw: number; m: P
   umriss: P[]
   ann: [Poly, Poly]
+  /** Streifen von Hand (30.10.2026): Annäherungsbereich je Ende vor einer Vorgabe von Hand: Mitte auf der Bordkante, Richtung entlang der
+   * Kante (positiver Versatz, links der Achse A→B) und Breite; Grundlage der Griffe auf der Karte und der Vorgabe von Hand (AnnHand) */
+  annBasis?: [AnnBasis, AnnBasis]
+  /** Annäherungsbereich je Ende von Hand vorgegeben (wie gerechnet; nur Streifen von Hand) */
+  annHand?: [AnnHand | null, AnnHand | null]
   rand: [P, P]
   randQuelle: string
   strasse: string

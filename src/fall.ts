@@ -8,7 +8,7 @@ import { MARKIERUNGEN, type Markierung } from './daten/osm'
 import type { Hindernis } from './rechner/hindernisse'
 import type { SpurHand } from './rechner/spurhand'
 import type { VonHand } from './rechner/pruefen'
-import type { QuerungOhneVortritt } from './rechner/typen'
+import { ANN_HAND_BREITE, ANN_HAND_VERSATZ_MAX, type AnnHand, type QuerungOhneVortritt } from './rechner/typen'
 import { bedarfLesen, bedarfLeer, type BedarfBlock } from './bedarf/fallBedarf'
 import { herkunftLesen, type LuftbildHerkunft } from './daten/luftbildFgs'
 
@@ -36,6 +36,9 @@ export interface StreifenHand { id: string; p0: P; p1: P; breite: number; richtu
   herkunft?: StreifenHerkunft      // woher der Streifen stammt (fehlt in Fällen vor dem 11.10.2026: unbekannt)
   angepasst?: boolean              // Enden nach dem Übernehmen bzw. Zeichnen verschoben
   name?: string                    // eigener Name (Anzeige statt «Streifen 1», benennung.streifenTitel; seit 16.10.2026)
+  /** Annäherungsbereich je Ende (A, B) von Hand (30.10.2026): Versatz entlang der Bordkante und Breite, unabhängig von der Breite des
+   * Streifens; null bzw. fehlt: wie gerechnet. Ältere Apps übergehen das Feld (keine neue Version) */
+  ann?: [AnnHand | null, AnnHand | null]
 }
 /** Name eines Streifens von Hand höchstens so lang (Zeichen) */
 export const STREIFEN_NAME_MAX = 60
@@ -301,6 +304,10 @@ export function fallLesen(text: string): [Fall, string[]] {
       if (HERKUNFTE.includes(o.herkunft as StreifenHerkunft)) sh.herkunft = o.herkunft as StreifenHerkunft
       if (o.angepasst === true) sh.angepasst = true
       if (typeof o.name === 'string' && o.name.trim()) sh.name = o.name.trim().slice(0, STREIFEN_NAME_MAX)
+      if (o.ann !== undefined) {
+        const a = annLesen(o.ann)
+        if (a) sh.ann = a; else hinweise.push(`Annäherungsbereich von Hand am Streifen ${sh.id} ungültig, übergangen`)
+      }
       fall.streifenHand.push(sh)
     } else hinweise.push('Streifen von Hand ungültig, übergangen')
   }
@@ -397,6 +404,32 @@ export function fallSchreiben(fall: Fall, ergebnis: FallErgebnis | null = null):
   return JSON.stringify({ ...rest, version: fallVersion(fall), gespeichert: new Date().toISOString(), ...(ergebnis ? { ergebnis } : {}) }, null, 1)
 }
 
+/** Annäherungsbereich eines Endes von Hand prüfen (Versatz und Breite in den Grenzen) */
+const annHandPruefen = (x: unknown): AnnHand | null => (istObjekt(x) && zahl(x.versatz) && Math.abs(x.versatz) <= ANN_HAND_VERSATZ_MAX &&
+  zahl(x.breite) && x.breite >= ANN_HAND_BREITE[0] && x.breite <= ANN_HAND_BREITE[1] ? { versatz: x.versatz, breite: x.breite } : null)
+/** Feld ann eines Streifens von Hand lesen: zwei Einträge (je Ende Vorgabe bzw. null), mindestens einer gesetzt; sonst null (ungültig) */
+function annLesen(x: unknown): [AnnHand | null, AnnHand | null] | null {
+  if (!Array.isArray(x) || x.length !== 2) return null
+  const a = x.map(y => (y === null ? null : annHandPruefen(y)))
+  if (a.some((y, i) => y === null && x[i] !== null) || a.every(y => y === null)) return null
+  return a as [AnnHand | null, AnnHand | null]
+}
+const f2a = (x: number) => x.toFixed(2).replace('.', ',')
+/** Zeile «Lage und Masse» zum Annäherungsbereich eines Endes: «Annäherungsbereich A: versetzt +0,80 m, Breite 3,00 m (von Hand)»;
+ * ohne Vorgabe «wie gerechnet» mit der gerechneten Breite (falls bekannt) */
+export function annHandText(k: 0 | 1, h: AnnHand | null | undefined, breiteGerechnet?: number): string {
+  const ende = `Annäherungsbereich ${k === 0 ? 'A' : 'B'}`
+  if (!h) return `${ende}: wie gerechnet${breiteGerechnet !== undefined ? `, Breite ${f2a(breiteGerechnet)} m` : ''}`
+  const v = Math.abs(h.versatz) < 0.005 ? 'nicht versetzt' : `versetzt ${h.versatz > 0 ? '+' : '−'}${f2a(Math.abs(h.versatz))} m`
+  return `${ende}: ${v}, Breite ${f2a(h.breite)} m (von Hand)`
+}
+/** Annäherungsbereich eines Endes von Hand setzen bzw. (null) zurücksetzen; ohne Vorgabe an beiden Enden entfällt das Feld */
+export function annHandSetzen(s: StreifenHand, k: 0 | 1, h: AnnHand | null): void {
+  const a: [AnnHand | null, AnnHand | null] = [...(s.ann ?? [null, null])] as [AnnHand | null, AnnHand | null]
+  a[k] = h ? { versatz: Math.round(h.versatz * 100) / 100, breite: Math.round(h.breite * 100) / 100 } : null
+  if (a.every(y => y === null)) delete s.ann; else s.ann = a
+}
+
 /** Eingaben des Falls als VonHand für die Rechnung; vorgabe: Querungsart ohne Eingabe am Streifen (unmarkierte OSM-Querung:
  * ohne Vortritt, 29.10.2026), sonst Fussgängerstreifen */
 export function vonHandAusFall(fall: Fall, vorgabe: QuerungOhneVortritt | null = null): VonHand {
@@ -409,6 +442,7 @@ export function vonHandAusFall(fall: Fall, vorgabe: QuerungOhneVortritt | null =
     // Trottoirüberfahrt: gerechnet wie ein Fussgängerstreifen, rechneFall legt die Zufahrten nur für die Vorbelegung ab
     keinFgs: fid => !!fall.streifen[fid]?.keinFgs,
     tempoKennung: (fid, kennung) => z(fid, kennung)?.tempo ?? null,
+    ann: fid => fall.streifenHand.find(h => h.id === fid)?.ann ?? null,
     querung: fid => {
       const e = fall.streifen[fid]
       if (e?.keinFgs || e?.typ === 'trottoirueberfahrt' || e?.typ === 'fgs') return null
@@ -622,6 +656,13 @@ export function streifenHandTeilen(f: Fall, id: string, teile: [[P, P], [P, P]],
   const name = (n: number) => (s.name ? { name: `${s.name} (Teil ${n})`.slice(0, STREIFEN_NAME_MAX) } : {})
   const zweiter: StreifenHand = { ...s, id: neuId, p0: teile[1][0], p1: teile[1][1], angepasst: true, ...name(2) }
   Object.assign(s, { p0: teile[0][0], p1: teile[0][1], angepasst: true, ...name(1) })
+  // Annäherungsbereich von Hand: Ende A bleibt am ersten, Ende B geht an den zweiten Teil (die Enden an der Insel wie gerechnet)
+  if (s.ann) {
+    const [a, b] = s.ann
+    delete s.ann; delete zweiter.ann
+    if (a) annHandSetzen(s, 0, a)
+    if (b) annHandSetzen(zweiter, 1, b)
+  }
   f.streifenHand.splice(f.streifenHand.indexOf(s) + 1, 0, zweiter)
   if (f.streifen[id]) f.streifen[neuId] = { ...f.streifen[id] }
   let verschoben = 0

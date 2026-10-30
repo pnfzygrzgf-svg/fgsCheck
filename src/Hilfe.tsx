@@ -108,7 +108,10 @@ export function Anleitung() {
             Ort liegen (die App lädt dann um ihre Mitte nach); sonst bzw. ohne geladenen Ort beginnt am Streifen ein neuer Fall, und
             die App lädt AV, OSM und Kataster um ihn. Unter «Streifen von Hand» Enden verschieben und Breite ändern; «Lage und Masse»
             nennt die LV95-Koordinaten von Achse und Ecken, Länge, Winkel zur Fahrbahn, Abstand der Enden zum Fahrbahnrand und zum
-            nächsten Knoten («Koordinaten kopieren» für CAD bzw. Tabelle; im Bericht als Tabelle). An einer OSM-Querung ohne
+            nächsten Knoten («Koordinaten kopieren» für CAD bzw. Tabelle; im Bericht als Tabelle). Den Annäherungsbereich an jedem Ende
+            (Wartefläche, auf die die Sicht geprüft wird) lässt sich unabhängig von der Streifenbreite anpassen: beim Bearbeiten des
+            Streifens die Mitte entlang der Bordkante ziehen bzw. eine Seite breiter oder schmaler; «Lage und Masse» nennt Versatz und
+            Breite je Ende, «zurücksetzen» stellt den gerechneten Bereich wieder her. An einer OSM-Querung ohne
             Fussgängerstreifen: «Querung als geplanten Streifen übernehmen und anpassen»; dort prüft die App jeden Streifen von Hand
             als Fussgängerstreifen, auch wenn er nur die Lage korrigiert («sinngemäss, ohne Normbezug» gilt nur für den Streifen aus
             OSM + AV). Einen Fall ohne OSM-Übergang merkt sich der Browser nur als letzten solchen Fall («Letzten geplanten Fall

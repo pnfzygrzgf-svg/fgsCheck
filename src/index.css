@@ -156,6 +156,10 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .zeile { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
 .spur { margin: 6px 0; }
 .ecke { background: #ffffff; border: 2px solid #0f172a; border-radius: 50%; cursor: move; }
+/* Annäherungsbereich von Hand (Karte.tsx, 30.10.2026): Mitte und Seiten je Ende, in der Farbe der Annäherungsbereiche */
+.ann-griff { background: #ffffff; border: 2px solid #0284c7; cursor: move; }
+.ann-mitte { border-radius: 2px; background: #0ea5e9; }
+.ann-seite { border-radius: 1px; }
 /* Werkzeugmodus (Karte.tsx): Objekte der Karte lassen Klicks an die Karte durch (Punkt setzen, Ecke fangen); nur die Ecken beim
    «Ecke runden» bleiben anklickbar */
 .karte-werkzeug .leaflet-interactive:not(.ecke-runden) { pointer-events: none !important; }
