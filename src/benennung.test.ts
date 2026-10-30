@@ -1,9 +1,10 @@
 // Tests Benennung (16.10.2026): Streifen von Hand (Name, «Streifen 1»), Zufahrten nach Strasse und Herkunft statt Gradzahl.
 import { describe, expect, it } from 'vitest'
-import { herkunftAzimut, herkunft8, herkunft16, streifenTitel, streifenKurz, zufahrtNamen, zufahrtLang, entfallenLang, wegNamen, zufahrtNr,
+import { herkunftAzimut, herkunft8, herkunft16, streifenTitel, streifenKurz, streifenArt, streifenArtWahl, streifenArtVon, streifenKopf, titelImFall,
+  zufahrtNamen, zufahrtLang, entfallenLang, wegNamen, zufahrtNr,
   zufahrtText, nachNr, schildLage, NUMMERN_TEXT, entfallenNr, entfallenText } from './benennung'
 import { fallLesen, fallSchreiben, leererFall, eingabenSchluessel, STREIFEN_NAME_MAX, type StreifenHand } from './fall'
-import type { ZufahrtErgebnis } from './rechner/typen'
+import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 import type { Entfallen } from './rechner/zufahrten'
 
 const z = (zufahrt: string, richtung: number, art: string, strasse: string | null): ZufahrtErgebnis =>
@@ -43,6 +44,42 @@ describe('Streifen von Hand: Name bzw. «Streifen 1»', () => {
     expect(fallLesen(JSON.stringify(roh))[0].streifenHand[0].name).toBeUndefined()
     f.streifenHand[0].name = 'Nord'
     expect(eingabenSchluessel(f)).not.toBe(k0)
+  })
+})
+
+describe('Querung, die kein Fussgängerstreifen ist: «Querung <Nr.>» (30.10.2026)', () => {
+  const erg = (x: Partial<StreifenErgebnis>): StreifenErgebnis => ({ fgsId: '718541860', status: 'verdeckt', ...x } as StreifenErgebnis)
+  it('Art aus dem Ergebnis: ohne Vortritt (Furt, ohne bauliche Massnahme, auch angenommen) und «kein FGS» als Querung', () => {
+    expect(streifenArt(erg({}))).toBe('fgs')
+    expect(streifenArt(erg({ querung: { typ: 'furt', L: 3, ganzeFahrbahn: false } }))).toBe('querung')
+    expect(streifenArt(erg({ querung: { typ: 'ohne_vortritt', L: 7, ganzeFahrbahn: true }, querungAnnahme: 'Unmarkierte Querung …' }))).toBe('querung')
+    expect(streifenArt(erg({ status: 'kein_fgs' }))).toBe('querung')
+    expect(streifenArt(erg({ status: 'kein_fgs', trottoirueberfahrt: true }))).toBe('tue')
+  })
+  it('Art aus der Wahl am Streifen (Fall-Datei); die Rechnung geht vor', () => {
+    expect([undefined, {}, { typ: 'fgs' as const }, { lsa: 'ja' as const }].map(streifenArtWahl)).toEqual(['fgs', 'fgs', 'fgs', 'fgs'])
+    expect([{ typ: 'furt' as const }, { typ: 'ohne_vortritt' as const }, { keinFgs: true }, { keinFgs: true, typ: 'trottoirueberfahrt' as const }]
+      .map(streifenArtWahl)).toEqual(['querung', 'querung', 'querung', 'querung'])
+    expect(streifenArtWahl({ typ: 'trottoirueberfahrt' })).toBe('tue')
+    // unmarkierte OSM-Querung ohne Wahl: nur die Rechnung kennt die Annahme
+    const angenommen = [erg({ querung: { typ: 'ohne_vortritt', L: 7, ganzeFahrbahn: false } })]
+    expect(streifenArtVon('718541860', angenommen, {})).toBe('querung')
+    expect(streifenArtVon('718541860', [], {})).toBe('fgs')
+    expect(streifenArtVon('718541860', null, { 718541860: { typ: 'furt' } })).toBe('querung')
+  })
+  it('Titel: «Querung 718541860», «Querung 1»; Fussgängerstreifen und Trottoirüberfahrt wie bisher; eigener Name geht vor', () => {
+    const hand: StreifenHand[] = [{ id: 'hand-1', p0: [0, 0], p1: [0, 7], breite: 4 }, { id: 'hand-2', p0: [0, 0], p1: [0, 7], breite: 4, name: 'Nord' }]
+    expect([streifenTitel('718541860', [], 'querung'), streifenTitel('hand-1', hand, 'querung'), streifenTitel('hand-2', hand, 'querung'),
+      streifenTitel('-3', [], 'querung')]).toEqual(['Querung 718541860', 'Querung 1', 'Nord', 'Querung Luftbild'])
+    expect([streifenTitel('718541860', [], 'fgs'), streifenTitel('hand-1', hand, 'tue'), streifenTitel('hand-1', hand, true), streifenTitel('hand-1', hand, false)])
+      .toEqual(['Streifen 718541860', 'Trottoirüberfahrt 1', 'Trottoirüberfahrt 1', 'Streifen 1'])
+    const f = { streifenHand: hand, streifen: { 'hand-1': { keinFgs: true } } }
+    expect([titelImFall('hand-1', f), titelImFall('hand-1', { ...f, streifen: {} }), titelImFall('718541860', f, [erg({ status: 'kein_fgs' })])])
+      .toEqual(['Querung 1', 'Streifen 1', 'Querung 718541860'])
+  })
+  it('Kopf: ohne Strasse kein Leerzeichen vor dem Doppelpunkt', () => {
+    expect(`${streifenKopf('Querung 718541860', '')}: verdeckt (Auto-Parkfeld)`).toBe('Querung 718541860: verdeckt (Auto-Parkfeld)')
+    expect(streifenKopf('Streifen 1', 'Glockenstrasse')).toBe('Streifen 1 – Glockenstrasse')
   })
 })
 

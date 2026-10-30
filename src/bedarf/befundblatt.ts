@@ -268,8 +268,9 @@ function tempoPruefen(e: Gebildet['eingaben'], regel: 'H1' | 'E3', tempo: number
   return null
 }
 
-/** Titel aus einer OSM-Nummer («Streifen 2066165582», «Streifen 5180148897-1»): im Lesetext durch die Strasse ersetzen (Runde 5, Stelle 41) */
-const istNummernTitel = (t: string): boolean => /^Streifen \d{4,}(-\d+)?$/.test(t)
+/** Titel aus einer OSM-Nummer («Streifen 2066165582», «Streifen 5180148897-1», seit 30.10.2026 auch «Querung 718541860» für eine
+ * Querung, die kein Fussgängerstreifen ist): im Lesetext durch die Strasse ersetzen (Runde 5, Stelle 41) */
+const istNummernTitel = (t: string): boolean => /^(Streifen|Querung) \d{4,}(-\d+)?$/.test(t)
 /** Name eines Streifens in Detailtexten: Streifen von Hand mit Titel; OSM-Streifen «Querung <Strasse>» bzw. an der Insel «Teil 1», «Teil 2» */
 function teilTitel(g: QuerungGruppe, titel: (id: string) => string): (id: string) => string {
   return id => {

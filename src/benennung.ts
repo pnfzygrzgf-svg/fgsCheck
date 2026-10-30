@@ -4,6 +4,10 @@
 // der Fall-Datei); die Rechnung ist unverändert.
 // - Streifen von Hand: eigener Name (Feld name der Fall-Datei), sonst «Streifen 1» (Nummer aus der Id). Streifen aus OSM bzw.
 //   Luftbild wie bisher «Streifen <Nr.>».
+// - Querung, die kein Fussgängerstreifen ist (30.10.2026): «Querung <Nr.>» statt «Streifen <Nr.>» – Querung ohne Vortritt (Furt,
+//   Nase, Einengung bzw. ohne bauliche Massnahme; auch die an einer unmarkierten OSM-Querung angenommene) und «kein FGS».
+//   Fussgängerstreifen (auch mit Lichtsignal, geplant, aus dem Luftbild) bleiben «Streifen», die Trottoirüberfahrt
+//   «Trottoirüberfahrt <Nr.>» (streifenArt wie bedarf/vorbelegung.streifenTyp).
 // - Zufahrten: die Zahl der Zufahrt ist die Fahrtrichtung in Grad (geo.richtungGrad: ab Osten gegen den Uhrzeigersinn; 70 =
 //   Fahrt nach Nordnordosten). Angezeigt wird die Strasse und die Herkunft (Gegenrichtung der Fahrt) als Himmelsrichtung in
 //   8 Teilen: «Glockenstrasse von Süden». Die Herkunft kommt aus der Lage der Fahrlinie: Richtung vom ersten zum letzten
@@ -27,9 +31,9 @@
 //   einer Nachbarin den Platz tauschen. Nur Anzeige, nicht in der Fall-Datei. Karte und Bericht-Bild zeigen das Nummernschild
 //   hinter dem letzten Sichtpunkt (schildLage), Panel und Bericht die Nummer vor dem Namen («1 Glockenstrasse von Süden»).
 
-import type { StreifenHand } from './fall'
+import type { StreifenEingabe, StreifenHand } from './fall'
 import type { P } from './geo'
-import type { ZufahrtErgebnis } from './rechner/typen'
+import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 import type { Entfallen } from './rechner/zufahrten'
 
 const R8 = ['Norden', 'Nordosten', 'Osten', 'Südosten', 'Süden', 'Südwesten', 'Westen', 'Nordwesten']
@@ -65,14 +69,40 @@ export function zufahrtAzimut(z: { richtung: number; art?: string; knotenM?: num
 /** Herkunft einer Zufahrt in 16 Teilen (Tooltip), aus der Fahrlinie (zufahrtAzimut) */
 export const zufahrtHerkunft16 = (z: Parameters<typeof zufahrtAzimut>[0], breite = 0) => R16[teil(zufahrtAzimut(z, breite), 16)]
 
+/** Art einer Querung für ihren Namen (nur Anzeige): Fussgängerstreifen, Trottoirüberfahrt bzw. Querung, die kein Fussgängerstreifen ist */
+export type StreifenArt = 'fgs' | 'tue' | 'querung'
+const ART_WORT: Record<StreifenArt, string> = { fgs: 'Streifen', tue: 'Trottoirüberfahrt', querung: 'Querung' }
+/** Wort vor der Nummer: «Streifen», «Trottoirüberfahrt» bzw. «Querung» */
+export const streifenWort = (art: StreifenArt): string => ART_WORT[art]
+/** Art aus dem Ergebnis der Rechnung (wie bedarf/vorbelegung.streifenTyp): Trottoirüberfahrt; «kein FGS» bzw. Querung ohne Vortritt
+ * (von Hand oder an einer unmarkierten OSM-Querung angenommen) als Querung; sonst Fussgängerstreifen */
+export const streifenArt = (s: Pick<StreifenErgebnis, 'trottoirueberfahrt' | 'status' | 'querung'>): StreifenArt =>
+  (s.trottoirueberfahrt ? 'tue' : s.status === 'kein_fgs' || s.querung ? 'querung' : 'fgs')
+/** Art aus der Wahl am Streifen (Fall-Datei); ohne die Annahme an einer unmarkierten OSM-Querung, die nur die Rechnung kennt */
+export const streifenArtWahl = (e: StreifenEingabe | undefined): StreifenArt =>
+  (e?.keinFgs ? 'querung' : e?.typ === 'trottoirueberfahrt' ? 'tue' : e?.typ === 'furt' || e?.typ === 'ohne_vortritt' ? 'querung' : 'fgs')
+/** Art eines Streifens: aus der Rechnung, wenn sie ihn kennt, sonst aus der Wahl am Streifen */
+export const streifenArtVon = (fgsId: string, erg: readonly StreifenErgebnis[] | null | undefined,
+  wahl: Readonly<Record<string, StreifenEingabe>> | null | undefined): StreifenArt => {
+  const s = erg?.find(x => x.fgsId === fgsId)
+  return s ? streifenArt(s) : streifenArtWahl(wahl?.[fgsId])
+}
+
 /** Anzeigename eines Streifens: eigener Name eines Streifens von Hand, sonst «Streifen 1» bzw. «Streifen <Nr.>»; Trottoirüberfahrt
- * (tue, 27.10.2026): «Trottoirüberfahrt 1» (die Kennung bleibt) */
-export function streifenTitel(fgsId: string, hand: StreifenHand[] = [], tue = false): string {
+ * (27.10.2026): «Trottoirüberfahrt 1»; Querung, die kein Fussgängerstreifen ist (30.10.2026): «Querung 1». Die Kennung bleibt.
+ * art: true wie «tue» (Trottoirüberfahrt), false wie «fgs» */
+export function streifenTitel(fgsId: string, hand: StreifenHand[] = [], art: StreifenArt | boolean = 'fgs'): string {
   const name = hand.find(x => x.id === fgsId)?.name?.trim()
   if (name) return name
   const m = /^hand-(\d+)$/.exec(fgsId)
-  return `${tue ? 'Trottoirüberfahrt' : 'Streifen'} ${m ? m[1] : luftbildNr(fgsId) ?? fgsId}`
+  return `${streifenWort(art === true ? 'tue' : art === false ? 'fgs' : art)} ${m ? m[1] : luftbildNr(fgsId) ?? fgsId}`
 }
+/** Kopf eines Streifens in Panel und Bericht: «Querung 718541860» bzw. «Streifen 1 – Glockenstrasse»; der Doppelpunkt mit dem
+ * Status folgt ohne Leerzeichen (30.10.2026: ohne Strasse stand «Streifen 718541860 : verdeckt») */
+export const streifenKopf = (titel: string, strasse: string | null | undefined): string => (strasse ? `${titel} – ${strasse}` : titel)
+/** Anzeigename im Fall: Art aus der Rechnung (erg), sonst aus der Wahl am Streifen */
+export const titelImFall = (fgsId: string, fall: { streifenHand: StreifenHand[]; streifen: Readonly<Record<string, StreifenEingabe>> },
+  erg?: readonly StreifenErgebnis[] | null): string => streifenTitel(fgsId, fall.streifenHand, streifenArtVon(fgsId, erg, fall.streifen))
 /** Streifen am Übergang aus dem Luftbild (negative Kennung, daten/luftbildFgs.ts): «Luftbild» bzw. «Luftbild-2» statt der langen Zahl */
 function luftbildNr(fgsId: string): string | null {
   const m = /^-\d+(-\d+)?$/.exec(fgsId)

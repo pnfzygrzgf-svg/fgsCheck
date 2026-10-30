@@ -26,7 +26,7 @@ import { f1 } from '../texte'
 import type { Rechnung, StreifenErgebnis } from './typen'
 import type { TempoAmtlich } from './tempo'
 import { vonHandAusFall, streifenHerkunftText, istTrottoirueberfahrt, type Fall } from '../fall'
-import { streifenTitel } from '../benennung'
+import { titelImFall } from '../benennung'
 
 const BRUECKE_UMRISS_M = 0.5
 const HAND_SCHRAEG_MAX = 60 * Math.PI / 180
@@ -203,7 +203,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   if (fall.streifenHand.length) {
     quelle = 'hand'
     const kurz = fall.streifenHand.filter(h => dist(h.p0, h.p1) < HAND_MIN_M)
-    if (kurz.length) meldungen.push(`Streifen von Hand kürzer als ${HAND_MIN_M} m übergangen: ${kurz.map(h => streifenTitel(h.id, fall.streifenHand)).join(', ')}`)
+    if (kurz.length) meldungen.push(`Streifen von Hand kürzer als ${HAND_MIN_M} m übergangen: ${kurz.map(h => titelImFall(h.id, fall)).join(', ')}`)
     const lang = fall.streifenHand.filter(h => dist(h.p0, h.p1) >= HAND_MIN_M)
     // Übergangskennung: gemeinsam nur für Teilstreifen auf einer Achse (streifen.handGruppen; bis 16.10.2026 'hand' für alle)
     const gruppe = handGruppen(lang)

@@ -20,6 +20,7 @@ import { leererFall, fallLesen, fallSchreiben, zufahrtSchluessel, naechsteHandId
 import { markierung, markierungHinweis, planungHinweis, knotenLage } from '../daten/osm'
 import type { Konflikt } from './typen'
 import { befundblaetter } from '../bedarf/befundblatt'
+import { streifenArt, streifenTitel } from '../benennung'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number): [number, number] => wgs(O[0] + x, O[1] + y)
@@ -195,12 +196,16 @@ describe('Markierung des OSM-Übergangs (Variante B)', () => {
       'Sichtweite nach VSS 40 240 Z. 8.2; für einen geplanten Fussgängerstreifen unter «Querung» Fussgängerstreifen wählen.')
     expect(r.streifen.length).toBeGreaterThan(0)
     expect(r.streifen.every(s => s.querungAnnahme === r.hinweis && s.querung?.typ === 'ohne_vortritt' && !s.keinFgsHinweis)).toBe(true)
+    // Name (30.10.2026): angenommene Querung ohne Vortritt «Querung 12», gewählter Fussgängerstreifen «Streifen 12», Furt «Querung 12»
+    expect(r.streifen.map(s => streifenTitel(s.fgsId, [], streifenArt(s)))).toEqual(r.streifen.map(s => `Querung ${s.fgsId}`))
     const g = rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), AV, [], 12, fallMit(x => { x.streifen['12'] = { typ: 'fgs' } }), null)
     expect(g.hinweis).toMatch(/^Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug/)
     expect(g.streifen.every(s => s.keinFgsHinweis === g.hinweis && !s.querung && !s.querungAnnahme)).toBe(true)
+    expect(g.streifen.map(s => streifenArt(s))).toEqual(g.streifen.map(() => 'fgs'))
     // gespeicherte Wahl bleibt: Furt von Hand ohne Annahme
     const f = rechneFall(daten({}, { highway: 'crossing', crossing: 'unmarked' }), AV, [], 12, fallMit(x => { x.streifen['12'] = { typ: 'furt' } }), null)
     expect(f.streifen.every(s => s.querung?.typ === 'furt' && !s.querungAnnahme)).toBe(true)
+    expect(f.streifen.map(s => streifenArt(s))).toEqual(f.streifen.map(() => 'querung'))
     // ohne Angabe zur Art (unbelegt) ebenso; vermutlich markiert (uncontrolled) bleibt Fussgängerstreifen
     const u = rechneFall(daten({}, { highway: 'crossing' }), AV, [], 12, fallMit(() => {}), null)
     expect(u.streifen.every(s => s.querung?.typ === 'ohne_vortritt' && s.querungAnnahme)).toBe(true)

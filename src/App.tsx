@@ -61,7 +61,7 @@ import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
   querungAusserhalb, querungWegText, querungVerschobenText, type OrtEntscheid, type Ausserhalb } from './abdeckung'
 import { koordText, vorzeichenText, vermassungTabelle, fixpunktMasse, type Vermassung } from './rechner/vermassung'
-import { streifenTitel, zufahrtNamen, zufahrtLang, zufahrtNr, zufahrtText, entfallenLang, entfallenNr, wegNamen, zufahrtHerkunft16, NUMMERN_TEXT, nachNr,
+import { streifenTitel, streifenKopf, streifenArt, streifenArtVon, streifenWort, titelImFall, zufahrtNamen, zufahrtLang, zufahrtNr, zufahrtText, entfallenLang, entfallenNr, wegNamen, zufahrtHerkunft16, NUMMERN_TEXT, nachNr,
   type ZufahrtNamen } from './benennung'
 import { planTitel, planFlaecheM2, planAlsAv, avMitPlan, PLAN_NAME, eckeRunden, eckeAmPunkt, eckeRadiusMax, echteEcken, eckeGrenze, eckeGrenzeText, RUNDEN_R_VORGABE, RUNDEN_R_BEREICH, ECK_GROSS_M } from './rechner/planflaechen'
 import { mitTiteln } from './bedarf/regelname'
@@ -1037,11 +1037,11 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         const a = sub(h.p1, h.p0), m: P = [(h.p0[0] + h.p1[0]) / 2, (h.p0[1] + h.p1[1]) / 2]
         const balken = (e ? balkenAusUmriss(einheitP(a), e.umriss) : null) ?? h.richtung ?? fahrbahnRichtung(inselNetz, m)
         const gruppe = e ? lang.filter(x => erg.find(y => y.fgsId === x.id)?.uebergangId === e.uebergangId) : [h]
-        return { id: h.id, titel: streifenTitel(h.id, fall.streifenHand), p0: h.p0, p1: h.p1, breite: h.breite, balken, hand: true,
+        return { id: h.id, titel: titelImFall(h.id, fall, erg), p0: h.p0, p1: h.p1, breite: h.breite, balken, hand: true,
           gruppe: gruppe.map(x => ({ id: x.id, p0: x.p0, p1: x.p1 })) }
       })
     }
-    return erg.map(e => ({ id: e.fgsId, titel: `Streifen ${e.fgsId} (${rechnung?.streifenQuelle === 'luftbild' ? 'Luftbild' : 'OSM + AV'})`,
+    return erg.map(e => ({ id: e.fgsId, titel: `${streifenWort(streifenArt(e))} ${e.fgsId} (${rechnung?.streifenQuelle === 'luftbild' ? 'Luftbild' : 'OSM + AV'})`,
       p0: e.p0, p1: e.p1, breite: e.bw, balken: balkenAusUmriss(einheitP(sub(e.p1, e.p0)), e.umriss), hand: false,
       gruppe: erg.filter(x => x.uebergangId === e.uebergangId).map(x => ({ id: x.fgsId, p0: x.p0, p1: x.p1 })) }))
   }, [inselAktiv, fall, rechnung, inselNetz])
@@ -1095,7 +1095,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       streifenHand: structuredClone(fall.streifenHand), teilungVorher: teilung })
     aendern(f => { srErsetzen(f, e.fp.id, e.st, neu); return f })
     setMeldung(`${SR_NAME} um ${f2(dist(neu.k, e.st.k))} m entlang der Bordkante verschoben` +
-      (ids.length ? `; Ende von ${ids.map(id => streifenTitel(id, fall.streifenHand)).join(', ')} nachgeführt` : '') +
+      (ids.length ? `; Ende von ${ids.map(id => titelImFall(id, fall)).join(', ')} nachgeführt` : '') +
       '. Zurück mit «Verschiebung zurücknehmen» unter «Flächen (Plan)».')
   }
   /** Masse ändern (Liste «Flächen (Plan)») */
@@ -1137,7 +1137,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     else {
       if (r.abAchseM !== null && r.abAchseM > 0.05) hinweise.push(`Mitte ${f2(r.abAchseM)} m neben der Achse der Teilstreifen.`)
       // Streifen von Hand, die danach in die Insel reichen (Teilstreifen nicht bzw. nur einer erkannt, ungeteilter Streifen)
-      if (r.inInsel.length) hinweise.push(`${r.inInsel.map(id => streifenTitel(id, fall.streifenHand)).join(', ')} reicht in die Insel bzw. quert sie (nicht mitgeführt): ` +
+      if (r.inInsel.length) hinweise.push(`${r.inInsel.map(id => titelImFall(id, fall)).join(', ')} reicht in die Insel bzw. quert sie (nicht mitgeführt): ` +
         'Enden prüfen bzw. «als zwei Teilstreifen zeichnen».')
     }
     if (zugBoden) {
@@ -1199,7 +1199,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       setTeilung({ ...teilung, teil1: structuredClone(r.streifen.find(x => x.id === teilung.id)!),
         teil2: structuredClone(r.streifen.find(x => x.id === teilung.neuId)!) })
     setMeldung(`Mittelinsel um ${f2(dist(m, st.m))} m ${frei ? 'frei ' : 'entlang der Achse '}verschoben` +
-      (r.teilIds.length ? `; Teilstreifen ${r.teilIds.map(id => streifenTitel(id, fall.streifenHand)).join(' und ')} an die Inselkanten nachgeführt` : '') +
+      (r.teilIds.length ? `; Teilstreifen ${r.teilIds.map(id => titelImFall(id, fall)).join(' und ')} an die Inselkanten nachgeführt` : '') +
       `.${a.hinweise.length ? ` ${mitTiteln(a.hinweise.join(' '))}` : ''} Zurück mit «Verschiebung zurücknehmen» unter «Flächen (Plan)».`)
   }, [planListe, fall, zugAuswerten, teilung, aendern, inselFrei])
   // Griffe der Mittelinseln und der vorgezogenen Seitenräume (Kennung sr-…); Ziehen und Loslassen nach der Art des Elements
@@ -1292,7 +1292,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     setTeilung(rueck ? { ...rueck, gruppe } : null)
     setInselOrt(null); setWerkzeug(null)
     setMeldung(`${standardText(masse)} eingefügt als ${ids.map(planTitel).join(', ')} (Art Insel${furtFahrbahn ? '; Furt als Fahrbahn' : ''}).` +
-      (neuId && k ? ` ${k.titel} an der Insel in zwei Teilstreifen geteilt (${streifenTitel(k.id, fall.streifenHand)} und ein neuer Teil)` +
+      (neuId && k ? ` ${k.titel} an der Insel in zwei Teilstreifen geteilt (${titelImFall(k.id, fall)} und ein neuer Teil)` +
         `${verschoben ? `; ${verschoben} Eingabe(n) je Zufahrt an den zweiten Teil übertragen – bitte prüfen` : ''}; zurück mit ` +
         '«Teilung zurücknehmen» beim Streifen.' : '') +
       (k && k.hand && !neuId ? ' Der Streifen von Hand ist nicht geteilt: die Rechnung meldet «als zwei Teilstreifen zeichnen».' : ''))
@@ -1369,7 +1369,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const { id, hand } = einfuegen(structuredClone(fall))
     aendern(f => { einfuegen(f); return f })
     setWerkzeug(null)
-    const titelS = fall.streifenHand.length ? streifenTitel(e.fgsId, fall.streifenHand) : `Streifen ${e.fgsId}`
+    const titelS = fall.streifenHand.length ? streifenTitel(e.fgsId, fall.streifenHand, streifenArt(e)) : `${streifenWort(streifenArt(e))} ${e.fgsId}`
     const text = `${SR_NAME} als ${planTitel(id)} (Trottoir) an ${titelS}, Ende ${k ? 'B' : 'A'}: ` +
       (v.park && v.park.quelle === 'parkierung' ? `Parkstreifen ${f2(st.tiefePark)} m aus der Parkierung (${v.park.ids.length} Feld(er)` +
         `${v.park.versetzt ? '; Bordkante versetzt (Nase/Bucht): Tiefe gegen die Kante am Streifen gemessen, bitte prüfen' : ''})` :
@@ -1567,7 +1567,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const b = bearbeiten
     laden(neu.ort.lat, neu.ort.lon, neu.ort.uebergang, neu)
     if (b && neu.streifenHand.some(x => x.id === b)) setBearbeiten(b)      // «verschieben» bleibt offen
-    setLadeHinweis({ text: nachladenText(e, 'geaendert', f.ort.uebergang, f.streifenHand.length, id => streifenTitel(id, f.streifenHand)),
+    setLadeHinweis({ text: nachladenText(e, 'geaendert', f.ort.uebergang, f.streifenHand.length, id => titelImFall(id, f, rechnung?.streifen)),
       verwerfen: false })
   }
   // Streifen von Hand ausserhalb der Abdeckung um den Ladeort; gemeldet beim Streifen (Panel, Bericht), gesammelt nur die ohne
@@ -1705,10 +1705,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const zNamen = useMemo(() => new Map((rechnung?.streifen ?? []).map(s => [s.fgsId, zufahrtNamen(s, w => osmWegNamen.get(w) ?? null)])),
     [rechnung, osmWegNamen])
   const handListe = fall?.streifenHand
-  // Trottoirüberfahrt (27.10.2026): «Trottoirüberfahrt 1» statt «Streifen 1»
+  // Trottoirüberfahrt (27.10.2026): «Trottoirüberfahrt 1» statt «Streifen 1»; Querung, die kein Fussgängerstreifen ist (30.10.2026):
+  // «Querung 1» – Art aus der Rechnung (auch die angenommene Querung ohne Vortritt an einer unmarkierten OSM-Querung), sonst aus der Wahl
   const streifenWahl = fall?.streifen
-  const titel = useCallback((id: string) => streifenTitel(id, handListe ?? [], streifenWahl?.[id]?.typ === 'trottoirueberfahrt' && !streifenWahl[id]?.keinFgs),
-    [handListe, streifenWahl])
+  const rechnungStreifen = rechnung?.streifen
+  const titel = useCallback((id: string) => streifenTitel(id, handListe ?? [], streifenArtVon(id, rechnungStreifen, streifenWahl)),
+    [handListe, streifenWahl, rechnungStreifen])
   // Bedarfsmodul E1: Ebenen nach dem Ort (BFS bzw. Kanton der AV-Fläche an der Streifenmitte, sonst aller geladenen AV-Flächen)
   const bedarfVorgabe = useMemo(() => {
     const m = rechnung?.streifen[0]?.m
@@ -2098,9 +2100,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                     <li key={s.id}>
                       <span className="farbe" style={{ background: '#fde047' }} />
                       {/* Name: erst beim Verlassen bzw. Enter übernommen (TextFeld), sonst rechnete jeder Tastendruck neu */}
-                      <TextFeld wert={s.name ?? ''} max={STREIFEN_NAME_MAX} platzhalter={streifenTitel(s.id, [], istTrottoirueberfahrt(fall, s.id))}
+                      <TextFeld wert={s.name ?? ''} max={STREIFEN_NAME_MAX} platzhalter={titelImFall(s.id, { ...fall, streifenHand: [] }, rechnung?.streifen)}
                         titel={`Name ${istTrottoirueberfahrt(fall, s.id) ? 'der Überfahrt' : 'des Streifens'} ` +
-                        '(erscheint in Panel, Karte und Bericht statt «' + streifenTitel(s.id, [], istTrottoirueberfahrt(fall, s.id)) + '»); leer: Nummer. Enter bzw. Feld verlassen übernimmt'}
+                        '(erscheint in Panel, Karte und Bericht statt «' + titelImFall(s.id, { ...fall, streifenHand: [] }, rechnung?.streifen) + '»); leer: Nummer. Enter bzw. Feld verlassen übernimmt'}
                         setze={t => aendern(f => { const y = f.streifenHand.find(z => z.id === s.id); if (y) { if (t) y.name = t; else delete y.name } return f })} />
                       : {f1(dist(s.p0, s.p1))} m lang,{' '}
                       {/* Breite (Balkenlänge) änderbar; setzt «angepasst» nicht: das beschreibt verschobene Enden, die Breite steht
@@ -2656,7 +2658,8 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
     <section className="streifen">
       <h2>
         <span className="farbe" style={{ background: STATUS_FARBE[s.status] ?? '#64748b' }} />
-        {streifenTitel(s.fgsId, fall.streifenHand, !!s.trottoirueberfahrt)} {s.strasse && <>– {s.strasse}</>}{s.trottoirueberfahrt ? null : <>: {streifenStatus(s)}</>}
+        {/* ohne Strasse kein Leerzeichen vor dem Doppelpunkt (30.10.2026): «Querung 718541860: verdeckt …» */}
+        {streifenKopf(streifenTitel(s.fgsId, fall.streifenHand, streifenArt(s)), s.strasse)}{s.trottoirueberfahrt ? null : <>: {streifenStatus(s)}</>}
         {s.querung && <span className="klein"> (ohne Vortritt)</span>}
       </h2>
       <div className="klein zeile">
@@ -2712,7 +2715,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
         {s.trottoirueberfahrt ? <>Achse der Überfahrt {f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m (Masse der Überfahrt: Knotensicht)</>
           : <>Länge {f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m, Breite {f1(s.bw)} m</>}</p>
       {ausserhalb && <p className="klein warnung"><b>Ausserhalb der geladenen Daten:</b> {ausserhalbText(ausserhalb)}{' '}
-        <button className="zweit klein" onClick={neuLaden}>um {streifenTitel(s.fgsId, fall.streifenHand, !!s.trottoirueberfahrt)} neu laden</button></p>}
+        <button className="zweit klein" onClick={neuLaden}>um {streifenTitel(s.fgsId, fall.streifenHand, streifenArt(s))} neu laden</button></p>}
       {s.keinFgsHinweis && <p className="keinfgs klein">Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug.</p>}
       {s.querungAnnahme && <p className="pruefen klein">{s.querungAnnahme}</p>}
       {s.markierungHinweis && <p className="pruefen klein">Vermutlich Fussgängerstreifen (Markierung in OSM nicht erfasst), bitte prüfen.</p>}
@@ -2769,7 +2772,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           <summary className="klein" title={ENTFALLEN_ERKLAERUNG}>{ENTFALLEN_TITEL} ({s.entfallen.length})</summary>
           <table><tbody>
             {s.entfallen.map(e => {
-              const g = entfallenGrund(e, s, alleStreifen, fid => streifenTitel(fid, fall.streifenHand), (fid, z) => zufahrtLang(alleNamen.get(fid), z))
+              const g = entfallenGrund(e, s, alleStreifen, fid => titelImFall(fid, fall, alleStreifen), (fid, z) => zufahrtLang(alleNamen.get(fid), z))
               return <tr key={e.kennung + e.zufahrt} title={`Fahrtrichtung ${e.richtung}° (ab Osten gegen den Uhrzeigersinn)${g.zusatz ? `; Rechnung: ${g.zusatz}` : ''}`}>
                 <td><NrMarke nr={entfallenNr(namen, e)} />{entfallenLang(namen, e)}</td><td>{g.text}{g.kurz && <div className="klein">{g.kurz}</div>}
                 {e.grund === 'hand' && <button className="zweit klein" onClick={() => aendern(f => {

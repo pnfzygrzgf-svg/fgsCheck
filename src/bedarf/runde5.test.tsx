@@ -171,6 +171,9 @@ describe('Runde 5: Lesetext ohne Codes und Tags (Muster 4), Titel und Hinderniss
     expect(blattTitel({ id: 'x', streifen: [g.streifen[0], { ...g.streifen[0], fgsId: 'z' }] }, () => 'Streifen 5180148897-1'))
       .toBe('Querung Hauptstrasse (zwei Teile an der Insel)')
     expect(blattTitel(g, () => 'Streifen 1')).toBe('Streifen 1')
+    // 30.10.2026: Querung, die kein Fussgängerstreifen ist («Querung <Nr.>»): ebenfalls durch die Strasse ersetzt; von Hand bleibt der Titel
+    expect(blattTitel(g, () => 'Querung 718541860')).toBe('Querung Hauptstrasse')
+    expect(blattTitel(g, () => 'Querung 1')).toBe('Querung 1')
     expect(konfliktName({ klasse: 'auto', layer: 'Parkfeld_blau_APK_Parkfeld_blau_(APK)' })).toBe('Parkfeld (Parkkataster)')
   })
   it('Zusätze ohne Regelnummern; Typzeile «Falls zulässig» bei offener Zulässigkeit; Satz 4 mit Annahmen', () => {

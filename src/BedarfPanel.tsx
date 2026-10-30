@@ -699,9 +699,10 @@ export function kopfText(b: BefundBlatt): string {
 }
 /** gewählte Anlage ohne Vortritt (Satz 1 und Kopf, Runde 5) */
 const ANLAGE_NAME: Record<string, string> = { furt: 'Fussgängerfurt', ohne_vortritt: 'Querung ohne Vortritt', mehrzweck: 'Mehrzweckstreifen' }
-/** Überschrift einer Querung (Titel beginnt schon mit «Querung» bzw. ist ein Streifen von Hand) */
+/** Überschrift einer Querung (Titel beginnt schon mit «Querung» bzw. ist ein Streifen von Hand; «Querung 1» seit 30.10.2026 für eine
+ * Querung, die kein Fussgängerstreifen ist) */
 export const querungTitel = (b: BefundBlatt): string => (b.titel.startsWith('Querung') ? b.titel
-  : /^Streifen \d+( und Streifen \d+)*$/.test(b.titel) ? 'Querung, Streifen von Hand' : `Querung ${b.titel}`)
+  : /^Streifen \d+( und (Streifen|Querung) \d+)*$/.test(b.titel) ? 'Querung, Streifen von Hand' : `Querung ${b.titel}`)
 
 /**
  * Zusammenfassung einer Querung in drei Sätzen (Panel und Bericht): Antwort, das Wichtigste, was fehlt (Fragen springen im Panel zum

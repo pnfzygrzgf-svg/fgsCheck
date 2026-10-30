@@ -50,7 +50,7 @@
 import { type P, dist, lv95, wgs, kleinsterKreis } from './geo'
 import { KATASTER_PARK_M } from './rechner/vorschlaege'
 import { type Fall, ohneUebergang } from './fall'
-import { streifenTitel } from './benennung'
+import { streifenTitel, titelImFall } from './benennung'
 
 /** AV (Bodenbedeckung, Einzelobjekte): Rechteck ± so viel um den Ladeort */
 export const AV_RADIUS_M = 150
@@ -265,5 +265,5 @@ export function fallAmStreifen(f: Fall): { fall: Fall; entscheid: OrtEntscheid; 
   const e = ortEntscheid(f.streifenHand, ort, { querung: f.ort.uebergang !== null ? ort : null, querungSpielM: QUERUNG_M })
   if (!e.nachladen) return { fall: f, entscheid: e, hinweis: '' }
   return { fall: ortVerlegen(f, e), entscheid: e, hinweis: nachladenText(e, 'datei', f.ort.uebergang, f.streifenHand.length,
-    id => streifenTitel(id, f.streifenHand)) }
+    id => titelImFall(id, f)) }
 }
