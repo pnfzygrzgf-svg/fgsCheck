@@ -66,12 +66,10 @@ function mock(antworten: Record<number, unknown>, fehler: number[] = []) {
 }
 const ALLE = {
   4: gj([linieGj(11, 'RP-Inhalt-Basisnetz Fussweg_bestehend', [lv(3, -20), lv(3, 20)])]),
-  1: gj([linieGj(21, 'RP-Inhalt-Massnahme 1. Prio', [lv(-30, -20), lv(-30, 20)])]),
-  3: gj([linieGj(31, 'Massnahme 2. Priorität ausserhalb Bern', [lv(60, -20), lv(60, 20)])]),
-  2: gj([flaecheGj(41, 'RP-Inhalt-Massnahme 1. Prio', 'Platz', [lv(-10, -10), lv(10, -10), lv(10, 10), lv(-10, 10)])]),
-  6: gj([flaecheGj(61, 'RP-Inhalt-Massnahme 1. Prio', 'RP-Inhalt Symbollinie', [lv(100, 0), lv(110, 0), lv(110, 10)])]),
   7: gj([flaecheGj(71, 'RP-Hinweis-publikumsattraktive Bereiche', 'Bahnhof', [lv(-50, -50), lv(50, -50), lv(50, 50), lv(-50, 50)]),
-    flaecheGj(72, 'RP-Hinweis-anderes', null, [lv(0, 0), lv(1, 0), lv(1, 1)])]),
+    flaecheGj(72, 'RP-Hinweis-publikumsattraktive Bereiche', 'Markt', [lv(-10, -10), lv(10, -10), lv(10, 10), lv(-10, 10)]),
+    flaecheGj(73, 'RP-Hinweis-anderes', null, [lv(0, 0), lv(1, 0), lv(1, 1)]),
+    flaecheGj(74, 'RP-Hinweis-publikumsattraktive Bereiche', 'RP-intern', [lv(200, 200), lv(210, 200), lv(210, 210)])]),
 }
 
 describe('Ebene «Richtplan Fussverkehr (Geoportal Bern)»: Verfügbarkeit, Abfragen', () => {
@@ -81,8 +79,8 @@ describe('Ebene «Richtplan Fussverkehr (Geoportal Bern)»: Verfügbarkeit, Abfr
     expect(rpVerfuegbar({ s: 47.37, w: 8.53, n: 47.38, e: 8.55 })).toBe(false)           // Zürich
     expect(rpVerfuegbar({ s: 46.95, w: 7.52, n: 46.96, e: 7.6 })).toBe(false)            // östlich der Stadt
   })
-  it('Layer 4, 1, 3, 2, 6, 7 (ohne Wanderwege 5), Rechteck in LV95, GeoJSON; Abfrage-Rechteck mit Rand auf 250 m gerundet', () => {
-    expect(RP_KARTE_LAYER.map(l => l.layer)).toEqual([4, 1, 3, 2, 6, 7])
+  it('nur Layer 4 (Basisnetz) und 7 (publikumsattraktive Bereiche), Rechteck in LV95, GeoJSON; Abfrage-Rechteck mit Rand auf 250 m gerundet', () => {
+    expect(RP_KARTE_LAYER.map(l => [l.layer, l.art])).toEqual([[4, 'basisnetz'], [7, 'publikum']])
     const u = rpKarteUrl(7, [2600000, 1199000, 2601000, 1200000], true)
     expect(u).toContain('/Richtplan_Fussverkehr/MapServer/7/query?')
     expect(u).toContain('geometry=2600000%2C1199000%2C2601000%2C1200000')
@@ -91,24 +89,29 @@ describe('Ebene «Richtplan Fussverkehr (Geoportal Bern)»: Verfügbarkeit, Abfr
     expect(rpAbfrageBox([2600010, 1199990, 2600810, 1200390])).toEqual([2599750, 1199750, 2601250, 1200500])
   })
   it('laden: je Layer eine Abfrage; danach aus dem Zwischenspeicher; ein Fehler betrifft nur seinen Layer', async () => {
-    const cache: RpCache = new Map(), m = mock(ALLE, [3])
+    const cache: RpCache = new Map(), m = mock(ALLE, [7])
     const box: Box = [O[0] - 500, O[1] - 500, O[0] + 500, O[1] + 500]
     const r = await rpLaden(box, cache, null, undefined, m.holen)
-    expect(m.urls.length).toBe(6)
-    expect(r.fehler).toEqual(['massnahme2'])
+    expect(m.urls.length).toBe(2)
+    expect(r.fehler).toEqual(['publikum'])
     expect(r.objekte.basisnetz.map(o => o.id)).toEqual(['bernrp:11'])
-    expect(r.objekte.publikum.map(o => [o.id, o.name])).toEqual([['bernrph:71', 'Bahnhof']])   // anderer Hinweis entfällt
-    expect(r.objekte.symbollinie[0].name).toBeNull()                                          // interner Name «RP-…» entfällt
-    const r2 = await rpLaden([O[0] - 100, O[1] - 100, O[0] + 100, O[1] + 100], cache, null, undefined, m.holen)
-    expect(m.urls.length).toBe(7)                                                             // nur der fehlgeschlagene Layer neu
-    expect(r2.objekte.massnahme1Flaeche[0].name).toBe('Platz')
+    expect(r.objekte.publikum).toEqual([])
+    const ok = mock(ALLE)
+    const r2 = await rpLaden([O[0] - 100, O[1] - 100, O[0] + 100, O[1] + 100], cache, null, undefined, ok.holen)
+    expect(ok.urls.map(u => Number(/MapServer\/(\d+)/.exec(u)![1]))).toEqual([7])                // nur der fehlgeschlagene Layer neu
+    // anderer Hinweis entfällt, interner Name «RP-…» entfällt
+    expect(r2.objekte.publikum.map(o => [o.id, o.name])).toEqual([['bernrph:71', 'Bahnhof'], ['bernrph:72', 'Markt'], ['bernrph:74', null]])
+    expect(r2.objekte.basisnetz.map(o => o.id)).toEqual(['bernrp:11'])
   })
-  it('Daten der Vorbelegung decken den Ausschnitt: Basisnetz und Bereiche ohne Abfrage', async () => {
+  it('Daten der Vorbelegung decken den Ausschnitt: keine Abfrage; sonst beide Layer', async () => {
     const m = mock(ALLE)
     const vor = { box: [O[0] - 150, O[1] - 150, O[0] + 150, O[1] + 150] as Box, objekte: rpAusVorbelegung(RP) }
     const r = await rpLaden([O[0] - 100, O[1] - 100, O[0] + 100, O[1] + 100], new Map(), vor, undefined, m.holen)
-    expect(m.urls.map(u => Number(/MapServer\/(\d+)/.exec(u)![1])).sort()).toEqual([1, 2, 3, 6])
+    expect(m.urls).toEqual([])
     expect(r.objekte.basisnetz.map(o => o.id)).toEqual(['a', 'b', 'c', 'd'])
+    expect(r.objekte.publikum.map(o => o.id)).toEqual(['p', 'q'])
+    await rpLaden([O[0] - 400, O[1] - 400, O[0] + 400, O[1] + 400], new Map(), vor, undefined, m.holen)
+    expect(m.urls.length).toBe(2)
     expect(bereichBox({ mitte: O, radiusM: 150, form: 'quadrat' })).toEqual([O[0] - 150, O[1] - 150, O[0] + 150, O[1] + 150])
   })
   it('Abbruch bricht das Laden ab (kein Eintrag im Zwischenspeicher)', async () => {
@@ -120,27 +123,20 @@ describe('Ebene «Richtplan Fussverkehr (Geoportal Bern)»: Verfügbarkeit, Abfr
 })
 
 describe('Ebene «Richtplan Fussverkehr»: Darstellung, Tooltip, Treffer, Legende', () => {
-  it('Stil je Art: Magenta, Basisnetz durchgezogen 3 px (genutzt 5 px), Massnahmen gestrichelt bzw. punktiert, Flächen schraffiert bzw. blass', () => {
-    expect(rpStil('basisnetz')).toMatchObject({ flaeche: false, color: RP_FARBE, weight: 3 })
+  it('Stil: Magenta, Basisnetz durchgezogen 3 px (genutzt 5 px), Bereiche blass gefüllt mit gestricheltem Rand', () => {
+    expect(rpStil('basisnetz')).toMatchObject({ flaeche: false, color: RP_FARBE, weight: 3, fill: false })
     expect(rpStil('basisnetz').dashArray).toBeUndefined()
     expect(rpStil('basisnetz', true).weight).toBe(5)
-    expect(rpStil('massnahme1')).toMatchObject({ weight: 3, dashArray: '8 5' })
-    expect(rpStil('massnahme2')).toMatchObject({ weight: 2, lineCap: 'round' })
-    expect(rpStil('massnahme1Flaeche')).toMatchObject({ flaeche: true, fill: 'muster' })
-    expect(rpStil('symbollinie').fill).toBe('muster')
-    expect(rpStil('publikum')).toMatchObject({ flaeche: true, fill: 'farbe', dashArray: '6 4' })
+    expect(rpStil('publikum')).toMatchObject({ flaeche: true, color: RP_FARBE, fill: 'farbe', dashArray: '6 4' })
     expect(rpStil('publikum').fillOpacity).toBeCloseTo(0.12, 6)
     // abseits der AV-Farben
     expect(Object.values({ Strasse_Weg: '#6e6e6e', Trottoir: '#e6e6c8', Verkehrsinsel: '#96c878', Gebaeude: '#3f3f46' })).not.toContain(RP_FARBE)
   })
-  it('Tooltip: Art, Name bzw. Zusatz, bei der genutzten Linie der Abstand; Herkunft', () => {
+  it('Tooltip: Art, Name, bei der genutzten Linie der Vermerk (ohne Abstand); Herkunft', () => {
     expect(rpTooltip({ art: 'basisnetz', name: null })).toEqual({ titel: 'Basisnetz Fussweg (bestehend)', quelle: 'Richtplan Fussverkehr, Geoportal Stadt Bern' })
-    expect(rpTooltip({ art: 'basisnetz', name: null }, 3).titel)
-      .toBe('Basisnetz Fussweg (bestehend) – für die Prüfung genutzt, quert die Fahrbahn 3 m vom Streifen')
-    expect(rpTooltip({ art: 'basisnetz', name: null }, 0.2).titel).toContain('quert die Fahrbahn beim Streifen')
-    expect(rpTooltip({ art: 'massnahme1', name: null }).titel).toBe('Massnahme 1. Priorität (Linie)')
-    expect(rpTooltip({ art: 'massnahme2', name: null, zusatz: 'ausserhalb Bern' }).titel).toBe('Massnahme 2. Priorität (ausserhalb Bern)')
-    expect(rpTooltip({ art: 'massnahme1Flaeche', name: 'Platz' }).titel).toBe('Massnahme 1. Priorität (Fläche): Platz')
+    expect(rpTooltip({ art: 'basisnetz', name: null }, 3).titel).toBe('Basisnetz Fussweg (bestehend) – für die Prüfung genutzt')
+    expect(rpTooltip({ art: 'basisnetz', name: null }, 0).titel).toBe('Basisnetz Fussweg (bestehend) – für die Prüfung genutzt')
+    expect(rpTooltip({ art: 'basisnetz', name: null }, null).titel).toBe('Basisnetz Fussweg (bestehend)')
     expect(rpTooltip({ art: 'publikum', name: 'Bahnhof' }).titel).toBe('Publikumsattraktiver Bereich: Bahnhof')
     expect(rpTooltip({ art: 'publikum', name: null }).titel).toBe('Publikumsattraktiver Bereich')
   })
@@ -148,22 +144,23 @@ describe('Ebene «Richtplan Fussverkehr»: Darstellung, Tooltip, Treffer, Legend
     const r = await rpLaden([O[0] - 500, O[1] - 500, O[0] + 500, O[1] + 500], new Map(), null, undefined, mock(ALLE).holen)
     const alle = RP_KARTE_LAYER.flatMap(l => r.objekte[l.art])
     expect(rpTreffer(alle, lv(4, 0), 1.5)?.id).toBe('bernrp:11')                // nahe der Basisnetz-Linie (über den Flächen)
-    expect(rpTreffer(alle, lv(-5, 0), 1.5)?.id).toBe('bernrpm1f:41')            // in der Massnahme-Fläche (im grossen Bereich)
-    expect(rpTreffer(alle, lv(30, 30), 1.5)?.id).toBe('bernrph:71')             // nur im Bereich
+    expect(rpTreffer(alle, lv(-5, 0), 1.5)?.id).toBe('bernrph:72')              // im kleinen Bereich (im grossen)
+    expect(rpTreffer(alle, lv(30, 30), 1.5)?.id).toBe('bernrph:71')             // nur im grossen Bereich
     expect(rpTreffer(alle, lv(300, 300), 1.5)).toBeNull()
-    expect(rpTreffer(alle, lv(60.5, 0), 1)?.art).toBe('massnahme2')
     expect(rpToleranzM(6, 18, 46.95)).toBeCloseTo(2.45, 2)                        // 6 px bei Zoomstufe 18 in Bern
   })
-  it('Legende: eigene Marken mit denselben Namen, Stand (Zoomstufe, lädt, Fehler), genutzte Linie', () => {
+  it('Legende: eigene Marken (Basisnetz, Bereiche), Stand (Zoomstufe, lädt, Fehler), genutzte Linie', () => {
     const html = (stand: Parameters<typeof RichtplanLegende>[0]['stand'], genutzt = false) =>
       renderToStaticMarkup(<ul><RichtplanLegende stand={stand} genutzt={genutzt} netzM={15} /></ul>)
     const h = html({ an: true, zoom: true, laedt: false, fehler: [] }, true)
+    expect(RP_LEGENDE).toEqual(['basisnetz', 'publikum'])
     for (const a of RP_LEGENDE) expect(h).toContain(RP_NAME[a])
+    expect(h).not.toContain('Massnahme')
     expect((h.match(/class="rp-marke"/g) ?? []).length).toBe(RP_LEGENDE.length + 1)
     expect(h).toContain('die die Prüfung nutzt (quert die Fahrbahn bis 15 m vom Streifen)')
     expect(h).not.toContain('<img')
     expect(html({ an: true, zoom: false, laedt: false, fehler: [] })).toContain('erst ab Zoomstufe 15')
     expect(html({ an: true, zoom: true, laedt: true, fehler: [] })).toContain('lädt …')
-    expect(html({ an: true, zoom: true, laedt: false, fehler: ['massnahme2'] })).toContain('nicht erreichbar: Massnahme 2. Priorität')
+    expect(html({ an: true, zoom: true, laedt: false, fehler: ['publikum'] })).toContain('nicht erreichbar: Publikumsattraktiver Bereich')
   })
 })

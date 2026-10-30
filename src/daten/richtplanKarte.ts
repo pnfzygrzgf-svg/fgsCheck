@@ -2,9 +2,9 @@
 //
 // Ersetzt die WMS-Ebene (Rückmeldung 30.10.2026: Hover soll zeigen, was eine Linie bzw. Fläche ist; Flächen waren den AV-Flächen zu
 // ähnlich). Gleicher Dienst wie die Vorbelegung (richtplanFussverkehr.ts): ArcGIS REST «Richtplan_Fussverkehr», je Layer eine Abfrage
-// im Rechteck um den sichtbaren Ausschnitt (LV95, GeoJSON). REST-Layer: 1 Massnahme 1. Priorität (Linie), 2 Massnahme 1. Priorität
-// (Fläche), 3 Massnahme 2. Priorität (Linie), 4 Basisnetz Fussweg bestehend (Linie), 5 Wanderwege (nicht geladen), 6 Symbollinie
-// (Fläche), 7 Hinweis (Fläche, nur publikumsattraktive Bereiche). Eigene Darstellung in Magenta, abseits der AV-Farben (grau, beige,
+// im Rechteck um den sichtbaren Ausschnitt (LV95, GeoJSON). Geladen: Layer 4 Basisnetz Fussweg bestehend (Linie) und 7 Hinweis (Fläche,
+// nur publikumsattraktive Bereiche); die Massnahmen (1, 2, 3, 6) und Wanderwege (5) bleiben weg (Nutzerentscheid 30.10.2026).
+// Eigene Darstellung in Magenta, abseits der AV-Farben (grau, beige,
 // grün) und der Sichtfelder (grün, rot, orange, ocker). Die Ebene steht nur in der Ebenenwahl, solange die Karte die Stadt Bern zeigt,
 // ist anfangs aus und lädt erst eingeschaltet und ab RP_KARTE_ZOOM: erst dann geht der Ausschnitt an map.bern.ch.
 // Hier nur Daten, Darstellung und Treffer (rein, getestet); Laden und Zeichnen in Karte.tsx.
@@ -23,8 +23,6 @@ export const RP_QUELLE_TEXT = 'Richtplan Fussverkehr, Geoportal Stadt Bern'
 /** erst ab dieser Zoomstufe laden und zeichnen (darunter zu viele Objekte für den Ausschnitt) */
 export const RP_KARTE_ZOOM = 15
 export const RP_FARBE = '#be185d'
-/** SVG-Muster der schraffierten Massnahme-Flächen (Karte und Legende) */
-export const RP_MUSTER = 'fgs-richtplan'
 /** Ausdehnung der Stadt Bern (WGS84, gerundet wie das Orthofoto in VeloroutenCheck: LV95 2588000–2605000 / 1196000–1205000) */
 export const BERN_GRENZEN = { s: 46.91, w: 7.27, n: 47.0, e: 7.51 } as const
 
@@ -32,26 +30,24 @@ export const BERN_GRENZEN = { s: 46.91, w: 7.27, n: 47.0, e: 7.51 } as const
 export const rpVerfuegbar = (b: { s: number; w: number; n: number; e: number }): boolean =>
   b.s <= BERN_GRENZEN.n && b.n >= BERN_GRENZEN.s && b.w <= BERN_GRENZEN.e && b.e >= BERN_GRENZEN.w
 
-export type RpArt = 'basisnetz' | 'massnahme1' | 'massnahme2' | 'massnahme1Flaeche' | 'symbollinie' | 'publikum'
+export type RpArt = 'basisnetz' | 'publikum'
 export interface RpLayer { layer: number; art: RpArt; flaeche: boolean }
 /** geladene REST-Layer, in der Reihenfolge der Abfragen */
+// 30.10.2026 (Nutzerentscheid): nur Basisnetz und publikumsattraktive Bereiche; die Massnahmen (Layer 1, 2, 3, 6) bleiben weg
 export const RP_KARTE_LAYER: readonly RpLayer[] = [
-  { layer: 4, art: 'basisnetz', flaeche: false }, { layer: 1, art: 'massnahme1', flaeche: false },
-  { layer: 3, art: 'massnahme2', flaeche: false }, { layer: 2, art: 'massnahme1Flaeche', flaeche: true },
-  { layer: 6, art: 'symbollinie', flaeche: true }, { layer: 7, art: 'publikum', flaeche: true },
+  { layer: 4, art: 'basisnetz', flaeche: false }, { layer: 7, art: 'publikum', flaeche: true },
 ]
 /** Namen (Tooltip, Legende) */
 export const RP_NAME: Readonly<Record<RpArt, string>> = {
-  basisnetz: 'Basisnetz Fussweg (bestehend)', massnahme1: 'Massnahme 1. Priorität (Linie)', massnahme2: 'Massnahme 2. Priorität',
-  massnahme1Flaeche: 'Massnahme 1. Priorität (Fläche)', symbollinie: 'Massnahme 1. Priorität (Symbollinie)', publikum: 'Publikumsattraktiver Bereich',
+  basisnetz: 'Basisnetz Fussweg (bestehend)', publikum: 'Publikumsattraktiver Bereich',
 }
 /** Legende in Zeichenreihenfolge von oben: Linien, dann Flächen */
-export const RP_LEGENDE: readonly RpArt[] = ['basisnetz', 'massnahme1', 'massnahme2', 'massnahme1Flaeche', 'symbollinie', 'publikum']
+export const RP_LEGENDE: readonly RpArt[] = ['basisnetz', 'publikum']
 
 export type Box = [number, number, number, number]   // LV95: e0, n0, e1, n1
 
 /** Objekt der Ebene (LV95): Linienzüge bzw. Ringe, Name (Refname, ohne interne «RP-…»-Namen), Zusatz (z. B. ausserhalb Bern) */
-export interface RpObjekt { id: string; art: RpArt; geom: P[][]; name: string | null; zusatz?: string; box: Box }
+export interface RpObjekt { id: string; art: RpArt; geom: P[][]; name: string | null; box: Box }
 
 const boxVon = (geom: P[][]): Box => {
   let e0 = Infinity, n0 = Infinity, e1 = -Infinity, n1 = -Infinity
@@ -60,8 +56,7 @@ const boxVon = (geom: P[][]): Box => {
 }
 /** Präfix der Kennung je Art; Basisnetz und publikumsattraktive Bereiche wie richtplanFussverkehr.ts (gleiche Kennung wie die
  * Daten der Vorbelegung, damit die dort genutzte Linie hier hervorgehoben werden kann) */
-const PRAEFIX: Readonly<Record<RpArt, string>> = { basisnetz: 'bernrp', publikum: 'bernrph', massnahme1: 'bernrpm1', massnahme2: 'bernrpm2',
-  massnahme1Flaeche: 'bernrpm1f', symbollinie: 'bernrpsym' }
+const PRAEFIX: Readonly<Record<RpArt, string>> = { basisnetz: 'bernrp', publikum: 'bernrph' }
 const nameVon = (x: unknown): string | null => { const t = textFeld(x); return t && !/^RP[- ]/i.test(t) ? t : null }
 
 /** Antwort eines Layers -> Objekte; Features ohne Geometrie entfallen; Layer 7 nur publikumsattraktive Bereiche */
@@ -70,9 +65,8 @@ export function rpObjekte(l: RpLayer, gj: ArcgisGeoJson): RpObjekt[] {
     const geom = l.flaeche ? flaechenRinge(f) : linienTeile(f)
     const layer = textFeld(f.properties?.Layer) ?? ''
     if (!geom.length || (l.art === 'publikum' && layer && !/publikum/i.test(layer))) return []
-    const zusatz = l.art === 'massnahme2' && /ausserhalb/i.test(layer) ? 'ausserhalb Bern' : undefined
     return [{ id: featureId(PRAEFIX[l.art], f, i), art: l.art, geom, name: l.flaeche ? nameVon(f.properties?.Refname) : null,
-      ...(zusatz ? { zusatz } : {}), box: boxVon(geom) }]
+      box: boxVon(geom) }]
   })
 }
 /** Daten der Vorbelegung (Basisnetz, publikumsattraktive Bereiche) als Objekte der Ebene */
@@ -148,26 +142,21 @@ export async function rpLaden(box: Box, cache: RpCache, vorhanden: RpVorhanden |
 
 // ── Darstellung und Tooltip ──
 
-/** Stil je Art (Leaflet-Pfad): Linien durchgezogen, gestrichelt bzw. punktiert; Massnahme-Flächen schraffiert, Bereiche blass gefüllt
+/** Stil je Art (Leaflet-Pfad): Basisnetz durchgezogen, Bereiche blass gefüllt
  * mit gestricheltem Rand; genutzt: die Basisnetz-Linie der Vorbelegung kräftiger */
-export interface RpStil { flaeche: boolean; color: string; weight: number; opacity: number; dashArray?: string; lineCap?: 'round' | 'butt'
-  fill: false | 'muster' | 'farbe'; fillOpacity: number }
+export interface RpStil { flaeche: boolean; color: string; weight: number; opacity: number; dashArray?: string
+  fill: false | 'farbe'; fillOpacity: number }
 export function rpStil(art: RpArt, genutzt = false): RpStil {
   const F = RP_FARBE
   switch (art) {
     case 'basisnetz': return { flaeche: false, color: F, weight: genutzt ? 5 : 3, opacity: genutzt ? 1 : 0.85, fill: false, fillOpacity: 0 }
-    case 'massnahme1': return { flaeche: false, color: F, weight: 3, opacity: 0.85, dashArray: '8 5', fill: false, fillOpacity: 0 }
-    case 'massnahme2': return { flaeche: false, color: F, weight: 2, opacity: 0.85, dashArray: '1 5', lineCap: 'round', fill: false, fillOpacity: 0 }
-    case 'massnahme1Flaeche': case 'symbollinie':
-      return { flaeche: true, color: F, weight: 1.5, opacity: 0.8, fill: 'muster', fillOpacity: 1 }
     case 'publikum': return { flaeche: true, color: F, weight: 1.5, opacity: 0.7, dashArray: '6 4', fill: 'farbe', fillOpacity: 0.12 }
   }
 }
-const wo = (d: number) => (Math.round(d) === 0 ? 'beim Streifen' : `${Math.round(d)} m vom Streifen`)
-/** Tooltip: Titel (Art, Name, Zusatz, bei der genutzten Linie der Abstand) und Herkunft */
-export function rpTooltip(o: Pick<RpObjekt, 'art' | 'name' | 'zusatz'>, genutztM?: number | null): { titel: string; quelle: string } {
-  const titel = `${RP_NAME[o.art]}${o.name ? `: ${o.name}` : ''}${o.zusatz ? ` (${o.zusatz})` : ''}` +
-    (genutztM !== undefined && genutztM !== null ? ` – für die Prüfung genutzt, quert die Fahrbahn ${wo(genutztM)}` : '')
+/** Tooltip: Titel (Art, Name, Vermerk der genutzten Linie) und Herkunft */
+export function rpTooltip(o: Pick<RpObjekt, 'art' | 'name'>, genutztM?: number | null): { titel: string; quelle: string } {
+  const titel = `${RP_NAME[o.art]}${o.name ? `: ${o.name}` : ''}` +
+    (genutztM !== undefined && genutztM !== null ? ' – für die Prüfung genutzt' : '')
   return { titel, quelle: RP_QUELLE_TEXT }
 }
 
@@ -181,7 +170,7 @@ function abstandSegment(p: P, a: P, b: P): number {
 const nahe = (b: Box, p: P, r: number) => p[0] >= b[0] - r && p[0] <= b[2] + r && p[1] >= b[1] - r && p[1] <= b[3] + r
 /**
  * Objekt unter dem Punkt (LV95): zuerst die nächste Linie bis tolM (Linien liegen über den Flächen), sonst die kleinste Fläche, die den
- * Punkt enthält (Massnahme vor dem grossen Bereich); null ohne Treffer
+ * Punkt enthält; null ohne Treffer
  */
 export function rpTreffer(objekte: readonly RpObjekt[], p: P, tolM: number): RpObjekt | null {
   let best: RpObjekt | null = null, bd = Infinity

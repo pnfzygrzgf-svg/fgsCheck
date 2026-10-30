@@ -197,7 +197,7 @@ export function Anleitung() {
             belegt sie Tempo, Strecke oder Zone (Tempo 30 ohne Zonenangabe nach der Strassenhierarchie, als Annahme), Strassentyp,
             besonderen Grund für Vortritt, Fusswegnetz, ertastbare Markierungen, Gewerbe und bebautes Gebiet, Linienbus, Tramhalt und an
             einer Kreuzung die Vortrittsrolle vor; was die Daten nicht klären, bleibt offen. Die Ebene «Richtplan Fussverkehr (Geoportal
-            Bern)» (in der Stadt Bern, anfangs aus, ab Zoomstufe 15) zeigt Basisnetz, Massnahmen und publikumsattraktive Bereiche in Magenta;
+            Bern)» (in der Stadt Bern, anfangs aus, ab Zoomstufe 15) zeigt das Basisnetz und die publikumsattraktiven Bereiche in Magenta;
             die Maus über einer Linie bzw. Fläche nennt, was es ist. Die Basisnetz-Linie, aus der die App das Fusswegnetz vorbelegt, ist
             dort kräftiger gezeichnet. Bleibt eine Regel dank einer solchen Angabe ohne Befund, nennt die Zeile im Thema den Grund (z. B. «Wenig
             Querende: ohne Befund – Querung im Fusswegnetz (Geoportal Stadt Bern)»). Ein Verbot (Tempo-30-Zone ohne besonderen

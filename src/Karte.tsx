@@ -26,7 +26,7 @@ import { veloSoll, type VeloSoll } from './veloSicht'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { LUFTBILD_FGS_NAME, kandidatTooltip, type KandidatAnzeige, type LuftbildKandidat } from './daten/luftbildFgs'
 import type { FusswegnetzKarte } from './fusswegnetzKarte'
-import { RP_FARBE, RP_KARTE_LAYER, RP_KARTE_NAME, RP_KARTE_QUELLE, RP_KARTE_ZOOM, RP_MUSTER, bereichBox, rpAbfrageBox, rpAusVorbelegung,
+import { RP_KARTE_LAYER, RP_KARTE_NAME, RP_KARTE_QUELLE, RP_KARTE_ZOOM, bereichBox, rpAbfrageBox, rpAusVorbelegung,
   rpLaden, rpStil, rpToleranzM, rpTooltip, rpTreffer, rpVerfuegbar, type Box, type RpArt, type RpCache, type RpObjekt,
   type RpVorhanden } from './daten/richtplanKarte'
 import type { RichtplanDaten } from './daten/richtplanFussverkehr'
@@ -67,9 +67,6 @@ function PlanMuster() {
             <line x1="0" y1="0" x2="0" y2="7" stroke={PLAN_FARBEN[a].linie} strokeWidth="2" />
           </pattern>
         ))}
-        <pattern id={RP_MUSTER} width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <line x1="0" y1="0" x2="0" y2="8" stroke={RP_FARBE} strokeWidth="1.5" strokeOpacity="0.55" />
-        </pattern>
       </defs>
     </svg>
   )
@@ -506,9 +503,9 @@ export default function Karte(props: {
         const st = rpStil(o.art, genutzt.has(o.id))
         if (st.flaeche !== flaeche) continue
         const opt = { pane: flaeche ? FWN_FLAECHE_PANE : FWN_PANE, interactive: false, color: st.color, weight: st.weight, opacity: st.opacity,
-          ...(st.dashArray ? { dashArray: st.dashArray } : {}), ...(st.lineCap ? { lineCap: st.lineCap } : {}) }
+          ...(st.dashArray ? { dashArray: st.dashArray } : {}) }
         if (flaeche) L.polygon(o.geom.map(r => r.map(ll)), { ...opt, fill: true, fillOpacity: st.fillOpacity,
-          fillColor: st.fill === 'muster' ? `url(#${RP_MUSTER})` : st.color }).addTo(rpGruppe)
+          fillColor: st.color }).addTo(rpGruppe)
         else L.polyline(o.geom.map(z => z.map(ll)), opt).addTo(rpGruppe)
       }
     }
