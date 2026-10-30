@@ -65,8 +65,11 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    Planung neuer Streifen: «Streifen planen» (Gruppe «Planen»; ohne geladenen Ort oben im Panel) zeichnet einen Streifen an
    beliebiger Stelle; liegt er ausserhalb der geladenen Daten, lädt die App AV, OSM und Kataster um die Streifen neu
    (`src/abdeckung.ts`, abgedeckt ist ein Streifen ganz innert 30 m vom Ladeort; mehrere Streifen bis rund 60 m
-   Spannweite in einem Fall). An einem Übergang ohne Fussgängerstreifen heisst der Knopf «Querung als geplanten Streifen
-   übernehmen und anpassen». Die Breite eines Streifens von Hand lässt sich in der Liste ändern. «Lage und Masse» zeigt je
+   Spannweite in einem Fall). Liegt eine Querung aus OSM bzw. dem Luftbild falsch, verschiebt «Lage der Querung anpassen»
+   sie als Streifen von Hand (Feld `StreifenHand.bestand` mit der Kennung der Querung; Fall-Datei Version 5, nur wenn der
+   Übergang kein Fussgängerstreifen ist): Querungsart (auch die Annahme an einer unmarkierten OSM-Querung bzw. in der
+   Begegnungszone), Lichtsignal, Bestand und Name bleiben wie an der Querung; ein geplanter Fussgängerstreifen entsteht erst
+   mit der Wahl «Fussgängerstreifen (geplant bzw. zu prüfen)» unter «Querung». Ebenso «Luftbild-Streifen übernehmen und anpassen». Die Breite eines Streifens von Hand lässt sich in der Liste ändern. «Lage und Masse» zeigt je
    Streifen von Hand die LV95-Koordinaten der Achsenenden und Ecken, Länge, Breite, Winkel zur Fahrbahn, Abstand der Enden
    zum Fahrbahnrand und je gerade geprüfte Zufahrt zum nächsten Knoten stromauf; «Koordinaten kopieren» legt sie tabulatorgetrennt in die Zwischenablage.
    Jeder Streifen von Hand wird für sich gerechnet; als Teile eines Übergangs gelten nur Teilstreifen auf einer Achse
@@ -246,7 +249,10 @@ Datumsübergang um (Lage rund 150 m daneben).
 
 Abrufe: Zeitgrenze bis zur vollständigen Antwort, Overpass mit Ausweichservern (höchstens 60 s gesamt), ein neuer Klick
 bricht laufende Abrufe ab; Fehler stehen je Quelle unter «Geladene Quellen». Die Rechnung im Worker hat eine Zeitgrenze
-von 30 s. Tempo: `maxspeed`, sonst `zone:maxspeed` bzw. `maxspeed:type` (z. B. `CH:zone30`), sonst 50 km/h (Annahme).
+von 30 s. Unter dem Kopf des Reiters «Bedarf und Querungstyp» und in «Geladene Quellen» steht die Datenlage am Ort (z. B.
+«Datenlage hier: Vermessung, Luftbild, OSM; dazu Stadt Bern: Parkfelder, Bäume, …»; ohne freie amtliche Vermessung «keine
+Rechnung»); «Details» zeigt je Thema Quelle, Anbieter, Stand und Lizenz, «Geladene Quellen» dazu den Zustand je Quelle
+(geladen, lädt, Fehler), der Bericht nennt die genutzten Quellen in einer Tabelle. Tempo: `maxspeed`, sonst `zone:maxspeed` bzw. `maxspeed:type` (z. B. `CH:zone30`), sonst 50 km/h (Annahme).
 
 Automatische Übergangssuche (`src/App.tsx`, `src/ausschnitt.ts`): 800 ms nach dem letzten Verschieben bzw. Zoomen, ab Zoom 16;
 abgefragt wird der Ausschnitt mit einem Rand von höchstens 20 % je Seite, so dass die Abfrage höchstens 4 km² umfasst; ist
@@ -272,6 +278,15 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
 
 - `src/geo.ts` – LV95 ↔ WGS84 (strenge Umrechnung wie PROJ), ebene Geometrie
 - `src/daten/` – Abrufe: AV-WFS (Bodenbedeckung, Einzelobjekte), Overpass (mit Ausweichservern), Baumkataster, amtliche Parkfelder
+- `src/daten/quellenregister.ts` – Quellenregister: je externe Quelle Kennung, Themen, Anbieter, Gebiet (Schweiz, Kantone, Gemeinden
+  nach BFS-Nummer der AV-Fläche, Rechteck), Dienst, Lizenz, Stand, CORS, Datenschutz-Angabe und ladende Module. `gemeindeAmOrt`
+  (BFS-Nummer und Kanton der AV-Fläche am Punkt; `bernZustaendig` ist eine Hülle darum), `quellenFuer(ort)`, `datenlage(ort)` (je
+  Thema die örtlichste Quelle) und `datenlageSatz`; die Datenschutz-Liste der Hilfe entsteht daraus (`datenschutzGruppen`). Die
+  Lader tragen ihre Kennung (`quelleId`); ein Test prüft, dass jeder Lader in `src/daten/` einen Eintrag hat. `src/Datenlage.tsx` –
+  Satz «Datenlage hier» mit Tabelle je Thema, Ladezustand je Quelle, genutzte Quellen im Bericht. Eine Stadt kommt mit ihren
+  Einträgen (Gebiet nach BFS-Nummer), der Feldzuordnung im Lader und einer Probe an einem bekannten Ort dazu; im Browser gehen nur
+  Dienste mit CORS (sonst bräuchte es einen Zwischenserver, den die App nicht hat). Die Datenschutz-Tabelle unten im README wird
+  nicht aus dem Register erzeugt und ist bei einer neuen Quelle von Hand nachzuführen.
 - `src/fall.ts` – Fall-Datei (JSON) lesen, prüfen, schreiben; Eingaben für die Rechnung
 - `src/rechner/` – Rechnung (siehe oben), `worker.ts` (Web Worker), `index.ts` (Einstieg)
 - `src/App.tsx`, `src/Karte.tsx` – Panel und Leaflet-Karte (mit Knopf «Zum eigenen Standort»), `src/ausschnitt.ts` –
@@ -288,7 +303,8 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
 - `src/abdeckung.ts` – Abdeckung der geladenen Daten: wann die App um Streifen von Hand neu lädt (Herleitung der 30 m im
   Kopf der Datei), `src/rechner/vermassung.ts` – Lage und Masse eines Streifens von Hand
 - `src/rechner/planflaechen.ts` – Flächen (Plan) von Hand mit der AV-Bodenbedeckung verschneiden (Regeln im Kopf der Datei),
-  `src/fixpunkt.ts` – Fangen auf AV-Stützpunkte, `src/benennung.ts` – Namen der Streifen von Hand und Zufahrten
+  `src/fixpunkt.ts` – Fangen auf AV-Stützpunkte, `src/benennung.ts` – Namen der Streifen von Hand und Zufahrten; eine Querung, die kein Fussgängerstreifen ist (ohne Vortritt,
+  auch angenommen an einer unmarkierten OSM-Querung, bzw. «kein FGS»), heisst «Querung <Nr.>», die Trottoirüberfahrt «Trottoirüberfahrt <Nr.>»
 - `src/referenz.test.ts` – Vergleich mit einer Referenz-Datei ausserhalb des Repos (nur lokal; ohne Datei übersprungen;
   Ergebnisdatei nur mit `FGS_REFERENZ_SCHREIBEN=1`)
 - `src/bedarf/` – Bedarfsmodul, Etappe E0 (noch ohne Oberfläche): Regelkatalog mit Ziffer, Ausgabe, Stärke und Ebene je Regel
@@ -296,8 +312,26 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   `beurteile(eingaben, optionen)` → Befund (`entscheid.ts`; Ebenen Bern, Kanton BE und Richtlinie schaltbar). Seit Etappe E1
   mit Oberfläche: Abschnitt «Bedarf und Querungstyp» im Panel (`src/BedarfPanel.tsx`; Eingaben nach Blöcken mit Quelle,
   vorbelegt aus der Rechnung in `vorbelegung.ts`, Befundblatt aus `befundblatt.ts` auch im Bericht), Querung ohne Vortritt je
-  Streifen mit der Sichtweite nach VSS 40 240 Z. 8.2 im Sichtrechner (`src/rechner/ohneVortritt.ts`); Fall-Dateien mit
+  Streifen mit der Sichtweite nach VSS 40 240 Z. 8.2 im Sichtrechner (`src/rechner/ohneVortritt.ts`; abbiegende Zufahrten höchstens
+  bis zum Beginn des Abbiegens, d. h. Strecke bis zum Knoten, an dem sie abbiegen, und Bogen, nie weiter entlang ihrer Strasse oder
+  über einen weiteren Knoten hinaus; an einer Einmündung (nächster Knoten einer Zufahrt bis 15 m vom Streifenrand, ohne Fortsetzung
+  der gequerten Strasse) aus der gequerten Strasse nur eine Zufahrt bis zum nächsten Knoten, deren Abbieger entfallen als «mitgeprüft»;
+  beides sind eigene Annahmen der App, keine Normvorgaben: die Anzeige nennt «Annahme: …» mit dem ungekürzten Wert nach Z. 8.2,
+  das Befundblatt die Herkunft «Annahme» (`annahmeGrenze`); ein Tempo von Hand je Zufahrt bleibt möglich). Liegt eine unmarkierte
+  OSM-Querung in einer Begegnungszone (bestimmt wie «Strecke oder Zone» im Bedarf, `zoneFuerSicht`; eine Wahl von Hand gilt auch für
+  die Sicht), hat der Fussverkehr Vortritt: «Querung in der Begegnungszone», nötige Sicht je Zufahrt die Anhaltesichtweite nach
+  VSS 40 240 Z. 8.2, Zusatz «(Begegnungszone)» statt «(ohne Vortritt)»; Fall-Dateien mit
   Bedarf-Eingaben (Block `bedarf`, je Unterfeld geprüft in `fallBedarf.ts`) bzw. mit einer Querung ohne Vortritt haben die Version 3.
+  Richtlinie Hindernisfreie Architektur («Strassen – Wege – Plätze», 2025; Ebene Richtlinie, schaltbar, Stärke Soll, nur beim
+  Fussgängerstreifen; `src/bedarf/richtlinieHa.test.ts`): Streifen an gerader Trottoirkante (G11, Kap. 4.1, S. 10), Inseltiefe
+  mindestens 1,80 m (F2c, Kap. 4.2, S. 10), am Kreisel mindestens 5 m Abstand zum Ring (G12, Kap. 4.4, S. 11). Vorbelegung: die gerade Trottoirkante aus
+  der AV mit Flächen (Plan); an jedem Streifenende am Trottoir misst die App, wie stark die Fahrbahnkante über die Streifenbreite
+  die Richtung ändert (ohne 0,25 m je Rand; Inselenden zählen nicht): bis 5° «ja», ab 12° oder wenn die Kante dort abbiegt «nein»,
+  dazwischen bleibt die Frage offen (Schwellen angenommen). Der Abstand zum Kreisel wird bis zur Mittellinie des OSM-Rings
+  gemessen (der Rand der Kreisfahrbahn liegt näher): unter 5 m gilt der Wert, ab 5 m nur als Annahme. In der Regelübersicht nach
+  Quelle stehen die Punkte in der Reihenfolge der Kapitel. Die Ausrichtung rechtwinklig zum Fahrbahnrand prüft die Normregel F1d
+  (10° Toleranz); die Richtlinie (Kap. 4.1, S. 10) steht dort als weitere Quelle, F1d gilt darum auch mit ausgeschalteter Ebene Richtlinie. Bauvorgaben der Richtlinie (Absenkung, Randsteine, Rampen, taktile
+  Ausrüstung, Lichtsignalanlagen) prüft die App nicht.
   Ein Streifen lässt sich als Trottoirüberfahrt wählen (`StreifenEingabe.typ = 'trottoirueberfahrt'`): ohne Sicht auf die Wartefläche
   (Zufahrten nur für die Vorbelegung des Bedarfs), setzt im Bedarf den Querungstyp und rechnet die Knotensicht der Einbiegenden (`src/tue/`, Werkzeug «Trottoirüberfahrt»
   unter Planen bzw. Auswahl «Querung» am Streifen): zwei Phasen je Richtung, vom hinteren Rand der Überfahrt aufs Trottoir und von
@@ -363,6 +397,23 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   `fuenfBedingungen: true` → alle fünf ja. Im Panel steht jedes geprüfte Thema als eigene, eingeklappte Zeile («Sicht ✓ 3 Regeln ohne
   Befund»: je Regel eine Zeile mit Ist und Soll, darunter die Angaben des Themas); der Bericht behält die knappe Zeile «Ohne Befund».
   Nicht geprüfte Themen stehen im Panel als graue Zeile mit Grund («Sicht – nicht geprüft: Begegnungszone, flächiges Queren»).
+  Bleibt eine Regel dank einer Angabe ohne Befund, nennt die Zeile im Thema den Grund (`erfuelltGrund`), z. B. «Wenig Querende:
+  ohne Befund – Querung im Fusswegnetz (Geoportal Stadt Bern)». In der Stadt Bern zeigt die Ebene «Richtplan Fussverkehr (Geoportal
+  Bern)» (`src/daten/richtplanKarte.ts`, anfangs aus, ab Zoomstufe 15) das Basisnetz Fussweg (bestehend) und die publikumsattraktiven
+  Bereiche als Vektordaten aus dem REST-Dienst, in eigener Darstellung (Magenta) mit Text beim Überfahren; die Basisnetz-Linie, aus der
+  die App das Fusswegnetz vorbelegt, ist darin kräftiger. Ebenso zeigt die Ebene «Taktile Markierungen (Stadt Bern)»
+  (`src/daten/taktilKarte.ts`, anfangs aus, ab Zoomstufe 15; `src/taktilGenutzt.ts`, `src/TaktilLegende.tsx`) die taktil-visuellen
+  Markierungen des Geoportals: Felder als weisse Quadrate, Leit- und Sicherheitslinien weiss mit dunkler Kontur, Art und Baujahr beim
+  Überfahren; das Feld und die Leitlinie, aus denen die App «ertastbare Markierung» bzw. «Leitlinie» vorbelegt
+  (`automatikC.taktilTreffer`), sind grösser gezeichnet und im Text «– für die Prüfung genutzt»; kappt der Dienst die Antwort, steht
+  in der Legende «zu viele Objekte im Ausschnitt». Die Vorbelegung «Teil einer amtlichen
+  Fusswegnetzplanung» nennt Kategorie und Abstand (z. B. «Basisnetz Fussweg bestehend: Linie quert die Fahrbahn 3 m vom Streifen»),
+  sichtbar neben dem Wert; «Stellung im Fusswegnetz (Bern)» steht im Thema «Nachfrage». Streifen von Hand: Der Annäherungsbereich an jedem Ende lässt sich
+  unabhängig von der Streifenbreite verschieben und verbreitern (Griffe beim Bearbeiten, «Lage und Masse», «zurücksetzen»; Fall-Feld
+  `StreifenHand.ann`, ohne neue Version). Die Griffe des Annäherungsbereichs und die Enden eines Streifens von Hand fangen beim
+  Verschieben auf Stützpunkte der AV, Fixpunkte und Streifenenden (`src/annGriff.ts`, Fangradius aus `fixpunkt.ts`, Ring als Vorschau);
+  der Annäherungsbereich bleibt auf der Bordkante (gefangener Punkt projiziert, Hinweis ab 1 m daneben), Versatz und Breite je Ende
+  lassen sich unter «Lage und Masse» auch als Zahl eingeben.
   Sicht vom Velo (VSS 40 241 Z. 14, S. 6; VSS 40 273 Tab. 3): an geraden Zufahrten eines Fussgängerstreifens mit Radstreifen (OSM-Abzug)
   bzw. Radweg (`cycleway…=track`) eine zweite Prüfung von der Veloachse (Mitte des Radstreifens bzw. 0,5 m vom Fahrbahnrand), Soll nach
   `veloSichtweite` des Kerns; die Spalte wählt die App nach der Längsneigung der Fahrlinie aus dem Höhenmodell swissALTI3D (50 m vor
@@ -404,8 +455,15 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   (`{ wert, bis: 'frei' | 'fahrlinie_endet' | 'verdeckt', hindernis?, ende? }`, zusätzliches Ausgabefeld, übrige Ergebnisse
   unverändert): freie Sicht von den Sichtpunkten bzw. einer nur dafür verlängerten Fahrlinie auf die Markierung im eigenen
   Fahrstreifen, Abstand entlang der Fahrlinie, bis 110 m (`REICHWEITE_SICHT_M`) bzw. bis zum Ende der Fahrlinie; Gebäude, Hecken,
-  Mauern, Bäume und Auto-Parkfelder verdecken; Abbieger und Querungen ohne Vortritt ohne Wert. 2D ohne Gelände, nur die Markierung
-  (nicht die blaue Tafel, Signal 4.11): die Vorbelegung setzt den kleinsten Wert der geraden Zufahrten als Annahme ins Feld «Ab welcher Distanz ist der Streifen erkennbar» (eine Untergrenze nur, wenn sie das Doppelte der
+  Mauern, Bäume und Auto-Parkfelder verdecken; Abbieger und Querungen ohne Vortritt ohne Wert. In der Rechnung 2D; danach prüft die App das
+  Gelände entlang der Sichtlinien (`src/erkennungGelaende.ts`, `src/daten/sichtProfil.ts`: alle 10 m ein Augpunkt, Auge 1,1 m über
+  Gelände, Ziel die Markierung am Boden, Toleranz 0,3 m, ein Höhenprofil swissALTI3D je Sichtlinie, höchstens 14 je Zufahrt, mit
+  Zwischenspeicher; Linien auf Brücken nicht): schneidet das Gelände eine Linie, endet die Erkennungsdistanz dort («Gelände»), ohne
+  Antwort bleibt sie 2D («Gelände nicht geprüft»). Geht die Sicht nur noch über Bewuchs der AV (geschlossener Wald, dichte Wytweide,
+  übrige bestockte Fläche, Gartenanlage; `BEWUCHS_ARTEN`), ist sie ab dort «nicht sicher» (kein Befund). Auf der Karte zeigt ein Band
+  entlang der Fahrlinie das Ergebnis höchstens bis zum Soll (`src/erkennungKarte.ts`: grün in den Daten frei, gelb Bewuchs, rot
+  verdeckt, grau nicht geprüft); ein Klick darauf zeigt die geprüften Sichtlinien (`ZufahrtErgebnis.erkennungLinien`). Nur die Markierung
+  (nicht die blaue Tafel, Signal 4.11): die Vorbelegung setzt den kleinsten sicher freien Wert der geraden Zufahrten (Herkunft «mit Gelände» bzw. «ohne Gelände») als Annahme ins Feld «Ab welcher Distanz ist der Streifen erkennbar» (eine Untergrenze nur, wenn sie das Doppelte der
   Sichtweite erreicht; Handeingabe geht vor).
   Datenschicht «Automatik Paket C» (nur Daten, in `GeoVorbelegung` durchgereicht; in Bern geladen, wenn die AV-Fläche am Ladeort
   in der Stadt Bern liegt, je Dienst eine Abfrage pro Layer im Rechteck ±150 m, Fehler je Dienst getrennt, Liste in
@@ -484,7 +542,11 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Begegnungszone vor (Quelle `vorschlag`, keine Annahme: gilt für die Beurteilung, von Hand auf Strecke änderbar).
   Satz 1 der Zusammenfassung nennt bei offener Zulässigkeit den möglichen Typ («falls ja, passt …») und die
   entscheidende Frage; Satz 3 trennt entscheidende von vervollständigenden Angaben; Satz 4 nennt Annahmen und gefundene Gründe für
-  Vortritt. Belege aus Datenbanken (OSM-Tags, Knotennummern) stehen in Herkunftstexten zwischen ⟦…⟧ und erscheinen nur im Tooltip
+  Vortritt. Eine Lichtsignalanlage, die heute da ist (Typ «mit Lichtsignal» bzw. Lichtsignal am Streifen), wird in Satz 1 nicht
+  «empfohlen», sondern steht als Gegebenheit voran («mit Lichtsignalanlage wie heute; empfohlen mit …»; von Hand: «wie angegeben»,
+  Ampel in der Nähe: «angenommen»); nur eine LSA aus einer Regel (mehrere Fahrstreifen bzw. Tram ohne Platz für eine Insel) bleibt
+  in der Empfehlung, mit dem Grund in Klammern (`Empfehlung.lsaWeil`, 30.10.2026); das Befundblatt nennt dann «keine im Rechner
+  hinterlegte Regel verlangt sie». Belege aus Datenbanken (OSM-Tags, Knotennummern) stehen in Herkunftstexten zwischen ⟦…⟧ und erscheinen nur im Tooltip
   (`lesetext.ts`). Neue Regel E1c (Furt ohne Insel). Besonderer Grund «Fusswegnetz (Bern)», zählt nur mit der Ebene Bern. Teilstreifen
   an einer Insel über 12 m (`TEIL_MAX_M`) belegen keine Masse vor. Der Bericht zeigt den Bedarfsteil, sobald eine Beurteilung vorliegt.
 
@@ -503,10 +565,12 @@ IP-Adresse):
 | wmts.geo.admin.ch (swisstopo) | Kartenkacheln (Luftbild bzw. Landeskarte) des sichtbaren Ausschnitts |
 | api3.geo.admin.ch (swisstopo, SearchServer) | Ortssuche: der eingegebene Suchbegriff (Ort, Adresse, Strasse, PLZ) |
 | wms.geo.admin.ch, api3.geo.admin.ch | Luftbild ±30 m um den Übergang, Kartenbild des Berichts; Flugjahr der 1-km-Kachel |
-| api3.geo.admin.ch (swisstopo, Höhenprofil) | an einer Trottoirüberfahrt bis vier Linien der Knotensicht und, mit einer Kurve vor dem Streifen, bzw. mit Radstreifen oder Radweg die Fahrlinie der Zufahrt (50 m, Koordinaten) für die Längsneigung (Kurvenregel, Sicht vom Velo) |
+| api3.geo.admin.ch (swisstopo, Höhenprofil) | an einer Trottoirüberfahrt bis vier Linien der Knotensicht und, mit einer Kurve vor dem Streifen, bzw. mit Radstreifen oder Radweg die Fahrlinie der Zufahrt (50 m, Koordinaten) für die Längsneigung (Kurvenregel, Sicht vom Velo); am Fussgängerstreifen je gerade Zufahrt bis 14 Sichtlinien (Koordinaten von Augpunkt und Markierung) für das Gelände der Erkennungsdistanz |
 | geodienste.ch (AV-WFS) | Rechteck ±150 m um den Übergang (BBOX) |
 | Overpass: overpass.osm.ch, ersatzweise overpass-api.de, overpass.kumi.systems, overpass.private.coffee | Kartenausschnitt (Übergänge und Strassennamen) mit Rand (Suche, automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m |
 | map.bern.ch (nur Stadt Bern) | Rechteck ±150 m (amtliche Parkfelder, Baumkataster, Haltestellen, Verkehrsdaten) |
+| map.bern.ch, Richtplan Fussverkehr (nur Stadt Bern, nur mit eingeschalteter Ebene, ab Zoomstufe 15) | Rechteck des sichtbaren Ausschnitts mit Rand (LV95), je Layer eine Abfrage (2 Layer) |
+| map.bern.ch, Taktil-visuelle Markierungen (nur Stadt Bern, nur mit eingeschalteter Ebene, ab Zoomstufe 15) | Rechteck des sichtbaren Ausschnitts mit Rand (LV95), je Layer eine Abfrage (2 Layer) |
 | GoatCounter | Seitenaufruf ohne Cookies: Seitenpfad, Referrer, Bildschirmbreite, Browser und Betriebssystem, Sprache, Land (aus der IP-Adresse, die nicht gespeichert wird); zählt nicht auf localhost |
 
 Beim Planen ohne OSM-Übergang gelten die Ausschnitte um den Ladeort an den gezeichneten Streifen statt um den Übergang.
