@@ -273,7 +273,8 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
           {status === 'zeit' ? `Noch keine Antwort nach ${BILD_ZEITGRENZE_MS / 1000} s; es erscheint, sobald es eintrifft. ` : ''}
           <button className="zweit klein" onClick={() => setVersuch(v => v + 1)}>erneut versuchen</button>{' '}</span>}
         Ausschnitt {Math.round(wM)} × {Math.round(hM)} m, Norden oben (LV95). Gelb: Streifen{r.streifen.some(st => st.querung) ?
-          '; weiss gestrichelt ohne Balken: Querung ohne Vortritt' : ''}{r.streifen.some(st => st.trottoirueberfahrt) ?
+          `; weiss gestrichelt ohne Balken: ${r.streifen.every(st => !st.querung || st.querung.typ === 'begegnungszone') ? 'Querung in der Begegnungszone'
+            : 'Querung ohne Vortritt'}` : ''}{r.streifen.some(st => st.trottoirueberfahrt) ?
           '; grau gestrichelt in Trottoirfarbe: Trottoirüberfahrt (nicht geprüft)' : ''}; blau: Annäherungsbereiche; Sichtfelder umrandet in
         der Farbe des Status (durchgezogen: frei, gestrichelt: verdeckt, gepunktet: nicht geprüft); schraffiert: Hindernis im Sichtfeld;
         schwarze Punkte: Sichtpunkte auf der Fahrlinie (weiss gestrichelt), hinter dem letzten Sichtpunkt die Nummer der Zufahrt; farbige
@@ -430,7 +431,7 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen }: { s: S
   return (
     <section className="bericht-block">
       <h3>{streifenKopf(streifenTitel(s.fgsId, fall.streifenHand, streifenArt(s)), s.strasse)}{s.trottoirueberfahrt ? '' : `: ${streifenStatus(s)}`}
-        {s.querung ? ' (Querung ohne Vortritt)' : ''}</h3>
+        {s.querung ? (s.querung.typ === 'begegnungszone' ? ' (Querung in der Begegnungszone)' : ' (Querung ohne Vortritt)') : ''}</h3>
       <p className="klein">{s.trottoirueberfahrt ? `Achse der Überfahrt ${f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m`
         : `Länge ${f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m, Breite ${f1(s.bw)} m`} · Zuordnung OSM: {s.netzQuelle} ·
         Bordkanten: {s.randQuelle === 'AV' ? 'AV' : 'angenommen'} · Lichtsignal: {s.lsa === 'ja' ? `ja (${s.lsaQuelle ?? 'OSM'})` : 'nein'}</p>
@@ -441,7 +442,9 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen }: { s: S
       {s.markierungHinweis && <p className="klein"><b>Vermutlich Fussgängerstreifen (Markierung in OSM nicht erfasst), bitte prüfen.</b></p>}
       {s.luftbildUebergang && <p className="klein"><b>{s.luftbildUebergang}</b></p>}
       {s.lsa === 'ja' && <p className="klein">Mit Lichtsignal gilt die {LESENAME.AHBE} nicht; die Rechnung wird trotzdem gezeigt.</p>}
-      {s.querung && <p className="klein"><b>Querung ohne Vortritt</b> ({s.querung.typ === 'furt' ? 'Furt, Insel ohne Balken' :
+      {s.querung?.typ === 'begegnungszone' && <p className="klein"><b>Querung in der Begegnungszone</b> (Vortritt Fussverkehr), kein
+        Fussgängerstreifen: Sichtweite = Anhaltesichtweite nach VSS 40 240, Ziffer 8.2, nach dem Tempo der Zufahrt.</p>}
+      {s.querung && s.querung.typ !== 'begegnungszone' && <p className="klein"><b>Querung ohne Vortritt</b> ({s.querung.typ === 'furt' ? 'Furt, Insel ohne Balken' :
         'Nase, Einengung bzw. ohne bauliche Massnahme'}), kein Fussgängerstreifen: Sichtweite nach VSS 40 240, Ziffer 8.2, max(v · L / 1,2 m/s;
         Anhaltesichtweite), L = {f1(s.querung.L)} m{s.querung.ganzeFahrbahn ? ' (Insel nur markiert: ganze Fahrbahn)' : ''}.</p>}
       {s.status !== 'kein_fgs' && (
@@ -605,7 +608,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
           {!rechnung.streifen.length && <p>Kein Streifen gebildet. {rechnung.meldungen.join(' ')}</p>}
           <ul className="bericht-status">
             {rechnung.streifen.map(s => <li key={s.fgsId}>{streifenTitel(s.fgsId, fall.streifenHand, streifenArt(s))}{s.strasse ? ` (${s.strasse})` : ''}{s.querung ?
-              ' – Querung ohne Vortritt' : ''}: <b>{streifenStatus(s)}</b>
+              (s.querung.typ === 'begegnungszone' ? ' – Querung in der Begegnungszone' : ' – Querung ohne Vortritt') : ''}: <b>{streifenStatus(s)}</b>
               {' '}– {s.trottoirueberfahrt ? 'Knotensicht mit dem SichtweitenCheck prüfen, Sicht auf die Wartefläche nicht geprüft'
                 : s.status === 'kein_fgs' ? 'von Hand als kein Fussgängerstreifen bezeichnet, Zufahrten nicht ausgewiesen'
                 : `${s.zufahrten.length} Zufahrt(en) geprüft, davon ${s.zufahrten.filter(z => z.status === 'frei').length} frei` +
@@ -649,7 +652,9 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
             <li>Sichtweiten: {LESENAME['40241']}, Tabelle 1 ({Object.entries(SICHTWEITE).map(([t, sw]) => `${t} km/h: ${sw} m`).join(', ')}).</li>
             <li>Im Knoten nach Kurvenradius: {LESENAME.BFU} bzw. {LESENAME['40241']}, Tabelle 2 ({KURVE_SICHTWEITE.map(([r, sw]) => `bis ${r} m: ${sw} m`).join(', ')}).</li>
             <li>Auto-Parkfeld näher als 5 m am Streifen: {LESENAME.VRV}, Art. 18 Abs. 2 Buchstabe e.</li>
-            {rechnung.streifen.some(s => s.querung) && <li>Querung ohne Vortritt: {LESENAME['40240']}, Ziffer 8.2, Sichtweite max(v · L / 1,2 m/s;
+            {rechnung.streifen.some(s => s.querung?.typ === 'begegnungszone') && <li>Querung in der Begegnungszone (Vortritt Fussverkehr):
+              {' '}{LESENAME['40240']}, Ziffer 8.2, Sichtweite = Anhaltesichtweite.</li>}
+            {rechnung.streifen.some(s => s.querung && s.querung.typ !== 'begegnungszone') && <li>Querung ohne Vortritt: {LESENAME['40240']}, Ziffer 8.2, Sichtweite max(v · L / 1,2 m/s;
               Anhaltesichtweite {Object.entries(AHS_40240).map(([t, sw]) => `${t} km/h: ${sw} m`).join(', ')}) je Teilquerung.</li>}
             {mitBedarf && <li>Bedarf und Querungstyp: Regelkatalog des Bedarfsmoduls (Ziffer und Ausgabe je Befund); Grundprüfung nach
               bfu-Fachdokumentation «Fussgängerstreifen» (MS.013-2025, Bestellnummer 2.457), Ziffer 2.1 bis 2.3.</li>}

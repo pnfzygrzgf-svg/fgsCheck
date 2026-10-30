@@ -1,6 +1,7 @@
 // ── Einstieg der Rechnung: Daten aufbereiten, Streifen bilden, prüfen ──
 
-import { type OsmDaten, type Markierung, markierung, markierungHinweis, planungHinweis, istFgs, querungAnnahmeHinweis } from '../daten/osm'
+import { type OsmDaten, type Markierung, markierung, markierungHinweis, planungHinweis, istFgs, querungAnnahmeHinweis, querungBgzHinweis } from '../daten/osm'
+import { querungen, zoneFuerSicht, type GeoVorbelegung } from '../bedarf/vorbelegung'
 import type { AvFlaeche } from '../daten/av'
 import type { KatasterBaum } from '../daten/baumkataster'
 import type { KatasterFeld } from '../daten/parkkataster'
@@ -178,7 +179,10 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   kataster: { baeume: KatasterBaum[]; quellenangabe: string } | null, bild: Bild | null = null,
   park: { felder: KatasterFeld[]; quellenangabe: string } | null = null,
   /** amtliches Tempo (z. B. V_sig des Geoportals Stadt Bern, daten/vsig.ts): Vorrang vor OSM, Hand geht vor */
-  tempoAmtlich: TempoAmtlich | null = null): FallRechnung {
+  tempoAmtlich: TempoAmtlich | null = null,
+  /** V_sig-Linien des Geoportals Stadt Bern mit Bereich (wie geo.vsig der Vorbelegung): für Strecke oder Zone der unmarkierten
+   * OSM-Querung (Begegnungszone, 30.10.2026); null: ausserhalb Berns bzw. nicht geladen */
+  vsigZone: GeoVorbelegung['vsig'] = null): FallRechnung {
   const t0 = performance.now()
   // Flächen (Plan) von Hand (planflaechen.ts): ersetzen die AV-Bodenbedeckung darunter, für die ganze Rechnung (ohne sie: av)
   const plan = avMitPlan(av0, fall.flaechenPlan)
@@ -296,10 +300,26 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const furt = streifen.length > 1 || streifen.some(s => s.inseln.length > 0)
   kx.vonHand = vonHandAusFall(fall, grau ? (furt ? 'furt' : 'ohne_vortritt') : null)
   kx.tempoAmtlich = tempoAmtlich
-  const erg = streifen.length ? pruefen(streifen, kx) : []
+  let erg = streifen.length ? pruefen(streifen, kx) : []
+  // Begegnungszone (Nutzerentscheid 30.10.2026): liegt die angenommene Querung ohne Vortritt in einer Begegnungszone (Strecke oder
+  // Zone wie im Bedarf: zoneFuerSicht mit den OSM-Tags und V_sig, Handeingabe im Bedarf geht vor), hat der Fussverkehr Vortritt: zweite
+  // Rechnung als Querung in der Begegnungszone (Soll = Anhaltesichtweite). Eine Wahl am Streifen geht vor; Zone offen: ohne Vortritt
+  const autoAnnahme = (s: StreifenErgebnis) => !fall.streifen[s.fgsId]?.typ && !fall.streifen[s.fgsId]?.keinFgs && !!s.querung
+  let bgzText: string | null = null
+  if (grau && erg.some(autoAnnahme)) {
+    const osmTags = new Map(osm.wege.map(w => [w.id, w.tags] as const))
+    const g = querungen(erg).find(x => x.streifen.some(autoAnnahme))!
+    const z = zoneFuerSicht(g, fall, { osmTags, vsig: vsigZone })
+    if (z.wert === 'begegnungszone') {
+      bgzText = z.text
+      kx.vonHand = vonHandAusFall(fall, 'begegnungszone')
+      erg = pruefen(streifen, kx)
+    }
+  }
   if (grau) for (const s of erg) {
-    const e = fall.streifen[s.fgsId]
-    if (!e?.typ && !e?.keinFgs && s.querung) s.querungAnnahme = querungAnnahmeHinweis(mk!, u!.tags, s.querung.typ === 'furt')
+    if (!autoAnnahme(s)) continue
+    s.querungAnnahme = s.querung!.typ === 'begegnungszone' ? querungBgzHinweis(mk!, u!.tags, bgzText ?? '')
+      : querungAnnahmeHinweis(mk!, u!.tags, s.querung!.typ === 'furt')
   }
   // Streifen von Hand an einem Übergang ohne Fussgängerstreifen (Planung, 16.10.2026): heute kein FGS, der Streifen von Hand
   // wird als Fussgängerstreifen geprüft – nur als Hinweis zum Fall, nicht «kein Fussgängerstreifen» am Streifen

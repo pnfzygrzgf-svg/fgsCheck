@@ -8,7 +8,7 @@ import { MARKIERUNGEN, type Markierung } from './daten/osm'
 import type { Hindernis } from './rechner/hindernisse'
 import type { SpurHand } from './rechner/spurhand'
 import type { VonHand } from './rechner/pruefen'
-import { ANN_HAND_BREITE, ANN_HAND_VERSATZ_MAX, type AnnHand, type QuerungOhneVortritt } from './rechner/typen'
+import { ANN_HAND_BREITE, ANN_HAND_VERSATZ_MAX, type AnnHand, type QuerungOhneVortritt, type QuerungSicht } from './rechner/typen'
 import { bedarfLesen, bedarfLeer, type BedarfBlock } from './bedarf/fallBedarf'
 import { herkunftLesen, type LuftbildHerkunft } from './daten/luftbildFgs'
 
@@ -432,7 +432,7 @@ export function annHandSetzen(s: StreifenHand, k: 0 | 1, h: AnnHand | null): voi
 
 /** Eingaben des Falls als VonHand für die Rechnung; vorgabe: Querungsart ohne Eingabe am Streifen (unmarkierte OSM-Querung:
  * ohne Vortritt, 29.10.2026), sonst Fussgängerstreifen */
-export function vonHandAusFall(fall: Fall, vorgabe: QuerungOhneVortritt | null = null): VonHand {
+export function vonHandAusFall(fall: Fall, vorgabe: QuerungSicht | null = null): VonHand {
   const z = (fid: string, kennung: string) => fall.zufahrten[zufahrtSchluessel(fid, kennung)]
   return {
     spur: (fid, kennung) => z(fid, kennung)?.spur ?? null,
@@ -460,8 +460,9 @@ export const istTrottoirueberfahrt = (fall: Fall, fid: string): boolean =>
 export const inselMarkiert = (fall: Fall): boolean => fall.bedarf?.felder['insel.art']?.wert === 'markiert'
 
 /**
- * Schlüssel der Eingaben, die die Rechnung braucht: der ganze Fall ohne Bedarf-Block (der wirkt nur über «Insel nur markiert» und, mit
- * einer Trottoirüberfahrt, über «Breite der Trottoirüberfahrt» und «Tempo der Hauptstrasse» für die Knotensicht, je mit Quelle), ohne Speicherdatum und Ergebnis-Auszug.
+ * Schlüssel der Eingaben, die die Rechnung braucht: der ganze Fall ohne Bedarf-Block (der wirkt nur über «Insel nur markiert», mit
+ * einer Trottoirüberfahrt über «Breite der Trottoirüberfahrt» und «Tempo der Hauptstrasse» für die Knotensicht und an einem Übergang
+ * ohne Fussgängerstreifen über «Strecke oder Zone» und das Tempo (Begegnungszone), je mit Quelle), ohne Speicherdatum und Ergebnis-Auszug.
  * Gleicher Schlüssel: keine neue Rechnung nach einer Bedarf-Eingabe (App)
  */
 export function rechnungsSchluessel(f: Fall): string {
@@ -476,7 +477,11 @@ export function rechnungsSchluessel(f: Fall): string {
     return [k, x]
   })) } : rest0
   const tue = Object.values(f.streifen).some(e => e.typ === 'trottoirueberfahrt' && !e.keinFgs)
-  return stabil([rest, inselMarkiert(f), ...(tue ? (['q3.breiteM', 'q3.vSigHaupt'] as const).flatMap(k => [f.bedarf?.felder[k]?.wert ?? null, f.bedarf?.felder[k]?.quelle ?? null]) : [])])
+  // unmarkierte bzw. unbelegte OSM-Querung (Begegnungszone, 30.10.2026): «Strecke oder Zone» und das Tempo von Hand im Bedarf bestimmen,
+  // ob die angenommene Querung in der Begegnungszone liegt (rechneFall, zoneFuerSicht)
+  const zone = f.ort.uebergang !== null && !['lsa', 'markiert', 'vermutlich'].includes(f.ort.markierung ?? '')
+  const felder = [...(tue ? ['q3.breiteM', 'q3.vSigHaupt'] : []), ...(zone ? ['tempoRegime', 'vSig'] : [])]
+  return stabil([rest, inselMarkiert(f), ...felder.flatMap(k => [f.bedarf?.felder[k]?.wert ?? null, f.bedarf?.felder[k]?.quelle ?? null])])
 }
 
 // ---------------------------------------------------------------- localStorage (nur Bequemlichkeit, darf fehlen)

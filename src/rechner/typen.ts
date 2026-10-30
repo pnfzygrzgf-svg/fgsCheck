@@ -137,8 +137,9 @@ export interface StreifenErgebnis {
   luftbildUebergang?: string
   vermassung?: Vermassung    // Streifen von Hand: Lage (LV95) und Masse für den Plan (rechneFall)
   /** Querung ohne Vortritt (von Hand, Bedarfsmodul E1): Sichtweite nach VSS 40 240 Z. 8.2 statt Tab. 1; L = Querdistanz der
-   * Teilquerung (ganzeFahrbahn: Insel nur markiert, L über die ganze Fahrbahn). Fehlt bei Fussgängerstreifen */
-  querung?: { typ: QuerungOhneVortritt; L: number; ganzeFahrbahn: boolean }
+   * Teilquerung (ganzeFahrbahn: Insel nur markiert, L über die ganze Fahrbahn). Typ «begegnungszone» (30.10.2026): unmarkierte
+   * OSM-Querung in einer Begegnungszone, Vortritt Fussverkehr, Sichtweite = Anhaltesichtweite (Z. 8.2). Fehlt bei Fussgängerstreifen */
+  querung?: { typ: QuerungSicht; L: number; ganzeFahrbahn: boolean }
   /** OSM-Tramgleis quert den Streifen (nur mit OSM-Netz; Vorbelegung Bedarfsmodul) */
   tram?: boolean
   /** Trottoirüberfahrt (Wahl am Streifen, 23.10.2026): angezeigt wie «kein FGS» (Status kein_fgs, ohne Zufahrten und ohne hier nicht
@@ -156,6 +157,9 @@ export interface StreifenErgebnis {
 
 /** Querung ohne Vortritt: Furt (Insel ohne Balken) bzw. Nase, Einengung, ohne bauliche Massnahme */
 export type QuerungOhneVortritt = 'furt' | 'ohne_vortritt'
+/** Querungsart mit Sicht nach VSS 40 240 Z. 8.2: ohne Vortritt bzw. Querung in der Begegnungszone (Vortritt Fussverkehr; nur als
+ * Annahme an einer unmarkierten OSM-Querung, nicht wählbar) */
+export type QuerungSicht = QuerungOhneVortritt | 'begegnungszone'
 
 export interface Rechnung {
   streifen: StreifenErgebnis[]

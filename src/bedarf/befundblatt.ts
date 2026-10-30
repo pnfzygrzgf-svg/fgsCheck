@@ -235,6 +235,8 @@ function neuOrdnen(b: Befund): void {
 }
 
 const OHNE_VORTRITT = ['furt', 'ohne_vortritt']
+/** Masse-Zeile der Sicht an einer Querung in der Begegnungszone (30.10.2026) */
+export const BGZ_SICHT_TEXT = 'Begegnungszone, flächiges Queren mit Vortritt: Sichtregel nicht anwendbar, Anhaltesichtweite zur Information'
 /** Typen, die aus den Streifen folgen */
 const STREIFEN_TYPEN = ['fgs', 'lsa', 'furt', 'ohne_vortritt']
 const TYP_TEXT: Record<string, string> = { fgs: 'Fussgängerstreifen', lsa: 'Fussgängerstreifen mit Lichtsignal', furt: 'Furt',
@@ -371,6 +373,14 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       const st = streifenTyp(s)
       // «kein FGS» und Trottoirüberfahrt (Wahl am Streifen): keine Sicht auf die Wartefläche gerechnet
       if (st === 'kein' || st === 'trottoirueberfahrt') continue
+      // Querung in der Begegnungszone (unmarkierte OSM-Querung, 30.10.2026): Sicht nach VSS 40 240 Z. 8.2 (Anhaltesichtweite) nur zur
+      // Anzeige; keine Sichtregel des Baums (A2 beendet ihn) und keine Grundprüfung des Fussgängerstreifens
+      if (st === 'begegnungszone') {
+        for (const z of s.zufahrten) sicht.push({ fgsId: s.fgsId, zufahrt: z.zufahrt, name: zName(s.fgsId, z.zufahrt), regel: 'E3', tempo: z.tempo,
+          soll: z.sichtweite, quelle: z.sichtweiteQuelle, frei: z.status === 'frei', status: statusKurz(z),
+          ...(z.geprueftBisM !== undefined ? { bisM: z.geprueftBisM } : {}), ...(z.freiBisM !== undefined ? { freiBisM: z.freiBisM } : {}) })
+        continue
+      }
       const ov = OHNE_VORTRITT.includes(st)
       const regel: 'H1' | 'E3' = ov ? 'E3' : 'H1'
       // Fussgängerstreifen mit Lichtsignal: VSS 40 241 gilt nicht (kein H1), Sichtrechner nur zur Information
@@ -496,11 +506,14 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       const offenEintraege = neu.filter(x => x.zustand === 'offen' && regeln.includes(x.id as 'H1' | 'E3'))
       const nurAnzeichen = offenR && !teil && !zahl && offenEintraege.every(x => (x.fehlend ?? []).every(f => f === 'anzeichenSchneller'))
       const vSv = gebildet.eingaben.vSig.wert
+      // nur Querungen in der Begegnungszone (30.10.2026): Sicht zur Information, die Sichtregeln gelten dort nicht (A2 beendet den Baum)
+      const nurBgz = sicht.every(x => g.streifen.some(s => s.fgsId === x.fgsId && streifenTyp(s) === 'begegnungszone'))
       const mz: MassZeile = { groesse: 'Sichtweite (Sichtrechner)', einheit: 'm',
         soll: sG && sA ? `${sG} geradeaus, ${sA} für Abbiegende` : sG || `${sA} für Abbiegende`,
         ist: (zahl ? `verdeckt (${zahl} von ${n} Zufahrten)` : teil ? `frei, ${teil} von ${n} Zufahrten nur bis ` +
-          `${sicht.find(x => x.bisM !== undefined)!.bisM} m geprüft` : `frei (${zf(n)})`) + (erreicht0 ? '' : '; Sichtregel hier nicht geprüft'),
-        zustand: !erreicht0 ? 'offen' : verletztR ? 'verletzt' : nurAnzeichen ? 'vorbehalt' : offenR || teil ? 'offen' : 'erfuellt', regeln,
+          `${sicht.find(x => x.bisM !== undefined)!.bisM} m geprüft` : `frei (${zf(n)})`) +
+          (nurBgz ? `; ${BGZ_SICHT_TEXT}` : erreicht0 ? '' : '; Sichtregel hier nicht geprüft'),
+        zustand: nurBgz ? 'nicht_anwendbar' : !erreicht0 ? 'offen' : verletztR ? 'verletzt' : nurAnzeichen ? 'vorbehalt' : offenR || teil ? 'offen' : 'erfuellt', regeln,
         ...(nurAnzeichen && erreicht0 && !verletztR ? { zusatz: `gilt, wenn nicht schneller als ${vSv !== null ? `${vSv} km/h` : 'signalisiert'} gefahren ` +
           'wird (Frage oben)' } : {}) }
       befund.masse.push(mz)

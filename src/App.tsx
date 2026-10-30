@@ -2422,8 +2422,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           <li><span className="farbe lbfgs-marke" />Streifen aus dem Luftbild (ETH-Modell), nicht in OSM: Kandidat zum Prüfen (Klick: wie ein
             OSM-Übergang prüfen)</li>
           <li><span className="farbe" style={{ background: '#fde047' }} />Streifen, <span className="farbe gestrichelt" style={{ background: '#e2e8f0',
-            borderColor: '#0f172a', borderStyle: 'dashed', boxShadow: `inset 0 0 0 1px ${OHNE_VORTRITT_FARBE}` }} />Querung ohne Vortritt (ohne Balken, weiss
-            gestrichelt; Sichtweite nach <VerweisText text="VSS 40 240" />, Ziffer 8.2), <span className="farbe gestrichelt" style={{ background: AV_FARBEN.Trottoir,
+            borderColor: '#0f172a', borderStyle: 'dashed', boxShadow: `inset 0 0 0 1px ${OHNE_VORTRITT_FARBE}` }} />Querung ohne Vortritt bzw. in der
+            Begegnungszone (ohne Balken, weiss gestrichelt; Sichtweite nach <VerweisText text="VSS 40 240" />, Ziffer 8.2), <span className="farbe gestrichelt" style={{ background: AV_FARBEN.Trottoir,
             borderColor: TUE_RAND, borderStyle: 'dashed' }} />Trottoirüberfahrt (gerechnete Fläche, Strich: gezeichnete Achse),
             <span className="farbe" style={{ background: '#0ea5e9' }} />Annäherungsbereiche,
             <span className="farbe" style={{ borderColor: LUFTBILD_FARBE, borderWidth: 2 }} />Balken aus dem Luftbild (gestrichelt: unsicher)</li>
@@ -2672,7 +2672,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
         <span className="farbe" style={{ background: STATUS_FARBE[s.status] ?? '#64748b' }} />
         {/* ohne Strasse kein Leerzeichen vor dem Doppelpunkt (30.10.2026): «Querung 718541860: verdeckt …» */}
         {streifenKopf(streifenTitel(s.fgsId, fall.streifenHand, streifenArt(s)), s.strasse)}{s.trottoirueberfahrt ? null : <>: {streifenStatus(s)}</>}
-        {s.querung && <span className="klein"> (ohne Vortritt)</span>}
+        {s.querung && <span className="klein"> ({s.querung.typ === 'begegnungszone' ? 'Begegnungszone' : 'ohne Vortritt'})</span>}
       </h2>
       <div className="klein zeile">
         {s.trottoirueberfahrt ? <LsaEinmuendung fall={fall} blatt={blatt} aendern={aendern} /> : <>
@@ -2690,8 +2690,9 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           'nach VSS 40 240 Z. 8.2 je Teilquerung, auf der Karte ohne Balken. Trottoirüberfahrt: keine Sicht auf die Wartefläche, ' +
           'massgebend ist die Knotensicht der Einbiegenden (hier gerechnet)'}
           onChange={e => setzeS({ typ: (STREIFEN_QUERUNGEN as string[]).includes(e.target.value) ? e.target.value as StreifenQuerung : undefined })}>
-          {grau ? <><option value="">automatisch: ohne Vortritt ({!se.typ && s.querung?.typ === 'furt' ? 'Furt' : !se.typ && s.querung ? 'ohne bauliche Massnahme'
-            : 'nach der Insel'}), unmarkiert in OSM</option><option value="fgs">Fussgängerstreifen (geplant bzw. zu prüfen)</option></>
+          {grau ? <><option value="">{!se.typ && s.querung?.typ === 'begegnungszone' ? 'automatisch: Querung in der Begegnungszone (Vortritt Fussverkehr)'
+            : <>automatisch: ohne Vortritt ({!se.typ && s.querung?.typ === 'furt' ? 'Furt' : !se.typ && s.querung ? 'ohne bauliche Massnahme'
+            : 'nach der Insel'})</>}, unmarkiert in OSM</option><option value="fgs">Fussgängerstreifen (geplant bzw. zu prüfen)</option></>
             : <option value="">Fussgängerstreifen</option>}
           <option value="furt">ohne Vortritt: Furt (Insel ohne Balken)</option>
           <option value="ohne_vortritt">ohne Vortritt: Nase, Einengung bzw. ohne bauliche Massnahme</option>
@@ -2721,8 +2722,11 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
           if (e) { const { tueD: _d, tueDtrottoir: _t, ...rest } = e; void _d; void _t; f.streifen[s.fgsId] = rest }
           return f
         })} />}
-      {s.querung && <p className="klein">Querung ohne Vortritt: Sichtweite nach <VerweisText text="VSS 40 240" />, Ziffer 8.2, max(v · L / 1,2 m/s; Anhaltesichtweite) mit
-        L = {f1(s.querung.L)} m{s.querung.ganzeFahrbahn ? ' (Insel nur markiert: ganze Fahrbahn)' : ''}; kein Fussgängerstreifen.</p>}
+      {s.querung && (s.querung.typ === 'begegnungszone'
+        ? <p className="klein">Querung in der Begegnungszone (Vortritt Fussverkehr): Sichtweite = Anhaltesichtweite nach <VerweisText text="VSS 40 240" />,
+          Ziffer 8.2, nach dem Tempo der Zufahrt; kein Fussgängerstreifen.</p>
+        : <p className="klein">Querung ohne Vortritt: Sichtweite nach <VerweisText text="VSS 40 240" />, Ziffer 8.2, max(v · L / 1,2 m/s; Anhaltesichtweite) mit
+        L = {f1(s.querung.L)} m{s.querung.ganzeFahrbahn ? ' (Insel nur markiert: ganze Fahrbahn)' : ''}; kein Fussgängerstreifen.</p>)}
       <p className="klein">Zuordnung OSM: {s.netzQuelle} · Bordkanten: {s.randQuelle === 'AV' ? 'AV' : 'angenommen'} ·
         {s.trottoirueberfahrt ? <>Achse der Überfahrt {f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m (Masse der Überfahrt: Knotensicht)</>
           : <>Länge {f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m, Breite {f1(s.bw)} m</>}</p>

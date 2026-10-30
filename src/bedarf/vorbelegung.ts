@@ -38,9 +38,9 @@ import { feldName } from './felder'
 import { E1_KURZ } from '../rechner/standardinsel'
 import { imBereich, HALT_TEXT, type Bereich, type HaltestellenErgebnis, type OevHalt } from '../daten/haltestellen'
 import type { VerkehrsdatenErgebnis, VdLinie } from '../daten/verkehrsdaten'
-import { QUERUNG_ANNAHME_TEXT } from '../daten/osm'
+import { QUERUNG_ANNAHME_TEXT, QUERUNG_BGZ_TEXT } from '../daten/osm'
 import { automatik, avInselBei, kopfUeberstandAv, zufSicht, type AutoGeo } from './automatik'
-import { tag } from './lesetext'
+import { tag, lesetext } from './lesetext'
 import { WARTE_TC_S, WARTE_TF_S, breiteVorbelegung, knotensichtGueltig, knotensichtVorbelegung, ueberfahrbarVorbelegung, wartezeitSchaetzen, UEBERFAHRBAR_OHNE,
   winkelVorbelegung } from '../tue/texte'
 import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
@@ -71,9 +71,9 @@ const einheit = (v: P): P => { const l = Math.hypot(v[0], v[1]); return l > 0 ? 
 /** Teilstreifen an einer Insel: länger als das gilt als unplausibel (Runde 5, F5) */
 export const TEIL_MAX_M = 12
 
-/** Querungsart eines gerechneten Streifens: Fussgängerstreifen, ohne Vortritt (Furt bzw. übrige), Trottoirüberfahrt (Wahl am Streifen,
- * nicht geprüft) oder «kein FGS» (nicht geprüft) */
-export const streifenTyp = (s: StreifenErgebnis): 'fgs' | 'furt' | 'ohne_vortritt' | 'trottoirueberfahrt' | 'kein' =>
+/** Querungsart eines gerechneten Streifens: Fussgängerstreifen, ohne Vortritt (Furt bzw. übrige), Querung in der Begegnungszone
+ * (unmarkierte OSM-Querung, 30.10.2026), Trottoirüberfahrt (Wahl am Streifen, nicht geprüft) oder «kein FGS» (nicht geprüft) */
+export const streifenTyp = (s: StreifenErgebnis): 'fgs' | 'furt' | 'ohne_vortritt' | 'begegnungszone' | 'trottoirueberfahrt' | 'kein' =>
   s.trottoirueberfahrt ? 'trottoirueberfahrt' : s.status === 'kein_fgs' ? 'kein' : s.querung?.typ ?? 'fgs'
 /** Herkunft des Querungstyps aus der Wahl «Trottoirüberfahrt» am Streifen */
 export const TUE_WAHL_TEXT = 'Wahl in der Sichtprüfung: Trottoirüberfahrt'
@@ -148,6 +148,8 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   else if (typen.length === 1 && typen[0] === 'fgs') setze('typ', mitLsa ? 'lsa' : 'fgs', 'rechnung', mitLsa
     ? 'Streifen als Fussgängerstreifen mit Lichtsignal gerechnet' : 'Streifen als Fussgängerstreifen gerechnet')
   else if (typen.length === 1 && typen[0] === 'trottoirueberfahrt') setze('typ', typen[0], 'hand', TUE_WAHL_TEXT)
+  // unmarkierte OSM-Querung in der Begegnungszone (30.10.2026): kein Querungstyp (der Fussverkehr hat Vortritt, A2 beendet den Baum)
+  else if (typen.length === 1 && typen[0] === 'begegnungszone') hinweise.push(`Querungstyp: ${QUERUNG_BGZ_TEXT}`)
   // unmarkierte OSM-Querung ohne Wahl am Streifen (29.10.2026): Annahme aus OSM
   else if (typen.length === 1 && typen[0] !== 'kein' && st.every(s => s.querungAnnahme))
     setze('typ', typen[0], 'annahme', `${QUERUNG_ANNAHME_TEXT} (${typen[0] === 'furt' ? 'Furt' : 'ohne bauliche Massnahme'})`)
@@ -453,6 +455,21 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
     hinweise.push('Ein Tramgleis nach OSM quert die Querung: Art (Fahrbahn bzw. Eigentrassee) von Hand wählen')
   return { werte: w, hinweise, feldHinweise, rechner, ...(aus.knoten !== undefined ? { knoten: aus.knoten } : {}),
     ...(strittig.length && !w.tempoRegime ? { strittig } : {}) }
+}
+
+/**
+ * Strecke oder Zone einer Querung für den Sichtrechner (Nutzerentscheid 30.10.2026): dieselbe Bestimmung wie das Feld «Strecke oder
+ * Zone» im Bedarf (Vorbelegung aus OSM-Tags, V_sig des Geoportals, Tempo-20-Vorschlag und Widerspruchsregeln; eine Handeingabe im
+ * Bedarf geht vor, auch «bewusst offen»; strittig bleibt offen). geo: wie die Vorbelegung (rechneFall: OSM-Tags und V_sig). text:
+ * Herkunft kurz für den Hinweis am Streifen.
+ */
+export function zoneFuerSicht(g: QuerungGruppe, fall: Fall, geo: GeoVorbelegung): { wert: TempoRegime | null; text: string } {
+  const h = fall.bedarf?.felder.tempoRegime
+  if (h) return { wert: (h.wert ?? null) as TempoRegime | null, text: 'Strecke oder Zone von Hand' }
+  const v = vorbelegen(g, fall, [], geo).werte.tempoRegime
+  if (!v) return { wert: null, text: '' }
+  return { wert: v.wert as TempoRegime, text: v.quelle === 'osm' ? 'nach OSM' : v.quelle === 'vorschlag' ? 'Vorschlag bei Tempo 20 km/h'
+    : lesetext(v.text) }
 }
 
 /**

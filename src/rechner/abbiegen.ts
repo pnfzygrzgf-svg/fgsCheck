@@ -42,7 +42,7 @@ import { liniePunkte, sichtweiteRadiusHand } from './spurhand'
 import type { HindernisDaten } from './hindernisse'
 import { SEHNE_HALB, INSELRAND_M } from './flaechen'
 import {
-  type OhneVortritt, sichtOhneVortritt, quelleOhneVortritt, quelleOhneVortrittAbbiegen, weiteOhneVortritt, REICHWEITE_SICHT_M,
+  type OhneVortritt, sollQuerung, quelleQuerung, quelleQuerungAbbiegen, weiteQuerung, REICHWEITE_SICHT_M,
 } from './ohneVortritt'
 
 export const BORD_ABSTAND_M = 1.5
@@ -315,7 +315,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const szRoh = netz.spurZumKnoten(su, kbe, a)
   const wegA = glaetten(szRoh.map(p => add(p, k.verschiebung)), GLAETTUNG_M)
   const dK = richtungAmKnoten(wegA, dj)
-  const [arm, hinB, hinBM] = netz.armSpur(a, Math.max((k.ov ? weiteOhneVortritt(k.ov.L, SICHTWEITE[60]) : SICHTWEITE[60]) + h + 15,
+  const [arm, hinB, hinBM] = netz.armSpur(a, Math.max((k.ov ? weiteQuerung(k.ov, SICHTWEITE[60]) : SICHTWEITE[60]) + h + 15,
     ARM_MESSUNG[ARM_MESSUNG.length - 1] + 2))
   const armAb = wegeAbschnitte(netz, arm), eigAb = wegeAbschnitte(netz, szRoh)
   const mitBruecke = [...armAb, ...eigAb].some(([, , w]) => w !== null && netz.w(w).hoch)
@@ -349,7 +349,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const tempoHandB = k.vonHand?.tempo?.(fid, 'abbiegend', grad) ?? k.vonHand?.tempoKennung?.(fid, kennungArm(a)) ?? null
   if (tempoHandB) { tempoB = tempoHandB; tempoQB = 'Korrektur' }
   if (tempoQB === 'Ersatz') annahmen.push(`Tempo Querstrasse ${tempoB} km/h angenommen (in OSM keine Höchstgeschwindigkeit erfasst)`)
-  const swTab1B = k.ov ? sichtOhneVortritt(tempoB, k.ov.L) : sichtweiteTab1(tempoB)
+  const swTab1B = k.ov ? sollQuerung(k.ov, tempoB) : sichtweiteTab1(tempoB)
   // Fahrbahn der Querstrasse 8–30 m ab Knoten
   const messRef = refAuf(arm, ARM_MESSUNG, 0)
   const fsoB = fahrstreifenArm(netz, a, a.dreh > 0)
@@ -958,7 +958,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   // Kurvensichtweite zum Radius R: bfu bzw. VSS Tab. 2, höchstens Tab. 1 der Querstrasse
   const kurveSw = (R: number): [number, string] => {
     // Querung ohne Vortritt: keine Kurvenregel, Soll nach VSS 40 240 Z. 8.2 mit dem Tempo der Querstrasse
-    if (k.ov) return [swTab1B, quelleOhneVortritt(k.ov.L)]
+    if (k.ov) return [swTab1B, quelleQuerung(k.ov)]
     const [sk_, q_] = sichtweiteKurve(R)
     return sk_ === null || sk_ >= swTab1B ? [swTab1B, 'VSS Tab. 1'] : [sk_, q_!]
   }
@@ -1020,7 +1020,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     const swAbb = Math.max(auf01(sAbb - h), SPUR_MIN_M)
     if (swAbb < swB) {
       swB = swAbb; gesamtB = swB + h
-      swQuelleB = quelleOhneVortrittAbbiegen(k.ov.L)
+      swQuelleB = quelleQuerungAbbiegen(k.ov)
       bisB.push(['abbiegen', sAbb])
       lb = linieB(swB, gesamtB, radiusB)
       if (lb === null) return wegGeometrie('keine Fahrlinie (Bogen)')
@@ -1045,7 +1045,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   if (k.ov && swB > REICHWEITE_SICHT_M) {
     const ende = swQuelleB === 'bis Knoten (Strassenende)' || swQuelleB === 'bis Wegende'
     geprueftB = { bis: REICHWEITE_SICHT_M, soll: ende ? swTab1B : swB }
-    if (ende) { swQuelleB = quelleOhneVortritt(k.ov.L); hinweisEnde = false }
+    if (ende) { swQuelleB = quelleQuerung(k.ov); hinweisEnde = false }
     swB = REICHWEITE_SICHT_M; gesamtB = swB + h; swBBasis = Math.min(swBBasis, REICHWEITE_SICHT_M)
     lb = linieB(swB, gesamtB, radiusB)
     if (lb === null) return wegGeometrie('keine Fahrlinie (Bogen)')

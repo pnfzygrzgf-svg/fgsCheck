@@ -23,12 +23,17 @@
 // mindestens SPUR_MIN_M (abbiegen.ts): gemessen vom Streifen entlang der Fahrlinie bis zum Bogenende auf dem Arm (Strecke bis zum
 // Knoten, an dem das Fahrzeug abbiegt, und Bogen), nie entlang des Arms darüber hinaus und nie über einen weiteren Knoten. Das
 // Tempo von Hand je Zufahrt bleibt wirksam. Gerade Zufahrten unverändert.
+//
+// Begegnungszone (Nutzerentscheid 30.10.2026): liegt eine unmarkierte OSM-Querung ohne Wahl am Streifen in einer Begegnungszone
+// (Strecke oder Zone wie im Bedarfsmodul, rechneFall), hat der Fussverkehr dort Vortritt. Nach Z. 8.2 (S. 8) gilt dann die
+// Anhaltesichtweite nach dem Tempo der Zufahrt (Tab. AHS_40240), nicht die Formel mit L; Typ «begegnungszone» derselben Rechnung
+// (keine Kurvenregeln, Abbieger höchstens bis zum Beginn des Abbiegens wie oben, Reichweite wie oben).
 
 import { sollSichtOhneVortritt, formelSicht } from '../bedarf/sichtOhneVortritt'
 import { ahs, AHS_40240 } from '../bedarf/tabellen'
 import { KATALOG } from '../bedarf/katalog'
 import { KATASTER_PARK_M } from './vorschlaege'
-import type { QuerungOhneVortritt } from './typen'
+import type { QuerungSicht } from './typen'
 
 export const GEH_V = KATALOG.E3.werte.gehV
 /** Obergrenze des Tempos für die Länge der Fahrlinie (höchstes Tempo der Auswahl von Hand) */
@@ -40,7 +45,7 @@ export const REICHWEITE_SICHT_M = KATASTER_PARK_M - SICHT_RESERVE_M
 /** höchstes Tempo der Anhaltesichtweiten-Tabelle */
 const AHS_MAX_V = Math.max(...Object.keys(AHS_40240).map(Number))
 
-export interface OhneVortritt { typ: QuerungOhneVortritt; L: number; ganzeFahrbahn: boolean }
+export interface OhneVortritt { typ: QuerungSicht; L: number; ganzeFahrbahn: boolean }
 
 const f1 = (x: number) => x.toFixed(1).replace('.', ',')
 const auf01 = (x: number) => Math.ceil(x * 10 - 1e-9) / 10
@@ -54,6 +59,29 @@ export const quelleOhneVortritt = (L: number): string => `VSS 40 240 Z. 8.2 (L $
 export const BIS_ABBIEGEN = 'bis Beginn des Abbiegens'
 /** Quelle der Sichtweite eines Abbiegers, der vor dem Soll nach Z. 8.2 abbiegt */
 export const quelleOhneVortrittAbbiegen = (L: number): string => `${quelleOhneVortritt(L)}, ${BIS_ABBIEGEN}`
+
+/** Querung in der Begegnungszone (Vortritt Fussverkehr) statt ohne Vortritt */
+export const istBgz = (o: Pick<OhneVortritt, 'typ'> | null | undefined): boolean => o?.typ === 'begegnungszone'
+/** Soll [m] der Querung für Tempo v [km/h]: ohne Vortritt nach der Formel mit L, in der Begegnungszone die Anhaltesichtweite */
+export const sollQuerung = (o: OhneVortritt, v: number): number => (istBgz(o) ? ahs(v) : sichtOhneVortritt(v, o.L))
+/** Quelle der Sichtweite in der Begegnungszone */
+export const QUELLE_BGZ = 'VSS 40 240 Z. 8.2: Anhaltesichtweite (Begegnungszone)'
+/** Quelle der Sichtweite der Querung (Spalte «Sichtweite») */
+export const quelleQuerung = (o: OhneVortritt): string => (istBgz(o) ? QUELLE_BGZ : quelleOhneVortritt(o.L))
+/** Quelle der Sichtweite eines Abbiegers, der vor dem Soll abbiegt */
+export const quelleQuerungAbbiegen = (o: OhneVortritt): string => `${quelleQuerung(o)}, ${BIS_ABBIEGEN}`
+/** Länge der Fahrlinie der Querung (Begegnungszone: höchstens die Anhaltesichtweite, wie beim Fussgängerstreifen) */
+export const weiteQuerung = (o: OhneVortritt, basis: number): number => (istBgz(o) ? basis : weiteOhneVortritt(o.L, basis))
+
+/** Annahme je Streifen in der Begegnungszone: Anhaltesichtweite je Tempo */
+export function annahmeBgz(tempi: number[]): string {
+  const t = [...new Set(tempi)].sort((a, b) => a - b)
+  const ueber = t.filter(v => v > AHS_MAX_V)
+  return 'Querung in der Begegnungszone (Vortritt Fussverkehr): Sichtweite = Anhaltesichtweite nach VSS 40 240 Z. 8.2 (S. 8)' +
+    (t.length ? `; ${t.map(v => `${v} km/h: ${ahs(v)} m`).join('; ')}` : '') + '. v = Tempo der Zufahrt (V85 nur über das Tempo von Hand). ' +
+    'Abbieger: Sicht höchstens bis zum Beginn des Abbiegens. Die Kurvenregeln für Fussgängerstreifen gelten hier nicht.' +
+    (ueber.length ? ` Tempo über ${AHS_MAX_V} km/h (${ueber.join(', ')} km/h): verwendet ist der Wert ${ahs(AHS_MAX_V)} m.` : '')
+}
 
 /** Annahme je Streifen: Formel mit den Zahlen (Formelteil wie das Ergebnis auf 0,1 m aufwärts) */
 export function annahmeOhneVortritt(o: OhneVortritt, tempi: number[], randAngenommen = false): string {

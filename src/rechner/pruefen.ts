@@ -36,9 +36,9 @@ import { freiBis } from './freibis'
 import { D_VELO_M, RADSTREIFEN_M, TAB3, veloSichtweite } from '../knotensicht/rechner/velo'
 import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvexeHuelle, enthaelt, abstandMulti, huelle, abstandLinieMulti } from './poly'
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
-import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt, QuerungOhneVortritt, AnnBasis, AnnHand } from './typen'
+import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt, QuerungSicht, AnnBasis, AnnHand } from './typen'
 import { type Augpunkt, type Erkennung, type ErkennungEnde, ERKENNUNG_MAX_M, entlangLinie, erkennungRechnen, zielPunkte } from './erkennung'
-import { type OhneVortritt, sichtOhneVortritt, quelleOhneVortritt, annahmeOhneVortritt, weiteOhneVortritt, REICHWEITE_SICHT_M } from './ohneVortritt'
+import { type OhneVortritt, sollQuerung, quelleQuerung, annahmeOhneVortritt, annahmeBgz, istBgz, weiteQuerung, REICHWEITE_SICHT_M } from './ohneVortritt'
 
 const RAND_TOL = 1.0
 const KNOTEN_SPERRE = 10.0
@@ -75,8 +75,9 @@ export interface VonHand {
   /** Streifen von Hand als «kein FGS» beurteilt: nicht gerechnet */
   keinFgs?: (fid: string) => boolean
   /** Streifen als Querung ohne Vortritt (Bedarfsmodul E1): Sichtweite nach VSS 40 240 Z. 8.2 (ohneVortritt.ts); inselMarkiert: die
-   * Insel ist nur markiert, L gilt über die ganze Fahrbahn. null bzw. fehlt: Fussgängerstreifen wie bisher */
-  querung?: (fid: string) => { typ: QuerungOhneVortritt; inselMarkiert: boolean; vorgabe?: true } | null
+   * Insel ist nur markiert, L gilt über die ganze Fahrbahn; Typ «begegnungszone» (nur Vorgabe an der unmarkierten OSM-Querung): Soll =
+   * Anhaltesichtweite. null bzw. fehlt: Fussgängerstreifen wie bisher */
+  querung?: (fid: string) => { typ: QuerungSicht; inselMarkiert: boolean; vorgabe?: true } | null
   /** Annäherungsbereich je Ende von Hand (Streifen von Hand, 30.10.2026); null bzw. fehlt: wie gerechnet */
   ann?: (fid: string) => readonly [AnnHand | null, AnnHand | null] | null
 }
@@ -276,7 +277,7 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
       erg.push(...r.ergebnisse)
       ent.push(...r.entfallen)
     }
-    if (ov && !keinFgs) annahmenS.push(annahmeOhneVortritt(ov, erg.map(z => z.tempo), s.randQuelle !== 'AV'))
+    if (ov && !keinFgs) annahmenS.push(istBgz(ov) ? annahmeBgz(erg.map(z => z.tempo)) : annahmeOhneVortritt(ov, erg.map(z => z.tempo), s.randQuelle !== 'AV'))
     const status = keinFgs ? 'kein_fgs' :
       erg.length ? erg.reduce((b, e) => (RANG_STATUS[e.status] > RANG_STATUS[b] ? e.status : b), 'frei') : 'ohne_zufahrt'
     aus.push({ fgsId: fid, uebergangId: s.uebergangId, p0: s.p0, p1: s.p1, bw: s.bw, m: s.m, umriss: umrissRing(s), ann,
@@ -293,7 +294,7 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
  * (bei angenommenen Bordkanten: 0,3 m vor den Enden); Insel nur markiert: über alle Teilstreifen derselben Querung (Übergang),
  * vom äussersten zum äussersten Rand (ganze Fahrbahn, 40 240 Z. 13.3, Entscheid 6). null: Fussgängerstreifen
  */
-function ohneVortritt(s: StreifenX, S: StreifenX[], q: { typ: QuerungOhneVortritt; inselMarkiert: boolean } | null): OhneVortritt | null {
+function ohneVortritt(s: StreifenX, S: StreifenX[], q: { typ: QuerungSicht; inselMarkiert: boolean } | null): OhneVortritt | null {
   if (!q) return null
   const n = einheitV(sub(s.p1, s.p0))
   const proj = (p: P) => dot(sub(p, s.p0), n)
@@ -320,9 +321,10 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   const annahmen: string[] = []
   const h = s.bw / 2, hAlt = h
   let bis: [number, number, number, number, (x: number) => number] | null = null
-  // Querung ohne Vortritt: Soll nach VSS 40 240 Z. 8.2 statt Tab. 1 (ohneVortritt.ts), Fahrlinie entsprechend länger
-  const swTab = (t: number) => (ov ? sichtOhneVortritt(t, ov.L) : sichtweiteTab1(t))
-  const weite = (ov ? weiteOhneVortritt(ov.L, SICHTWEITE[60]) : SICHTWEITE[60]) + h + 5
+  // Querung ohne Vortritt: Soll nach VSS 40 240 Z. 8.2 statt Tab. 1 (ohneVortritt.ts), Fahrlinie entsprechend länger; in der
+  // Begegnungszone die Anhaltesichtweite
+  const swTab = (t: number) => (ov ? sollQuerung(ov, t) : sichtweiteTab1(t))
+  const weite = (ov ? weiteQuerung(ov, SICHTWEITE[60]) : SICHTWEITE[60]) + h + 5
   let su: Suche | null = null, kbe: Knotenbereich | null = null, sg: SpurGerade | null = null
   let knotenM: number[] = []
   let wegRoh: P[], tempoStreifen: number, tempoQ: string, kreiselPruefen: boolean, achseFb = true
@@ -404,7 +406,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     }
     return { ergebnisse, entfallen: entf }
   }
-  let swQuelle = ov ? quelleOhneVortritt(ov.L) : 'VSS Tab. 1', hinweis = '', hinweisM: number | null = null
+  let swQuelle = ov ? quelleQuerung(ov) : 'VSS Tab. 1', hinweis = '', hinweisM: number | null = null
   if (kInSicht && hatGerade) { hinweis = 'knoten'; hinweisM = su!.dist }
   if (hatGerade && sg !== null && sg.endeM !== null && sg.endeM - h < sw) {
     hinweis = 'spur_ende'; hinweisM = sg.endeM
@@ -461,7 +463,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   let geprueftBis: number | null = null
   if (ov && sw > REICHWEITE_SICHT_M) {
     geprueftBis = REICHWEITE_SICHT_M
-    sw = REICHWEITE_SICHT_M; gesamt = sw + h; bis = null; swQuelle = quelleOhneVortritt(ov.L)
+    sw = REICHWEITE_SICHT_M; gesamt = sw + h; bis = null; swQuelle = quelleQuerung(ov)
     if (hinweis === 'spur_ende') { hinweis = kInSicht ? 'knoten' : ''; hinweisM = kInSicht ? su!.dist : null }
   }
   // Spur auf die Streifenmitte verschieben, glätten
