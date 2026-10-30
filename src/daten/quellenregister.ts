@@ -125,6 +125,11 @@ export const QUELLEN: readonly Quelle[] = [
     'Die Kartenebene «Richtplan Fussverkehr (Geoportal Bern)» sendet den sichtbaren Kartenausschnitt mit Rand (Rechteck in LV95, je Layer ' +
     'eine Abfrage) nur, wenn sie eingeschaltet ist.', 'daten/richtplanKarte.ts'), datenschutzSatz: true,
     hinweis: 'nur Anzeige, anfangs aus, ab Zoomstufe 15' },
+  // Kartenebene «Taktile Markierungen (Stadt Bern)» (30.10.2026): eigener Eintrag wie der Richtplan (eigenes Modul, eigene Abfragen)
+  { ...bernDienst('bern.taktilKarte', [], 'Taktil-visuelle Markierungen (Kartenebene)',
+    'Die Kartenebene «Taktile Markierungen (Stadt Bern)» sendet den sichtbaren Kartenausschnitt mit Rand (Rechteck in LV95, je Layer ' +
+    'eine Abfrage, zwei Layer) nur, wenn sie eingeschaltet ist, und erst ab Zoomstufe 15.', 'daten/taktilKarte.ts'), datenschutzSatz: true,
+    hinweis: 'nur Anzeige, anfangs aus, ab Zoomstufe 15' },
   ...LUFTBILD_FGS_STAEDTE.map(({ stadt, bbox }): Quelle => {
     const k = ETH_KURZ[stadt] ?? stadt.toLowerCase()
     return { id: `eth.fgs.${k}`, themen: ['fgsLuftbild'], name: `Streifen aus dem Luftbild, ${stadt} (ETH-Modell)`,

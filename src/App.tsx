@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, ERKENNUNG_UNGEPRUEFT, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
-  OHNE_VORTRITT_FARBE, TUE_RAND, FAHRZEUG_ZOOM, type RichtplanStand,
+  OHNE_VORTRITT_FARBE, TUE_RAND, FAHRZEUG_ZOOM, type RichtplanStand, type TaktilStand,
   hindernisText, hindernisFarbe, FIXPUNKT_FARBE, PLAN_FARBEN, planMarke, NrMarke, type Werkzeug, type KartenHinweis, type Masslinie } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
@@ -86,6 +86,8 @@ import { ebenenVorgabe, ebenenWirksam } from './bedarf/fallBedarf'
 import { radstreifenAusRechnung, querungen } from './bedarf/vorbelegung'
 import { fusswegnetzKarte } from './fusswegnetzKarte'
 import { RichtplanLegende } from './RichtplanLegende'
+import { taktilGenutzt } from './taktilGenutzt'
+import { TaktilLegende } from './TaktilLegende'
 import { AUTO_C } from './bedarf/automatikC'
 import { OsmNetz, fahrbahnRichtung } from './rechner/netz'
 import { fangen, fangRadiusM, FANG_PX, fixpunktVorschlaege, fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT, VORSCHLAG_M,
@@ -1769,6 +1771,14 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     if (!rp || 'fehler' in rp) return null
     return fusswegnetzKarte(rp, querungen(rechnung?.streifen ?? []).map(g => g.streifen), rp.bereich)
   }, [geoVor, rechnung])
+  // Ebene «Taktile Markierungen (Stadt Bern)» (30.10.2026): Stand für die Legende; die Taktil-Daten der Vorbelegung (nur Stadt Bern)
+  // nutzt sie mit, und das Feld bzw. die Leitlinie, die die Vorbelegung nutzt, zeichnet sie kräftiger
+  const [tkStand, setTkStand] = useState<TaktilStand>({ an: false })
+  const taktilVorhanden = useMemo(() => {
+    const t = geoVor.taktil
+    return t && !('fehler' in t) ? { daten: { felder: t.felder, linien: t.linien }, bereich: t.bereich } : null
+  }, [geoVor])
+  const taktilGen = useMemo(() => taktilGenutzt(geoVor.taktil, querungen(rechnung?.streifen ?? []).map(g => g.streifen)), [geoVor, rechnung])
   const blaetter = useMemo(() => (fall && rechnung && rechnung.streifen.length ? befundblaetter(rechnung, fall, { vorgabe: bedarfVorgabe,
     titel, zufahrt: (fid, z) => zufahrtText(zNamen.get(fid), z), geo: geoVor, ...(alternative ? { alternative } : {}) }) : []),
   [fall, rechnung, bedarfVorgabe, titel, zNamen, geoVor, alternative])
@@ -1979,6 +1989,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       <Karte mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         luftbildKandidaten={lbKandidaten} onLuftbildKandidat={pruefenLuftbild}
         fusswegnetz={fusswegnetz} richtplanVorhanden={richtplanVorhanden} onRichtplan={setRpStand}
+        taktilGenutzt={taktilGen} taktilVorhanden={taktilVorhanden} onTaktil={setTkStand}
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? LEER_HIND} streifenHand={fall?.streifenHand ?? LEER_HAND}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} rundenR={rundenR}
         rundenAngebot={angebotKarte} rundenVorschau={rundenVorschau} inselVorschau={inselVorschau}
@@ -2417,6 +2428,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             <span className="farbe" style={{ background: '#0ea5e9' }} />Annäherungsbereiche,
             <span className="farbe" style={{ borderColor: LUFTBILD_FARBE, borderWidth: 2 }} />Balken aus dem Luftbild (gestrichelt: unsicher)</li>
           {rpStand.an && <RichtplanLegende stand={rpStand} genutzt={!!fusswegnetz} netzM={AUTO_C.netzM} />}
+          {tkStand.an && <TaktilLegende stand={tkStand} genutzt={!!taktilGen} taktilM={AUTO_C.taktilM} />}
           <li><NrMarke nr="1" />{NUMMERN_TEXT} (je Streifen nach der Herkunft der Fahrzeuge, gerade und abbiegende gemeinsam; von Hand
             gestrichene behalten ihre Nummer ohne Schild, aus den Daten entfallene Richtungen haben keine), Schild hinter dem letzten Sichtpunkt; <NrMarke nr="2" gewaehlt />gewählte Zufahrt (Klick
             aufs Schild wählt sie)</li>

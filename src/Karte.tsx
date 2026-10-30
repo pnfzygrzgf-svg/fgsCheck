@@ -30,6 +30,10 @@ import { RP_KARTE_LAYER, RP_KARTE_NAME, RP_KARTE_QUELLE, RP_KARTE_ZOOM, bereichB
   rpLaden, rpStil, rpToleranzM, rpTooltip, rpTreffer, rpVerfuegbar, type Box, type RpArt, type RpCache, type RpObjekt,
   type RpVorhanden } from './daten/richtplanKarte'
 import type { RichtplanDaten } from './daten/richtplanFussverkehr'
+import type { TaktilGenutzt } from './taktilGenutzt'
+import { TK_KARTE_LAYER, TK_KARTE_NAME, TK_KARTE_QUELLE, TK_KARTE_ZOOM, tkAusFeld, tkAusLinie, tkAusVorbelegung, tkFeldHtml, tkLaden,
+  tkStil, tkTooltip, tkTreffer, tkVerfuegbar, type TkArt, type TkCache, type TkObjekt, type TkVorhanden } from './daten/taktilKarte'
+import type { TaktilDaten } from './daten/taktil'
 import type { Bereich } from './daten/haltestellen'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
@@ -128,6 +132,8 @@ const boxAus = (geom: P[][]): Box => [Math.min(...geom.flat().map(p => p[0])), M
   Math.max(...geom.flat().map(p => p[0])), Math.max(...geom.flat().map(p => p[1]))]
 /** Stand der Ebene Richtplan Fussverkehr für die Legende */
 export type RichtplanStand = { an: false } | { an: true; zoom: boolean; laedt: boolean; fehler: RpArt[] }
+/** Stand der Ebene Taktile Markierungen für die Legende (zuViel: Antwort an der Übertragungsgrenze des Diensts) */
+export type TaktilStand = { an: false } | { an: true; zoom: boolean; laedt: boolean; fehler: TkArt[]; zuViel: TkArt[] }
 
 /** Hinweis über der Karte (Stand der Übergangssuche); erneut: Knopf «erneut suchen» (nur nach einem Fehler) */
 export interface KartenHinweis { text: string; fehler?: boolean; erneut?: () => void }
@@ -147,6 +153,10 @@ const NAMEN_PANE = 'strassennamen'
 const FWN_PANE = 'fusswegnetz'
 // Flächen des Richtplans unter den Vektoren (overlayPane 400): blass, nie über Sichtfeldern und Hindernissen
 const FWN_FLAECHE_PANE = 'fusswegnetzFlaeche'
+// Taktile Markierungen (30.10.2026): Linien knapp über dem Richtplan (Pane 401), Felder (divIcon) in einem eigenen Pane darüber; beide
+// ohne Mausereignisse wie der Richtplan
+const TK_PANE = 'taktil'
+const TK_FELD_PANE = 'taktilFeld'
 const ECKEN_PANE = 'eckenRunden'                   // «Ecke runden»: Ecken der gewählten Fläche (Plan), über allem anklickbar
 const GRIFF_PANE = 'inselGriff'                     // «Mittelinsel (Standard)»: Griff zum Ziehen
 // Vierfachpfeil im Kreis (Griff der Mittelinsel)
@@ -325,6 +335,12 @@ export default function Karte(props: {
   richtplanVorhanden?: { daten: RichtplanDaten; bereich: Bereich } | null
   /** Stand der Ebene «Richtplan Fussverkehr (Geoportal Bern)» (Legende): aus, unter der Zoomstufe, lädt, geladen bzw. teilweise Fehler */
   onRichtplan?: (stand: RichtplanStand) => void
+  /** Feld bzw. Leitlinie, die die Vorbelegung nutzt (taktilGenutzt.ts): in der Ebene «Taktile Markierungen» kräftiger */
+  taktilGenutzt?: TaktilGenutzt | null
+  /** Taktil-Daten der Vorbelegung (Stadt Bern) mit ihrem Bereich: die Ebene nutzt sie mit, wo sie den Ausschnitt decken */
+  taktilVorhanden?: { daten: TaktilDaten; bereich: Bereich } | null
+  /** Stand der Ebene «Taktile Markierungen (Stadt Bern)» (Legende): aus, unter der Zoomstufe, lädt, geladen bzw. teilweise Fehler */
+  onTaktil?: (stand: TaktilStand) => void
   onLuftbildKandidat?: (k: LuftbildKandidat) => void
   strassennamen: Strassenname[]                      // aus der Übergangssuche und den OSM-Daten des gewählten Übergangs (daten/osm.namenKarte)
   gewaehlt: number | null
@@ -383,6 +399,8 @@ export default function Karte(props: {
   // Richtplan Fussverkehr (Vektordaten): Ebene, geladene Objekte (bleiben beim Nachladen stehen) und Zeichnen (Effekt unten ruft es nach
   // einer neuen Vorbelegung erneut)
   const rpRef = useRef<{ gruppe: L.LayerGroup; objekte: RpObjekt[]; zeichnen: () => void; laden: () => void } | null>(null)
+  // Taktile Markierungen (Vektordaten): gleich aufgebaut
+  const tkRef = useRef<{ gruppe: L.LayerGroup; objekte: TkObjekt[]; zeichnen: () => void; laden: () => void } | null>(null)
   const ksPhase: KsPhase = props.ksPhase ?? 'beide'
   // Zoomstufe (Fahrzeuge der nicht gewählten Zufahrten erst ab FAHRZEUG_ZOOM)
   const [zoom, setZoom] = useState(19)
@@ -466,6 +484,12 @@ export default function Karte(props: {
     const fwnFlaechePane = map.createPane(FWN_FLAECHE_PANE)
     fwnFlaechePane.style.zIndex = '399'
     fwnFlaechePane.style.pointerEvents = 'none'
+    const tkPane = map.createPane(TK_PANE)
+    tkPane.style.zIndex = '402'
+    tkPane.style.pointerEvents = 'none'
+    const tkFeldPane = map.createPane(TK_FELD_PANE)
+    tkFeldPane.style.zIndex = '403'
+    tkFeldPane.style.pointerEvents = 'none'
     // «Ecke runden»: Ecken der gewählten Fläche (Plan) in einem eigenen Pane über allen Ebenen und Markern (markerPane 600), unter
     // den Tooltips (650); anklickbar auch im Werkzeugmodus (index.css: .karte-werkzeug)
     map.createPane(ECKEN_PANE).style.zIndex = '620'
@@ -541,6 +565,72 @@ export default function Karte(props: {
     const rpTip = L.tooltip({ direction: 'top', offset: [0, -12], className: 'rp-tip' })
     rpGruppe.on('add', () => { rp.laden(); rpMelden(false) })
       .on('remove', () => { rpCtrl?.abort(); rpCtrl = null; window.clearTimeout(rpZeit); map.closeTooltip(rpTip); rpMelden(false) })
+    // Taktile Markierungen (Vektordaten des Geoportals, 30.10.2026; daten/taktilKarte.ts): wie der Richtplan nur in der Ebenenwahl,
+    // solange die Karte die Stadt Bern zeigt; anfangs aus; lädt eingeschaltet ab TK_KARTE_ZOOM den Ausschnitt mit Rand. Felder als
+    // Quadrate (divIcon), Linien weiss mit dunkler Kontur, alles im eigenen Pane ohne Mausereignisse (Tooltip über den Treffertest)
+    const tkGruppe = L.layerGroup([], { attribution: TK_KARTE_QUELLE })
+    const tkCache: TkCache = new Map()
+    let tkDa = false, tkWahl = false, tkCtrl: AbortController | null = null, tkZeit = 0, tkFehler: TkArt[] = [], tkZuViel: TkArt[] = []
+    const tkMelden = (laedt: boolean) => cb.current.onTaktil?.(map.hasLayer(tkGruppe)
+      ? { an: true, zoom: map.getZoom() >= TK_KARTE_ZOOM, laedt, fehler: tkFehler, zuViel: tkZuViel } : { an: false })
+    const tk = { gruppe: tkGruppe, objekte: [] as TkObjekt[], zeichnen: () => {}, laden: () => {} }
+    /** geladene Objekte und die genutzten aus der Vorbelegung, falls sie im geladenen Ausschnitt fehlen */
+    const tkAlle = (): { objekte: TkObjekt[]; genutzt: Set<string> } => {
+      const g = cb.current.taktilGenutzt
+      const gen = g ? [...g.felder.map(tkAusFeld), ...g.linien.map(tkAusLinie)] : []
+      const ids = new Set(tk.objekte.map(o => o.id))
+      return { objekte: [...tk.objekte, ...gen.filter(o => !ids.has(o.id))], genutzt: new Set(gen.map(o => o.id)) }
+    }
+    tk.zeichnen = () => {
+      tkGruppe.clearLayers()
+      if (map.getZoom() < TK_KARTE_ZOOM) return
+      const { objekte, genutzt } = tkAlle()
+      // Linien (dunkle Kontur, darüber weiss), Felder im Pane darüber
+      for (const o of objekte) {
+        if (o.art !== 'linie') continue
+        const st = tkStil('linie', genutzt.has(o.id)), lls = o.geom.map(z => z.map(ll))
+        const opt = { pane: TK_PANE, interactive: false, opacity: st.opacity, lineCap: 'butt' as const }
+        L.polyline(lls, { ...opt, color: st.randFarbe, weight: st.kontur }).addTo(tkGruppe)
+        L.polyline(lls, { ...opt, color: st.fuellung, weight: st.groesse }).addTo(tkGruppe)
+      }
+      for (const o of objekte) {
+        if (o.art !== 'feld') continue
+        const g = genutzt.has(o.id), st = tkStil('feld', g)
+        L.marker(ll(o.geom[0][0]), { pane: TK_FELD_PANE, interactive: false, keyboard: false, ...(g ? { zIndexOffset: 1000 } : {}),
+          icon: L.divIcon({ className: 'tk-feld', iconSize: [st.groesse, st.groesse], html: tkFeldHtml(st) }) }).addTo(tkGruppe)
+      }
+    }
+    tk.laden = () => {
+      window.clearTimeout(tkZeit)
+      if (!map.hasLayer(tkGruppe)) return
+      if (map.getZoom() < TK_KARTE_ZOOM) { tk.zeichnen(); tkMelden(false); return }
+      tkZeit = window.setTimeout(() => {
+        const b = map.getBounds(), sw = lv95(b.getSouth(), b.getWest()), ne = lv95(b.getNorth(), b.getEast())
+        const box = rpAbfrageBox([sw[0], sw[1], ne[0], ne[1]])
+        const v = cb.current.taktilVorhanden
+        const vorhanden: TkVorhanden | null = v ? { box: bereichBox(v.bereich), objekte: tkAusVorbelegung(v.daten) } : null
+        tkCtrl?.abort()
+        const ctrl = tkCtrl = new AbortController()
+        tkMelden(true)
+        tkLaden(box, tkCache, vorhanden, ctrl.signal).then(r => {
+          if (ctrl !== tkCtrl) return
+          tk.objekte = TK_KARTE_LAYER.flatMap(l => r.objekte[l.art] ?? [])
+          tkFehler = r.fehler; tkZuViel = r.zuViel
+          tk.zeichnen(); tkMelden(false)
+        }, () => { if (ctrl === tkCtrl) tkMelden(false) })
+      }, 300)
+    }
+    tkRef.current = tk
+    const tkAbgleich = () => {
+      const b = map.getBounds(), da = tkVerfuegbar({ s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() })
+      const wahl = ebenenWahlRef.current
+      if (!wahl || da === tkDa) return
+      tkDa = da
+      if (da) { wahl.addOverlay(tkGruppe, TK_KARTE_NAME); if (tkWahl) tkGruppe.addTo(map) }
+      else { tkWahl = map.hasLayer(tkGruppe); wahl.removeLayer(tkGruppe); map.removeLayer(tkGruppe) }
+    }
+    tkGruppe.on('add', () => { tk.laden(); tkMelden(false) })
+      .on('remove', () => { tkCtrl?.abort(); tkCtrl = null; window.clearTimeout(tkZeit); map.closeTooltip(rpTip); tkMelden(false) })
     // Treffertest beim Bewegen der Maus (höchstens einmal je Bild); nicht über anklickbaren Objekten und Markern (deren Tooltip gilt)
     let rpRaf = 0
     map.on('mousemove', (e: L.LeafletMouseEvent) => {
@@ -548,10 +638,24 @@ export default function Karte(props: {
       rpRaf = requestAnimationFrame(() => {
         rpRaf = 0
         const ziel = e.originalEvent.target as Element | null
-        const auf = map.hasLayer(rpGruppe) && map.getZoom() >= RP_KARTE_ZOOM && !ziel?.closest?.('.leaflet-interactive, .leaflet-marker-icon, .leaflet-control')
+        const frei = !ziel?.closest?.('.leaflet-interactive, .leaflet-marker-icon, .leaflet-control')
+        const p = lv95(e.latlng.lat, e.latlng.lng)
+        // taktile Markierungen zuerst (klein, über dem Richtplan)
+        if (frei && map.hasLayer(tkGruppe) && map.getZoom() >= TK_KARTE_ZOOM) {
+          const { objekte, genutzt } = tkAlle()
+          const x = tkTreffer(objekte, p, rpToleranzM(6, map.getZoom(), e.latlng.lat))
+          if (x) {
+            const t = tkTooltip(x, genutzt.has(x.id))
+            rpTip.setContent(`<b>${esc(t.titel)}</b><br>${esc(t.quelle)}`)
+            rpTip.setLatLng(e.latlng)
+            if (!map.hasLayer(rpTip)) map.openTooltip(rpTip)
+            return
+          }
+        }
+        const auf = map.hasLayer(rpGruppe) && map.getZoom() >= RP_KARTE_ZOOM && frei
         const o = auf ? rpTreffer([...rp.objekte, ...(cb.current.fusswegnetz?.linien ?? []).filter(l => !rp.objekte.some(x => x.id === l.id))
           .map(l => ({ id: l.id, art: 'basisnetz' as const, geom: l.teile, name: null, box: boxAus(l.teile) }))],
-          lv95(e.latlng.lat, e.latlng.lng), rpToleranzM(6, map.getZoom(), e.latlng.lat)) : null
+          p, rpToleranzM(6, map.getZoom(), e.latlng.lat)) : null
         if (!o) { map.closeTooltip(rpTip); return }
         const g = cb.current.fusswegnetz?.linien.find(l => l.id === o.id)
         const t = rpTooltip(o, g ? g.abstandM : null)
@@ -566,8 +670,8 @@ export default function Karte(props: {
       'OSM-Übergänge': eb.osm, [LUFTBILD_FGS_NAME]: eb.lbfgs, 'Strassennamen (OSM)': eb.namen, 'Sichtfelder': eb.sicht, 'Nummern der Zufahrten': eb.nr, 'Fahrzeuge': eb.fahrzeug, 'Hindernisse': eb.hind,
       'Fixpunkte und Masse': eb.fix },
     { collapsed: true }).addTo(map)
-    rpAbgleich()
-    map.on('moveend', () => { rpAbgleich(); rp.laden() })
+    rpAbgleich(); tkAbgleich()
+    map.on('moveend', () => { rpAbgleich(); rp.laden(); tkAbgleich(); tk.laden() })
     L.control.scale({ imperial: false }).addTo(map)
     // «Zum eigenen Standort» unter den Zoom-Knöpfen
     const standortKnopf = new L.Control({ position: 'topleft' })
@@ -611,7 +715,8 @@ export default function Karte(props: {
     map.on('zoomend', () => setZoom(map.getZoom()))
     kartenRef.current = map
     ebenenRef.current = eb
-    return () => { rpCtrl?.abort(); window.clearTimeout(rpZeit); map.remove(); kartenRef.current = null; ebenenRef.current = null; ebenenWahlRef.current = null; rpRef.current = null }
+    return () => { rpCtrl?.abort(); window.clearTimeout(rpZeit); tkCtrl?.abort(); window.clearTimeout(tkZeit); map.remove(); kartenRef.current = null
+      ebenenRef.current = null; ebenenWahlRef.current = null; rpRef.current = null; tkRef.current = null }
   }, [mitte, kartenRef])
 
   useEffect(() => {
@@ -644,6 +749,10 @@ export default function Karte(props: {
   const fwn = props.fusswegnetz ?? null, rpVorhanden = props.richtplanVorhanden ?? null
   useEffect(() => { rpRef.current?.zeichnen() }, [fwn])
   useEffect(() => { rpRef.current?.laden() }, [rpVorhanden])
+  // Taktile Markierungen: ebenso (genutztes Feld bzw. Leitlinie, geladene Daten des Falls)
+  const tkGen = props.taktilGenutzt ?? null, tkVorhanden = props.taktilVorhanden ?? null
+  useEffect(() => { tkRef.current?.zeichnen() }, [tkGen])
+  useEffect(() => { tkRef.current?.laden() }, [tkVorhanden])
 
   // Flächen (Plan) von Hand: schraffiert über der AV (Bestand bleibt darunter sichtbar); Klick wählt zum Bearbeiten, Ecken des
   // gewählten Plans als Griffe (Hindernisse-Effekt)

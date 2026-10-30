@@ -23,7 +23,7 @@ import { imBereich, type Bereich } from '../daten/haltestellen'
 import { abstandFlaeche, abstandLinie, flaecheAmPunkt, inFlaeche } from '../daten/geoHilfen'
 import { HIERARCHIE_TEXT, type HierarchieTyp, type StrassenhierarchieDaten, type StrassentypCode, type StrassenKlasse } from '../daten/strassenhierarchie'
 import { istBauzone, type NzFlaeche } from '../daten/nutzungszonen'
-import { TVM_LEITLINIE_STREIFEN } from '../daten/taktil'
+import { TVM_LEITLINIE_STREIFEN, type TaktilDaten, type TvmFeld, type TvmLinie } from '../daten/taktil'
 import type { SchulOrt } from '../daten/schulen'
 
 /** Schwellen des Pakets C (Abschnitt 24 der Regeln; Annahmen ausser wo vermerkt) */
@@ -423,6 +423,30 @@ function taktilVorbelegen(x: AutoEingangC): void {
   if (!t) return
   const quelle = `${GEOPORTAL_BERN}, taktil-visuelle Markierungen`
   if ('fehler' in t) { feldHinweis('taktil', `Taktil-visuelle Markierungen (${GEOPORTAL_BERN}) nicht erreichbar (${t.fehler})`); return }
+  const r = taktilTreffer(st, t)
+  if (r.feld !== undefined) {
+    const f = r.feld
+    if (f) setze('taktil', true, 'geoportal', `${f.z.text || 'Feld'} ${f1(f.d)} m vom Streifenende (${quelle})`)
+    else setze('taktil', false, 'annahme', `kein taktiles Aufmerksamkeitsfeld laut ${GEOPORTAL_BERN} innert ${AUTO_C.taktilM} m der ` +
+      'Streifenenden (Inventar möglicherweise unvollständig)')
+  } else if (!t.felder) feldHinweis('taktil', `Taktile Felder (${GEOPORTAL_BERN}) nicht erreichbar${t.hinweis ? ` (${t.hinweis})` : ''}`)
+  if (r.linie !== undefined) {
+    const l = r.linie
+    if (l) setze('leitlinie', true, 'geoportal', `${l.text} (${quelle})`)
+    else setze('leitlinie', false, 'annahme', `keine Leitlinie auf dem Streifen laut ${GEOPORTAL_BERN} (Inventar möglicherweise unvollständig)`)
+  }
+}
+
+/**
+ * Von taktilVorbelegen genutzte Markierungen einer Querung (30.10.2026 herausgelöst, damit die Kartenebene «Taktile Markierungen
+ * (Stadt Bern)» die genutzten Objekte über ihre Kennung hervorheben kann; Wahl unverändert): feld = nächstes Feld (Codes 1001–1005)
+ * bis AUTO_C.taktilM von einem Streifenende, mit Abstand (null: keines); linie = Leitlinie auf dem Streifen (Code 1003) bis
+ * AUTO_C.leitlinieM vom Streifenumriss (null: keine). Ein Schlüssel fehlt, wenn sein Layer nicht geladen ist bzw. der geladene
+ * Ausschnitt die Streifenenden bzw. die Streifen nicht deckt (dann setzt die Vorbelegung nichts).
+ */
+export interface TaktilTreffer { feld?: { z: TvmFeld; d: number } | null; linie?: TvmLinie | null }
+export function taktilTreffer(st: StreifenErgebnis[], t: TaktilDaten & { bereich: Bereich }): TaktilTreffer {
+  const r: TaktilTreffer = {}
   // Streifenenden am Trottoir: die beiden äussersten Enden entlang der Achse (Enden an einer Insel zählen nicht)
   const a = querungsAchse(st)
   const allEnden = st.flatMap(s => [s.p0, s.p1]).map(p => ({ p, t: dot(sub(p, a.A), a.u) })).sort((x, y) => x.t - y.t)
@@ -430,15 +454,11 @@ function taktilVorbelegen(x: AutoEingangC): void {
   if (t.felder && abgedeckt(enden, AUTO_C.taktilM, t.bereich)) {
     const f = t.felder.filter(z => z.art !== null && TVM_FELD_QUERUNG.includes(z.art)).map(z => ({ z, d: Math.min(...enden.map(e => dist(e, z.p))) }))
       .sort((p, q) => p.d - q.d)[0]
-    if (f && f.d <= AUTO_C.taktilM + 1e-9) setze('taktil', true, 'geoportal', `${f.z.text || 'Feld'} ${f1(f.d)} m vom Streifenende (${quelle})`)
-    else setze('taktil', false, 'annahme', `kein taktiles Aufmerksamkeitsfeld laut ${GEOPORTAL_BERN} innert ${AUTO_C.taktilM} m der ` +
-      'Streifenenden (Inventar möglicherweise unvollständig)')
-  } else if (!t.felder) feldHinweis('taktil', `Taktile Felder (${GEOPORTAL_BERN}) nicht erreichbar${t.hinweis ? ` (${t.hinweis})` : ''}`)
-  if (t.linien && abgedeckt(st.flatMap(eckenVon), 1, t.bereich)) {
-    const l = t.linien.find(z => z.art === TVM_LEITLINIE_STREIFEN && z.teile.some(tl => linieAbstand(tl, st) <= AUTO_C.leitlinieM + 1e-9))
-    if (l) setze('leitlinie', true, 'geoportal', `${l.text} (${quelle})`)
-    else setze('leitlinie', false, 'annahme', `keine Leitlinie auf dem Streifen laut ${GEOPORTAL_BERN} (Inventar möglicherweise unvollständig)`)
+    r.feld = f && f.d <= AUTO_C.taktilM + 1e-9 ? f : null
   }
+  if (t.linien && abgedeckt(st.flatMap(eckenVon), 1, t.bereich))
+    r.linie = t.linien.find(z => z.art === TVM_LEITLINIE_STREIFEN && z.teile.some(tl => linieAbstand(tl, st) <= AUTO_C.leitlinieM + 1e-9)) ?? null
+  return r
 }
 
 /**

@@ -145,7 +145,9 @@ describe('Datenschutz aus dem Register', () => {
     expect(t['map.bern.ch']).toBe('Rechteck ±150 m für amtliche Parkfelder, Baumkataster, Haltestellen, Verkehrsdaten, Richtplan Fussverkehr, ' +
       'Strassenhierarchie und Strassentypen, signalisierte Höchstgeschwindigkeit, Volksschulen und Kindergärten (±200 m), taktil-visuelle ' +
       'Markierungen, Nutzungszonen und ÖV-Linien. Die Kartenebene «Richtplan Fussverkehr (Geoportal Bern)» sendet den sichtbaren ' +
-      'Kartenausschnitt mit Rand (Rechteck in LV95, je Layer eine Abfrage) nur, wenn sie eingeschaltet ist.')
+      'Kartenausschnitt mit Rand (Rechteck in LV95, je Layer eine Abfrage) nur, wenn sie eingeschaltet ist. Die Kartenebene «Taktile ' +
+      'Markierungen (Stadt Bern)» sendet den sichtbaren Kartenausschnitt mit Rand (Rechteck in LV95, je Layer eine Abfrage, zwei Layer) ' +
+      'nur, wenn sie eingeschaltet ist, und erst ab Zoomstufe 15.')
     expect(eigen).toEqual(['Die Streifen aus dem Luftbild (ETH-Modell) liegen als Datei je Stadt auf dieser Seite: dafür geht keine ' +
       'Anfrage an einen anderen Dienst.'])
   })
