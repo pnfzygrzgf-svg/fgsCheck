@@ -374,3 +374,51 @@ describe('Befundblatt', () => {
       vorlaeufig: false } })).toBe('Fussgängerstreifen mit vorgezogenem Seitenraum')
   })
 })
+
+describe('Befundblatt: Abbieger an einer Querung ohne Vortritt bis zum Beginn des Abbiegens (30.10.2026)', () => {
+  // Querung über die Einmündung (Seitenstrasse Nord–Süd, Fahrbahn 5 m, crossing=unmarked) 10 m südlich der Hauptstrasse (50 km/h);
+  // Ecken als AV-Bögen 6 m; Parkfeld in der Ecke westlich 17 bis 22 m: verdeckte bisher den Abbieger von Westen (Soll 57,9 m)
+  const R = 6, B = 2.5
+  const bogen = (c: [number, number], w0: number, w1: number): P[] => Array.from({ length: 13 }, (_, i) => {
+    const w = (w0 + (w1 - w0) * i / 12) * Math.PI / 180
+    return lv(c[0] + R * Math.cos(w), c[1] + R * Math.sin(w))
+  })
+  const ring: P[] = [lv(-300, 4), lv(300, 4), lv(300, -4), ...bogen([B + R, -4 - R], 90, 180), lv(B, -200), lv(-B, -200),
+    ...bogen([-B - R, -4 - R], 0, 90), lv(-300, -4)]
+  const avE = [av('Strasse_Weg', ring)]
+  const osmE: OsmDaten = {
+    wege: [weg(1, [[10, -300, 0], [11, 0, 0], [13, 300, 0]], { highway: 'tertiary', name: 'Hauptstrasse', maxspeed: '50' }),
+      weg(2, [[11, 0, 0], [30, 0, -10], [21, 0, -200]], { highway: 'residential', name: 'Seitenstrasse', maxspeed: '30' })],
+    tram: [], ampeln: [], querungen: [], relationen: [],
+    uebergaenge: [{ id: 30, tags: { highway: 'crossing', crossing: 'unmarked' }, lat: ll(0, -10)[0], lon: ll(0, -10)[1] }],
+  }
+  const fallP = (ring_: P[]) => {
+    const x = leererFall(ll(0, -10)[0], ll(0, -10)[1], 30)
+    x.bedarf = HAND
+    x.hindernisse.push({ id: 'p1', art: 'parkfeld', klasse: 'auto', ring: ring_, quelle: 'hand' })
+    return x
+  }
+  const f = fallP(rechteck(-22, -7, -17, -5))
+  const r = rechneFall(osmE, avE, [], 30, f, null)
+  it('Abbieger frei bis zum Beginn des Abbiegens: Soll mit Zusatz, kein E3-Befund für Abbieger, Anzeige «bis Beginn des Abbiegens»', () => {
+    const ab = r.streifen[0].zufahrten.filter(z => z.art === 'abbiegend')
+    expect(ab.length).toBe(2)
+    for (const z of ab) {
+      expect(z.sichtweiteQuelle).toBe('VSS 40 240 Z. 8.2 (L 5,0 m), bis Beginn des Abbiegens')
+      expect(z.sichtweite).toBeLessThan(20)
+      expect(z.status).toBe('frei')
+    }
+    const [b] = befundblaetter(r, f, OHNE_EBENEN)
+    const sichtAb = b.sicht.filter(s => s.zufahrt.startsWith('a'))
+    expect(sichtAb.map(s => [s.regel, s.frei])).toEqual([['E3', true], ['E3', true]])
+    expect(b.befund.alle.filter(e => e.id === 'E3' || e.id === 'E3a')).toEqual([])
+    expect(b.vorbelegt.rechner?.sichtVorh).toContain('(Querung ohne Vortritt, bis Beginn des Abbiegens)')
+  })
+  it('Parkfeld im Bogen: verdeckt vor dem Beginn des Abbiegens, E3 mit dem Grund des Solls «bis Beginn des Abbiegens»', () => {
+    const fb = fallP(rechteck(-7, -7, -5, -5.5))
+    const [b] = befundblaetter(rechneFall(osmE, avE, [], 30, fb, null), fb, OHNE_EBENEN)
+    const e3 = b.befund.alle.filter(e => e.id === 'E3')
+    expect(e3.length).toBe(1)
+    expect(e3[0].detail).toContain('(VSS 40 240 Z. 8.2, L 5,0 m, bis Beginn des Abbiegens); verdeckt durch Parkfeld')
+  })
+})

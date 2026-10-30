@@ -10,6 +10,7 @@
 // Nicht übernommen (Berner Sonderdaten): Abstand zum Velostreifen aus dem Kataster (VELO_ABBIEGEND), Abzug am
 // Streifen aus dem Kataster (ABBIEGENDE_GEOMETRIE_ALT), Spur von Hand.
 // Brückenumriss (AV-Einzelobjekte) und R2-Flächen (übrige befestigte Flächen als Fahrbahn) seit E2 wie in Python.
+// Querung ohne Vortritt (seit 30.10.2026): Sicht höchstens bis zum Beginn des Abbiegens (Bogenende auf dem Arm, ohneVortritt.ts).
 
 import { freiBis } from './freibis'
 import {
@@ -40,7 +41,9 @@ import type { Flaechen } from './flaechen'
 import { liniePunkte, sichtweiteRadiusHand } from './spurhand'
 import type { HindernisDaten } from './hindernisse'
 import { SEHNE_HALB, INSELRAND_M } from './flaechen'
-import { type OhneVortritt, sichtOhneVortritt, quelleOhneVortritt, weiteOhneVortritt, REICHWEITE_SICHT_M } from './ohneVortritt'
+import {
+  type OhneVortritt, sichtOhneVortritt, quelleOhneVortritt, quelleOhneVortrittAbbiegen, weiteOhneVortritt, REICHWEITE_SICHT_M,
+} from './ohneVortritt'
 
 export const BORD_ABSTAND_M = 1.5
 const FAHRLINIE_AUF_FAHRBAHN = 0.9
@@ -107,6 +110,7 @@ const BRUECKE_SEITE_M = 12.0
 const GLAETTUNG_M = 6.0
 const f1 = (x: number) => x.toFixed(1).replace('.', ',')
 const f2 = (x: number) => x.toFixed(2).replace('.', ',')
+const auf01 = (x: number) => Math.ceil(x * 10 - 1e-9) / 10
 const RAD = Math.PI / 180
 
 // ---------------------------------------------------------------- eckradius_av
@@ -1005,6 +1009,23 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   if (startAbst > STREIFEN_TOL_M) return wegGeometrie(`Fahrlinie beginnt ${f1(startAbst)} m neben dem Streifen`)
   if (schaetzung !== null && schaetzung[0] < SCHAETZUNG_AUF_FAHRBAHN)
     return wegGeometrie(`geschätzte Fahrlinie nur zu ${(100 * schaetzung[0]).toFixed(0)} % auf der Fahrbahn`)
+  // Querung ohne Vortritt (Nutzerentscheid 30.10.2026, Variante A; Herleitung in ohneVortritt.ts): Sicht höchstens bis zum Beginn
+  // des Abbiegens. Beginn des Abbiegens = Bogenende auf dem Arm (geo.tb: Tangentenpunkt bzw. Ende der versetzten Bordkante der
+  // Fahrlinie konzentrisch zur Ecke, beim Tangentenbogen dessen Ende; bei geschätztem Radius die geschätzte Fahrlinie gleich);
+  // geo.sTb = Länge der Fahrlinie vom Streifen (Mitte) bis dorthin: Strecke bis zum Knoten, an dem das Fahrzeug abbiegt, und Bogen.
+  // Soll = min(Z. 8.2; geo.sTb − h), mindestens SPUR_MIN_M. Hofzufahrt (eigene Regel), Strecke «bis Knoten» (Knoten jenseits des
+  // Solls: kürzer) und eine gedeckte Zufahrt bleiben wie bisher
+  if (k.ov && !hof && deckung === null && swQuelleB === quelleK && geo.sTb !== undefined) {
+    const sAbb = geo.sTb
+    const swAbb = Math.max(auf01(sAbb - h), SPUR_MIN_M)
+    if (swAbb < swB) {
+      swB = swAbb; gesamtB = swB + h
+      swQuelleB = quelleOhneVortrittAbbiegen(k.ov.L)
+      bisB.push(['abbiegen', sAbb])
+      lb = linieB(swB, gesamtB, radiusB)
+      if (lb === null) return wegGeometrie('keine Fahrlinie (Bogen)')
+    }
+  }
   let hinweisEnde = false
   if (hinB) {
     const s_ende = naechsterAufSpur(punktAuf(arm, hinBM!), lb[2])![1]
@@ -1062,7 +1083,8 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const swBeiB = (h_: number): number => {
     let sw_ = swBBasis
     for (const [art_, x_] of bisB)
-      sw_ = Math.min(sw_, art_ === 'knoten' ? Math.max(Math.ceil(Math.max(x_ - h_, 0)), 1) : Math.max(Math.ceil(x_ - h_), SPUR_MIN_M))
+      sw_ = Math.min(sw_, art_ === 'knoten' ? Math.max(Math.ceil(Math.max(x_ - h_, 0)), 1) :
+        art_ === 'abbiegen' ? Math.max(auf01(x_ - h_), SPUR_MIN_M) : Math.max(Math.ceil(x_ - h_), SPUR_MIN_M))
     return sw_
   }
   const linie2 = lb[2]

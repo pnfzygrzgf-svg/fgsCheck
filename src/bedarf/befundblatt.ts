@@ -194,10 +194,11 @@ function offenWeil(x: Eintrag): string {
   return f.includes('tempoRegime') && f.includes('beduerfnis') ? `${zone}, und ${grund}` : f.includes('tempoRegime') ? zone : grund
 }
 
-/** Grund des Solls einer Querung ohne Vortritt kurz: Formel nach VSS 40 240 Z. 8.2 mit L bzw. Ende der Fahrlinie */
+/** Grund des Solls einer Querung ohne Vortritt kurz: Formel nach VSS 40 240 Z. 8.2 mit L (Abbieger: bis Beginn des Abbiegens) bzw.
+ * Ende der Fahrlinie */
 function sollGrund(q: string): string {
-  const m = /^VSS 40 240 Z\. 8\.2 \(L ([^)]+)\)$/.exec(q)
-  if (m) return `VSS 40 240 Z. 8.2, L ${m[1]}`
+  const m = /^VSS 40 240 Z\. 8\.2 \(L ([^)]+)\)(, .+)?$/.exec(q)
+  if (m) return `VSS 40 240 Z. 8.2, L ${m[1]}${m[2] ?? ''}`
   return q === 'bis Knoten (Strassenende)' ? 'bis Strassenende' : q
 }
 /** «verdeckt durch …» aus Konflikten */

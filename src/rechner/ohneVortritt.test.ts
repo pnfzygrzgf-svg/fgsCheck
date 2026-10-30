@@ -11,7 +11,7 @@ import { kontextBauen, rechneUebergang } from './index'
 import type { OsmDaten, OsmWeg } from '../daten/osm'
 import type { AvFlaeche } from '../daten/av'
 import { rechneFall } from './index'
-import { sichtOhneVortritt, quelleOhneVortritt, REICHWEITE_SICHT_M, annahmeOhneVortritt } from './ohneVortritt'
+import { sichtOhneVortritt, quelleOhneVortritt, quelleOhneVortrittAbbiegen, REICHWEITE_SICHT_M, annahmeOhneVortritt } from './ohneVortritt'
 import { inselLage, inselMasse, inselFlaechen, streifenTeilen, E1_TIEFE_M, E1_BREITE_M, E1_FURT_M } from './standardinsel'
 import { leererFall, fallLesen, fallSchreiben, type Fall } from '../fall'
 import type { FallRechnung } from './index'
@@ -111,13 +111,15 @@ describe('Sichtrechner ohne Vortritt: abbiegende Zufahrt (Querweg Tempo 30, 40 m
     { art: 'Strasse_Weg', kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [[lv(-300, -4), lv(-43, -4), lv(-43, -200), lv(-37, -200), lv(-37, -4),
       lv(300, -4), lv(300, 4), lv(-300, 4), lv(-300, -4)]] },
     av('Trottoir', rechteck(-300, 4, 300, 7)), av('Trottoir', rechteck(-36, -7, 300, -4))]
-  it('Fussgängerstreifen: Abbieger durch die gerade Zufahrt mitgeprüft (entfällt); ohne Vortritt: Soll nach Z. 8.2 ohne Kurvenregel, geprüft', () => {
+  it('Fussgängerstreifen: Abbieger durch die gerade Zufahrt mitgeprüft (entfällt); ohne Vortritt: Soll nach Z. 8.2 ohne Kurvenregel, ' +
+    'höchstens bis zum Beginn des Abbiegens (seit 30.10.2026; Z. 8.2 allein: 55,6 m)', () => {
     const fgs = rechneFall(OSM, AV, [], 12, fallMit(), null)
     expect(fgs.streifen[0].entfallen.some(e => e.zufahrt === 'a90' && e.grund === 'gedeckt')).toBe(true)
     const fid = fgs.streifen[0].fgsId
     const ov = rechneFall(OSM, AV, [], 12, fallMit(x => { x.streifen[fid] = { typ: 'ohne_vortritt' } }), null)
     const ab = ov.streifen[0].zufahrten.find(z => z.art === 'abbiegend')!
-    expect([ab.zufahrt, ab.tempo, ab.sichtweite, ab.sichtweiteQuelle]).toEqual(['a90', 30, 55.6, 'VSS 40 240 Z. 8.2 (L 8,0 m)'])
+    expect(sichtOhneVortritt(30, 8)).toBe(55.6)
+    expect([ab.zufahrt, ab.tempo, ab.sichtweite, ab.sichtweiteQuelle]).toEqual(['a90', 30, 42.9, 'VSS 40 240 Z. 8.2 (L 8,0 m), bis Beginn des Abbiegens'])
     expect(gerade(ov).map(z => z.sichtweite)).toEqual([92.6, 92.6])
   })
 })
@@ -173,8 +175,8 @@ describe('Reichweite der geladenen Daten (Korrektur E1): ohne Vortritt geprüft 
   })
   const DIR = '/Users/dmnk/Documents/fgsCheck/referenz_bern'
   const da = existsSync(join(DIR, 'referenz.json')) && existsSync(join(DIR, 'cache', 'av_1416.json'))
-  it.skipIf(!da)('Berner Referenzort 1416 (nur lokal): Soll bis 490 m, Sichtpunkte höchstens rund 110 m ab dem Streifen; Wegende ' +
-    'jenseits davon keine Grenze', () => {
+  it.skipIf(!da)('Berner Referenzort 1416 (nur lokal): Soll über 110 m, Sichtpunkte höchstens rund 110 m ab dem Streifen; Wegende ' +
+    'jenseits davon keine Grenze; Abbieger höchstens bis zum Beginn des Abbiegens', () => {
     const lesen = (p: string) => JSON.parse(readFileSync(p, 'utf-8'))
     const s = lesen(join(DIR, 'referenz.json')).streifen.find((x: { fgs_id: number }) => x.fgs_id === 1416)
     const av = avParsen(lesen(join(DIR, 'cache', 'av_1416.json'))), o = osmParsen(lesen(join(DIR, 'cache', 'osm_1416.json')))
@@ -191,6 +193,91 @@ describe('Reichweite der geladenen Daten (Korrektur E1): ohne Vortritt geprüft 
       if (z.sichtweite > REICHWEITE_SICHT_M) expect(z.geprueftBisM, z.zufahrt).toBe(REICHWEITE_SICHT_M)
       expect(z.sichtweiteQuelle === 'bis Wegende' && z.sichtweite > REICHWEITE_SICHT_M).toBe(false)
     }
-    expect(zs.some(({ z }) => z.geprueftBisM === REICHWEITE_SICHT_M && z.sichtweite > 400)).toBe(true)
+    expect(zs.some(({ z }) => z.geprueftBisM === REICHWEITE_SICHT_M && z.sichtweite > REICHWEITE_SICHT_M)).toBe(true)
+    // Abbieger (Soll nach Z. 8.2 bis 490 m): höchstens bis zum Beginn des Abbiegens
+    for (const { z } of zs.filter(x => x.z.art === 'abbiegend')) expect(z.sichtweiteQuelle, z.zufahrt).toBe(quelleOhneVortrittAbbiegen(42.4))
+  })
+})
+
+describe('Abbieger ohne Vortritt: Sicht höchstens bis zum Beginn des Abbiegens (Nutzerentscheid 30.10.2026, Variante A)', () => {
+  // Hauptstrasse West–Ost (y = 0, 50 km/h), Verbindungsstück Nord–Süd (x = 0, 30 km/h, Fahrbahn 5 m) bis zur Nebenstrasse (y = −44,
+  // 50 km/h); Ecken als AV-Bögen mit Radius 6 m; Übergang auf dem Verbindungsstück 10 m südlich der Hauptstrasse
+  const R = 6, YN = -44, B = 2.5
+  const bogen = (c: [number, number], w0: number, w1: number): P[] => Array.from({ length: 13 }, (_, i) => {
+    const w = (w0 + (w1 - w0) * i / 12) * Math.PI / 180
+    return lv(c[0] + R * Math.cos(w), c[1] + R * Math.sin(w))
+  })
+  const ring: P[] = [lv(-300, 4), lv(300, 4), lv(300, -4), ...bogen([B + R, -4 - R], 90, 180), ...bogen([B + R, YN + 4 + R], 180, 270),
+    lv(300, YN + 4), lv(300, YN - 4), lv(-300, YN - 4), lv(-300, YN + 4), ...bogen([-B - R, YN + 4 + R], 270, 360),
+    ...bogen([-B - R, -4 - R], 0, 90), lv(-300, -4)]
+  const AV = [av('Strasse_Weg', ring)]
+  const OSM = (zebra: boolean): OsmDaten => ({
+    wege: [weg(1, [[10, -300, 0], [11, 0, 0], [13, 300, 0]], { highway: 'tertiary', name: 'Hauptstrasse', maxspeed: '50' }),
+      weg(2, [[11, 0, 0], [30, 0, -10], [21, 0, YN]], { highway: 'residential', name: 'Verbindung', maxspeed: '30' }),
+      weg(3, [[40, -300, YN], [21, 0, YN], [41, 300, YN]], { highway: 'residential', name: 'Nebenstrasse', maxspeed: '50' })],
+    tram: [], ampeln: [], querungen: [], relationen: [],
+    uebergaenge: [{ id: 30, tags: zebra ? { highway: 'crossing', crossing: 'uncontrolled', 'crossing:markings': 'zebra' } :
+      { highway: 'crossing', crossing: 'unmarked' }, lat: ll(0, -10)[0], lon: ll(0, -10)[1] }],
+  })
+  const fall = (f: (x: Fall) => void = () => {}): Fall => { const x = leererFall(ll(0, -10)[0], ll(0, -10)[1], 30); f(x); return x }
+  const abb = (r: FallRechnung, strasse: string) => r.streifen[0].zufahrten.filter(z => z.art === 'abbiegend' && z.strasse === strasse)
+  const fgs = rechneFall(OSM(true), AV, [], 30, fall(), null)
+  const ov = rechneFall(OSM(false), AV, [], 30, fall(), null)
+  const Z82 = sichtOhneVortritt(50, 5)
+  it('Fussgängerstreifen unverändert: Abbieger nach Kurvenradius (bfu), gerade Zufahrt nach Tab. 1', () => {
+    expect(fgs.streifen[0].querung).toBeUndefined()
+    expect(kurz(fgs).map(x => x.slice(1))).toEqual([['90', 'gerade', 30, 25, 'VSS Tab. 1', 'frei'],
+      ['a0', 'abbiegend', 50, 15, 'bfu', 'frei'], ['a180', 'abbiegend', 50, 20, 'bfu', 'frei']].map(x => [x[0], x[1] === 'gerade' ? 'beide' : x[1], ...x.slice(2)]))
+  })
+  it('ohne Vortritt (crossing=unmarked, L 5,0 m): Abbieger an Haupt- und Nebenstrasse unter dem Soll nach Z. 8.2 (57,9 m), Quelle mit Zusatz', () => {
+    expect(ov.streifen[0].querung).toEqual({ typ: 'ohne_vortritt', L: 5, ganzeFahrbahn: false })
+    expect(Z82).toBe(57.9)
+    const alle = ov.streifen[0].zufahrten.filter(z => z.art === 'abbiegend')
+    expect(alle.length).toBe(4)
+    for (const z of alle) {
+      expect(z.sichtweiteQuelle, z.zufahrt).toBe(quelleOhneVortrittAbbiegen(5))
+      expect(z.sichtweite, z.zufahrt).toBeLessThan(Z82)
+      // Beginn des Abbiegens hinter dem Knoten, an dem das Fahrzeug abbiegt (Strecke bis zum Knoten und Bogen)
+      expect(z.sichtweite, z.zufahrt).toBeGreaterThan(z.knotenM!)
+      expect(z.sichtweite, z.zufahrt).toBeLessThan(z.knotenM! + 15)
+      expect(z.status).toBe('frei')
+    }
+  })
+  it('naher Knoten (Hauptstrasse): Sichtpunkte enden am Bogenende auf dem Arm, nicht entlang der Hauptstrasse', () => {
+    for (const z of abb(ov, 'Hauptstrasse')) {
+      const xs = z.sichtpunkte.map(p => Math.abs(p[0] - O[0]))
+      expect(Math.max(...xs), z.zufahrt).toBeLessThan(B + R + 5.3 + 0.5)     // Kreismitte 8,5 m neben der Achse, Fahrlinie bis 10,8 m
+      const ende = z.sichtpunkte[z.sichtpunkte.length - 1]
+      // Bogenende auf dem Arm: über der Kreismitte der Ecke (x = ±8,5 m)
+      expect(Math.abs(Math.abs(ende[0] - O[0]) - (B + R)), z.zufahrt).toBeLessThan(1.5)
+    }
+  })
+  it('ferner Knoten (Nebenstrasse, 34 m): bis zu jenem Knoten und Bogen, nicht in die Nebenstrasse hinein', () => {
+    const neben = abb(ov, 'Nebenstrasse')
+    expect(neben.length).toBe(2)
+    for (const z of neben) {
+      expect(z.knotenM).toBe(32)
+      expect(z.sichtweite, z.zufahrt).toBeGreaterThan(32)
+      expect(z.sichtweite, z.zufahrt).toBeLessThan(45)
+      expect(Math.max(...z.sichtpunkte.map(p => Math.abs(p[0] - O[0]))), z.zufahrt).toBeLessThan(B + R + 5.3 + 0.5)
+      expect(Math.min(...z.sichtpunkte.map(p => p[1] - O[1])), z.zufahrt).toBeGreaterThan(YN - 4)
+    }
+  })
+  it('Tempo von Hand wirkt (ferner Knoten): Soll = min(Z. 8.2 mit dem Tempo von Hand; Beginn des Abbiegens)', () => {
+    const z0 = abb(ov, 'Nebenstrasse').reduce((a, b) => (a.sichtweite > b.sichtweite ? a : b))
+    const mitTempo = (v: number) => abb(rechneFall(OSM(false), AV, [], 30, fall(x => { x.zufahrten[`30|${z0.kennung}`] = { tempo: v } }), null),
+      'Nebenstrasse').find(z => z.kennung === z0.kennung)!
+    // 30 km/h: 34,8 m nach Z. 8.2, vor dem Beginn des Abbiegens -> Z. 8.2 ohne Zusatz
+    const t30 = mitTempo(30)
+    expect(sichtOhneVortritt(30, 5)).toBe(34.8)
+    expect(z0.sichtweite).toBeGreaterThan(34.8)
+    expect([t30.tempo, t30.sichtweite, t30.sichtweiteQuelle]).toEqual([30, 34.8, quelleOhneVortritt(5)])
+    // 40 km/h: 46,3 m nach Z. 8.2, hinter dem Beginn des Abbiegens -> Beginn des Abbiegens wie mit 50 km/h
+    const t40 = mitTempo(40)
+    expect(sichtOhneVortritt(40, 5)).toBeGreaterThan(z0.sichtweite)
+    expect([t40.tempo, t40.sichtweite, t40.sichtweiteQuelle]).toEqual([40, z0.sichtweite, quelleOhneVortrittAbbiegen(5)])
+  })
+  it('Annahme je Streifen nennt die Regel für Abbieger', () => {
+    expect(ov.streifen[0].annahmen.find(a => a.startsWith('Querung ohne Vortritt'))).toContain('höchstens bis zum Beginn des Abbiegens')
   })
 })

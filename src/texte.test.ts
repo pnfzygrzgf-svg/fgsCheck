@@ -52,6 +52,7 @@ describe('Hier nicht geprüfte Richtungen: Alltagssprache', () => {
     expect(sichtQuelleKurz('Kurvensichtweite (bfu); ab dem Knoten prüft die gerade Zufahrt mit')).toBe('nach Kurvenradius')
     expect(sichtQuelleKurz('bis Knoten (Strassenende)')).toBe('bis zur Kreuzung')
     expect(sichtQuelleKurz('VSS 40 240 Z. 8.2 (L 4,0 m)')).toBe('Querung ohne Vortritt')
+    expect(sichtQuelleKurz('VSS 40 240 Z. 8.2 (L 4,0 m), bis Beginn des Abbiegens')).toBe('Querung ohne Vortritt, bis Beginn des Abbiegens')
     for (const q of ['VSS Tab. 1', 'VSS Tab. 2', 'bis Gebäude', 'bis Wegende', 'bis Kreiselring']) expect(sichtQuelleKurz(q)).not.toMatch(/VSS|Tab\./)
   })
 })

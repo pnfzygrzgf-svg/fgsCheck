@@ -16,6 +16,13 @@
 // darüber, prüft der Sichtrechner bis dort («geprüft bis 110 m, darüber nicht geprüft», ZufahrtErgebnis.geprueftBisM); ein
 // Wegende bzw. Knoten jenseits davon gilt nicht als Grenze (er kann an der Grenze der OSM-Daten liegen). Das Befundblatt führt
 // die Sicht dann als offen, nicht als erfüllt.
+//
+// Abbieger (Nutzerentscheid 30.10.2026, Variante A): v ist nach Z. 8.2 (S. 8) die gefahrene Geschwindigkeit. Ein Fahrzeug weiter
+// hinten auf seiner Strasse ist für die Querung noch nicht als Einbieger erkennbar, im Abbiegen fährt es langsam. Für abbiegende
+// Zufahrten gilt darum Soll = min(Z. 8.2 mit dem Tempo der Strasse des Arms; Länge der Fahrlinie bis zum Beginn des Abbiegens),
+// mindestens SPUR_MIN_M (abbiegen.ts): gemessen vom Streifen entlang der Fahrlinie bis zum Bogenende auf dem Arm (Strecke bis zum
+// Knoten, an dem das Fahrzeug abbiegt, und Bogen), nie entlang des Arms darüber hinaus und nie über einen weiteren Knoten. Das
+// Tempo von Hand je Zufahrt bleibt wirksam. Gerade Zufahrten unverändert.
 
 import { sollSichtOhneVortritt, formelSicht } from '../bedarf/sichtOhneVortritt'
 import { ahs, AHS_40240 } from '../bedarf/tabellen'
@@ -43,6 +50,10 @@ export const sichtOhneVortritt = (v: number, L: number): number => auf01(sollSic
 
 /** Quelle der Sichtweite (Spalte «Sichtweite») */
 export const quelleOhneVortritt = (L: number): string => `VSS 40 240 Z. 8.2 (L ${f1(L)} m)`
+/** Zusatz der Quelle, wenn eine abbiegende Zufahrt nur bis zum Beginn des Abbiegens gemessen ist */
+export const BIS_ABBIEGEN = 'bis Beginn des Abbiegens'
+/** Quelle der Sichtweite eines Abbiegers, der vor dem Soll nach Z. 8.2 abbiegt */
+export const quelleOhneVortrittAbbiegen = (L: number): string => `${quelleOhneVortritt(L)}, ${BIS_ABBIEGEN}`
 
 /** Annahme je Streifen: Formel mit den Zahlen (Formelteil wie das Ergebnis auf 0,1 m aufwärts) */
 export function annahmeOhneVortritt(o: OhneVortritt, tempi: number[], randAngenommen = false): string {
@@ -52,8 +63,9 @@ export function annahmeOhneVortritt(o: OhneVortritt, tempi: number[], randAngeno
   return `Querung ohne Vortritt (${o.typ === 'furt' ? 'Furt' : 'Nase, Einengung bzw. ohne Massnahme'}): Sichtweite nach VSS 40 240 Z. 8.2 = ` +
     `max(v · L / ${f1(GEH_V)} m/s; Anhaltesichtweite), L = ${f1(o.L)} m${o.ganzeFahrbahn ? ' (Insel nur markiert: ganze Fahrbahn)' : ''}` +
     (randAngenommen ? ' aus angenommenen Bordkanten (keine passende AV-Sehne, 0,3 m vor den Enden) – prüfen' : '') +
-    (teile.length ? `; ${teile.join('; ')}` : '') + '. v = Tempo der Zufahrt (V85 nur über das Tempo von Hand); für Abbieger lässt sich ' +
-    'die gefahrene Geschwindigkeit als Tempo von Hand je Zufahrt setzen. Die Kurvenregeln für Fussgängerstreifen (bfu, VSS 40 241 ' +
+    (teile.length ? `; ${teile.join('; ')}` : '') + '. v = Tempo der Zufahrt (V85 nur über das Tempo von Hand). Abbieger: Sicht ' +
+    'höchstens bis zum Beginn des Abbiegens (Strecke bis zu ihrem Knoten und Bogen), weiter hinten ist ein Fahrzeug noch nicht als ' +
+    'Einbieger erkennbar; das Tempo von Hand je Zufahrt gilt auch für sie. Die Kurvenregeln für Fussgängerstreifen (bfu, VSS 40 241 ' +
     `Tab. 2) gelten hier nicht. Geprüft wird höchstens bis ${REICHWEITE_SICHT_M} m (Reichweite der geladenen Daten).` +
     (ueber.length ? ` Tempo über ${AHS_MAX_V} km/h (${ueber.join(', ')} km/h): die Anhaltesichtweite der Tabelle endet bei ${AHS_MAX_V} km/h, ` +
       `verwendet ist ihr Wert ${ahs(AHS_MAX_V)} m.` : '')
