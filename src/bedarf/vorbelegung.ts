@@ -22,9 +22,10 @@
 // Strassenhierarchie (Geoportal Stadt Bern), Strassentyp aus Hierarchie und Strassentypen (Vorrang vor OSM), besonderer Grund
 // (Schulen, Kindergärten, Heime), Fusswegnetz, taktile Markierungen, Nutzungszonen, ÖV-Linien; Vortrittsrolle in automatik.ts.
 
-import { type P, dot, sub, add, dist, imPolygon, abstandStrecke, segSchnitt } from '../geo'
+import { type P, dot, sub, add, dist, imPolygon, abstandStrecke, segSchnitt, links } from '../geo'
 import type { AvFlaeche } from '../daten/av'
 import { avMitPlan } from '../rechner/planflaechen'
+import { Fahrbahn, Inseln, intervalleImPolygon } from '../rechner/flaechen'
 import type { StreifenErgebnis } from '../rechner/typen'
 import { zufahrtNamen } from '../benennung'
 import { erkennungSatz, erkennungZusatz } from '../texte'
@@ -315,6 +316,13 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
 
   // Geodaten (Abschnitt 18): Haltestelle, Zone, DTV, Beleuchtung (nur Hinweis)
   const feldHinweis = (pfad: string, text: string) => { feldHinweise[pfad] = text; hinweise.push(`${feldName(pfad)}: ${text}`) }
+  // Trottoirkante an den Streifenenden (Richtlinie Hindernisfreie Architektur Kap. 4.1, 30.10.2026): nur Fussgängerstreifen mit
+  // Bordkanten aus der AV (mit Flächen (Plan)), nicht bei unplausibel langen Teilstreifen
+  if (geo.av?.length && alleAv && teilLang === null && st.every(s => streifenTyp(s) === 'fgs')) {
+    const avPlan = avMitPlan(geo.av, fall.flaechenPlan).av
+    const inseln = new Inseln(avPlan).mit([...angenommeneInseln.map(z => z.ring), ...fall.hindernisse.flatMap(h => (h.art === 'insel' ? [h.ring] : []))])
+    streifenGeradeVorbelegen(st, new Fahrbahn(avPlan), inseln, !!fall.flaechenPlan?.length, setze, feldHinweis)
+  }
   haltestelleVorbelegen(st, geo.haltestellen ?? null, setze, feldHinweis)
   const tags = geo.osmTags ?? null
   const wegTagsGerade = tags ? gerade.map(z => wegId(z.osmWeg)).map(id => (id === null ? null : tags.get(id) ?? null)) : []
@@ -490,6 +498,100 @@ export function kurvenregelVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vor
   if (m && m.i !== null) setze('kurve.b5Gefaelle5', Math.abs(m.i) <= KURVE_GEFAELLE_MAX, 'rechnung',
     `Längsneigung ${String(Math.abs(m.i)).replace('.', ',')} % auf ${ganz(m.laenge)} m vor dem Streifen (Höhenmodell swissALTI3D) ${Z}`)
   else feldHinweis('kurve.b5Gefaelle5', `Höhenmodell nicht verfügbar: Längsgefälle von Hand angeben ${Z}`)
+}
+
+// ── Trottoirkante an den Streifenenden (Richtlinie Hindernisfreie Architektur Kap. 4.1, S. 10; 30.10.2026) ──
+//
+// Je Streifenende am Trottoir (Enden an einer Insel nicht): Querschnitte parallel zur Streifenachse im Abstand u quer dazu, über die
+// Breite des Streifens ohne KANTE_RAND_M je Rand (alle KANTE_SCHRITT_M): wo endet die Fahrbahn (AV Strasse_Weg, mit Flächen (Plan))
+// zum Trottoir hin, gemessen ab der Linie der Bordkante auf der Achse: c(u), bis KANTE_INNEN_M davor bzw. KANTE_SUCHE_M dahinter. Eine
+// gerade Kante gibt eine Gerade c(u), in einer Kurve bzw. in der Rundung einer Einmündung dreht sie. Gemessen: Richtungsänderung der
+// Kante zwischen den beiden Rändern (Richtung je über KANTE_TANGENTE_M) und grösste Abweichung von der Sehne. Endet die Fahrbahn bis
+// KANTE_SUCHE_M hinter der Bordkante nicht, biegt die Kante dort ab (Öffnung der Einmündung). Die Schwellen sind Annahmen (die
+// Richtlinie nennt keine Zahl); geprüft an synthetischen Ecken (richtlinieHa.test.ts).
+
+/** höchstens so viel Richtungsänderung über die Streifenbreite: gerade (Annahme; bei 4 m Breite eine Strassenkurve ab rund 40 m Radius) */
+export const KANTE_GERADE_GRAD = 5
+/** mindestens so viel: Kurve bzw. Ecke (Annahme; bei 4 m Breite ganz auf einer Rundung bis rund 17 m Radius) */
+export const KANTE_KURVE_GRAD = 12
+/** gerade nur, wenn die Kante höchstens so weit von der Sehne abweicht (kein Versatz, keine Nase) [m] */
+export const KANTE_GERADE_ABW_M = 0.1
+/** Toleranz je Rand des Streifens: eine Ecke, die erst so nah am Balkenende beginnt, zählt nicht (Annahme: Lage der Balken und der AV) */
+export const KANTE_RAND_M = 0.25
+const KANTE_SCHRITT_M = 0.25
+const KANTE_TANGENTE_M = 0.5
+const KANTE_INNEN_M = 6
+const KANTE_SUCHE_M = 10
+
+/** Messung an einem Ende: Richtungsänderung (Grad) und Abweichung von der Sehne (m); oeffnung: Kante biegt ab; null: nicht messbar */
+export type KantenMessung = { art: 'gerade' | 'kurve' | 'unklar'; grad: number; abw: number } | { art: 'oeffnung' } | null
+
+/** Ende der Fahrbahn auf der Geraden q + t·r (t > 0 zum Trottoir): die Fahrbahn über q, sonst die nächste davor (bis KANTE_INNEN_M);
+ * 'offen': sie endet nicht bis KANTE_SUCHE_M; null: keine Fahrbahn in der Nähe */
+function fahrbahnEnde(fb: Fahrbahn, q: P, r: P): number | 'offen' | null {
+  const max = Math.max(KANTE_INNEN_M, KANTE_SUCHE_M)
+  const iv = fb.r.imUmkreis(q, max).flatMap(t => intervalleImPolygon(q, r, max, t.poly)).sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  const zus: [number, number][] = []
+  for (const [lo, hi] of iv) {
+    const l = zus[zus.length - 1]
+    if (l && lo <= l[1] + 0.05) l[1] = Math.max(l[1], hi)
+    else zus.push([lo, hi])
+  }
+  const da = zus.find(([lo, hi]) => lo <= 1e-9 && hi >= -1e-9) ?? zus.filter(([, hi]) => hi < 0 && hi >= -KANTE_INNEN_M).pop()
+  if (!da) return null
+  return da[1] >= KANTE_SUCHE_M - 1e-6 ? 'offen' : da[1]
+}
+
+/** Trottoirkante an einem Streifenende: rand = Bordkante auf der Achse, aussen = Achsrichtung zum Trottoir, breite = Streifenbreite */
+export function kanteAmEnde(fb: Fahrbahn, rand: P, aussen: P, breite: number): KantenMessung {
+  const quer = links(aussen), h = Math.max(1, breite / 2 - KANTE_RAND_M)
+  const n = Math.max(4, Math.round(2 * h / KANTE_SCHRITT_M)), k = Math.max(1, Math.round(KANTE_TANGENTE_M / (2 * h / n)))
+  const pts: P[] = []
+  for (let i = 0; i <= n; i++) {
+    const u = -h + 2 * h * i / n
+    const c = fahrbahnEnde(fb, add(rand, quer, u), aussen)
+    if (c === null) return null
+    if (c === 'offen') return { art: 'oeffnung' }
+    pts.push([u, c])
+  }
+  const richtung = (a: P, b: P) => Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI
+  const grad = Math.abs(richtung(pts[n - k], pts[n]) - richtung(pts[0], pts[k]))
+  const a = pts[0], d = sub(pts[n], a), l = Math.hypot(d[0], d[1])
+  const abw = Math.max(...pts.map(p => Math.abs(d[0] * (p[1] - a[1]) - d[1] * (p[0] - a[0])) / l))
+  const art = grad >= KANTE_KURVE_GRAD ? 'kurve' : grad <= KANTE_GERADE_GRAD && abw <= KANTE_GERADE_ABW_M ? 'gerade' : 'unklar'
+  return { art, grad, abw }
+}
+
+/** Streifen an gerader Trottoirkante (G11): alle Enden am Trottoir gerade «ja»; ein Ende in einer Kurve bzw. an einer Öffnung «nein»;
+ * sonst offen mit Hinweis. Enden an einer Insel (AV Verkehrsinsel bis 1,2 m, angenommene bzw. gezeichnete Inseln) zählen nicht */
+export function streifenGeradeVorbelegen(st: StreifenErgebnis[], fb: Fahrbahn, inseln: Inseln, plan: boolean, setze: Setze,
+  feldHinweis: FeldHinweis): void {
+  const enden = st.flatMap(s => {
+    const ns = einheit(sub(s.p1, s.p0))
+    return [{ s, p: s.rand[0], aussen: [-ns[0], -ns[1]] as P }, { s, p: s.rand[1], aussen: ns }]
+  }).filter(e => !inseln.an(e.p))
+  if (!enden.length) return
+  const m = enden.map(e => kanteAmEnde(fb, e.p, e.aussen, e.s.bw))
+  const av = `AV${plan ? ' bzw. Flächen (Plan)' : ''}`
+  const gr = (x: number) => String(Math.round(x))
+  if (m.some(x => x?.art === 'oeffnung')) {
+    setze('streifenGerade', false, plan ? 'rechnung' : 'av', `Trottoirkante biegt an einem Streifenende ab (${av}: über die Breite des ` +
+      'Streifens keine durchgehende Kante): Ende im Bereich einer Einmündung')
+    return
+  }
+  const kurve = m.filter(x => x?.art === 'kurve') as { grad: number }[]
+  if (kurve.length) {
+    setze('streifenGerade', false, plan ? 'rechnung' : 'av', `Trottoirkante an einem Streifenende gekrümmt (${av}: Richtungsänderung rund ` +
+      `${gr(Math.max(...kurve.map(x => x.grad)))}° über die Breite des Streifens): Ende in einer Kurve bzw. Ecke der Kante`)
+    return
+  }
+  if (m.some(x => x === null)) { feldHinweis('streifenGerade', `Trottoirkante an einem Streifenende in der ${av} nicht messbar: von Hand beurteilen`); return }
+  const g = m as { art: string; grad: number; abw: number }[]
+  if (g.every(x => x.art === 'gerade')) setze('streifenGerade', true, plan ? 'rechnung' : 'av', `Trottoirkante an ` +
+    `${g.length === 1 ? 'dem Streifenende' : 'den Streifenenden'} gerade (${av}: Richtungsänderung höchstens ` +
+    `${gr(Math.max(...g.map(x => x.grad)))}° über die Breite des Streifens)`)
+  else feldHinweis('streifenGerade', `Trottoirkante an einem Streifenende leicht gekrümmt bzw. versetzt (${av}: rund ` +
+    `${gr(Math.max(...g.map(x => x.grad)))}° über die Breite des Streifens): von Hand beurteilen`)
 }
 
 /** Kurzname einer Quelle in Herkunftstexten */

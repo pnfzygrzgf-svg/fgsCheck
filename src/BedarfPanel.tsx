@@ -424,7 +424,7 @@ const FELDER_ERWEITERT = FELD_DEFS.filter(d => !istGrundFeld(d.pfad))
 
 const ebeneText: Record<keyof BedarfEbenen, string> = {
   bern: 'Stadt Bern (Masterplan Fussverkehr, Handbuch Lichtsignalanlagen, Standards Veloinfrastruktur)', kantonBE: 'Kanton Bern (Arbeitshilfe Fussgängerstreifen)',
-  richtlinie: 'Richtlinien (bfu, Hindernisfreie Architektur): nur Hinweise',
+  richtlinie: 'Richtlinien (bfu, Hindernisfreie Architektur): Hinweise und Soll-Punkte',
 }
 /** Ebenen kurz (Zeile «Welche Vorgaben gelten», Werke im Tooltip) */
 const EBENE_KURZ: Record<keyof BedarfEbenen, string> = { bern: 'Stadt Bern', kantonBE: 'Kanton Bern', richtlinie: 'Richtlinien' }

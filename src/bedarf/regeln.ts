@@ -12,7 +12,7 @@ import { freigabeSollInsel, freigabeSollNorm, gelbZulaessig, rundeBern } from '.
 import { sichtweiteKurve } from '../rechner/tempo'
 import { f3Klasse } from './durchfahrt'
 import type { Staerke } from './typen'
-import type { Quelle } from './eingaben'
+import { QUELLEN_ANNAHME, type Quelle } from './eingaben'
 import { QUELLE_TEXT } from './fallBedarf'
 import { FELD_DEF, wertText } from './felder'
 
@@ -408,6 +408,11 @@ export const REGELN: Record<BefundId, RegelFn> = {
     return ja(Math.abs(a - W.recht) > W.tol, { ist: fmt(a, 1), soll: `${W.recht} ± ${W.tol} (Annahme)` })
   },
   F1e: k => (!k.w('busspur') ? null : ja(!k.w('busDurchmarkiert'))),
+  // Richtlinie Hindernisfreie Architektur Kap. 4.1 (30.10.2026): dieselbe Schwelle wie die Leitlinie bei schräger Querung
+  'F1d-R': k => {
+    const a = k.w('achsWinkel'), W = K.F7e.werte
+    return ja(Math.abs(a - W.recht) > W.tol, { ist: fmt(a, 1), soll: `${W.recht} ± ${W.tol} (Annahme)` })
+  },
   F2: k => {
     if (!k.w('insel').vorhanden) return null
     const b = k.s('insel', 'breite'), W = K.F2.werte
@@ -418,7 +423,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const b = k.s('insel', 'breite'), W = K.F2b.werte
     return ja(b >= W.min && b < W.regel, { ist: fmt(b), soll: `${fmt(W.regel)} (Regel)` })
   },
-  F2c: k => (!k.w('insel').vorhanden ? null : ja(k.s('insel', 'breite') < K.F2c.werte.min, { ist: fmt(k.s('insel', 'breite')) })),
+  F2c: k => (!k.w('insel').vorhanden ? null : ja(k.s('insel', 'breite') < K.F2c.werte.min, { ist: fmt(k.s('insel', 'breite')), soll: `≥ ${fmt(K.F2c.werte.min)}` })),
   F2d: k => {
     if (!k.w('insel').vorhanden) return null
     if (k.s('insel', 'art') !== 'markiert') return ja(false)
@@ -652,6 +657,15 @@ export const REGELN: Record<BefundId, RegelFn> = {
   G9: k => (!k.w('reklameUnter20m') ? ja(false) : ja(!k.w('reklameAusnahme'))),
   G10a: k => ja(k.w('blinklicht') === 'nicht_ssv'),
   G10b: k => ja(k.w('blinklicht') === 'gelb_ssv'),
+  // Richtlinie Hindernisfreie Architektur (30.10.2026): gerade Trottoirkante (Kap. 4.1), Abstand zum Kreisel (Kap. 4.4); nur am Kreisel
+  // (Lage offen: nicht anwendbar, die Vorbelegung setzt «am Kreisel» bei jedem Kreiselring bis 20 m)
+  G11: k => ja(!k.w('streifenGerade')),
+  G12: k => {
+    if (k.o('lage') !== 'kreisel') return null
+    const d = k.w('abstandKreiselM'), W = K.G12.werte
+    const q = k.e.abstandKreiselM.quelle
+    return ja(d < W.min, { ist: fmt(d, 1), soll: `≥ ${W.min}`, ...(q && QUELLEN_ANNAHME.includes(q) ? { annahme: true as const } : {}) })
+  },
 
   // ── H ──
   H1: k => {

@@ -183,6 +183,11 @@ export interface Werte {
   haltestelle: Haltestelle
   abstandFgsM: number
   abstandLsaM: number
+  /** Streifen an gerader Trottoirkante, kein Ende in der Kurve einer Einmündung bzw. eines Knotens (neu 30.10.2026, Richtlinie
+   * Hindernisfreie Architektur Kap. 4.1) */
+  streifenGerade: boolean
+  /** Abstand vom nächsten Streifenrand zum Kreiselring [m] (neu 30.10.2026, Kap. 4.4; vorbelegt bis zur OSM-Mittellinie des Rings) */
+  abstandKreiselM: number
   verzweigung: boolean
   verzweigungErkennbar: boolean
   haltestelleAngrenzend: boolean
@@ -275,7 +280,7 @@ export const FELDER: { readonly [K in FeldName]: Art } = {
   knotenLsa: 'bool', fahrbahnB: 'zahl', zweirichtung: 'bool', nRichtung: 'zahlen', radstreifen: 'bool', busspur: 'bool',
   busDurchmarkiert: 'bool', alleZufahrtsstreifenBelastet: 'bool', tram: ['keins', 'eigentrassee', 'fahrbahn'],
   tramHaltestellenbereich: 'bool', balkenAufGleis: 'bool', insel: 'objekt', inselMoeglich: 'bool', durchfahrt: 'zahlen',
-  haltestelle: 'objekt', abstandFgsM: 'zahl', abstandLsaM: 'zahl', verzweigung: 'bool', verzweigungErkennbar: 'bool',
+  haltestelle: 'objekt', abstandFgsM: 'zahl', abstandLsaM: 'zahl', streifenGerade: 'bool', abstandKreiselM: 'zahl', verzweigung: 'bool', verzweigungErkennbar: 'bool',
   haltestelleAngrenzend: 'bool', fgsMitLsa: 'bool', neuanlage: 'bool', rueckversatzM: 'zahl', signal411: 'bool',
   signal411Insel: 'bool', beleuchtung: 'bool', schattenfrei: 'bool', hvl: 'objekt', hvlBedarfM: 'zahl',
   haltenSichtrelevantUeber5m: 'bool', haltenSonstVerboten: 'bool', reklameUnter20m: 'bool', reklameAusnahme: 'bool',

@@ -445,6 +445,13 @@ export const KATALOG = {
   F1e: { id: 'F1e', titel: 'Streifen über den Busstreifen', gruppe: 'F', thema: 'ausruestung', art: 'befund', ebene: 'Norm', staerke: 'hart', eingaben: ['busspur', 'busDurchmarkiert'],
     pruefsatz: 'Fehlen die Balken auf dem Busstreifen? Dann ist es nötig, sie über den Busstreifen durchzuziehen.',
     bedingung: 'busspur && !busDurchmarkiert', ergebnis: 'Balken über den Busstreifen durchziehen', kurzsatz: 'Balken fehlen auf dem Busstreifen', quellen: [q('40241', 'Z. 21')] },
+  // Richtlinie Hindernisfreie Architektur (30.10.2026): Ausrichtung des Streifens (Kap. 4.1, S. 10); Schwelle wie bei der Leitlinie
+  // (Abweichung vom rechten Winkel über 10°, regeln.ts liest sie dort)
+  'F1d-R': { id: 'F1d-R', titel: 'Streifen rechtwinklig für Sehbehinderte', gruppe: 'F', thema: 'ausruestung', art: 'befund', ebene: 'Richtlinie', staerke: 'weich', eingaben: ['achsWinkel'],
+    pruefsatz: 'Weicht der Streifen mehr als 10° vom rechten Winkel (90°) zum Fahrbahnrand ab? Damit sich Sehbehinderte ausrichten können, sollte er rechtwinklig liegen; Abweichung begründen.',
+    bedingung: '|achsWinkel − 90| > 10 (Toleranz wie bei der Leitlinie)', ergebnis: 'Schräger Streifen: für Sehbehinderte schwer auszurichten (Toleranz 10° als Annahme)',
+    kurzsatz: 'Streifen schräg, für Sehbehinderte schwer auszurichten ({ist})', quellen: [q('HA', 'Kap. 4.1, S. 10')], werte: { recht: 90, tol: 10 },
+    bemerkung: 'gleiche Schwelle wie die Leitlinie bei schräger Querung', einheit: '°' },
   F2: { id: 'F2', titel: 'Mindesttiefe der Insel', gruppe: 'F', thema: 'insel', art: 'befund', ebene: 'Norm', staerke: 'hart', eingaben: ['insel'],
     pruefsatz: 'Ist die Insel in Gehrichtung weniger als 1,50 m tief? Dann ist eine tiefere Insel nötig.',
     bedingung: 'insel.vorhanden && insel.breite < 1.50', ergebnis: 'Insel schmaler als 1,50 m', kurzsatz: 'Insel zu wenig tief ({ist} statt {soll})', quellen: [q('40241', 'Z. 24'), q('40240', 'Abb. 10–14')],
@@ -453,9 +460,11 @@ export const KATALOG = {
     pruefsatz: 'Ist die Insel in Gehrichtung 1,50 m bis unter 2,00 m tief? Sie sollte 2,00 m tief sein; Abweichung begründen.',
     bedingung: '1.50 <= insel.breite < 2.00', ergebnis: 'Insel unter dem Regelmass 2,00 m', kurzsatz: 'Insel weniger tief als üblich ({ist} statt {soll})', quellen: [q('40241', 'Z. 24'), q('640075', 'Anh. 8.1.3')],
     werte: { min: 1.5, regel: 2 }, groesse: 'Inselbreite (quer)', einheit: 'm' },
-  F2c: { id: 'F2c', titel: 'Inseltiefe für Rollstuhl und Führhund', gruppe: 'F', thema: 'insel', art: 'befund', ebene: 'Richtlinie', staerke: 'hinweis', eingaben: ['insel'],
-    pruefsatz: 'Ist die Insel in Gehrichtung weniger als 1,80 m tief? Hinweis: das ist knapp für Rollstuhl und Führhund.',
-    bedingung: 'insel.breite < 1.80', ergebnis: 'Unter 1,80 m knapp für Rollstuhl und Führhund', quellen: [q('HA', 'Kap. 4.2')], werte: { min: 1.8 }, einheit: 'm' },
+  // 30.10.2026: Soll statt Hinweis (Richtlinie Hindernisfreie Architektur Kap. 4.2, S. 10: zu vermeiden)
+  F2c: { id: 'F2c', titel: 'Inseltiefe für Rollstuhl und Führhund', gruppe: 'F', thema: 'insel', art: 'befund', ebene: 'Richtlinie', staerke: 'weich', eingaben: ['insel'],
+    pruefsatz: 'Ist die Insel in Gehrichtung weniger als 1,80 m tief? Für Rollstuhl und Führhund sollte sie mindestens 1,80 m tief sein; Abweichung begründen.',
+    bedingung: 'insel.breite < 1.80', ergebnis: 'Unter 1,80 m knapp für Rollstuhl und Führhund', kurzsatz: 'Insel knapp für Rollstuhl und Führhund ({ist} statt {soll})',
+    quellen: [q('HA', 'Kap. 4.2, S. 10')], werte: { min: 1.8 }, einheit: 'm' },
   F2d: { id: 'F2d', titel: 'Nur markierte Insel', gruppe: 'F', thema: 'insel', art: 'befund', ebene: 'Norm', staerke: 'hart', auch: ['weich'], eingaben: ['insel'],
     pruefsatz: 'Ist die Insel nur markiert? Verlangt die Lage eine Insel, ist eine bauliche nötig; sonst sollte sie baulich sein, Abweichung begründen.',
     bedingung: "insel.art == 'markiert' (hart, wenn D1, D2 oder D3a eine Insel verlangen, sonst weich)",
@@ -663,6 +672,16 @@ export const KATALOG = {
   G10b: { id: 'G10b', titel: 'Gelbes Blinklicht', gruppe: 'G', thema: 'ausruestung', art: 'befund', ebene: 'Norm', staerke: 'weich', eingaben: ['blinklicht'],
     pruefsatz: 'Hat die Querung ein gelbes Blinklicht? Darauf sollte verzichtet werden; Abweichung begründen.',
     bedingung: "blinklicht == 'gelb_ssv'", ergebnis: 'Auf gelbe Blinklichter verzichten', kurzsatz: 'gelbes Blinklicht vorhanden', quellen: [q('40241', 'Z. 22')] },
+  // Richtlinie Hindernisfreie Architektur (30.10.2026): Lage an gerader Trottoirkante (Kap. 4.1, S. 10), Abstand zum Kreisel (Kap. 4.4, S. 11)
+  G11: { id: 'G11', titel: 'Streifen an gerader Trottoirkante', gruppe: 'G', thema: 'lage', art: 'befund', ebene: 'Richtlinie', staerke: 'weich', eingaben: ['streifenGerade'],
+    pruefsatz: 'Liegt ein Ende des Streifens in einer Kurve der Trottoirkante, etwa in der Rundung einer Einmündung? Der Streifen sollte an einem geraden Stück liegen; Abweichung begründen.',
+    bedingung: '!streifenGerade', ergebnis: 'Streifenende in einer Kurve bzw. Ecke der Trottoirkante: Streifen an ein gerades Stück legen',
+    kurzsatz: 'Streifenende nicht an gerader Trottoirkante', quellen: [q('HA', 'Kap. 4.1, S. 10')] },
+  G12: { id: 'G12', titel: 'Abstand zum Kreisel', gruppe: 'G', thema: 'lage', art: 'befund', ebene: 'Richtlinie', staerke: 'weich', eingaben: ['lage', 'abstandKreiselM'],
+    pruefsatz: 'Liegt der Streifen am Kreisel näher als 5 m beim Kreiselring? Er sollte mindestens 5 m davon entfernt sein; Abweichung begründen.',
+    bedingung: "lage == 'kreisel' && abstandKreiselM < 5", ergebnis: 'Streifen näher als 5 m am Kreiselring', kurzsatz: 'Streifen zu nah am Kreisel ({ist} statt {soll})',
+    quellen: [q('HA', 'Kap. 4.4, S. 11')], werte: { min: 5 }, groesse: 'Abstand zum Kreisel', einheit: 'm',
+    bemerkung: 'vorbelegt bis zur OSM-Mittellinie des Rings; der Rand der Kreisfahrbahn liegt näher' },
 
   // ── H Sicht ──
   H1: { id: 'H1', titel: 'Sichtweite auf die Wartefläche', gruppe: 'H', thema: 'sicht', art: 'befund', ebene: 'Norm', staerke: 'hart', eingaben: ['vSig', 'v85', 'v85Nachweis', 'anzeichenSchneller', 'sichtVorh', 'kurve', 'innerorts'],

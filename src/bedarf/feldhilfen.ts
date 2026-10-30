@@ -277,6 +277,18 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
       'ein einbiegendes Auto hat davor Platz).',
     vorschlag: 'aus der AV: Fahrbahnrand der Querstrasse bis zur Streifenkante, gemessen 12 bis 18 m neben dem Knoten.',
   },
+  // Richtlinie Hindernisfreie Architektur (30.10.2026): Kap. 4.1 bzw. 4.4
+  streifenGerade: {
+    was: 'Ja, wenn der Streifen an beiden Enden an einem geraden Stück der Trottoirkante liegt, nicht in der gerundeten Ecke einer ' +
+      'Einmündung oder Kreuzung. An einer geraden Kante finden Sehbehinderte die Gehrichtung leichter.',
+    vorschlag: 'aus der AV (mit Flächen von Hand): Richtung der Trottoirkante an den Streifenenden (nicht an einer Insel) über die Breite ' +
+      'des Streifens. Ändert sie sich höchstens um 5°, «ja»; ab 12° bzw. wenn die Kante dort abbiegt, «nein»; dazwischen offen mit Hinweis.',
+  },
+  abstandKreiselM: {
+    was: 'Am Kreisel: Abstand vom nächsten Rand des Streifens bis zum Rand der Kreisfahrbahn, in Metern.',
+    vorschlag: 'aus OSM bis zur Mittellinie des Kreiselrings (die Breite der Kreisfahrbahn fehlt, ihr Rand liegt näher). Unter 5 m gilt ' +
+      'der Wert, ab 5 m nur als Annahme: bestätigen bzw. am Plan messen.',
+  },
   laengsparkierung: {
     was: 'Ja, wenn neben der Querung parallel zur Fahrbahn parkiert wird. Dann muss das Trottoir bis an die Parkreihe vorgezogen sein, ' +
       'damit Querende gesehen werden.',
@@ -563,7 +575,7 @@ export type Bedingung =
   | { feld: string; gesetzt: true }
   /** Zahl über der Schwelle; offen zählt als möglich (nur GELTUNG) */
   | { feld: string; ueber: number }
-  | { ebene: 'bern' | 'kantonBE' }
+  | { ebene: 'bern' | 'kantonBE' | 'richtlinie' }
   | { alle: readonly Bedingung[] }
   | { eines: readonly Bedingung[] }
 
@@ -571,6 +583,8 @@ const typ = (...t: Wert[]): Bedingung => ({ feld: 'typ', ist: t })
 const ja = (feld: string): Bedingung => ({ feld, ist: [true] })
 const BERN: Bedingung = { ebene: 'bern' }
 const KANTON: Bedingung = { ebene: 'kantonBE' }
+/** Ebene Richtlinie an (Vorgabe: an) */
+const RICHTLINIE: Bedingung = { ebene: 'richtlinie' }
 const FGS = typ('fgs')
 /** Fussgängerstreifen bzw. Querungstyp offen: Grundprüfung, Sicht und Erkennungsdistanz */
 const FGS_ODER_OFFEN = typ(null, 'fgs')
@@ -624,6 +638,9 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   'haltestelle.verdeckt': { feld: 'haltestelle.art', ist: ['fahrbahn'] },
   'haltestelle.ueberholenUnterbunden': alle(FGS_ARTIG, { feld: 'haltestelle.art', ist: ['fahrbahn'] }),
   rueckversatzM: alle(FGS, KNOTEN),
+  // Richtlinie Hindernisfreie Architektur (30.10.2026): wie die Streifenmasse nur beim Fussgängerstreifen; Abstand nur am Kreisel
+  streifenGerade: alle(F1_TYPEN, RICHTLINIE),
+  abstandKreiselM: alle(F1_TYPEN, { feld: 'lage', ist: ['kreisel'] }, RICHTLINIE),
   seitenraumVorParklinieM: ja('laengsparkierung'),
   restbreiteM: alle(ja('einengung'), BERN),
   einengungLaengeM: ja('einengung'),
@@ -689,7 +706,7 @@ export interface SichtKontext { e: BedarfEingaben; ebenen: { bern: boolean; kant
 export function erfuellt(b: Bedingung, k: SichtKontext): boolean {
   if ('alle' in b) return b.alle.every(x => erfuellt(x, k))
   if ('eines' in b) return b.eines.some(x => erfuellt(x, k))
-  if ('ebene' in b) return k.ebenen[b.ebene]
+  if ('ebene' in b) return b.ebene === 'richtlinie' ? k.ebenen.richtlinie !== false : k.ebenen[b.ebene]
   const w = wertVon(k.e, b.feld)
   if ('gesetzt' in b) return w !== null
   if ('ueber' in b) return w === null || (typeof w === 'number' && w > b.ueber)
@@ -737,7 +754,7 @@ const feldText = (pfad: string): string => FELD_DEF.get(pfad)?.name ?? pfad
 export function bedingungText(b: Bedingung): string {
   if ('alle' in b) return b.alle.map(x => ('eines' in x && x.eines.length > 1 ? `(${bedingungText(x)})` : bedingungText(x))).join(' und ')
   if ('eines' in b) return b.eines.map(bedingungText).join(' oder ')
-  if ('ebene' in b) return b.ebene === 'bern' ? 'Ebene Bern an' : 'Ebene Kanton BE an'
+  if ('ebene' in b) return b.ebene === 'bern' ? 'Ebene Bern an' : b.ebene === 'kantonBE' ? 'Ebene Kanton BE an' : 'Ebene Richtlinie an'
   if ('gesetzt' in b) return `${feldText(b.feld)} eingegeben`
   if ('ueber' in b) return `${feldText(b.feld)} über ${b.ueber} oder offen`
   return `${feldText(b.feld)}: ${b.ist.map(x => wertName(b.feld, x)).join(' oder ')}`
@@ -791,7 +808,7 @@ function geltungTeil(b: Bedingung): string {
   if (n) return n
   if ('alle' in b) return b.alle.map(geltungTeil).join(', ')
   if ('eines' in b) return b.eines.map(geltungTeil).join(' oder ')
-  if ('ebene' in b) return b.ebene === 'bern' ? 'nur Stadt Bern' : 'nur Kanton Bern'
+  if ('ebene' in b) return b.ebene === 'bern' ? 'nur Stadt Bern' : b.ebene === 'kantonBE' ? 'nur Kanton Bern' : 'nur mit Richtlinie'
   if ('gesetzt' in b) return `${feldText(b.feld)} bekannt`
   if ('ueber' in b) return `${feldText(b.feld)} über ${b.ueber}`
   const w = b.ist.filter(x => x !== null)
@@ -836,6 +853,8 @@ export const GELTUNG: Partial<Record<RegelId, Bedingung>> = {
   'Q3-4': T('trottoirueberfahrt'),
   F1a: FGS_ARTIG_K, F1b: FGS_ARTIG_K, F1c: FGS_ARTIG_K, F1d: FGS_ARTIG_K, 'F1-K': alle(FGS_ARTIG_K, kann('kantonsstrasse', true)),
   F1e: alle(FGS_ARTIG_K, kann('busspur', true)),
+  // Richtlinie Hindernisfreie Architektur (30.10.2026); Kreisel nur mit bekannter Lage am Kreisel (regeln.ts)
+  'F1d-R': FGS_ARTIG_K, G11: FGS_ARTIG_K, G12: alle(FGS_ARTIG_K, { feld: 'lage', ist: ['kreisel'] }),
   F2: alle(NICHT_TUE, INSEL_K), F2b: alle(NICHT_TUE, INSEL_K), F2c: alle(NICHT_TUE, INSEL_K), F2d: alle(NICHT_TUE, INSEL_K),
   'F2-B': alle(NICHT_TUE, INSEL_K), F2e: alle(NICHT_TUE, BAULICH_K), F2f: alle(NICHT_TUE, BAULICH_K), F2g: alle(NICHT_TUE, BAULICH_K),
   F3: alle(NICHT_TUE, BAULICH_K), 'F3-M': alle(NICHT_TUE, INSEL_K, kann('insel.art', 'markiert')),
@@ -1023,6 +1042,8 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   'haltestelle.verdeckt': 'Verdeckt ein haltender Bus die Querenden?',
   'haltestelle.ueberholenUnterbunden': 'Ist das Überholen des haltenden Busses verhindert?',
   rueckversatzM: 'Wie weit liegt die Querung von der Kreuzung zurück?',
+  streifenGerade: 'Liegt der Streifen an einem geraden Stück der Trottoirkante, nicht in der Kurve einer Einmündung?',
+  abstandKreiselM: 'Wie weit liegt der Streifen vom Rand der Kreisfahrbahn entfernt?',
   laengsparkierung: 'Wird an der Querung längs parkiert?',
   seitenraumVorParklinieM: 'Wie weit ist das Trottoir über die Parkreihe vorgezogen?',
   einengung: 'Gibt es an der Querung eine Nase oder Einengung?',

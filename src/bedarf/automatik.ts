@@ -319,6 +319,13 @@ export function automatik(x: AutoEingang): void {
     if (kreiselD !== null) {
       setze('lage', 'kreisel', 'osm', `Kreisel ${ganz(kreiselD)} m vom Streifen (OSM)${tag('junction=roundabout')}`)
       setze('q3.kreisel', true, 'osm', st.some(s => s.trottoirueberfahrt) ? 'Kreisel an der Überfahrt (OSM)' : 'Kreisel am Streifen (OSM)')
+      // Abstand zum Kreisel (Richtlinie Hindernisfreie Architektur Kap. 4.4, 30.10.2026): OSM kennt nur die Mittellinie des Rings, der Rand
+      // der Kreisfahrbahn liegt um die halbe Ringbreite näher. Unter der Schwelle ist der Streifen sicher zu nah (Wert aus OSM), sonst
+      // gilt der Wert nur als Annahme; abgerundet auf 0,1 m
+      const dK = Math.floor(kreiselD * 10 + 1e-6) / 10, minK = KATALOG.G12.werte.min
+      const tK = `Mittellinie des Kreiselrings ${f1(dK)} m vom Streifenrand (OSM); der Rand der Kreisfahrbahn liegt um die halbe Ringbreite näher`
+      if (dK < minK) setze('abstandKreiselM', dK, 'osm', tK)
+      else setze('abstandKreiselM', dK, 'annahme', `${tK}: als Abstand angenommen, am Plan prüfen`)
     } else if (knoten) {
       const k = knoten
       if (x.aus) x.aus.knoten = k.id

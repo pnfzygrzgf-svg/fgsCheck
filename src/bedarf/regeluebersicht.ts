@@ -92,6 +92,20 @@ export interface RegelGruppe { schluessel: string; name: string; zeilen: RegelZe
   /** Gliederung nach Thema: Überschrift der Themengruppe (Norm, Kapitel, Seite) vor dem ersten Thema der Gruppe */
   ober?: string }
 
+/** Werke, deren Regeln in der Gliederung nach Quelle nach Kapitel stehen (30.10.2026: Richtlinie Hindernisfreie Architektur, Kap. 4.1,
+ * 4.2, 4.4); die übrigen in der Reihenfolge des Katalogs */
+const NACH_KAPITEL: readonly WerkId[] = ['HA']
+/** Kapitel der Fundstelle im Werk als Zahlen (ohne Kapitel: ans Ende) */
+const kapitel = (id: string, w: WerkId): number[] => {
+  const m = /Kap\.\s*(\d+(?:\.\d+)*)/.exec(DEF[id].quellen.find(q => q.werk === w)?.ziffer ?? '')
+  return m ? m[1].split('.').map(Number) : [Infinity]
+}
+function nachKapitel(w: WerkId, zs: RegelZeile[]): RegelZeile[] {
+  if (!NACH_KAPITEL.includes(w)) return zs
+  const vgl = (a: number[], b: number[]) => { for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] ?? -1) - (b[i] ?? -1); if (d) return d } return 0 }
+  return zs.map((x, i) => ({ x, i })).sort((a, b) => vgl(kapitel(a.x.id, w), kapitel(b.x.id, w)) || a.i - b.i).map(y => y.x)
+}
+
 /** Suche in Titel und Nummer (ohne Gross-/Kleinschreibung) */
 const passt = (z: RegelZeile, f: RegelFilter): boolean => {
   const s = (f.suche ?? '').trim().toLowerCase()
@@ -110,7 +124,7 @@ export function regelGruppen(zeilen: readonly RegelZeile[], nach: Gliederung, f:
   const gruppen: RegelGruppe[] = nach === 'thema'
     ? THEMEN.map(t => ({ schluessel: `thema-${t.id}`, name: t.name, zeilen: aktiv.filter(x => x.thema === t.id).map((x, i) => ({ x, i }))
       .sort((a, b) => normVergleich(a.x.id, b.x.id) || a.i - b.i).map(y => y.x), ...(gruppeAb(t.id) ? { ober: gruppeAb(t.id)! } : {}) }))
-    : WERK_IDS.filter(w => !f.werk || w === f.werk).map(w => ({ schluessel: `werk-${w}`, name: LESENAME[w], zeilen: aktiv.filter(x => x.werke.includes(w)) }))
+    : WERK_IDS.filter(w => !f.werk || w === f.werk).map(w => ({ schluessel: `werk-${w}`, name: LESENAME[w], zeilen: nachKapitel(w, aktiv.filter(x => x.werke.includes(w))) }))
   gruppen.push({ schluessel: 'ablauf', name: 'Ablauf (Verzweigungen, Zusammenfassungen, Verweise)', zeilen: z.filter(x => x.art === 'ablauf') })
   gruppen.push({ schluessel: 'gestrichen', name: 'Gestrichen', zeilen: z.filter(x => x.art === 'gestrichen') })
   return gruppen.filter(g => g.zeilen.length)

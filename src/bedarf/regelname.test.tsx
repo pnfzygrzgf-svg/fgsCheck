@@ -32,7 +32,7 @@ describe('Kurztitel der Regeln', () => {
       expect(s.has(d.titel), `${id}: ${d.titel} doppelt in ${d.gruppe}`).toBe(false)
       je.set(d.gruppe, s.add(d.titel))
     }
-    expect(REGEL_IDS.length).toBe(179)
+    expect(REGEL_IDS.length).toBe(182)
   })
   it('Namen und Texte: «Titel (Nummer)», einzelne Nummern in Texten ergänzt, Standard E1 bleibt', () => {
     expect(regelName('D2')).toBe('Insel bei breiter Fahrbahn (D2)')
@@ -115,7 +115,8 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
     const druck = text(renderToStaticMarkup(<BefundblattAnzeige b={b} druck />)).replace(/ :/g, ':')
     for (const t of [panel, druck]) {
       // 23.10.2026: Kopf in einer Zeile, je Thema Zählung in Symbol und Wort, Themen ohne Befund in einer Zeile
-      expect(t).toContain('48 Regeln · 1 Befund · 2 Hinweise')
+      // 30.10.2026: + Richtlinie Hindernisfreie Architektur (Ausrichtung, gerade Trottoirkante) ohne Befund
+      expect(t).toContain('50 Regeln · 1 Befund · 2 Hinweise')
       expect(t).toContain('Insel ! 1 Soll-Befund · i 1 Hinweis')
       expect(t).toMatch(/Ohne Befund: Zulässigkeit ?, Nachfrage ?, Sicht/)
       expect(t).not.toContain('Ohne Vortritt und Mehrzweckstreifen')

@@ -111,6 +111,9 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'haltestelle.verdeckt', gruppe: 'lage', name: 'Haltender Bus verdeckt die Querenden', art: B },
   { pfad: 'haltestelle.ueberholenUnterbunden', gruppe: 'lage', name: 'Überholen des haltenden Busses verhindert', art: B },
   { pfad: 'rueckversatzM', gruppe: 'lage', name: 'Abstand der Querung zur Kreuzung (Rückversatz)', art: m(0, 100) },
+  // Richtlinie Hindernisfreie Architektur (30.10.2026): Lage an gerader Trottoirkante (Kap. 4.1), Abstand zum Kreisel (Kap. 4.4)
+  { pfad: 'streifenGerade', gruppe: 'lage', name: 'Streifen an gerader Trottoirkante (nicht in der Kurve einer Einmündung)', art: B },
+  { pfad: 'abstandKreiselM', gruppe: 'lage', name: 'Abstand zum Kreiselring', art: m(0, 500) },
   { pfad: 'laengsparkierung', gruppe: 'lage', name: 'Längsparkierung an der Querung', art: B },
   { pfad: 'seitenraumVorParklinieM', gruppe: 'lage', name: 'Trottoir vorgezogen über die Parkreihe (+) bzw. dahinter (−)', art: m(-5, 5) },
   { pfad: 'einengung', gruppe: 'lage', name: 'Nase bzw. Einengung', art: B },
