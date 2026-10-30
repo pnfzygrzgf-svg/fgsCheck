@@ -25,7 +25,8 @@ import { DatenlageZeile, QUELLE_JE_SCHLUESSEL, genutzteQuellen, quelleInfo, zust
 import type { GeoVorbelegung } from './bedarf/vorbelegung'
 import { lv95, wgs, dist, sub, add, dot, links, einheit as einheitP, imPolygon, type P } from './geo'
 import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, aufnehmen, vereinigen, vereinigenNamen } from './ausschnitt'
-import type { ZufahrtErgebnis, StreifenErgebnis } from './rechner/typen'
+import { ANN_HAND_BREITE, ANN_HAND_VERSATZ_MAX, type AnnHand, type ZufahrtErgebnis, type StreifenErgebnis } from './rechner/typen'
+import { annEingabe, annGleich, fangenMitZielen, fangZiele, type FangTreffer } from './annGriff'
 import type { FallRechnung } from './rechner'
 import { KATASTER_PARK_M } from './rechner/vorschlaege'
 import { abzugTeile } from './rechner/fahrstreifen'
@@ -151,17 +152,25 @@ function TextFeld({ wert, setze, platzhalter, titel, max = 80 }: { wert: string;
 const NEU_GEZEICHNET = '+neu'
 
 /** Zahlenfeld, das Minus und Komma beim Tippen zulässt; übernommen beim Verlassen bzw. mit Enter. Gültig: |x| < 20 bzw. im
- * Bereich [min, max]; sonst bleibt der bisherige Wert stehen */
-function ZahlFeld({ wert, setze, titel, bereich }: { wert: number; setze: (x: number) => void; titel?: string; bereich?: [number, number] }) {
-  const [text, setText] = useState(String(wert).replace('.', ','))
-  useEffect(() => { setText(String(wert).replace('.', ',')) }, [wert])
+ * Bereich [min, max]; sonst bleibt der bisherige Wert stehen. Mit stellen (30.10.2026): Anzeige mit so vielen Nachkommastellen,
+ * unveränderter Text übernimmt nichts (der angezeigte Wert ist gerundet), Eingabe auf diese Stellen gerundet; wert null = leer
+ * (Platzhalter), leeres Feld ruft leer */
+function ZahlFeld({ wert, setze, titel, bereich, stellen, leer, platzhalter }: { wert: number | null; setze: (x: number) => void
+  titel?: string; bereich?: [number, number]; stellen?: number; leer?: () => void; platzhalter?: string }) {
+  const zeigen = (w: number | null) => (w === null ? '' : stellen !== undefined ? w.toFixed(stellen) : String(w)).replace('.', ',')
+  const [text, setText] = useState(zeigen(wert))
+  useEffect(() => { setText(zeigen(wert)) }, [wert])
   const uebernehmen = () => {
-    const x = Number(text.trim().replace(',', '.').replace('−', '-'))
-    if (Number.isFinite(x) && (bereich ? x >= bereich[0] && x <= bereich[1] : Math.abs(x) < 20)) setze(Math.round(x * 100) / 100)
-    else setText(String(wert).replace('.', ','))
+    const t = text.trim()
+    if (stellen !== undefined && t === zeigen(wert)) { setText(zeigen(wert)); return }
+    if (!t && leer) { leer(); return }
+    const x = Number(t.replace(',', '.').replace('−', '-'))
+    const f = 10 ** (stellen ?? 2)
+    if (Number.isFinite(x) && (bereich ? x >= bereich[0] && x <= bereich[1] : Math.abs(x) < 20)) setze(Math.round(x * f) / f)
+    else setText(zeigen(wert))
   }
-  return <input type="text" inputMode="decimal" className="zahl" title={titel} value={text} onChange={e => setText(e.target.value)}
-    onBlur={uebernehmen} onKeyDown={e => { if (e.key === 'Enter') uebernehmen() }} />
+  return <input type="text" inputMode="decimal" className="zahl" title={titel} value={text} placeholder={platzhalter}
+    onChange={e => setText(e.target.value)} onBlur={uebernehmen} onKeyDown={e => { if (e.key === 'Enter') uebernehmen() }} />
 }
 
 /** Masse eines vorgezogenen Seitenraums in der Liste «Flächen (Plan)» (änderbar, solange die Form nicht von Hand angepasst ist) */
@@ -1458,6 +1467,13 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // Fixpunkte, die verschoben wurden, solange die AV fehlte (Laden läuft): nach dem Laden fangen (Id -> Lage beim Verschieben;
   // gefangen wird nur, wenn der Fixpunkt noch dort liegt, sonst gilt der Eintrag als erledigt)
   const fangOffen = useRef(new Map<string, P>())
+  // Annäherungsbereich je Ende von Hand setzen bzw. (null) zurücksetzen (Griffe, Zahlenfelder, «zurücksetzen»; 30.10.2026); fang: Text
+  // zum gefangenen Punkt beim Ziehen (nur in der Sitzung, nicht in der Fall-Datei), gilt, solange die Vorgabe so bleibt
+  const [annFang, setAnnFang] = useState<Record<string, { h: AnnHand; text: string }>>({})
+  const annSetzen = (id: string, k: 0 | 1, h: AnnHand | null, fang?: string) => {
+    aendern(f => { const s = f.streifenHand.find(x => x.id === id); if (s) annHandSetzen(s, k, h); return f })
+    setAnnFang(m => { const n = { ...m }; if (h && fang) n[`${id}|${k}`] = { h, text: fang }; else delete n[`${id}|${k}`]; return n })
+  }
   const ecke = useCallback((id: string, i: number, p: P) => {
     geaendert.current = id
     if (fall?.fixpunkte?.some(x => x.id === id) && !av) {
@@ -1472,10 +1488,11 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     // Ecke einer Fläche (Plan): auf AV bzw. andere Plan-Flächen fangen (ohne AV: wie geklickt)
     const pp = fall?.flaechenPlan?.some(x => x.id === id) ? planFangen(p, id) : p
     // Trottoirüberfahrt (27.10.2026): Ende fängt auf die AV wie beim Zeichnen; Augen von Hand bleiben nur, wenn sie zur verschobenen
-    // Überfahrt noch passen (sonst wieder gerechnet, mit Meldung)
+    // Überfahrt noch passen (sonst wieder gerechnet, mit Meldung). Seit 30.10.2026 fangen die Enden jedes Streifens von Hand beim
+    // Verschieben (vorher nur beim Zeichnen bzw. an der Überfahrt): AV-Stützpunkte, Fixpunkte und Enden der übrigen Streifen
     const s0 = fall?.streifenHand.find(x => x.id === id)
     const tue = !!fall && !!s0 && istTrottoirueberfahrt(fall, id)
-    const q = tue ? fangen(p, av ?? [], fangRadius()).p : p
+    const q = s0 ? fangPunkt(p, id).p : p
     const augen = tue && s0 && fall?.streifen[id] ? augenNachVerschieben(fall.streifen[id], i === 0 ? { p0: q, p1: s0.p1 } : { p0: s0.p0, p1: q }) : null
     aendern(f => {
     const fp = f.fixpunkte?.find(x => x.id === id)
@@ -1506,7 +1523,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     return f
   })
   if (augen?.zurueck.length) setMeldung(`Überfahrt verschoben: Auge von Hand (Phase ${augen.zurueck.join(' und ')}) passt nicht mehr und ist wieder gerechnet.`)
-  }, [aendern, av, fall])
+  }, [aendern, av, fall, rechnung])      // fangPunkt: Namen (titel) hängen an fall und rechnung
   // nach dem Laden: die beim Laden verschobenen Fixpunkte fangen
   useEffect(() => {
     if (!av || !fangOffen.current.size) return
@@ -1532,6 +1549,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     if (!map) return fangRadiusM(Infinity)
     const c = map.getCenter(), pt = map.latLngToContainerPoint(c)
     return fangRadiusM(map.distance(c, map.containerPointToLatLng([pt.x + FANG_PX, pt.y])))
+  }
+  /** Griff eines Streifens von Hand bzw. seines Annäherungsbereichs fangen (30.10.2026, annGriff.fangenMitZielen): AV-Stützpunkte,
+   * Fixpunkte und Enden der Streifen (ohne die des Streifens ohneId) im Fangradius */
+  function fangPunkt(p: P, ohneId: string): FangTreffer {
+    const streifen = [...(rechnung?.streifen ?? []).map(x => ({ id: x.fgsId, p0: x.p0, p1: x.p1 })), ...(fall?.streifenHand ?? [])]
+    return fangenMitZielen(p, av ?? [], fangZiele(fall?.fixpunkte ?? [], streifen, ohneId, titel), fangRadius())
   }
   /** Fixpunkt am Klick: auf die AV gefangen bzw. frei (Meldung) */
   function fixpunktSetzen(p: P, art?: Fixpunkt['art']) {
@@ -2038,7 +2061,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           f.streifen[fid] = { ...(f.streifen[fid] ?? {}), [phase === 'fahrbahn' ? 'tueD' : 'tueDtrottoir']: p }
           return f
         })}
-        onAnn={(id, k, h) => aendern(f => { const s = f.streifenHand.find(x => x.id === id); if (s) annHandSetzen(s, k, h); return f })}
+        onAnn={(id, k, h, fang) => {
+          annSetzen(id, k, h, fang?.text)
+          if (fang?.weit) setMeldung(`Annäherungsbereich ${k ? 'B' : 'A'} von ${titel(id)}: ${fang.text}; auf die Bordkante projiziert.`)
+        }} fangPunkt={fangPunkt} annFang={annFang}
         onKlick={klick} onDoppelklick={doppelklick} onEcke={ecke} onHindernis={id => { setBearbeiten(b => (b === id ? null : id)); zurSicht() }}
         onAusschnitt={ausschnitt} hinweis={vorschauHinweis ?? suchHinweis} kartenRef={kartenRef} />
       <Trenner breite={panelBreite} setze={setPanelBreite} onFertig={trennerFertig} />
@@ -2161,7 +2187,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                       }} /> m breit, </>}{streifenHerkunftText(s)}
                       <span className="aktionen">
                         <button className="zweit klein" title={istTrottoirueberfahrt(fall, s.id) ? 'Überfahrt verschieben: Enden auf der Karte ziehen (fangen auf die AV)'
-                          : 'Enden auf der Karte verschieben'} onClick={() => setBearbeiten(b => (b === s.id ? null : s.id))}>
+                          : 'Enden auf der Karte verschieben (fangen auf die AV, Fixpunkte und Streifenenden)'} onClick={() => setBearbeiten(b => (b === s.id ? null : s.id))}>
                           {bearbeiten === s.id ? 'fertig' : 'verschieben'}</button>
                         <button className="zweit klein" onClick={() => aendern(f => { f.streifenHand = f.streifenHand.filter(x => x.id !== s.id); return f })}>löschen</button>
                       </span>
@@ -2172,7 +2198,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                       <MasseAnzeige s={s} e={rechnung?.streifen.find(x => x.fgsId === s.id) ?? null} kopieren={kopieren} namen={zNamen.get(s.id)}
                         fixpunkte={fall.fixpunkte ?? []} vorschlaege={fixVorschlag.get(s.id) ?? []}
                         setzen={() => werkzeugWaehlen('fixpunkt')} uebernehmen={v => fixpunktSetzen(v.p, 'gebaeudeecke')}
-                        annZuruecksetzen={k => aendern(f => { const x = f.streifenHand.find(y => y.id === s.id); if (x) annHandSetzen(x, k, null); return f })} />
+                        annSetzen={(k, h) => annSetzen(s.id, k, h)} annFang={annFang} />
                     </li>
                   ))}
                 </ul>
@@ -2576,10 +2602,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
 /** Lage und Masse eines Streifens von Hand (Vermassung aus der Rechnung, rechner/vermassung.ts), aufklappbar; Vermassung ab
  * Fixpunkt (fixpunkt.ts) mit Vorschlägen (nächste Gebäudeecke je Strassenseite) */
-function MasseAnzeige({ s, e, kopieren, namen, fixpunkte, vorschlaege, setzen, uebernehmen, annZuruecksetzen }: { s: StreifenHand
+function MasseAnzeige({ s, e, kopieren, namen, fixpunkte, vorschlaege, setzen, uebernehmen, annSetzen, annFang }: { s: StreifenHand
   e: StreifenErgebnis | null; namen: ZufahrtNamen | undefined
-  /** Annäherungsbereich eines Endes wieder wie gerechnet (30.10.2026) */
-  annZuruecksetzen: (k: 0 | 1) => void
+  /** Annäherungsbereich eines Endes von Hand setzen bzw. (null) wieder wie gerechnet (30.10.2026) */
+  annSetzen: (k: 0 | 1, h: AnnHand | null) => void
+  /** Text zum Fang je Ende («fgsId|k», App.annFang) */
+  annFang: Readonly<Record<string, { h: AnnHand; text: string }>>
   kopieren: (id: string, v: Vermassung) => void; fixpunkte: Fixpunkt[]; vorschlaege: FixVorschlag[]; setzen: () => void
   uebernehmen: (v: FixVorschlag) => void }) {
   const v = e?.vermassung ?? null
@@ -2603,10 +2631,28 @@ function MasseAnzeige({ s, e, kopieren, namen, fixpunkte, vorschlaege, setzen, u
         <div>Abstand zum Fahrbahnrand entlang der Achse (+ vor dem Rand, − darüber hinaus): {v.randAbstandM ? <>Ende A
           {' '}{vorzeichenText(v.randAbstandM[0])}, Ende B {vorzeichenText(v.randAbstandM[1])}; Fahrbahn {f2(v.fahrbahnM!)} m</> : '–'}
           {' '}({v.randQuelle}).</div>
-        {/* Annäherungsbereich je Ende (30.10.2026): von Hand verschoben bzw. verbreitert (Griffe beim Bearbeiten) oder wie gerechnet */}
-        <div>{([0, 1] as const).map(k => <span key={k}>{k ? '; ' : ''}{annHandText(k, s.ann?.[k], e.annBasis?.[k].breite)}{s.ann?.[k]
-          && <>{' '}<button className="zweit klein" onClick={() => annZuruecksetzen(k)} title="wieder wie gerechnet (Mitte des Streifenendes, Breite des Streifens)">
-            zurücksetzen</button></>}</span>)}{!s.ann && '. Beim Bearbeiten (Streifen gewählt) auf der Karte verschieben bzw. an den Seiten breiter oder schmaler ziehen'}.</div>
+        {/* Annäherungsbereich je Ende (30.10.2026): von Hand verschoben bzw. verbreitert (Griffe beim Bearbeiten, fangen) oder als Zahl
+            (Versatz, Breite; leer = wie gerechnet), sonst wie gerechnet */}
+        {([0, 1] as const).map(k => {
+          const b = e.annBasis?.[k]
+          const h = s.ann?.[k] ?? null
+          if (!b) return <div key={k}>{annHandText(k, h)}.</div>
+          const fa = annFang[`${s.id}|${k}`]
+          return <div key={k}>Annäherungsbereich {k ? 'B' : 'A'}:{' '}
+            <label>Versatz <ZahlFeld wert={h ? h.versatz : null} stellen={1} platzhalter="0,0" bereich={[-ANN_HAND_VERSATZ_MAX, ANN_HAND_VERSATZ_MAX]}
+              titel={'Versatz der Mitte entlang der Bordkante in m (+ nach links, − nach rechts im Blick von Ende A nach B), ' +
+                `${-ANN_HAND_VERSATZ_MAX} bis ${ANN_HAND_VERSATZ_MAX} m; leer: wie gerechnet (Mitte des Streifenendes). Enter bzw. Feld verlassen übernimmt`}
+              setze={x => annSetzen(k, annEingabe(h, b.breite, 'versatz', x))} leer={() => annSetzen(k, annEingabe(h, b.breite, 'versatz', null))} /> m</label>,{' '}
+            <label>Breite <ZahlFeld wert={h ? h.breite : null} stellen={1} platzhalter={f1(b.breite)} bereich={[ANN_HAND_BREITE[0], ANN_HAND_BREITE[1]]}
+              titel={`Breite entlang der Bordkante in m, ${f1(ANN_HAND_BREITE[0])} bis ${ANN_HAND_BREITE[1]} m; leer: wie gerechnet ` +
+                `(${f2(b.breite)} m, Breite des Streifenendes). Enter bzw. Feld verlassen übernimmt`}
+              setze={x => annSetzen(k, annEingabe(h, b.breite, 'breite', x))} leer={() => annSetzen(k, annEingabe(h, b.breite, 'breite', null))} /> m</label>
+            {' '}({h ? 'von Hand' : 'wie gerechnet'}{h && fa && annGleich(fa.h, h) ? `; ${fa.text}` : ''})
+            {h && <>{' '}<button className="zweit klein" onClick={() => annSetzen(k, null)} title="wieder wie gerechnet (Mitte des Streifenendes, Breite des Streifens)">
+              zurücksetzen</button></>}</div>
+        })}
+        {!s.ann && <div>Beim Bearbeiten (Streifen gewählt) auf der Karte verschieben bzw. an den Seiten breiter oder schmaler ziehen
+          (fängt Punkte der AV, Fixpunkte und Streifenenden) oder Versatz und Breite eingeben.</div>}
         {v.knoten.length > 0 && <div>Nächster Knoten stromauf (OSM, entlang der Strasse ab Streifenrand): {v.knoten.map(k =>
           `${zufahrtText(namen, k.zufahrt)} ${f1(k.abstandM)} m`).join('; ')}.</div>}
         <div><b>Vermassung ab Fixpunkt</b> (längs = entlang der Balken bzw. der Fahrbahn, quer = senkrecht dazu){' '}

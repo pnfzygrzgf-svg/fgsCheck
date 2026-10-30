@@ -112,8 +112,12 @@ export function Anleitung() {
             nennt die LV95-Koordinaten von Achse und Ecken, Länge, Winkel zur Fahrbahn, Abstand der Enden zum Fahrbahnrand und zum
             nächsten Knoten («Koordinaten kopieren» für CAD bzw. Tabelle; im Bericht als Tabelle). Den Annäherungsbereich an jedem Ende
             (Wartefläche, auf die die Sicht geprüft wird) lässt sich unabhängig von der Streifenbreite anpassen: beim Bearbeiten des
-            Streifens die Mitte entlang der Bordkante ziehen bzw. eine Seite breiter oder schmaler; «Lage und Masse» nennt Versatz und
-            Breite je Ende, «zurücksetzen» stellt den gerechneten Bereich wieder her. Liegt eine Querung aus OSM bzw. dem
+            Streifens die Mitte entlang der Bordkante ziehen bzw. eine Seite breiter oder schmaler; der Griff läuft dabei auf der
+            Bordkante und fängt den nächsten Punkt der AV (z. B. Beginn der Eckausrundung), einen Fixpunkt bzw. ein Streifenende im
+            Umkreis von {FANG_PX} Bildschirmpunkten (Ring zeigt den Punkt); liegt dieser neben der Bordkante, gilt seine Lage auf der
+            Bordkante («gefangen: …, 0,4 m neben der Bordkante»). In «Lage und Masse» lassen sich Versatz (+ nach links im Blick von A
+            nach B) und Breite je Ende auch als Zahl eingeben; ein leeres Feld nimmt den gerechneten Wert, «zurücksetzen» stellt den
+            gerechneten Bereich wieder her. Die Enden des Streifens fangen beim Verschieben ebenso. Liegt eine Querung aus OSM bzw. dem
             Luftbild falsch: «Lage der Querung anpassen» übernimmt sie als Streifen von Hand, danach Enden verschieben und Breite
             anpassen; die App sucht die AV-Bordkanten an der neuen Lage. Querungsart (auch die Annahme an einer unmarkierten
             OSM-Querung bzw. in der Begegnungszone und eine gewählte Art), Lichtsignal des Übergangs, Bestand und Name bleiben wie an

@@ -4,7 +4,8 @@ import 'leaflet/dist/leaflet.css'
 import type { AvFlaeche } from './daten/av'
 import type { OsmKnoten, Strassenname } from './daten/osm'
 import { markierung } from './daten/osm'
-import { ANN_HAND_BREITE, ANN_HAND_VERSATZ_MAX, type AnnHand, type ZufahrtErgebnis } from './rechner/typen'
+import type { AnnHand, ZufahrtErgebnis } from './rechner/typen'
+import { annGleich, annGriffX, annGriffZiehen, type AnnGriff, type FangTreffer } from './annGriff'
 import type { FallRechnung } from './rechner'
 import type { Multi } from './rechner/poly'
 import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernisse'
@@ -13,7 +14,7 @@ import { planTitel, planFlaecheM2, PLAN_NAME, eckeRadiusMax, echteEcken, RUNDEN_
 import { standardGeometrie, standardAngepasst } from './rechner/standardinsel'
 import { planStandardText, planStandardAngepasst, SR_ERSETZT } from './rechner/seitenraum'
 import { fixpunktName, ART_TEXT } from './fixpunkt'
-import { wgs, lv95, add, dot, sub, type P } from './geo'
+import { wgs, lv95, add, type P } from './geo'
 import Ortssuche from './Ortssuche'
 import { schildLage, zufahrtNr, zufahrtText, type ZufahrtNamen } from './benennung'
 import { ortZoom, type Ort } from './daten/ortssuche'
@@ -132,10 +133,8 @@ export const PARK_FARBE: Record<string, string> = { auto: '#1e40af', velo: '#0f7
 export const hindernisFarbe = (h: Hindernis): string =>
   h.art === 'insel' ? INSEL_FARBE : h.quelle === 'kataster' && h.art === 'parkfeld' ? PARK_FARBE[h.klasse] : QUELLE_FARBE[h.quelle] ?? '#0ea5e9'
 
-/** Annäherungsbereich von Hand in den Grenzen (Breite, Versatz) */
-export const annBegrenzt = (h: AnnHand): AnnHand => ({
-  versatz: Math.max(-ANN_HAND_VERSATZ_MAX, Math.min(ANN_HAND_VERSATZ_MAX, h.versatz)),
-  breite: Math.max(ANN_HAND_BREITE[0], Math.min(ANN_HAND_BREITE[1], h.breite)) })
+/** Annäherungsbereich von Hand in den Grenzen (Breite, Versatz); Rechnung der Griffe in annGriff.ts */
+export { annBegrenzt } from './annGriff'
 
 const boxAus = (geom: P[][]): Box => [Math.min(...geom.flat().map(p => p[0])), Math.min(...geom.flat().map(p => p[1])),
   Math.max(...geom.flat().map(p => p[0])), Math.max(...geom.flat().map(p => p[1]))]
@@ -389,8 +388,14 @@ export default function Karte(props: {
   onKlick: (p: P) => void
   onDoppelklick: () => void
   onEcke: (id: string, i: number, p: P) => void
-  /** Annäherungsbereich eines Endes (0 = A, 1 = B) eines Streifens von Hand verschoben bzw. verbreitert (Griffe beim Bearbeiten) */
-  onAnn?: (fgsId: string, k: 0 | 1, h: AnnHand) => void
+  /** Annäherungsbereich eines Endes (0 = A, 1 = B) eines Streifens von Hand verschoben bzw. verbreitert (Griffe beim Bearbeiten);
+   * fang: Text zum gefangenen Punkt (annGriff.annFangText) und ob er mehr als ANN_FANG_WEIT_M neben der Bordkante liegt */
+  onAnn?: (fgsId: string, k: 0 | 1, h: AnnHand, fang: { text: string; weit: boolean } | null) => void
+  /** Griff eines Streifens von Hand bzw. seines Annäherungsbereichs fangen (AV-Stützpunkte, Fixpunkte, Enden der übrigen Streifen;
+   * ohneId: Streifen, dessen Enden nicht zählen); ohne: kein Fangen */
+  fangPunkt?: (p: P, ohneId: string) => FangTreffer
+  /** Text zum Fang je Ende des Annäherungsbereichs («fgsId|k»), gilt solange die Vorgabe h bleibt (Tooltip des Griffs) */
+  annFang?: Readonly<Record<string, { h: AnnHand; text: string }>>
   onTueAuge?: (fgsId: string, phase: 'fahrbahn' | 'trottoir', p: P) => void   // wartendes Fahrzeug der Knotensicht gezogen (Auge von Hand)
   ksPhase?: KsPhase                                  // gezeigte Phase der Knotensicht (Sitzung)
   onKsPhase?: (p: KsPhase) => void
@@ -1038,44 +1043,64 @@ export default function Karte(props: {
     // Ecken des bearbeiteten Objekts verschieben
     // Enden eines Streifens (auch der Trottoirüberfahrt, 27.10.2026) im Pane der Griffe über Fahrzeugen, Sichtdreiecken und der
     // Überfahrt, damit nichts sie verdeckt
-    const ecken = (id: string, pts: P[], oben = false) => pts.forEach((p, i) => {
-      L.marker(ll(p), { draggable: true, icon: L.divIcon({ className: 'ecke', iconSize: [12, 12] }),
+    // Fang-Vorschau beim Ziehen (30.10.2026): Ring um den Punkt, auf den der Griff beim Loslassen fängt
+    let fangRing: L.CircleMarker | null = null
+    const fangZeigen = (t: FangTreffer | null) => {
+      if (!t || t.art === 'frei') { fangRing?.remove(); fangRing = null; return }
+      if (fangRing) fangRing.setLatLng(ll(t.p))
+      else fangRing = L.circleMarker(ll(t.p), { pane: GRIFF_PANE, radius: 9, color: '#db2777', weight: 2, fill: false, interactive: false }).addTo(eb.hind)
+    }
+    const zugLage = (e: L.LeafletEvent): P => { const g = (e as unknown as { latlng: L.LatLng }).latlng; return lv95(g.lat, g.lng) }
+    // fang: Enden eines Streifens von Hand fangen beim Loslassen (App.ecke) auf AV, Fixpunkte und Enden der übrigen Streifen; hier
+    // nur die Vorschau
+    const ecken = (id: string, pts: P[], oben = false, fang = false) => pts.forEach((p, i) => {
+      const m = L.marker(ll(p), { draggable: true, icon: L.divIcon({ className: 'ecke', iconSize: [12, 12] }),
         ...(oben ? { pane: GRIFF_PANE, zIndexOffset: 1000 } : {}) })
-        .on('dragend', (e: L.LeafletEvent) => { const g = (e.target as L.Marker).getLatLng(); cb.current.onEcke(id, i, lv95(g.lat, g.lng)) })
+      if (fang) m.on('drag', e => fangZeigen(cb.current.fangPunkt?.(zugLage(e), id) ?? null))
+      m.on('dragend', (e: L.LeafletEvent) => { fangZeigen(null); const g = (e.target as L.Marker).getLatLng(); cb.current.onEcke(id, i, lv95(g.lat, g.lng)) })
         .addTo(eb.hind)
     })
     const h = hindernisse.find(x => x.id === bearbeiten)
     if (h) ecken(h.id, h.art === 'parkfeld' ? h.ring : h.art === 'baum' ? [h.p] : h.art === 'laengsparkierung' ? h.linie : h.ring ?? h.linie ?? [])
     const sh = streifenHand.find(x => x.id === bearbeiten)
-    if (sh) ecken(sh.id, [sh.p0, sh.p1], true)
+    if (sh) ecken(sh.id, [sh.p0, sh.p1], true, true)
     // Annäherungsbereich je Ende (30.10.2026): Mitte (entlang der Bordkante verschieben) und beide Seiten (breiter bzw. schmaler, die
-    // andere Seite bleibt); Lage aus der Rechnung (annBasis), Vorgabe von Hand in onAnn
+    // andere Seite bleibt); Lage aus der Rechnung (annBasis), Vorgabe von Hand in onAnn. Beim Ziehen fängt der Griff (fangPunkt) und
+    // läuft auf der Bordkanten-Geraden (annGriff.annGriffZiehen, dieselbe Rechnung wie beim Loslassen)
     const se = sh ? rechnung?.streifen.find(x => x.fgsId === sh.id) : undefined
     if (sh && se?.annBasis) se.annBasis.forEach((b, k) => {
       const h = se.annHand?.[k] ?? { versatz: 0, breite: b.breite }
-      const lage = (x: number) => add(b.rand, b.u, x)
-      const proj = (e: L.LeafletEvent) => { const g = (e.target as L.Marker).getLatLng(); return dot(sub(lv95(g.lat, g.lng), b.rand), b.u) }
       const ende = k === 0 ? 'A' : 'B'
-      const griff = (x: number, art: 'mitte' | 'seite', text: string, neu: (p: number) => AnnHand) =>
-        L.marker(ll(lage(x)), { draggable: true, pane: GRIFF_PANE, zIndexOffset: 1000, keyboard: false,
-          icon: L.divIcon({ className: `ann-griff ann-${art}`, iconSize: art === 'mitte' ? [12, 12] : [10, 10] }) })
-          .bindTooltip(`Annäherungsbereich ${ende}: ${text}`, { direction: 'top', offset: [0, -8] })
-          .on('dragend', e => cb.current.onAnn?.(sh.id, k as 0 | 1, annBegrenzt(neu(proj(e)))))
+      const fa = props.annFang?.[`${sh.id}|${k}`]
+      const fangText = fa && annGleich(fa.h, se.annHand?.[k]) ? `<br>${esc(fa.text)}` : ''
+      const fang = (q: P): FangTreffer => cb.current.fangPunkt?.(q, sh.id) ?? { p: q, art: 'frei', name: null }
+      const griff = (g: AnnGriff, text: string) => {
+        let roh: P | null = null
+        const m = L.marker(ll(add(b.rand, b.u, annGriffX(h, g))), { draggable: true, pane: GRIFF_PANE, zIndexOffset: 1000, keyboard: false,
+          icon: L.divIcon({ className: `ann-griff ann-${g === 'mitte' ? 'mitte' : 'seite'}`, iconSize: g === 'mitte' ? [12, 12] : [10, 10] }) })
+        m.bindTooltip(`Annäherungsbereich ${ende}: ${text}${fangText}`, { direction: 'top', offset: [0, -8] })
+          .on('drag', e => {
+            roh = zugLage(e)
+            const z = annGriffZiehen(b, h, g, roh, fang)
+            m.setLatLng(ll(z.lage))
+            fangZeigen(z.treffer)
+          })
+          .on('dragend', () => {
+            fangZeigen(null)
+            if (!roh) return
+            const z = annGriffZiehen(b, h, g, roh, fang)
+            cb.current.onAnn?.(sh.id, k as 0 | 1, z.h, z.text ? { text: z.text, weit: z.weit } : null)
+          })
           .addTo(eb.hind)
-      griff(h.versatz, 'mitte', 'entlang der Bordkante verschieben', p => ({ versatz: p, breite: h.breite }))
-      for (const sg of [-1, 1]) {
-        const fest = h.versatz - sg * h.breite / 2
-        griff(h.versatz + sg * h.breite / 2, 'seite', 'Seite ziehen: breiter bzw. schmaler', p => {
-          const breite = Math.max(ANN_HAND_BREITE[0], sg * (p - fest))
-          return { versatz: fest + sg * breite / 2, breite }
-        })
       }
+      griff('mitte', 'entlang der Bordkante verschieben (fängt Punkte der AV, Fixpunkte und Streifenenden)')
+      for (const sg of [-1, 1] as const) griff(sg, 'Seite ziehen: breiter bzw. schmaler (fängt Punkte der AV, Fixpunkte und Streifenenden)')
     })
     const fp = fixpunkte.find(x => x.id === bearbeiten)
     if (fp) ecken(fp.id, [fp.p])
     const pl = flaechenPlan.find(x => x.id === bearbeiten)
     if (pl && werkzeug !== 'eckeRunden') ecken(pl.id, pl.ring)      // beim «Ecke runden»: eigene Ebene (unten)
-  }, [hindernisse, rechnung, streifenHand, fixpunkte, flaechenPlan, bearbeiten, werkzeug])
+  }, [hindernisse, rechnung, streifenHand, fixpunkte, flaechenPlan, bearbeiten, werkzeug, props.annFang])
 
   // «Ecke runden»: Ecken der gewählten Fläche (Plan) als anklickbare Kreise im eigenen Pane über allem (nicht in der Ebene
   // «Hindernisse», die sich ausschalten lässt); Klick wählt genau diese Ecke (als Kartenklick auf ihre Lage, App fängt sie).
