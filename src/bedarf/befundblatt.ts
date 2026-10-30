@@ -159,9 +159,12 @@ export function begruendung(b: Befund, typ: Querungstyp | null = null): string {
   }
   const gr = b.empfehlung.grundlage.filter(id => !['C1', 'C2'].includes(id))
   if (gr.length) teile.push(`Typ nach ${gr.map(regelVerweis).join('; ')}`)
+  // LSA ohne Regel (30.10.2026): sie ist heute da bzw. angegeben, keine im Rechner hinterlegte Regel verlangt sie
+  else if (b.empfehlung.typ === 'Q2' && b.empfehlung.lsaWeil && !['D1b', 'D3a'].includes(b.empfehlung.lsaWeil))
+    teile.push(`Lichtsignalanlage ${b.empfehlung.lsaWeil === 'annahme' ? 'angenommen (Ampel in der Nähe)' : b.empfehlung.lsaWeil === 'hand' ? 'wie angegeben' : 'wie heute'}; keine im Rechner hinterlegte Regel verlangt sie`)
   // gewählte Anlage ohne Vortritt (Furt usw.): kein Satz zur Insel des Fussgängerstreifens (Runde 5, Fall 6)
   else if (b.empfehlung.typ === 'Q1' && !(typ && OHNE_VORTRITT_ANLAGE.includes(typ))) teile.push(b.empfehlung.elemente.includes('Schutzinsel') ? 'Schutzinsel vorhanden; ein Lichtsignal ist nicht nötig'
-    : 'Insel oder Lichtsignal sind nicht nötig (keine Regel verlangt sie)')
+    : 'Insel oder Lichtsignal sind nicht nötig (keine im Rechner hinterlegte Regel verlangt sie)')
   return teile.join('. ')
 }
 const OHNE_VORTRITT_ANLAGE: readonly string[] = ['furt', 'ohne_vortritt', 'mehrzweck']

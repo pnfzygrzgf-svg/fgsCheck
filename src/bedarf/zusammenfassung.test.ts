@@ -196,7 +196,17 @@ describe('Vorlagen', () => {
   })
   it('Lichtsignal: Empfehlung mit Lichtsignalanlage, keine Grundprüfung', () => {
     const z = zf({ typ: 'lsa', fgsMitLsa: true })
-    expect(z.antwort).toBe('Ein Fussgängerstreifen ist hier zulässig, empfohlen mit Lichtsignalanlage.')
+    expect(z.antwort).toBe('Ein Fussgängerstreifen ist hier zulässig, mit Lichtsignalanlage wie angegeben.')
+    // LSA aus OSM: «wie heute», nicht «empfohlen» (30.10.2026, Belpstrasse: die Empfehlung einer LSA war nicht nachvollziehbar)
+    const eo = fall({ typ: 'lsa', fgsMitLsa: true })
+    eo.typ = { ...eo.typ, quelle: 'rechnung' }
+    const bo = beurteile(eo, { ebenen: {} })
+    expect(bo.empfehlung.lsaWeil).toBe('heute')
+    expect(zusammenfassung({ befund: bo, grund: grundpruefung(eo), kontext: { ebenen: { bern: false, kantonBE: false, richtlinie: true }, typ: 'lsa' } }).antwort)
+      .toBe('Ein Fussgängerstreifen ist hier zulässig, mit Lichtsignalanlage wie heute.')
+    // mit Begründung (Tempo-30-Zone) und Seitenraum: die LSA steht als Gegebenheit vor der Empfehlung
+    const zb = zf({ typ: 'lsa', fgsMitLsa: true, tempoRegime: 't30_zone', vSig: 30, beduerfnis: ['schule'], laengsparkierung: true, seitenraumVorParklinieM: -2 })
+    expect(zb.antwort).toMatch(/nur mit Begründung zulässig: .*; mit Lichtsignalanlage wie angegeben; empfohlen mit vorgezogenem Seitenraum/)
     expect(z.wichtig).not.toContain('Grundprüfung')
   })
   it('ausserorts, Begegnungszone, verteiltes Queren, Ortslage offen', () => {
@@ -353,7 +363,7 @@ describe('Zusammenfassung an Befundblättern mit Rechnung', () => {
     expect(zv.genannt[0]).toBe('H1')
     expect(zv.wichtig).toMatch(/Zu beheben: zu wenig Sicht auf die Wartefläche \(verdeckt durch Parkfeld statt \d+ m frei\)/)
     const zl = zusammenfassungBlatt(blatt(szenarien[4][1]))
-    expect(zl.antwort).toBe('Ein Fussgängerstreifen ist hier zulässig, empfohlen mit Lichtsignalanlage.')
+    expect(zl.antwort).toBe('Ein Fussgängerstreifen ist hier zulässig, mit Lichtsignalanlage wie heute.')
     expect(zl.wichtig).not.toContain('Grundprüfung')
   })
 })

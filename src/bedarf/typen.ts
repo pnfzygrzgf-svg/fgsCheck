@@ -155,6 +155,10 @@ export interface Empfehlung {
   zusatz: string[]
   /** Regeln, die den Typ bestimmen */
   grundlage: string[]
+  /** warum die Lichtsignalanlage im Typ steht (30.10.2026): heute = Lichtsignal am Übergang (OSM bzw. Rechnung), hand = von Hand
+   * angegeben, annahme = Ampel in der Nähe angenommen, D1b = mehrere Fahrstreifen ohne Platz für eine Insel, D3a = Tram auf eigenem
+   * Gleis ohne Platz für eine Insel; sonst keine LSA */
+  lsaWeil?: 'heute' | 'hand' | 'annahme' | 'D1b' | 'D3a'
   /** vorläufig: eine harte Regel aus C oder D ist offen (Eingabe fehlt) bzw. die Zulässigkeit ist offen */
   vorlaeufig: boolean
   /** offene harte Regeln (bzw. die Eingabe inselMoeglich bei empfohlener Insel), die den Vorbehalt auslösen */

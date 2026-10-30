@@ -182,10 +182,21 @@ function mitEbene(t: string, ebene: Ebene): string {
 // ── Satz 1 ──
 
 const DATIV: Record<string, string> = { 'vorgezogener Seitenraum': 'vorgezogenem Seitenraum' }
-/** Elemente nach dem Fussgängerstreifen: «mit Lichtsignalanlage und Schutzinsel» */
+/** Grund der Lichtsignalanlage in Klammern (30.10.2026): sonst liest man «empfohlen mit Lichtsignalanlage» als Rat der Prüfung */
+const LSA_WEIL: Record<NonNullable<Empfehlung['lsaWeil']>, string> = { heute: 'wie heute', hand: 'wie angegeben', annahme: 'Ampel in der Nähe, angenommen',
+  D1b: 'mehrere Fahrstreifen je Richtung, kein Platz für eine Insel', D3a: 'Tram auf eigenem Gleis, kein Platz für eine Insel' }
+/** Elemente nach dem Fussgängerstreifen: «mit Lichtsignalanlage (wie heute) und Schutzinsel» */
 const mitElementen = (e: Empfehlung): string => {
-  const r = e.elemente.slice(1).map(x => DATIV[x] ?? x)
+  const r = e.elemente.slice(1).map(x => (DATIV[x] ?? x) + (x === 'Lichtsignalanlage' && e.lsaWeil ? ` (${LSA_WEIL[e.lsaWeil]})` : ''))
   return r.length ? `mit ${aufzaehlen(r)}` : ''
+}
+/** Satzteil nach der Zulässigkeit: eine LSA, die heute da ist, wird nicht «empfohlen», sie steht als Gegebenheit voran
+ * («mit Lichtsignalanlage wie heute; empfohlen mit Schutzinsel»); eine LSA aus einer Regel bleibt in der Empfehlung mit Grund */
+function empfehlungTeil(e: Empfehlung): string {
+  const heute = e.lsaWeil && !['D1b', 'D3a'].includes(e.lsaWeil)
+  if (!heute) { const m = mitElementen(e); return m ? `empfohlen ${m}` : '' }
+  const r = e.elemente.slice(1).filter(x => x !== 'Lichtsignalanlage').map(x => DATIV[x] ?? x)
+  return `mit Lichtsignalanlage ${LSA_WEIL[e.lsaWeil!]}${r.length ? `; empfohlen mit ${aufzaehlen(r)}` : ''}`
 }
 /** empfohlener Typ als Satzteil mit Artikel */
 function typPhrase(e: Empfehlung): string {
@@ -307,8 +318,8 @@ function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefi
       const lage = b.alle.filter(x => x.zustand === 'verletzt' && MUSS.includes(x.staerke) && themaVon(x.id) === 'lage' && LAGE_ABER[x.id])
       if (lage.length) grundIds.push(lage[0].id)
       const zul = lage.length ? `grundsätzlich zulässig, aber ${LAGE_ABER[lage[0].id]}` : 'zulässig'
-      const m = mitElementen(e)
-      const mit = m ? `${lage.length ? ';' : ','} empfohlen ${m}` : ''
+      const m = empfehlungTeil(e)
+      const mit = m ? `${lage.length ? ';' : ','} ${m}` : ''
       const vorlText = vorl ? `; ${vorlaeufigWegen(e)}` : ''
       if (b.zulaessigkeit === 'mit_begruendung') {
         // Zone noch offen, Grund bekannt (C2b ohne Zone): «falls Tempo-30-Zone: …» statt einer Zone, die nicht feststeht
@@ -316,7 +327,7 @@ function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefi
           ? 'falls Tempo-30-Zone, Grund für Vortritt ausweisen' : kurzform(x)))
         const sonst = e.zusatz.some(z => z.startsWith('Querung ohne Vortritt prüfen')) ? '; sonst eine Querung ohne Vortritt' : ''
         return `Ein Fussgängerstreifen ${ist} hier nur mit Begründung zulässig${g.length ? `: ${aufzaehlen(g)}` : ''}` +
-          `${lage.length ? `; aber ${LAGE_ABER[lage[0].id]}` : ''}${m ? `; empfohlen ${m}` : ''}${sonst}${vorlText}${beurteilt}.`
+          `${lage.length ? `; aber ${LAGE_ABER[lage[0].id]}` : ''}${m ? `; ${m}` : ''}${sonst}${vorlText}${beurteilt}.`
       }
       return `Ein Fussgängerstreifen ${ist} hier ${zul}${mit}${vorlText}${beurteilt}.`
     }

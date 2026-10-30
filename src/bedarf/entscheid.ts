@@ -343,10 +343,16 @@ function empfehlen(k: Kontext, zul: Zulaessigkeit, empf: Empfehlung): void {
   }
   const insBaulich = sicher(() => k.insBaulich()) === true
   const inselNoetig = k.hat('D1') || k.hat('D2') || k.hat('D3a')
-  const lsa = sicher(() => k.mitLsa()) === true || k.hat('D1b') || (k.hat('D3a') && k.o('inselMoeglich') === false)
+  const lsaHeute = sicher(() => k.mitLsa()) === true
+  const lsa = lsaHeute || k.hat('D1b') || (k.hat('D3a') && k.o('inselMoeglich') === false)
   empf.typ = lsa ? 'Q2' : 'Q1'
   empf.elemente.push('Fussgängerstreifen')
-  if (lsa) empf.elemente.push('Lichtsignalanlage')
+  if (lsa) {
+    empf.elemente.push('Lichtsignalanlage')
+    // Grund nennen (30.10.2026): eine LSA, die heute da ist, ist keine Empfehlung einer Regel
+    const q = k.o('typ') === 'lsa' ? k.e.typ.quelle : k.e.fgsMitLsa.quelle
+    empf.lsaWeil = !lsaHeute ? (k.hat('D1b') ? 'D1b' : 'D3a') : q === 'annahme' ? 'annahme' : q === 'hand' || q === 'bestaetigt' ? 'hand' : 'heute'
+  }
   const inselMoeglich = k.o('inselMoeglich') !== false
   if (insBaulich || (inselMoeglich && ((inselNoetig && !lsa) || (lsa && k.hat('D2'))))) {
     empf.elemente.push('Schutzinsel')
