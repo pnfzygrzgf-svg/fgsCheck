@@ -25,8 +25,12 @@ import { erkennungBaender } from './erkennungKarte'
 import { veloSoll, type VeloSoll } from './veloSicht'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { LUFTBILD_FGS_NAME, kandidatTooltip, type KandidatAnzeige, type LuftbildKandidat } from './daten/luftbildFgs'
-import { FUSSWEGNETZ_FARBE, FUSSWEGNETZ_NAME, type FusswegnetzKarte } from './fusswegnetzKarte'
-import { RP_WMS_NAME, RP_WMS_URL, rpWmsTeile, rpWmsVerfuegbar } from './daten/richtplanWms'
+import type { FusswegnetzKarte } from './fusswegnetzKarte'
+import { RP_FARBE, RP_KARTE_LAYER, RP_KARTE_NAME, RP_KARTE_QUELLE, RP_KARTE_ZOOM, RP_MUSTER, bereichBox, rpAbfrageBox, rpAusVorbelegung,
+  rpLaden, rpStil, rpToleranzM, rpTooltip, rpTreffer, rpVerfuegbar, type Box, type RpArt, type RpCache, type RpObjekt,
+  type RpVorhanden } from './daten/richtplanKarte'
+import type { RichtplanDaten } from './daten/richtplanFussverkehr'
+import type { Bereich } from './daten/haltestellen'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
@@ -63,6 +67,9 @@ function PlanMuster() {
             <line x1="0" y1="0" x2="0" y2="7" stroke={PLAN_FARBEN[a].linie} strokeWidth="2" />
           </pattern>
         ))}
+        <pattern id={RP_MUSTER} width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="8" stroke={RP_FARBE} strokeWidth="1.5" strokeOpacity="0.55" />
+        </pattern>
       </defs>
     </svg>
   )
@@ -120,6 +127,11 @@ export const annBegrenzt = (h: AnnHand): AnnHand => ({
   versatz: Math.max(-ANN_HAND_VERSATZ_MAX, Math.min(ANN_HAND_VERSATZ_MAX, h.versatz)),
   breite: Math.max(ANN_HAND_BREITE[0], Math.min(ANN_HAND_BREITE[1], h.breite)) })
 
+const boxAus = (geom: P[][]): Box => [Math.min(...geom.flat().map(p => p[0])), Math.min(...geom.flat().map(p => p[1])),
+  Math.max(...geom.flat().map(p => p[0])), Math.max(...geom.flat().map(p => p[1]))]
+/** Stand der Ebene Richtplan Fussverkehr für die Legende */
+export type RichtplanStand = { an: false } | { an: true; zoom: boolean; laedt: boolean; fehler: RpArt[] }
+
 /** Hinweis über der Karte (Stand der Übergangssuche); erneut: Knopf «erneut suchen» (nur nach einem Fehler) */
 export interface KartenHinweis { text: string; fehler?: boolean; erneut?: () => void }
 
@@ -133,9 +145,11 @@ const HINTERGRUND_KARTE = 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkar
 // 14.10.2026 schon vor dem Klick (Übergangssuche, viele Namen): nur im Sichtbereich mit Rand (MARKER_RAND) und erst ab NAMEN_ZOOM
 // gezeichnet (weiter draussen zu dicht; die Suche beginnt ebenfalls bei Zoom 16)
 const NAMEN_PANE = 'strassennamen'
-// Fusswegnetz (Richtplan Bern, 30.10.2026): die für die Prüfung genutzte Linie knapp über den Vektoren (overlayPane 400); das Pane lässt
-// Klicks durch (nur die Linie selbst zeigt ihren Tooltip), damit Hindernisse und Flächen (Plan) darunter anklickbar bleiben
+// Richtplan Fussverkehr (30.10.2026): Linien knapp über den Vektoren (overlayPane 400); beide Panes ohne Mausereignisse (Tooltip über
+// den Treffertest), damit Übergänge, Hindernisse, Flächen (Plan) und Werkzeuge anklickbar bleiben
 const FWN_PANE = 'fusswegnetz'
+// Flächen des Richtplans unter den Vektoren (overlayPane 400): blass, nie über Sichtfeldern und Hindernissen
+const FWN_FLAECHE_PANE = 'fusswegnetzFlaeche'
 const ECKEN_PANE = 'eckenRunden'                   // «Ecke runden»: Ecken der gewählten Fläche (Plan), über allem anklickbar
 const GRIFF_PANE = 'inselGriff'                     // «Mittelinsel (Standard)»: Griff zum Ziehen
 // Vierfachpfeil im Kreis (Griff der Mittelinsel)
@@ -308,12 +322,12 @@ export default function Karte(props: {
   uebergaenge: OsmKnoten[]
   /** Streifen aus dem Luftbild (ETH-Modell), nicht in OSM (daten/luftbildFgs.ts); gewählt über gewaehlt (negative Kennung) */
   luftbildKandidaten?: KandidatAnzeige[]
-  /** Fusswegnetz des Richtplans Fussverkehr (nur Stadt Bern, schon für die Vorbelegung geladen; fusswegnetzKarte.ts); null: keine Ebene */
+  /** Basisnetz-Linie(n), die die Vorbelegung nutzt (fusswegnetzKarte.ts): in der Ebene «Richtplan Fussverkehr» kräftiger */
   fusswegnetz?: FusswegnetzKarte | null
-  /** Quellenangabe der Ebene Fusswegnetz */
-  fusswegnetzQuelle?: string
-  /** WMS-Ebene «Richtplan Fussverkehr (Geoportal Bern)» ein- bzw. ausgeschaltet (Legende) */
-  onRichtplanWms?: (an: boolean) => void
+  /** Richtplan-Daten der Vorbelegung (Stadt Bern) mit ihrem Bereich: die Ebene nutzt sie mit, wo sie den Ausschnitt decken */
+  richtplanVorhanden?: { daten: RichtplanDaten; bereich: Bereich } | null
+  /** Stand der Ebene «Richtplan Fussverkehr (Geoportal Bern)» (Legende): aus, unter der Zoomstufe, lädt, geladen bzw. teilweise Fehler */
+  onRichtplan?: (stand: RichtplanStand) => void
   onLuftbildKandidat?: (k: LuftbildKandidat) => void
   strassennamen: Strassenname[]                      // aus der Übergangssuche und den OSM-Daten des gewählten Übergangs (daten/osm.namenKarte)
   gewaehlt: number | null
@@ -369,7 +383,9 @@ export default function Karte(props: {
   const elRef = useRef<HTMLDivElement>(null)
   const ebenenRef = useRef<Record<string, L.LayerGroup> | null>(null)
   const ebenenWahlRef = useRef<L.Control.Layers | null>(null)
-  const fwnWarDa = useRef(false)
+  // Richtplan Fussverkehr (Vektordaten): Ebene, geladene Objekte (bleiben beim Nachladen stehen) und Zeichnen (Effekt unten ruft es nach
+  // einer neuen Vorbelegung erneut)
+  const rpRef = useRef<{ gruppe: L.LayerGroup; objekte: RpObjekt[]; zeichnen: () => void; laden: () => void } | null>(null)
   const ksPhase: KsPhase = props.ksPhase ?? 'beide'
   // Zoomstufe (Fahrzeuge der nicht gewählten Zufahrten erst ab FAHRZEUG_ZOOM)
   const [zoom, setZoom] = useState(19)
@@ -450,6 +466,9 @@ export default function Karte(props: {
     const fwnPane = map.createPane(FWN_PANE)
     fwnPane.style.zIndex = '401'
     fwnPane.style.pointerEvents = 'none'
+    const fwnFlaechePane = map.createPane(FWN_FLAECHE_PANE)
+    fwnFlaechePane.style.zIndex = '399'
+    fwnFlaechePane.style.pointerEvents = 'none'
     // «Ecke runden»: Ecken der gewählten Fläche (Plan) in einem eigenen Pane über allen Ebenen und Markern (markerPane 600), unter
     // den Tooltips (650); anklickbar auch im Werkzeugmodus (index.css: .karte-werkzeug)
     map.createPane(ECKEN_PANE).style.zIndex = '620'
@@ -464,30 +483,94 @@ export default function Karte(props: {
       hind: L.layerGroup().addTo(map), fix: L.layerGroup().addTo(map), mess: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
       standort: L.layerGroup().addTo(map), ecken: L.layerGroup().addTo(map), inselVorschau: L.layerGroup().addTo(map),
       griffe: L.layerGroup().addTo(map),
-      // Fusswegnetz: erst mit Daten in der Ebenenwahl und auf der Karte (Effekt unten)
-      fwn: L.layerGroup(),
     }
-    // Richtplan Fussverkehr als WMS des Geoportals (30.10.2026): in der Ebenenwahl nur, solange die Karte die Stadt Bern zeigt;
-    // anfangs aus. Wer die Stadt verlässt, verliert den Eintrag (keine Abfragen); zurück in Bern gilt die letzte Wahl wieder
-    const rpWms = L.layerGroup(rpWmsTeile().map(o => L.tileLayer.wms(RP_WMS_URL, { ...o, maxZoom: 22 })))
-    let rpWmsDa = false, rpWmsWahl = false
-    const rpWmsAbgleich = () => {
-      const b = map.getBounds(), da = rpWmsVerfuegbar({ s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() })
+    // Richtplan Fussverkehr (Vektordaten des Geoportals, 30.10.2026; daten/richtplanKarte.ts): in der Ebenenwahl nur, solange die Karte
+    // die Stadt Bern zeigt; anfangs aus. Eingeschaltet lädt sie ab RP_KARTE_ZOOM den Ausschnitt mit Rand (nach dem Verschieben kurz
+    // gewartet; ältere Abfragen abgebrochen; bis zur Antwort bleibt das Bisherige stehen). Nicht anklickbar (eigene Panes ohne
+    // Mausereignisse): der Tooltip kommt über einen Treffertest beim Bewegen der Maus, Klicks gehen an Übergänge, Werkzeuge usw.
+    const rpGruppe = L.layerGroup([], { attribution: RP_KARTE_QUELLE })
+    const rpCache: RpCache = new Map()
+    let rpDa = false, rpWahl = false, rpCtrl: AbortController | null = null, rpZeit = 0, rpFehler: RpArt[] = []
+    const rpMelden = (laedt: boolean) => cb.current.onRichtplan?.(map.hasLayer(rpGruppe)
+      ? { an: true, zoom: map.getZoom() >= RP_KARTE_ZOOM, laedt, fehler: rpFehler } : { an: false })
+    const rp = { gruppe: rpGruppe, objekte: [] as RpObjekt[], zeichnen: () => {}, laden: () => {} }
+    rp.zeichnen = () => {
+      rpGruppe.clearLayers()
+      if (map.getZoom() < RP_KARTE_ZOOM) return
+      const genutzt = new Map((cb.current.fusswegnetz?.linien ?? []).map(l => [l.id, l]))
+      const ids = new Set(rp.objekte.map(o => o.id))
+      // genutzte Linie aus der Vorbelegung, falls sie im geladenen Ausschnitt fehlt
+      const alle = [...rp.objekte, ...[...genutzt.values()].filter(l => !ids.has(l.id))
+        .map(l => ({ id: l.id, art: 'basisnetz' as const, geom: l.teile, name: null, box: [0, 0, 0, 0] as Box }))]
+      for (const flaeche of [true, false]) for (const o of alle) {
+        const st = rpStil(o.art, genutzt.has(o.id))
+        if (st.flaeche !== flaeche) continue
+        const opt = { pane: flaeche ? FWN_FLAECHE_PANE : FWN_PANE, interactive: false, color: st.color, weight: st.weight, opacity: st.opacity,
+          ...(st.dashArray ? { dashArray: st.dashArray } : {}), ...(st.lineCap ? { lineCap: st.lineCap } : {}) }
+        if (flaeche) L.polygon(o.geom.map(r => r.map(ll)), { ...opt, fill: true, fillOpacity: st.fillOpacity,
+          fillColor: st.fill === 'muster' ? `url(#${RP_MUSTER})` : st.color }).addTo(rpGruppe)
+        else L.polyline(o.geom.map(z => z.map(ll)), opt).addTo(rpGruppe)
+      }
+    }
+    rp.laden = () => {
+      window.clearTimeout(rpZeit)
+      if (!map.hasLayer(rpGruppe)) return
+      if (map.getZoom() < RP_KARTE_ZOOM) { rp.zeichnen(); rpMelden(false); return }
+      rpZeit = window.setTimeout(() => {
+        const b = map.getBounds(), sw = lv95(b.getSouth(), b.getWest()), ne = lv95(b.getNorth(), b.getEast())
+        const box = rpAbfrageBox([sw[0], sw[1], ne[0], ne[1]])
+        const v = cb.current.richtplanVorhanden
+        const vorhanden: RpVorhanden | null = v ? { box: bereichBox(v.bereich), objekte: rpAusVorbelegung(v.daten) } : null
+        rpCtrl?.abort()
+        const ctrl = rpCtrl = new AbortController()
+        rpMelden(true)
+        rpLaden(box, rpCache, vorhanden, ctrl.signal).then(r => {
+          if (ctrl !== rpCtrl) return
+          rp.objekte = RP_KARTE_LAYER.flatMap(l => r.objekte[l.art] ?? [])
+          rpFehler = r.fehler
+          rp.zeichnen(); rpMelden(false)
+        }, () => { if (ctrl === rpCtrl) rpMelden(false) })
+      }, 300)
+    }
+    rpRef.current = rp
+    const rpAbgleich = () => {
+      const b = map.getBounds(), da = rpVerfuegbar({ s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() })
       const wahl = ebenenWahlRef.current
-      if (!wahl || da === rpWmsDa) return
-      rpWmsDa = da
-      if (da) { wahl.addOverlay(rpWms, RP_WMS_NAME); if (rpWmsWahl) rpWms.addTo(map) }
-      else { rpWmsWahl = map.hasLayer(rpWms); wahl.removeLayer(rpWms); map.removeLayer(rpWms) }
+      if (!wahl || da === rpDa) return
+      rpDa = da
+      if (da) { wahl.addOverlay(rpGruppe, RP_KARTE_NAME); if (rpWahl) rpGruppe.addTo(map) }
+      else { rpWahl = map.hasLayer(rpGruppe); wahl.removeLayer(rpGruppe); map.removeLayer(rpGruppe) }
     }
-    rpWms.on('add', () => cb.current.onRichtplanWms?.(true)).on('remove', () => cb.current.onRichtplanWms?.(false))
+    const rpTip = L.tooltip({ direction: 'top', offset: [0, -12], className: 'rp-tip' })
+    rpGruppe.on('add', () => { rp.laden(); rpMelden(false) })
+      .on('remove', () => { rpCtrl?.abort(); rpCtrl = null; window.clearTimeout(rpZeit); map.closeTooltip(rpTip); rpMelden(false) })
+    // Treffertest beim Bewegen der Maus (höchstens einmal je Bild); nicht über anklickbaren Objekten und Markern (deren Tooltip gilt)
+    let rpRaf = 0
+    map.on('mousemove', (e: L.LeafletMouseEvent) => {
+      if (rpRaf) return
+      rpRaf = requestAnimationFrame(() => {
+        rpRaf = 0
+        const ziel = e.originalEvent.target as Element | null
+        const auf = map.hasLayer(rpGruppe) && map.getZoom() >= RP_KARTE_ZOOM && !ziel?.closest?.('.leaflet-interactive, .leaflet-marker-icon, .leaflet-control')
+        const o = auf ? rpTreffer([...rp.objekte, ...(cb.current.fusswegnetz?.linien ?? []).filter(l => !rp.objekte.some(x => x.id === l.id))
+          .map(l => ({ id: l.id, art: 'basisnetz' as const, geom: l.teile, name: null, box: boxAus(l.teile) }))],
+          lv95(e.latlng.lat, e.latlng.lng), rpToleranzM(6, map.getZoom(), e.latlng.lat)) : null
+        if (!o) { map.closeTooltip(rpTip); return }
+        const g = cb.current.fusswegnetz?.linien.find(l => l.id === o.id)
+        const t = rpTooltip(o, g ? g.abstandM : null)
+        rpTip.setContent(`<b>${esc(t.titel)}</b><br>${esc(t.quelle)}`)
+        rpTip.setLatLng(e.latlng)
+        if (!map.hasLayer(rpTip)) map.openTooltip(rpTip)
+      })
+    })
+    map.on('mouseout', () => map.closeTooltip(rpTip))
     ebenenWahlRef.current = L.control.layers({ 'Luftbild (SWISSIMAGE)': luftbild, 'Landeskarte (swisstopo)': landeskarte }, { 'Amtliche Vermessung': eb.av,
       'Flächen (Plan)': eb.plan,
       'OSM-Übergänge': eb.osm, [LUFTBILD_FGS_NAME]: eb.lbfgs, 'Strassennamen (OSM)': eb.namen, 'Sichtfelder': eb.sicht, 'Nummern der Zufahrten': eb.nr, 'Fahrzeuge': eb.fahrzeug, 'Hindernisse': eb.hind,
       'Fixpunkte und Masse': eb.fix },
     { collapsed: true }).addTo(map)
-    fwnWarDa.current = false
-    rpWmsAbgleich()
-    map.on('moveend', rpWmsAbgleich)
+    rpAbgleich()
+    map.on('moveend', () => { rpAbgleich(); rp.laden() })
     L.control.scale({ imperial: false }).addTo(map)
     // «Zum eigenen Standort» unter den Zoom-Knöpfen
     const standortKnopf = new L.Control({ position: 'topleft' })
@@ -531,7 +614,7 @@ export default function Karte(props: {
     map.on('zoomend', () => setZoom(map.getZoom()))
     kartenRef.current = map
     ebenenRef.current = eb
-    return () => { map.remove(); kartenRef.current = null; ebenenRef.current = null; ebenenWahlRef.current = null }
+    return () => { rpCtrl?.abort(); window.clearTimeout(rpZeit); map.remove(); kartenRef.current = null; ebenenRef.current = null; ebenenWahlRef.current = null; rpRef.current = null }
   }, [mitte, kartenRef])
 
   useEffect(() => {
@@ -560,26 +643,10 @@ export default function Karte(props: {
     return () => { map.attributionControl.removeAttribution(text) }
   }, [av, kantone, kartenRef])
 
-  // Fusswegnetz (Richtplan Fussverkehr Stadt Bern, 30.10.2026): nur die für die Vorbelegung genutzte Basisnetz-Linie, kräftig (das
-  // ganze Netz zeigt die WMS-Ebene). Eintrag in der Ebenenwahl nur mit einer solchen Linie; eingeschaltet, sobald sie da ist, danach gilt
-  // die Wahl in der Ebenenwahl
-  const fwn = props.fusswegnetz ?? null, fwnQuelle = props.fusswegnetzQuelle
-  useEffect(() => {
-    const map = kartenRef.current, eb = ebenenRef.current, wahl = ebenenWahlRef.current
-    if (!map || !eb || !wahl) return
-    eb.fwn.clearLayers()
-    wahl.removeLayer(eb.fwn)
-    if (!fwn) { map.removeLayer(eb.fwn); fwnWarDa.current = false; return }
-    wahl.addOverlay(eb.fwn, FUSSWEGNETZ_NAME)
-    if (!fwnWarDa.current) eb.fwn.addTo(map)
-    fwnWarDa.current = true
-    for (const l of fwn.linien)
-      L.polyline(l.teile.map(t => t.map(ll)), { pane: FWN_PANE, color: FUSSWEGNETZ_FARBE, weight: 4, opacity: 0.9 })
-        .bindTooltip(esc(l.text), { sticky: true }).addTo(eb.fwn)
-    if (!fwnQuelle) return
-    map.attributionControl.addAttribution(fwnQuelle)
-    return () => { map.attributionControl.removeAttribution(fwnQuelle) }
-  }, [fwn, fwnQuelle, kartenRef])
+  // Richtplan Fussverkehr: neue Vorbelegung (genutzte Linie bzw. geladene Daten des Falls) neu zeichnen bzw. laden
+  const fwn = props.fusswegnetz ?? null, rpVorhanden = props.richtplanVorhanden ?? null
+  useEffect(() => { rpRef.current?.zeichnen() }, [fwn])
+  useEffect(() => { rpRef.current?.laden() }, [rpVorhanden])
 
   // Flächen (Plan) von Hand: schraffiert über der AV (Bestand bleibt darunter sichtbar); Klick wählt zum Bearbeiten, Ecken des
   // gewählten Plans als Griffe (Hindernisse-Effekt)

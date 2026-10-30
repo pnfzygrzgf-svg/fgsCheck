@@ -1,8 +1,8 @@
-// ── Fusswegnetz: die für die Prüfung genutzte Basisnetz-Linie auf der Karte (30.10.2026; nur Darstellung, ohne Wirkung auf die Rechnung) ──
+// ── Fusswegnetz: die für die Prüfung genutzte Basisnetz-Linie (30.10.2026; nur Darstellung, ohne Wirkung auf die Rechnung) ──
 //
-// Aus den schon für die Vorbelegung geladenen Daten (daten/richtplanFussverkehr.ts, keine eigene Abfrage) nur die Basisnetz-Linie, die
-// die Vorbelegung nutzt (quert die Fahrbahn bis AUTO_C.netzM vom Streifen, die nächste je Querung wie automatikC.netzVorbelegen), damit
-// sichtbar ist, warum «Fusswegnetz» vorbelegt ist. Das ganze Netz und die Bereiche zeigt die WMS-Ebene des Geoportals (richtplanWms.ts).
+// Aus den schon für die Vorbelegung geladenen Daten (daten/richtplanFussverkehr.ts, keine eigene Abfrage) die Basisnetz-Linie, die die
+// Vorbelegung nutzt (quert die Fahrbahn bis AUTO_C.netzM vom Streifen, die nächste je Querung wie automatikC.netzVorbelegen). Die Ebene
+// «Richtplan Fussverkehr (Geoportal Bern)» (daten/richtplanKarte.ts) zeichnet sie kräftiger und nennt den Abstand im Tooltip.
 
 import type { P } from './geo'
 import type { StreifenErgebnis } from './rechner/typen'
@@ -10,8 +10,6 @@ import type { RichtplanDaten } from './daten/richtplanFussverkehr'
 import { imBereich, type Bereich } from './daten/haltestellen'
 import { AUTO_C, querAbstand, querungsAchse } from './bedarf/automatikC'
 
-export const FUSSWEGNETZ_NAME = 'Fusswegnetz: für die Prüfung genutzte Linie'
-export const FUSSWEGNETZ_FARBE = '#6b21a8'
 export const BASISNETZ_TEXT = 'Basisnetz Fussverkehr (Richtplan Stadt Bern)'
 
 /** von der Vorbelegung genutzte Basisnetz-Linie (quert die Fahrbahn bis AUTO_C.netzM vom Streifen, nächste Linie der Querung) */

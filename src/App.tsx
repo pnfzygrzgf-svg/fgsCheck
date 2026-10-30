@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, ERKENNUNG_UNGEPRUEFT, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
-  OHNE_VORTRITT_FARBE, TUE_RAND, FAHRZEUG_ZOOM,
+  OHNE_VORTRITT_FARBE, TUE_RAND, FAHRZEUG_ZOOM, type RichtplanStand,
   hindernisText, hindernisFarbe, FIXPUNKT_FARBE, PLAN_FARBEN, planMarke, NrMarke, type Werkzeug, type KartenHinweis, type Masslinie } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
@@ -82,7 +82,7 @@ import { ladeBreite } from './panelbreite'
 import { befundblaetter, type BefundBlatt } from './bedarf/befundblatt'
 import { ebenenVorgabe, ebenenWirksam } from './bedarf/fallBedarf'
 import { radstreifenAusRechnung, querungen } from './bedarf/vorbelegung'
-import { fusswegnetzKarte, FUSSWEGNETZ_FARBE, BASISNETZ_TEXT } from './fusswegnetzKarte'
+import { fusswegnetzKarte } from './fusswegnetzKarte'
 import { RichtplanLegende } from './RichtplanLegende'
 import { AUTO_C } from './bedarf/automatikC'
 import { OsmNetz, fahrbahnRichtung } from './rechner/netz'
@@ -1743,9 +1743,13 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       kurveNeigung: kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null,
     }
   }, [daten, bernGeo, streifenBern, av, kurveNeigung])
-  // Fusswegnetz auf der Karte (30.10.2026): die für die Vorbelegung geladenen Richtplan-Daten (nur Stadt Bern), ohne eigene Abfrage
-  // WMS-Ebene «Richtplan Fussverkehr (Geoportal Bern)» eingeschaltet (Karte): Legende mit den Bildern des Geoportals
-  const [rpWmsAn, setRpWmsAn] = useState(false)
+  // Ebene «Richtplan Fussverkehr (Geoportal Bern)» (30.10.2026): Stand für die Legende; die Richtplan-Daten der Vorbelegung (nur
+  // Stadt Bern) nutzt sie mit, und die dort genutzte Basisnetz-Linie zeichnet sie kräftiger
+  const [rpStand, setRpStand] = useState<RichtplanStand>({ an: false })
+  const richtplanVorhanden = useMemo(() => {
+    const rp = geoVor.richtplan
+    return rp && !('fehler' in rp) ? { daten: { basisnetz: rp.basisnetz, publikum: rp.publikum }, bereich: rp.bereich } : null
+  }, [geoVor])
   const fusswegnetz = useMemo(() => {
     const rp = geoVor.richtplan
     if (!rp || 'fehler' in rp) return null
@@ -1960,7 +1964,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     <div className="app" style={{ '--panel-breite': `${panelBreite}px` } as CSSProperties}>
       <Karte mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         luftbildKandidaten={lbKandidaten} onLuftbildKandidat={pruefenLuftbild}
-        fusswegnetz={fusswegnetz} fusswegnetzQuelle={BERN_DIENSTE_C.richtplan.quelle} onRichtplanWms={setRpWmsAn}
+        fusswegnetz={fusswegnetz} richtplanVorhanden={richtplanVorhanden} onRichtplan={setRpStand}
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? LEER_HIND} streifenHand={fall?.streifenHand ?? LEER_HAND}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} rundenR={rundenR}
         rundenAngebot={angebotKarte} rundenVorschau={rundenVorschau} inselVorschau={inselVorschau}
@@ -2395,9 +2399,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             borderColor: TUE_RAND, borderStyle: 'dashed' }} />Trottoirüberfahrt (gerechnete Fläche, Strich: gezeichnete Achse),
             <span className="farbe" style={{ background: '#0ea5e9' }} />Annäherungsbereiche,
             <span className="farbe" style={{ borderColor: LUFTBILD_FARBE, borderWidth: 2 }} />Balken aus dem Luftbild (gestrichelt: unsicher)</li>
-          {fusswegnetz && <li><span className="farbe" style={{ background: FUSSWEGNETZ_FARBE }} />{BASISNETZ_TEXT}, für die Vorbelegung
-            genutzt (quert die Fahrbahn bis {AUTO_C.netzM} m vom Streifen); Ebene «Fusswegnetz: für die Prüfung genutzte Linie»</li>}
-          {rpWmsAn && <RichtplanLegende />}
+          {rpStand.an && <RichtplanLegende stand={rpStand} genutzt={!!fusswegnetz} netzM={AUTO_C.netzM} />}
           <li><NrMarke nr="1" />{NUMMERN_TEXT} (je Streifen nach der Herkunft der Fahrzeuge, gerade und abbiegende gemeinsam; von Hand
             gestrichene behalten ihre Nummer ohne Schild, aus den Daten entfallene Richtungen haben keine), Schild hinter dem letzten Sichtpunkt; <NrMarke nr="2" gewaehlt />gewählte Zufahrt (Klick
             aufs Schild wählt sie)</li>

@@ -162,7 +162,8 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .ann-seite { border-radius: 1px; }
 /* Legende der WMS-Ebene Richtplan Fussverkehr (App.tsx): Bilder des Geoportals klein */
 .rp-legende ul { list-style: none; padding-left: 0; margin: 2px 0; }
-.rp-legende img { display: block; max-width: 100%; height: auto; }
+.rp-marke { vertical-align: middle; margin-right: 4px; }
+.rp-tip { max-width: 320px; white-space: normal; }
 /* Werkzeugmodus (Karte.tsx): Objekte der Karte lassen Klicks an die Karte durch (Punkt setzen, Ecke fangen); nur die Ecken beim
    «Ecke runden» bleiben anklickbar */
 .karte-werkzeug .leaflet-interactive:not(.ecke-runden) { pointer-events: none !important; }
