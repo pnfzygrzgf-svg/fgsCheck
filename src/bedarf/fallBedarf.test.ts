@@ -26,12 +26,10 @@ describe('Felder der Maske', () => {
     }
     expect(unterfelder('insel').sort()).toEqual(Object.keys(INSEL_KEINE).sort())
     expect(unterfelder('haltestelle').sort()).toEqual(Object.keys(S0.haltestelle).sort())
-    expect(unterfelder('hvl').sort()).toEqual(Object.keys(S0.hvl).sort())
     expect(unterfelder('fusswegAchse').sort()).toEqual(Object.keys(S0.fusswegAchse).sort())
     expect(unterfelder('randabschluss').sort()).toEqual(Object.keys(S0.randabschluss).sort())
     // Kurve: fuenfBedingungen (bzw. vorschlag) ist aus den fünf Voraussetzungen abgeleitet (29.10.2026)
     expect(unterfelder('kurve').sort()).toEqual(Object.keys(S0.kurve).filter(k => k !== 'fuenfBedingungen').sort())
-    expect(unterfelder('lsaZeiten').sort()).toEqual(Object.keys(S0.lsaZeiten).sort())
     expect(unterfelder('q3').sort()).toEqual(Object.keys(S0.q3).sort())
     expect(new Set(FELD_DEFS.map(d => d.pfad)).size).toBe(FELD_DEFS.length)
   })
@@ -166,17 +164,37 @@ describe('Eingaben bilden: Vorbelegung, Hand, Objekte', () => {
   })
   it('ohne Insel: übrige Unterfelder null; Haltestelle «keine»: alles null; Pflicht-Unterfeld fehlt: offen mit Hinweis', () => {
     const g = eingabenBilden(vor, { felder: { 'insel.vorhanden': { wert: false, quelle: 'hand' }, 'haltestelle.art': { wert: 'keine', quelle: 'hand' },
-      'haltestelle.verdeckt': { wert: true, quelle: 'hand' }, 'hvl.laengeM': { wert: 8, quelle: 'hand' } } })
+      'haltestelle.verdeckt': { wert: true, quelle: 'hand' }, 'randabschluss.hoeheMm': { wert: 30, quelle: 'hand' } } })
     expect(g.eingaben.insel.wert).toEqual(INSEL_KEINE)
-    expect(g.eingaben.haltestelle.wert).toEqual({ art: null, lage: null, verdeckt: null, ueberholenUnterbunden: null })
-    expect(g.eingaben.hvl.wert).toBeNull()
-    expect(g.hinweise).toEqual(['Halteverbotslinie: bitte zuerst «Halteverbotslinie» angeben; bis dahin bleiben die übrigen Angaben dazu offen'])
+    expect(g.eingaben.haltestelle.wert).toEqual({ art: null, lage: null, verdeckt: null, ueberholenUnterbunden: null, beidseits: null })
+    // Halteverbotslinie gestrichen 30.10.2026: Pflicht-Unterfeld am Randabschluss geprüft
+    expect(g.eingaben.randabschluss.wert).toBeNull()
+    expect(g.hinweise).toEqual(['Randabschluss: bitte zuerst «Randstein an der Querung» angeben; bis dahin bleiben die übrigen Angaben dazu offen'])
   })
-  it('Fussgänger: Zählung vor Schätzklasse (Quelle Schätzung); Anrampung als Paar; Liste «keines»', () => {
-    const k = eingabenBilden({}, { felder: { fgKlasse: { wert: '<100', quelle: 'schaetzung' }, 'q3.anrampung': { wert: [12, 0.8], quelle: 'hand' },
-      beduerfnis: { wert: [], quelle: 'hand' } } })
+  // Anrampung (F5b) gestrichen 30.10.2026: alte Fälle mit «q3.anrampung» übergehen das Feld still (feldhilfen.test)
+  it('Block 3 (30.10.2026): alter Fall mit LSA-Zeiten, Halteverbotslinie, Streifenbreite, Lücke Balken–Trottoirkante und Kantonsstrasse: still übergangen', () => {
+    const lsa = ['L', 'gelb', 'freigabe', 'teile', 'inselB', 'phasengleich', 'beideRichtungenImZyklus', 'abbiegerKonflikt', 'vorstart',
+      'inselGeraet', 'wartezeit', 'inselNurAnmeldung']
+    const felder: Record<string, unknown> = {
+      dtv: { wert: 8000, quelle: 'hand' }, 'insel.breite': { wert: 2, quelle: 'hand' },
+      ...Object.fromEntries(lsa.map(u => [`lsaZeiten.${u}`, { wert: u === 'teile' ? [4, 4] : /^(phasen|beide|abbieger|insel[GN])/.test(u) ? true : 6, quelle: 'hand' }])),
+      'hvl.vorhanden': { wert: true, quelle: 'hand' }, 'hvl.laengeM': { wert: 12, quelle: 'hand' }, 'hvl.beidseits': { wert: false, quelle: 'hand' },
+      hvlBedarfM: { wert: 12, quelle: 'hand' }, haltenSichtrelevantUeber5m: { wert: true, quelle: 'hand' }, haltenSonstVerboten: { wert: false, quelle: 'hand' },
+      streifenBreite: { wert: 3, quelle: 'hand' }, randAbstand: { wert: [0.6, 0.3], quelle: 'hand' }, kantonsstrasse: { wert: true, quelle: 'hand' },
+      // Objekt als Ganzes (nie so geschrieben, aber denkbar): ebenso still
+      lsaZeiten: { wert: { gelb: 4 }, quelle: 'hand' }, hvl: { wert: { vorhanden: true }, quelle: 'hand' },
+    }
+    const [b, h] = bedarfLesen({ felder })
+    expect(h).toEqual([])
+    expect(Object.keys(b!.felder).sort()).toEqual(['dtv', 'insel.breite'])
+    // nur gestrichene Felder: kein Block
+    expect(bedarfLesen({ felder: { streifenBreite: { wert: 4, quelle: 'hand' }, 'lsaZeiten.gelb': { wert: 4, quelle: 'hand' } } })).toEqual([null, []])
+    for (const p of [...lsa.map(u => `lsaZeiten.${u}`), 'hvl.vorhanden', 'hvl.laengeM', 'hvl.beidseits', 'hvlBedarfM', 'haltenSichtrelevantUeber5m',
+      'haltenSonstVerboten', 'streifenBreite', 'randAbstand', 'kantonsstrasse']) expect(FELD_DEF.has(p), p).toBe(false)
+  })
+  it('Fussgänger: Zählung vor Schätzklasse (Quelle Schätzung); Liste «keines»', () => {
+    const k = eingabenBilden({}, { felder: { fgKlasse: { wert: '<100', quelle: 'schaetzung' }, beduerfnis: { wert: [], quelle: 'hand' } } })
     expect(k.eingaben.fgQuelle).toEqual({ wert: 'schaetzung', quelle: 'schaetzung' })
-    expect((k.eingaben.q3.wert as { anrampung: unknown }).anrampung).toEqual({ neigung: 12, laenge: 0.8 })
     expect(k.eingaben.beduerfnis.wert).toEqual([])
     const z = eingabenBilden({}, { felder: { fgKlasse: { wert: '<100', quelle: 'schaetzung' }, fg5h: { wert: 140, quelle: 'hand' } } })
     expect(z.eingaben.fgQuelle).toEqual({ wert: 'zaehlung', quelle: 'hand' })

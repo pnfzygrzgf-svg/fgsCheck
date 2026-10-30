@@ -54,8 +54,6 @@ export const WERK_INFO: Readonly<Record<WerkId, WerkInfo>> = {
     'der Balken eines Fussgängerstreifens.', gilt: NORM },
   '640852': { ebene: 'Norm', was: 'SN 640 852 ist die Schweizer Norm für Markierungen, die blinde und sehbehinderte Menschen mit dem ' +
     'Stock ertasten und mit dem Restsehvermögen erkennen.', gilt: NORM },
-  '640070': { ebene: 'Norm', was: 'SN 640 070 ist die Grundnorm für den Fussverkehr: Grundsätze für Wege, Netze und Anlagen der ' +
-    'Fussgängerinnen und Fussgänger.', gilt: NORM },
   VOT30: { ebene: 'Recht', was: 'Die Zonen-Verordnung des Bundes (SR 741.213.3) legt fest, wie Tempo-30-Zonen und Begegnungszonen ' +
     'eingerichtet und gestaltet werden.', gilt: BUND },
   SSV: { ebene: 'Recht', was: 'Die Signalisationsverordnung (SR 741.21) legt fest, wie Signale und Markierungen aussehen, was sie ' +
@@ -155,7 +153,7 @@ export const LESENAME: Readonly<Record<WerkId, string>> = {
   '40241': 'VSS-Norm 40 241 Fussgängerstreifen', '40240': 'VSS-Norm 40 240 Querungsanlagen', '40242': 'VSS-Norm 40 242 Trottoirüberfahrten',
   '40837': 'VSS-Norm 40 837 Lichtsignalanlagen', '40273': 'VSS-Norm 40 273 Sicht in Knoten', '40213': 'VSS-Norm 40 213 Verkehrsberuhigungselemente',
   '640075': 'Norm SN 640 075 Hindernisfreier Verkehrsraum', '640850a': 'Norm SN 640 850a Markierungen',
-  '640852': 'Norm SN 640 852 Taktil-visuelle Markierungen', '640070': 'Norm SN 640 070 Fussgängerverkehr',
+  '640852': 'Norm SN 640 852 Taktil-visuelle Markierungen',
   VOT30: 'Tempo-30-Zonen-Verordnung (SR 741.213.3)', SSV: 'Signalisationsverordnung (SSV)', VRV: 'Verkehrsregelnverordnung (VRV)',
   MP: 'Masterplan Fussverkehr Stadt Bern', MPV: 'Masterplan Veloinfrastruktur Stadt Bern', HBLSA: 'Handbuch Lichtsignalanlagen Stadt Bern',
   AHBE: 'Arbeitshilfe Fussgängerstreifen Kanton Bern', BFU: 'bfu-Fachdokumentation «Fussgängerstreifen»',

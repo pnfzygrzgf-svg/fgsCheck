@@ -57,10 +57,8 @@ const OK: Record<string, unknown> = {
   innerorts: true, lage: 'einmuendung', 'q3.bebaut': true, 'q3.gewerbe': false, 'q3.anschlussGewerbe': false, 'q3.ueber': 'einmuendend',
   'q3.vSigHaupt': 50, 'q3.nEinm': 1, 'q3.nHaupt': 1, 'q3.trottoirBeidseits': true, 'q3.winkel': 90, 'q3.knotensichtOk': true, 'q3.hvl5m': true,
   'q3.einmSiedlungsorientiert': true, 'q3.zoneEinm': 'keine', 'q3.gegenueberEinm': false, 'q3.wartezeitEinmS': 10, 'q3.lkwGelegentlich': true,
-  'q3.linienbus': false, 'q3.veloSchule': false, 'q3.mivEinmHoch': false, fgKlasse: '100-500', 'q3.lsaKnoten': false, 'q3.kreisel': false,
-  'q3.breiteM': 3, 'q3.randDurchgehend': true, 'q3.ueberfahrbarM': 10, 'q3.begrenzung': 'poller', 'q3.erkennbar': true, 'q3.belag': 'gleich',
-  'q3.quergefaelle': 2, 'q3.randabschluss': 's0625', 'q3.randsteineSenkrecht': true, 'q3.signalisation': false, 'q3.markierung': false,
-  'q3.taktil': true,
+  'q3.linienbus': false, 'q3.veloSchule': false, fgKlasse: '100-500', 'q3.lsaKnoten': false, 'q3.kreisel': false,
+  'q3.breiteM': 3, 'q3.randDurchgehend': true, 'q3.ueberfahrbarM': 10, 'q3.begrenzung': 'poller', 'q3.belag': 'gleich', 'q3.taktil': true,
 }
 
 describe('Prüfliste: Reihenfolge der Felder und Überschriften', () => {
@@ -69,16 +67,18 @@ describe('Prüfliste: Reihenfolge der Felder und Überschriften', () => {
     expect(q3.slice(0, 3)).toEqual(['q3.bebaut', 'q3.gewerbe', 'q3.anschlussGewerbe'])
     expect(q3.indexOf('q3.hvl5m')).toBeLessThan(q3.indexOf('q3.einmSiedlungsorientiert'))
     expect(q3.indexOf('q3.kreisel')).toBeLessThan(q3.indexOf('q3.breiteM'))
+    // Rampe, Erkennbarkeit, Quergefälle, Randabschluss, Randsteine, Signalisation und Markierung gestrichen 30.10.2026
     expect(q3.slice(q3.indexOf('q3.breiteM'))).toEqual(['q3.breiteM', 'q3.randDurchgehend', 'q3.ueberfahrbarM', 'q3.begrenzung',
-      'q3.erkennbar', 'q3.belag', 'q3.quergefaelle', 'q3.randabschluss', 'q3.randsteineSenkrecht', 'q3.anrampung', 'q3.signalisation',
-      'q3.markierung', 'q3.taktil', 'q3.vSigEinm', 'q3.dtvEinm'])
+      'q3.belag', 'q3.taktil', 'q3.vSigEinm', 'q3.dtvEinm'])
   })
   it('Abschnitte mit Tabelle und Seite; nachAbschnitt ordnet nur die Regeln der Gliederung', () => {
     expect(ABSCHNITTE.trottoirueberfahrt!.map(a => a.titel)).toEqual(['Zwingende Voraussetzungen (VSS 40 242 Tab. 1, S. 28)',
       'Merkmale zur Anordnung (VSS 40 242 Tab. 2, S. 30)', 'Ausstattung (VSS 40 242 Tab. 3, S. 32 und 34)', 'Bern',
       'Ausführung (erst bei der Umsetzung; VSS 40 242 Tab. 3, S. 32 und 34)'])
     expect(ABSCHNITTE.trottoirueberfahrt!.filter(a => a.ausfuehrung).length).toBe(1)
-    expect(nachAbschnitt(['A1', 'F5n', 'C1', 'Q3-M10', 'Q3-1', 'Q3-B', 'F5a'], x => x)).toEqual(['A1', 'Q3-1', 'C1', 'Q3-M10', 'F5a', 'Q3-B', 'F5n'])
+    expect(nachAbschnitt(['A1', 'F5n', 'C1', 'Q3-M9', 'Q3-1', 'Q3-B', 'F5a'], x => x)).toEqual(['A1', 'Q3-1', 'C1', 'Q3-M9', 'F5a', 'Q3-B', 'F5n'])
+    // gestrichene Regeln stehen nicht mehr in der Gliederung (30.10.2026)
+    expect(['Q3-M10', 'F5b', 'F5f', 'F5i', 'F5j', 'F5k', 'F5l', 'F5m'].filter(id => ABSCHNITTE.trottoirueberfahrt!.some(a => a.unter.some(u => u.regeln.includes(id))))).toEqual([])
     expect(nachAbschnitt(['C1', 'A1'], x => x)).toEqual(['C1', 'A1'])
   })
   it('Thema: Fragen in der Reihenfolge der Prüfliste unter den Überschriften', () => {
@@ -95,12 +95,11 @@ describe('Prüfliste: Reihenfolge der Felder und Überschriften', () => {
     // Verkehrsmengen: Gegenüber (M9) vor Wartezeit (M3)
     expect(fragen.indexOf('q3.gegenueberEinm')).toBeLessThan(fragen.indexOf('q3.wartezeitEinmS'))
     expect(fragen.indexOf('q3.wartezeitEinmS')).toBeLessThan(fragen.indexOf('q3.breiteM'))
-    // Ausstattung (Machbarkeit): F5a, F5c, F5d; Ausführung: F5e … F5k, F5b, F5l, F5m, F5n
+    // Ausstattung (Machbarkeit): F5a, F5c, F5d; Ausführung: F5e, F5g, F5h, F5n (übrige gestrichen 30.10.2026)
     const aus = g.find(x => x.abschnitt.startsWith('Ausstattung'))!.fragen.map(f => f.ziel)
     expect(aus).toEqual(['q3.breiteM', 'q3.randDurchgehend', 'q3.ueberfahrbarM'])
     const ausf = g.find(x => x.ausfuehrung)!.fragen.map(f => f.ziel)
-    expect(ausf).toEqual(['q3.begrenzung', 'q3.erkennbar', 'q3.belag', 'q3.quergefaelle', 'q3.randabschluss', 'q3.randsteineSenkrecht',
-      'q3.signalisation', 'q3.markierung', 'q3.taktil'])
+    expect(ausf).toEqual(['q3.begrenzung', 'q3.belag', 'q3.taktil'])
   })
   it('Panel und Bericht: Überschriften in dieser Reihenfolge (Abkürzungen ausgeschrieben)', () => {
     const f = tueFall({ innerorts: true, lage: 'einmuendung' })
@@ -118,7 +117,7 @@ describe('Prüfliste: Reihenfolge der Felder und Überschriften', () => {
     const ids = g.zeilen.map(z => z.id)
     expect(ids.slice(0, 3)).toEqual(['Q3-1', 'Q3-2', 'Q3-3'])
     expect(ids.indexOf('Q3-M9')).toBeLessThan(ids.indexOf('Q3-M3'))
-    expect(ids.slice(-15)).toEqual(['F5a', 'F5c', 'F5d', 'Q3-B', 'F5e', 'F5f', 'F5g', 'F5h', 'F5i', 'F5j', 'F5k', 'F5b', 'F5l', 'F5m', 'F5n'])
+    expect(ids.slice(-8)).toEqual(['F5a', 'F5c', 'F5d', 'Q3-B', 'F5e', 'F5g', 'F5h', 'F5n'])
     expect(g.zeilen.find(z => z.id === 'F5c')!.wo).toBe('Erweiterte Prüfung, Thema Trottoirüberfahrt, Ausstattung (VSS 40 242 Tab. 3, S. 32 und 34)')
   })
 })
@@ -158,13 +157,12 @@ describe('Nur Fragen der Trottoirüberfahrt; Alternative Fussgängerstreifen auf
     expect(z.fehlt).toBeNull()
   })
   it('Ausführung (erst bei der Umsetzung): offen zählt nicht (Thema, Zusammenfassung, Muss-Fragen); beantwortet geprüft, im Bericht unter derselben Überschrift', () => {
-    const AUSF = ['q3.begrenzung', 'q3.erkennbar', 'q3.belag', 'q3.quergefaelle', 'q3.randabschluss', 'q3.randsteineSenkrecht', 'q3.anrampung',
-      'q3.signalisation', 'q3.markierung', 'q3.taktil']
+    const AUSF = ['q3.begrenzung', 'q3.belag', 'q3.taktil']
     const ohneAusf = Object.fromEntries(Object.entries(OK).filter(([k]) => !AUSF.includes(k)))
     const b = blatt(tueFall(ohneAusf))
     const a = themenAnsicht([b])
     const t = a.themen.find(x => x.thema.id === 'trottoirueberfahrt')!
-    expect(t.fragen.length).toBeGreaterThan(5)
+    expect(t.fragen.length).toBeGreaterThanOrEqual(AUSF.length)
     expect(a.themen.reduce((n, x) => n + x.zahl.offen, 0)).toBe(0)
     const z = zusammenfassungBlatt(b)
     expect(z.antwort).toBe('Eine Trottoirüberfahrt ist hier zulässig.')
@@ -177,10 +175,10 @@ describe('Nur Fragen der Trottoirüberfahrt; Alternative Fussgängerstreifen auf
     // alles beantwortet: kein Zusatz zur Ausführung
     expect(JSON.stringify(zusammenfassungBlatt(blatt(tueFall(OK))))).not.toContain('Ausführung')
     // beantwortet: geprüft wie bisher, Befund unter «Ausführung»
-    const mark = blatt(tueFall({ ...ohneAusf, 'q3.markierung': true }))
-    expect(mark.befund.alle.find(x => x.id === 'F5m')?.zustand).toBe('verletzt')
+    const mark = blatt(tueFall({ ...ohneAusf, 'q3.belag': 'absatz' }))
+    expect(mark.befund.alle.find(x => x.id === 'F5h')?.zustand).toBe('verletzt')
     const g = themaGliederung(themenAnsicht([mark]).themen.find(x => x.thema.id === 'trottoirueberfahrt')!)!
-    expect(g.find(x => x.ausfuehrung)!.eintraege.flatMap(e => e.xs.map(x => x.id))).toEqual(['F5m'])
+    expect(g.find(x => x.ausfuehrung)!.eintraege.flatMap(e => e.xs.map(x => x.id))).toEqual(['F5h'])
     const html = renderToStaticMarkup(<BefundblattAnzeige b={mark} druck />)
     expect(html.indexOf('Ausführung (erst bei der Umsetzung; VSS 40 242 Tabelle 3, Seite 32 und 34)')).toBeGreaterThan(html.indexOf('Ausstattung (VSS 40 242 Tabelle 3'))
     // Panel: eingeklappt
@@ -206,25 +204,27 @@ describe('Nur Fragen der Trottoirüberfahrt; Alternative Fussgängerstreifen auf
       const b = blatt(tueFall({ ...OK, ...hand }))
       return { b, ids: tueMerkmaleNichtErfuellt(b), text: zusatzTexte(b).find(z => z.startsWith('Die Trottoirüberfahrt ist normkonform')) }
     }
-    const eins = satz({ 'q3.veloSchule': true })
-    expect(eins.ids).toEqual(['Q3-M6'])
-    expect(eins.text).toBe('Die Trottoirüberfahrt ist normkonform; nicht erfüllt: Veloroute oder Schulweg.')
-    const drei = satz({ 'q3.veloSchule': true, 'q3.lkwGelegentlich': false, 'q3.ueberfahrbarM': 30 })
-    expect(drei.ids).toEqual(['Q3-M4', 'Q3-M6', 'F5d'])
-    expect(drei.text).toBe('Die Trottoirüberfahrt ist normkonform; nicht erfüllt: Lastwagenverkehr, Veloroute oder Schulweg, Länge des überfahrbaren Rands.')
-    const fuenf = satz({ 'q3.veloSchule': true, 'q3.lkwGelegentlich': false, 'q3.ueberfahrbarM': 30, 'q3.einmSiedlungsorientiert': false, 'q3.wartezeitEinmS': 40 })
-    expect(fuenf.ids).toEqual(['Q3-M1', 'Q3-M3', 'Q3-M4', 'Q3-M6', 'F5d'])
+    const eins = satz({ 'q3.linienbus': true })
+    expect(eins.ids).toEqual(['Q3-M5'])
+    expect(eins.text).toBe('Die Trottoirüberfahrt ist normkonform; nicht erfüllt: Linienbus in der Seitenstrasse.')
+    // Veloroute bzw. Schulweg (Q3-M6) und Länge des überfahrbaren Rands (F5d) seit 30.10.2026 Hinweise: keine Merkmale
+    expect(satz({ 'q3.veloSchule': true, 'q3.ueberfahrbarM': 30 }).ids).toEqual([])
+    const drei = satz({ 'q3.linienbus': true, 'q3.lkwGelegentlich': false, 'q3.breiteM': 1.8 })
+    expect(drei.ids).toEqual(['Q3-M4', 'Q3-M5', 'F5a'])
+    expect(drei.text).toBe('Die Trottoirüberfahrt ist normkonform; nicht erfüllt: Lastwagenverkehr, Linienbus in der Seitenstrasse, Breite der Trottoirüberfahrt.')
+    const fuenf = satz({ 'q3.linienbus': true, 'q3.lkwGelegentlich': false, 'q3.breiteM': 1.8, 'q3.einmSiedlungsorientiert': false, 'q3.wartezeitEinmS': 40 })
+    expect(fuenf.ids).toEqual(['Q3-M1', 'Q3-M3', 'Q3-M4', 'Q3-M5', 'F5a'])
     expect(fuenf.text).toBe('Die Trottoirüberfahrt ist normkonform; nicht erfüllt: Seitenstrasse als Quartierstrasse, Wartezeit beim Ausfahren, ' +
       'Lastwagenverkehr (und 2 weitere Merkmale).')
     // Ausführung und Hinweise nicht; Panel: Namen als Sprung zur Befundzeile (data-regel), Bericht nur Text
-    const mitAusf = satz({ 'q3.veloSchule': true, 'q3.begrenzung': 'keine' })
-    expect(mitAusf.ids).toEqual(['Q3-M6'])
-    const html = renderToStaticMarkup(<BedarfAbschnitt fall={tueFall({ ...OK, 'q3.veloSchule': true })} blaetter={[eins.b]} vorgabe={OHNE.vorgabe}
+    const mitAusf = satz({ 'q3.linienbus': true, 'q3.begrenzung': 'keine' })
+    expect(mitAusf.ids).toEqual(['Q3-M5'])
+    const html = renderToStaticMarkup(<BedarfAbschnitt fall={tueFall({ ...OK, 'q3.linienbus': true })} blaetter={[eins.b]} vorgabe={OHNE.vorgabe}
       aendern={() => {}} setAlternative={() => {}} />)
-    expect(html).toContain('nicht erfüllt: <button type="button" class="frage-knopf" title="zur Befundzeile im Thema Trottoirüberfahrt">Veloroute oder Schulweg</button>.')
-    expect(html).toContain('data-regel="Q3-M6"')
+    expect(html).toContain('nicht erfüllt: <button type="button" class="frage-knopf" title="zur Befundzeile im Thema Trottoirüberfahrt">Linienbus in der Seitenstrasse</button>.')
+    expect(html).toContain('data-regel="Q3-M5"')
     const bericht = renderToStaticMarkup(<BefundblattAnzeige b={eins.b} druck />)
-    expect(bericht).toContain('Die Trottoirüberfahrt ist normkonform; nicht erfüllt: Veloroute oder Schulweg.')
+    expect(bericht).toContain('Die Trottoirüberfahrt ist normkonform; nicht erfüllt: Linienbus in der Seitenstrasse.')
     expect(bericht).not.toContain('data-regel')
   })
   it('Eingabe über einen Vorschlag: anderer Wert ist eine Eingabe von Hand (Quelle hand), gleicher Wert bleibt Vorbelegung', () => {
@@ -235,16 +235,17 @@ describe('Nur Fragen der Trottoirüberfahrt; Alternative Fussgängerstreifen auf
     expect(eingabeUebernehmen(h, 8, x => { gesetzt.push(x); return true })).toBe(true)
     expect(gesetzt).toEqual([12])
   })
-  it('nicht zulässig: Alternative in einem Satz, «nur grob geprüft» ohne, ohne Zusatz mit Knopf; Trottoirrand zurückgesetzt zählt mit', () => {
-    const f = tueFall({ ...OK, 'q3.randDurchgehend': false })
+  it('nicht zulässig: Alternative in einem Satz, «nur grob geprüft» ohne, ohne Zusatz mit Knopf; Trottoirrand zurückgesetzt seit 30.10.2026 nur Hinweis', () => {
+    expect(zusammenfassungBlatt(blatt(tueFall({ ...OK, 'q3.randDurchgehend': false }))).antwort).toBe('Eine Trottoirüberfahrt ist hier zulässig.')
+    const f = tueFall({ ...OK, 'q3.gewerbe': true })
     const ohne = zusammenfassungBlatt(blatt(f)).antwort, mit = zusammenfassungBlatt(blatt(f, true)).antwort
-    expect(ohne).toMatch(/^Eine Trottoirüberfahrt ist hier nicht zulässig: Trottoirrand zurückgesetzt/)
+    expect(ohne).toMatch(/^Eine Trottoirüberfahrt ist hier nicht zulässig: Trottoirüberfahrt im Gewerbegebiet/)
     expect(ohne).toContain('(nur grob geprüft)')
     expect(mit).not.toContain('grob')
   })
   it('Begründung und Zusätze: nur aus der Trottoirüberfahrt, nichts zum Fussgängerstreifen (Korrektur 27.10.2026)', () => {
     const offen = blatt(tueFall({ innerorts: true, lage: 'einmuendung' }))
-    const nicht = blatt(tueFall({ ...OK, 'q3.randDurchgehend': false }))
+    const nicht = blatt(tueFall({ ...OK, 'q3.gewerbe': true }))
     const zone = blatt(tueFall({ ...OK, tempoRegime: 'begegnungszone', vSig: 20 }))
     const ok = blatt(tueFall(OK))
     for (const b of [offen, nicht, zone, ok]) {
@@ -252,9 +253,20 @@ describe('Nur Fragen der Trottoirüberfahrt; Alternative Fussgängerstreifen auf
       expect(zusatzTexte(b).join(' ')).not.toMatch(/Zusätzlich (prüfen|möglich)/)
     }
     expect(offen.begruendung).toMatch(/^Zulässigkeit offen, weil Angaben fehlen: /)
-    expect(nicht.begruendung).toMatch(/^Nicht zulässig: Trottoirrand gerade durch – /)
+    expect(nicht.begruendung).toMatch(/^Nicht zulässig: Trottoirüberfahrt im Gewerbegebiet – /)
     expect(ok.begruendung).toBe('Zwingende Punkte ohne Befund (VSS 40 242 Tab. 1)')
     expect(zone.befund.empfehlung.grundlage).toEqual([])
+  })
+  it('Verkehr von Seitenstrasse und Hauptfahrbahn als Informationszeile im Thema, Panel und Bericht, ohne Befund (30.10.2026)', () => {
+    const f = tueFall({ ...OK, 'q3.dtvEinm': 2000 })
+    const b = blatt(f)
+    expect(b.tueVerkehr).toMatch(/^Verkehr: Seitenstrasse 2\u00a0000 Fz\/Tag, Hauptfahrbahn offen, Verhältnis offen\. Norm/)
+    const panel = renderToStaticMarkup(<BedarfAbschnitt fall={f} blaetter={[b]} vorgabe={OHNE.vorgabe} aendern={() => {}} setAlternative={() => {}} />)
+    const bericht = renderToStaticMarkup(<BefundblattAnzeige b={b} druck />)
+    for (const html of [panel, bericht]) expect(html).toContain('Verkehr: Seitenstrasse 2\u00a0000 Fz/Tag, Hauptfahrbahn offen')
+    expect(zusammenfassungBlatt(b).antwort).toBe('Eine Trottoirüberfahrt ist hier zulässig.')
+    // Fussgängerstreifen an der Einmündung: keine Zeile
+    expect(blatt(tueFall({ innerorts: true, lage: 'einmuendung' }, null)).tueVerkehr).toBeUndefined()
   })
   it('Kreuzung über die Zufahrt ohne Vortritt: zulässig; über die Strasse mit Vortritt: nicht', () => {
     expect(zusammenfassungBlatt(blatt(tueFall({ ...OK, lage: 'knoten_belastet' }))).antwort).toBe('Eine Trottoirüberfahrt ist hier zulässig.')
@@ -314,7 +326,7 @@ describe('Planung statt heutiger Zustand: Lichtsignal, Fahrstreifen, Zone als Vo
     expect(b.gebildet.herkunft.get('q3.lsaKnoten')).toMatchObject({ zustand: 'vorbelegt', quelle: 'osm' })
   })
   it('Fahrstreifen und Zone als Vorschlag: Q3-7, Q3-8, Q3-M2 offen zum Bestätigen; als Tatsache bzw. von Hand wie bisher', () => {
-    const e = fall({ typ: 'trottoirueberfahrt', lage: 'einmuendung', q3: { ...Q3_OK, nEinm: 2, nHaupt: 2, zoneEinm: 't30', eingangstor: false, hauptInZone: false } })
+    const e = fall({ typ: 'trottoirueberfahrt', lage: 'einmuendung', q3: { ...Q3_OK, nEinm: 2, nHaupt: 2, zoneEinm: 't30', eingangstor: false } })
     const q = (vorschlag: boolean) => (p: string) => (vorschlag && ['q3.nEinm', 'q3.nHaupt', 'q3.zoneEinm'].includes(p) ? 'vorschlag' as const : 'osm' as const)
     const v = beurteile(e, { quelleVon: q(true) }), t = beurteile(e, { quelleVon: q(false) })
     for (const id of ['Q3-7', 'Q3-8', 'Q3-M2']) {
@@ -328,9 +340,9 @@ describe('Planung statt heutiger Zustand: Lichtsignal, Fahrstreifen, Zone als Vo
 })
 
 describe('Offene Angaben einer Trottoirüberfahrt in der Reihenfolge der Prüfliste (27.10.2026)', () => {
-  it('nachPruefliste: Tab. 1 vor Tab. 2 vor Ausstattung vor Bern; Lage nach der Siedlung; Querende bei den Verkehrsmengen; Fremdes danach', () => {
+  it('nachPruefliste: Tab. 1 vor Tab. 2 vor Ausstattung vor Bern; Lage nach der Siedlung; Fremdes danach (Querende seit 30.10.2026 ohne Regel der Prüfliste)', () => {
     expect(nachPruefliste(['q3.randDurchgehend', 'q3.dtvEinm', 'q3.lsaKnoten', 'lage', 'q3.anschlussGewerbe', 'q3.bebaut', 'vSig', 'fgKlasse', 'q3.veloSchule']))
-      .toEqual(['q3.bebaut', 'q3.anschlussGewerbe', 'lage', 'q3.veloSchule', 'fgKlasse', 'q3.lsaKnoten', 'q3.randDurchgehend', 'q3.dtvEinm', 'vSig'])
+      .toEqual(['q3.bebaut', 'q3.anschlussGewerbe', 'lage', 'q3.veloSchule', 'q3.lsaKnoten', 'q3.randDurchgehend', 'q3.dtvEinm', 'vSig', 'fgKlasse'])
   })
   it('Zusammenfassung: «Für die Antwort entscheidend» beginnt mit dem bebauten Gebiet, nicht mit dem Trottoirrand; entscheidende zuerst', () => {
     const b = blatt(tueFall({ innerorts: true, lage: 'einmuendung' }))
@@ -340,14 +352,17 @@ describe('Offene Angaben einer Trottoirüberfahrt in der Reihenfolge der Prüfli
     expect(z.fehlt?.felder).not.toContain('q3.randDurchgehend')
     const ent = entscheidendeFelder({ befund: b.befund })
     expect(ent).toEqual(nachPruefliste(ent))
-    expect(ent.indexOf('q3.bebaut')).toBeLessThan(ent.indexOf('q3.randDurchgehend'))
+    // Trottoirrand (F5c) seit 30.10.2026 Hinweis: nicht entscheidend
+    expect(ent[0]).toBe('q3.bebaut')
+    expect(ent).not.toContain('q3.randDurchgehend')
   })
 })
 
 describe('Erweiterte Prüfung im Panel: Themen ohne Befund als eigene Zeile (29.10.2026)', () => {
   it('jedes geprüfte Thema ohne Inhalt eingeklappt mit «✓ n Regeln ohne Befund»; keine Zeile «Ohne Befund:» im Panel, im Bericht weiter', () => {
     const f = tueFall(OK)
-    const b = blatt(f)
+    // ohne die Informationszeile zum Verkehr (30.10.2026): mit ihr steht das Thema Trottoirüberfahrt immer offen (Test oben)
+    const b = { ...blatt(f), tueVerkehr: undefined }
     const ohne = themenAnsicht([b]).themen.filter(t => !(t.eintraege.length || t.fragen.length || t.verweise.length || t.bloecke.length ||
       t.ohneAngaben.length) && t.geprueft > 0)
     expect(ohne.length).toBeGreaterThan(0)

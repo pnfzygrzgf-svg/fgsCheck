@@ -54,11 +54,28 @@ export function FundstelleLink({ text, link, w, druck = false }: { text: string;
     {text}{link.art === 'pdf' ? ' (PDF)' : ''} ↗</a>
 }
 
-/** Lesetext mit Werkverweisen (Begründung, Normhinweise, Feldhilfen): Abkürzungen ausgeschrieben, Werke verlinkt, Artikel mit fedlex */
+/** http(s)-Adresse im Lesetext (30.10.2026, z. B. Verweis auf KnotenCheck im Normhinweis); Satzzeichen am Ende gehören nicht dazu */
+const URL_MUSTER = /https?:\/\/[^\s()«»"]+[^\s()«»".,;:]/g
+/** Text mit http(s)-Adressen als Links (neues Fenster); übriger Text unverändert */
+export function MitLinks({ text }: { text: string }) {
+  const teile: (string | { url: string })[] = []
+  let i = 0
+  for (const m of text.matchAll(URL_MUSTER)) {
+    if (m.index! > i) teile.push(text.slice(i, m.index))
+    teile.push({ url: m[0] })
+    i = m.index! + m[0].length
+  }
+  if (i < text.length) teile.push(text.slice(i))
+  return <>{teile.map((x, k) => (typeof x === 'string' ? <Fragment key={k}>{x}</Fragment>
+    : <a key={k} href={x.url} target="_blank" rel="noopener" className="werk-extern" title={`${x.url} (neues Fenster)`}>{x.url}</a>))}</>
+}
+
+/** Lesetext mit Werkverweisen (Begründung, Normhinweise, Feldhilfen): Abkürzungen ausgeschrieben, Werke verlinkt, Artikel mit fedlex;
+ * http(s)-Adressen als Links (30.10.2026; im Bericht als Text) */
 export function VerweisText({ text, druck = false }: { text: string | undefined; druck?: boolean }) {
   if (!text) return null
   if (druck) return <>{verweisText(text)}</>
-  return <>{verweisTeile(text).map((x, i) => ('text' in x ? <Fragment key={i}>{x.text}</Fragment>
+  return <>{verweisTeile(text).map((x, i) => ('text' in x ? <MitLinks key={i} text={x.text} />
     : <Fragment key={i}><WerkVerweis w={x.werk} anzeige={x.anzeige} />{x.ziffer && <>, <FundstelleLink text={x.ziffer.text} link={x.ziffer.link} w={x.werk} /></>}</Fragment>))}</>
 }
 

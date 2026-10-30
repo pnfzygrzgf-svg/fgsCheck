@@ -282,8 +282,8 @@ function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefi
   // beurteilte Trottoirüberfahrt (Q3-4 läuft nur dann): Antwort aus den zwingenden Punkten der Trottoirüberfahrt; die Alternative nach
   // der (still geprüften) Zulässigkeit des Fussgängerstreifens
   if (b.ausgewertet.includes('Q3-4')) {
-    // zwingende Punkte (Q3) und der Trottoirrand (F5c), in der Reihenfolge der Prüfliste (27.10.2026)
-    const hart = nachAbschnitt(verletzt(b.alle.filter(x => (x.id.startsWith('Q3') || x.id === 'F5c') && x.zustand === 'verletzt' &&
+    // zwingende Punkte (Q3), in der Reihenfolge der Prüfliste (27.10.2026; der Trottoirrand F5c seit 30.10.2026 Hinweis)
+    const hart = nachAbschnitt(verletzt(b.alle.filter(x => x.id.startsWith('Q3') && x.zustand === 'verletzt' &&
       MUSS.includes(x.staerke)).map(x => x.id)), x => x.id)
     if (hart.length) {
       // die Alternative (still bzw. mit «Alternative Fussgängerstreifen prüfen» geprüft) in einem kurzen Satz

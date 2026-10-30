@@ -1130,6 +1130,9 @@ function ThemaAnzeige({ t, blaetter, druck, eingabe, begriffe }: { t: ThemaTeil;
       </div>
     }) : <>{eintraegeListe(t.eintraege)}{fragenListe(kurveBlock && eingabe ? t.fragen.filter(f => !KURVE_FELDER.includes(f.ziel ?? '')) : t.fragen)}</>}
     {kurveBlock && <KurvenregelBlock b={b0} druck={druck} eingabe={eingabe} />}
+    {/* beurteilte Trottoirüberfahrt (30.10.2026): Verkehr von Seitenstrasse und Hauptfahrbahn als Information, ohne Befund */}
+    {tue && blaetter.filter(b => b.tueVerkehr).map(b => <p key={b.gruppe} className="klein thema-info"><span className="grund-symbol" aria-hidden="true">i</span>
+      {' '}{mehrere ? `${querungTitel(b)}: ` : ''}<VerweisText text={T(b.tueVerkehr!)} druck={druck} /></p>)}
     {t.bloecke.map(x => <div key={x.block} className="klein thema-block"><span className="grund-symbol" aria-hidden="true">?</span> Nicht geprüft:
       {' '}{x.text} {!druck && <><Frage feld={x.ziel} text="Angaben eingeben" />{' '}</>}
       <RegelListe ids={x.regeln} druck={druck} kopf={`(${zahlWort(x.regeln.length, 'Regel', 'Regeln')})`} /></div>)}
@@ -1197,7 +1200,7 @@ function annahmenPunkte(b: BefundBlatt, ablauf: readonly Eintrag[], druck: boole
   const g = b.gestrichen ?? 0
   const ebenen: Ebene[] = ['Recht', 'Norm', ...(b.ebenen.richtlinie ? ['Richtlinie' as const] : []), ...(b.ebenen.bern ? ['Bern' as const] : []),
     ...(b.ebenen.kantonBE ? ['Kanton BE' as const] : [])]
-  // ungeprüfte Blöcke (Trottoirüberfahrt, LSA-Zeiten) stehen schon im Thema
+  // ungeprüfter Block (Trottoirüberfahrt) steht schon im Thema
   const gruende = u.gruende.filter(x => !BLOCK_GRUENDE.includes(x.grund)), ng = gruende.reduce((n, x) => n + x.n, 0)
   const pruef = [ng > 0 ? `Nicht geprüft: ${zahlWort(ng, 'Regel', 'Regeln')} (${gruende.map(x => `${x.grund} ${x.n}`).join(', ')}).` : '',
     g > 0 ? `${g} ${g === 1 ? 'Zufahrt' : 'Zufahrten'} von Hand gestrichen (nicht geprüft).` : '',
@@ -1214,16 +1217,18 @@ function annahmenPunkte(b: BefundBlatt, ablauf: readonly Eintrag[], druck: boole
 function ErweiterteAnzeige({ blaetter, ansicht, druck = false, eingabe }: { blaetter: readonly BefundBlatt[]; ansicht: ThemenAnsicht
   druck?: boolean; eingabe?: ErwEingabe }) {
   const mehrere = blaetter.length > 1
+  // beurteilte Trottoirüberfahrt (30.10.2026): die Informationszeile zum Verkehr steht im Thema, auch ohne Befund und Frage
+  const mitInhalt = (t: ThemaTeil) => hatInhalt(t) || (t.thema.id === 'trottoirueberfahrt' && blaetter.some(b => b.tueVerkehr))
   // Panel (29.10.2026): jedes geprüfte Thema als eigene Zeile, auch ohne Befund (eingeklappt); der Bericht bleibt knapp
   const einzeln = !!eingabe && !druck
   // nicht geprüfte Themen (29.10.2026): eigene graue Zeile mit dem Grund (z. B. Baum endet in der Begegnungszone)
   const uebersicht = einzeln ? pruefUebersicht(blaetter[0].befund, { ebenen: blaetter[0].ebenen, typ: blaetter[0].gebildet.eingaben.typ.wert }) : null
   const ngZeile = (t: ThemaTeil) => uebersicht?.themen.find(x => x.thema.id === t.thema.id)
-  const nichtGeprueft = (t: ThemaTeil) => einzeln && !hatInhalt(t) && t.geprueft === 0 && (ngZeile(t)?.nichtGeprueft ?? 0) > 0
-  const themen = ansicht.themen.filter(t => hatInhalt(t) || (einzeln && t.geprueft > 0) || nichtGeprueft(t))
-  const ohne = einzeln ? [] : ansicht.themen.filter(t => !hatInhalt(t) && t.geprueft > 0)
+  const nichtGeprueft = (t: ThemaTeil) => einzeln && !mitInhalt(t) && t.geprueft === 0 && (ngZeile(t)?.nichtGeprueft ?? 0) > 0
+  const themen = ansicht.themen.filter(t => mitInhalt(t) || (einzeln && t.geprueft > 0) || nichtGeprueft(t))
+  const ohne = einzeln ? [] : ansicht.themen.filter(t => !mitInhalt(t) && t.geprueft > 0)
   const begriffe = begriffeJeEintrag([...themen.flatMap(t => t.eintraege.flatMap(e => e.xs)), ...ansicht.ablauf.flatMap(a => a.xs)])
-  const weitere = eingabe ? [...ansicht.themen.filter(t => !hatInhalt(t) && !(einzeln && t.geprueft > 0) && !nichtGeprueft(t))
+  const weitere = eingabe ? [...ansicht.themen.filter(t => !mitInhalt(t) && !(einzeln && t.geprueft > 0) && !nichtGeprueft(t))
     .map(t => ({ id: t.thema.id, name: t.thema.name, defs: t.felder })),
     { id: 'ohne', name: 'Ohne Thema', defs: ansicht.ohneThema }].map(x => ({ ...x, defs: x.defs.filter(p => eingabe.alle || eingabe.zaehlt(p))
       .map(p => FELD_DEF.get(p)!) })).filter(x => x.defs.length) : []
@@ -1236,7 +1241,7 @@ function ErweiterteAnzeige({ blaetter, ansicht, druck = false, eingabe }: { blae
     {themen.map((t, i) => {
       const g = gruppeVonThema(t.thema.id), neu = !i || gruppeVonThema(themen[i - 1].thema.id) !== g
       return <Fragment key={t.thema.id}>{neu && <p className="themen-gruppe"><b>{T(g)}</b></p>}
-        {hatInhalt(t) ? <ThemaAnzeige t={t} blaetter={blaetter} druck={druck} eingabe={eingabe} begriffe={begriffe} />
+        {mitInhalt(t) ? <ThemaAnzeige t={t} blaetter={blaetter} druck={druck} eingabe={eingabe} begriffe={begriffe} />
           : t.geprueft > 0 ? <ThemaOhneBefund t={t} blaetter={blaetter} eingabe={eingabe!} />
           : <ThemaNichtGeprueft t={t} blaetter={blaetter} eingabe={eingabe!} grund={ngZeile(t)?.grund}
             regeln={[...(uebersicht?.nichtGeprueftWegen.keys() ?? [])].filter(id => themaVon(id) === t.thema.id)} />}</Fragment>

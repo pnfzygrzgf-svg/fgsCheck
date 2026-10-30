@@ -142,9 +142,8 @@ describe('Ist/Soll mit Einheit', () => {
     }
     expect([...fehler]).toEqual([])
   })
-  it('Korrekturen: G7 ohne «keine m», F7a mm am Wert, H3b ohne «(Soll) m», C1 und F6c mit km/h', () => {
+  it('Korrekturen: F7a mm am Wert, H3b ohne «(Soll) m», C1 und F6c mit km/h (G7 gestrichen 30.10.2026)', () => {
     const satz = (abw: Parameters<typeof fall>[0], id: string) => eintragSatz(beurteile(fall(abw)).alle.find(x => x.id === id)!)
-    expect(satz({ haltenSichtrelevantUeber5m: true, hvl: { vorhanden: false, laengeM: null, beidseits: null } }, 'G7')).toContain('Ist keine; Soll ≥ 10 m')
     expect(satz({ randabschluss: { art: 'vertikal', hoeheMm: 60, breiteM: null } }, 'F7a')).toContain('Ist 60 mm vertikal; Soll 30 ± 5 mm')
     expect(satz({ erkennungM: 100 }, 'H3b')).toContain('Soll ≥ 110 m (doppelte Sichtweite)')
     expect(satz({ v85: 61, vSig: 60 }, 'C1')).toContain('Soll ≤ 60 km/h')

@@ -105,7 +105,7 @@ describe('Trottoirüberfahrt: Bedarf vorbelegt aus der Wahl am Streifen', () => 
     expect(b.gebildet.eingaben.innerorts.wert).toBe(true)
     expect(b.vorbelegt.werte['q3.vSigHaupt']?.wert).toBe(50)
     const fgsB = befundblaetter(fgs0, ueberQuerweg(), { ...OHNE, geo: { osm: OSM, av: AV } })[0]
-    for (const pfad of ['parkierungSichtbehindernd', 'hvlBedarfM']) {
+    for (const pfad of ['parkierungSichtbehindernd']) {   // hvlBedarfM gestrichen 30.10.2026 (G7)
       expect(fgsB.vorbelegt.werte[pfad], pfad).toBeDefined(); expect(b.vorbelegt.werte[pfad], pfad).toBeUndefined()
     }
     expect(b.vorbelegt.rechner?.['kurve.radius']).toBeUndefined(); expect(b.vorbelegt.werte['kurve.radius']).toBeUndefined()

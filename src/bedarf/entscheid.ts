@@ -2,14 +2,15 @@
 //
 // beurteile(eingaben, optionen) → Befund: reine Funktion ohne Oberfläche. Ablauf nach Bedarfsmodul_E0_Regeln.md 2.4:
 //   1. A1 (ausserorts) → Ende; A2 (Begegnungszone) → Ende; A3, A4.
-//   2. B1 (flächig) → Ende mit Hinweisen; B3 (Einmündung) merkt Q3 vor; B4, G3.
+//   2. B1 (flächig) → Ende mit Hinweisen; B3 (Einmündung) merkt Q3 vor; G3 (B4 gestrichen 30.10.2026).
 //   3. C1 bis C4 → Zulässigkeit. Nicht angezeigt (C1, C2 verletzt) → Pfad E, sonst Pfad D.
 //   4. D (Norm setzt den Typ, Bern meldet nur). Die Befunde aus D gelten dem Fussgängerstreifen; ist die beurteilte Anlage kein
 //      FGS (Typ furt, ohne_vortritt …), bestimmen sie nur die Empfehlung und erscheinen nicht als Befund.
-//   5. E bei «nicht angezeigt» oder Typ ohne Vortritt: E1/E2, E2a, E2d, E2e, Sicht E3/E3a.
+//   5. E bei «nicht angezeigt» oder Typ ohne Vortritt: E1/E2, E2a, E2d, Sicht E3/E3a (E1b, E2e gestrichen 30.10.2026).
 //   6. Prüfung der beurteilten Anlage nach Typ: F1 (FGS, LSA), F2–F4, F7 und E2b/E2c (alle), F5 (Trottoirüberfahrt), F6 und D7
-//      (Mehrzweckstreifen), G und H (nur FGS).
-//   7. D5 (LSA prüfen), Q3 (Einmündung bzw. Typ Trottoirüberfahrt), I (mit LSA).
+//      (Mehrzweckstreifen), G und H (nur FGS). F1a, F1b, F1-K, F1c, G7, G7b gestrichen 30.10.2026.
+//   7. D5 (LSA prüfen), Q3 (Einmündung bzw. Typ Trottoirüberfahrt). Block I (LSA-Zeiten) gestrichen 30.10.2026: Signalzeiten gehören
+//      in einen eigenen Rechner.
 // Ebenen Recht und Norm sind immer an; Bern, Kanton BE und Richtlinie schaltet die Option (ausgeschaltete Regeln werden nicht
 // ausgewertet). Bern und Kanton BE stehen getrennt im Teil «lokal» des Befunds.
 
@@ -178,12 +179,12 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     pruefe('B1', still)
     if (k.hat('B1')) {
       if (tue) altEnde = true; else ende = 'flaechig'
-      Object.assign(empf, { typ: 'flaechig', elemente: ['Begegnungszone', 'Mehrzweckstreifen', 'dichte Querungen ohne Vortritt'], grundlage: tue ? [] : ['B1'] })
+      Object.assign(empf, { typ: 'flaechig', elemente: ['Begegnungszone', 'Mehrzweckstreifen'], grundlage: tue ? [] : ['B1'] })
     }
   }
   if (!ende) {
     pruefe('B3')
-    reihe(['B4', 'G3'], still)
+    reihe(['G3'], still)   // B4 gestrichen 30.10.2026
 
     // 3. C Zulässigkeit
     // Bei einer beurteilten Trottoirüberfahrt regelt 40 242 Z. 15 Zone und Verkehrsmenge: C und E laufen dann stumm, nur für
@@ -208,7 +209,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
 
       // 5. E Querungstyp ohne Vortritt
       const pfadE = zul === 'nicht_angezeigt' || (typ !== null && OHNE_VORTRITT.includes(typ)) || (typ === 'mehrzweck' && !mzsFgs)
-      if (pfadE) reihe(['E1', 'E1b', 'E1c', 'E2', 'E2a', 'E2d', 'E2e', 'E3', 'E3a'], still)
+      if (pfadE) reihe(['E1', 'E1c', 'E2', 'E2a', 'E2d', 'E3', 'E3a'], still)   // E1b, E2e gestrichen 30.10.2026
     }
 
     // 6. Prüfung der beurteilten Anlage
@@ -216,20 +217,21 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     if (typ === 'fgs' || typ === 'lsa' || mzsFgs) {
       // Richtlinie Hindernisfreie Architektur (30.10.2026): gerade Trottoirkante, Abstand zum Kreisel; wie die Streifenmasse nur beim
       // Fussgängerstreifen (auch mit Lichtsignal bzw. über dem Mehrzweckstreifen). Die Ausrichtung (Kap. 4.1) ist Quelle von F1d
-      reihe(['F1a', 'F1b', 'F1-K', 'F1c', 'F1d', 'F1e', 'G11', 'G12'])
+      reihe(['F1d', 'F1e', 'G11', 'G12'])   // F1a, F1b, F1-K, F1c gestrichen 30.10.2026
     }
     // Insel, Einengung, vorgezogener Seitenraum (F2 bis F4, E2b, E2c) und Randstein, Absenkung, Tastlinien (F7) gehören zur Querung
     // auf der Fahrbahn, nicht zur Trottoirüberfahrt (27.10.2026); deren Ausstattung prüft F5
-    if (!tue) reihe(['F2', 'F2b', 'F2c', 'F2d', 'F2e', 'F2f', 'F2g', 'F2-B', 'F2-K', 'F3', 'F3-M', 'F3-B', 'F4a', 'F4b', 'F4c', 'E2b', 'E2c'])
-    if (tue) reihe(['F5a', 'F5c', 'F5d', 'F5e', 'F5f', 'F5g', 'F5h', 'F5i', 'F5j', 'F5k', 'F5b', 'F5l', 'F5m', 'F5n'])
+    if (!tue) reihe(['F2', 'F2b', 'F2c', 'F2d', 'F2e', 'F2f', 'F2-B', 'F2-K', 'F3', 'F3-M', 'F3-B', 'F4a', 'F4b', 'F4c', 'E2b', 'E2c'])
+    // F2g, F5b, F5f, F5i bis F5m gestrichen 30.10.2026
+    if (tue) reihe(['F5a', 'F5c', 'F5d', 'F5e', 'F5g', 'F5h', 'F5n'])
     if (typ === 'mehrzweck') reihe(['F6a', 'F6b', 'F6c', 'D7'])
     if (!tue) reihe(['F7a', 'F7b', 'F7c', 'F7d', 'F7e'])
     if (typ === 'fgs') {
-      reihe(['G1', 'G2', 'G3b', 'G4', 'G4b', 'G5', 'G5b', 'G6', 'G6-B', 'G7', 'G7b', 'G8a', 'G8b', 'G9', 'G10a', 'G10b'])
+      reihe(['G1', 'G2', 'G3b', 'G4', 'G4b', 'G5', 'G5b', 'G6', 'G6-B', 'G8a', 'G8b', 'G9', 'G10a', 'G10b'])   // G7, G7b gestrichen 30.10.2026
       reihe(['H2', 'H1', 'H1b', 'H3a', 'H3b', 'H4'])
     }
 
-    // 7. D5, Q3, I
+    // 7. D5, Q3 (I gestrichen 30.10.2026)
     reihe(['D5-1', 'D5-2', 'D5-3', 'D5-4', 'D5-5', 'D5-6'], still)
     if (!altEnde) empfehlen(k, zul!, empf)
 
@@ -241,12 +243,13 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
         empf.zusatz.push('Trottoirüberfahrt nicht geprüft: Eingaben fehlen')
       } else {
         reihe(tue ? Q3_IDS_TUE : Q3_IDS, !tue)
-        // Trottoirrand zurückgesetzt (F5c): ebenfalls keine Trottoirüberfahrt (27.10.2026)
-        const ids: BefundId[] = tue ? ['Q3-4', ...Q3_IDS, 'F5c'] : Q3_IDS
+        // Trottoirrand zurückgesetzt (F5c) und Länge des überfahrbaren Rands (F5d) seit 30.10.2026 Hinweise: zählen nicht mehr für die
+        // Zulässigkeit bzw. die Merkmale (bis dahin F5c Muss, F5d Soll)
+        const ids: BefundId[] = tue ? ['Q3-4', ...Q3_IDS] : Q3_IDS
         const hart = ids.filter(id => regelDef(id).staerke === 'hart' && k.hat(id))
         const hartOffen = ids.filter(id => regelDef(id).staerke === 'hart' && k.istOffen(id))
-        // beurteilte Trottoirüberfahrt (28.10.2026): auch die Soll-Regeln der Machbarkeit (Breite, Länge des überfahrbaren Rands)
-        const weich = [...ids, ...(tue ? ['F5a', 'F5d'] as BefundId[] : [])].filter(id => regelDef(id).staerke === 'weich' && k.hat(id))
+        // beurteilte Trottoirüberfahrt (28.10.2026): auch die Soll-Regel der Machbarkeit (Breite)
+        const weich = [...ids, ...(tue ? ['F5a'] as BefundId[] : [])].filter(id => regelDef(id).staerke === 'weich' && k.hat(id))
         const bern = k.ergebnisse.get('Q3-B')
         const bernText = bern && bern !== 'offen' && bern.ist ? ` (Bern-Tabelle: ${bern.ist})` : ''
         if (hart.length) empf.zusatz.push(`Trottoirüberfahrt hier nicht zulässig wegen ${hart.join(', ')}`)
@@ -260,15 +263,9 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
         }
       }
     }
-    // Trottoirüberfahrt ohne geprüfte Alternative: Zusätze der still geprüften Alternative (z. B. E1b) entfallen (27.10.2026)
+    // Trottoirüberfahrt ohne geprüfte Alternative: Zusätze der still geprüften Alternative (z. B. D5-1, bis 30.10.2026 E1b) entfallen (27.10.2026)
     if (still) empf.zusatz = empf.zusatz.filter(z => z.startsWith('Trottoirüberfahrt'))
-    // I: nur mit LSA-Zeiten (Korrektur S6). Ausgelöst nur durch eine Zeit (Gelb, Grün bzw. Wartezeit), nicht durch die aus der
-    // Vorbelegung kopierten Längen (L, Teilquerungen, Inseltiefe; Nutzerentscheid 21.10.2026)
-    if (!still && (typ === 'lsa' || k.o('fgsMitLsa') === true)) {
-      const z = k.o('lsaZeiten')
-      if (z === null || (z.gelb == null && z.freigabe == null && z.wartezeit == null)) nichtGeprueft.push({ block: 'I', grund: 'LSA-Zeiten fehlen' })
-      else reihe(['I1', 'I2', 'I3a', 'I3b', 'I4', 'I5', 'I6', 'I6-B', 'I7-B1', 'I7-B2', 'I7-B3', 'I7-B4', 'I8'])
-    }
+    // Block I (LSA-Zeiten) gestrichen 30.10.2026: Signalzeiten gehören in einen eigenen Rechner; kein «nicht geprüft» mehr
 
     // Runde 4 (Kann): Begegnungszone offen (A2 offen, z. B. nur angenommen): keine Empfehlung eines Typs, bis die Zone geklärt ist
     // (in der Begegnungszone gilt flächiges Queren, sonst ein Typ nach C bis E); Trottoirüberfahrt unverändert
@@ -276,7 +273,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
 
     // Vorbehalt: harte Regel offen (Korrektur S2): aus C oder D, bei einer Trottoirüberfahrt aus Q3
     const hartOffen = (id: string): boolean => k.istOffen(id) && ['hart', 'hart_bericht'].includes(KATALOG[id as RegelId].staerke ?? '')
-    empf.offenWegen.push(...ausgewertet.filter(id => (tue ? id.startsWith('Q3') || id === 'F5c' : id.startsWith('C') || id.startsWith('D')) && hartOffen(id)))
+    empf.offenWegen.push(...ausgewertet.filter(id => (tue ? id.startsWith('Q3') : id.startsWith('C') || id.startsWith('D')) && hartOffen(id)))
     empf.vorlaeufig = (!tue && zul === 'offen') || empf.offenWegen.length > 0 || (tue && k.o('q3') === null)
   }
 
@@ -309,10 +306,10 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
 /** Regeln, die erst an einer beurteilten Trottoirüberfahrt eine Bestätigung verlangen (heutiger Zustand ≠ Planung; 27.10.2026) */
 const NUR_TUE_BESTAETIGUNG: readonly string[] = ['Q3-7', 'Q3-8', 'Q3-M2', 'Q3-M7']
 const Q3_IDS: BefundId[] = ['Q3-1', 'Q3-2', 'Q3-3', 'Q3-5', 'Q3-6', 'Q3-7', 'Q3-8', 'Q3-9', 'Q3-10', 'Q3-11', 'Q3-12',
-  'Q3-M1', 'Q3-M2', 'Q3-M3', 'Q3-M4', 'Q3-M5', 'Q3-M6', 'Q3-M7', 'Q3-M8', 'Q3-M9', 'Q3-M10', 'Q3-B']
+  'Q3-M1', 'Q3-M2', 'Q3-M3', 'Q3-M4', 'Q3-M5', 'Q3-M6', 'Q3-M7', 'Q3-M8', 'Q3-M9', 'Q3-B']   // Q3-M10 gestrichen 30.10.2026
 /** beurteilte Trottoirüberfahrt: Reihenfolge der Prüfliste (VSS 40 242 Tab. 1 und 2, dann Bern); an der Einmündung sonst Q3_IDS */
 const Q3_IDS_TUE: BefundId[] = ['Q3-1', 'Q3-2', 'Q3-3', 'Q3-5', 'Q3-6', 'Q3-7', 'Q3-8', 'Q3-9', 'Q3-10', 'Q3-11', 'Q3-12',
-  'Q3-M1', 'Q3-M2', 'Q3-M9', 'Q3-M3', 'Q3-M4', 'Q3-M5', 'Q3-M6', 'Q3-M10', 'Q3-M7', 'Q3-M8', 'Q3-B']
+  'Q3-M1', 'Q3-M2', 'Q3-M9', 'Q3-M3', 'Q3-M4', 'Q3-M5', 'Q3-M6', 'Q3-M7', 'Q3-M8', 'Q3-B']
 
 /** offene Einträge nach fehlendem Feld (Korrektur S6) */
 function gruppen(alle: Eintrag[]): Befund['offenGruppen'] {
@@ -333,13 +330,11 @@ function empfehlen(k: Kontext, zul: Zulaessigkeit, empf: Empfehlung): void {
       empf.elemente.push('Fussgängerfurt (Insel ohne Balken)')
       if (k.o('inselMoeglich') === null) empf.offenWegen.push('inselMoeglich')
       gr(['E1'])
-      if (k.hat('E1b')) { empf.zusatz.push('LSA bzw. Unter- oder Überführung prüfen'); gr(['E1b']) }
+      if (k.hat('D5-1')) { empf.zusatz.push('LSA bzw. Unter- oder Überführung prüfen'); gr(['D5-1']) }   // bis 30.10.2026 E1b
     } else {
       empf.typ = 'ohne_vortritt'
       if (st === 'siedlungsorientiert') gr(['E2'])
       empf.elemente.push(k.o('laengsparkierung') ? 'vorgezogener Seitenraum' : 'vorgezogener Seitenraum, Einengung oder Anhebung')
-      const dtv = k.o('dtv')
-      if (dtv !== null && dtv < KATALOG.E2e.werte.dtvMax) empf.elemente.push('ohne bauliche Massnahme möglich')
     }
     return
   }

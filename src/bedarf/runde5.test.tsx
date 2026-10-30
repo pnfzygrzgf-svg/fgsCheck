@@ -127,14 +127,17 @@ describe('Runde 5, F5: unplausibel lange Teilstreifen', () => {
   })
 })
 
-describe('Lücke zwischen Balken und Trottoirkante (Nutzerentscheid 23.10.2026)', () => {
-  it('nur bei Streifen aus dem Luftbild vorbelegt (Enden = erkannte Balken)', () => {
+describe('Lücke zwischen Balken und Trottoirkante (Nutzerentscheid 23.10.2026; Feld gestrichen 30.10.2026)', () => {
+  it('weder Lücke noch Streifenbreite vorbelegt, auch nicht aus dem Luftbild (F1a bis F1c gestrichen)', () => {
     const r = rechneFall(OSM, AV, [], 12, fallMit(), null)
     const s = r.streifen[0]
     const st: StreifenErgebnis = { ...s, p0: lv(0, -3.7), p1: lv(0, 3.6), rand: [lv(0, -4), lv(0, 4)], m: lv(0, 0), randQuelle: 'AV' }
     const v = (streifenQuelle?: 'osm' | 'hand' | 'luftbild') => vorbelegen({ id: 'x', streifen: [st] }, fallMit(), [], { streifenQuelle }).werte
-    expect(v('luftbild').randAbstand).toMatchObject({ wert: [0.3, 0.4], quelle: 'rechnung' })
-    for (const q of ['osm', 'hand', undefined] as const) expect(v(q).randAbstand).toBeUndefined()
+    for (const q of ['luftbild', 'osm', 'hand', undefined] as const) {
+      expect(v(q).randAbstand, q).toBeUndefined()
+      expect(v(q).streifenBreite, q).toBeUndefined()
+      expect(v(q).achsWinkel, q).toBeDefined()
+    }
   })
 })
 

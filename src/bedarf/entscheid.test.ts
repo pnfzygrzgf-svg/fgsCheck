@@ -37,18 +37,18 @@ describe('Ablauf: typische Berner Fälle', () => {
     expect(ids(b.norm.hinweise)).toEqual(expect.arrayContaining(['D1b', 'D5-3']))
     expect(ids(b.lokal.empfehlungen)).toEqual(expect.arrayContaining(['D6-2', 'D6-4']))
   })
-  it('bestehende LSA an diesem Ort: keine Inselpflicht D1, I-Regeln ausgewertet', () => {
+  it('bestehende LSA an diesem Ort: keine Inselpflicht D1; LSA-Zeiten (Block I) seit 30.10.2026 gestrichen', () => {
     const b = beurteile(fall({ dtv: 12000, nRichtung: [2, 2], fahrbahnB: 13, typ: 'lsa' }), BERN)
     expect(b.alle.find(x => x.id === 'D1')).toBeUndefined()
     expect(b.empfehlung.typ).toBe('Q2')
-    expect(b.ausgewertet).toEqual(expect.arrayContaining(['I1', 'I2', 'I4', 'I7-B4']))
+    expect(b.ausgewertet.filter(id => /^I\d/.test(id))).toEqual([])
     expect(b.ausgewertet).not.toContain('H1')
   })
   it('Tempo-30-Zone ohne Schule: FGS unzulässig, Pfad E (Querung ohne Vortritt), keine D-Regeln', () => {
     const b = beurteile(fall({ tempoRegime: 't30_zone', vSig: 30, v85: 31, dtv: 2500, strassentyp: 'siedlungsorientiert', laengsparkierung: true, seitenraumVorParklinieM: 0.3 }), BERN)
     expect(b.zulaessigkeit).toBe('nicht_angezeigt')
     expect(ids(b.norm.verletzungen)).toContain('C2')
-    expect(b.empfehlung).toMatchObject({ typ: 'ohne_vortritt', elemente: ['vorgezogener Seitenraum', 'ohne bauliche Massnahme möglich'] })
+    expect(b.empfehlung).toMatchObject({ typ: 'ohne_vortritt', elemente: ['vorgezogener Seitenraum'] })   // «ohne bauliche Massnahme möglich» mit E2e gestrichen (30.10.2026)
     expect(b.ausgewertet.some(id => id.startsWith('D1') || id.startsWith('D6'))).toBe(false)
     expect(b.ausgewertet).toContain('E3')
     expect(ids(b.lokal.hinweise)).toContain('C2-B')
@@ -65,7 +65,7 @@ describe('Ablauf: typische Berner Fälle', () => {
     expect(ids(b.norm.hinweise)).toContain('B3')
     expect(b.empfehlung.typ).toBe('Q1')
     expect(b.empfehlung.zusatz).toEqual(['Trottoirüberfahrt (Q3) normkonform möglich (Bern-Tabelle: Ja)'])
-    expect(b.ausgewertet).toEqual(expect.arrayContaining(['Q3-1', 'Q3-12', 'Q3-M10', 'Q3-B']))
+    expect(b.ausgewertet).toEqual(expect.arrayContaining(['Q3-1', 'Q3-12', 'Q3-M9', 'Q3-B']))
     expect(b.alle.some(x => x.id.startsWith('Q3'))).toBe(false)
   })
   it('Einmündung mit FGS, einmündend 2 Streifen, Hauptfahrbahn 60: keine Q3-Befunde, Zusatz nennt die Gründe', () => {
@@ -115,9 +115,9 @@ describe('Ablauf: typische Berner Fälle', () => {
     expect(b.empfehlung.elemente).toContain('Schutzinsel')
     expect(b.empfehlung).toMatchObject({ vorlaeufig: true, offenWegen: ['inselMoeglich'] })
   })
-  it('FGS mit LSA ohne Zeiten: Block I nicht ausgewertet, ein Hinweis', () => {
-    const b = beurteile(fall({ fgsMitLsa: true, lsaZeiten: null }), BERN)
-    expect(b.nichtGeprueft).toEqual([{ block: 'I', grund: 'LSA-Zeiten fehlen' }])
+  it('FGS mit LSA: Block I gestrichen (30.10.2026), kein «nicht geprüft», keine offenen Einträge', () => {
+    const b = beurteile(fall({ fgsMitLsa: true }), BERN)
+    expect(b.nichtGeprueft).toEqual([])
     expect(b.ausgewertet.some(id => id.startsWith('I'))).toBe(false)
     expect(b.norm.offen.length + b.lokal.offen.length).toBe(0)
   })
@@ -189,9 +189,10 @@ describe('Ebenen und offene Eingaben', () => {
     e.nRichtung = { wert: [1, 1], quelle: 'annahme' }
     expect(beurteile(e).annahmen).toEqual(expect.arrayContaining(['dtv: Schätzung', 'nRichtung: Annahme']))
   })
-  it('Masse Soll/Ist: Streifen, Sicht, Erkennung als Zeilen; verletzt bei F1a', () => {
-    const b = beurteile(fall({ streifenBreite: 2.9 }))
-    expect(b.masse.find(m => m.groesse === 'Streifenbreite')).toMatchObject({ ist: '2,90', zustand: 'verletzt', regeln: ['F1a', 'F1b'] })
+  it('Masse Soll/Ist: Sicht, Erkennung als Zeilen; verletzt beim Abstand (Streifenbreite gestrichen 30.10.2026)', () => {
+    const b = beurteile(fall({ abstandFgsM: 40 }))
+    expect(b.masse.find(m => m.groesse === 'Abstand zum nächsten Fussgängerstreifen')).toMatchObject({ ist: '40', zustand: 'verletzt', regeln: ['G1'] })
+    expect(b.masse.find(m => m.groesse === 'Streifenbreite')).toBeUndefined()
     expect(b.masse.map(m => m.groesse)).toEqual(expect.arrayContaining(['Erkennungsdistanz', 'Abstand zum nächsten Fussgängerstreifen', 'DTV']))
   })
   it('Runde 5: Ausnahme beim Wert (G1 an der Verzweigung), V85 nur angenommen', () => {

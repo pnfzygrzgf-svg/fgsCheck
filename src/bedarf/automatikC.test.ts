@@ -583,14 +583,10 @@ describe('Paket C: Vortrittsrolle an der Kreuzung (OSM-Vortrittszeichen)', () =>
 })
 
 describe('Kleinpunkte (Nutzerentscheide 21.10.2026)', () => {
-  it('LSA-Zeiten: nur kopierte Längen lösen den Block I nicht aus («LSA-Zeiten fehlen»); eine Zeit von Hand schon', () => {
-    const lsa = { L: 7, teile: null, inselB: null, gelb: null, freigabe: null, phasengleich: null, beideRichtungenImZyklus: null, wartezeit: null,
-      vorstart: null, abbiegerKonflikt: null, inselGeraet: null, inselNurAnmeldung: null }
-    const BERN = { ebenen: { bern: true, kantonBE: true } }
-    expect(beurteile(testfall({ fgsMitLsa: true, lsaZeiten: lsa }), BERN).nichtGeprueft).toEqual([{ block: 'I', grund: 'LSA-Zeiten fehlen' }])
-    const mit = beurteile(testfall({ fgsMitLsa: true, lsaZeiten: { ...lsa, gelb: 3 } }), BERN)
-    expect(mit.nichtGeprueft).toEqual([])
-    expect(mit.ausgewertet).toContain('I1')
+  it('mit Lichtsignal: kein Block LSA-Zeiten mehr (gestrichen 30.10.2026), keine I-Regel ausgewertet, kein «nicht geprüft»', () => {
+    const b = beurteile(testfall({ fgsMitLsa: true }), { ebenen: { bern: true, kantonBE: true } })
+    expect(b.nichtGeprueft).toEqual([])
+    expect(b.ausgewertet.filter(id => /^I\d/.test(id))).toEqual([])
   })
   it('«knapp unter» mit einer Nachkommastelle wie das Soll', () => {
     expect(kurzform({ id: 'H1', ist: '77,8', soll: '≥ 77,8', einheit: 'm' })).toContain('knapp unter 77,8 m')

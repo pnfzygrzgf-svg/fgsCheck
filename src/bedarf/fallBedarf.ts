@@ -51,7 +51,7 @@ export function bedarfLesen(roh: unknown): [BedarfBlock | null, string[]] {
   for (const k of Object.keys(roh)) if (!['felder', 'ebenen'].includes(k)) h.push(`Bedarf: Schlüssel «${k}» unbekannt, übergangen`)
   if (roh.felder !== undefined && !istObjekt(roh.felder)) h.push('Bedarf: Felder ungültig (kein Objekt), übergangen')
   else for (const [pfad, v] of Object.entries(roh.felder ?? {})) {
-    if (VERBOTEN.includes(pfad) || pfad === ZONE_GESTRICHEN) continue
+    if (VERBOTEN.includes(pfad) || pfad === ZONE_GESTRICHEN || GESTRICHEN.includes(pfad) || objektGestrichen(pfad)) continue
     // alte Fall-Dateien (bis 29.10.2026): eine Frage «Sicht nach Kurvenradius anwendbar»; ja = alle fünf Voraussetzungen ja
     if (pfad === 'kurve.fuenfBedingungen') {
       if (istObjekt(v) && v.wert === true && (HAND_QUELLEN as readonly unknown[]).includes(v.quelle))
@@ -90,6 +90,20 @@ export function bedarfLesen(roh: unknown): [BedarfBlock | null, string[]] {
 /** Feld «zoneVerkehrsorientiert» (gestrichen, Nutzerentscheid 20.10.2026): eine Hauptstrasse ausserhalb der Zone ist im
  * Tempo-Regime eine Strecke */
 const ZONE_GESTRICHEN = 'zoneVerkehrsorientiert'
+/** Gestrichene Felder alter Fall-Dateien, still übergangen: «Arme der Kreuzung ohne Querung» (B4) und «Kreuzung mit Lichtsignal»
+ * (D5-2 ohne diese Bedingung), Nutzerentscheide 30.10.2026; ebenso die Unterfelder zu den am 30.10.2026 gestrichenen Regeln F2g
+ * (Pfostenhöhe), Q3-M10 (viel Verkehr), Q3-M2 (Hauptstrasse in der Zone) und F5b, F5f, F5i bis F5m (Ausführung der Trottoirüberfahrt).
+ * Unterfelder stehen in der Datei je Pfad («q3.erkennbar»), darum genügt der Pfad */
+const GESTRICHEN = ['knotenArmeOhneQuerung', 'knotenLsa', 'insel.pfostenH', 'q3.mivEinmHoch', 'q3.hauptInZone', 'q3.anrampung', 'q3.erkennbar',
+  'q3.quergefaelle', 'q3.randabschluss', 'q3.randsteineSenkrecht', 'q3.signalisation', 'q3.markierung',
+  // Block 3 vom 30.10.2026: Streifenbreite und Lücke Balken–Trottoirkante (F1a, F1b, F1c), Kantonsstrasse (F1-K), Halten im Sichtfeld
+  // und nötige Länge der Halteverbotslinie (G7, G7b)
+  'streifenBreite', 'randAbstand', 'kantonsstrasse', 'hvlBedarfM', 'haltenSichtrelevantUeber5m', 'haltenSonstVerboten']
+/** Ganz gestrichene Objekt-Felder (Nutzerentscheide 30.10.2026): LSA-Zeiten (Block I, zwölf Unterfelder) und Halteverbotslinie (G7, G7b).
+ * Die Datei speichert sie je Unterfeld («lsaZeiten.gelb», «hvl.laengeM»); ein Eintrag unter dem Objektnamen selbst wird ebenso still
+ * übergangen */
+const OBJEKTE_GESTRICHEN = ['lsaZeiten', 'hvl']
+const objektGestrichen = (pfad: string): boolean => OBJEKTE_GESTRICHEN.some(o => pfad === o || pfad.startsWith(`${o}.`))
 /**
  * Alte Fälle mit dem gestrichenen Feld: Wert verworfen. War es «ja» bei Tempo-Regime «Tempo-30-Zone» von Hand, gilt die Strasse
  * als Strecke (Quelle Annahme, mit Hinweis), damit die Beurteilung gleich bleibt (bisher C2c statt C2). Sonst ohne Wirkung, still.
@@ -123,7 +137,6 @@ export interface Gebildet {
 /** Wert eines Unterfelds für das Objekt (Maske -> Typ von eingaben.ts) */
 function objektWert(o: ObjektFeld, u: string, x: unknown): unknown {
   if (o === 'haltestelle' && u === 'art' && x === 'keine') return null
-  if (o === 'q3' && u === 'anrampung' && Array.isArray(x)) return { neigung: x[0], laenge: x[1] }
   return x
 }
 
@@ -184,7 +197,7 @@ export function eingabenBilden(vor: Vorbelegung, block: BedarfBlock | null | und
       continue
     }
     const obj: Record<string, unknown> = {}
-    const leer = (f === 'insel' && werte.get('vorhanden')!.wert === false) || (f === 'hvl' && werte.get('vorhanden')!.wert === false)
+    const leer = f === 'insel' && werte.get('vorhanden')!.wert === false
     for (const u of us) {
       const x = werte.get(u)
       obj[u] = x && (!leer || u === 'vorhanden') ? objektWert(f, u, structuredClone(x.wert)) : null

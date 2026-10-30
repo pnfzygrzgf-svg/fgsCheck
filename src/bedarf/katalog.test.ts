@@ -31,12 +31,13 @@ describe('Regelkatalog', () => {
     expect(new Set(defs.map(([, d]) => d.id)).size).toBe(defs.length)
     for (const [id, d] of defs) expect(d.id).toBe(id)
   })
-  it('Zählung: 166 Nummern im Baum (147 aus der E0-Liste + D6-3b, F3-B, F3-M, E1c seit Runde 5, F5c bis F5n seit 27.10.2026, H1-V seit 29.10.2026, G11, G12 seit 30.10.2026; F1d-R am 30.10.2026 wieder gestrichen, Quelle bei F1d), davon 8 ohne eigenen Befund (C2c gestrichen 20.10.2026, D3c Verweis auf D5-5 seit Runde 2), und 15 der Grundprüfung', () => {
+  it('Zählung: 166 Nummern im Baum (147 aus der E0-Liste + D6-3b, F3-B, F3-M, E1c seit Runde 5, F5c bis F5n seit 27.10.2026, H1-V seit 29.10.2026, G11, G12 seit 30.10.2026; F1d-R am 30.10.2026 wieder gestrichen, Quelle bei F1d), davon 39 ohne eigenen Befund (C2c gestrichen 20.10.2026, B4, E1b, E2e gestrichen 30.10.2026, Block 2 vom 30.10.2026: F2g, Q3-M10, F5b, F5f, F5i bis F5m gestrichen, Block 3 vom 30.10.2026: ganzer Block I, G7, G7b, F1a, F1b, F1c, F1-K gestrichen, D3c Verweis auf D5-5 seit Runde 2), und 15 der Grundprüfung', () => {
     expect(defs.length).toBe(181)
     expect(grundIds.length).toBe(15)
     expect(defs.filter(([, d]) => d.gruppe !== 'B5').length).toBe(166)
     expect(defs.filter(([, d]) => d.art !== 'befund' && d.art !== 'weiche').map(([id]) => id).sort())
-      .toEqual(['B2', 'C-E', 'C2c', 'D-E', 'D2b', 'D3c', 'E-E', 'H5'].sort())
+      .toEqual(['B2', 'B4', 'C-E', 'C2c', 'D-E', 'D2b', 'D3c', 'E-E', 'E1b', 'E2e', 'H5', 'F2g', 'Q3-M10', 'F5b', 'F5f', 'F5i', 'F5j', 'F5k', 'F5l', 'F5m',
+        'I1', 'I2', 'I3a', 'I3b', 'I4', 'I5', 'I6', 'I6-B', 'I7-B1', 'I7-B2', 'I7-B3', 'I7-B4', 'I8', 'G7', 'G7b', 'F1a', 'F1b', 'F1c', 'F1-K'].sort())
   })
   it('jede Regel mit Befund hat Ebene, Stärke, Ergebnis und mindestens eine Quelle mit Werk, Ziffer und Ausgabe', () => {
     for (const [id, d] of defs) {
@@ -104,10 +105,6 @@ describe('Prüfsätze', () => {
   const OHNE_ZAHL: Record<string, string> = {
     'B5-1.r10': 'Zwischenstufe der Radiustabelle; der Satz nennt den Bereich 10 bis 24 m',
     'B5-1.r15': 'Zwischenstufe der Radiustabelle; der Satz nennt den Bereich 10 bis 24 m',
-    'I6-B.ab': 'Grenze A/B zu C ohne Einfluss auf den Befund (beides erfüllt)',
-    'I6-B.abInsel': 'Grenze A/B zu C ohne Einfluss auf den Befund (beides erfüllt)',
-    'I6-B.e': 'Grenze E zu F ohne Einfluss auf den Befund (beides Soll verletzt)',
-    'I6-B.eInsel': 'Grenze E zu F ohne Einfluss auf den Befund (beides Soll verletzt)',
   }
   const woerter = (t: string): number => t.trim().split(/\s+/).length
   /** Formen einer Zahl im Satz: ganz, mit zwei bzw. einer Nachkommastelle (Komma), kleine Zahlen und Brüche als Wort */
@@ -234,7 +231,7 @@ describe('Werkverzeichnis: voller Titel und offizielle Adressen', () => {
       if (!w.pdf && !w.seite) expect(id === 'ENTSCHEID' || !!w.bezug, id).toBe(true)
     }
     // Normen: kein Link (kostenpflichtig, Nutzerentscheid 23.10.2026), nur der Vermerk
-    for (const id of ['40241', '40240', '40242', '40837', '40213', '640075', '640850a', '640852', '640070'] as const)
+    for (const id of ['40241', '40240', '40242', '40837', '40213', '640075', '640850a', '640852'] as const)
       expect([WERKE[id].pdf, WERKE[id].seite, WERKE[id].bezug], id).toEqual([null, null, 'kostenpflichtig'])
     expect([WERKE.ENTSCHEID.pdf, WERKE.ENTSCHEID.seite]).toEqual([null, null])
   })

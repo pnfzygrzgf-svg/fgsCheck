@@ -1,7 +1,7 @@
 // ── Bedarfsmodul E1: Felder der Eingabemaske und der Fall-Datei ──
 //
 // Jedes Eingabefeld aus eingaben.ts (Werte) erscheint hier mit Gruppe (Blöcke der Skizze: Rahmen, Nachfrage, Verkehr, Lage,
-// Insel, Ausrüstung, LSA-Zeiten, Trottoirüberfahrt), Beschriftung und Art. Objekt-Felder (insel, haltestelle, hvl …) sind in
+// Insel, Ausrüstung, Trottoirüberfahrt; LSA-Zeiten gestrichen 30.10.2026), Beschriftung und Art. Objekt-Felder (insel, haltestelle …) sind in
 // ihre Unterfelder zerlegt (Pfad «insel.breite»): so prüft die Fall-Datei jedes Unterfeld einzeln (offener Punkt aus E0: bisher
 // nur das Objekt als Ganzes), und die Maske kann ein Unterfeld von Hand setzen, während die übrigen vorbelegt bleiben.
 // Abgeleitet und nicht in der Maske: fgQuelle (aus Zählung bzw. Schätzklasse).
@@ -10,11 +10,11 @@
 
 import type { FeldName } from './eingaben'
 
-export type GruppeId = 'rahmen' | 'nachfrage' | 'verkehr' | 'lage' | 'insel' | 'ausruestung' | 'lsa' | 'q3'
+export type GruppeId = 'rahmen' | 'nachfrage' | 'verkehr' | 'lage' | 'insel' | 'ausruestung' | 'q3'
 export const GRUPPEN: { id: GruppeId; name: string }[] = [
   { id: 'rahmen', name: 'Rahmen' }, { id: 'nachfrage', name: 'Nachfrage' }, { id: 'verkehr', name: 'Verkehr' },
   { id: 'lage', name: 'Lage' }, { id: 'insel', name: 'Insel' }, { id: 'ausruestung', name: 'Ausrüstung' },
-  { id: 'lsa', name: 'LSA-Zeiten' }, { id: 'q3', name: 'Trottoirüberfahrt' },
+  { id: 'q3', name: 'Trottoirüberfahrt' },   // Gruppe LSA-Zeiten gestrichen 30.10.2026
 ]
 export const gruppenName = (g: GruppeId): string => GRUPPEN.find(x => x.id === g)!.name
 
@@ -59,7 +59,6 @@ export const FELD_DEFS: FeldDef[] = [
     ['siedlungsorientiert', 'siedlungsorientiert (Quartier)']) },
   { pfad: 'ohneBaulich', gruppe: 'rahmen', name: 'Querung ganz ohne bauliche Hilfe', art: B },
   { pfad: 'neuanlage', gruppe: 'rahmen', name: 'Neue Anlage (nicht Bestand)', art: B },
-  { pfad: 'kantonsstrasse', gruppe: 'rahmen', name: 'Kantonsstrasse', art: B },
 
   // ── Nachfrage ──
   { pfad: 'fg5h', gruppe: 'nachfrage', name: 'Querende, gezählt (5 Spitzenstunden)', art: { art: 'zahl', min: 0, max: 100000 } },
@@ -95,8 +94,6 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'lage', gruppe: 'lage', name: 'Wo liegt die Querung', art: w(['strecke', 'auf der Strecke (keine Kreuzung)'],
     ['knoten_berechtigt', 'Kreuzung, über die Strasse mit Vortritt'], ['knoten_belastet', 'Kreuzung, über die Zufahrt ohne Vortritt'],
     ['einmuendung', 'über eine einmündende Seitenstrasse'], ['kreisel', 'am Kreisel']) },
-  { pfad: 'knotenArmeOhneQuerung', gruppe: 'lage', name: 'Arme der Kreuzung ohne Querung', art: { art: 'zahl', min: 0, max: 8 } },
-  { pfad: 'knotenLsa', gruppe: 'lage', name: 'Kreuzung mit Lichtsignal für den Verkehr', art: B },
   { pfad: 'alleZufahrtsstreifenBelastet', gruppe: 'lage', name: 'Alle Fahrstreifen der Zufahrt ohne Vortritt', art: B },
   { pfad: 'fahrbahnB', gruppe: 'lage', name: 'Fahrbahnbreite (Bordstein bis Bordstein)', art: m(0, 60) },
   { pfad: 'querdistanzL', gruppe: 'lage', name: 'Länge jeder Teilquerung', art: ms(undefined, 60) },
@@ -110,6 +107,7 @@ export const FELD_DEFS: FeldDef[] = [
     ['fgs_vor_halt', 'vor dem Haltebereich'], ['im_bereich', 'mitten im Haltebereich']) },
   { pfad: 'haltestelle.verdeckt', gruppe: 'lage', name: 'Haltender Bus verdeckt die Querenden', art: B },
   { pfad: 'haltestelle.ueberholenUnterbunden', gruppe: 'lage', name: 'Überholen des haltenden Busses verhindert', art: B },
+  { pfad: 'haltestelle.beidseits', gruppe: 'lage', name: 'Haltestelle auf beiden Strassenseiten', art: B },
   { pfad: 'rueckversatzM', gruppe: 'lage', name: 'Abstand der Querung zur Kreuzung (Rückversatz)', art: m(0, 100) },
   // Richtlinie Hindernisfreie Architektur (30.10.2026): Lage an gerader Trottoirkante (Kap. 4.1), Abstand zum Kreisel (Kap. 4.4)
   { pfad: 'streifenGerade', gruppe: 'lage', name: 'Streifen an gerader Trottoirkante (nicht in der Kurve einer Einmündung)', art: B },
@@ -125,7 +123,7 @@ export const FELD_DEFS: FeldDef[] = [
   // Kurvenregel (VSS 40 241 Z. 14, S. 7; 29.10.2026): nur an einer Kurve der Strasse selbst (gerade Zufahrt), nicht für Abbieger;
   // fünf Voraussetzungen einzeln, «anwendbar» abgeleitet (alle ja)
   { pfad: 'kurve.radiusStrasse', gruppe: 'lage', name: 'Radius der Strassenkurve vor dem Streifen', art: m(0, 1000) },
-  { pfad: 'kurve.b1Innerorts50', gruppe: 'lage', name: 'Kurve innerorts mit 50 km/h auf einer Strasse mit Vortritt', art: B },
+  { pfad: 'kurve.b1Innerorts50', gruppe: 'lage', name: 'Kurve innerorts, 50 km/h, vortrittsberechtigte Strasse', art: B },
   { pfad: 'kurve.b2EinFahrstreifen', gruppe: 'lage', name: 'Kurve mit einem Fahrstreifen je Richtung', art: B },
   { pfad: 'kurve.b3NachKurvenende', gruppe: 'lage', name: 'Streifen gleich nach dem Kurvenende', art: B },
   { pfad: 'kurve.b4Winkel60', gruppe: 'lage', name: 'Richtungsänderung der Kurve mindestens 60°', art: B },
@@ -140,7 +138,6 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'insel.kopfUeberstand', gruppe: 'insel', name: 'Inselspitze über den Streifen hinaus (je Seite)', art: ms(2, 20) },
   { pfad: 'insel.vertikal', gruppe: 'insel', name: 'Pfosten bzw. Signal auf der Insel', art: B },
   { pfad: 'insel.kopfErhoeht', gruppe: 'insel', name: 'Inselspitzen erhöht', art: B },
-  { pfad: 'insel.pfostenH', gruppe: 'insel', name: 'Höhe der Pfosten auf der Insel', art: m(0, 5) },
   { pfad: 'insel.furt', gruppe: 'insel', name: 'Rollstuhldurchgang durch die Insel (Breite)', art: m(0, 5) },
   { pfad: 'inselMoeglich', gruppe: 'insel', name: 'Platz für eine Insel', art: B },
   { pfad: 'durchfahrt', gruppe: 'insel', name: 'Fahrbahn neben der Insel (je Seite, quer)', art: ms(undefined, 30) },
@@ -148,19 +145,11 @@ export const FELD_DEFS: FeldDef[] = [
 
   // ── Ausrüstung ──
   { pfad: 'fgsMitLsa', gruppe: 'ausruestung', name: 'Mit Lichtsignal für Fussgänger', art: B },
-  { pfad: 'streifenBreite', gruppe: 'ausruestung', name: 'Streifenbreite (Länge der Balken)', art: m(0, 20) },
-  { pfad: 'randAbstand', gruppe: 'ausruestung', name: 'Lücke zwischen Balken und Trottoirkante', art: ms(undefined, 10) },
   { pfad: 'achsWinkel', gruppe: 'ausruestung', name: 'Winkel zur Fahrbahn (90 = rechtwinklig)', art: { art: 'zahl', einheit: '°', min: 0, max: 90 } },
   { pfad: 'signal411', gruppe: 'ausruestung', name: 'Blaue Tafel Fussgängerstreifen (Signal 4.11)', art: B },
   { pfad: 'signal411Insel', gruppe: 'ausruestung', name: 'Blaue Tafel auch auf der Insel', art: B },
   { pfad: 'beleuchtung', gruppe: 'ausruestung', name: 'Beleuchtung der Querung', art: B },
   { pfad: 'schattenfrei', gruppe: 'ausruestung', name: 'Kein Schatten auf Streifen und Wartefläche', art: B },
-  { pfad: 'hvl.vorhanden', gruppe: 'ausruestung', name: 'Halteverbotslinie', art: B },
-  { pfad: 'hvl.laengeM', gruppe: 'ausruestung', name: 'Länge der Halteverbotslinie', art: m(0, 200) },
-  { pfad: 'hvl.beidseits', gruppe: 'ausruestung', name: 'Halteverbotslinie auf beiden Seiten (Einbahn)', art: B },
-  { pfad: 'hvlBedarfM', gruppe: 'ausruestung', name: 'Nötige Länge der Halteverbotslinie (für die Sicht)', art: m(0, 200) },
-  { pfad: 'haltenSichtrelevantUeber5m', gruppe: 'ausruestung', name: 'Haltende Autos weiter als 5 m vor dem Streifen stören die Sicht', art: B },
-  { pfad: 'haltenSonstVerboten', gruppe: 'ausruestung', name: 'Halten dort schon anders verboten', art: B },
   { pfad: 'reklameUnter20m', gruppe: 'ausruestung', name: 'Werbung näher als 20 m', art: B },
   { pfad: 'reklameAusnahme', gruppe: 'ausruestung', name: 'Werbung als Ausnahme bewilligt', art: B },
   { pfad: 'annaeherungUeberfahrbar', gruppe: 'ausruestung', name: 'Wartefläche vor dem Streifen überfahrbar', art: B },
@@ -179,19 +168,7 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'aufstellflaeche', gruppe: 'ausruestung', name: 'Warteflächen auf beiden Seiten', art: B },
   { pfad: 'parkierungSichtbehindernd', gruppe: 'ausruestung', name: 'Parkierte Autos verdecken die Sicht', art: B },
 
-  // ── LSA-Zeiten (Reihenfolge nach VSS 40 837 Z. 16, 18, 21, dann SN 640 075, VSS 40 240 Tab. 3, Bern; 27.10.2026) ──
-  { pfad: 'lsaZeiten.L', gruppe: 'lsa', name: 'Länge der Querung (Bord bis Bord)', art: m(0, 100) },
-  { pfad: 'lsaZeiten.gelb', gruppe: 'lsa', name: 'Gelbzeit für Fussgänger', art: s(30) },
-  { pfad: 'lsaZeiten.freigabe', gruppe: 'lsa', name: 'Grünzeit für Fussgänger', art: s(120) },
-  { pfad: 'lsaZeiten.teile', gruppe: 'lsa', name: 'Teilquerungen an der Insel', art: ms(2, 60) },
-  { pfad: 'lsaZeiten.inselB', gruppe: 'lsa', name: 'Inseltiefe (in Gehrichtung) für die LSA-Zeiten', art: m(0, 20) },
-  { pfad: 'lsaZeiten.phasengleich', gruppe: 'lsa', name: 'Beide Teilquerungen gleichzeitig grün', art: B },
-  { pfad: 'lsaZeiten.beideRichtungenImZyklus', gruppe: 'lsa', name: 'Beide Richtungen im selben Umlauf', art: B },
-  { pfad: 'lsaZeiten.abbiegerKonflikt', gruppe: 'lsa', name: 'Abbiegende fahren während Fussgängergrün', art: B },
-  { pfad: 'lsaZeiten.vorstart', gruppe: 'lsa', name: 'Vorsprung der Fussgänger vor den Abbiegenden', art: { art: 'zahl', einheit: 's', min: -10, max: 30 } },
-  { pfad: 'lsaZeiten.inselGeraet', gruppe: 'lsa', name: 'Taster und Zusatzgerät auf der Insel', art: B },
-  { pfad: 'lsaZeiten.wartezeit', gruppe: 'lsa', name: 'Wartezeit auf Grün', art: s(300) },
-  { pfad: 'lsaZeiten.inselNurAnmeldung', gruppe: 'lsa', name: 'Grün nur auf Tastendruck', art: B },
+  // LSA-Zeiten (Gruppe lsa, zwölf Felder) gestrichen 30.10.2026: Signalzeiten gehören in einen eigenen Rechner
 
   // ── Trottoirüberfahrt (Reihenfolge der Prüfliste VSS 40 242 Tab. 1 bis 3, dann Bern) ──
   // Zwingende Voraussetzungen (VSS 40 242 Tab. 1)
@@ -210,14 +187,12 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'q3.einmSiedlungsorientiert', gruppe: 'q3', name: 'Seitenstrasse ist eine Quartierstrasse', art: B },
   { pfad: 'q3.zoneEinm', gruppe: 'q3', name: 'Seitenstrasse in einer Zone', art: w(['keine', 'keine'], ['t30', 'Tempo-30-Zone'], ['bgz', 'Begegnungszone']) },
   { pfad: 'q3.eingangstor', gruppe: 'q3', name: 'Überfahrt als Eingang in die Zone', art: B },
-  { pfad: 'q3.hauptInZone', gruppe: 'q3', name: 'Auch die Hauptstrasse liegt in der Zone', art: B },
   { pfad: 'q3.gegenueberEinm', gruppe: 'q3', name: 'Gegenüber mündet eine weitere Strasse ein', art: B },
   { pfad: 'q3.belastungSchwach', gruppe: 'q3', name: 'Wenig Verkehr auf allen Armen', art: B },
   { pfad: 'q3.wartezeitEinmS', gruppe: 'q3', name: 'Mittlere Wartezeit beim Ausfahren', art: s(300) },
   { pfad: 'q3.lkwGelegentlich', gruppe: 'q3', name: 'Lastwagen nur ab und zu', art: B },
   { pfad: 'q3.linienbus', gruppe: 'q3', name: 'Linienbus in der Seitenstrasse', art: B },
   { pfad: 'q3.veloSchule', gruppe: 'q3', name: 'Wichtige Veloroute bzw. Weg zur Schule', art: B },
-  { pfad: 'q3.mivEinmHoch', gruppe: 'q3', name: 'Viel Verkehr in der Seitenstrasse', art: B },
   { pfad: 'q3.lsaKnoten', gruppe: 'q3', name: 'Einmündung mit Lichtsignal', art: B },
   { pfad: 'q3.kreisel', gruppe: 'q3', name: 'Einmündung an einem Kreisel', art: B },
   // Ausstattung (Tab. 3)
@@ -226,16 +201,8 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'q3.ueberfahrbarM', gruppe: 'q3', name: 'Länge des überfahrbaren Randabschlusses', art: m(0, 60) },
   { pfad: 'q3.begrenzung', gruppe: 'q3', name: 'Begrenzung des befahrbaren Bereichs', art: w(['poller', 'nur Poller oder Pfosten'],
     ['randstein', 'Randsteine oder Markierung an den Einlenkern'], ['keine', 'keine Begrenzung']) },
-  { pfad: 'q3.erkennbar', gruppe: 'q3', name: 'Aus der Seitenstrasse auf 10 m erkennbar', art: B },
   { pfad: 'q3.belag', gruppe: 'q3', name: 'Belag und Absatz über die Überfahrt', art: w(['gleich', 'gleicher Belag, kein Absatz'], ['wechsel', 'Belag wechselt'],
     ['absatz', 'mit Absatz'], ['beides', 'Belag wechselt und mit Absatz']) },
-  { pfad: 'q3.quergefaelle', gruppe: 'q3', name: 'Quergefälle auf der Überfahrt', art: { art: 'zahl', einheit: '%', min: 0, max: 20 } },
-  { pfad: 'q3.randabschluss', gruppe: 'q3', name: 'Überfahrbarer Randabschluss zur Hauptstrasse', art: w(['s0625', 'schräg, 6 cm hoch, 25 cm breit'],
-    ['s0630', 'schräg, 6 cm hoch, 30 cm breit'], ['s0416', 'schräg, 4 cm hoch, 16 cm breit'], ['anderer', 'anderer']) },
-  { pfad: 'q3.randsteineSenkrecht', gruppe: 'q3', name: 'Randsteine daneben senkrecht, mindestens 6 cm', art: B },
-  { pfad: 'q3.anrampung', gruppe: 'q3', name: 'Rampe: Neigung (%) und Länge (m); leer = keine', art: { art: 'zahlen', n: 2, min: 0, max: 100 } },
-  { pfad: 'q3.signalisation', gruppe: 'q3', name: 'Dauernde Signalisation vorgesehen', art: B },
-  { pfad: 'q3.markierung', gruppe: 'q3', name: 'Markierung oder Wartelinie vorgesehen', art: B },
   { pfad: 'q3.taktil', gruppe: 'q3', name: 'Aufmerksamkeitsfelder mit Leitlinie', art: B },
   // Bern
   { pfad: 'q3.vSigEinm', gruppe: 'q3', name: 'Tempo in der Seitenstrasse', art: { art: 'zahl', einheit: 'km/h', min: 5, max: 120 } },
@@ -254,15 +221,13 @@ export const GRUND_FELDER: readonly string[] = ['typ', 'fgsMitLsa', 'innerorts',
 export const istGrundFeld = (pfad: string): boolean => GRUND_FELDER.includes(pfad)
 
 /** Objekt-Felder: Unterfelder in der Reihenfolge des Typs und die Unterfelder, ohne die das Objekt nicht entsteht */
-export type ObjektFeld = 'insel' | 'haltestelle' | 'hvl' | 'fusswegAchse' | 'randabschluss' | 'kurve' | 'lsaZeiten' | 'q3'
+export type ObjektFeld = 'insel' | 'haltestelle' | 'fusswegAchse' | 'randabschluss' | 'kurve' | 'q3'   // hvl, lsaZeiten gestrichen 30.10.2026
 export const OBJEKTE: { readonly [K in ObjektFeld]: { pflicht: readonly string[] } } = {
   insel: { pflicht: ['vorhanden'] },
   haltestelle: { pflicht: ['art'] },
-  hvl: { pflicht: ['vorhanden'] },
   fusswegAchse: { pflicht: ['rechtwinkligUneinsehbar'] },
   randabschluss: { pflicht: ['art'] },
   kurve: { pflicht: [] },
-  lsaZeiten: { pflicht: [] },
   q3: { pflicht: [] },
 }
 export const istObjektFeld = (f: string): f is ObjektFeld => Object.prototype.hasOwnProperty.call(OBJEKTE, f)
@@ -288,8 +253,8 @@ export function feldName(pfad: string): string {
   if (pfad === 'fgQuelle') return 'Herkunft der Fussgängerzahl'
   if (pfad === 'fg5h') return 'Fussgänger in den 5 Spitzenstunden'
   const o = pfad.split('.')[0]
-  if (istObjektFeld(o)) return { insel: 'Insel', haltestelle: 'Bushaltestelle', hvl: 'Halteverbotslinie', fusswegAchse: 'Fussweg in der Achse',
-    randabschluss: 'Randabschluss', kurve: 'Kurve vor dem Streifen', lsaZeiten: 'LSA-Zeiten', q3: 'Trottoirüberfahrt' }[o]
+  if (istObjektFeld(o)) return { insel: 'Insel', haltestelle: 'Bushaltestelle', fusswegAchse: 'Fussweg in der Achse',
+    randabschluss: 'Randabschluss', kurve: 'Kurve vor dem Streifen', q3: 'Trottoirüberfahrt' }[o]
   return pfad
 }
 

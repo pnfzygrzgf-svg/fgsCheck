@@ -8,6 +8,8 @@ import type { OsmDaten, OsmWeg } from '../daten/osm'
 import type { AvFlaeche } from '../daten/av'
 import { rechneFall, type FallRechnung } from './index'
 import { sollQuerung, quelleQuerung, quelleQuerungAbbiegen, QUELLE_BGZ, annahmeBgz } from './ohneVortritt'
+import { QUELLE_TAB1_20, QUELLE_TAB1_UEBER60 } from './tempo'
+import { ORTSLAGE_ANNAHME } from './pruefen'
 import { ahs, AHS_40240 } from '../bedarf/tabellen'
 import { leererFall, rechnungsSchluessel, type Fall } from '../fall'
 import { befundblaetter, BGZ_SICHT_TEXT } from '../bedarf/befundblatt'
@@ -129,7 +131,9 @@ describe('Begegnungszone bestimmt wie «Strecke oder Zone» im Bedarf', () => {
     expect(furt.streifen[0].zufahrten[0].sichtweite).toBe(sollQuerung({ typ: 'furt', L: 8, ganzeFahrbahn: false }, 20))
     const fgs = rechneFall(osm(LIVING), AV, [], 12, fallMit(x => { x.streifen['12'] = { typ: 'fgs' } }), null)
     expect(typ(fgs)).toEqual(['fgs'])
-    expect(fgs.streifen[0].zufahrten.map(z => z.sichtweiteQuelle)).toEqual(['VSS Tab. 1', 'VSS Tab. 1'])
+    // 20 km/h: Sichtweite wie 30 km/h, als Annahme gekennzeichnet (VSS 40 241 Tab. 1 hat keine Zeile für 20 km/h; 30.10.2026)
+    expect(fgs.streifen[0].zufahrten.map(z => z.sichtweiteQuelle)).toEqual([QUELLE_TAB1_20, QUELLE_TAB1_20])
+    expect(fgs.streifen[0].zufahrten.map(z => z.sichtweite)).toEqual([25, 25])
     const zebra = rechneFall(osm(LIVING, { highway: 'crossing', crossing: 'uncontrolled', 'crossing:markings': 'zebra' }), AV, [], 12, fallMit(), null)
     expect(typ(zebra)).toEqual(['fgs'])
   })
@@ -202,5 +206,44 @@ describe('Abbieger in der Begegnungszone: höchstens bis zum Beginn des Abbiegen
       .streifen[0].zufahrten.find(z => z.kennung === z0.kennung)!
     expect([t20.tempo, t20.sichtweite, t20.sichtweiteQuelle]).toEqual([20, 15, QUELLE_BGZ])
     expect(t20.annahmeGrenze).toBeUndefined()
+  })
+})
+
+// VSS 40 241 Tab. 1 nach Ortslage (Nutzerentscheid 30.10.2026): bei 60 km/h innerorts 75 m, ausserorts 100 m; 20 km/h und über 60 km/h
+// als Annahme gekennzeichnet. Ortslage aus dem Bedarf (von Hand), sonst OSM am gequerten Weg (CH:rural), sonst innerorts als Annahme
+describe('Sichtweite nach Tab. 1 und Ortslage', () => {
+  const ZEBRA = { highway: 'crossing', crossing: 'uncontrolled', 'crossing:markings': 'zebra' }
+  const soll = (tags: Record<string, string>, f: (x: Fall) => void = () => {}) => {
+    const r = rechneFall(osm({ highway: 'secondary', ...tags }, ZEBRA), AV, [], 12, fallMit(f), null)
+    return { sw: r.streifen[0].zufahrten.map(z => z.sichtweite), q: r.streifen[0].zufahrten.map(z => z.sichtweiteQuelle),
+      annahmen: r.streifen[0].zufahrten.flatMap(z => z.annahmen ?? []) }
+  }
+  it('60 km/h: ausserorts nach OSM 100 m, ohne Angabe innerorts als Annahme 75 m; von Hand im Bedarf geht vor', () => {
+    const aus = soll({ maxspeed: '60', 'maxspeed:type': 'CH:rural' })
+    expect(aus.sw).toEqual([100, 100])
+    expect(aus.q).toEqual(['VSS Tab. 1 (ausserorts)', 'VSS Tab. 1 (ausserorts)'])
+    const offen = soll({ maxspeed: '60' })
+    expect(offen.sw).toEqual([75, 75])
+    expect(offen.q).toEqual(['VSS Tab. 1', 'VSS Tab. 1'])
+    expect(offen.annahmen).toContain(ORTSLAGE_ANNAHME)
+    expect(soll({ maxspeed: '60', 'zone:maxspeed': 'CH:rural' }).sw).toEqual([100, 100])
+    const hand = (io: boolean) => (x: Fall) => { x.bedarf = { felder: { innerorts: { wert: io, quelle: 'hand' } } } }
+    expect(soll({ maxspeed: '60' }, hand(false)).sw).toEqual([100, 100])
+    expect(soll({ maxspeed: '60', 'maxspeed:type': 'CH:rural' }, hand(true)).sw).toEqual([75, 75])
+    expect(soll({ maxspeed: '60', 'maxspeed:type': 'CH:rural' }, hand(true)).annahmen).not.toContain(ORTSLAGE_ANNAHME)
+  })
+  it('innerorts unverändert (30 bis 50 km/h); über 60 km/h 75 m als Annahme, auch ausserorts', () => {
+    for (const [v, sw] of [[30, 25], [40, 40], [50, 55]] as const) {
+      const x = soll({ maxspeed: String(v), 'maxspeed:type': 'CH:rural' })
+      expect(x.sw).toEqual([sw, sw])
+      expect(x.q).toEqual(['VSS Tab. 1', 'VSS Tab. 1'])
+      expect(x.annahmen).not.toContain(ORTSLAGE_ANNAHME)
+    }
+    const ueber = soll({ maxspeed: '80', 'maxspeed:type': 'CH:rural' })
+    expect(ueber.sw).toEqual([75, 75])
+    expect(ueber.q).toEqual([QUELLE_TAB1_UEBER60, QUELLE_TAB1_UEBER60])
+    expect(sichtQuelleKurz(QUELLE_TAB1_UEBER60)).toBe(QUELLE_TAB1_UEBER60)
+    expect(sichtQuelleKurz(QUELLE_TAB1_20)).toBe(QUELLE_TAB1_20)
+    expect(sichtQuelleKurz('VSS Tab. 1 (ausserorts)')).toBe('nach Tempo')
   })
 })

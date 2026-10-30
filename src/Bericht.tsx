@@ -19,7 +19,7 @@ import type { FallRechnung } from './rechner'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernisse'
 import type { Multi } from './rechner/poly'
-import { SICHTWEITE, KURVE_SICHTWEITE } from './rechner/tempo'
+import { TAB1_TEXT, KURVE_SICHTWEITE } from './rechner/tempo'
 import { lv95, dist, type P } from './geo'
 import { wmsBildUrl, LUFTBILD_QUELLE } from './daten/luftbild'
 import { STATUS_FARBE, STRICH_GEDECKT, UEBERGANG_TEXT, INSEL_FARBE, STRICH_INSEL, hindernisFarbe, hindernisText, INSEL_TEXT, AV_FARBEN, TUE_RAND,
@@ -657,7 +657,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
         <section className="bericht-block">
           <h2>Normbezüge</h2>
           <ul className="klein">
-            <li>Sichtweiten: {LESENAME['40241']}, Tabelle 1 ({Object.entries(SICHTWEITE).map(([t, sw]) => `${t} km/h: ${sw} m`).join(', ')}).</li>
+            <li>Sichtweiten: {LESENAME['40241']}, Tabelle 1 ({TAB1_TEXT}).</li>
             <li>Im Knoten nach Kurvenradius: {LESENAME.BFU} bzw. {LESENAME['40241']}, Tabelle 2 ({KURVE_SICHTWEITE.map(([r, sw]) => `bis ${r} m: ${sw} m`).join(', ')}).</li>
             <li>Auto-Parkfeld näher als 5 m am Streifen: {LESENAME.VRV}, Art. 18 Abs. 2 Buchstabe e.</li>
             {rechnung.streifen.some(s => s.querung?.typ === 'begegnungszone') && <li>Querung in der Begegnungszone (Vortritt Fussverkehr):

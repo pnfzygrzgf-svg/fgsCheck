@@ -165,17 +165,16 @@ describe('Paket A: Tempo-Regime, innerorts (A3)', () => {
 })
 
 describe('Paket A: Kopien und Annahmen mit Schwellen (A4, A8)', () => {
-  it('LSA-Zeiten und Trottoirüberfahrt übernehmen Fahrbahn, Teilquerungen, Inseltiefe, Tempo, Fahrstreifen, DTV, Zone', () => {
+  it('Trottoirüberfahrt übernimmt Tempo, Fahrstreifen, DTV, Zone (Kopien in die LSA-Zeiten gestrichen 30.10.2026)', () => {
     const { w } = auto({}, { fahrbahnB: vw(8, 'rechnung'), querdistanzL: vw([4, 3.5], 'rechnung'), 'insel.vorhanden': vw(true, 'av'),
       'insel.breite': vw(2, 'av'), vSig: vw(30), nRichtung: vw([1, 2]), dtv: vw(4000, 'geoportal'), tempoRegime: vw('t30_zone'),
       'q3.ueber': vw('einmuendend', 'annahme') })
-    expect([w['lsaZeiten.L'].wert, w['lsaZeiten.teile'].wert, w['lsaZeiten.inselB'].wert]).toEqual([8, [4, 3.5], 2])
+    expect(Object.keys(w).filter(p => p.startsWith('lsaZeiten.'))).toEqual([])
     // Runde 5 (F3): Werte der gequerten Strasse nur bei einer Querung über die Seitenstrasse in die Trottoirüberfahrt
     const ohne = auto({}, { vSig: vw(30), dtv: vw(4000, 'geoportal'), tempoRegime: vw('t30_zone') }).w
     expect([ohne['q3.vSigEinm'], ohne['q3.dtvEinm'], ohne['q3.zoneEinm']]).toEqual([undefined, undefined, undefined])
     expect([w['q3.vSigEinm'].wert, w['q3.nEinm'].wert, w['q3.dtvEinm'].wert, w['q3.zoneEinm'].wert]).toEqual([30, 2, 4000, 't30'])
     expect(w['q3.dtvEinm'].quelle).toBe('geoportal')
-    expect(auto({}, { querdistanzL: vw([8], 'rechnung') }).w['lsaZeiten.teile']).toBeUndefined()
   })
   it('stark befahren: DTV 9 999 nein, 10 000 ja; zwei Fahrstreifen je Richtung ja (Annahmen)', () => {
     expect(auto({}, { dtv: vw(9999), nRichtung: vw([1, 1]) }).w.starkBelastet).toMatchObject({ wert: false, quelle: 'annahme' })
@@ -183,10 +182,11 @@ describe('Paket A: Kopien und Annahmen mit Schwellen (A4, A8)', () => {
     expect(auto({}, { nRichtung: vw([2, 1]) }).w.starkBelastet).toMatchObject({ wert: true })
     expect(auto({}, { nRichtung: vw([1, 1]) }).w.starkBelastet).toBeUndefined()
   })
-  it('Autoverkehr an der Einengung: 2 999 wenig, 3 000 und 10 000 mittel, 10 001 viel; Seitenstrasse viel ab 3 000', () => {
+  it('Autoverkehr an der Einengung: 2 999 wenig, 3 000 und 10 000 mittel, 10 001 viel; Seitenstrasse ohne «viel Verkehr» (Q3-M10 gestrichen 30.10.2026)', () => {
     const kl = (d: number) => auto({}, { dtv: vw(d), 'q3.ueber': vw('einmuendend', 'annahme') }).w
     expect([2999, 3000, 10000, 10001].map(d => kl(d).mivKlasse.wert)).toEqual(['tief', 'mittel', 'mittel', 'hoch'])
-    expect([kl(2999)['q3.mivEinmHoch'].wert, kl(3000)['q3.mivEinmHoch'].wert]).toEqual([false, true])
+    expect([kl(2999)['q3.mivEinmHoch'], kl(3000)['q3.mivEinmHoch']]).toEqual([undefined, undefined])
+    expect(kl(3000)['q3.dtvEinm']?.wert).toBe(3000)
     expect(kl(3000).mivKlasse.quelle).toBe('annahme')
   })
   it('lange Querung: 12,0 m nein, 12,1 m ja (Annahme)', () => {
@@ -257,6 +257,20 @@ describe('Paket A: Haltestelle angrenzend, Tramhaltestelle (A5)', () => {
     const ost = auto({ haltestellen: hOsm([{ id: 'y', name: 'Halt', p: lv(RAND_X + 20, -6), art: 'bus' }]) }).w
     expect(ost['haltestelle.lage'].wert).toBe('fgs_vor_halt')
   })
+  it('Haltestelle auf beiden Strassenseiten (D4c, 30.10.2026): Halte südlich und nördlich ja, nur eine Seite nein, beides als Annahme', () => {
+    const ein = auto({ haltestellen: hOsm([{ id: 'y', name: 'Halt Süd', p: lv(RAND_X + 20, -6), art: 'bus' }]) }).w
+    expect(ein['haltestelle.beidseits']).toMatchObject({ wert: false, quelle: 'annahme' })
+    expect(ein['haltestelle.beidseits'].text).toMatch(/^Haltestelle nur auf einer Strassenseite/)
+    const beide = auto({ haltestellen: hOsm([{ id: 'y', name: 'Halt Süd', p: lv(RAND_X + 20, -6), art: 'bus' },
+      { id: 'z', name: 'Halt Nord', p: lv(RAND_X + 30, 6), art: 'bus' }]) }).w
+    expect(beide['haltestelle.beidseits']).toMatchObject({ wert: true, quelle: 'annahme' })
+    expect(beide['haltestelle.beidseits'].text).toMatch(/«Halt Süd» und «Halt Nord»/)
+    // Haltepunkt auf der Fahrbahnachse (unter 2 m quer) zählt nicht als zweite Seite; ausserhalb 50 m auch nicht
+    expect(auto({ haltestellen: hOsm([{ id: 'y', name: 'Halt Süd', p: lv(RAND_X + 20, -6), art: 'bus' },
+      { id: 'z', name: 'Achse', p: lv(RAND_X + 22, 1), art: 'bus' }]) }).w['haltestelle.beidseits'].wert).toBe(false)
+    expect(auto({ haltestellen: hOsm([{ id: 'y', name: 'Halt Süd', p: lv(RAND_X + 20, -6), art: 'bus' },
+      { id: 'z', name: 'Fern', p: lv(RAND_X + 80, 6), art: 'bus' }]) }).w['haltestelle.beidseits'].wert).toBe(false)
+  })
 })
 
 describe('Paket A: Busstreifen, Insel, Neuanlage (A6)', () => {
@@ -314,8 +328,8 @@ describe('Paket A/B: Lage, Verzweigung, Knoten, Abstände (A7, B1, B2)', () => {
     const unten = Math.min(...s!.umriss.map(p => p[1] - O[1]))
     expect(w.rueckversatzM.quelle).toBe('av')
     expect(w.rueckversatzM.wert).toBeCloseTo(unten - 4, 0)
-    // Arme: Übergang 12 auf dem Westarm (15 m), die eigene Querung auf dem Nordarm: nur der Ostarm ohne Querung
-    expect(w.knotenArmeOhneQuerung).toMatchObject({ wert: 1, quelle: 'annahme' })
+    // B4 gestrichen (30.10.2026): keine Vorbelegung «Arme ohne Querung» mehr
+    expect(w.knotenArmeOhneQuerung).toBeUndefined()
   })
   it('Kreisel bis 20 m: am Kreisel', () => {
     const ring = (r: number, cy: number): [number, number, number][] => [...Array(13)].map((_, i) => [900 + (i % 12),
@@ -393,11 +407,12 @@ describe('Paket A/B: Lage, Verzweigung, Knoten, Abstände (A7, B1, B2)', () => {
   it('Knoten mit Lichtsignal: Ampel bis 30 m ja, über 50 m nein (Annahme), dazwischen Hinweis; Trottoirüberfahrt übernimmt', () => {
     const xs = RAND_X + 10
     const mit = (dx: number) => auto(GEO({ ...tKnoten(xs), ampeln: [knoten(77, xs + dx, 0, { highway: 'traffic_signals' })] }))
-    expect(mit(29.9).w.knotenLsa).toMatchObject({ wert: true, quelle: 'osm' })
-    expect(mit(29.9).w['q3.lsaKnoten']).toMatchObject({ wert: true })
-    expect(mit(50.2).w.knotenLsa).toMatchObject({ wert: false, quelle: 'annahme' })
-    expect(mit(40).w.knotenLsa).toBeUndefined()
-    expect(mit(40).fh.knotenLsa).toContain('40 m vom Knoten')
+    // Feld «Kreuzung mit Lichtsignal» (knotenLsa) am 30.10.2026 gestrichen (D5-2 ohne diese Bedingung); es bleibt q3.lsaKnoten
+    expect(mit(29.9).w.knotenLsa).toBeUndefined()
+    expect(mit(29.9).w['q3.lsaKnoten']).toMatchObject({ wert: true, quelle: 'osm' })
+    expect(mit(50.2).w['q3.lsaKnoten']).toMatchObject({ wert: false, quelle: 'annahme' })
+    expect(mit(40).w['q3.lsaKnoten']).toBeUndefined()
+    expect(mit(40).fh['q3.lsaKnoten']).toContain('40 m vom Knoten')
   })
 })
 
@@ -428,7 +443,8 @@ describe('Paket B: Tram, Strassentyp, Übergangs-Tags, Einfahrt (B5, B6, B8)', (
     expect([w.blinklicht, w.taktil]).toEqual([undefined, undefined])
     expect(fh.blinklicht).toContain('flashing_lights=yes')
     expect(fh.taktil).toContain('tactile_paving=no')
-    expect(fh['lsaZeiten.inselNurAnmeldung']).toContain('button_operated=yes')
+    // Taster (button_operated) nur für die gestrichenen LSA-Zeiten: kein Hinweis mehr (30.10.2026)
+    expect(Object.values(fh).join(' ')).not.toContain('button_operated')
     const ein = (x: number) => auto({ osm: { ...OSM, wege: [weg(1, [[10, -300, 0], [12, 0, 0], [71, x, 0], [13, 300, 0]], HAUPT),
       weg(70, [[71, x, 0], [72, x, -30]], { highway: 'service' })] } }).w.einAusfahrtNah
     expect(ein(RAND_X + 9.9)).toMatchObject({ wert: true, quelle: 'annahme' })
@@ -436,7 +452,7 @@ describe('Paket B: Tram, Strassentyp, Übergangs-Tags, Einfahrt (B5, B6, B8)', (
   })
 })
 
-describe('Paket B: Sichtrechner frei bis, Halteverbotslinie, Kurvenradius, H4, Grundprüfung (B7, A9, A7)', () => {
+describe('Paket B: Sichtrechner frei bis, Kurvenradius, H4, Grundprüfung (B7, A7; Halteverbotslinie A9 gestrichen 30.10.2026)', () => {
   const park = (x: Fall) => x.hindernisse.push({ id: 'p1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-12, 2, -7, 4), quelle: 'hand' })
   const fp = fallMit(park)
   const rp = rechneFall(OSM, AV, [], 12, fp, null)
@@ -451,12 +467,11 @@ describe('Paket B: Sichtrechner frei bis, Halteverbotslinie, Kurvenradius, H4, G
     expect(verdeckt.freiBisM).toBeLessThan(20)
     expect(r0.streifen[0].zufahrten.every(z => z.freiBisM === z.sichtweite)).toBe(true)
   })
-  it('Halteverbotslinie nach Sichtbedarf: Parkfeld im Sichtfeld bis rund 10 m; ohne Parkfeld 0', () => {
+  it('Parkfeld im Sichtfeld: Sicht verdeckt mit Abstand; keine Halteverbotslinie mehr vorbelegt (G7 gestrichen 30.10.2026)', () => {
     const [b] = befundblaetter(rp, fp, OHNE)
-    expect(b.vorbelegt.werte.hvlBedarfM.quelle).toBe('rechnung')
-    expect(b.vorbelegt.werte.hvlBedarfM.wert).toBeGreaterThan(12 - RAND_X - 1)
-    expect(b.vorbelegt.werte.hvlBedarfM.wert).toBeLessThanOrEqual(12.5)
-    expect(befundblaetter(r0, fallMit(), OHNE)[0].vorbelegt.werte.hvlBedarfM.wert).toBe(0)
+    expect(b.vorbelegt.werte.hvlBedarfM).toBeUndefined()
+    expect(b.vorbelegt.werte.haltenSichtrelevantUeber5m).toBeUndefined()
+    expect(b.vorbelegt.werte.parkierungSichtbehindernd).toMatchObject({ wert: true, quelle: 'rechnung' })
     expect(b.vorbelegt.rechner!.sichtVorh).toMatch(/verdeckt, Parkfeld \d+(,\d)? m vor dem Streifen, frei bis \d+ m, Soll 55 m/)
   })
   it('Kurvenradius: ohne Abbieger Zustand «rechner»; H4 mit dem Radius des Sichtrechners nicht, mit Radius von Hand wie bisher', () => {

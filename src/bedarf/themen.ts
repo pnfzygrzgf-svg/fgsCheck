@@ -34,13 +34,13 @@ const DEF = KATALOG as Readonly<Record<string, RegelDef>>
 const THEMA_DEF = {
   zulaessigkeit: { name: 'Zulässigkeit', umfang: 'Ortslage, Tempo, Zone' },
   nachfrage: { name: 'Nachfrage', umfang: 'Querende, Fusswegnetz, Gründe für den Vortritt' },
-  sicht: { name: 'Sicht', umfang: 'Sichtweite, Erkennbarkeit, Halteverbot, Parkierung' },
+  sicht: { name: 'Sicht', umfang: 'Sichtweite, Erkennbarkeit, Parkierung, Werbung' },
   insel: { name: 'Insel', umfang: 'ob eine Insel nötig ist, ihre Masse, Durchfahrt daneben' },
   fahrstreifen: { name: 'Fahrstreifen und Verkehr', umfang: 'Fahrstreifen je Richtung, Verkehrsmenge' },
   lage: { name: 'Lage und Abstände', umfang: 'Haltestelle, Abstand zu Lichtsignal und Streifen, Gehlinie, Knoten' },
-  ausruestung: { name: 'Masse und Ausrüstung', umfang: 'Breite und Winkel, Markierung, Signale, Randstein, Tastlinien, Einengung' },
+  ausruestung: { name: 'Masse und Ausrüstung', umfang: 'Winkel, Markierung, Signale, Randstein, Tastlinien, Einengung' },
   beleuchtung: { name: 'Beleuchtung', umfang: 'Licht und Schatten an der Querung' },
-  lichtsignal: { name: 'Lichtsignal', umfang: 'wann ein Lichtsignal zu prüfen ist, Grün- und Gelbzeiten' },
+  lichtsignal: { name: 'Lichtsignal', umfang: 'wann ein Lichtsignal zu prüfen ist' },
   trottoirueberfahrt: { name: 'Trottoirüberfahrt', umfang: 'Querung einer Seitenstrasse auf Trottoirhöhe' },
   ohneVortritt: { name: 'Ohne Vortritt und Mehrzweckstreifen', umfang: 'Furt, Querung ohne Vortritt, Mehrzweckstreifen' },
 } as const satisfies Record<Thema, { name: string; umfang: string }>
@@ -53,7 +53,8 @@ export const THEMEN_GRUPPEN: readonly { titel: string; themen: readonly Thema[] 
   { titel: 'Anordnungsvoraussetzungen (VSS 40 241 Kap. C, S. 6–10)', themen: ['zulaessigkeit', 'nachfrage', 'sicht', 'fahrstreifen'] },
   { titel: 'Positionierung (VSS 40 241 Kap. D, Z. 18–20, S. 10–11)', themen: ['lage'] },
   { titel: 'Ausrüstung (VSS 40 241 Kap. D, Z. 21–29, S. 11–14)', themen: ['insel', 'ausruestung', 'beleuchtung'] },
-  { titel: 'Lichtsignalanlage (VSS 40 837)', themen: ['lichtsignal'] },
+  // 30.10.2026: LSA-Zeiten (VSS 40 837) gestrichen; das Thema enthält nur noch, wann ein Lichtsignal zu prüfen ist
+  { titel: 'Lichtsignal (VSS 40 240 Z. 17, S. 18)', themen: ['lichtsignal'] },
   { titel: 'Trottoirüberfahrt (VSS 40 242)', themen: ['trottoirueberfahrt'] },
   { titel: 'Querungstyp nach VSS 40 240', themen: ['ohneVortritt'] },
 ]
@@ -92,13 +93,15 @@ export const ABSCHNITTE: Partial<Record<Thema, readonly Abschnitt[]>> = {
       { titel: 'Sichtweite', regeln: ['Q3-11', 'Q3-12'] }] },
     { titel: 'Merkmale zur Anordnung (VSS 40 242 Tab. 2, S. 30)', unter: [
       { titel: 'Strassentypen', regeln: ['Q3-M1', 'Q3-M2'] },
-      { titel: 'Verkehrsmengen', regeln: ['Q3-M9', 'Q3-M3', 'Q3-M4', 'Q3-M5', 'Q3-M6', 'Q3-M10'] },
+      { titel: 'Verkehrsmengen', regeln: ['Q3-M9', 'Q3-M3', 'Q3-M4', 'Q3-M5', 'Q3-M6'] },   // Q3-M10 gestrichen 30.10.2026
       { titel: 'Knotentyp', regeln: ['Q3-M7', 'Q3-M8'] }] },
     // Machbarkeit (27.10.2026): Breite, Trottoirrand, Länge des überfahrbaren Rands; die übrige Ausstattung erst bei der Umsetzung
+    // (Trottoirrand und Länge des Rands seit 30.10.2026 Hinweise)
     { titel: 'Ausstattung (VSS 40 242 Tab. 3, S. 32 und 34)', unter: [{ titel: '', regeln: ['F5a', 'F5c', 'F5d'] }] },
     { titel: 'Bern', unter: [{ titel: '', regeln: ['Q3-B'] }] },
     { titel: 'Ausführung (erst bei der Umsetzung; VSS 40 242 Tab. 3, S. 32 und 34)', ausfuehrung: true, unter: [
-      { titel: '', regeln: ['F5e', 'F5f', 'F5g', 'F5h', 'F5i', 'F5j', 'F5k', 'F5b', 'F5l', 'F5m', 'F5n'] }] },
+      // F5f, F5i, F5j, F5k, F5b, F5l, F5m gestrichen 30.10.2026
+      { titel: '', regeln: ['F5e', 'F5g', 'F5h', 'F5n'] }] },
   ],
 }
 
@@ -198,24 +201,20 @@ export function nachThema(alle: readonly Eintrag[]): { thema: ThemaDef; eintraeg
 // ── Reihenfolge der Regeln im Thema nach der Norm (27.10.2026) ──
 
 /** Normen in der Reihenfolge, in der ihre Ziffern ordnen (erste Fundstelle aus einer dieser Normen zählt) */
-const NORM_REIHE = ['40241', '40240', '40242', '40837', '40273', '40213', '640075', '640850a', '640852', '640070']
-/** Lichtsignal: nach VSS 40 837 (Z. 16 Gelb, Z. 18 Grün, Z. 21 Vorsprung), dann SN 640 075, VSS 40 240 Tab. 3, dann Bern */
-const LSA_REIHE = ['I1', 'I2', 'I3a', 'I3b', 'I5', 'I4', 'I8', 'I6', 'I6-B', 'I7-B1', 'I7-B2', 'I7-B3', 'I7-B4']
+const NORM_REIHE = ['40241', '40240', '40242', '40837', '40273', '40213', '640075', '640850a', '640852']
+// LSA_REIHE (Reihenfolge der LSA-Zeiten nach VSS 40 837) mit Block I gestrichen 30.10.2026
 const KAT_INDEX = new Map(REGEL_IDS.map((id, i) => [id as string, i]))
 /** Schlüssel einer Regel: Norm, Ziffer als Zahlen; Regeln ohne Norm danach in der Reihenfolge des Katalogs */
 function normSchluessel(id: string): number[] {
   const g = abschnittVon(id)
   if (g) return [-1, g.rang]
-  const l = LSA_REIHE.indexOf(id)
-  // LSA-Zeiten nach den Regeln, wann ein Lichtsignal zu prüfen ist (VSS 40 240 Z. 17)
-  if (l >= 0) return [NORM_REIHE.indexOf('40837'), -1, l]
   const q = (DEF[id]?.quellen ?? []).find(x => NORM_REIHE.includes(x.werk))
   if (!q) return [NORM_REIHE.length, KAT_INDEX.get(id) ?? 0]
   const m = /(?:Z\.|Ziff\.|Anh\.|Kap\.|Tab\.)\s*(\d+(?:\.\d+)*)/.exec(q.ziffer)
   return [NORM_REIHE.indexOf(q.werk), ...(m ? m[1].split('.').map(Number) : [999])]
 }
-/** Vergleich zweier Regeln eines Themas nach der Norm (Ziffer der ersten Fundstelle aus einer Norm; Trottoirüberfahrt nach der Prüfliste,
- * Lichtsignal nach VSS 40 837); gleich: 0 */
+/** Vergleich zweier Regeln eines Themas nach der Norm (Ziffer der ersten Fundstelle aus einer Norm; Trottoirüberfahrt nach der Prüfliste);
+ * gleich: 0 */
 export function normVergleich(a: string, b: string): number {
   const x = normSchluessel(a), y = normSchluessel(b)
   for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] ?? -1) - (y[i] ?? -1); if (d) return d }
@@ -236,9 +235,9 @@ export const ERWEITERT_IDS: readonly string[] = REGEL_IDS.filter(id => ZAEHLT(DE
  * (die zweite Stufe ist dann nicht anwendbar bzw. unbekannt, ihr «nicht verletzt» hätte keine Grundlage).
  */
 export const PAARE: readonly (readonly [string, string])[] = [
-  ['F1a', 'F1b'], ['F2', 'F2b'], ['F6a', 'F6b'], ['E2b', 'E2c'], ['H3a', 'H3b'], ['C3', 'C3b'], ['C2', 'C2b'], ['D6-2', 'D6-2b'],
-  ['D6-3', 'D6-3b'], ['D1', 'D2c'], ['D2', 'D2c'], ['D2a', 'D2c'], ['D2', 'D2a'], ['E3', 'E3a'], ['G7', 'G7b'],
-]
+  ['F2', 'F2b'], ['F6a', 'F6b'], ['E2b', 'E2c'], ['H3a', 'H3b'], ['C3', 'C3b'], ['C2', 'C2b'], ['D6-2', 'D6-2b'],
+  ['D6-3', 'D6-3b'], ['D1', 'D2c'], ['D2', 'D2c'], ['D2a', 'D2c'], ['D2', 'D2a'], ['E3', 'E3a'],
+]   // F1a/F1b und G7/G7b gestrichen 30.10.2026
 const VORSTUFE = 'Vorstufe nicht erfüllt bzw. offen'
 const EBENE_AUS = 'Ebene ausgeschaltet'
 
@@ -283,7 +282,7 @@ const ENDE: Record<string, string> = {
   flaechig: 'Baum endet: flächige Nachfrage',
 }
 const TYP_BLOECKE = ['E', 'F', 'G', 'H']
-const TUE_AUSSTATTUNG = ['F5c', 'F5d', 'F5e', 'F5f', 'F5g', 'F5h', 'F5i', 'F5j', 'F5k', 'F5l', 'F5m', 'F5n']
+const TUE_AUSSTATTUNG = ['F5c', 'F5d', 'F5e', 'F5g', 'F5h', 'F5n']
 
 /** Grund «nicht geprüft» einer nicht ausgewerteten Regel; null = nicht anwendbar */
 function grundVon(id: string, b: Pick<Befund, 'ausgewertet' | 'ende' | 'nichtGeprueft' | 'zulaessigkeit'> & Partial<Pick<Befund, 'ebeneAus'>>,
@@ -298,7 +297,6 @@ function grundVon(id: string, b: Pick<Befund, 'ausgewertet' | 'ende' | 'nichtGep
   if (aus) return !b.ebeneAus || b.ebeneAus.includes(id) ? EBENE_AUS : null
   if (b.ende && ENDE[b.ende]) return ENDE[b.ende]
   if (d.gruppe === 'Q3' && b.nichtGeprueft.some(x => x.block === 'Q3')) return 'Eingaben zur Trottoirüberfahrt fehlen'
-  if (d.gruppe === 'I' && b.nichtGeprueft.some(x => x.block === 'I')) return 'LSA-Zeiten fehlen'
   if (k.typ === null && (TYP_BLOECKE.includes(d.gruppe) || id === 'D7')) return 'Querungstyp fehlt'
   if (b.zulaessigkeit === 'offen' && d.gruppe === 'E') return 'Zulässigkeit offen'
   return null

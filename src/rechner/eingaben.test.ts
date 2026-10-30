@@ -831,7 +831,7 @@ describe('Kurvenregel im Thema Sicht (29.10.2026)', () => {
     expect(mit.panel).toContain('Kurvenregel (VSS 40 241 Ziffer 14, Seite 7)')
     for (const u of ['b1Innerorts50', 'b2EinFahrstreifen', 'b3NachKurvenende', 'b4Winkel60', 'b5Gefaelle5'])
       expect((mit.panel.match(new RegExp(`id="feld-kurve-${u}"`, 'g')) ?? []).length, u).toBe(1)
-    expect(mit.bericht).toContain('Liegt die Kurve innerorts auf einer Strasse mit Vortritt und 50 km/h? ja (von Hand)')
+    expect(mit.bericht).toContain('Liegt die Kurve innerorts auf einer vortrittsberechtigten Strasse mit 50 km/h? ja (von Hand)')
     expect(ohne.panel).not.toContain('Kurvenregel (')
     expect(ohne.panel).not.toContain('feld-kurve-b1')
   })

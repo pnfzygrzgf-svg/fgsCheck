@@ -15,7 +15,7 @@ export { WerkLinks }
 const V = (t: string) => <VerweisText text={t} />
 import { WERKE } from './bedarf/katalog'
 import { LESENAME, WERK_IDS, WERK_INFO, regelnJeWerk, werkAnker, werkText, werkVoll } from './bedarf/quellen'
-import { SICHTWEITE, KURVE_SICHTWEITE } from './rechner/tempo'
+import { TAB1_TEXT, KURVE_SICHTWEITE } from './rechner/tempo'
 import { regelWerkAnker, regelnWerkZeigen } from './bedarf/regeluebersicht'
 import { begriffeAlphabetisch } from './bedarf/begriffe'
 import { REICHWEITE_SICHT_M } from './rechner/ohneVortritt'
@@ -192,9 +192,9 @@ export function Anleitung() {
             in das zuletzt angeklickte Zahlenfeld. Frei gemessen am Luftbild etwa 10 cm genau je Bildpunkt; nichts davon kommt in den Fall.</li>
             <li><b>Bedarf und Querungstyp:</b> der gleichnamige Reiter beurteilt, ob ein Fussgängerstreifen zulässig
             ist, welcher Querungstyp passt (Fussgängerstreifen, mit Schutzinsel, mit Lichtsignal, Querung ohne Vortritt, Trottoirüberfahrt)
-            und welche Elemente und Masse nötig sind. Grundlage sind {V('VSS 40 241')}, {V('VSS 40 240')}, {V('VSS 40 242')}, {V('VSS 40 837')}, {V('SN 640 075')} und weitere (nur
+            und welche Elemente und Masse nötig sind. Grundlage sind {V('VSS 40 241')}, {V('VSS 40 240')}, {V('VSS 40 242')}, {V('SN 640 075')} und weitere (nur
             Ziffern und eigene Kurztexte). Die Eingaben stehen nach Blöcken (Rahmen, Nachfrage, Verkehr, Lage, Insel, Ausrüstung,
-            LSA-Zeiten, Trottoirüberfahrt): vorbelegt ist, was die Rechnung schon kennt (Querungsart der Streifen, Lichtsignal, Tempo,
+            Trottoirüberfahrt): vorbelegt ist, was die Rechnung schon kennt (Querungsart der Streifen, Lichtsignal, Tempo,
             innerorts als Annahme bis 50 km/h, Fahrbahnbreite und Querdistanzen nach den Bordkanten, Fahrstreifen nach OSM, Insel aus der
             Teilung bzw. der Mittelinsel (Standard), Radstreifen, Tram nach OSM), mit Quelle. Aus Geodaten kommen dazu die Bushaltestelle
             («keine», wenn im Umkreis von 50 m um den Streifen keine liegt; sonst ein Hinweis mit Name und Abstand), Strecke oder Zone
@@ -248,7 +248,7 @@ export function Anleitung() {
             «Nicht geprüft» heisst, die Regel könnte gelten, aber eine Angabe fehlt oder der Ablauf endet vorher (z. B. «Ortslage
             fehlt», «Baum endet: Begegnungszone», «Querungstyp fehlt», Ebene ausgeschaltet); «nicht anwendbar», sie gilt im Fall nicht.
             Eine frei geprüfte Sicht zählt nur als ohne Befund, wenn das Soll nach dem richtigen Tempo gerechnet ist (bei Anzeichen für
-            schnelleres Fahren nach der gemessenen V85). Fehlen alle Angaben zur Trottoirüberfahrt bzw. die LSA-Zeiten, steht das als Zeile im Thema; übrige nicht geprüfte Regeln und von Hand gestrichene Zufahrten stehen unter «Annahmen und
+            schnelleres Fahren nach der gemessenen V85). Fehlen alle Angaben zur Trottoirüberfahrt, steht das als Zeile im Thema; übrige nicht geprüfte Regeln und von Hand gestrichene Zufahrten stehen unter «Annahmen und
             Hinweise». Die Sicht übernimmt die erweiterte Prüfung aus dem Sichtrechner (frei bzw. verdeckt je Zufahrt), ausser eine vorhandene
             Sichtweite ist von Hand eingegeben. <b>Querung ohne Vortritt:</b> je Streifen unter «Querung» Furt (Insel ohne Balken) bzw.
             Nase, Einengung oder ohne bauliche Massnahme wählen: der Streifen erscheint ohne Balken (weiss gestrichelt), geprüft wird mit
@@ -310,7 +310,7 @@ export function Anleitung() {
             Regelkatalog; Grundprüfung zuerst, dann nach Stärke, höchstens fünf, der Rest unter «weitere anzeigen»; Felder wie der
             Querungstyp, die nur bestimmen, welche Prüfungen gelten, nennen das als Ablauf) und was ein leeres Feld bedeutet (keine Pflicht, die betroffenen Prüfungen bleiben offen; bei vorbelegten
             Feldern steht, woher der Vorschlag kommt). Felder, die im Fall nicht wirken können, sind ausgeblendet (z. B. Angaben zur
-            Insel ohne Insel, LSA-Zeiten ohne Lichtsignal, Trottoirüberfahrt nur an einer Einmündung); ihre Werte bleiben im Fall,
+            Insel ohne Insel, Trottoirüberfahrt nur an einer Einmündung); ihre Werte bleiben im Fall,
             «trotzdem zeigen» unter der jeweiligen Eingabemaske blendet sie wieder ein. Beim Tempo-Regime gilt eine Hauptstrasse ausserhalb der Zone als Strecke, auch
             mit Tempo 30; ältere Fälle mit dem früheren Zusatzfeld dazu laden weiter. Im Bericht stehen keine Feldhilfen.</li>
             <li><b>Bericht und Fall-Datei:</b> «Bericht drucken / als PDF» öffnet eine Druckansicht (Kartenbild, Tabellen, Eingaben,
@@ -358,7 +358,7 @@ export function Anleitung() {
  * (Nutzerbefund 23.10.2026) */
 export function RechnungGrundlagen() {
   return <p className="klein">
-    Sichtweiten: <VerweisText text={`${LESENAME['40241']}, Tabelle 1`} /> ({Object.entries(SICHTWEITE).map(([t, s]) => `${t} km/h: ${s} m`).join(', ')});
+    Sichtweiten: <VerweisText text={`${LESENAME['40241']}, Tabelle 1`} /> ({TAB1_TEXT});
     im Knoten nach Kurvenradius (<VerweisText text={LESENAME.BFU} /><WerkLinks w="BFU" kurz /> bzw. <VerweisText text={`${LESENAME['40241']}, Tabelle 2`} />:
     {' '}{KURVE_SICHTWEITE.map(([r, s]) => `bis ${r} m: ${s} m`).join(', ')}). Sichtpunkte mindestens 1,5 m von Parkfeldern; Auto-Parkfeld
     näher als 5 m am Streifen: <VerweisText text={`${LESENAME.VRV}, Art. 18 Abs. 2 Bst. e`} />.

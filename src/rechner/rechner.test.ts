@@ -1,12 +1,12 @@
 // Unit-Tests der portierten Rechnung an einem künstlichen Knoten (keine echten Daten):
 // Hauptstrasse West–Ost (8 m, Weg 1), Übergang bei x = 0, Querstrasse nach Süden bei x = -40 (6 m, Weg 2).
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { wgs, type P } from '../geo'
 import type { OsmDaten, OsmWeg } from '../daten/osm'
 import type { AvFlaeche } from '../daten/av'
 import { OsmNetz, einbahnTag, zugangTag, NEBENAST_GRAD } from './netz'
 import { rechneUebergang, kontextBauen } from './index'
-import { sichtweiteTab1, sichtweiteKurve, tempoStufe, radiusRunden, zonenTempo } from './tempo'
+import { sichtweiteTab1, sichtweiteKurve, tempoStufe, radiusRunden, zonenTempo, quelleTab1, QUELLE_TAB1_20, QUELLE_TAB1_UEBER60 } from './tempo'
 import { fahrstreifenTags, fahrstreifenLage, abzugSeite } from './fahrstreifen'
 import { randLuecken, kreisAnpassen, glaetten } from './spur'
 import { gedecktRechnenSetzen, PARALLEL_MIN } from './abbiegen'
@@ -89,7 +89,12 @@ describe('Tags deuten (fgs_netz.py)', () => {
 
 describe('Tempo und Sichtweite', () => {
   it('Tab. 1, Stufen und Kurvensichtweite', () => {
-    expect([20, 30, 40, 50, 60].map(sichtweiteTab1)).toEqual([25, 25, 40, 55, 75])
+    expect([20, 30, 40, 50, 60].map(v => sichtweiteTab1(v))).toEqual([25, 25, 40, 55, 75])
+    // 30.10.2026: ausserorts bei 60 km/h 100 m; 20 km/h und über 60 km/h als Annahme gekennzeichnet
+    expect([20, 30, 40, 50, 60, 80].map(v => sichtweiteTab1(v, true))).toEqual([25, 25, 40, 55, 100, 75])
+    expect([20, 30, 60, 80].map(v => quelleTab1(v))).toEqual([QUELLE_TAB1_20, 'VSS Tab. 1', 'VSS Tab. 1', QUELLE_TAB1_UEBER60])
+    expect(quelleTab1(60, true)).toBe('VSS Tab. 1 (ausserorts)')
+    expect(QUELLE_TAB1_20).toMatch(/^Annahme: wie 30 km\/h/)
     expect(tempoStufe(45)).toBe(50)
     expect(sichtweiteKurve(7.5)).toEqual([15, 'bfu'])
     expect(sichtweiteKurve(26)).toEqual([40, 'VSS Tab. 2'])
@@ -290,7 +295,8 @@ describe('Rechnung am Übergang', () => {
   })
 })
 
-describe('Insel nach OSM (crossing:island=yes, INSEL_AUS_OSM; ohne Luftbild kein Teilen, Nutzerentscheid 14.10.2026)', () => {
+describe('Insel nach OSM (crossing:island=yes, INSEL_AUS_OSM; ohne Luftbild kein Teilen, Nutzerentscheid 14.10.2026; Schalter seit 30.10.2026 aus, hier an)', () => {
+  beforeEach(() => inselAusOsmSetzen(true))
   afterEach(() => inselAusOsmSetzen(null))
   const mitInsel = (extra: Record<string, string> = { 'crossing:island': 'yes' }) => {
     const d = daten()
@@ -308,10 +314,10 @@ describe('Insel nach OSM (crossing:island=yes, INSEL_AUS_OSM; ohne Luftbild kein
     expect(kurz(r)).toEqual([{ id: '12', laenge: 7.4, gerade: ['0:beide', '180:beide'], entfallen: [] }])
     expect(r.inseln).toEqual([])
     expect(r.streifen[0].annahmen).toContain(osmInselHinweis())
-    expect(osmInselHinweis()).toBe('OSM meldet eine Mittelinsel (crossing:island=yes), die Amtliche Vermessung keine – prüfen')
+    expect(osmInselHinweis()).toBe('OSM meldet eine Mittelinsel (crossing:island=yes), die Amtliche Vermessung keine – nicht als gebaut angenommen; ist sie gebaut, Insel von Hand setzen')
     expect(r.streifen[0].annahmen.join(' ')).not.toMatch(/Teilstreifen|Insel nach OSM/)
   })
-  it('ohne crossing:island bzw. Schalter aus: wie bisher (ein Streifen, zwei gerade Zufahrten, kein Hinweis)', () => {
+  it('ohne crossing:island bzw. Schalter aus (Vorgabe seit 30.10.2026): ein Streifen, zwei gerade Zufahrten; mit Tag nur der Hinweis', () => {
     const alt = kurz(rechneFall(daten(), AV, [], 12, fall(), null))
     expect(alt).toEqual([{ id: '12', laenge: 7.4, gerade: ['0:beide', '180:beide'], entfallen: [] }])
     const nein = rechneFall(mitInsel({ 'crossing:island': 'no' }), AV, [], 12, fall(), null)
@@ -321,7 +327,8 @@ describe('Insel nach OSM (crossing:island=yes, INSEL_AUS_OSM; ohne Luftbild kein
     const r = rechneFall(mitInsel(), AV, [], 12, fall(), null)
     expect(kurz(r)).toEqual(alt)
     expect(r.inseln).toEqual([])
-    expect(r.streifen[0].annahmen.join(' ')).not.toMatch(/insel/i)
+    expect(r.streifen[0].annahmen).toContain(osmInselHinweis())
+    expect(r.streifen[0].annahmen.join(' ')).not.toMatch(/Teilstreifen|Insel nach OSM/)
   })
   it('AV-Verkehrsinsel auf der Achse: unverändert (Teilstreifen aus der AV, keine Annahme)', () => {
     const avInsel: AvFlaeche[] = [

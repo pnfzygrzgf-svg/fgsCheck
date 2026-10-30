@@ -13,7 +13,7 @@ import { REGELN } from './regeln'
 import { Kontext } from './kontext'
 import { beurteile } from './entscheid'
 import { grundpruefung, type GrundSicht } from './grundpruefung'
-import { fall, LSA_OK, Q3_OK, TESTFAELLE, type Abw } from './testfaelle'
+import { fall, Q3_OK, TESTFAELLE, type Abw } from './testfaelle'
 import { FELDER, type BedarfEingaben } from './eingaben'
 import { ABGELEITET, FELD_DEF, FELD_DEFS, GRUND_FELDER, OBJEKTE, istObjektFeld, type ObjektFeld } from './felder'
 import { bedarfLesen, eingabenBilden, type Vorbelegung } from './fallBedarf'
@@ -119,7 +119,8 @@ describe('Feldhilfen: Erklärung und Herkunft je Feld', () => {
     expect(bezuege('tempoRegime')[1].quelle).toBe('Tempo-30-Zonen-Verordnung Art. 4 Abs. 2')
     expect(ids('beduerfnis')).toContain('C2')
     expect(schaltet('tempoRegime')).not.toContain('C2')
-    expect(ids('insel.pfostenH')).toEqual(['F2g'])
+    expect(ids('insel.kopfUeberstand')).toEqual(['F2f'])
+    expect(ids('haltestelle.beidseits')).toEqual(['D4c'])
     expect(ids('insel.breite')).toEqual(expect.arrayContaining(['F2', 'F2b', 'F2c', 'F2-K', 'F3-M', 'B5-2b']))
     expect(ids('insel.breite')).not.toContain('D1')
     // Querungstyp ist reiner Schalter: keine Regel unter «Wozu», nur der Ablauf-Satz
@@ -172,7 +173,7 @@ describe('Feldhilfen: Eingabelisten des Katalogs gegen die Regeln (Messung)', ()
     }
     expect([...s].filter(f => !erlaubt.has(f) && !(istObjektFeld(f) && [...erlaubt].some(p => p.startsWith(`${f}.`))))).toEqual([])
   })
-  it('was der Entscheidbaum ausserhalb der Regeln liest, hat einen Ablauf-Text (ausser den Blöcken q3 und lsaZeiten)', () => {
+  it('was der Entscheidbaum ausserhalb der Regeln liest, hat einen Ablauf-Text (ausser dem Block q3; lsaZeiten gestrichen 30.10.2026)', () => {
     const orig = { ...REGELN }
     let inRegel = 0
     for (const id of Object.keys(REGELN) as BefundId[]) REGELN[id] = k => { inRegel++; try { return orig[id](k) } finally { inRegel-- } }
@@ -188,7 +189,7 @@ describe('Feldhilfen: Eingabelisten des Katalogs gegen die Regeln (Messung)', ()
     }
     const mitAblauf = new Set(FELD_DEFS.filter(d => FELD_HILFEN[d.pfad].ablauf).map(d => d.pfad.split('.')[0]))
     expect(s.size).toBeGreaterThan(5)
-    expect([...s].filter(f => !mitAblauf.has(f) && !['q3', 'lsaZeiten'].includes(f))).toEqual([])
+    expect([...s].filter(f => !mitAblauf.has(f) && f !== 'q3')).toEqual([])
   })
 })
 
@@ -204,13 +205,10 @@ describe('Feldhilfen: Sichtbarkeit', () => {
     for (const p of ['typ', 'fgsMitLsa', 'lage', 'insel.vorhanden', 'haltestelle.art', 'tempoRegime', 'sichtVorh']) expect(SICHTBAR[p], p).toBeUndefined()
     expect(bedingungText(SICHTBAR['insel.breite']!)).toBe('Insel in der Fahrbahnmitte: ja')
   })
-  it('Beispiele: Inselunterfelder nur mit Insel, LSA-Zeiten nur mit Lichtsignal, Trottoirüberfahrt nur an der Einmündung', () => {
+  it('Beispiele: Inselunterfelder nur mit Insel, Trottoirüberfahrt nur an der Einmündung (LSA-Zeiten gestrichen 30.10.2026)', () => {
     const k = (abw: Abw, ebenen = { bern: false, kantonBE: false }) => ({ e: ueberPfade(fall(abw)), ebenen })
     expect(sichtbar('insel.breite', k({}))).toBe(false)
     expect(sichtbar('insel.breite', k({ insel: { ...fall().insel.wert!, vorhanden: true, art: 'baulich', breite: 2 } }))).toBe(true)
-    expect(sichtbar('lsaZeiten.freigabe', k({}))).toBe(false)
-    expect(sichtbar('lsaZeiten.freigabe', k({ typ: 'lsa' }))).toBe(true)
-    expect(sichtbar('lsaZeiten.freigabe', k({ fgsMitLsa: true }))).toBe(true)
     expect(sichtbar('q3.winkel', k({}))).toBe(false)
     expect(sichtbar('q3.winkel', k({ lage: 'einmuendung' }))).toBe(true)
     expect(sichtbar('q3.breiteM', k({ lage: 'einmuendung' }))).toBe(false)
@@ -352,12 +350,11 @@ describe('Feldhilfen: Wozu gekürzt (Geltung, Schalter, Reihenfolge)', () => {
     // mit Lichtsignal: Grundprüfung, D1 und D5-3 gelten nicht mehr; mit Bern und Typ LSA neu D6-5
     expect(ids('nRichtung', kx({ typ: 'lsa', fgsMitLsa: true }, { bern: true, kantonBE: false, richtlinie: true }))).toEqual(['D6-5'])
   })
-  it('Typ offen: alle infrage kommenden Regeln (Streifenmasse, Trottoirüberfahrt, Mehrzweck, LSA)', () => {
+  it('Typ offen: alle infrage kommenden Regeln (Streifen, Trottoirüberfahrt, Mehrzweck; Streifenbreite und LSA-Zeiten gestrichen 30.10.2026)', () => {
     const k = kx({ typ: null, fgsMitLsa: null, lage: null })
-    expect(ids('streifenBreite', k)).toContain('F1a')
+    expect(ids('achsWinkel', k)).toContain('F1d')
     expect(ids('q3.breiteM', k)).toContain('F5a')
     expect(ids('mzsBreiteM', k)).toContain('F6a')
-    expect(ids('lsaZeiten.freigabe', k)).toContain('I2')
   })
   it('Reihenfolge Grundprüfung, dann Stärke; höchstens 5 sichtbar, Rest unter «weitere»', () => {
     expect(WOZU_MAX).toBe(5)
@@ -406,14 +403,52 @@ describe('Feldhilfen: ausgeblendete Unterfelder lösen keinen Block aus', () => 
     ausgeblendeteBloeckeLeeren(b, { bern: true, kantonBE: false })
     expect(b.q3.wert).not.toBeNull()
   })
-  it('LSA-Zeiten: nur Inseltiefe ohne Teilquerungen bzw. ohne Lichtsignal: nicht geprüft', () => {
-    const e = ueberPfade(fall({ typ: 'lsa', lsaZeiten: nur(LSA_OK, { inselB: 2 }) }))
-    ausgeblendeteBloeckeLeeren(e, { bern: false, kantonBE: false })
-    expect(e.lsaZeiten.wert).toBeNull()
-    expect(beurteile(e).nichtGeprueft.map(x => x.block)).toContain('I')
-    const f = ueberPfade(fall({ typ: 'fgs', fgsMitLsa: false, lsaZeiten: LSA_OK }))
-    ausgeblendeteBloeckeLeeren(f, { bern: false, kantonBE: false })
-    expect(f.lsaZeiten.wert).toBeNull()
+})
+
+describe('Gestrichene Regel B4 und Feld «knotenArmeOhneQuerung» (Nutzerentscheid 30.10.2026)', () => {
+  it('nicht mehr in Eingaben, Maske, Geltung und Auswertung; B4 gestrichen mit Quellen', () => {
+    expect(Object.keys(FELDER)).not.toContain('knotenArmeOhneQuerung')
+    expect(FELD_DEF.has('knotenArmeOhneQuerung')).toBe(false)
+    for (const [id, d] of defs) expect(d.eingaben, id).not.toContain('knotenArmeOhneQuerung')
+    expect(KATALOG.B4.art).toBe('gestrichen')
+    expect(KATALOG.B4.bemerkung).toContain('Nutzerentscheid 30.10.2026')
+    expect(KATALOG.B4.quellen.map(q => q.werk)).toEqual(['40240', 'MP'])
+    expect(Object.keys(REGELN)).not.toContain('B4')
+  })
+  it('alter Fall mit dem Feld: still übergangen, ohne Hinweis', () => {
+    const [b, h] = bedarfLesen({ felder: { knotenArmeOhneQuerung: { wert: 2, quelle: 'hand' }, lage: { wert: 'knoten_berechtigt', quelle: 'hand' } } })
+    expect(b!.felder.knotenArmeOhneQuerung).toBeUndefined()
+    expect(b!.felder.lage).toEqual({ wert: 'knoten_berechtigt', quelle: 'hand' })
+    expect(h).toEqual([])
+  })
+})
+
+describe('Block 3 (Nutzerentscheide 30.10.2026): LSA-Zeiten, Halteverbotslinie, Streifenbreite, Lücke Balken–Trottoirkante, Kantonsstrasse', () => {
+  const WEG = ['lsaZeiten', 'hvl', 'hvlBedarfM', 'haltenSichtrelevantUeber5m', 'haltenSonstVerboten', 'streifenBreite', 'randAbstand', 'kantonsstrasse']
+  it('nicht mehr in Eingaben, Maske, Feldhilfen, Fragen, Geltung und Katalog; keine Gruppe LSA-Zeiten', () => {
+    for (const f of WEG) {
+      expect(Object.keys(FELDER), f).not.toContain(f)
+      expect(Object.keys(OBJEKTE), f).not.toContain(f)
+      expect(FELD_DEFS.filter(d => d.pfad === f || d.pfad.startsWith(`${f}.`)), f).toEqual([])
+      expect(Object.keys(FELD_HILFEN).filter(p => p === f || p.startsWith(`${f}.`)), f).toEqual([])
+      expect(Object.keys(SICHTBAR).filter(p => p === f || p.startsWith(`${f}.`)), f).toEqual([])
+      for (const [id, d] of defs) expect(d.eingaben.filter(x => x === f || x.startsWith(`${f}.`)), `${id}: ${f}`).toEqual([])
+      for (const [id, g] of Object.entries(GELTUNG)) expect(felderIn(g).filter(x => x === f || x.startsWith(`${f}.`)), `${id}: ${f}`).toEqual([])
+    }
+    expect(FELD_DEFS.some(d => (d.gruppe as string) === 'lsa')).toBe(false)
+  })
+  it('über die Fall-Datei: alte Version 3 mit diesen Feldern lädt still, schreibt ohne sie (Version unverändert)', () => {
+    const felder = { 'lsaZeiten.gelb': { wert: 5, quelle: 'hand' }, 'lsaZeiten.teile': { wert: [4, 4], quelle: 'hand' },
+      'hvl.vorhanden': { wert: true, quelle: 'hand' }, 'hvl.laengeM': { wert: 10, quelle: 'hand' }, hvlBedarfM: { wert: 12, quelle: 'hand' },
+      haltenSichtrelevantUeber5m: { wert: true, quelle: 'hand' }, streifenBreite: { wert: 3, quelle: 'hand' },
+      randAbstand: { wert: [0.6, 0.3], quelle: 'hand' }, kantonsstrasse: { wert: true, quelle: 'hand' }, dtv: { wert: 5000, quelle: 'hand' } }
+    const f = { ...JSON.parse(fallSchreiben(leererFall(46.95, 7.44, null))), version: 3, bedarf: { felder } }
+    const [g, h] = fallLesen(JSON.stringify(f))
+    expect(h).toEqual([])
+    expect(Object.keys(g.bedarf!.felder)).toEqual(['dtv'])
+    const neu = JSON.parse(fallSchreiben(g))
+    expect(neu.version).toBe(3)
+    expect(JSON.stringify(neu)).not.toMatch(/lsaZeiten|hvl|halten|streifenBreite|randAbstand|kantonsstrasse/)
   })
 })
 

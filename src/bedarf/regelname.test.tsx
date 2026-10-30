@@ -115,8 +115,9 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
     const druck = text(renderToStaticMarkup(<BefundblattAnzeige b={b} druck />)).replace(/ :/g, ':')
     for (const t of [panel, druck]) {
       // 23.10.2026: Kopf in einer Zeile, je Thema Zählung in Symbol und Wort, Themen ohne Befund in einer Zeile
-      // 30.10.2026: + Richtlinie Hindernisfreie Architektur (gerade Trottoirkante) ohne Befund; Ausrichtung als Quelle von F1d
-      expect(t).toContain('49 Regeln · 1 Befund · 2 Hinweise')
+      // 30.10.2026: + Richtlinie Hindernisfreie Architektur (gerade Trottoirkante) ohne Befund; Ausrichtung als Quelle von F1d;
+      // Block 3: Streifenbreite und Abstand der Balken (F1a, F1b, F1c) gestrichen, 49 → 46
+      expect(t).toContain('46 Regeln · 1 Befund · 2 Hinweise')
       expect(t).toContain('Insel ! 1 Soll-Befund · i 1 Hinweis')
       expect(t).toMatch(/Ohne Befund: Zulässigkeit ?, Nachfrage ?, Sicht/)
       expect(t).not.toContain('Ohne Vortritt und Mehrzweckstreifen')

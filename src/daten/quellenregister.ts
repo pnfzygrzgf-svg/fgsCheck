@@ -179,7 +179,7 @@ export const THEMA_NAME: Record<Thema, string> = {
   vermessung: 'Vermessung', luftbild: 'Luftbild', hoehen: 'Höhen', strassennetz: 'Strassennetz', uebergaenge: 'Übergänge',
   fgsLuftbild: 'Streifen aus dem Luftbild (ETH)', parkfelder: 'Parkfelder', baeume: 'Bäume', haltestellen: 'Haltestellen', dtv: 'Verkehrsmengen',
   fusswegnetz: 'Fusswegnetz', strassentyp: 'Strassentyp', tempo: 'Tempo-Signalisation', schulen: 'Schulen', taktil: 'taktile Markierungen',
-  zonen: 'Zonen', oevLinien: 'ÖV-Linien',
+  zonen: 'Bauzonen (Nutzungszonenplan)', oevLinien: 'ÖV-Linien',
 }
 /** Name eines Themas, wenn es nur OSM deckt */
 const THEMA_OSM: Partial<Record<Thema, string>> = { tempo: 'Tempo' }

@@ -22,7 +22,7 @@ import type { KsFahrstreifen } from '../tue/knotensicht'
 import type { Vorbelegung } from './fallBedarf'
 import { HW_ALLE, istFgs, istLsaUebergang, markierung, type OsmDaten, type OsmKnoten, type OsmWeg, type VortrittZeichen } from '../daten/osm'
 import type { AvFlaeche } from '../daten/av'
-import { schnitt, abstandPunkt } from '../rechner/poly'
+import { abstandPunkt } from '../rechner/poly'
 import { seitenraumGemessen } from '../rechner/seitenraum'
 import { planTitel } from '../rechner/planflaechen'
 import { KATALOG } from './katalog'
@@ -40,8 +40,6 @@ export const AUTO = {
   /** Ampel bis hier vom Knoten: Knoten mit Lichtsignal; keine bis knotenLsaNeinM: ohne */
   knotenLsaJaM: 30,
   knotenLsaNeinM: 50,
-  /** Übergang auf einem Arm bis hier vom Knoten: Arm mit Querung */
-  armUebergangM: 25,
   /** eigene Querung: Übergänge bzw. Lichtsignale so nah am Streifen zählen nicht als «nächster» */
   eigenFgsM: 5,
   eigenLsaM: 10,
@@ -51,8 +49,6 @@ export const AUTO = {
   /** Autoverkehr an der Einengung: tief unter mivMittel, mittel bis mivHoch, hoch darüber (DTV) */
   mivMittel: 3000,
   mivHoch: 10000,
-  /** viel Verkehr in der Seitenstrasse ab diesem DTV */
-  mivEinmHoch: 3000,
   /** lange Querung: Teilquerung länger als (m) */
   querungLangM: 12,
   /** Einengung: Fahrbahn an der Querung um mindestens so viel schmaler als die Zufahrt (m) */
@@ -66,6 +62,9 @@ export const AUTO = {
   /** Haltebereich: so weit um den Haltepunkt; verdeckt, wenn die Querung hinter dem Halt näher liegt als busVerdecktM */
   haltBereichM: 15,
   busVerdecktM: 18,
+  /** Haltestelle auf einer Strassenseite: mindestens so weit quer zur Strasse von der Streifenmitte (Annahme, 30.10.2026; Haltepunkte
+   * auf der Fahrbahnachse liegen näher) */
+  haltSeiteM: 2,
   /** Umkreis der OSM-Abfrage (osm.ladeOsmRoh, App OSM_RADIUS_M) */
   osmRadiusM: 300,
 } as const
@@ -229,17 +228,10 @@ export function armGegenueber(n: Netz, k: { p: P; arme: Arm[] }, strasse: Readon
   const name = n.wege.get(g.wid)?.w.tags.name?.trim()
   return name ? `«${name}»` : 'ein weiterer Arm'
 }
-/** Knoten-Ids eines Arms bis d m ab dem Knoten */
-function armKnotenBis(a: Arm, d: number): number[] {
-  const aus = [a.knoten[0]]
-  let s = 0
-  for (let i = 1; i < a.pts.length; i++) { s += dist(a.pts[i - 1], a.pts[i]); if (s > d + 1e-9) break; aus.push(a.knoten[i]) }
-  return aus
-}
 const ll2p = (k: OsmKnoten): P => lv95(k.lat, k.lon)
 
 /** Zufahrten mit Sicht auf die Wartefläche (ohne Trottoirüberfahrt, deren Zufahrten nur der Vorbelegung dienen): Grundlage für
- * Vorbelegungen aus dem Sichtfeld (Parkierung im Sichtfeld, Kurvenradius, Halteverbotslinie) */
+ * Vorbelegungen aus dem Sichtfeld (Parkierung im Sichtfeld, Kurvenradius) */
 export const zufSicht = (st: StreifenErgebnis[]): ZufahrtErgebnis[] => st.filter(s => !s.trottoirueberfahrt).flatMap(s => s.zufahrten)
 
 // ── Hauptfunktion ──
@@ -431,26 +423,12 @@ export function automatik(x: AutoEingang): void {
       const ampeln = osm.ampeln.filter(a => !(a.id === eigenId || (a.tags.crossing && abstandQuerung(ll2p(a), st) <= AUTO.eigenFgsM)))
       const dA = ampeln.map(a => dist(ll2p(a), k.p)).sort((a, b) => a - b)[0] ?? Infinity
       if (dA <= AUTO.knotenLsaJaM + 1e-9) {
-        setze('knotenLsa', true, 'osm', `Lichtsignal ${ganz(dA)} m vom Knoten (OSM)${tag('highway=traffic_signals')}`)
         // Trottoirüberfahrt (27.10.2026): das Lichtsignal ist der heutige Zustand; die Planung hebt es in der Regel auf → Vorschlag
         if (st.some(s => s.trottoirueberfahrt)) setze('q3.lsaKnoten', true, 'vorschlag', `Lichtsignal ${ganz(dA)} m vom Knoten (OSM): bleibt es mit der Überfahrt bestehen?`)
         else setze('q3.lsaKnoten', true, 'osm', `Lichtsignal ${ganz(dA)} m vom Knoten (OSM)`)
       } else if (dA > AUTO.knotenLsaNeinM) {
-        setze('knotenLsa', false, 'annahme', `kein Lichtsignal in OSM innerhalb ${AUTO.knotenLsaNeinM} m vom Knoten (OSM oft unvollständig)`)
         setze('q3.lsaKnoten', false, 'annahme', `kein Lichtsignal in OSM innerhalb ${AUTO.knotenLsaNeinM} m vom Knoten`)
-      } else feldHinweis('knotenLsa', `Lichtsignal ${ganz(dA)} m vom Knoten (OSM): gehört es zum Knoten? Von Hand wählen`)
-      // Arme ohne Querung: Übergang (markiert bzw. Lichtsignal) innert 25 m auf dem Arm; der Arm der eigenen Querung zählt mit Querung
-      const mitQ = osm.uebergaenge.filter(u => istFgs(markierung(u.tags)))
-      const mitQIds = new Set(mitQ.map(u => u.id))
-      let ohne = 0
-      for (const a of k.arme) {
-        const ids = armKnotenBis(a, AUTO.armUebergangM)
-        const teil = a.pts.slice(0, ids.length + 1)
-        const eigen = linieAbstand(teil, st) <= AUTO.eigenFgsM
-        if (!eigen && !ids.some(id => mitQIds.has(id))) ohne++
-      }
-      setze('knotenArmeOhneQuerung', ohne, 'annahme', `Knoten mit ${k.arme.length} Armen (OSM), ${k.arme.length - ohne} davon mit markiertem ` +
-        `Übergang innert ${AUTO.armUebergangM} m (OSM-Übergänge oft unvollständig)`)
+      } else feldHinweis('q3.lsaKnoten', `Lichtsignal ${ganz(dA)} m vom Knoten (OSM): gehört es zum Knoten? Von Hand wählen`)
     }
   }
 
@@ -532,7 +510,6 @@ export function automatik(x: AutoEingang): void {
       if (t.flashing_lights && t.flashing_lights !== 'no') feldHinweis('blinklicht', `laut OSM mit Blinklicht: Art des Blinklichts wählen${tag(`flashing_lights=${t.flashing_lights}`)}`)
       else if (t.flashing_lights === 'no') feldHinweis('blinklicht', `laut OSM ohne Blinklicht${tag('flashing_lights=no')}`)
       if (t.tactile_paving) feldHinweis('taktil', `laut OSM ${t.tactile_paving === 'no' ? 'keine' : 'mit'} ertastbaren Platten am Übergang: vor Ort prüfen${tag(`tactile_paving=${t.tactile_paving}`)}`)
-      if (t.button_operated) feldHinweis('lsaZeiten.inselNurAnmeldung', `laut OSM mit Taster${tag(`button_operated=${t.button_operated}`)}`)
     }
   }
   if (n) {
@@ -588,22 +565,7 @@ export function automatik(x: AutoEingang): void {
     setze('kurve.radius', z.kurvenradiusM, geschaetzt ? 'annahme' : 'rechnung', `${was} ${f1(z.kurvenradiusM!)} m, ${wie} (Sichtrechner)`)
   } else if (zs.length) rechner['kurve.radius'] = 'Sichtrechner: keine abbiegende Zufahrt und kein Kreisel; gerade Zufahrten nach Tempo'
 
-  // ── A9 Halteverbotslinie nach Sichtbedarf ──
-  if (zs.length) {
-    let bedarf = 0, wo = ''
-    for (const z of zs) for (const k of z.konflikte.filter(k => k.klasse === 'auto')) {
-      const s = st.find(y => y.fgsId === z.fgsId) ?? s0
-      // nur der Teil des Parkfelds im Sichtfeld (lange Parkstreifen reichen weit darüber hinaus)
-      const teil = z.feld?.length ? schnitt(k.geom, z.feld) : k.geom
-      const pkt = teil.flatMap(poly => poly[0] ?? [])
-      if (!pkt.length) continue
-      const fern = Math.min(Math.max(...pkt.map(p => abstandStreifen(p, s))), z.sichtweite)
-      if (fern > bedarf) { bedarf = fern; wo = z.strasse ?? '' }
-    }
-    const wert = Math.ceil(bedarf * 2) / 2
-    setze('hvlBedarfM', wert, 'rechnung', wert > 0 ? `Sichtrechner: Auto-Parkfelder im Sichtfeld bis ${f1(wert)} m vor dem Streifen` +
-      (wo ? ` (Zufahrt ${wo})` : '') : 'Sichtrechner: keine Auto-Parkfelder im Sichtfeld')
-  }
+  // A9 Halteverbotslinie nach Sichtbedarf gestrichen 30.10.2026 (G7, G7b)
 
   // ── A8 Annahmen mit Schwellen ──
   const dtv = w.dtv?.wert as number | undefined, nR = w.nRichtung?.wert as number[] | undefined
@@ -676,11 +638,7 @@ export function automatik(x: AutoEingang): void {
   if (ueberHaupt && 'fehler' in ueberHaupt && ueberHaupt.ueberHauptstrasse)
     setze('q3.ueber', 'haupt', 'osm', `Überfahrt quer über die ${ueberHaupt.ueberHauptstrasse.haupt} (OSM, Knotensicht)`)
 
-  // ── A4 Kopien ──
-  if (fb) setze('lsaZeiten.L', fb.wert, fb.quelle, `wie Fahrbahnbreite (${fb.text})`)
-  if (L?.length === 2) setze('lsaZeiten.teile', L, w.querdistanzL!.quelle, `wie Länge jeder Teilquerung (${w.querdistanzL!.text})`)
-  const ib = w['insel.breite']
-  if (ib && w['insel.vorhanden']?.wert === true) setze('lsaZeiten.inselB', ib.wert, ib.quelle, `wie Inseltiefe (${ib.text})`)
+  // ── A4 Kopien ── (Kopien in die LSA-Zeiten gestrichen 30.10.2026 mit Block I)
   // Runde 5 (F3): Werte der gequerten Strasse sind nur dann die der Seitenstrasse, wenn die Querung über die einmündende Strasse führt
   // (Lage Einmündung); die Hauptstrasse ist dann die Querstrasse der abbiegenden Zufahrten (Tempo des Sichtrechners)
   const ueberSeite = w['q3.ueber']?.wert === 'einmuendend'
@@ -704,9 +662,8 @@ export function automatik(x: AutoEingang): void {
     if (ksFs.haupt) setze('q3.nHaupt', ksFs.haupt.n, q(ksFs.haupt), fs(ksFs.haupt, 'Hauptstrasse'))
   } else if (nR && ueberSeite) setze('q3.nEinm', Math.max(...nR), w.nRichtung!.quelle, `wie Fahrstreifen je Richtung (${w.nRichtung!.text})`)
   if (dtv !== undefined && ueberSeite) {
+    // «viel Verkehr in der Seitenstrasse» (Q3-M10) gestrichen 30.10.2026
     setze('q3.dtvEinm', dtv, w.dtv!.quelle, `wie DTV (${w.dtv!.text})`)
-    const hoch = dtv >= AUTO.mivEinmHoch
-    setze('q3.mivEinmHoch', hoch, 'annahme', `DTV ${ganz(dtv)} ${hoch ? 'ab' : 'unter'} ${ganz(AUTO.mivEinmHoch)}: ${hoch ? 'viel' : 'wenig'} Verkehr angenommen`)
   }
   const tr = w.tempoRegime
   if (tr && ueberSeite) {
@@ -944,6 +901,14 @@ function haltestelle(x: AutoEingang, n: Netz | null, mitte: P, ax: P): void {
   if (art === 'fahrbahn' && lage === 'fgs_nach_halt' && abstand < AUTO.busVerdecktM)
     setze('haltestelle.verdeckt', true, 'annahme', `Fahrbahnhaltestelle, Querung ${ganz(abstand)} m hinter dem Haltepunkt (unter ${AUTO.busVerdecktM} m): ` +
       'haltender Bus verdeckt angenommen')
+  // Haltestelle auf beiden Strassenseiten (D4c, 30.10.2026): Bushalte im Umkreis auf beiden Seiten der gequerten Strasse (Lage quer zur
+  // Strasse ab der Streifenmitte, mindestens haltSeiteM: Haltepunkte auf der Fahrbahnachse zählen nicht); Annahme
+  const seiten = mitD.filter(z => z.d <= AUTO.haltUmkreisM && (z.y.art === 'bus' || z.y.art === 'bus_tram' || z.y.art === 'oev'))
+    .map(z => ({ z, q: dot(sub(z.y.p, mitte), ax) })).filter(x => Math.abs(x.q) >= AUTO.haltSeiteM)
+  const gegen = seiten.find(x => Math.sign(x.q) !== Math.sign(quer || 1))
+  if (gegen) setze('haltestelle.beidseits', true, 'annahme', `Haltestellen auf beiden Strassenseiten: «${bus.y.name}» und «${gegen.z.y.name}» ` +
+    `(${h.herkunft}, Umkreis ${AUTO.haltUmkreisM} m): Busse halten in beiden Richtungen`)
+  else setze('haltestelle.beidseits', false, 'annahme', `Haltestelle nur auf einer Strassenseite (${h.herkunft}, Umkreis ${AUTO.haltUmkreisM} m)`)
 }
 
 /** Länge der Einengung (AV): Fahrbahn quer zur Strasse schmaler als grenze, ab der Streifenmitte in beide Richtungen; null ohne AV */

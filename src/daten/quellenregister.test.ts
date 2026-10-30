@@ -113,13 +113,13 @@ describe('quellenFuer und datenlage', () => {
 describe('Satz «Datenlage hier»', () => {
   it('Bern', () => {
     expect(datenlageSatz(datenlage(BERN))).toBe('Datenlage hier: Vermessung, Luftbild, OSM, Luftbild-Streifen (ETH); dazu Stadt Bern: ' +
-      'Parkfelder, Bäume, Haltestellen, Verkehrsmengen, Fusswegnetz, Strassentyp, Tempo-Signalisation, Schulen, taktile Markierungen, Zonen, ' +
+      'Parkfelder, Bäume, Haltestellen, Verkehrsmengen, Fusswegnetz, Strassentyp, Tempo-Signalisation, Schulen, taktile Markierungen, Bauzonen (Nutzungszonenplan), ' +
       'ÖV-Linien.')
   })
   it('Zürich', () => {
     expect(datenlageSatz(datenlage(ZUERICH))).toBe('Datenlage hier: Vermessung, Luftbild, OSM, Luftbild-Streifen (ETH). Aus OSM: ' +
       'Haltestellen, Strassentyp, Tempo, Schulen; keine Quelle für Parkfelder, Bäume, Verkehrsmengen, Fusswegnetz, taktile Markierungen, ' +
-      'Zonen, ÖV-Linien: Angaben von Hand.')
+      'Bauzonen (Nutzungszonenplan), ÖV-Linien: Angaben von Hand.')
   })
   it('Lausanne (AV nicht frei)', () => {
     expect(datenlageSatz(datenlage(LAUSANNE))).toBe('Datenlage hier: Luftbild, OSM. Amtliche Vermessung hier nicht frei verfügbar: ' +
@@ -128,7 +128,7 @@ describe('Satz «Datenlage hier»', () => {
   it('Ort mit freier AV ohne örtliche Quelle (z. B. Freiburg)', () => {
     expect(datenlageSatz(datenlage({ lat: 46.8065, lon: 7.1619, bfs: 2196, kanton: 'FR' }))).toBe('Datenlage hier: Vermessung, Luftbild, ' +
       'OSM. Aus OSM: Haltestellen, Strassentyp, Tempo, Schulen; keine Quelle für Parkfelder, Bäume, Verkehrsmengen, Fusswegnetz, taktile ' +
-      'Markierungen, Zonen, ÖV-Linien: Angaben von Hand.')
+      'Markierungen, Bauzonen (Nutzungszonenplan), ÖV-Linien: Angaben von Hand.')
   })
 })
 

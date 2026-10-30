@@ -49,8 +49,8 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    übriges Hindernis (Fläche), je mit Schalter «sichtbehindernd». In der Liste bearbeiten (Ecken auf der Karte ziehen) oder
    löschen. Die Rechnung läuft nach jeder Änderung neu.
    Werkzeug «Insel» (Fläche wie ein Parkfeld): Verkehrsinsel, die die AV nicht kennt. Sie ist kein Sichthindernis, sondern
-   teilt den Streifen wie eine AV-Verkehrsinsel in Teilstreifen und ersetzt die Insel nach OSM und Luftbild (siehe «Was
-   gerechnet wird»); in der Fall-Datei als Hindernis mit `art: "insel"` (ältere Fall-Dateien lesen sich unverändert).
+   teilt den Streifen wie eine AV-Verkehrsinsel in Teilstreifen; eine Insel, die nur OSM bzw. das Luftbild zeigen, teilt den
+   Streifen seit 30.10.2026 nicht mehr (siehe «Was gerechnet wird»); in der Fall-Datei als Hindernis mit `art: "insel"` (ältere Fall-Dateien lesen sich unverändert).
 5. Vorschläge «aus OSM, prüfen» (Parkierung aus `parking:*`-Tags, gestrichelt) zählen erst nach «bestätigen». In Bern lässt
    sich der Baumkataster der Stadt zuschalten; einzelne Bäume daraus können verworfen werden.
    Amtliche Parkfelder (Bern: Geoportal «Parkplätze öffentlich»): lädt die App automatisch, sobald der Ort in einer Gemeinde
@@ -166,7 +166,9 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
 - **Streifen** (`rechner/streifen.ts`): Achse durch den Übergangsknoten, entlang des OSM-Fusswegs über die Fahrbahn
   (`footway=crossing`) bzw. senkrecht zum gequerten Weg; Enden 0,3 m vor der AV-Bordkante, bei sehr breiter Fahrbahn aus
   dem Fussweg bzw. der Breite des OSM-Wegs; Breite 4 m angenommen; Teilstreifen über AV-Verkehrsinseln.
-- **Insel nach OSM** (`rechner/streifen.ts`, Schalter `INSEL_AUS_OSM`, `false` = wie bisher): Trägt der Übergangsknoten
+- **Insel nach OSM** (`rechner/streifen.ts`, Schalter `INSEL_AUS_OSM`; seit 30.10.2026 aus, Nutzerentscheid «nicht gebaut ist
+  nicht gebaut»: eine Insel, die nur OSM und das Luftbild zeigen, teilt den Streifen nicht; es bleibt der Hinweis «OSM meldet eine
+  Mittelinsel …, nicht als gebaut angenommen; ist sie gebaut, Insel von Hand setzen». Mit Schalter an gilt das Folgende): Trägt der Übergangsknoten
   `crossing:island=yes` und liegt auf der Achse keine AV-Verkehrsinsel (die Insel ist in der AV Teil der Fahrbahn bzw. fehlt),
   teilt die App den Streifen nur mit Beleg im Luftbild («erkannt» bzw. «unsicher» mit Balken): zwei Balkengruppen mit einer
   Lücke von 1,0 bis 4,0 m (breiter: eher Fahrzeug oder Schatten) höchstens 3 m vom Knoten und beide Teile ab 2,0 m (wie die
@@ -202,7 +204,8 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
 - **Zufahrten** (`rechner/zufahrten.ts`): Einbahn, Richtungsfahrbahn, Inselteil, einspurig neben Insel, Teilstreifen mit
   Gegenstück; ohne gequerten OSM-Weg Spur entlang der nächsten passenden OSM-Achse (`rechner/achsen.ts`).
 - **Tempo und Sichtweite** (`rechner/tempo.ts`): OSM-maxspeed entlang der Spur (Mehrheit innerhalb der Sichtweite),
-  ohne Angabe 50 km/h (als Annahme ausgewiesen); VSS 40 241 Tab. 1; im Knoten nach Kurvenradius (bfu 2.457.01 bzw.
+  ohne Angabe 50 km/h (als Annahme ausgewiesen); VSS 40 241 Tab. 1 (seit 30.10.2026: 60 km/h ausserorts 100 m, Ortslage aus dem
+  Bedarfsblock bzw. OSM `CH:rural`; 20 km/h «wie 30» und über 60 km/h «wie 60» als Annahme ausgewiesen); im Knoten nach Kurvenradius (bfu 2.457.01 bzw.
   VSS Tab. 2); «bis Knoten», Spurende, Kreisel nach Ringradius.
   In der Stadt Bern gilt die signalisierte Höchstgeschwindigkeit des Geoportals (V_sig) als Tempo der Zufahrt (Quelle
   «Geoportal»; OSM nur Rückfall, Tempo von Hand geht vor): die Rechnung bekommt sie als Eingabe (`TempoAmtlich` in
@@ -332,6 +335,30 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Quelle stehen die Punkte in der Reihenfolge der Kapitel. Die Ausrichtung rechtwinklig zum Fahrbahnrand prüft die Normregel F1d
   (10° Toleranz); die Richtlinie (Kap. 4.1, S. 10) steht dort als weitere Quelle, F1d gilt darum auch mit ausgeschalteter Ebene Richtlinie. Bauvorgaben der Richtlinie (Absenkung, Randsteine, Rampen, taktile
   Ausrüstung, Lichtsignalanlagen) prüft die App nicht.
+  Regelprüfung nach Quelle (30.10.2026, VSS 40 240 und 40 241 Z. 24): gestrichen sind B4 (Kreuzungsarme ohne Querung: Netzplanung,
+  keine Prüfung der Querung; Feld und OSM-Vorbelegung entfernt), E1b (in D5-1 aufgegangen, dort «ausnahmsweise Unter- oder
+  Überführung», Z. 18) und E2e (Schwelle DTV 3000 ohne Normgrundlage). D5-2 prüft nur noch «Querung an einer Kreuzung ohne
+  Lichtsignal» (Feld «Kreuzung mit Lichtsignal» entfernt; alte Fall-Dateien übergehen beide Felder still). Als Hinweis statt Muss
+  bzw. Soll laufen E2b, E2c (vorgezogener Seitenraum als Lösungsmöglichkeit), E2d (bauliche Anforderungen) und F2g (Pfostenhöhe).
+  Fundstellen nur mit Verweis entfernt (A2: VSS 40 240 Z. 20; D2a, D2c: Z. 14.1), Seitenzahlen ergänzt. E3 nennt als Normhinweis
+  die Massnahmen nach VSS 40 240 Z. 8.2, S. 9. Gestrichene Regeln bleiben im Katalog (art `gestrichen`) und in der Regelübersicht.
+  Block 2 (30.10.2026, VSS 40 241 Z. 12–29, VSS 40 242 Z. 14–24): Bauliche und Ausrüstungs-Anforderungen, die der Rechner nicht aus
+  Daten prüfen kann, laufen als Hinweis statt Muss/Soll (F1c, F1e, F2e, F2f, G3b ohne Berichtsvorbehalt, G4, G4b, G5, G5b, G6, G7,
+  G7b, G9, F7a, F7b, F7c, F7e, D3b, Q3-12, Q3-M6, F5c, F5d, F5e, F5g, F5h, F5n); reine Ausführungspunkte sind gestrichen (F2g,
+  Q3-M10, F5b, F5f, F5i, F5j, F5k, F5l, F5m) samt ihren Feldern (alte Fall-Dateien übergehen sie still). Die Trottoirüberfahrt-Prüfliste
+  nach Tab. 3 besteht damit nur noch aus Hinweisen. Q3-M2 (Zone) kennt nur noch die Ausnahme Eingangstor; die Kurvenregel verlangt
+  zusätzlich die vortrittsberechtigte Strasse (Zufahrt ohne Vortritt → nein, sonst Vortritt als Annahme); D4c (Streifen hinter dem
+  Haltebereich) ist bei Haltestellen auf beiden Strassenseiten nicht anwendbar (`haltestelle.beidseits`, aus den Haltestellendaten
+  vorbelegt). Im Thema Trottoirüberfahrt steht eine Informationszeile zum Verkehr (Seitenstrasse, Hauptfahrbahn, Verhältnis; ohne
+  Schwelle, VSS 40 242 Z. 15.2.1), Q3-M3 verweist auf KnotenCheck (https://knotencheck.ch/, Rechner Einmündung & Kreuzung nach
+  SN 640 022); Normhinweise verlinken http(s)-Adressen.
+  Block 3 (30.10.2026): Der ganze Block I (Signalzeiten nach VSS 40 837 und Handbuch LSA Bern: I1–I8, I6-B, I7-B1 bis I7-B4) ist
+  gestrichen – Signalzeiten gehören in einen eigenen Rechner; die Eingabegruppe «LSA-Zeiten» und `src/bedarf/lsaZeiten.ts` sind weg,
+  die D5-Regeln «Lichtsignal prüfen» bleiben. Ebenfalls gestrichen: G7/G7b (Halteverbotslinie, mit den Feldern dazu) und F1a/F1b/F1c/
+  F1-K (Streifenbreite und Balkenabstand: nur Ausführung). F7d ist Hinweis. G3 verweist nicht mehr auf SN 640 070 (Werk entfernt);
+  H1-V nennt VSS 40 273 Z. 13.3 und Tab. 3 mit S. 9. VSS 40 837, Handbuch LSA Bern und VRV haben keine aktive Regel mehr und fehlen
+  darum in der Quellentabelle. Alte Fall-Dateien lesen sich weiter (gestrichene Felder und die Objekte `lsaZeiten`/`hvl` werden still
+  übergangen, Fall-Version unverändert).
   Ein Streifen lässt sich als Trottoirüberfahrt wählen (`StreifenEingabe.typ = 'trottoirueberfahrt'`): ohne Sicht auf die Wartefläche
   (Zufahrten nur für die Vorbelegung des Bedarfs), setzt im Bedarf den Querungstyp und rechnet die Knotensicht der Einbiegenden (`src/tue/`, Werkzeug «Trottoirüberfahrt»
   unter Planen bzw. Auswahl «Querung» am Streifen): zwei Phasen je Richtung, vom hinteren Rand der Überfahrt aufs Trottoir und von

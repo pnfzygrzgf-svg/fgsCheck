@@ -199,6 +199,6 @@ export interface Befund {
   offenFelder: Record<string, string[]>
   /** offene Einträge nach fehlendem Feld gruppiert (häufigstes Feld zuerst) */
   offenGruppen: { feld: string; regeln: string[] }[]
-  /** Blöcke, die mangels Eingaben nicht ausgewertet wurden (je ein Hinweis statt vieler offener Regeln) */
-  nichtGeprueft: { block: 'Q3' | 'I'; grund: string }[]
+  /** Blöcke, die mangels Eingaben nicht ausgewertet wurden (je ein Hinweis statt vieler offener Regeln; Block I gestrichen 30.10.2026) */
+  nichtGeprueft: { block: 'Q3'; grund: string }[]
 }

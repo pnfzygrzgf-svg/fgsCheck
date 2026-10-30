@@ -20,6 +20,7 @@ import { Kontext, Offen } from './kontext'
 import { bfuDurchfahrtOk, durchfahrtIst } from './durchfahrt'
 import { QUELLEN_ANNAHME, type BedarfEingaben } from './eingaben'
 import type { RegelDef, Staerke, Thema } from './typen'
+import { istQuelleTab1 } from '../rechner/tempo'
 
 export type GrundZustand = 'erfuellt' | 'verletzt' | 'offen' | 'hinweis'
 
@@ -210,9 +211,9 @@ function sichtRechner(k: Kontext, zs: GrundSicht[], ohneZufahrt: string[]): Roh 
       if (v85 === null && tempo > z.tempo + 1e-9) hoeher = `; signalisiert ${tempo} km/h, der Sichtrechner rechnet mit ${z.tempo} km/h: Sicht nach dem höheren Tempo neu rechnen`
       const t = sollBereich(tempo, io)
       if (!t) return { z, unten: null, oben: null, zustand: 'offen', text: `${z.name}: über 60 km/h keine Sichtweite` }
-      if (z.quelle === 'VSS Tab. 1') { unten = t.unten; oben = t.oben } else { unten = Math.min(t.unten, z.soll); oben = Math.min(t.oben, z.soll) }
+      if (istQuelleTab1(z.quelle)) { unten = t.unten; oben = t.oben } else { unten = Math.min(t.unten, z.soll); oben = Math.min(t.oben, z.soll) }
       fehlt = oben > unten ? t.offenWegen : undefined
-    } else if (z.quelle === 'VSS Tab. 1') {
+    } else if (istQuelleTab1(z.quelle)) {
       // abbiegende Zufahrt nach dem Tempo der Querstrasse (ohne V85 der Querung): bei 60 km/h wie gerade Zufahrten 75 m innerorts,
       // 100 m ausserorts, Angabe innerorts offen: Bereich
       const t = sollBereich(z.tempo, io)
@@ -250,7 +251,7 @@ function sichtRechner(k: Kontext, zs: GrundSicht[], ohneZufahrt: string[]): Roh 
   const quellen = [...new Set(liste.map(x => x.z.quelle))].join(', ')
   const mitV85 = liste.some(x => x.v85)
   const det = [detail, quellen ? `Sichtrechner: ${quellen}${mitV85 ? `, Tempo-Stufe nach V85 ${zahl(v85!)} km/h` : ''}` : ''].filter(Boolean).join('; ')
-  const tabTempo = liste.some(x => x.z.quelle === 'VSS Tab. 1' && !x.z.abbiegend)
+  const tabTempo = liste.some(x => istQuelleTab1(x.z.quelle) && !x.z.abbiegend)
   const vSig = k.o('vSig')
   const sig = v85 !== null && vSig !== null && tabTempo && io !== null ? sollTempo(vSig, io) : null
   const v85s = v85 !== null && io !== null ? sollTempo(v85, io) : null

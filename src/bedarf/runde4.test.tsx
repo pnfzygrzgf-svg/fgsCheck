@@ -146,7 +146,7 @@ describe('Runde 4: Begriffe', () => {
   /** feste Liste: Begriffe, die in Feldnamen bzw. Fragen der Maske vorkommen (kein generischer Detektor) */
   const ERWARTET = ['v85', 'dtv', 'lsa', 'warteflaeche', 'sichtweite', 'insel', 'teilquerung', 'mehrzweck', 'trottoirueberfahrt',
     'begegnungszone', 'zone', 'strassentyp', 'basisnetz', 'grund', 'spitzenstunden', 'fahrstreifen', 'knoten', 'rueckversatz', 'radius',
-    'signal411', 'hvl', 'taktil', 'absenkung', 'einengung', 'eigentrassee', 'haltestelle']
+    'signal411', 'taktil', 'absenkung', 'einengung', 'eigentrassee', 'haltestelle']   // hvl: Felder gestrichen 30.10.2026 (G7), Begriff bleibt
   it('jeder Begriff hat Namen und eine eigene Erklärung in ein bis zwei Sätzen; Namen und Kennungen eindeutig', () => {
     expect(BEGRIFFE.length).toBeGreaterThanOrEqual(30)
     expect(new Set(BEGRIFFE.map(b => b.id)).size).toBe(BEGRIFFE.length)
@@ -325,7 +325,9 @@ describe('Hilfe kurz; Quellen und Begriffe als eigene Abschnitte (23.10.2026)', 
 describe('Feste Texte mit Werkverweisen (Nutzerbefund 23.10.2026)', () => {
   it('«Rechnung und Sichtweiten»: je genanntes Werk ein Verweis ins Quellenverzeichnis, VRV mit Artikel-Link, bfu mit Link zum Herausgeber', () => {
     const html = renderToStaticMarkup(<RechnungGrundlagen />)
-    for (const w of ['40241', 'BFU', 'VRV']) expect(html, w).toContain(`href="#quelle-${w}" class="werk-link"`)
+    for (const w of ['40241', 'BFU']) expect(html, w).toContain(`href="#quelle-${w}" class="werk-link"`)
+    // VRV: seit G7b gestrichen (30.10.2026) ohne aktive Regel, darum nicht in der Quellentabelle; der Artikel-Link zu fedlex bleibt
+    expect(html).not.toContain('href="#quelle-VRV"')
     expect(html).toContain(`href="${WERKE.VRV.seite}#art_18"`)
     expect(html).toContain(`href="${WERKE.BFU.seite}"`)
     expect(text(html)).toContain('Verkehrsregelnverordnung (VRV)')

@@ -6,9 +6,8 @@
 
 import { KATALOG, type BefundId } from './katalog'
 import { type Ergebnis, type Kontext, Offen } from './kontext'
-import { BERN_INSEL, BERN_LSA, BERN_Q3, Q3_DTV_GRENZE, bernTabelle, kTempo, sichtFgs, sichtKurveTab2, type Bern3a } from './tabellen'
+import { BERN_INSEL, BERN_LSA, BERN_Q3, Q3_DTV_GRENZE, bernTabelle, kTempo, sichtFgs, sichtFgsHerkunft, sichtKurveTab2, type Bern3a } from './tabellen'
 import { EPS, pruefeSichtOhneVortritt, type SichtOhneVortritt } from './sichtOhneVortritt'
-import { freigabeSollInsel, freigabeSollNorm, gelbZulaessig, rundeBern } from './lsaZeiten'
 import { sichtweiteKurve } from '../rechner/tempo'
 import { f3Klasse } from './durchfahrt'
 import type { Staerke } from './typen'
@@ -87,11 +86,13 @@ function hSoll(k: Kontext): { soll: number; text: string; offenV85: boolean; nor
   const vSig = k.w('vSig')
   const v85 = k.o('v85')
   const anz = k.w('anzeichenSchneller')
-  if (anz && v85 === null) return { soll: sichtFgs(vSig), text: `Tab. 1, ${vSig} km/h signalisiert`, offenV85: true }
+  // Herkunft (30.10.2026): bei 20 km/h und über 60 km/h die Annahme statt «Tab. 1» (sichtFgsHerkunft)
+  const T = sichtFgsHerkunft
+  if (anz && v85 === null) return { soll: sichtFgs(vSig), text: `${T(vSig)}, ${vSig} km/h signalisiert`, offenV85: true }
   if (v85 !== null && v85 > vSig && (anz || k.w('v85Nachweis')))
-    return { soll: sichtFgs(v85), text: `Tab. 1, V85 ${v85} km/h (${anz ? 'Anzeichen' : 'Messung'} über dem signalisierten Tempo)`, offenV85: false }
-  if (v85 !== null && v85 < vSig && !anz && k.w('v85Nachweis')) return { soll: sichtFgs(v85), text: `Tab. 1, V85 ${v85} km/h (Messung)`, offenV85: false }
-  return { soll: sichtFgs(vSig), text: `Tab. 1, ${vSig} km/h signalisiert`, offenV85: false }
+    return { soll: sichtFgs(v85), text: `${T(v85)}, V85 ${v85} km/h (${anz ? 'Anzeichen' : 'Messung'} über dem signalisierten Tempo)`, offenV85: false }
+  if (v85 !== null && v85 < vSig && !anz && k.w('v85Nachweis')) return { soll: sichtFgs(v85), text: `${T(v85)}, V85 ${v85} km/h (Messung)`, offenV85: false }
+  return { soll: sichtFgs(vSig), text: `${T(vSig)}, ${vSig} km/h signalisiert`, offenV85: false }
 }
 function hSollSicher(k: Kontext): number {
   const h = hSoll(k)
@@ -100,13 +101,6 @@ function hSollSicher(k: Kontext): number {
 }
 
 // Durchfahrt neben der Insel (F3, Kanton BE): Klasse je Seite in durchfahrt.ts (eine Quelle mit dem Werkzeug «Mittelinsel»)
-
-/** Bern: Qualitätsstufe der Wartezeit an der LSA (MP S. 60), mit Insel eigene Spalte */
-function wartestufe(w: number, insel: boolean): 'A/B' | 'C' | 'D' | 'E' | 'F' {
-  const W = K['I6-B'].werte
-  const [ab, c, d, e] = insel ? [W.abInsel, W.cInsel, W.dInsel, W.eInsel] : [W.ab, W.c, W.d, W.e]
-  return w <= ab ? 'A/B' : w <= c ? 'C' : w <= d ? 'D' : w <= e ? 'E' : 'F'
-}
 
 const istKnoten = (lage: string): boolean => lage.startsWith('knoten')
 /**
@@ -142,7 +136,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
   // ── B ──
   B1: k => ja(k.w('nachfrage') === 'flaechig'),
   B3: k => ja(k.w('lage') === 'einmuendung'),
-  B4: k => (istKnoten(k.w('lage')) ? ja(k.w('knotenArmeOhneQuerung') > 0, { ist: `${k.w('knotenArmeOhneQuerung')} Arm(e) ohne Querung` }) : null),
+  // B4 gestrichen (Nutzerentscheid 30.10.2026): Querungen an den anderen Kreuzungsarmen sind Netzplanung, keine Prüfung dieser Querung
 
   // ── C ──
   C1: k => {
@@ -226,7 +220,12 @@ export const REGELN: Record<BefundId, RegelFn> = {
   D3b: k => (k.w('tram') !== 'eigentrassee' ? null : ja(k.w('balkenAufGleis'))),
   D4a: k => ja(k.w('haltestelle').lage === 'im_bereich'),
   D4b: k => (k.w('haltestelle').art !== 'fahrbahn' ? null : ja(k.s('haltestelle', 'verdeckt') && !k.insBaulich())),
-  D4c: k => ja(k.w('haltestelle').lage === 'fgs_vor_halt'),
+  // Nutzerentscheid 30.10.2026: Haltestelle auf beiden Strassenseiten (Busse in beiden Richtungen): hinter dem Haltebereich geht nur für
+  // eine Richtung, die Regel ist dann nicht anwendbar (Grund im Katalog, Bemerkung)
+  D4c: k => {
+    if (k.w('haltestelle').lage !== 'fgs_vor_halt') return ja(false)
+    return k.s('haltestelle', 'beidseits') ? null : ja(true)
+  },
   D4d: k => {
     const h = k.w('haltestelle')
     if (h.art !== 'fahrbahn' || h.lage !== 'fgs_nach_halt') return null
@@ -251,7 +250,8 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (!k.w('starkBelastet')) return ja(false)
     return k.mitLsa() ? null : ja(true)
   },
-  'D5-2': k => (lsaBekannt(k) || !istKnoten(k.w('lage')) || k.mitLsa() ? null : ja(k.w('knotenLsa'))),
+  // D5-2 (30.10.2026): Querung an einer Kreuzung ohne Lichtsignal → Hinweis, ohne Bedingung «Lichtsignal am Knoten»
+  'D5-2': k => (lsaBekannt(k) || !istKnoten(k.w('lage')) || k.mitLsa() ? null : ja(true)),
   'D5-3': k => (k.mitLsa() ? null : ja(k.nMax() >= K['D5-3'].werte.nAb && !k.insBaulich())),
   // Runde 2 (Korrektur A2): nicht anwendbar, wenn weder H1 noch E3 ausgewertet ist; offen, solange eine davon offen ist
   'D5-4': k => {
@@ -306,7 +306,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
 
   // ── E ──
   E1: k => ja(k.w('strassentyp') === 'verkehrsorientiert'),
-  E1b: k => (k.w('strassentyp') !== 'verkehrsorientiert' ? null : ja(k.w('starkBelastet'))),
+  // E1b gestrichen (30.10.2026): in D5-1 aufgegangen
   E2: k => ja(k.w('strassentyp') === 'siedlungsorientiert'),
   E1c: k => (k.o('typ') !== 'furt' ? null : ja(!k.insBaulich())),
   E2a: k => (k.o('typ') !== 'furt' ? null : ja(k.w('strassentyp') === 'siedlungsorientiert')),
@@ -324,10 +324,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (k.o('typ') !== 'ohne_vortritt' || !k.w('ohneBaulich')) return null
     return ja(!k.w('absenkungBeidseits') || !k.w('aufstellflaeche') || k.w('parkierungSichtbehindernd'))
   },
-  E2e: k => {
-    if (k.o('typ') !== 'ohne_vortritt' || !k.w('ohneBaulich')) return null
-    return ja(k.w('dtv') >= K.E2e.werte.dtvMax, { ist: String(k.w('dtv')) })
-  },
+  // E2e gestrichen (30.10.2026): Schwelle DTV 3000 ohne Normgrundlage
   E3: k => {
     const { r, v, L } = e3(k)
     const soll = Math.max(...r.teile.map(t => t.soll))
@@ -363,7 +360,8 @@ export const REGELN: Record<BefundId, RegelFn> = {
   'Q3-11': k => ja(!k.s('q3', 'knotensichtOk')),
   'Q3-12': k => ja(!k.s('q3', 'hvl5m')),
   'Q3-M1': k => ja(!k.s('q3', 'einmSiedlungsorientiert')),
-  'Q3-M2': k => (k.s('q3', 'zoneEinm') === 'keine' || k.s('q3', 'eingangstor') ? ja(false) : ja(!k.s('q3', 'hauptInZone'))),
+  // 30.10.2026: Ausnahme nur noch das Eingangstor (Hauptverkehrsstrasse in der Zone gestrichen)
+  'Q3-M2': k => (k.s('q3', 'zoneEinm') === 'keine' ? ja(false) : ja(!k.s('q3', 'eingangstor'))),
   'Q3-M3': k => ja(k.s('q3', 'wartezeitEinmS') > K['Q3-M3'].werte.wMax, { ist: `${k.s('q3', 'wartezeitEinmS')} s` }),
   'Q3-M4': k => ja(!k.s('q3', 'lkwGelegentlich')),
   'Q3-M5': k => ja(k.s('q3', 'linienbus')),
@@ -371,38 +369,13 @@ export const REGELN: Record<BefundId, RegelFn> = {
   'Q3-M7': k => ja(k.s('q3', 'lsaKnoten')),
   'Q3-M8': k => ja(k.s('q3', 'kreisel')),
   'Q3-M9': k => (!k.s('q3', 'gegenueberEinm') ? ja(false) : ja(!k.s('q3', 'belastungSchwach'))),
-  'Q3-M10': k => {
-    const ab = K['Q3-M10'].werte.fgAb, fg = k.o('fg5h')
-    const viel = fg !== null ? fg > ab : (() => {
-      const kl = k.o('fgKlasse')
-      if (kl === null) throw new Offen(['fg5h', 'fgKlasse'])
-      return kl === '>500'
-    })()
-    return viel ? ja(k.s('q3', 'mivEinmHoch'), { detail: `Schwelle ${ab} Querende als Annahme` }) : ja(false)
-  },
   'Q3-B': k => {
     const t = BERN_Q3[kTempo(k.s('q3', 'vSigEinm'))][k.s('q3', 'dtvEinm') < Q3_DTV_GRENZE ? 0 : 1]
     return ja(true, { ist: tabText(t) })   // ist geht in den Zusatz der Empfehlung (Bern-Tabelle: …), bleibt kurz
   },
 
   // ── F ──
-  F1a: k => {
-    const b = k.w('streifenBreite'), W = K.F1a.werte
-    return ja(b < W.min, { ist: fmt(b), soll: `≥ ${fmt(W.min)}` })
-  },
-  F1b: k => {
-    const b = k.w('streifenBreite'), W = K.F1b.werte
-    return ja(b >= W.min && b < W.regel, { ist: fmt(b), soll: `${fmt(W.regel)} (Regel)` })
-  },
-  'F1-K': k => {
-    if (!k.w('kantonsstrasse')) return null
-    const b = k.w('streifenBreite'), W = K['F1-K'].werte
-    return ja(b >= W.regel && b < W.viel, { ist: fmt(b) })
-  },
-  F1c: k => {
-    const r = k.w('randAbstand'), W = K.F1c.werte
-    return ja(Math.max(...r) > W.max, { ist: fmtListe(r), soll: `≤ ${fmt(W.max)}` })
-  },
+  // F1a, F1b, F1-K, F1c gestrichen 30.10.2026 (Streifenbreite und Abstand der Balken: nur Ausführung)
   F1d: k => {
     const a = k.w('achsWinkel'), W = K.F1d.werte
     return ja(Math.abs(a - W.recht) > W.tol, { ist: fmt(a, 1), soll: `${W.recht} ± ${W.tol} (Annahme)` })
@@ -433,11 +406,6 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (!k.insBaulich()) return null
     const u = k.s('insel', 'kopfUeberstand'), W = K.F2f.werte
     return ja(Math.min(...u) < W.min, { ist: fmtListe(u), soll: `≥ ${fmt(W.min)}` })
-  },
-  F2g: k => {
-    if (!k.insBaulich()) return null
-    const h = k.s('insel', 'pfostenH'), W = K.F2g.werte
-    return ja(h > W.max, { ist: fmt(h), soll: `≤ ${fmt(W.max)}` })
   },
   // Korrektur 23.10.2026: auch ein Durchgang unter der Skizzenbreite 1,20 m ist ein Hinweis
   'F2-B': k => {
@@ -507,12 +475,6 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const hinweis = !weich && (b < W.regelMin || b > W.regelMax)
     return ja(weich || hinweis, { staerke: weich ? 'weich' : 'hinweis', ist: fmt(b), soll: `${fmt(W.regelMin)} bis ${fmt(W.regelMax)}` })
   },
-  F5b: k => {
-    if (k.o('typ') !== 'trottoirueberfahrt') return null
-    const a = k.w('q3').anrampung, W = K.F5b.werte
-    if (!a) return null
-    return ja(a.neigung < W.nMin || a.neigung > W.nMax || a.laenge < W.lMin, { ist: `${a.neigung} %, ${fmt(a.laenge)} m` })
-  },
   // Ausstattung der Trottoirüberfahrt (VSS 40 242 Tab. 3): nur Typ Trottoirüberfahrt, Handangaben
   F5c: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(!k.s('q3', 'randDurchgehend'))),
   F5d: k => {
@@ -520,37 +482,21 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const l = k.s('q3', 'ueberfahrbarM'), W = K.F5d.werte
     return ja(l > W.max, { ist: fmt(l), soll: `≤ ${fmt(W.max)}` })
   },
-  // Randsteine bzw. Markierung an den Einlenkern: Soll; ganz ohne Begrenzung nur Hinweis auf Poller beidseits (27.10.2026)
+  // Randsteine bzw. Markierung an den Einlenkern bzw. ganz ohne Begrenzung: Hinweis auf Poller beidseits (27.10.2026; seit 30.10.2026 beides Hinweis)
   F5e: k => {
     if (k.o('typ') !== 'trottoirueberfahrt') return null
     const b = k.s('q3', 'begrenzung')
-    if (b === 'keine') return ja(true, { staerke: 'hinweis', text: 'Poller oder Pfosten beidseits empfohlen (VSS 40 242 Z. 18, S. 22)' })
-    return ja(b === 'randstein', { staerke: 'weich' })
+    if (b === 'keine') return ja(true, { text: 'Poller oder Pfosten beidseits empfohlen (VSS 40 242 Z. 18, S. 22)' })
+    return ja(b === 'randstein')
   },
-  F5f: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(!k.s('q3', 'erkennbar'))),
   F5g: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(['wechsel', 'beides'].includes(k.s('q3', 'belag')))),
   F5h: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(['absatz', 'beides'].includes(k.s('q3', 'belag')))),
-  F5i: k => {
-    if (k.o('typ') !== 'trottoirueberfahrt') return null
-    const g = k.s('q3', 'quergefaelle'), W = K.F5i.werte
-    if (g > W.max) return ja(true, { staerke: 'hart', ist: `${fmt(g, 1)} %`, soll: `≤ ${W.max} %` })
-    return ja(g > W.regel, { staerke: 'hinweis', ist: `${fmt(g, 1)} %`, soll: `${W.regel} % (in der Regel)`, text: `Quergefälle über ${W.regel} %: in der Regel ${W.regel} %` })
-  },
-  F5j: k => {
-    if (k.o('typ') !== 'trottoirueberfahrt') return null
-    const r = k.s('q3', 'randabschluss')
-    if (r === 'anderer') return ja(true, { staerke: 'weich' })
-    return ja(r !== 's0625', { staerke: 'hinweis', text: 'Schmalerer bzw. niedrigerer Randabschluss: für Sehbehinderte schlechter ertastbar' })
-  },
-  F5k: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(!k.s('q3', 'randsteineSenkrecht'))),
-  F5l: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(k.s('q3', 'signalisation'))),
-  F5m: k => (k.o('typ') !== 'trottoirueberfahrt' ? null : ja(k.s('q3', 'markierung'))),
   F5n: k => {
     if (k.o('typ') !== 'trottoirueberfahrt') return null
     const b = k.w('q3').breiteM ?? null, breit = b !== null && b > K.F5n.werte.breiteZweite
     const zweite = `Überfahrt breiter als ${fmt(K.F5n.werte.breiteZweite)} m: zweite Leitlinie nötig`
-    if (!k.s('q3', 'taktil')) return ja(true, { staerke: 'hart', ...(breit ? { detail: zweite } : {}) })
-    return ja(breit, { staerke: 'hinweis', text: zweite })
+    if (!k.s('q3', 'taktil')) return ja(true, breit ? { detail: zweite } : {})
+    return ja(breit, { text: zweite })
   },
   F6a: k => {
     if (k.o('typ') !== 'mehrzweck') return null
@@ -635,18 +581,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (r > W.max) return ja(true, { ist: fmt(r, 1) })
     return ja(r > 0 && k.w('strassentyp') === 'siedlungsorientiert', { ist: fmt(r, 1) })
   },
-  G7: k => {
-    if (!k.w('haltenSichtrelevantUeber5m')) return null
-    if (k.w('haltenSonstVerboten')) return ja(false)
-    const h = k.w('hvl'), W = K.G7.werte
-    if (!h.vorhanden) return ja(true, { ist: 'keine', soll: `≥ ${W.min}` })
-    const L = k.s('hvl', 'laengeM'), soll = Math.max(W.min, k.w('hvlBedarfM'))
-    const x = { ist: fmt(L, 1), soll: `≥ ${fmt(soll, 1)}` }
-    if (L < soll - EPS) return ja(true, x)
-    if (!k.w('zweirichtung') && !k.s('hvl', 'beidseits')) return ja(true, { ...x, detail: 'Einbahnstrasse: Linie auf beiden Seiten nötig' })
-    return ja(false, x)
-  },
-  G7b: k => (!k.w('hvl').vorhanden ? null : ja(!k.w('haltenSichtrelevantUeber5m'))),
+  // G7, G7b gestrichen 30.10.2026 (Halteverbotslinie)
   G8a: k => ja(!k.w('beleuchtung')),
   G8b: k => (!k.w('beleuchtung') ? null : ja(!k.w('schattenfrei'))),
   G9: k => (!k.w('reklameUnter20m') ? ja(false) : ja(!k.w('reklameAusnahme'))),
@@ -700,68 +635,5 @@ export const REGELN: Record<BefundId, RegelFn> = {
     return ja(true, { ist: `Radius ${fmt(r, 1)} m`, soll: `${sw} m` })
   },
 
-  // ── I ──
-  I1: k => {
-    const W = K.I1.werte, L = k.s('lsaZeiten', 'L'), g = k.s('lsaZeiten', 'gelb')
-    const zul = gelbZulaessig(L, W.anteil, W.gehV, W.min, W.max)
-    return ja(!zul.includes(g), { ist: String(g), soll: zul.join(' oder ') })
-  },
-  I2: k => {
-    const W = K.I2.werte, L = k.s('lsaZeiten', 'L'), f = k.s('lsaZeiten', 'freigabe')
-    const soll = freigabeSollNorm(L, W.anteil, W.gehV, W.min)
-    return ja(f < soll - EPS, { ist: fmt(f, 1), soll: `≥ ${fmt(soll, 2)}` })
-  },
-  I3a: k => {
-    const z = k.w('lsaZeiten')
-    if (!z.teile) return null
-    if (!k.s('lsaZeiten', 'phasengleich')) return null
-    const W = K.I3a.werte, f = k.s('lsaZeiten', 'freigabe')
-    const soll = freigabeSollInsel(z.teile[0], k.s('lsaZeiten', 'inselB'), z.teile[1], W.anteil, W.gehV)
-    return ja(f < soll - EPS, { ist: fmt(f, 1), soll: `≥ ${fmt(soll, 2)}` })
-  },
-  I3b: k => {
-    const z = k.w('lsaZeiten')
-    if (!z.teile || k.s('lsaZeiten', 'phasengleich')) return null
-    return ja(!k.s('lsaZeiten', 'beideRichtungenImZyklus'))
-  },
-  I4: k => {
-    const W = K.I4.werte, L = k.s('lsaZeiten', 'L'), f = k.s('lsaZeiten', 'freigabe'), g = k.s('lsaZeiten', 'gelb')
-    return ja(W.gehV * (f + g) < L - EPS, { ist: `${fmt(W.gehV * (f + g), 1)} m`, soll: `≥ ${fmt(L, 1)} m` })
-  },
-  I5: k => {
-    if (!k.s('lsaZeiten', 'abbiegerKonflikt')) return null
-    const v = k.s('lsaZeiten', 'vorstart'), W = K.I5.werte
-    return ja(v < W.min || v > W.max, { ist: String(v), soll: `${W.min} bis ${W.max}` })
-  },
-  I6: k => {
-    const w = k.s('lsaZeiten', 'wartezeit'), W = K.I6.werte
-    return ja(w > W.max, { ist: String(w), soll: `≤ ${W.max}` })
-  },
-  'I6-B': k => {
-    const st = wartestufe(k.s('lsaZeiten', 'wartezeit'), k.w('insel').vorhanden)
-    if (st === 'A/B' || st === 'C') return ja(false, { ist: `Stufe ${st}` })
-    return ja(true, { staerke: st === 'E' || st === 'F' ? 'weich' : 'hinweis', ist: `Stufe ${st}` })
-  },
-  'I7-B1': k => {
-    const f = k.s('lsaZeiten', 'freigabe'), W = K['I7-B1'].werte
-    return ja(f < W.min, { ist: fmt(f, 1), soll: `≥ ${W.min}` })
-  },
-  'I7-B2': k => {
-    if (k.w('insel').vorhanden) return null
-    const W = K['I7-B2'].werte, L = k.s('lsaZeiten', 'L')
-    const fg = k.s('lsaZeiten', 'freigabe') + k.s('lsaZeiten', 'gelb')
-    return ja(fg < L / W.gehV - EPS, { ist: `${fmt(fg, 1)} s`, soll: `≥ ${fmt(L / W.gehV, 1)} s` })
-  },
-  'I7-B3': k => {
-    if (!k.w('insel').vorhanden || k.s('lsaZeiten', 'inselGeraet') || !k.s('lsaZeiten', 'inselNurAnmeldung')) return null
-    const W = K['I7-B3'].werte, L = k.s('lsaZeiten', 'L'), g = k.s('lsaZeiten', 'gelb')
-    const soll = rundeBern(W.anteil * L / W.gehV, W.schwelle) + W.zuschlag
-    return ja(g < soll, { ist: String(g), soll: `≥ ${soll}` })
-  },
-  'I7-B4': k => {
-    const W = K['I7-B4'].werte, L = k.s('lsaZeiten', 'L'), f = k.s('lsaZeiten', 'freigabe')
-    const soll = rundeBern(W.anteil * L / W.gehV, W.schwelle)
-    return ja(f < soll, { ist: fmt(f, 1), soll: `≥ ${soll}` })
-  },
-  I8: k => (!k.w('insel').vorhanden ? null : ja(!k.s('lsaZeiten', 'inselGeraet'))),
+  // I1 bis I8 (LSA-Zeiten) gestrichen 30.10.2026: Signalzeiten gehören in einen eigenen Rechner
 }

@@ -29,10 +29,31 @@ const TEMPO_SUCHRADIUS = 5.0
 const ACHSE_MAX_WINKEL = 35 * Math.PI / 180
 const TEMPO_PENDEL_GROSSE_SW = true
 
-/** sichtweite_tab1 (über 60 km/h wie 60, Zwischenwerte wie 50) */
-export function sichtweiteTab1(tempo: number): number {
+/** sichtweite_tab1 (über 60 km/h wie 60, Zwischenwerte wie 50); ausserorts bei 60 km/h SICHTWEITE_AUSSERORTS_60 (30.10.2026) */
+export function sichtweiteTab1(tempo: number, ausserorts = false): number {
+  if (ausserorts && tempo === 60) return SICHTWEITE_AUSSERORTS_60
   return SICHTWEITE[tempo] ?? (tempo > 60 ? SICHTWEITE[60] : SICHTWEITE[50])
 }
+
+// Herkunft der Sichtweite nach Tempo (Nutzerentscheid 30.10.2026): VSS 40 241 Tab. 1 hat Zeilen von 30 bis 60 km/h, bei 60 km/h getrennt
+// nach innerorts (75 m) und ausserorts (100 m). 20 km/h und über 60 km/h sind Annahmen der App (Wert wie die nächste Zeile).
+/** VSS 40 241 Tab. 1, 60 km/h ausserorts [m] */
+export const SICHTWEITE_AUSSERORTS_60 = 100
+export const QUELLE_TAB1 = 'VSS Tab. 1'
+export const QUELLE_TAB1_AUSSERORTS = 'VSS Tab. 1 (ausserorts)'
+export const QUELLE_TAB1_20 = 'Annahme: wie 30 km/h (VSS 40 241 Tab. 1 ohne Zeile für 20 km/h)'
+export const QUELLE_TAB1_UEBER60 = 'Annahme: wie 60 km/h (VSS 40 241 Tab. 1 endet bei 60 km/h; Fussgängerstreifen über 60 km/h unzulässig)'
+/** Herkunft der Sichtweite nach Tempo (Stufe wie sichtweiteTab1) */
+export function quelleTab1(tempo: number, ausserorts = false): string {
+  if (tempo === 20) return QUELLE_TAB1_20
+  if (tempo > 60) return QUELLE_TAB1_UEBER60
+  return ausserorts && tempo === 60 ? QUELLE_TAB1_AUSSERORTS : QUELLE_TAB1
+}
+/** Werte von Tab. 1 als Text (Hilfe, Bericht): Zeilen 30 bis 60 km/h, 60 km/h ausserorts, die Annahmen bei 20 km/h und über 60 km/h */
+export const TAB1_TEXT = `${[30, 40, 50, 60].map(t => `${t} km/h: ${SICHTWEITE[t]} m`).join(', ')} (ausserorts ${SICHTWEITE_AUSSERORTS_60} m); ` +
+  `als Annahme 20 km/h wie 30 km/h, über 60 km/h wie 60 km/h`
+/** Sichtweite nach Tempo (Tab. 1 bzw. eine der Annahmen dazu)? */
+export const istQuelleTab1 = (q: string): boolean => [QUELLE_TAB1, QUELLE_TAB1_AUSSERORTS, QUELLE_TAB1_20, QUELLE_TAB1_UEBER60].includes(q)
 
 /** tempo_stufe: auf die nächsthöhere Stufe von Tab. 1; über 60 bleibt der Wert */
 export function tempoStufe(v: number): number {

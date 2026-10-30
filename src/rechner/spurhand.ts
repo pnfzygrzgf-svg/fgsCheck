@@ -8,7 +8,7 @@
 
 import { type P, add, dist, einheit, rechts } from '../geo'
 import { kreisAnpassen, kreisResiduum, SCHRITT } from './spur'
-import { sichtweiteKurve, sichtweiteTab1 } from './tempo'
+import { istQuelleTab1, quelleTab1, sichtweiteKurve, sichtweiteTab1 } from './tempo'
 
 export type SpurHand = { art: 'A'; a: number; b: number } | { art: 'B'; linie: P[]; radius?: number | null }
 
@@ -95,19 +95,19 @@ export function linieKreis(linie: P[]): LinieKreis {
   return { r: kreis[1], n: bogen.length, abw, sicher, text: text.replace('.', ',') }
 }
 
-/** sichtweite_radius_hand -> [Sichtweite, Quelle] */
+/** sichtweite_radius_hand -> [Sichtweite, Quelle]; ausserorts: Ortslage für Tab. 1 bei 60 km/h (30.10.2026) */
 export function sichtweiteRadiusHand(radius: number, sw: number, quelle: string, tempo: number, bisKnoten: number | null = null,
-  swEigen: number | null = null, quelleKnoten: string | null = null): [number, string] {
+  swEigen: number | null = null, quelleKnoten: string | null = null, ausserorts = false): [number, string] {
   let [swK, qK] = sichtweiteKurve(radius)
-  const tab1 = sichtweiteTab1(tempo)
-  if (swK === null || swK >= tab1) { swK = tab1; qK = 'VSS Tab. 1' }
+  const tab1 = sichtweiteTab1(tempo, ausserorts)
+  if (swK === null || swK >= tab1) { swK = tab1; qK = quelleTab1(tempo, ausserorts) }
   if (quelle === 'bis Knoten (Strassenende)' || quelle === 'bis Wegende') return swK < sw ? [swK, qK!] : [sw, quelle]
   const knoten = quelle.startsWith('bis Knoten')
   if (bisKnoten !== null) {
     if (bisKnoten > swK) return knoten ? [sw, quelle] : [Math.min(Math.ceil(bisKnoten), swEigen!), quelleKnoten!]
     return [swK, qK!]
   }
-  if (['bfu', 'VSS Tab. 2', 'VSS Tab. 1'].includes(quelle)) return [swK, qK!]
+  if (['bfu', 'VSS Tab. 2'].includes(quelle) || istQuelleTab1(quelle)) return [swK, qK!]
   if (knoten) return swK > sw ? [swK, qK!] : [sw, quelle]
   return swK < sw ? [swK, qK!] : [sw, quelle]
 }

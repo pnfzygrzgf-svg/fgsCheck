@@ -38,7 +38,7 @@ import { projektion } from './spur'
 
 /** so weit geprüft [m ab dem Streifenrand entlang der Fahrlinie]: Reichweite der geladenen Daten (110 m) */
 export const ERKENNUNG_MAX_M = REICHWEITE_SICHT_M
-/** nötige Erkennungsdistanz als Vielfaches der Sichtweite (VSS 40 241 bzw. bfu: doppelte Sichtweite empfohlen; Vorbelegung) */
+/** nötige Erkennungsdistanz als Vielfaches der Sichtweite (VSS 40 241 Z. 15, S. 9 (doppelte Sichtweite als Soll, Sichtweite als Mindestmass); Vorbelegung) */
 export const ERKENNUNG_FAKTOR = 2
 /** Zielpunkte bis so weit beidseits des ersten Sichtpunkts entlang der Streifenachse (halber Fahrstreifen, Annahme) */
 export const ZIEL_HALB_M = 1.5

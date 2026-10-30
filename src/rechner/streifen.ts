@@ -415,7 +415,9 @@ export function gequerterWeg(u: UebergangWahl, netz: OsmNetz): { best: { wid: nu
 // Beleg im Luftbild bleibt der Streifen durchgehend, mit Hinweis (osmInselHinweis).
 // Prüfung 14.10.2026: auch aus dem Luftbild nur Teile ab TEIL_MIN_M wie beim Weg über OSM + AV (5126286188: Teil 0,5 m;
 // Brunnadernstrasse 4486147172: Teil 1,5 m – beide nicht mehr geteilt, Hinweis) und eine Lücke höchstens INSEL_LUECKE_MAX_M.
-export const INSEL_AUS_OSM = true
+// 30.10.2026 (Nutzerentscheid «nicht gebaut ist nicht gebaut»): Schalter aus – eine Insel, die nur OSM bzw. das Luftbild zeigen, teilt
+// den Streifen nicht mehr; es bleibt der Hinweis, eine gebaute Insel von Hand zu setzen (Werkzeug «Insel»).
+export const INSEL_AUS_OSM = false
 let inselAusOsm = INSEL_AUS_OSM
 /** Nur für Tests: Schalter INSEL_AUS_OSM umstellen (null = Vorgabe) */
 export const inselAusOsmSetzen = (an: boolean | null) => { inselAusOsm = an ?? INSEL_AUS_OSM }
@@ -437,11 +439,13 @@ export const inselLuftbildText = (breite: number) =>
   `Insel nach OSM (crossing:island) und Luftbild angenommen (Lücke ${f1(breite)} m); in der AV nicht als Verkehrsinsel erfasst – prüfen`
 /** Hinweis ohne Teilen: OSM meldet eine Insel, die AV keine, und das Luftbild belegt sie nicht (luftbild: warum, sonst «prüfen») */
 export const osmInselHinweis = (luftbild = '') =>
-  `OSM meldet eine Mittelinsel (crossing:island=yes), die Amtliche Vermessung keine – ${luftbild || 'prüfen'}`
+  `OSM meldet eine Mittelinsel (crossing:island=yes), die Amtliche Vermessung keine – ${luftbild || 'nicht als gebaut angenommen; ist sie gebaut, Insel von Hand setzen'}`
 export const BALKEN_DURCH = 'im Luftbild laufen die Balken durch'
 
-/** Übergangsknoten mit Insel nach OSM (crossing:island=yes) und Schalter INSEL_AUS_OSM an */
-export const osmInselTag = (tags: Record<string, string>) => inselAusOsm && tags['crossing:island'] === 'yes'
+/** Übergangsknoten mit Insel nach OSM (crossing:island=yes) */
+export const osmInselTagRoh = (tags: Record<string, string>) => tags['crossing:island'] === 'yes'
+/** … und Schalter INSEL_AUS_OSM an (Teilen des Streifens) */
+export const osmInselTag = (tags: Record<string, string>) => inselAusOsm && osmInselTagRoh(tags)
 
 /** Fläche der Insel zwischen a und b auf der Linie c + t·n (Kanten parallel zu l, je INSEL_LAENGE_M lang) */
 export function inselRing(c: P, n: P, l: P, a: number, b: number, laenge = INSEL_LAENGE_M): P[] {
@@ -577,7 +581,7 @@ export function streifenAusUebergang(u: UebergangWahl, netz: OsmNetz, fahrbahn: 
   // Insel von Hand bzw. aus dem Luftbild an einem Ende eines Teils (dort aus der Fahrbahn geschnitten; sonst AV-Verkehrsinsel)
   const inselAn = (x: number) => zusatz.find((_, k) => zusatzIv[k].some(([a, b]) => Math.abs(a - x) < 0.06 || Math.abs(b - x) < 0.06)) ?? null
   // AV-Verkehrsinsel auf der Achse (zwischen bzw. neben den Teilen): keine Insel nach OSM (auch nicht aus dem Luftbild)
-  const avInsel = osmInselTag(u.tags) && !zusatz.length ? avInselAufAchse(inseln, c, n, teile[0][0], teile[teile.length - 1][1]) : undefined
+  const avInsel = osmInselTagRoh(u.tags) && !zusatz.length ? avInselAufAchse(inseln, c, n, teile[0][0], teile[teile.length - 1][1]) : undefined
   // crossing:island=yes ohne AV-Insel und ohne Insel von Hand bzw. aus dem Luftbild: durchgehend, Hinweis (Nutzerentscheid 14.10.2026)
   const osmHinweis = avInsel === false ? osmInselHinweis() : ''
   // zu kurze Teile neben einer solchen Insel nicht mitzählen (Nummern und «Teilstreifen i von n» nur für gebildete Teile)
@@ -693,9 +697,10 @@ export function luftbildInsel(teile: TeilErkannt[], tags: Record<string, string>
       { teile: neu, insel: null, grund: 'hand', hinweis: weggelassen && neu.length === 1 ?
         `${INSEL_GRUND.hand} am Streifenende (kein zweiter Teil ab ${f1(TEIL_MIN_M)} m)` : '' }
   }
-  if (teile.length !== 1 || !osmInselTag(tags)) return gleich
+  if (teile.length !== 1 || !osmInselTagRoh(tags)) return gleich
   const t = teile[0], L = dist(t.p0, t.p1)
   if (avInselAufAchse(inseln, t.p0, einheit(sub(t.p1, t.p0)), 0, L)) return gleich
+  if (!inselAusOsm) return { ...gleich, hinweis: osmInselHinweis() }   // Schalter aus: nur der Hinweis, kein Teilen
   const r = inselAusBalken(t, c)
   if ('grund' in r) return { ...gleich, hinweis: osmInselHinweis(r.grund) }
   const breite = r.insel[1] - r.insel[0]

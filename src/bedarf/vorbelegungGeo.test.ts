@@ -49,7 +49,7 @@ describe('Vorbelegung: Bushaltestelle (Umkreis 50 m um den Streifen)', () => {
     const v = vor({ haltestellen: hst([halt(51)]) })
     expect(v.werte['haltestelle.art']).toEqual({ wert: 'keine', quelle: 'geoportal', text: 'keine Haltestelle im Umkreis von 50 m (Geoportal Stadt Bern)' })
     expect(v.werte.beduerfnis).toBeUndefined()
-    expect(eingabenBilden(v.werte, null).eingaben.haltestelle.wert).toEqual({ art: null, lage: null, verdeckt: null, ueberholenUnterbunden: null })
+    expect(eingabenBilden(v.werte, null).eingaben.haltestelle.wert).toEqual({ art: null, lage: null, verdeckt: null, ueberholenUnterbunden: null, beidseits: null })
     const o = vor({ haltestellen: { quelle: 'osm', herkunft: 'OSM', halte: [], bereich: { mitte: O, radiusM: 150, form: 'kreis' } } })
     expect(o.werte['haltestelle.art']).toMatchObject({ wert: 'keine', quelle: 'osm', text: 'keine Haltestelle im Umkreis von 50 m (OSM)' })
   })

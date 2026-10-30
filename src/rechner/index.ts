@@ -311,6 +311,9 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const vorgabe = (typ: QuerungSicht) => (fid: string) => (grau && istBestand(fid) ? typ : null)
   kx.vonHand = vonHandAusFall(fall, vorgabe(furt ? 'furt' : 'ohne_vortritt'))
   kx.tempoAmtlich = tempoAmtlich
+  // Ortslage für Tab. 1 bei 60 km/h (30.10.2026): Angabe im Bedarfsblock des Falls (von Hand); sonst OSM am gequerten Weg (pruefen.ortslageSicht)
+  const io = fall.bedarf?.felder.innerorts?.wert
+  kx.innerorts = typeof io === 'boolean' ? io : null
   let erg = streifen.length ? pruefen(streifen, kx) : []
   // Begegnungszone (Nutzerentscheid 30.10.2026): liegt die angenommene Querung ohne Vortritt in einer Begegnungszone (Strecke oder
   // Zone wie im Bedarf: zoneFuerSicht mit den OSM-Tags und V_sig, Handeingabe im Bedarf geht vor), hat der Fussverkehr Vortritt: zweite

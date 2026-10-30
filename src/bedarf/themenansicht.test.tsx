@@ -130,7 +130,7 @@ describe('Erweiterte Prüfung nach Thema: Felder, Fragen, Sprünge (Panel)', () 
     expect(t).toMatch(/Erweiterte Prüfung \d+ Regeln · \d+ Befunde? (· \d+ Hinweise? )?· \d+ Angaben offen/)
     expect(t).toMatch(/Welche Vorgaben gelten: Stadt Bern Kanton Bern Richtlinien/)
     expect(t).toMatch(/Insel \? \d+ offen/)
-    expect(t).toContain('Wie hoch sind die Pfosten auf der Insel? – für: Höhe der Inselpfosten')
+    expect(t).toContain('Steht auf der Insel ein Pfosten oder Signal? – für: Pfosten und erhöhte Inselspitzen')
     expect(t.indexOf('Masse (Soll und Ist)')).toBeGreaterThan(t.indexOf('Insel ?'))
     expect(t.indexOf('Annahmen und Hinweise')).toBeGreaterThan(t.indexOf('Masse (Soll und Ist)'))
     // Feld der Grundprüfung im Thema nur als Verweis, mit den Regeln dieses Themas (Prüfung 23.10.2026, Muss 1)
@@ -236,8 +236,8 @@ describe('Erweiterte Prüfung nach Thema: offene Angaben (alle Testfälle mit Va
         expect(druck, `${t.name}: ${id}`).toContain(regelTitel(id))
     }
   })
-  it('ungeprüfte Blöcke (LSA-Zeiten, Trottoirüberfahrt): Zeile mit Sprung im Thema, zählt als offen; Regeln der Prüfübersicht (Muss 2)', () => {
-    for (const [abw, block, thema] of [[{ fgsMitLsa: true, typ: 'lsa', lsaZeiten: null }, 'I', 'lichtsignal'],
+  it('ungeprüfter Block (Trottoirüberfahrt; LSA-Zeiten gestrichen 30.10.2026): Zeile mit Sprung im Thema, zählt als offen; Regeln der Prüfübersicht (Muss 2)', () => {
+    for (const [abw, block, thema] of [
       [{ lage: 'einmuendung', typ: 'trottoirueberfahrt', q3: null }, 'Q3', 'trottoirueberfahrt']] as [Abw, string, string][]) {
       const b = blattT(abw, BERN)
       expect(b.befund.nichtGeprueft.map(x => x.block), block).toContain(block)
@@ -290,8 +290,7 @@ describe('Erweiterte Prüfung nach Thema: offene Angaben (alle Testfälle mit Va
   it('Feld → Thema: jedes Feld der erweiterten Prüfung hat ein Thema, die Lage der Querung steht unter «Lage und Abstände»', () => {
     for (const d of FELD_DEFS.filter(x => !istGrundFeld(x.pfad))) expect(feldThema(d.pfad), d.pfad).not.toBeNull()
     expect(feldThema('lage')).toBe('lage')
-    expect(feldThema('insel.pfostenH')).toBe('insel')
-    expect(feldThema('lsaZeiten.gelb')).toBe('lichtsignal')
+    expect(feldThema('insel.kopfUeberstand')).toBe('insel')
   })
   it('Bericht: je Thema Befunde, dann «Noch offen» ohne Eingabe; jede Frage einmal; Masse und Annahmen am Ende; keine Nummer ohne Titel', () => {
     for (const { t, abw, eb } of VARIANTEN.slice(0, 120)) {

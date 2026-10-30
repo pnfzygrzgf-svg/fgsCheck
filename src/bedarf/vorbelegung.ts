@@ -8,14 +8,15 @@
 // Annahme bis 50 km/h), Fahrbahnbreite B und Querdistanzen L (Bordkanten der Rechnung entlang der Achse), Fahrstreifen je
 // Richtung (OSM lanes, sonst Annahme aus der Fahrbahnbreite) und Gegenverkehr, Radstreifen (OSM), Tram (OSM-Gleis quert den
 // Streifen nicht: kein Tram; quert es: offen mit Hinweis), Insel (Teilstreifen an einer Insel: AV, Fläche (Plan), Mittelinsel
-// (Standard), Insel von Hand; Tiefe aus der Lücke zwischen den Teilstreifen), Durchfahrt neben der Insel, Streifenbreite,
-// Abstand der Enden zum Rand, Winkel zur Fahrbahn (Streifen von Hand), Längsparkierung und Parkierung im Sichtfeld.
+// (Standard), Insel von Hand; Tiefe aus der Lücke zwischen den Teilstreifen), Durchfahrt neben der Insel, Winkel zur Fahrbahn
+// (Streifen von Hand), Längsparkierung und Parkierung im Sichtfeld (Streifenbreite, Abstand der Enden zum Rand und Halten im Sichtfeld
+// gestrichen 30.10.2026 mit F1a, F1b, F1-K, F1c, G7, G7b).
 // Seit 20.10.2026 aus Geodaten (geo, siehe GeoVorbelegung; Abschnitt 18 der Regeln): Bushaltestelle (keine im Umkreis bzw. Hinweis),
 // besonderer Grund «Haltestelle» (Annahme), Strecke oder Zone (OSM-Tags der Zufahrten), DTV (Geoportal Stadt Bern, sonst Annahme
 // 500 in Bern) und ein Hinweis ohne Wert zur Beleuchtung (Strassenlampen und lit in OSM).
 // Seit 21.10.2026 Automatik Paket A + B (automatik.ts, Abschnitt 22 der Regeln): innerorts und Strecke/Zone auch aus den OSM-Tags bzw.
 // dem Tempo, Insel aus der AV als gebaut (Tatsache) mit Kopfüberstand, Tramgleis eigentrassee/Fahrbahn, dazu die übrigen Felder der
-// Automatik (Lage, Abstände, Haltestelle, Annahmen mit Schwellen, Kopien in LSA-Zeiten und Trottoirüberfahrt). rechner: Felder im
+// Automatik (Lage, Abstände, Haltestelle, Annahmen mit Schwellen, Kopien in die Trottoirüberfahrt). rechner: Felder im
 // Zustand «rechner» (Sichtrechner rechnet je Zufahrt, z. B. Kurvenradius ohne Abbieger).
 // Seit 23.10.2026 die Erkennungsdistanz aus dem Sichtrechner (erkennungVorbelegen, Annahme; Abschnitt 34 der Regeln).
 // Seit 21.10.2026 Automatik Paket C (automatikC.ts, Abschnitt 24 der Regeln): Tempo aus V_sig und Strecke/Zone aus der
@@ -91,7 +92,8 @@ export interface Vorbelegt { werte: Vorbelegung; hinweise: string[]; feldHinweis
 
 /** Geodaten für die Vorbelegung (App: geladen um den Ladeort); fehlt ein Eintrag, bleibt das Feld wie bisher offen */
 export interface GeoVorbelegung extends AutoGeo {
-  /** Herkunft der gerechneten Streifen (FallRechnung.streifenQuelle); die Lücke zum Rand nur bei «luftbild» */
+  /** Herkunft der gerechneten Streifen (FallRechnung.streifenQuelle); diente der Lücke zum Rand (nur bei «luftbild»), seit dieses Feld am
+   * 30.10.2026 gestrichen ist ohne Wirkung in der Vorbelegung */
   streifenQuelle?: 'osm' | 'hand' | 'luftbild'
   /** Haltestellen (Geoportal Stadt Bern bzw. OSM); null: noch nicht geladen */
   haltestellen?: HaltestellenErgebnis | null
@@ -209,17 +211,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
     setze('querdistanzL', [r2(s0.vermassung.fahrbahnM)], 'rechnung', 'AV-Sehne entlang der Achse (Vermassung)')
   } else hinweise.push('Bordkanten angenommen (keine passende AV-Sehne): Fahrbahnbreite und Querdistanz offen')
 
-  // Streifenbreite, Abstand der Enden zum Rand, Winkel (Vermassung der Streifen von Hand)
-  setze('streifenBreite', r2(Math.min(...st.map(s => s.bw))), 'rechnung', 'Breite (Balkenlänge) der Streifen')
-  // nur Streifen aus dem Luftbild: dort sind die Enden die erkannten Balken; gezeichnete Streifen enden auf den Warteflächen, OSM-Streifen
-  // haben keine Balkenenden (Nutzerentscheid 23.10.2026)
-  if (alleAv && geo.streifenQuelle === 'luftbild') {
-    const ab = st.flatMap(s => {
-      const ns = einheit(sub(s.p1, s.p0))
-      return [dot(sub(s.p0, s.rand[0]), ns), dot(sub(s.rand[1], s.p1), ns)]
-    })
-    setze('randAbstand', ab.map(r2), 'rechnung', 'Enden bis Fahrbahnrand entlang der Achse (+ vor dem Rand, − darüber hinaus)')
-  }
+  // Winkel (Vermassung der Streifen von Hand); Streifenbreite und Abstand der Enden zum Rand gestrichen 30.10.2026 (F1a bis F1c, F1-K)
   // Winkel Streifenachse zur Fahrbahn: aus der Fahrtrichtung der geraden Zufahrten (die Vermassung misst zum nächsten OSM-Weg, an
   // Knoten oft zum falschen); 90 = rechtwinklig, der kleinste Winkel zählt
   const gerade0 = st.flatMap(s => s.zufahrten.filter(z => z.art !== 'abbiegend').map(z => ({ s, z })))
@@ -264,8 +256,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   if (zuf.length) {
     const auto = zuf.flatMap(z => z.konflikte.filter(k => k.klasse === 'auto'))
     setze('parkierungSichtbehindernd', auto.length > 0, 'rechnung', auto.length ? 'Auto-Parkfelder im Sichtfeld (Sichtrechner)' : 'keine Auto-Parkfelder im Sichtfeld')
-    setze('haltenSichtrelevantUeber5m', auto.some(k => k.abstand > 5), 'rechnung', auto.some(k => k.abstand > 5)
-      ? 'Auto-Parkfelder im Sichtfeld weiter als 5 m vom Streifen' : 'keine Auto-Parkfelder im Sichtfeld weiter als 5 m vom Streifen')
+    // Halten weiter als 5 m vor dem Streifen gestrichen 30.10.2026 (G7, G7b)
   }
 
   // Tram (OSM-Gleis); quert eines, bestimmt die Automatik (AV bzw. OSM embedded) die Art, sonst Hinweis (unten)
@@ -479,7 +470,8 @@ export function zoneFuerSicht(g: QuerungGruppe, fall: Fall, geo: GeoVorbelegung)
 /**
  * Kurvenregel (VSS 40 241 Z. 14, S. 7; 29.10.2026): nur an einer Kurve der Strasse selbst (gerade Zufahrt, Fahrlinie ändert die Richtung
  * innerhalb der Sichtweite um mindestens 60°; kurvenregel.strassenKurve), nicht für Abbieger. Vorbelegt: Radius der Strassenkurve und die
- * fünf Voraussetzungen: (1) innerorts und 50 km/h, (2) Fahrstreifen je Richtung, (3) Abstand vom Kurvenende, (4) Richtungsänderung,
+ * fünf Voraussetzungen: (1) innerorts, 50 km/h und vortrittsberechtigte Strasse (Vortritt seit 30.10.2026: über die Zufahrt ohne Vortritt einer
+ * Kreuzung nein, sonst angenommen), (2) Fahrstreifen je Richtung, (3) Abstand vom Kurvenende, (4) Richtungsänderung,
  * (5) Längsgefälle aus dem Höhenmodell. Ohne solche Kurve nichts (die Fragen sind dann ausgeblendet)
  */
 export function kurvenregelVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vorbelegung, neigung: Readonly<Record<string, NeigungMessung>> | null,
@@ -490,7 +482,11 @@ export function kurvenregelVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vor
   const Z = '(VSS 40 241 Z. 14, S. 7)'
   setze('kurve.radiusStrasse', sk.radius, 'rechnung', `Strassenkurve vor dem Streifen: Radius rund ${sk.radius} m, Richtungsänderung rund ` +
     `${sk.winkel}° (Fahrlinie des Sichtrechners, OSM-Weg)`)
-  // (1) innerorts (von Hand bzw. vorbelegt) und Tempo der Zufahrt in der Kurve
+  // (1) innerorts (von Hand bzw. vorbelegt), Tempo der Zufahrt in der Kurve und Vortritt (30.10.2026: Lage «Kreuzung, über die Zufahrt ohne
+  // Vortritt» von Hand bzw. vorbelegt: nein; sonst als Annahme vortrittsberechtigt, kein sechstes Feld)
+  const hl = fall.bedarf?.felder.lage
+  const lage = hl && typeof hl.wert === 'string' ? { wert: hl.wert, quelle: hl.quelle } : w.lage && typeof w.lage.wert === 'string'
+    ? { wert: w.lage.wert as string, quelle: w.lage.quelle } : null
   const hi = fall.bedarf?.felder.innerorts
   const io = hi && typeof hi.wert === 'boolean' ? { wert: hi.wert, quelle: hi.quelle } : w.innerorts && typeof w.innerorts.wert === 'boolean'
     ? { wert: w.innerorts.wert as boolean, quelle: w.innerorts.quelle } : null
@@ -498,9 +494,11 @@ export function kurvenregelVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vor
   const tq: Quelle = z.tempoQuelle === TEMPO_QUELLE_AMTLICH ? 'geoportal' : z.tempoQuelle === 'Korrektur' ? 'hand' : 'osm'
   const annahme = (q: Quelle) => q === 'annahme' || q === 'schaetzung'
   if (io?.wert === false) setze('kurve.b1Innerorts50', false, io.quelle === 'hand' ? 'rechnung' : io.quelle, `ausserorts: Kurvenregel gilt nicht ${Z}`)
+  else if (lage?.wert === 'knoten_belastet') setze('kurve.b1Innerorts50', false, lage.quelle === 'hand' ? 'rechnung' : lage.quelle,
+    `Streifen über die Zufahrt ohne Vortritt: keine vortrittsberechtigte Strasse, Kurvenregel gilt nicht ${Z}`)
   else if (tempoBekannt && z.tempo !== 50) setze('kurve.b1Innerorts50', false, tq, `Tempo der Zufahrt in der Kurve ${z.tempo} km/h, nicht 50 km/h ${Z}`)
-  else if (io?.wert === true && tempoBekannt) setze('kurve.b1Innerorts50', true, annahme(io.quelle) ? 'annahme' : tq,
-    `innerorts${annahme(io.quelle) ? ' (angenommen)' : ''}, Tempo der Zufahrt in der Kurve 50 km/h ${Z}`)
+  else if (io?.wert === true && tempoBekannt) setze('kurve.b1Innerorts50', true, 'annahme',
+    `innerorts${annahme(io.quelle) ? ' (angenommen)' : ''}, Tempo der Zufahrt in der Kurve 50 km/h, vortrittsberechtigt angenommen ${Z}`)
   else feldHinweis('kurve.b1Innerorts50', `${io ? 'Tempo der Zufahrt in der Kurve unbekannt' : 'innerorts noch offen'}: von Hand angeben ${Z}`)
   // (2) Fahrstreifen je Richtung der Zufahrt
   const nOsm = z.fahrstreifenOsmN ?? null

@@ -23,7 +23,8 @@ import {
   type Fs, type Fso, type FsoLage, fahrstreifenmitte, fahrstreifenOsm, fahrstreifenLage, fahrstreifenUebernehmen, fsHinweis,
   abzugAusOsm, abzugAnnahme, fahrbahnOsm, type Abzug, type AbzugQuelle, osmBreite, lageOsm, wegeAbschnitte, wegBei, hochBei, MEHRSTREIFIG_AB, MEHRSTREIFIG_EINBAHN,
 } from './fahrstreifen'
-import { sichtweiteTab1, sichtweiteKurve, radiusRunden, tempoStart, tempoEntlang, amtlichEntlang, SICHTWEITE, type TempoAmtlich } from './tempo'
+import { sichtweiteTab1, sichtweiteKurve, radiusRunden, tempoStart, tempoEntlang, amtlichEntlang, SICHTWEITE, SICHTWEITE_AUSSERORTS_60, quelleTab1,
+  type TempoAmtlich } from './tempo'
 import {
   type Streifen, zufahrtenStreifen, raender, wartebereiche, annaeherungsbereich, annAmRand, umrissRing, randAmUmriss, annRichtung, warteMitHand,
 } from './streifen'
@@ -98,7 +99,22 @@ export interface Kontext {
   bewuchs?: Flaechen | null                              // AV-Bodenbedeckung mit Bewuchs (Erkennungsdistanz «nicht sicher», erkennung.ts)
   /** amtliches Tempo je Punkt der Spur (tempo.TempoAmtlich; Quelle «Geoportal»), Vorrang vor OSM, Hand geht vor */
   tempoAmtlich?: TempoAmtlich | null
+  /** Ortslage aus dem Bedarfsblock des Falls (Feld innerorts; 30.10.2026); fehlt sie: OSM am gequerten Weg (ortslageSicht) */
+  innerorts?: boolean | null
 }
+
+/**
+ * Ortslage für VSS 40 241 Tab. 1 (Nutzerentscheid 30.10.2026; nur bei 60 km/h verschieden: 75 m innerorts, 100 m ausserorts): Angabe
+ * im Bedarf (Fall), sonst OSM am gequerten Weg (maxspeed:type bzw. zone:maxspeed CH:rural: ausserorts), sonst innerorts als Annahme
+ */
+export function ortslageSicht(kx: Pick<Kontext, 'innerorts' | 'netz'>, wid: number | null): { ausserorts: boolean; annahme: boolean } {
+  if (typeof kx.innerorts === 'boolean') return { ausserorts: !kx.innerorts, annahme: false }
+  const t = wid !== null && kx.netz ? kx.netz.W.get(wid)?.t ?? {} : {}
+  if (t['maxspeed:type'] === 'CH:rural' || t['zone:maxspeed'] === 'CH:rural') return { ausserorts: true, annahme: false }
+  return { ausserorts: false, annahme: true }
+}
+/** Annahme am Streifen, wenn die Ortslage bei 60 km/h nicht bekannt ist */
+export const ORTSLAGE_ANNAHME = 'Ortslage offen: innerorts angenommen (VSS 40 241 Tab. 1 bei 60 km/h: 75 m innerorts, 100 m ausserorts)'
 
 /** sichtfeld: Vereinigung der Sichtkeile (konvexe Hülle der Ziele mit zwei benachbarten Sichtpunkten) */
 export function sichtfeld(sichtpunkte: P[], ziele: Multi): Multi {
@@ -345,8 +361,10 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   let bis: [number, number, number, number, (x: number) => number] | null = null
   // Querung ohne Vortritt: Soll nach VSS 40 240 Z. 8.2 statt Tab. 1 (ohneVortritt.ts), Fahrlinie entsprechend länger; in der
   // Begegnungszone die Anhaltesichtweite
-  const swTab = (t: number) => (ov ? sollQuerung(ov, t) : sichtweiteTab1(t))
-  const weite = (ov ? weiteQuerung(ov, SICHTWEITE[60]) : SICHTWEITE[60]) + h + 5
+  // Ortslage für Tab. 1 bei 60 km/h (30.10.2026): am gequerten OSM-Weg; im Rückfall ohne gequerten Weg am Weg der Fahrlinie (unten)
+  let ort = ortslageSicht(kx, zf.g?.wid ?? null)
+  const swTab = (t: number) => (ov ? sollQuerung(ov, t) : sichtweiteTab1(t, ort.ausserorts))
+  const weite = (ov ? weiteQuerung(ov, SICHTWEITE[60]) : ort.ausserorts ? SICHTWEITE_AUSSERORTS_60 : SICHTWEITE[60]) + h + 5
   let su: Suche | null = null, kbe: Knotenbereich | null = null, sg: SpurGerade | null = null
   let knotenM: number[] = []
   let wegRoh: P[], tempoStreifen: number, tempoQ: string, kreiselPruefen: boolean, achseFb = true
@@ -370,6 +388,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       const achsen = new OsmAchsen(netz)
       const wid = achsen.linien[treffer[0]].wid
       ;[tempoStreifen, tempoQ] = tempoStart(netz, wid)
+      ort = ortslageSicht(kx, wid)
       wegRoh = achsen.spur([treffer[0], treffer[1], treffer[2]], neg(d), weite)
       wegLang = L => ({ punkte: achsen.spur([treffer[0], treffer[1], treffer[2]], neg(d), L), endeM: null, endeGrund: null })
       zf.name = zf.name || netz.w(wid).name
@@ -428,7 +447,8 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     }
     return { ergebnisse, entfallen: entf }
   }
-  let swQuelle = ov ? quelleQuerung(ov) : 'VSS Tab. 1', hinweis = '', hinweisM: number | null = null
+  let swQuelle = ov ? quelleQuerung(ov) : quelleTab1(tempo, ort.ausserorts), hinweis = '', hinweisM: number | null = null
+  if (!ov && tempo === 60 && ort.annahme) annahmen.push(ORTSLAGE_ANNAHME)
   if (kInSicht && hatGerade) { hinweis = 'knoten'; hinweisM = su!.dist }
   if (hatGerade && sg !== null && sg.endeM !== null && sg.endeM - h < sw) {
     hinweis = 'spur_ende'; hinweisM = sg.endeM
@@ -956,7 +976,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       swQuelle, fs, lageAb, vomRandAb, versatz, arS, alS, rd, art, verschiebung, refDa: ref.length > 0, streifenPoly,
       sichtfeld: sf, konflikte: kf,
       basisErgebnis: () => ({ randQuelle: s.randQuelle, netzQuelle: zf.netzQuelle }),
-      ...(ov ? { ov } : {}),
+      ...(ov ? { ov } : {}), ...(ort.ausserorts ? { ausserorts: true } : {}),
     }
     for (const a of [...arme].sort((x, y) => x.dj - y.dj || richtungGrad(x.fahrt) - richtungGrad(y.fahrt))) {
       const r = abbiegeZufahrt(kontext, a)

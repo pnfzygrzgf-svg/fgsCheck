@@ -27,7 +27,7 @@ const KB = ['kurve.radiusStrasse', 'kurve.b1Innerorts50', 'kurve.b2EinFahrstreif
 /** Werke als Kurztext für «Wozu» (statt SR-Nummer bzw. vollem Titel) */
 export const WERK_KURZ: Record<WerkId, string> = {
   '40241': 'VSS 40 241', '40240': 'VSS 40 240', '40242': 'VSS 40 242', '40837': 'VSS 40 837', '40273': 'VSS 40 273', '40213': 'VSS 40 213',
-  '640075': 'SN 640 075', '640850a': 'SN 640 850a', '640852': 'SN 640 852', '640070': 'SN 640 070',
+  '640075': 'SN 640 075', '640850a': 'SN 640 850a', '640852': 'SN 640 852',
   VOT30: 'Tempo-30-Zonen-Verordnung', SSV: 'Signalisationsverordnung', VRV: 'Verkehrsregelnverordnung',
   MP: 'Masterplan Fussverkehr Bern', MPV: 'Masterplan Veloinfrastruktur Bern', HBLSA: 'Handbuch Lichtsignalanlagen Bern',
   AHBE: 'Arbeitshilfe Kanton Bern', BFU: 'bfu-Fachdokumentation «Fussgängerstreifen»', BFU2016: 'ältere bfu-Fachdokumentation (2016)', HA: 'Richtlinie Hindernisfreie Architektur',
@@ -46,19 +46,18 @@ const IV = ['insel.vorhanden', 'insel.art'] as const
 export const UNTERFELDER: Partial<Record<RegelId, readonly string[]>> = {
   D1: IV, D2: IV, D2a: IV, D2c: IV, D3a: IV, 'D5-3': IV, 'D6-2': IV, 'D6-2b': IV, 'D6-4': IV, D7: IV, E3: IV, E3a: IV, F2d: IV, F3: IV,
   G4b: IV, 'B5-2a': IV, 'B5-2c': IV, 'B5-3': IV, 'B5-W3': ['haltestelle.art', ...IV],
-  D4a: ['haltestelle.lage'], D4b: ['haltestelle.art', 'haltestelle.verdeckt', ...IV], D4c: ['haltestelle.lage'],
+  D4a: ['haltestelle.lage'], D4b: ['haltestelle.art', 'haltestelle.verdeckt', ...IV], D4c: ['haltestelle.lage', 'haltestelle.beidseits'],
   D4d: ['haltestelle.art', 'haltestelle.lage', 'haltestelle.ueberholenUnterbunden'], 'D4-R': ['haltestelle.art', ...IV],
   F2: ['insel.vorhanden', 'insel.breite'], F2b: ['insel.vorhanden', 'insel.breite'], F2c: ['insel.vorhanden', 'insel.breite'],
   'F2-K': [...IV, 'insel.breite'], F2e: [...IV, 'insel.vertikal', 'insel.kopfErhoeht'], F2f: [...IV, 'insel.kopfUeberstand'],
-  F2g: [...IV, 'insel.pfostenH'], 'F2-B': ['insel.vorhanden', 'insel.furt'], 'F3-M': [...IV, 'insel.breite'], 'F3-B': ['insel.vorhanden'],
+  'F2-B': ['insel.vorhanden', 'insel.furt'], 'F3-M': [...IV, 'insel.breite'], 'F3-B': ['insel.vorhanden'],
   'B5-2b': [...IV, 'insel.breite'],
   F7a: ['randabschluss.art', 'randabschluss.hoeheMm', 'randabschluss.breiteM'], F7b: ['randabschluss.art'],
   G3b: ['fusswegAchse.rechtwinkligUneinsehbar', 'fusswegAchse.versatz', 'fusswegAchse.umlaufschranke'],
-  G7: ['hvl.vorhanden', 'hvl.laengeM', 'hvl.beidseits'], G7b: ['hvl.vorhanden'],
   H1: [...KB, 'kurve.radius'], 'D5-4': [...KB, 'kurve.radius', ...IV], H2: [...KB, 'kurve.radius'],
   H3a: [...KB, 'kurve.radius'], H3b: [...KB, 'kurve.radius'], H4: ['kurve.radius'],
   'B5-1': ['kurve.radius'], 'B5-1b': ['kurve.radius'],
-  E1c: IV, 'I6-B': ['insel.vorhanden'], 'I7-B2': ['insel.vorhanden'], 'I7-B3': ['insel.vorhanden'], I8: ['insel.vorhanden'],
+  E1c: IV,
 }
 
 export interface FeldHilfe {
@@ -134,10 +133,6 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     was: 'Ja, wenn die Lichtsignalanlage neu gebaut wird (nicht Bestand). Für neue Anlagen begrenzt Bern die Länge der Querung.',
     vorschlag: '«nein» bei Streifen aus OSM und AV bzw. Luftbild und bei Streifen an einem markierten OSM-Übergang (Bestand); «ja» als Annahme bei Streifen von Hand ohne markierten OSM-Übergang.',
   },
-  kantonsstrasse: {
-    was: 'Ja, wenn die Strasse eine Kantonsstrasse ist. Dafür nennt die Arbeitshilfe des Kantons Bern eigene Streifenbreiten.',
-    ablauf: 'Schaltet die Streifenbreite nach der Arbeitshilfe des Kantons Bern ein (Ebene Kanton BE).',
-  },
 
   // ── Nachfrage ──
   fg5h: {
@@ -173,7 +168,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   },
   nachfrage: {
     was: 'Gebündelt: die Leute queren an einer Stelle. Verteilt: sie queren überall entlang einer längeren Strecke (z. B. ' +
-      'Einkaufsstrasse); dann passt kein einzelner Fussgängerstreifen.',
+      'Einkaufsstrasse); dann passt kein einzelner Fussgängerstreifen. Lässt sich das Queren durch einen Streifen bündeln, gilt gebündelt.',
     vorschlag: '«gebündelt» als Annahme, wenn eine Basisnetz-Linie des Richtplans Fussverkehr die Fahrbahn an der Querung quert; im publikumsattraktiven Bereich und sonst offen.',
   },
   wunschlinieM: {
@@ -206,6 +201,8 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   },
   zweirichtung: {
     was: 'Ja, wenn in beide Richtungen gefahren wird; nein bei einer Einbahnstrasse.',
+    // 30.10.2026: seit G7 gestrichen ist das Feld nur noch Schalter (Insel bei breiter Fahrbahn)
+    ablauf: 'Mit Gegenverkehr prüft die App, ob eine breite Fahrbahn eine Insel braucht.',
     vorschlag: 'aus den Zufahrten der Rechnung (OSM, Einbahn).',
   },
   nRichtung: {
@@ -239,8 +236,6 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     ablauf: 'An einer einmündenden Seitenstrasse prüft die App zusätzlich, ob eine Trottoirüberfahrt möglich wäre.',
     vorschlag: 'aus dem OSM-Netz: Kreisel bis 20 m «am Kreisel»; Knoten bis 20 m, an dem die gequerte Strasse endet, «Einmündung»; kein Knoten «Strecke». Kreuzung: Kein Vortritt bzw. Stop (OSM) auf einem Arm der gequerten Strasse «ohne Vortritt», auf der Querstrasse «mit Vortritt»; sonst offen.',
   },
-  knotenArmeOhneQuerung: { was: 'Anzahl Arme der Kreuzung, über die keine Querung führt (0 = über alle Arme). Fehlende Querungen zwingen zu Umwegen.', vorschlag: 'als Annahme aus dem OSM-Netz: Arme des Knotens ohne markierten Übergang innert 25 m (OSM-Übergänge oft unvollständig).' },
-  knotenLsa: { was: 'Ja, wenn die Kreuzung für den Fahrverkehr mit Lichtsignalen geregelt ist. Dann ist zu prüfen, ob alle Arme mit Lichtsignal gequert werden.', vorschlag: 'aus OSM: Lichtsignal bis 30 m vom Knoten «ja»; keines bis 50 m «nein» als Annahme; dazwischen offen mit Hinweis.' },
   alleZufahrtsstreifenBelastet: {
     was: 'Ja, wenn an dieser Zufahrt alle Fahrstreifen Vortritt gewähren müssen (z. B. Stop über die ganze Breite). Dann braucht es ' +
       'auch bei zwei Fahrstreifen keine Insel.',
@@ -272,6 +267,11 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   },
   'haltestelle.verdeckt': { was: 'Ja, wenn ein haltender Bus die Querenden für andere Fahrzeuge verdeckt.', vorschlag: '«ja» als Annahme bei einer Fahrbahnhaltestelle, wenn die Querung weniger als 18 m hinter dem Haltepunkt liegt.' },
   'haltestelle.ueberholenUnterbunden': { was: 'Ja, wenn eine Insel oder Sicherheitslinie verhindert, dass Fahrzeuge am haltenden Bus vorbei auf die Querung fahren.' },
+  // 30.10.2026: Haltestelle beidseits (Busse in beiden Richtungen): der Streifen kann nicht für beide hinter dem Haltebereich liegen
+  'haltestelle.beidseits': { was: 'Ja, wenn auf beiden Seiten der gequerten Strasse eine Haltestelle liegt, also Busse in beiden Richtungen ' +
+    'halten. Dann kann der Streifen nur für eine Richtung hinter dem Haltebereich liegen; die Regel dazu entfällt.',
+    vorschlag: 'aus den Haltestellen im Umkreis von 50 m um den Streifen (Geoportal Stadt Bern bzw. OSM): Haltepunkte auf beiden Seiten der ' +
+      'gequerten Strasse «ja», sonst «nein» als Annahme.' },
   rueckversatzM: {
     was: 'Wie weit die Querung an der Zufahrt ohne Vortritt von der Strasse mit Vortritt zurückversetzt ist, in Metern (z. B. 5 m: ' +
       'ein einbiegendes Auto hat davor Platz).',
@@ -326,9 +326,10 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     vorschlag: 'aus der Fahrlinie des Sichtrechners (OSM-Weg) einer geraden Zufahrt, die vor dem Streifen um mindestens 60° dreht; sonst ausgeblendet.',
   },
   'kurve.b1Innerorts50': {
-    was: 'Ja, wenn Kurve und Streifen innerorts auf einer Strasse mit Vortritt liegen, mit 50 km/h als allgemeinem Tempo. Erste der ' +
+    was: 'Ja, wenn Kurve und Streifen innerorts auf einer vortrittsberechtigten Strasse liegen, mit 50 km/h als allgemeinem Tempo. Erste der ' +
       'fünf Voraussetzungen der Kurvenregel (VSS 40 241 Z. 14, S. 7; Tab. 2, S. 7; Abb. 2, S. 8); mit allen fünf braucht es keine V85-Messung.',
-    vorschlag: 'aus «Innerorts» und dem Tempo der Zufahrt in der Kurve: ja bei innerorts und 50 km/h, sonst nein.',
+    vorschlag: 'aus «Innerorts» und dem Tempo der Zufahrt in der Kurve: ja bei innerorts und 50 km/h, sonst nein; quert der Streifen die ' +
+      'Zufahrt ohne Vortritt einer Kreuzung, nein. Der Vortritt ist sonst angenommen (nicht aus den Daten geprüft).',
   },
   'kurve.b2EinFahrstreifen': {
     was: 'Ja, wenn die Kurve je Richtung nur einen Fahrstreifen hat (VSS 40 241 Z. 14, S. 7).',
@@ -384,7 +385,6 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     vorschlag: 'aus der Mittelinsel (Standard), wenn sie gezeichnet ist.',
   },
   'insel.kopfErhoeht': { was: 'Ja, wenn die Inselspitzen erhöht sind (Randstein), sodass man sie nicht einfach überfährt.' },
-  'insel.pfostenH': { was: 'Höhe der Pfosten bzw. Poller auf der Insel, in Metern; zu hohe Pfosten verdecken kleine Kinder.' },
   'insel.furt': {
     was: 'Breite des abgesenkten Durchgangs durch die Insel für Rollstuhl und Rollator, in Metern (0 = keiner).',
     vorschlag: 'aus der Mittelinsel (Standard), wenn sie gezeichnet ist.',
@@ -409,17 +409,9 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   // ── Ausrüstung ──
   fgsMitLsa: {
     was: 'Ja, wenn die Querung mit einem Lichtsignal (Ampel) für Fussgänger geregelt ist.',
-    ablauf: 'Mit Lichtsignal prüft die App die LSA-Zeiten; die Grundprüfung bfu und die Sichtregeln des Fussgängerstreifens ' +
-      'ohne Signal gelten dann nicht.',
+    ablauf: 'Mit Lichtsignal gelten die Grundprüfung bfu und die Sichtregeln des Fussgängerstreifens ohne Signal nicht; die ' +
+      'Signalzeiten prüft die App nicht (eigener Rechner).',
     vorschlag: 'aus der Eingabe am Streifen bzw. aus OSM (Lichtsignal am Streifen).',
-  },
-  streifenBreite: {
-    was: 'Wie breit der Fussgängerstreifen in Gehrichtung gesehen ist, also wie lang die gelben Balken sind. Beispiel: 4,00 m.',
-    vorschlag: 'aus der Breite der gezeichneten Streifen.',
-  },
-  randAbstand: {
-    was: `Lücke zwischen dem äussersten gelben Balken und der Trottoirkante, je Ende in Metern (${MIT_SLASH}).`,
-    vorschlag: 'nur bei Streifen aus dem Luftbild: aus den erkannten Balkenenden und den Bordkanten der Rechnung; sonst von Hand.',
   },
   achsWinkel: {
     was: 'Winkel zwischen Streifen und Fahrbahnrand in Grad; 90 = rechtwinklig. Schräge Streifen sind länger und für Sehbehinderte ' +
@@ -430,20 +422,6 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   signal411Insel: { was: 'Ja, wenn die blaue Tafel zusätzlich auf der Insel steht.' },
   beleuchtung: { was: 'Ja, wenn Streifen und Warteflächen nachts eigens öffentlich beleuchtet sind.' },
   schattenfrei: { was: 'Ja, wenn die Beleuchtung keine Schatten (z. B. von Bäumen oder Masten) auf Streifen und Wartefläche wirft.' },
-  'hvl.vorhanden': { was: 'Ja, wenn vor dem Streifen eine gelbe Linie am Fahrbahnrand das Halten verbietet, damit haltende Autos Wartende nicht verdecken.' },
-  'hvl.laengeM': { was: 'Länge dieser Linie entlang des Fahrbahnrands vor dem Streifen, in Metern.' },
-  'hvl.beidseits': { was: 'Bei einer Einbahnstrasse: ja, wenn die Linie links und rechts der Fahrbahn markiert ist.' },
-  hvlBedarfM: {
-    was: 'Wie lang die Linie sein müsste, damit haltende Autos die Sicht auf die Wartefläche nicht verdecken, in Metern (z. B. am ' +
-      'Sichtfeld auf der Karte abgelesen).',
-    vorschlag: 'aus dem Sichtrechner: so weit vor dem Streifen liegen Auto-Parkfelder im Sichtfeld (0 ohne solche).',
-  },
-  haltenSichtrelevantUeber5m: {
-    was: 'Ja, wenn haltende Autos auch mehr als 5 m vor dem Streifen die Sicht auf Wartende versperren (in den ersten 5 m ist ' +
-      'Halten ohnehin verboten).',
-    vorschlag: 'aus dem Sichtrechner: Auto-Parkfelder im Sichtfeld weiter als 5 m vom Streifen.',
-  },
-  haltenSonstVerboten: { was: 'Ja, wenn das Halten dort schon anders verboten oder unmöglich ist (z. B. Signal, Poller); dann braucht es keine eigene Linie.' },
   reklameUnter20m: { was: 'Ja, wenn auf die Fahrbahn gerichtete Werbung (Plakat, Bildschirm) näher als 20 m beim Streifen steht; sie lenkt Fahrende ab.' },
   reklameAusnahme: { was: 'Ja, wenn diese Werbung nach der Signalisationsverordnung ausnahmsweise bewilligt ist.' },
   annaeherungUeberfahrbar: {
@@ -478,22 +456,6 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     vorschlag: 'aus dem Sichtrechner: Auto-Parkfelder im Sichtfeld.',
   },
 
-  // ── LSA-Zeiten ──
-  'lsaZeiten.L': { was: 'Gehstrecke über die ganze Fahrbahn von Bordkante zu Bordkante, in Metern; daraus folgen die nötigen Grün- und Gelbzeiten.', vorschlag: 'wie die Fahrbahnbreite.' },
-  'lsaZeiten.teile': { was: 'Bei einer Insel: Länge der beiden Teile bis zur Insel und ab der Insel, in Metern (zwei Werte mit /).', vorschlag: 'wie die Länge jeder Teilquerung (zwei Teile).' },
-  'lsaZeiten.inselB': { was: 'Inseltiefe in Gehrichtung, in Metern, wie bei der Insel; hier für die Zeit, die man über die Insel braucht.', vorschlag: 'wie die Inseltiefe.' },
-  'lsaZeiten.gelb': { was: 'Dauer des gelben Lichts für Fussgänger nach dem Grün, in Sekunden.' },
-  'lsaZeiten.freigabe': { was: 'Dauer des Grüns für Fussgänger, in Sekunden.' },
-  'lsaZeiten.phasengleich': { was: 'Ja, wenn beide Teilquerungen an der Insel zur gleichen Zeit Grün haben, man also ohne Halt durchgehen kann.' },
-  'lsaZeiten.beideRichtungenImZyklus': { was: 'Bei getrenntem Grün an der Insel: ja, wenn man in beide Richtungen innerhalb eines Signalumlaufs ganz queren kann.' },
-  'lsaZeiten.wartezeit': { was: 'Wie lange Fussgänger auf Grün warten, in Sekunden (wie in der Signalplanung ausgewiesen).' },
-  'lsaZeiten.vorstart': { was: 'Wie viele Sekunden die Fussgänger vor den abbiegenden Fahrzeugen Grün erhalten, damit sie schon auf der Fahrbahn sind (negativ = später).' },
-  'lsaZeiten.abbiegerKonflikt': {
-    was: 'Ja, wenn abbiegende Fahrzeuge während des Fussgängergrüns über die Querung fahren dürfen.',
-    ablauf: 'Dann prüft die App den Vorsprung der Fussgänger vor den Abbiegenden.',
-  },
-  'lsaZeiten.inselGeraet': { was: 'Ja, wenn auf der Insel ein Taster und ein Zusatzgerät (z. B. Tonsignal für Sehbehinderte) stehen.' },
-  'lsaZeiten.inselNurAnmeldung': { was: 'Ja, wenn Fussgänger nur Grün erhalten, nachdem jemand den Taster gedrückt hat.' },
 
   // ── Trottoirüberfahrt ──
   'q3.bebaut': { was: 'Ja, wenn die Einmündung im bebauten Siedlungsgebiet liegt.',
@@ -523,7 +485,6 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   'q3.zoneEinm': { was: 'Ob die Seitenstrasse zu einer Tempo-30-Zone oder Begegnungszone gehört; dort gilt meist Rechtsvortritt statt Trottoirüberfahrt.',
     vorschlag: 'aus «Strecke oder Zone»; an einer Trottoirüberfahrt eine Zone als Vorschlag zum Bestätigen (heutiger Zustand).' },
   'q3.eingangstor': { was: 'Ja, wenn die Trottoirüberfahrt bewusst den Eingang in die Zone markiert.' },
-  'q3.hauptInZone': { was: 'Ja, wenn auch die Hauptstrasse innerorts in der Tempo-30-Zone liegt.' },
   'q3.wartezeitEinmS': { was: 'Wie lange Fahrzeuge aus der Seitenstrasse im Mittel auf eine Lücke warten, in Sekunden. ' +
     'Ein gemessener Wert aus einer Verkehrszählung ersetzt die Schätzung.',
     vorschlag: 'in Bern als Annahme aus dem DTV der Hauptstrasse (Verkehrsdaten des Geoportals): Spitzenstunde 10 % des DTV, Zeitlückenmodell ' +
@@ -545,25 +506,10 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     vorschlag: 'mit gerechneter Knotensicht die Fahrbahnöffnung an der Bordkante der Hauptstrasse, so weit die Überfahrt reicht (AV mit ' +
       'Flächen (Plan): eine geplante Trottoirfläche verkürzt sie); ohne Fahrbahn an der Bordkante offen.' },
   'q3.begrenzung': { was: 'Womit der Bereich, den Fahrzeuge befahren dürfen, seitlich abgegrenzt ist.' },
-  'q3.erkennbar': { was: 'Ja, wenn Fahrende aus der Seitenstrasse mindestens 10 m vorher sehen, dass sie über ein Trottoir fahren; auch bei ' +
-    'Schnee sollte das so bleiben.' },
   'q3.belag': { was: 'Ob das Trottoir mit gleichem Belag und ohne Kante über die Überfahrt läuft. Beim Umbau einer Einmündung den neuen ' +
     'Belag länger ziehen, als die Seitenstrasse breit ist.' },
-  'q3.quergefaelle': { was: 'Neigung quer zur Gehrichtung auf der Überfahrt, in Prozent; üblich sind 2 %.' },
-  'q3.randabschluss': { was: 'Der schräge Stein, über den Fahrzeuge von der Hauptstrasse auf die Überfahrt fahren; Sehbehinderte ertasten ' +
-    'ihn mit dem Stock.' },
-  'q3.randsteineSenkrecht': { was: 'Ja, wenn die Randsteine links und rechts der Überfahrt senkrecht und mindestens 6 cm hoch sind.' },
-  'q3.signalisation': { was: 'Ja, wenn dauernd ein Signal auf die Überfahrt hinweisen soll. Bei einer neuen Überfahrt ist für die ' +
-    'Einführungszeit ein Gefahrensignal mit Zusatztafel sinnvoll.' },
-  'q3.markierung': { was: 'Ja, wenn auf der Überfahrt Markierungen oder davor in der Seitenstrasse eine Wartelinie geplant sind.' },
   'q3.taktil': { was: 'Ja, wenn beidseits der Überfahrt Aufmerksamkeitsfelder markiert sind, verbunden durch eine Leitlinie für Sehbehinderte.' },
-  'q3.anrampung': {
-    was: 'Die Schräge, über die Fahrzeuge auf Trottoirhöhe fahren: Neigung in Prozent und Länge in Metern, z. B. 12 / 0,80. Gut ' +
-      'sichtbar mit Schachbrettmuster oder kontrastierender Pflästerung.',
-    leer: 'Leer: keine Rampe angegeben; die Prüfung der Rampe entfällt.',
-  },
   'q3.dtvEinm': { was: 'Motorfahrzeuge pro Tag in der Seitenstrasse (für die Berner Tabelle).', vorschlag: 'wie der DTV.' },
-  'q3.mivEinmHoch': { was: 'Ja, wenn in der Seitenstrasse viel gefahren wird (eigene Einschätzung, die Norm nennt keine Zahl).', vorschlag: 'als Annahme: DTV ab 3 000 «ja».' },
 }
 
 // ── Sichtbarkeit ──
@@ -594,13 +540,11 @@ const MZS_FGS: Bedingung = { alle: [typ('mehrzweck'), ja('mzsMitFgs')] }
 const F1_TYPEN: Bedingung = { eines: [typ('fgs', 'lsa'), MZS_FGS] }
 /** Befunde aus D gelten dem Fussgängerstreifen (entscheid.ts FGS_ARTIG) */
 const FGS_ARTIG: Bedingung = { eines: [typ(null, 'fgs', 'lsa'), MZS_FGS] }
-const LSA: Bedingung = { eines: [typ('lsa'), ja('fgsMitLsa')] }
 const Q3_BLOCK: Bedingung = { eines: [{ feld: 'lage', ist: ['einmuendung'] }, typ('trottoirueberfahrt')] }
 const KNOTEN: Bedingung = { feld: 'lage', ist: ['knoten_berechtigt', 'knoten_belastet'] }
 const INSEL = ja('insel.vorhanden')
 const INSEL_BAULICH: Bedingung = { alle: [INSEL, { feld: 'insel.art', ist: ['baulich'] }] }
 const OHNE_BAULICH: Bedingung = { alle: [typ('ohne_vortritt'), ja('ohneBaulich')] }
-const HVL_G7: Bedingung = { alle: [FGS, ja('haltenSichtrelevantUeber5m')] }
 const alle = (...b: Bedingung[]): Bedingung => ({ alle: b })
 /** Kurvenregel: die fünf Voraussetzungen nur mit einer Kurve (Radius) und bei Fussgängerstreifen bzw. offenem Typ */
 const KURVE_DA = alle(FGS_ODER_OFFEN, { feld: 'kurve.radiusStrasse', gesetzt: true })
@@ -615,7 +559,6 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   v85Nachweis: FGS,
   ohneBaulich: typ('ohne_vortritt'),
   neuanlage: alle(typ('lsa'), BERN),
-  kantonsstrasse: alle(F1_TYPEN, KANTON),
   // Nachfrage
   netz: BERN,
   'fusswegAchse.rechtwinkligUneinsehbar': FGS, 'fusswegAchse.versatz': FGS, 'fusswegAchse.umlaufschranke': FGS,
@@ -627,8 +570,6 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   tramHaltestellenbereich: { feld: 'tram', ist: ['eigentrassee', 'fahrbahn'] },
   balkenAufGleis: alle({ feld: 'tram', ist: ['eigentrassee'] }, FGS_ARTIG),
   // Lage
-  knotenArmeOhneQuerung: KNOTEN,
-  knotenLsa: KNOTEN,
   alleZufahrtsstreifenBelastet: { feld: 'lage', ist: ['knoten_belastet'] },
   querdistanzL: { feld: 'sichtVorh', gesetzt: true },
   abstandFgsM: FGS, verzweigung: FGS, haltestelleAngrenzend: FGS,
@@ -637,6 +578,7 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   'haltestelle.lage': alle(FGS_ARTIG, { feld: 'haltestelle.art', ist: ['fahrbahn', 'bucht'] }),
   'haltestelle.verdeckt': { feld: 'haltestelle.art', ist: ['fahrbahn'] },
   'haltestelle.ueberholenUnterbunden': alle(FGS_ARTIG, { feld: 'haltestelle.art', ist: ['fahrbahn'] }),
+  'haltestelle.beidseits': alle(FGS_ARTIG, { feld: 'haltestelle.lage', ist: ['fgs_vor_halt'] }),
   rueckversatzM: alle(FGS, KNOTEN),
   // Richtlinie Hindernisfreie Architektur (30.10.2026): wie die Streifenmasse nur beim Fussgängerstreifen; Abstand nur am Kreisel
   streifenGerade: alle(F1_TYPEN, RICHTLINIE),
@@ -652,16 +594,10 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   erkennungM: FGS_ODER_OFFEN,
   // Insel
   'insel.art': INSEL, 'insel.breite': INSEL, 'insel.furt': INSEL, durchfahrt: INSEL, veloQuerung: alle(INSEL_BAULICH, KANTON),
-  'insel.kopfUeberstand': INSEL_BAULICH, 'insel.vertikal': INSEL_BAULICH, 'insel.kopfErhoeht': INSEL_BAULICH, 'insel.pfostenH': INSEL_BAULICH,
+  'insel.kopfUeberstand': INSEL_BAULICH, 'insel.vertikal': INSEL_BAULICH, 'insel.kopfErhoeht': INSEL_BAULICH,
   // Ausrüstung
-  streifenBreite: F1_TYPEN, randAbstand: F1_TYPEN,
   signal411: FGS, signal411Insel: alle(FGS, INSEL_BAULICH),
   beleuchtung: FGS_ODER_OFFEN, schattenfrei: alle(FGS, ja('beleuchtung')),
-  'hvl.vorhanden': FGS, haltenSichtrelevantUeber5m: FGS,
-  haltenSonstVerboten: HVL_G7,
-  'hvl.laengeM': alle(HVL_G7, ja('hvl.vorhanden')),
-  'hvl.beidseits': alle(HVL_G7, ja('hvl.vorhanden'), { feld: 'zweirichtung', ist: [false] }),
-  hvlBedarfM: alle(HVL_G7, ja('hvl.vorhanden')),
   reklameUnter20m: FGS, reklameAusnahme: alle(FGS, ja('reklameUnter20m')),
   annaeherungUeberfahrbar: FGS_ODER_OFFEN,
   einAusfahrtNah: FGS, blinklicht: FGS,
@@ -669,22 +605,11 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   'randabschluss.breiteM': { feld: 'randabschluss.art', ist: ['schraeg'] },
   quergefaelle: { feld: 'randabschluss.art', ist: ['schraeg'] },
   absenkungBeidseits: OHNE_BAULICH, aufstellflaeche: OHNE_BAULICH, parkierungSichtbehindernd: OHNE_BAULICH,
-  // LSA-Zeiten
-  'lsaZeiten.L': LSA, 'lsaZeiten.teile': LSA, 'lsaZeiten.gelb': LSA, 'lsaZeiten.freigabe': LSA, 'lsaZeiten.wartezeit': LSA,
-  'lsaZeiten.abbiegerKonflikt': LSA,
-  'lsaZeiten.vorstart': alle(LSA, ja('lsaZeiten.abbiegerKonflikt')),
-  'lsaZeiten.inselB': alle(LSA, { feld: 'lsaZeiten.teile', gesetzt: true }),
-  'lsaZeiten.phasengleich': alle(LSA, { feld: 'lsaZeiten.teile', gesetzt: true }),
-  'lsaZeiten.beideRichtungenImZyklus': alle(LSA, { feld: 'lsaZeiten.teile', gesetzt: true }, { feld: 'lsaZeiten.phasengleich', ist: [false] }),
-  'lsaZeiten.inselGeraet': alle(LSA, INSEL),
-  'lsaZeiten.inselNurAnmeldung': alle(LSA, INSEL, { feld: 'lsaZeiten.inselGeraet', ist: [false] }, BERN),
   // Trottoirüberfahrt (übrige q3-Felder: Q3_BLOCK, unten ergänzt)
-  'q3.breiteM': typ('trottoirueberfahrt'), 'q3.anrampung': typ('trottoirueberfahrt'),
-  ...Object.fromEntries(['randDurchgehend', 'ueberfahrbarM', 'begrenzung', 'erkennbar', 'belag', 'quergefaelle', 'randabschluss',
-    'randsteineSenkrecht', 'signalisation', 'markierung', 'taktil'].map(u => [`q3.${u}`, typ('trottoirueberfahrt')])),
+  'q3.breiteM': typ('trottoirueberfahrt'),
+  ...Object.fromEntries(['randDurchgehend', 'ueberfahrbarM', 'begrenzung', 'belag', 'taktil'].map(u => [`q3.${u}`, typ('trottoirueberfahrt')])),
   'q3.vSigEinm': alle(Q3_BLOCK, BERN), 'q3.dtvEinm': alle(Q3_BLOCK, BERN),
   'q3.eingangstor': alle(Q3_BLOCK, { feld: 'q3.zoneEinm', ist: ['t30', 'bgz'] }),
-  'q3.hauptInZone': alle(Q3_BLOCK, { feld: 'q3.zoneEinm', ist: ['t30', 'bgz'] }),
   'q3.belastungSchwach': alle(Q3_BLOCK, ja('q3.gegenueberEinm')),
 }
 for (const pfad of FELD_DEF.keys()) if (pfad.startsWith('q3.') && !SICHTBAR[pfad]) SICHTBAR[pfad] = Q3_BLOCK
@@ -722,12 +647,12 @@ export const nurFgsBeiTue = (pfad: string, k: SichtKontext): boolean =>
   !k.alternative && wertVon(k.e, 'typ') === 'trottoirueberfahrt' && !pfad.startsWith('q3.') && !TUE_FELDER.includes(pfad)
 
 /**
- * Blöcke ohne Pflicht-Unterfeld (q3, lsaZeiten) entstehen nur aus Unterfeldern, die im Fall zählen: ein ausgeblendeter Wert (z. B.
+ * Blöcke ohne Pflicht-Unterfeld (q3; lsaZeiten gestrichen 30.10.2026) entstehen nur aus Unterfeldern, die im Fall zählen: ein ausgeblendeter Wert (z. B.
  * Breite der Trottoirüberfahrt bei anderem Typ, Tempo der Seitenstrasse ohne Ebene Bern) lässt den Block nicht laufen (sonst
  * «offen» statt «nicht geprüft»). Ändert e (Befundblatt nach eingabenBilden).
  */
 export function ausgeblendeteBloeckeLeeren(e: BedarfEingaben, ebenen: SichtKontext['ebenen'], alternative = false): void {
-  for (const o of ['q3', 'lsaZeiten'] as const) {
+  for (const o of ['q3'] as const) {
     const x = e[o].wert as unknown as Record<string, unknown> | null
     if (!x) continue
     const k: SichtKontext = { e, ebenen, alternative }
@@ -783,7 +708,6 @@ const MZS_FGS_K = alle(T('mehrzweck'), kann('mzsMitFgs', true))
 const FGS_ARTIG_K: Bedingung = { eines: [T('fgs', 'lsa'), MZS_FGS_K] }
 const FGS_K = T('fgs')
 const NICHT_LSA_K = alle(T('fgs', 'furt', 'ohne_vortritt', 'trottoirueberfahrt', 'mehrzweck'), kann('fgsMitLsa', false))
-const LSA_K: Bedingung = { eines: [T('lsa'), kann('fgsMitLsa', true)] }
 const GRUND_K = alle(T('fgs'), kann('fgsMitLsa', false))
 const NICHT_TUE = T('fgs', 'lsa', 'furt', 'ohne_vortritt', 'mehrzweck')
 /** Pfad E (Querung ohne Vortritt): Typ ohne Vortritt, Mehrzweck ohne Streifen oder Fussgängerstreifen nicht angezeigt (C1, C2) */
@@ -798,7 +722,7 @@ const ZONE_K = alle(NICHT_TUE, kann('tempoRegime', 't30_zone'))
 /** Bausteine der Geltung mit Namen in Alltagssprache (Regelübersicht, «Gilt für») */
 const GELTUNG_NAME = new Map<Bedingung, string>([
   [GRUND_K, 'Fussgängerstreifen ohne Lichtsignal'], [FGS_ARTIG_K, 'Fussgängerstreifen (auch mit Lichtsignal)'], [FGS_K, 'Fussgängerstreifen'],
-  [NICHT_LSA_K, 'Querungen ohne Lichtsignal'], [LSA_K, 'Querungen mit Lichtsignal'], [NICHT_TUE, 'nicht bei Trottoirüberfahrten'],
+  [NICHT_LSA_K, 'Querungen ohne Lichtsignal'], [NICHT_TUE, 'nicht bei Trottoirüberfahrten'],
   [E_K, 'Querungen ohne Vortritt'], [Q3_K, 'Einmündungen bzw. Trottoirüberfahrten'], [KNOTEN_K, 'Querungen an Knoten'],
   [INSEL_K, 'mit Insel'], [BAULICH_K, 'mit gebauter Insel'], [ZONE_K, 'in Tempo-30-Zonen'], [MZS_FGS_K, 'Mehrzweckstreifen mit Fussgängerstreifen'],
 ])
@@ -833,7 +757,6 @@ export function geltungKurz(b: Bedingung | undefined): { teile: string[]; mehr: 
  */
 export const GELTUNG: Partial<Record<RegelId, Bedingung>> = {
   A3: kann('innerorts', true),
-  B4: KNOTEN_K,
   C1: NICHT_TUE, C2: ZONE_K, C2b: ZONE_K, 'C2-B': ZONE_K, C3: NICHT_TUE, C3b: NICHT_TUE, C3c: NICHT_TUE, C4: NICHT_TUE, 'C4-B': NICHT_TUE,
   // D1, D1b, D2, D2a, D3a bestimmen die Empfehlung auch bei anderen Typen
   D1: NICHT_LSA_K, D2: kann('zweirichtung', true), D2a: kann('zweirichtung', true), D2c: FGS_ARTIG_K,
@@ -841,47 +764,43 @@ export const GELTUNG: Partial<Record<RegelId, Bedingung>> = {
   D4a: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn', 'bucht')), D4c: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn', 'bucht')),
   D4b: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn')), 'D4-R': alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn')),
   D4d: alle(FGS_ARTIG_K, kann('haltestelle.art', 'fahrbahn'), kann('haltestelle.lage', 'fgs_nach_halt')),
-  'D5-1': alle(kann('strassentyp', 'verkehrsorientiert'), NICHT_LSA_K), 'D5-2': alle(KNOTEN_K, NICHT_LSA_K), 'D5-3': NICHT_LSA_K,
+  'D5-1': alle(kann('strassentyp', 'verkehrsorientiert'), NICHT_LSA_K), 'D5-2': NICHT_LSA_K /* 30.10.2026: die Lage (Kreuzung) ist die geprüfte Grösse */, 'D5-3': NICHT_LSA_K,
   'D5-4': NICHT_LSA_K, 'D5-5': alle(kann('tram', 'eigentrassee', 'fahrbahn'), NICHT_LSA_K), 'D5-6': NICHT_LSA_K,
   'D6-1': FGS_ARTIG_K, 'D6-2': FGS_ARTIG_K, 'D6-2b': FGS_ARTIG_K, 'D6-3': alle(FGS_ARTIG_K, NICHT_LSA_K),
   'D6-3b': alle(FGS_ARTIG_K, NICHT_LSA_K), 'D6-4': alle(FGS_ARTIG_K, NICHT_LSA_K), 'D6-5': T('lsa'),
   D7: alle(T('mehrzweck'), kann('mzsMitFgs', true)),
-  E1: E_K, E2: E_K, E3: E_K, E3a: E_K, E1b: alle(E_K, kann('strassentyp', 'verkehrsorientiert')), E2a: alle(E_K, T('furt')), E1c: alle(E_K, T('furt')),
-  E2d: alle(E_K, T('ohne_vortritt'), kann('ohneBaulich', true)), E2e: alle(E_K, T('ohne_vortritt'), kann('ohneBaulich', true)),
+  E1: E_K, E2: E_K, E3: E_K, E3a: E_K, E2a: alle(E_K, T('furt')), E1c: alle(E_K, T('furt')),
+  E2d: alle(E_K, T('ohne_vortritt'), kann('ohneBaulich', true)),
   // Querung auf der Fahrbahn (F2 bis F4, E2b, E2c, F7): nicht bei Trottoirüberfahrten (entscheid.ts, 27.10.2026)
   E2b: alle(NICHT_TUE, kann('laengsparkierung', true)), E2c: alle(NICHT_TUE, kann('laengsparkierung', true)),
   'Q3-4': T('trottoirueberfahrt'),
-  F1a: FGS_ARTIG_K, F1b: FGS_ARTIG_K, F1c: FGS_ARTIG_K, F1d: FGS_ARTIG_K, 'F1-K': alle(FGS_ARTIG_K, kann('kantonsstrasse', true)),
+  F1d: FGS_ARTIG_K,
   F1e: alle(FGS_ARTIG_K, kann('busspur', true)),
   // Richtlinie Hindernisfreie Architektur (30.10.2026); Kreisel nur mit bekannter Lage am Kreisel (regeln.ts)
   G11: FGS_ARTIG_K, G12: alle(FGS_ARTIG_K, { feld: 'lage', ist: ['kreisel'] }),
   F2: alle(NICHT_TUE, INSEL_K), F2b: alle(NICHT_TUE, INSEL_K), F2c: alle(NICHT_TUE, INSEL_K), F2d: alle(NICHT_TUE, INSEL_K),
-  'F2-B': alle(NICHT_TUE, INSEL_K), F2e: alle(NICHT_TUE, BAULICH_K), F2f: alle(NICHT_TUE, BAULICH_K), F2g: alle(NICHT_TUE, BAULICH_K),
+  'F2-B': alle(NICHT_TUE, INSEL_K), F2e: alle(NICHT_TUE, BAULICH_K), F2f: alle(NICHT_TUE, BAULICH_K),
   F3: alle(NICHT_TUE, BAULICH_K), 'F3-M': alle(NICHT_TUE, INSEL_K, kann('insel.art', 'markiert')),
   'F3-B': alle(NICHT_TUE, INSEL_K, kann('radstreifen', true)), 'F2-K': alle(NICHT_TUE, BAULICH_K, kann('veloQuerung', true)),
   F4a: alle(NICHT_TUE, kann('einengung', true), kann('mivKlasse', 'tief', 'mittel')), F4b: alle(NICHT_TUE, kann('einengung', true)),
   F4c: alle(kann('einengung', true), T('fgs')),
-  F5a: T('trottoirueberfahrt'), F5b: T('trottoirueberfahrt'), F5c: T('trottoirueberfahrt'), F5d: T('trottoirueberfahrt'),
-  F5e: T('trottoirueberfahrt'), F5f: T('trottoirueberfahrt'), F5g: T('trottoirueberfahrt'), F5h: T('trottoirueberfahrt'),
-  F5i: T('trottoirueberfahrt'), F5j: T('trottoirueberfahrt'), F5k: T('trottoirueberfahrt'), F5l: T('trottoirueberfahrt'),
-  F5m: T('trottoirueberfahrt'), F5n: T('trottoirueberfahrt'),
+  F5a: T('trottoirueberfahrt'), F5c: T('trottoirueberfahrt'), F5d: T('trottoirueberfahrt'), F5e: T('trottoirueberfahrt'),
+  F5g: T('trottoirueberfahrt'), F5h: T('trottoirueberfahrt'), F5n: T('trottoirueberfahrt'),
   F7a: NICHT_TUE, F7c: NICHT_TUE, F7d: NICHT_TUE, F7e: NICHT_TUE, F6a: T('mehrzweck'), F6b: T('mehrzweck'), F6c: T('mehrzweck'),
   F7b: alle(NICHT_TUE, kann('randabschluss.art', 'schraeg')),
   G1: FGS_K, G2: alle(FGS_K, kann('fgsMitLsa', false)), G3b: FGS_K, G4: FGS_K, G4b: alle(FGS_K, BAULICH_K), G5: FGS_K, G5b: FGS_K,
   G6: alle(FGS_K, kann('lage', 'knoten_belastet')), 'G6-B': alle(FGS_K, KNOTEN_K),
-  G7: alle(FGS_K, kann('haltenSichtrelevantUeber5m', true)), G7b: alle(FGS_K, kann('hvl.vorhanden', true)), G8a: FGS_K,
+  G8a: FGS_K,
   G8b: alle(FGS_K, kann('beleuchtung', true)), G9: FGS_K, G10a: FGS_K, G10b: FGS_K,
   H1: FGS_K, H1b: FGS_K, H2: FGS_K, H3a: FGS_K, H3b: FGS_K, H4: FGS_K,
-  I5: alle(LSA_K, kann('lsaZeiten.abbiegerKonflikt', true)), 'I7-B2': alle(LSA_K, kann('insel.vorhanden', false)),
-  'I7-B3': alle(LSA_K, INSEL_K), I8: alle(LSA_K, INSEL_K),
   'B5-2a': alle(GRUND_K, { eines: [kann('insel.vorhanden', false), kann('insel.art', 'markiert')] }),
   'B5-2b': alle(GRUND_K, BAULICH_K), 'B5-2c': alle(GRUND_K, BAULICH_K), 'B5-W3': alle(GRUND_K, kann('haltestelle.art', 'fahrbahn')),
 }
 for (const id of REGEL_IDS) {
   const g = KATALOG[id].gruppe
-  const block = g === 'Q3' ? Q3_K : g === 'I' ? LSA_K : g === 'B5' ? GRUND_K : null
+  const block = g === 'Q3' ? Q3_K : g === 'B5' ? GRUND_K : null   // Block I (LSA-Zeiten) gestrichen 30.10.2026
   if (block && !GELTUNG[id]) GELTUNG[id] = block
-  else if (block && g !== 'B5' && g !== 'I') GELTUNG[id] = alle(block, GELTUNG[id]!)
+  else if (block && g !== 'B5') GELTUNG[id] = alle(block, GELTUNG[id]!)
 }
 
 /**
@@ -1000,7 +919,6 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   strassentyp: 'Ist es eine Durchgangsstrasse oder eine Quartierstrasse?',
   ohneBaulich: 'Ist die Querung ganz ohne bauliche Hilfe (ohne Nase, Einengung, Anhebung)?',
   neuanlage: 'Wird das Lichtsignal neu gebaut?',
-  kantonsstrasse: 'Ist es eine Kantonsstrasse?',
   // Nachfrage
   fg5h: 'Wie viele Personen queren in den 5 Spitzenstunden (gezählt oder geschätzt)?',
   fgKlasse: 'Wie viele Personen queren hier ungefähr in den 5 Spitzenstunden?',
@@ -1027,8 +945,6 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   balkenAufGleis: 'Sind die Balken auch auf den Gleisen markiert?',
   // Lage
   lage: 'Liegt die Querung auf der Strecke, an einer Kreuzung, an einer Einmündung oder am Kreisel?',
-  knotenArmeOhneQuerung: 'Wie viele Arme der Kreuzung haben keine Querung?',
-  knotenLsa: 'Hat die Kreuzung ein Lichtsignal für den Verkehr?',
   alleZufahrtsstreifenBelastet: 'Müssen an dieser Zufahrt alle Fahrstreifen den Vortritt gewähren?',
   fahrbahnB: 'Wie breit ist die Fahrbahn von Bordstein zu Bordstein?',
   querdistanzL: 'Wie lang ist jede Teilquerung?',
@@ -1041,6 +957,7 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   'haltestelle.lage': 'Liegt die Querung, in Fahrtrichtung des Busses gesehen, hinter, vor oder mitten im Haltebereich?',
   'haltestelle.verdeckt': 'Verdeckt ein haltender Bus die Querenden?',
   'haltestelle.ueberholenUnterbunden': 'Ist das Überholen des haltenden Busses verhindert?',
+  'haltestelle.beidseits': 'Liegt auf beiden Seiten der Strasse eine Haltestelle?',
   rueckversatzM: 'Wie weit liegt die Querung von der Kreuzung zurück?',
   streifenGerade: 'Liegt der Streifen an einem geraden Stück der Trottoirkante, nicht in der Kurve einer Einmündung?',
   abstandKreiselM: 'Wie weit liegt der Streifen vom Rand der Kreisfahrbahn entfernt?',
@@ -1053,7 +970,7 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   mzsMitFgs: 'Führt ein Fussgängerstreifen über den Mehrzweckstreifen?',
   'kurve.radius': 'Wie eng ist die Kurve vor der Querung (Radius)?',
   'kurve.radiusStrasse': 'Wie eng ist die Kurve der Strasse vor dem Streifen (Radius)?',
-  'kurve.b1Innerorts50': 'Liegt die Kurve innerorts auf einer Strasse mit Vortritt und 50 km/h?',
+  'kurve.b1Innerorts50': 'Liegt die Kurve innerorts auf einer vortrittsberechtigten Strasse mit 50 km/h?',
   'kurve.b2EinFahrstreifen': 'Hat die Kurve nur einen Fahrstreifen je Richtung?',
   'kurve.b3NachKurvenende': 'Liegt der Streifen unmittelbar nach dem Kurvenende?',
   'kurve.b4Winkel60': 'Ändert die Kurve die Richtung um mindestens 60°?',
@@ -1067,26 +984,17 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   'insel.kopfUeberstand': 'Wie weit ragt die Inselspitze über den Streifen hinaus?',
   'insel.vertikal': 'Steht auf der Insel ein Pfosten oder Signal?',
   'insel.kopfErhoeht': 'Sind die Inselspitzen erhöht?',
-  'insel.pfostenH': 'Wie hoch sind die Pfosten auf der Insel?',
   'insel.furt': 'Wie breit ist der Rollstuhldurchgang durch die Insel?',
   inselMoeglich: 'Hat es Platz für eine Insel?',
   durchfahrt: 'Wie breit ist die Fahrbahn neben der Insel (je Seite)?',
   veloQuerung: 'Queren hier auch Velos und warten auf der Insel?',
   // Ausrüstung
   fgsMitLsa: 'Hat die Querung ein Lichtsignal für Fussgänger?',
-  streifenBreite: 'Wie breit ist der Streifen (Länge der Balken)?',
-  randAbstand: 'Wie gross ist die Lücke zwischen Balken und Trottoirkante?',
   achsWinkel: 'In welchem Winkel quert der Streifen die Fahrbahn?',
   signal411: 'Steht am Streifen die blaue Tafel Fussgängerstreifen?',
   signal411Insel: 'Steht die blaue Tafel auch auf der Insel?',
   beleuchtung: 'Ist die Querung nachts beleuchtet?',
   schattenfrei: 'Bleiben Streifen und Wartefläche nachts ohne Schatten?',
-  'hvl.vorhanden': 'Gibt es vor dem Streifen eine Halteverbotslinie?',
-  'hvl.laengeM': 'Wie lang ist die Halteverbotslinie?',
-  'hvl.beidseits': 'Ist bei der Einbahnstrasse links und rechts eine Halteverbotslinie markiert?',
-  hvlBedarfM: 'Wie lang muss die Halteverbotslinie für die Sicht sein?',
-  haltenSichtrelevantUeber5m: 'Stören haltende Autos weiter als 5 m vor dem Streifen die Sicht?',
-  haltenSonstVerboten: 'Ist das Halten dort schon anders verboten?',
   reklameUnter20m: 'Steht Werbung näher als 20 m beim Streifen?',
   reklameAusnahme: 'Ist die Werbung nahe am Streifen als Ausnahme bewilligt?',
   annaeherungUeberfahrbar: 'Können Fahrzeuge über die Wartefläche vor dem Streifen fahren?',
@@ -1103,19 +1011,6 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   absenkungBeidseits: 'Ist das Trottoir auf beiden Seiten abgesenkt?',
   aufstellflaeche: 'Gibt es auf beiden Seiten Platz zum Warten?',
   parkierungSichtbehindernd: 'Verdecken parkierte Autos die Sicht?',
-  // LSA-Zeiten
-  'lsaZeiten.L': 'Wie lang ist die Querung von Bord zu Bord?',
-  'lsaZeiten.teile': 'Wie lang sind die Teilquerungen an der Insel?',
-  'lsaZeiten.inselB': 'Wie tief ist die Insel in Gehrichtung?',
-  'lsaZeiten.gelb': 'Wie lange dauert das Gelb für Fussgänger?',
-  'lsaZeiten.freigabe': 'Wie lange dauert das Grün für Fussgänger?',
-  'lsaZeiten.phasengleich': 'Sind beide Teilquerungen gleichzeitig grün?',
-  'lsaZeiten.beideRichtungenImZyklus': 'Kommt man im selben Umlauf in beide Richtungen über die Strasse?',
-  'lsaZeiten.wartezeit': 'Wie lange wartet man auf Grün?',
-  'lsaZeiten.vorstart': 'Wie viele Sekunden vor den Abbiegenden erhalten Fussgänger Grün?',
-  'lsaZeiten.abbiegerKonflikt': 'Fahren Abbiegende während Fussgängergrün?',
-  'lsaZeiten.inselGeraet': 'Gibt es auf der Insel einen Taster mit Signal für Sehbehinderte (Ton, Vibration)?',
-  'lsaZeiten.inselNurAnmeldung': 'Gibt es Grün nur auf Tastendruck?',
   // Trottoirüberfahrt
   'q3.bebaut': 'Liegt die Einmündung im bebauten Gebiet?',
   'q3.gewerbe': 'Liegt die Einmündung in einem Industrie- oder Gewerbegebiet?',
@@ -1135,7 +1030,6 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   'q3.einmSiedlungsorientiert': 'Ist die Seitenstrasse eine Quartierstrasse?',
   'q3.zoneEinm': 'Liegt die Seitenstrasse in einer Tempo-30- oder Begegnungszone?',
   'q3.eingangstor': 'Ist die Überfahrt als Eingang in die Zone gestaltet?',
-  'q3.hauptInZone': 'Liegt auch die Hauptstrasse in der Zone?',
   'q3.wartezeitEinmS': 'Wie lange wartet man im Mittel beim Ausfahren?',
   'q3.lkwGelegentlich': 'Fahren Lastwagen nur ab und zu?',
   'q3.linienbus': 'Fährt ein Linienbus durch die Seitenstrasse?',
@@ -1145,26 +1039,16 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   'q3.randDurchgehend': 'Läuft der Trottoirrand entlang der Hauptstrasse gerade durch?',
   'q3.ueberfahrbarM': 'Wie lang ist der überfahrbare Randabschluss entlang der Hauptstrasse?',
   'q3.begrenzung': 'Wie ist der befahrbare Bereich begrenzt?',
-  'q3.erkennbar': 'Ist die Überfahrt aus der Seitenstrasse auf mindestens 10 m als solche erkennbar?',
   'q3.belag': 'Wie geht das Trottoir über die Überfahrt?',
-  'q3.quergefaelle': 'Wie gross ist das Quergefälle auf der Überfahrt?',
-  'q3.randabschluss': 'Welcher überfahrbare Randabschluss liegt zur Hauptstrasse?',
-  'q3.randsteineSenkrecht': 'Sind die Randsteine neben der Überfahrt senkrecht und mindestens 6 cm hoch?',
-  'q3.signalisation': 'Ist eine dauernde Signalisation der Überfahrt vorgesehen?',
-  'q3.markierung': 'Sind auf der Überfahrt Markierungen vorgesehen oder eine Wartelinie davor in der Seitenstrasse?',
   'q3.taktil': 'Sind beidseits Aufmerksamkeitsfelder mit verbindender Leitlinie markiert?',
-  'q3.anrampung': 'Wie steil und wie lang ist die Rampe der Überfahrt?',
   'q3.dtvEinm': 'Wie viele Fahrzeuge fahren pro Tag in der Seitenstrasse?',
-  'q3.mivEinmHoch': 'Hat die Seitenstrasse viel Verkehr?',
   // Objekt-Felder und Sonderfälle (fehlende Felder im Befund)
   fgQuelle: 'Sind die Querenden gezählt oder geschätzt?',
   insel: 'Gibt es eine Insel in der Fahrbahnmitte?',
   haltestelle: 'Hält an der Querung ein Bus – auf der Fahrbahn oder in einer Bucht?',
-  hvl: 'Gibt es vor dem Streifen eine Halteverbotslinie?',
   fusswegAchse: 'Mündet ein Fussweg direkt auf den Streifen?',
   randabschluss: 'Welcher Randstein liegt an der Querung?',
   kurve: 'Liegt vor der Querung eine Kurve?',
-  lsaZeiten: 'Wie sind die Grün- und Gelbzeiten für Fussgänger?',
   q3: 'Wie ist die Einmündung beschaffen (Angaben im Thema «Trottoirüberfahrt»: Gebiet, Tempo, Fahrstreifen, Sicht beim Ausfahren …)?',
   Zufahrten: 'Hinweis: im Sichtrechner ist für diesen Streifen keine Zufahrt geprüft (Zufahrten prüfen bzw. Sichtweite von Hand eingeben).',
 }

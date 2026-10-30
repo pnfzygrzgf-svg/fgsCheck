@@ -151,7 +151,7 @@ describe('Vorlagen', () => {
     expect(z.antwort).toBe('Ein Fussgängerstreifen ist hier zulässig.')
     expect(z.wichtig).toBe('Grundprüfung bfu: 4 von 5 Punkten erfüllt, Fussgängerschutzinsel mit Hinweis. Übrige Prüfungen ohne Befund (1 Hinweis).')
     // Korrektur 23.10.2026: mit Lichtsignal entfallen «Lichtsignal prüfen» bei starkem Verkehr und sehr vielen Querenden (D5-1, D5-6)
-    expect(zf({ typ: 'lsa', fgsMitLsa: true }).wichtig).toBe('Keine Befunde: 26 von 27 Prüfungen ohne Befund, 1 Hinweis.')   // 30.10.2026: + G11
+    expect(zf({ typ: 'lsa', fgsMitLsa: true }).wichtig).toBe('Keine Befunde: 19 von 20 Prüfungen ohne Befund, 1 Hinweis.')   // 30.10.2026: + G11; Block 3: − F1a, F1b, F1c, I1, I2, I4, I6
     expect(z.fehlt).toBeNull()
   })
   it('Grundfall mit offenen Feldern: Fragen, Muss zuerst, höchstens zwei ausgeschrieben, Rest als Zahl', () => {
@@ -188,11 +188,11 @@ describe('Vorlagen', () => {
     expect(z.wichtig).toBe('Grundprüfung bfu: 4 von 5 Punkten erfüllt. Zu beheben: Insel fehlt bei breiter Fahrbahn (9,20 m, ab 8,50 m nötig).')
   })
   it('mehr als zwei Befunde: zwei genannt, Rest als «weitere Befunde»; Muss vor Soll', () => {
-    const z = zf({ fahrbahnB: 9.2, streifenBreite: 2.8, abstandLsaM: 100, abstandFgsM: 30 })
+    const z = zf({ fahrbahnB: 9.2, beleuchtung: false, abstandLsaM: 100, abstandFgsM: 30 })   // bis 30.10.2026 Streifen 2,80 m (F1a gestrichen)
     expect(z.genannt.length).toBe(2)
     expect(z.weitereBefunde).toBeGreaterThan(0)
     expect(z.wichtig).toMatch(/Zu beheben: .+; zu verbessern: .*\(?\d+ (weitere(r)?, siehe unten\)|Befunde? \(siehe unten\))\./)
-    expect(z.wichtig).toContain('Streifen zu schmal (2,80 m statt mindestens 3,00 m)')
+    expect(z.wichtig).toContain('Beleuchtung fehlt')
   })
   it('Lichtsignal: Empfehlung mit Lichtsignalanlage, keine Grundprüfung', () => {
     const z = zf({ typ: 'lsa', fgsMitLsa: true })
@@ -218,8 +218,8 @@ describe('Vorlagen', () => {
     expect(o.fehlt!.felder[0]).toBe('innerorts')
   })
   it('Kurzform: Kurzsatz mit Platzhaltern; ohne Wert der Teil vor der Klammer; ohne Kurzsatz Titel mit Ist und Soll', () => {
-    expect(kurzform({ id: 'F1a', ist: '2,80', soll: '≥ 3,00', einheit: 'm' })).toBe('Streifen zu schmal (2,80 m statt mindestens 3,00 m)')
-    expect(kurzform({ id: 'F1a' })).toBe('Streifen zu schmal')
+    expect(kurzform({ id: 'G1', ist: '40', soll: '≥ 50', einheit: 'm' })).toBe('nächster Fussgängerstreifen zu nah (40 m statt mindestens 50 m)')
+    expect(kurzform({ id: 'G1' })).toBe('nächster Fussgängerstreifen zu nah')
     expect(kurzform({ id: 'H1', ist: 'verdeckt (Parkfeld (auto))', soll: '55 m frei (VSS Tab. 1)', einheit: 'm' })).toBe('zu wenig Sicht auf die Wartefläche (verdeckt statt 55 m frei)')
     expect(kurzform({ id: 'C3', ist: 'Klasse <100', einheit: 'Pers.' })).toBe('wenige Querende (geschätzt unter 100 Personen in 5 Spitzenstunden)')
     expect(kurzform({ id: 'C4', ist: '2000', einheit: 'Fz/Tag' })).toBe('wenig Fahrverkehr (2000 Fahrzeuge pro Tag), Querende finden meist genug Lücken')
@@ -233,8 +233,9 @@ describe('Vorlagen', () => {
     expect(kurzform({ id: 'F2f', ist: '0,50 / 0,80', soll: '≥ 0,75', einheit: 'm' })).toBe('Inselspitze ragt zu wenig vor (je Seite 0,50 m und 0,80 m statt mindestens 0,75 m)')
     // ohne Kurzsatz: Titel mit Ist/Soll, ohne Wert «(nicht erfüllt)»; «nötig» nur bei Muss
     expect(kurzform({ id: 'F4c' })).toBe('Länge der Einengung mit Streifen (Bern: nicht erfüllt)')
-    expect(kurzform({ id: 'F1c', soll: '≤ 0,50', einheit: 'm' })).toBe('Abstand Balken zur Trottoirkante (nötig höchstens 0,50 m)')
-    expect(kurzform({ id: 'F1c', soll: '≤ 0,50', einheit: 'm' }, false)).toBe('Abstand Balken zur Trottoirkante (Soll höchstens 0,50 m)')
+    // Hinweis ohne Kurzsatz (bis 30.10.2026 an F1c gezeigt, gestrichen): ohne Angabe «Soll», als Muss gewertet «nötig»
+    expect(kurzform({ id: 'G6-B', soll: '≤ 5', einheit: 'm' }, true)).toBe('Rückversatz begrenzen (Bern: nötig höchstens 5 m)')
+    expect(kurzform({ id: 'G6-B', soll: '≤ 5', einheit: 'm' })).toBe('Rückversatz begrenzen (Bern: Soll höchstens 5 m)')
   })
   it('Korrektur M1: ein verletzter Hinweis im Baum unterdrückt den Soll-Punkt der Grundprüfung nicht', () => {
     for (const abw of [{ fahrbahnB: 9.2, dtv: 2000 }, { ...TESTFAELLE.find(t => t.name === 'n [2,1] mit baulicher Insel')!.abw, durchfahrt: [4.3, 4.3] }] as Abw[]) {
@@ -294,7 +295,7 @@ describe('Vorlagen', () => {
   it('Katalog: Kurzsätze kurz, eigene Texte, nur bekannte Platzhalter; für Big Five und die häufigen Muss-Regeln vorhanden', () => {
     const mit = REGEL_IDS.filter(id => DEF[id].kurzsatz)
     expect(mit.length).toBeGreaterThanOrEqual(30)
-    for (const id of ['C1', 'C2', 'D1', 'D2', 'D3a', 'D4a', 'D4b', 'E3', 'F1a', 'F2', 'G1', 'G2', 'G8a', 'H1', 'H3a', 'B5-T', 'B5-1', 'B5-2b', 'B5-3', 'B5-4', 'B5-5'])
+    for (const id of ['C1', 'C2', 'D1', 'D2', 'D3a', 'D4a', 'D4b', 'E3', 'F2', 'G1', 'G2', 'G8a', 'H1', 'H3a', 'B5-T', 'B5-1', 'B5-2b', 'B5-3', 'B5-4', 'B5-5'])
       expect(DEF[id].kurzsatz, id).toBeTruthy()
     for (const id of mit) {
       const k = DEF[id].kurzsatz!

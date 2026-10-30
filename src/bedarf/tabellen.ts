@@ -6,7 +6,7 @@
 // Berner Tabellen Tempo × DTV nach Masterplan Fussverkehr (Skizze Abschnitt 3a). Bei Kurvenradius 20 m gilt wie in der
 // Sichtprüfung der bfu-Wert 24 m statt 30 m nach Tab. 2 (Nutzerentscheid 20.10.2026); der Befund nennt den Normwert.
 
-import { SICHTWEITE, sichtweiteKurve, sichtweiteTab1, tempoStufe } from '../rechner/tempo'
+import { QUELLE_TAB1_20, QUELLE_TAB1_UEBER60, SICHTWEITE, sichtweiteKurve, sichtweiteTab1, tempoStufe } from '../rechner/tempo'
 
 /** Anhaltesichtweite [m] nach Tempo [km/h] (VSS 40 240:2025-07 Z. 8.2) */
 export const AHS_40240: Readonly<Record<number, number>> = { 20: 15, 30: 25, 40: 40, 50: 55, 60: 75 }
@@ -35,6 +35,11 @@ export function sichtKurveTab2(radius: number): { sicht: number; norm: number } 
 
 /** Tab. 1 von VSS 40 241 (Sichtweite FGS) für ein Tempo: Stufe nach tempo.ts */
 export const sichtFgs = (v: number): number => sichtweiteTab1(tempoStufe(v))
+/** Herkunft der Sichtweite nach Tempo für den Text (30.10.2026): «Tab. 1» bzw. die Annahme bei 20 km/h und über 60 km/h (wie der Sichtrechner) */
+export function sichtFgsHerkunft(v: number): string {
+  const s = tempoStufe(v)
+  return s === 20 ? QUELLE_TAB1_20 : s > 60 ? QUELLE_TAB1_UEBER60 : 'Tab. 1'
+}
 export { SICHTWEITE as TAB1_40241 }
 
 // ── Berner Tabellen (Masterplan Fussverkehr Stadt Bern, Standards, Oktober 2025: Q1 S. 58, Q2 S. 60, Q3 S. 62, E1 S. 64) ──

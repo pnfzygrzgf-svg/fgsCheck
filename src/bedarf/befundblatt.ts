@@ -16,7 +16,7 @@ import { beurteile } from './entscheid'
 import { KATALOG, WERKE, quellText, type RegelId, type WerkId } from './katalog'
 import type { Befund, Eintrag, Liste, MassZeile } from './typen'
 import { eingabenBilden, ebenenWirksam, QUELLE_TEXT, type Gebildet } from './fallBedarf'
-import { querungen, vorbelegen, streifenTyp, type QuerungGruppe, type Vorbelegt, type GeoVorbelegung } from './vorbelegung'
+import { dtvHauptstrasse, querungen, vorbelegen, streifenTyp, type QuerungGruppe, type Vorbelegt, type GeoVorbelegung } from './vorbelegung'
 import { FELD_DEFS, FELD_DEF, GRUPPEN, feldName, gruppeVon, gruppenName, wertText, type GruppeId } from './felder'
 import { lesetext } from './lesetext'
 import { QUELLEN_ANNAHME } from './eingaben'
@@ -93,6 +93,21 @@ export interface BefundBlatt {
   gestrichen?: number
   /** Trottoirüberfahrt mit geprüfter Alternative Fussgängerstreifen (nur dann true) */
   alternative?: boolean
+  /** beurteilte Trottoirüberfahrt (30.10.2026): Informationszeile zum Verkehr von Seitenstrasse und Hauptfahrbahn, ohne Befund */
+  tueVerkehr?: string
+}
+
+const tausender = (x: number): string => String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')
+/**
+ * Informationszeile im Thema Trottoirüberfahrt (VSS 40 242 Z. 15.2.1, S. 17; Nutzerentscheid 30.10.2026): Verkehr der Seitenstrasse und der
+ * Hauptfahrbahn mit ihrem Verhältnis, ohne Schwelle und ohne Befund; fehlt ein Wert, «offen». Seitenstrasse: Feld q3.dtvEinm; Hauptfahrbahn:
+ * DTV der Hauptstrasse aus den Verkehrsdaten (wie die Schätzung der Wartezeit, vorbelegung.dtvHauptstrasse), sonst offen
+ */
+export function tueVerkehrZeile(seite: number | null, haupt: number | null): string {
+  const fz = (x: number | null) => (x === null ? 'offen' : `${tausender(x)} Fz/Tag`)
+  const v = seite !== null && haupt !== null && seite > 0 ? `1 : ${(Math.round(haupt / seite * 10) / 10).toFixed(1).replace('.', ',')}` : 'offen'
+  return `Verkehr: Seitenstrasse ${fz(seite)}, Hauptfahrbahn ${fz(haupt)}, Verhältnis ${v}. Norm (VSS 40 242 Z. 15.2.1, S. 17): Verkehr ` +
+    'der Seitenstrasse deutlich geringer als auf der Hauptfahrbahn; bei geringem Gesamtverkehr sind auch gleiche Mengen zulässig.'
 }
 
 /** Empfehlung ausgesetzt, solange offen ist, ob die Querung in einer Begegnungszone liegt (Runde 4) */
@@ -172,11 +187,11 @@ export function begruendung(b: Befund, typ: Querungstyp | null = null): string {
 }
 const OHNE_VORTRITT_ANLAGE: readonly string[] = ['furt', 'ohne_vortritt', 'mehrzweck']
 
-/** Begründung einer beurteilten Trottoirüberfahrt: zwingende Punkte (Q3, Trottoirrand F5c) verletzt bzw. offen, sonst die nicht erfüllten
- * Merkmale (Soll); leer, solange die Prüfung nicht gelaufen ist */
+/** Begründung einer beurteilten Trottoirüberfahrt: zwingende Punkte (Q3; der Trottoirrand F5c bis 30.10.2026, seither Hinweis) verletzt
+ * bzw. offen, sonst die nicht erfüllten Merkmale (Soll); leer, solange die Prüfung nicht gelaufen ist */
 function begruendungTue(b: Befund): string {
   if (!b.ausgewertet.includes('Q3-4')) return ''
-  const zwingend = (id: string) => (id.startsWith('Q3') || id === 'F5c') && ['hart', 'hart_bericht'].includes(KATALOG[id as RegelId]?.staerke ?? '')
+  const zwingend = (id: string) => id.startsWith('Q3') && ['hart', 'hart_bericht'].includes(KATALOG[id as RegelId]?.staerke ?? '')
   const ids = (z: 'verletzt' | 'offen', f: (id: string) => boolean) =>
     nachAbschnitt([...new Set(b.alle.filter(x => x.zustand === z && f(x.id) && (z === 'offen' || x.staerke !== 'hinweis')).map(x => x.id))], x => x)
   const hart = ids('verletzt', zwingend), offen = ids('offen', zwingend)
@@ -324,7 +339,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     typHinweis.push(`Querungstyp im Bedarf (${TYP_TEXT[handTyp]}) widerspricht der Querungsart der Streifen: es gilt ${TYP_TEXT[vorTyp.wert as string]}`)
   }
   const ebenen = ebenenWirksam(fall.bedarf, opt.vorgabe)
-  // ausgeblendete Unterfelder lösen die Blöcke Trottoirüberfahrt bzw. LSA-Zeiten nicht aus (Feldhilfen, SICHTBAR)
+  // ausgeblendete Unterfelder lösen den Block Trottoirüberfahrt nicht aus (Feldhilfen, SICHTBAR)
   const alternative = opt.alternative === true && gebildet.eingaben.typ.wert === 'trottoirueberfahrt'
   ausgeblendeteBloeckeLeeren(gebildet.eingaben, ebenen, alternative)
   const befund = beurteile(gebildet.eingaben, { ebenen: { bern: ebenen.bern, kantonBE: ebenen.kantonBE, richtlinie: ebenen.richtlinie },
@@ -334,6 +349,9 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
   for (const x of befund.alle) if (x.bestaetigen && x.fehlend?.length && x.fehlend.every(f => gebildet.herkunft.get(f)?.zustand === 'hand'))
     x.detail = DETAIL_HAND_ANNAHME
   const hinweise = [...typHinweis, ...vorbelegt.hinweise, ...gebildet.hinweise]
+  // Trottoirüberfahrt (30.10.2026): Verkehr von Seitenstrasse und Hauptfahrbahn als Information
+  const tueVerkehr = gebildet.eingaben.typ.wert === 'trottoirueberfahrt'
+    ? tueVerkehrZeile(gebildet.eingaben.q3.wert?.dtvEinm ?? null, dtvHauptstrasse(g.streifen, opt.geo?.verkehrsdaten ?? null)?.wert ?? null) : undefined
   // Kurvenregel nur innerorts bei 50 km/h (29.10.2026): «ja» zu den fünf Voraussetzungen wirkt sonst nicht
   const ein = gebildet.eingaben
   if (ein.kurve.wert?.fuenfBedingungen === true && !(ein.innerorts.wert === true && ein.vSig.wert === 50))
@@ -570,9 +588,8 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       ...(best ? { bestaetigen: true } : {}) })
   }
   const nichtGeprueft = [
-    ...befund.nichtGeprueft.map(x => ({ block: x.block === 'Q3' ? 'Trottoirüberfahrt' : 'LSA-Zeiten', grund: x.grund })),
-    ...GRUPPEN.filter(gr => ohne.has(gr.id) && !(gr.id === 'q3' && befund.nichtGeprueft.some(x => x.block === 'Q3')) &&
-      !(gr.id === 'lsa' && befund.nichtGeprueft.some(x => x.block === 'I')))
+    ...befund.nichtGeprueft.map(x => ({ block: 'Trottoirüberfahrt', grund: x.grund })),   // Block I (LSA-Zeiten) gestrichen 30.10.2026
+    ...GRUPPEN.filter(gr => ohne.has(gr.id) && !(gr.id === 'q3' && befund.nichtGeprueft.some(x => x.block === 'Q3')))
       .map(gr => ({ block: gr.name, grund: `keine Eingaben (${ohne.get(gr.id)!.size} Regeln offen)` })),
   ]
 
@@ -610,7 +627,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     gruppe: g.id, streifen: g.streifen.map(s => s.fgsId), titel: blattTitel(g, opt.titel ?? ((id: string) => id)),
     befund, gebildet, vorbelegt, ebenen, sicht, sichtVonHand, typText: typText(befund),
     zulText: befund.zulaessigkeit ? ZUL[befund.zulaessigkeit] : '', begruendung: begruendung(befund, gebildet.eingaben.typ.wert), offen, nichtGeprueft, annahmen,
-    hinweise: [...new Set(hinweise.map(lesetext))], ...(alternative ? { alternative } : {}),
+    hinweise: [...new Set(hinweise.map(lesetext))], ...(alternative ? { alternative } : {}), ...(tueVerkehr ? { tueVerkehr } : {}),
   }
 }
 

@@ -1,5 +1,5 @@
 // Tests der Luftbild-Erkennung mit synthetischen Bildern (keine echten Luftbilder im Repo)
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { wgs, type P } from '../geo'
 import { lab, merkmalGelb, taktKorrelation, nccVorlage, bildAusPixeln, streifenImBild, type TeilErkannt } from './luftbild'
 import { inselAusBalken, luftbildInsel, teilAbschnitt, inselAusOsmSetzen, osmInselHinweis, BALKEN_DURCH } from './streifen'
@@ -133,7 +133,8 @@ describe('Streifen im Bild', () => {
   })
 })
 
-describe('Insel nach OSM aus den Balken (INSEL_AUS_OSM; nur zwei Balkengruppen, Nutzerentscheid 14.10.2026)', () => {
+describe('Insel nach OSM aus den Balken (INSEL_AUS_OSM; nur zwei Balkengruppen, Nutzerentscheid 14.10.2026; Schalter seit 30.10.2026 aus, hier an)', () => {
+  beforeEach(() => inselAusOsmSetzen(true))
   afterEach(() => inselAusOsmSetzen(null))
   // Teil mit Achse nach Norden ab O, Balken parallel zu x (4 m), ohne Schräge; balkenS: Balkenmitten ab p0
   const teil = (balkenS: number[], L: number, schraeg = 0): TeilErkannt => {
@@ -196,7 +197,7 @@ describe('Insel nach OSM aus den Balken (INSEL_AUS_OSM; nur zwei Balkengruppen, 
       ringe: [[[O[0] - 3, O[1] + 4.5], [O[0] + 3, O[1] + 4.5], [O[0] + 3, O[1] + 6], [O[0] - 3, O[1] + 6]]] }])
     expect(luftbildInsel(e.teile, ja, O, avInsel).teile).toBe(e.teile)       // AV-Insel bis 2 m hinter dem Ende
     inselAusOsmSetzen(false)
-    expect(luftbildInsel(e.teile, ja, O, keine)).toMatchObject({ teile: e.teile, insel: null, hinweis: '' })
+    expect(luftbildInsel(e.teile, ja, O, keine)).toMatchObject({ teile: e.teile, insel: null, hinweis: osmInselHinweis() })   // Vorgabe seit 30.10.2026: nur Hinweis
     // Insel von Hand (auch mit Schalter aus): teilt die Balken eines durchgehenden Streifens, ersetzt die Annahme
     const voll = streifenImBild(bild(), O, [1, 0], aufStrasse(4))
     const hand = luftbildInsel(voll.teile, ja, O, keine, [{ ring: [[O[0] - 3, O[1] - 0.6], [O[0] + 3, O[1] - 0.6],
@@ -248,7 +249,8 @@ describe('Insel nach OSM aus den Balken (INSEL_AUS_OSM; nur zwei Balkengruppen, 
     inselAusOsmSetzen(false)
     const aus = rechneFall(osm({ 'crossing:island': 'yes' }), av, [], 12, fall(), null, bild({ fehlend: [3, 4] }))
     expect(aus.streifen.map(s => [s.fgsId, s.zufahrten.map(z => z.art).join()])).toEqual([['12', 'beide,beide']])
-    expect([aus.inseln, aus.streifen[0].annahmen.join(' ')]).toEqual([[], expect.not.stringMatching(/insel/i)])
+    expect(aus.inseln).toEqual([])
+    expect(aus.streifen[0].annahmen).toContain(osmInselHinweis())   // Vorgabe seit 30.10.2026: Hinweis statt Teilen
   })
   it('mit Flächen (Plan): Erkennung auf dem Bestand, «erkannt» nur Vorschlag; gleich, ob zwischengespeichert oder frisch (M1)', () => {
     const plan = (f: ReturnType<typeof fall>) => { f.flaechenPlan = [{ id: 'plan-1', art: 'trottoir', ring: rr(-3, 2, 3, 4.5) }]; return f }

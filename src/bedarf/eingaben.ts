@@ -43,7 +43,6 @@ export interface Insel {
   kopfUeberstand: [number, number] | null
   vertikal: boolean | null
   kopfErhoeht: boolean | null
-  pfostenH: number | null
   furt: number | null
 }
 /** Bushaltestelle in der Nähe; art null = keine Haltestelle */
@@ -52,9 +51,9 @@ export interface Haltestelle {
   lage: 'fgs_nach_halt' | 'fgs_vor_halt' | 'im_bereich' | null
   verdeckt: boolean | null
   ueberholenUnterbunden: boolean | null
+  /** Haltestelle auf beiden Strassenseiten (Busse in beiden Richtungen; D4c, 30.10.2026) */
+  beidseits?: boolean | null
 }
-/** Halteverbotslinie; beidseits: auf Einbahnstrassen auf beiden Seiten */
-export interface Hvl { vorhanden: boolean; laengeM: number | null; beidseits: boolean | null }
 /** Fussweg in der Achse des Streifens (G3b) */
 /** Fussweg in der Achse: versatz und umlaufschranke zählen nur, wenn der Weg direkt und verdeckt mündet (Korrektur S8) */
 export interface FusswegAchse { rechtwinkligUneinsehbar: boolean; versatz: boolean | null; umlaufschranke: boolean | null }
@@ -68,22 +67,7 @@ export interface Kurve { radius: number | null
   b4Winkel60?: boolean | null; b5Gefaelle5?: boolean | null; fuenfBedingungen: boolean; vorschlag?: boolean }
 /** die fünf Voraussetzungen der Kurvenregel (Unterfelder von kurve) */
 export const KURVE_BEDINGUNGEN = ['b1Innerorts50', 'b2EinFahrstreifen', 'b3NachKurvenende', 'b4Winkel60', 'b5Gefaelle5'] as const
-/** LSA-Zeiten (nur Typ Q2; Ausbau E4). L = Querung Bord–Bord [m], teile = Teilquerungen an der Insel, Zeiten in s */
-export interface LsaZeiten {
-  L: number | null
-  teile: [number, number] | null
-  inselB: number | null
-  gelb: number | null
-  freigabe: number | null
-  phasengleich: boolean | null
-  beideRichtungenImZyklus: boolean | null
-  wartezeit: number | null
-  vorstart: number | null
-  abbiegerKonflikt: boolean | null
-  inselGeraet: boolean | null
-  inselNurAnmeldung: boolean | null
-}
-/** Trottoirüberfahrt (nur Einmündungen; Ausbau E5). anrampung null = keine Anrampung gewählt */
+/** Trottoirüberfahrt (nur Einmündungen; Ausbau E5) */
 export interface Q3 {
   bebaut: boolean | null
   gewerbe: boolean | null
@@ -103,39 +87,23 @@ export interface Q3 {
   einmSiedlungsorientiert: boolean | null
   zoneEinm: 'keine' | 't30' | 'bgz' | null
   eingangstor: boolean | null
-  /** Hauptverkehrsstrasse innerorts in einer Tempo-30-Zone (Ausnahme 40 242 Z. 15.1) */
-  hauptInZone: boolean | null
   wartezeitEinmS: number | null
   lkwGelegentlich: boolean | null
   linienbus: boolean | null
   lsaKnoten: boolean | null
   kreisel: boolean | null
   breiteM: number | null
-  anrampung: { neigung: number; laenge: number } | null
   dtvEinm: number | null
-  /** viel Verkehr auf der einmündenden Strasse (Handangabe, keine Zahl in der Norm; Q3-M10) */
-  mivEinmHoch: boolean | null
-  // Ausstattung (VSS 40 242 Tab. 3; F5c bis F5n, Handangaben)
+  // Ausstattung (VSS 40 242 Tab. 3; F5c bis F5n, Handangaben; Rampe, Erkennbarkeit, Quergefälle, Randabschluss, Randsteine, Signalisation
+  // und Markierung gestrichen 30.10.2026)
   /** Trottoirrand entlang der Hauptstrasse läuft gerade durch (nicht zurückgesetzt) */
   randDurchgehend?: boolean | null
   /** Länge des überfahrbaren Randabschlusses entlang der Hauptstrasse [m] */
   ueberfahrbarM?: number | null
   /** Begrenzung des befahrbaren Bereichs */
   begrenzung?: 'poller' | 'randstein' | 'keine' | null
-  /** aus der Seitenstrasse auf mindestens 10 m als Überfahrt erkennbar */
-  erkennbar?: boolean | null
   /** Belag über die Überfahrt: gleich, Wechsel, Absatz, beides */
   belag?: 'gleich' | 'wechsel' | 'absatz' | 'beides' | null
-  /** Quergefälle auf der Überfahrt [%] */
-  quergefaelle?: number | null
-  /** überfahrbarer Randabschluss zur Hauptstrasse */
-  randabschluss?: 's0625' | 's0630' | 's0416' | 'anderer' | null
-  /** Randsteine neben der Überfahrt senkrecht, mindestens 6 cm */
-  randsteineSenkrecht?: boolean | null
-  /** dauernde Signalisation der Überfahrt vorgesehen */
-  signalisation?: boolean | null
-  /** Markierungen auf der Überfahrt bzw. Wartelinie davor vorgesehen */
-  markierung?: boolean | null
   /** Aufmerksamkeitsfelder beidseits mit verbindender Leitlinie */
   taktil?: boolean | null
 }
@@ -161,9 +129,6 @@ export interface Werte {
   nachfrage: Nachfrage
   wunschlinieM: number
   lage: Lage
-  knotenArmeOhneQuerung: number
-  /** Knoten mit LSA für den Fahrverkehr (neu, D5-2) */
-  knotenLsa: boolean
   fahrbahnB: number
   zweirichtung: boolean
   /** Fahrstreifen je Richtung ([n] bei Einbahn) */
@@ -199,11 +164,7 @@ export interface Werte {
   signal411Insel: boolean
   beleuchtung: boolean
   schattenfrei: boolean
-  hvl: Hvl
-  /** Länge der Halteverbotslinie nach Sichtbedarf [m] (neu, aus dem Sichtrechner) */
-  hvlBedarfM: number
-  haltenSichtrelevantUeber5m: boolean
-  haltenSonstVerboten: boolean
+  // Halteverbotslinie (hvl, hvlBedarfM, haltenSichtrelevantUeber5m, haltenSonstVerboten) gestrichen 30.10.2026 mit G7, G7b
   reklameUnter20m: boolean
   reklameAusnahme: boolean
   annaeherungUeberfahrbar: boolean
@@ -211,9 +172,7 @@ export interface Werte {
   blinklicht: Blinklicht
   /** (neu, G3b) */
   fusswegAchse: FusswegAchse
-  streifenBreite: number
-  /** Abstand äusserster Balken bis Trottoirkante je Ende [m] */
-  randAbstand: number[]
+  // streifenBreite, randAbstand gestrichen 30.10.2026 mit F1a, F1b, F1-K, F1c (nur Ausführung)
   /** Winkel Streifenachse zum Fahrbahnrand [°], 90 = rechtwinklig */
   achsWinkel: number
   randabschluss: Randabschluss
@@ -249,9 +208,8 @@ export interface Werte {
   mzsBreiteM: number
   /** Fussgängerstreifen über dem Mehrzweckstreifen (neu, D7) */
   mzsMitFgs: boolean
-  lsaZeiten: LsaZeiten
+  // lsaZeiten gestrichen 30.10.2026 mit Block I; kantonsstrasse gestrichen 30.10.2026 mit F1-K
   q3: Q3
-  kantonsstrasse: boolean
   /** Velos queren mit und warten auf der Insel (neu 23.10.2026, F2-K; nur von Hand, alte Fälle: offen) */
   veloQuerung: boolean
 }
@@ -276,21 +234,20 @@ export const FELDER: { readonly [K in FeldName]: Art } = {
   fgQuelle: ['zaehlung', 'schaetzung'], fgSehrHoch: 'bool', netz: ['basisnetz', 'publikumsintensiv', 'feinverteiler', 'keins'],
   netzQualifiziert: 'bool', beduerfnis: 'objekt', strassentyp: ['verkehrsorientiert', 'siedlungsorientiert'], starkBelastet: 'bool',
   nachfrage: ['punktuell', 'flaechig'], wunschlinieM: 'zahl',
-  lage: ['strecke', 'knoten_berechtigt', 'knoten_belastet', 'einmuendung', 'kreisel'], knotenArmeOhneQuerung: 'zahl',
-  knotenLsa: 'bool', fahrbahnB: 'zahl', zweirichtung: 'bool', nRichtung: 'zahlen', radstreifen: 'bool', busspur: 'bool',
+  lage: ['strecke', 'knoten_berechtigt', 'knoten_belastet', 'einmuendung', 'kreisel'],
+  fahrbahnB: 'zahl', zweirichtung: 'bool', nRichtung: 'zahlen', radstreifen: 'bool', busspur: 'bool',
   busDurchmarkiert: 'bool', alleZufahrtsstreifenBelastet: 'bool', tram: ['keins', 'eigentrassee', 'fahrbahn'],
   tramHaltestellenbereich: 'bool', balkenAufGleis: 'bool', insel: 'objekt', inselMoeglich: 'bool', durchfahrt: 'zahlen',
   haltestelle: 'objekt', abstandFgsM: 'zahl', abstandLsaM: 'zahl', streifenGerade: 'bool', abstandKreiselM: 'zahl', verzweigung: 'bool', verzweigungErkennbar: 'bool',
   haltestelleAngrenzend: 'bool', fgsMitLsa: 'bool', neuanlage: 'bool', rueckversatzM: 'zahl', signal411: 'bool',
-  signal411Insel: 'bool', beleuchtung: 'bool', schattenfrei: 'bool', hvl: 'objekt', hvlBedarfM: 'zahl',
-  haltenSichtrelevantUeber5m: 'bool', haltenSonstVerboten: 'bool', reklameUnter20m: 'bool', reklameAusnahme: 'bool',
+  signal411Insel: 'bool', beleuchtung: 'bool', schattenfrei: 'bool', reklameUnter20m: 'bool', reklameAusnahme: 'bool',
   annaeherungUeberfahrbar: 'bool', einAusfahrtNah: 'bool', blinklicht: ['keins', 'gelb_ssv', 'nicht_ssv'], fusswegAchse: 'objekt',
-  streifenBreite: 'zahl', randAbstand: 'zahlen', achsWinkel: 'zahl', randabschluss: 'objekt', quergefaelle: 'zahl',
+  achsWinkel: 'zahl', randabschluss: 'objekt', quergefaelle: 'zahl',
   absenkung: 'zahl', taktil: 'bool', leitlinie: 'bool', querungLang: 'bool', sichtVorh: 'zahlen', erkennungM: 'zahl',
   kurve: 'objekt', typ: QUERUNGSTYPEN, ohneBaulich: 'bool', querdistanzL: 'zahlen', laengsparkierung: 'bool',
   seitenraumVorParklinieM: 'zahl', absenkungBeidseits: 'bool', aufstellflaeche: 'bool', parkierungSichtbehindernd: 'bool',
   einengung: 'bool', mivKlasse: ['tief', 'mittel', 'hoch'], restbreiteM: 'zahl', einengungLaengeM: 'zahl', mzsBreiteM: 'zahl',
-  mzsMitFgs: 'bool', lsaZeiten: 'objekt', q3: 'objekt', kantonsstrasse: 'bool', veloQuerung: 'bool',
+  mzsMitFgs: 'bool', q3: 'objekt', veloQuerung: 'bool',
 }
 export const FELDNAMEN = Object.keys(FELDER) as FeldName[]
 

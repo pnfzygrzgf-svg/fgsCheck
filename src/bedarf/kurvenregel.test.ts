@@ -22,8 +22,10 @@ function spur(gerade: number, r: number, grad: number): P[] {
 const zuf = (sp: P[], x: Partial<ZufahrtErgebnis> = {}): ZufahrtErgebnis => ({ fgsId: 'f1', zufahrt: 'a90', art: 'abbiegend', spur: sp,
   sichtpunkte: [sp[0], sp[10]], kurvenradiusM: 20, sichtweite: 100, tempo: 50, tempoQuelle: 'OSM', fahrstreifenOsmN: 1, mehrstreifig: 0, ...x } as ZufahrtErgebnis)
 const st = (z: ZufahrtErgebnis) => [{ zufahrten: [z] } as unknown as StreifenErgebnis]
-function vor(z: ZufahrtErgebnis, innerorts: boolean | null = true, neigung: Record<string, { i: number | null; laenge: number }> | null = null) {
+function vor(z: ZufahrtErgebnis, innerorts: boolean | null = true, neigung: Record<string, { i: number | null; laenge: number }> | null = null,
+  lage: string | null = null) {
   const w: Vorbelegung = innerorts === null ? {} : { innerorts: { wert: innerorts, quelle: 'osm', text: '' } }
+  if (lage) w.lage = { wert: lage, quelle: 'osm', text: '' }
   const h: Record<string, string> = {}
   kurvenregelVorbelegen(st({ ...z, art: 'beide' }), leererFall(46.9, 7.4, null), w,
     neigung as never, (p, wert, quelle, text) => { w[p] = { wert, quelle, text } }, (p, t) => { h[p] = t })
@@ -58,7 +60,9 @@ describe('Kurvenregel: Vorbelegung der fünf Voraussetzungen', () => {
   it('innerorts 50 km/h, ein Fahrstreifen, Kurvenende 8 m, 70°, Gefälle 3 %: alle ja mit Quelle', () => {
     const { w, h } = vor(zuf(spur(6, 30, 70)), true, { 'f1|a90': { i: -3, laenge: 50 } })
     expect(KURVE_BEDINGUNGEN.map(u => w[`kurve.${u}`]?.wert)).toEqual([true, true, true, true, true])
-    expect(w['kurve.b1Innerorts50']).toMatchObject({ quelle: 'osm' })
+    // Vortritt nicht aus den Daten: als Annahme (30.10.2026)
+    expect(w['kurve.b1Innerorts50']).toMatchObject({ quelle: 'annahme' })
+    expect(w['kurve.b1Innerorts50']!.text).toMatch(/vortrittsberechtigt angenommen/)
     expect(w['kurve.b2EinFahrstreifen']).toMatchObject({ quelle: 'osm' })
     expect(w['kurve.b3NachKurvenende']!.text).toMatch(/^Kurvenende \d+ m vor dem Streifen/)
     expect(w['kurve.b4Winkel60']!.text).toMatch(/rund (6[6-9]|7\d)°/)
@@ -84,6 +88,13 @@ describe('Kurvenregel: Vorbelegung der fünf Voraussetzungen', () => {
     // innerorts offen: Frage offen mit Hinweis; ausserorts nein
     expect(vor(zuf(spur(8, 20, 70)), null).h['kurve.b1Innerorts50']).toMatch(/innerorts noch offen/)
     expect(vor(zuf(spur(8, 20, 70)), false).w['kurve.b1Innerorts50']?.wert).toBe(false)
+  })
+  it('Vortritt (30.10.2026): über die Zufahrt ohne Vortritt einer Kreuzung nein, sonst angenommen', () => {
+    const b = vor(zuf(spur(6, 30, 70)), true, null, 'knoten_belastet').w['kurve.b1Innerorts50']!
+    expect(b).toMatchObject({ wert: false, quelle: 'osm' })
+    expect(b.text).toMatch(/^Streifen über die Zufahrt ohne Vortritt: keine vortrittsberechtigte Strasse/)
+    expect(vor(zuf(spur(6, 30, 70)), true, null, 'knoten_berechtigt').w['kurve.b1Innerorts50']).toMatchObject({ wert: true, quelle: 'annahme' })
+    expect(vor(zuf(spur(6, 30, 70)), true, null, 'strecke').w['kurve.b1Innerorts50']).toMatchObject({ wert: true, quelle: 'annahme' })
   })
 })
 

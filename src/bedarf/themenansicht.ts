@@ -10,7 +10,7 @@
 // Frage → Thema: das Thema des Felds von Hand bzw. wenn eine der offenen Regeln dazu gehört, sonst die Mehrheit der Themen der offenen
 // Regeln. Brauchen Regeln anderer Themen dieselbe Angabe, steht dort ein Verweis (zählt nicht); ebenso für Felder der Grundprüfung
 // (felder.GRUND_FELDER, oben bei der Grundprüfung) in jedem Thema der Regeln. Blöcke, die der Ablauf ohne Angaben nicht prüft
-// (Trottoirüberfahrt, LSA-Zeiten), stehen als Zeile mit Sprung zur ersten Angabe und zählen als offen.
+// (Trottoirüberfahrt; LSA-Zeiten gestrichen 30.10.2026), stehen als Zeile mit Sprung zur ersten Angabe und zählen als offen.
 
 import { FELD_DEF, FELD_DEFS, OBJEKTE, istGrundFeld, istObjektFeld } from './felder'
 import { ABSCHNITTE, THEMEN, abschnittVon, istAusfuehrung, istWeiche, nachThema, normVergleich, pruefUebersicht, themaVon, type ThemaDef } from './themen'
@@ -77,7 +77,7 @@ export interface Verweis {
   /** wo die Angabe gefragt ist */
   wo: 'grund' | Thema
 }
-/** Block, den der Ablauf ohne Angaben nicht prüft (Trottoirüberfahrt, LSA-Zeiten): eine Zeile mit Sprung zur ersten Angabe */
+/** Block, den der Ablauf ohne Angaben nicht prüft (Trottoirüberfahrt): eine Zeile mit Sprung zur ersten Angabe */
 export interface BlockOffen { block: string; text: string; ziel: string; regeln: string[] }
 
 export interface ThemaTeil {
@@ -133,13 +133,13 @@ const giltIn = (id: string, b: BefundBlatt): boolean => !(id in KATALOG) || gilt
 /** Blöcke, die der Ablauf ohne Angaben nicht prüft (Befund.nichtGeprueft): Thema, Text, erste Angabe, Grund der Prüfübersicht */
 const BLOCK: Readonly<Record<string, { thema: Thema; text: string; ziel: string; grund: string }>> = {
   Q3: { thema: 'trottoirueberfahrt', text: 'Angaben zur Trottoirüberfahrt fehlen', ziel: 'q3.bebaut', grund: 'Eingaben zur Trottoirüberfahrt fehlen' },
-  I: { thema: 'lichtsignal', text: 'LSA-Zeiten fehlen', ziel: 'lsaZeiten.L', grund: 'LSA-Zeiten fehlen' },
+  // Block I (LSA-Zeiten) gestrichen 30.10.2026
 }
 /** Gründe «nicht geprüft» der Prüfübersicht, die als Zeile im Thema stehen (nicht nochmals unter «Annahmen und Hinweise») */
 export const BLOCK_GRUENDE: readonly string[] = Object.values(BLOCK).map(x => x.grund)
 
-/** Feld, in das eine Frage direkt schreibt: Feld der Maske bzw. Objekt mit genau einem Pflicht-Unterfeld (Halteverbotslinie, Randstein
- * …); null: Frage ohne eigenes Feld (Trottoirüberfahrt, LSA-Zeiten: Sprung zur ersten Angabe; Zufahrten: Hinweis) */
+/** Feld, in das eine Frage direkt schreibt: Feld der Maske bzw. Objekt mit genau einem Pflicht-Unterfeld (Insel, Randstein
+ * …); null: Frage ohne eigenes Feld (Trottoirüberfahrt: Sprung zur ersten Angabe; Zufahrten: Hinweis) */
 export function eingabeFeld(feld: string): string | null {
   if (FELD_DEF.has(feld)) return feld
   return istObjektFeld(feld) && OBJEKTE[feld].pflicht.length === 1 ? `${feld}.${OBJEKTE[feld].pflicht[0]}` : null
@@ -223,7 +223,7 @@ export function themenAnsicht(blaetter: readonly BefundBlatt[]): ThemenAnsicht {
     const t = feldThema(d.pfad)
     if (t) felderJe.set(t, [...(felderJe.get(t) ?? []), d.pfad]); else ohneThema.push(d.pfad)
   }
-  // Blöcke ohne Angaben nicht geprüft (Trottoirüberfahrt, LSA-Zeiten), mit den betroffenen Regeln der Prüfübersicht
+  // Blöcke ohne Angaben nicht geprüft (Trottoirüberfahrt), mit den betroffenen Regeln der Prüfübersicht
   const bloeckeJe = new Map<Thema, BlockOffen[]>()
   blaetter.forEach((b, i) => {
     for (const ng of b.befund.nichtGeprueft) {

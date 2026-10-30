@@ -1,10 +1,9 @@
 // Tests Bedarfsmodul E0: je Regel die Testfälle aus Bedarfsmodul_E0_Regeln.md Abschnitt 3 (Grundfall S0 und Grenzfälle), über den
-// ganzen Baum (beurteile); dazu die Normbeispiele als Testanker (40 240 Abb. 1, 40 241 Tab. 1/2, HB LSA Rundungen).
+// ganzen Baum (beurteile); dazu die Normbeispiele als Testanker (40 240 Abb. 1, 40 241 Tab. 1/2; LSA-Zeiten gestrichen 30.10.2026).
 import { describe, expect, it } from 'vitest'
 import { beurteile } from './entscheid'
 import { fall, S0, TESTFAELLE, type Testfall } from './testfaelle'
 import { formelSicht, sollSichtOhneVortritt } from './sichtOhneVortritt'
-import { gelbZulaessig, rundeBern } from './lsaZeiten'
 import { AHS_40240, TAB2_40241, ahs, sichtFgs, sichtKurveTab2 } from './tabellen'
 import { SICHTWEITE, KURVE_SICHTWEITE } from '../rechner/tempo'
 import { KATALOG } from './katalog'
@@ -100,22 +99,10 @@ describe('Normbeispiele und Tabellen', () => {
     const b = beurteile(fall({ kurve: { radius: 25, radiusStrasse: 25, fuenfBedingungen: true }, sichtVorh: [36, 36], vSig: 30 }))
     expect(b.alle.find(x => x.id === 'H1')?.soll ?? '').not.toContain('Tab. 2')
   })
-  it('VSS 40 837 Z. 16 Gelb: ab- und aufgerundet zulässig (L 12 → 6 oder 7 s), begrenzt auf 2 bis 8 s (L 2 → 2, L 18 → 8)', () => {
-    const W = KATALOG.I1.werte
-    expect([2, 9, 12, 18].map(L => gelbZulaessig(L, W.anteil, W.gehV, W.min, W.max))).toEqual([[2], [5], [6, 7], [8]])
-    // unabhängiger Anker: 2/3 · 12 / 1,2 = 6,67 s → 6 (abgerundet) und 7 (aufgerundet) erfüllen, 5 und 8 nicht
-    const gelb = (g: number) => beurteile(fall({ typ: 'lsa', lsaZeiten: { ...fall().lsaZeiten.wert!, L: 12, gelb: g, freigabe: 8 } }))
-      .alle.some(x => x.id === 'I1')
-    expect([5, 6, 7, 8].map(gelb)).toEqual([true, false, false, true])
-  })
   it('AH BE 5.3.2 markierte Insel: Fahrbahn 7,5 bis 8,4 m, Fahrstreifen je 3,0 m, Insel mindestens 1,5 m', () => {
-    const b = (B: number, d: number, i: number) => beurteile(fall({ fahrbahnB: B, insel: { vorhanden: true, art: 'markiert', breite: i, kopfUeberstand: null, vertikal: null, kopfErhoeht: null, pfostenH: null, furt: null }, durchfahrt: [d, d] }), { ebenen: { kantonBE: true } })
+    const b = (B: number, d: number, i: number) => beurteile(fall({ fahrbahnB: B, insel: { vorhanden: true, art: 'markiert', breite: i, kopfUeberstand: null, vertikal: null, kopfErhoeht: null, furt: null }, durchfahrt: [d, d] }), { ebenen: { kantonBE: true } })
       .alle.find(x => x.id === 'F3-M')?.staerke ?? '-'
     expect([b(7.5, 3, 1.5), b(8.4, 3, 2.4), b(7.4, 3, 1.4), b(8.4, 2.9, 2.6), b(8.5, 3.25, 2)]).toEqual(['-', '-', 'weich', 'weich', 'hinweis'])
-  })
-  it('HB LSA Rundungen: Gelb 5,49 → 5, 5,50 → 6 (Schwelle 0,5); Mindestfreigabe 5,09 → 5, 5,10 → 6 (Schwelle 0,1)', () => {
-    expect([rundeBern(5.49, 0.5), rundeBern(5.5, 0.5), rundeBern(5.09, 0.1), rundeBern(5.1, 0.1)]).toEqual([5, 6, 5, 6])
-    expect(rundeBern(12.24 * 0.5 / 1.2, 0.1)).toBe(6)          // Beispielrechnung Kap. 24.3
   })
   it('E0-2: fehlt V85, gilt vSig als Annahme (E3), sonst kein Ersatzwert', () => {
     const b = beurteile(fall({ typ: 'furt', v85: null }))
@@ -124,6 +111,6 @@ describe('Normbeispiele und Tabellen', () => {
     expect(leer.alle.find(x => x.id === 'C4')).toMatchObject({ zustand: 'offen', fehlend: ['dtv'] })
   })
   it('Grundfall S0 entspricht der Beschreibung in Abschnitt 3', () => {
-    expect(S0).toMatchObject({ vSig: 50, v85: 48, dtv: 8000, fg5h: 250, fahrbahnB: 7, nRichtung: [1, 1], streifenBreite: 4, sichtVorh: [70, 70], erkennungM: 120 })
+    expect(S0).toMatchObject({ vSig: 50, v85: 48, dtv: 8000, fg5h: 250, fahrbahnB: 7, nRichtung: [1, 1], sichtVorh: [70, 70], erkennungM: 120 })   // Streifenbreite 4 m gestrichen 30.10.2026
   })
 })
