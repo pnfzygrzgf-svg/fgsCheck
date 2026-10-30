@@ -16,6 +16,7 @@ import { lv95, imPolygon, type P } from '../geo'
 import type { AvFlaeche } from './av'
 import type { Bereich } from './haltestellen'
 import { holeJson, AbrufFehler, istAbbruch, type Abruf } from './holen'
+import { gemeindeAmOrt } from './quellenregister'
 
 export const BERN_GEOPORTAL = 'https://map.bern.ch/arcgis/rest/services/Geoportal'
 /** BFS-Nummer der Stadt Bern (Zuständigkeit der Geoportal-Dienste) */
@@ -39,7 +40,8 @@ export function bfsAmPunkt(p: P, av: readonly AvFlaeche[]): number | null {
  */
 export const bernZustaendig = (p: P | null | undefined, av: readonly AvFlaeche[]): boolean => {
   if (!p) return false
-  const b = bfsAmPunkt(p, av)
+  // Gemeinde der AV-Fläche am Punkt (Quellenregister, gleiche Wahl wie bfsAmPunkt)
+  const b = gemeindeAmOrt(p, av)?.bfs ?? null
   return b !== null && istBern([b])
 }
 

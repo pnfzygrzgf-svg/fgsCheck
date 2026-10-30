@@ -49,6 +49,8 @@ export function haltestellenAusGeoportal(gj: ArcgisGeoJson): OevHalt[] {
 }
 
 export const HALT_DIENST = 'Haltestellen'
+/** Kennung im Quellenregister (daten/quellenregister.ts) */
+export const HALT_QUELLE_ID = 'bern.halt'
 export const haltestellenUrl = (lat: number, lon: number, radiusM: number) =>
   arcgisUrl(HALT_DIENST, lat, lon, radiusM, 'Objectid,Punktname,Rubrik,Kante')
 

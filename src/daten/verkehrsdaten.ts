@@ -64,6 +64,8 @@ export function verkehrsdatenAusGeoportal(gj: ArcgisGeoJson): VdLinie[] {
 }
 
 export const VD_DIENST = 'Flaechendeckende_Verkehrsdaten'
+/** Kennung im Quellenregister (daten/quellenregister.ts) */
+export const VD_QUELLE_ID = 'bern.dtv'
 export const verkehrsdatenUrl = (lat: number, lon: number, radiusM: number) =>
   arcgisUrl(VD_DIENST, lat, lon, radiusM, 'Objectid,Strassenname,Nt,Nn,Erstellt_am')
 

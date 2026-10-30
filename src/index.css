@@ -266,6 +266,11 @@ span.zufahrt-nr { display: inline-block; width: 18px; height: 18px; font-size: 1
 .bedarf-kopf h2 { margin: 0; color: var(--bedarf); font-size: 16px; }
 .bedarf-leitfrage { margin: 2px 0 0; font-weight: 600; color: var(--text-strong); }
 .bedarf-kopfzeile { margin: 4px 0 0; color: var(--bedarf); }
+/* «Datenlage hier» (Quellenregister): ein Satz, Tabelle je Thema aufklappbar */
+.datenlage { margin: 4px 0 8px; color: var(--text); }
+.datenlage-satz { margin: 0; }
+.datenlage-details summary { cursor: pointer; color: var(--text-muted); }
+.quelle-info { color: var(--text-muted); }
 .bedarf-ebenen label { display: inline-block; margin: 2px 10px 2px 0; }
 .befundblatt { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin: 8px 0; background: #ffffff; }
 .befundblatt h3 { margin-top: 2px; }
@@ -437,6 +442,8 @@ details.thema-angaben > summary { cursor: pointer; color: var(--bedarf); }
 .bericht-seite .klein { font-size: 9pt; color: #1f2937; }
 .bericht-seite ul { margin: 2px 0 6px; padding-left: 16px; }
 .bericht-seite li { margin: 1px 0; }
+.bericht-seite .bericht-quellen { font-size: 9pt; margin: 2px 0 6px; }
+.bericht-seite .bericht-quellen th, .bericht-seite .bericht-quellen td { border-top: 1px solid #94a3b8; }
 .bericht-seite td, .bericht-seite th { border-bottom: 1px solid #9ca3af; padding: 3px 4px; color: #000000; }
 .bericht-seite th { font-size: 9pt; color: #000000; border-bottom: 1.5px solid #000000; }
 .bericht-zahlen td:first-child { width: 28%; color: #374151; }

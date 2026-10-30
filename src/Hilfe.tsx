@@ -1,6 +1,6 @@
 // ── Einstiegshilfe, Datenschutz und Fusszeile (E4, Veröffentlichung) ──
 
-import { OVERPASS_ENDPOINTS } from './daten/osm'
+import { datenschutzGruppen } from './daten/quellenregister'
 import { NACHLADEN_M } from './abdeckung'
 import { FANG_PX, FANG_MAX_M, VORSCHLAG_M } from './fixpunkt'
 import { ECK_GROSS_M, RUNDEN_R_VORGABE, RUNDEN_R_BEREICH } from './rechner/planflaechen'
@@ -24,8 +24,6 @@ const F3 = KATALOG.F3.werte, F3B = KATALOG['F3-B'].werte
 const B5 = KATALOG['B5-T'].werte, B5S = KATALOG['B5-1'].werte
 import { f2, TUE_OPTION } from './texte'
 import { feldName } from './bedarf/felder'
-
-const host = (u: string) => new URL(u).host
 
 /** «So funktioniert's»: kurze Anleitung in Schritten (Nutzerwunsch 23.10.2026); die ausführliche Bedienung und die Grenzen der App
  * zugeklappt darunter. Quellen der Prüfungen und Begriffe stehen als eigene Abschnitte im Panel (App.tsx). */
@@ -301,6 +299,14 @@ export function Anleitung() {
         </ul>
       </details>
       <details className="hilfe-teil">
+        <summary>Quellen je Ort</summary>
+        <p>Welche Daten es an einem Ort gibt, steht in einem Quellenregister: je Quelle Gebiet (ganze Schweiz, Kantone, Gemeinden oder
+          Rechteck), Dienst, Anbieter, Stand und Lizenz. Daraus zeigt der Reiter «Bedarf und Querungstyp» die «Datenlage hier» und
+          «Geladene Quellen» die Tabelle je Thema; was fehlt, geben Sie von Hand ein. Eine weitere Stadt kommt dazu mit ihren Einträgen
+          im Register, der Zuordnung der Felder ihres Diensts und einer Probe an einem bekannten Ort. Im Browser gehen nur Dienste, die den
+          Zugriff von anderen Seiten erlauben (CORS).</p>
+      </details>
+      <details className="hilfe-teil">
         <summary>Grenzen der App</summary>
         <ul>
           <li>Amtliche Vermessung frei über geodienste.ch: 19 Kantone ganz, Wallis teilweise (z. B. ohne Sitten und Brig) und
@@ -368,7 +374,8 @@ export function BegriffeListe() {
 
 /** Aufklappbarer Datenschutz-Hinweis: was im Browser bleibt, welche Dienste was erhalten */
 export function Datenschutz() {
-  const [erster, ...weitere] = OVERPASS_ENDPOINTS.map(host)
+  // je Dienst aus dem Quellenregister (daten/quellenregister.ts), damit die Liste den Quellen folgt
+  const ds = datenschutzGruppen()
   return (
     <details className="hilfe">
       <summary>Datenschutz</summary>
@@ -385,24 +392,9 @@ export function Datenschutz() {
           gehen Eingaben oder Ergebnisse. Die Breite des rechten Bereichs (Trenner) steht unter «fgsCheck.panelBreite», die zuletzt gesehene Kartenansicht (Mitte und Zoom) unter «fgsCheck.karteAnsicht».</li>
         <li>Der Browser holt die Daten direkt bei diesen Diensten; sie sehen dabei technisch die IP-Adresse und Browserangaben:
           <ul>
-            <li>swisstopo (geo.admin.ch): Kartenkacheln (Luftbild bzw. Landeskarte) des sichtbaren Ausschnitts (wmts.geo.admin.ch),
-              Luftbild-Ausschnitt ±30 m um den gewählten Übergang und das Kartenbild des Berichts (wms.geo.admin.ch), Flugjahr der
-              1-km-Kachel (api3.geo.admin.ch);
-              bei der Ortssuche der eingegebene Suchbegriff (api3.geo.admin.ch); an einer Trottoirüberfahrt bis vier Linien der Knotensicht
-              (Koordinaten) für Höhenprofile (api3.geo.admin.ch); mit einer Kurve vor dem Streifen bzw. mit Radstreifen oder Radweg
-              die Fahrlinie der Zufahrt (50 m, Koordinaten) für die Längsneigung (Kurvenregel, Sicht vom Velo; api3.geo.admin.ch).</li>
-            <li>geodienste.ch (Amtliche Vermessung): Rechteck ±150 m um den Übergang bzw. die geplanten Streifen.</li>
-            <li>Overpass (OpenStreetMap): Kartenausschnitt (Übergänge und Strassennamen) mit etwas Rand bei der Suche (automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m um den
-              Übergang bzw. die geplanten Streifen; Server {erster}
-              (Swiss OpenStreetMap Association), bei Störung ersatzweise {weitere.join(', ')}.</li>
-            <li>map.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern: Rechteck ±150 m für amtliche Parkfelder bzw. den
-              Baumkataster, Haltestellen, Verkehrsdaten, Richtplan Fussverkehr, Strassenhierarchie und Strassentypen, signalisierte
-              Höchstgeschwindigkeit, Volksschulen und Kindergärten (±200 m), taktil-visuelle Markierungen, Nutzungszonen und ÖV-Linien.
-              Die Kartenebene «Richtplan Fussverkehr (Geoportal Bern)» sendet den sichtbaren Kartenausschnitt mit Rand (Rechteck in LV95,
-              je Layer eine Abfrage) nur, wenn sie eingeschaltet ist.</li>
+            {ds.gruppen.map(g => <li key={g.name}>{g.name}: {g.text}</li>)}
           </ul>
-          Die Streifen aus dem Luftbild (ETH-Modell) liegen als Datei je Stadt auf dieser Seite: dafür geht keine Anfrage an einen
-          anderen Dienst.
+          {ds.eigen.map(t => <Fragment key={t}>{t}{' '}</Fragment>)}
           Der eigene Standort (Standort-Knopf) wird nur im Browser ermittelt und auf der Karte gezeigt, nicht gespeichert und
           nicht gesendet; die Dienste erhalten wie sonst nur den Kartenausschnitt.</li>
         <li>Street View: die Links «Street View ↗» öffnen Google Maps erst auf Klick in einem neuen Fenster; dabei gehen die

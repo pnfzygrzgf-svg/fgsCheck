@@ -28,6 +28,8 @@ export interface BernDatenC {
 export type BernDienstKey = keyof BernDatenC
 
 export interface BernDienst<T> {
+  /** Kennung im Quellenregister (daten/quellenregister.ts) */
+  quelleId: string
   /** Name in «Geladene Quellen» (ohne Ausschnitt) */
   name: string
   /** Quellenangabe (Fusszeile, Fall-Datei) */
@@ -48,26 +50,26 @@ const n = (x: unknown[] | null, eins: string, mehr: string) => (x ? `${x.length}
 export const BERN_C_KEYS: BernDienstKey[] = ['richtplan', 'strassenhierarchie', 'vsig', 'schulen', 'taktil', 'nutzungszonen', 'oevLinien']
 
 export const BERN_DIENSTE_C: { [K in BernDienstKey]: BernDienst<BernDatenC[K]> } = {
-  richtplan: { name: 'Richtplan Fussverkehr Stadt Bern', quelle: `${GEODATEN_BERN}, Richtplan Fussverkehr`,
+  richtplan: { quelleId: 'bern.richtplan', name: 'Richtplan Fussverkehr Stadt Bern', quelle: `${GEODATEN_BERN}, Richtplan Fussverkehr`,
     bericht: 'Basisnetz Fussverkehr und publikumsattraktive Bereiche', laden: ladeRichtplanBern,
     objekte: d => `${n(d.basisnetz, 'Basisnetz-Linie', 'Basisnetz-Linien')}, ${n(d.publikum, 'Fläche', 'Flächen')}`, ohne: 'Fusswegnetz bleibt offen' },
-  strassenhierarchie: { name: 'Strassenhierarchie und Strassentypen Stadt Bern', quelle: `${GEODATEN_BERN}, Strassenhierarchie und Strassentypen`,
+  strassenhierarchie: { quelleId: 'bern.strassen', name: 'Strassenhierarchie und Strassentypen Stadt Bern', quelle: `${GEODATEN_BERN}, Strassenhierarchie und Strassentypen`,
     bericht: 'Strassenhierarchie (Typ) und Strassentypen', laden: ladeStrassenhierarchieBern,
     objekte: d => `${n(d.hierarchie, 'Abschnitt', 'Abschnitte')}, ${n(d.typen, 'Strassentyp', 'Strassentypen')}`, ohne: 'Strassentyp bleibt offen' },
-  vsig: { name: 'Signalisierte Höchstgeschwindigkeit Stadt Bern', quelle: `${GEODATEN_BERN}, Signalisierte Höchstgeschwindigkeit`,
+  vsig: { quelleId: 'bern.vsig', name: 'Signalisierte Höchstgeschwindigkeit Stadt Bern', quelle: `${GEODATEN_BERN}, Signalisierte Höchstgeschwindigkeit`,
     bericht: 'Signalisierte Höchstgeschwindigkeit', laden: ladeVsigBern, objekte: d => n(d.linien, 'Abschnitt', 'Abschnitte'),
     ohne: 'Tempo nur aus OSM' },
-  schulen: { name: 'Volksschulen und Kindergärten Stadt Bern', quelle: `${GEODATEN_BERN}, Volksschulen und Kindergärten`,
+  schulen: { quelleId: 'bern.schulen', name: 'Volksschulen und Kindergärten Stadt Bern', quelle: `${GEODATEN_BERN}, Volksschulen und Kindergärten`,
     bericht: 'Volksschulen und Kindergärten', laden: ladeSchulenBern,
     objekte: d => `${n(d.volksschulen, 'Volksschule', 'Volksschulen')}, ${n(d.kindergaerten, 'Kindergarten', 'Kindergärten')}`,
     ohne: 'Schulen nur aus OSM', radiusM: SCHULEN_OSM_RADIUS_M },
-  taktil: { name: 'Taktil-visuelle Markierungen Stadt Bern', quelle: `${GEODATEN_BERN}, Taktil-visuelle Markierungen`,
+  taktil: { quelleId: 'bern.taktil', name: 'Taktil-visuelle Markierungen Stadt Bern', quelle: `${GEODATEN_BERN}, Taktil-visuelle Markierungen`,
     bericht: 'Taktil-visuelle Markierungen (Felder und Linien)', laden: ladeTaktilBern,
     objekte: d => `${n(d.felder, 'Feld', 'Felder')}, ${n(d.linien, 'Linie', 'Linien')}`, ohne: 'Markierungen bleiben offen' },
-  nutzungszonen: { name: 'Nutzungszonenplan Stadt Bern', quelle: `${GEODATEN_BERN}, Nutzungszonenplan`,
+  nutzungszonen: { quelleId: 'bern.zonen', name: 'Nutzungszonenplan Stadt Bern', quelle: `${GEODATEN_BERN}, Nutzungszonenplan`,
     bericht: 'Nutzungszonenplan (Grundzonen)', laden: ladeNutzungszonenBern, objekte: d => n(d.flaechen, 'Zone', 'Zonen'),
     ohne: 'Nutzung bleibt offen' },
-  oevLinien: { name: 'ÖV-Linien Stadt Bern', quelle: `${GEODATEN_BERN}, ÖV-Linien`, bericht: 'ÖV-Linien (Bus, Tram)',
+  oevLinien: { quelleId: 'bern.oev', name: 'ÖV-Linien Stadt Bern', quelle: `${GEODATEN_BERN}, ÖV-Linien`, bericht: 'ÖV-Linien (Bus, Tram)',
     laden: ladeOevLinienBern, objekte: d => n(d.linien, 'Linie', 'Linien'), ohne: 'Bus oder Tram bleibt offen' },
 }
 

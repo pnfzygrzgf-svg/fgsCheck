@@ -10,6 +10,8 @@ import { holeJson, type Abruf } from './holen'
 export interface KatasterBaum { id: string; p: P; name: string }
 export interface BaumQuelle {
   id: string
+  /** Kennung im Quellenregister (daten/quellenregister.ts) */
+  quelleId: string
   name: string
   quellenangabe: string
   gemeinden: number[]                 // BFS-Nummern
@@ -35,7 +37,7 @@ async function bernLaden(lat: number, lon: number, radiusM: number, signal?: Abo
 }
 
 export const BAUMKATASTER: BaumQuelle[] = [
-  { id: 'bern', name: 'Baumkataster Stadt Bern', quellenangabe: 'Geodaten Stadt Bern, Baumkataster', gemeinden: [351], laden: bernLaden },
+  { id: 'bern', quelleId: 'bern.baum', name: 'Baumkataster Stadt Bern', quellenangabe: 'Geodaten Stadt Bern, Baumkataster', gemeinden: [351], laden: bernLaden },
 ]
 
 /** Quelle für die Gemeinden im AV-Ausschnitt (erste passende) */

@@ -42,6 +42,8 @@ import { LUFTBILD_UEBERGANG_TEXT, KEIN_STREIFEN_TEXT, NICHT_GEPRUEFT_TEXT, herku
 import { BefundblattAnzeige, GrundpruefungAnzeige, VerzeichnisBericht, ZusammenfassungAnzeige, annahmeInTabelle, eingabenTabelle, querungTitel } from './BedarfPanel'
 import type { BefundBlatt } from './bedarf/befundblatt'
 import { AHS_40240 } from './bedarf/tabellen'
+import { BerichtQuellenTabelle } from './Datenlage'
+import type { Datenlage } from './daten/quellenregister'
 
 const APP_URL = 'https://fgscheck.ch/'
 const RAND_M = 4                       // Rand um Streifen und Sichtfelder im Kartenbild
@@ -474,7 +476,9 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen }: { s: S
 }
 
 export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjahr, luftbildStand, zusatzQuellen, ausserhalb = [], aendern,
-  schliessen, namen = new Map(), blaetter = [] }: {
+  schliessen, namen = new Map(), blaetter = [], quellenIds = [], datenlage = null }: {
+  /** genutzte Quellen (Kennungen im Quellenregister) und Datenlage am Ort für die Tabelle unter «Quellen» */
+  quellenIds?: readonly string[]; datenlage?: Datenlage | null
   namen?: Namen                  // Zufahrten nach Strasse und Herkunft (benennung.ts), je Streifen
   blaetter?: BefundBlatt[]       // Bedarfsmodul: Befundblatt je Querung (gezeigt, sobald eine Beurteilung vorliegt; Runde 5)
   fall: Fall; rechnung: FallRechnung; rechnungZeit: Date | null; kantone: string[]; flugjahr: string; luftbildStand: LuftbildStand
@@ -628,6 +632,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
 
         <section className="bericht-block">
           <h2>Quellen</h2>
+          <BerichtQuellenTabelle ids={quellenIds} lage={datenlage} />
           <ul className="klein">
             <li>Luftbild: {LUFTBILD_QUELLE}{flugjahr ? `, Flugjahr ${flugjahr}` : ''} (wms.geo.admin.ch; Karte: WMTS geo.admin.ch)</li>
             <li>Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '–'}, über geodienste.ch

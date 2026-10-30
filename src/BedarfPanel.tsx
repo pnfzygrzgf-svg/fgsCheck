@@ -435,13 +435,15 @@ export const themaId = (t: string): string => `thema-${t}`
 /** Abschnitt im Panel (Inhalt des Reiters «Bedarf und Querungstyp», offen mit eigenem Kopf): Zusammenfassung, Typ, Grundprüfung,
  * Eingaben; aufklappbar die erweiterte Prüfung (Ebenen, je Thema Befunde, Fragen und Angaben, Masse, Annahmen). zeigen: Reiter
  * aktivieren, bevor ein Sprung zum Feld scrollt (Reiter verborgen) */
-export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sichtLinks, alternative = false, setAlternative }: { fall: Fall
+export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sichtLinks, alternative = false, setAlternative, datenlage }: { fall: Fall
   blaetter: BefundBlatt[]
   vorgabe: { bern: boolean; kantonBE: boolean }; aendern: (f: (x: Fall) => Fall) => void; zeigen?: () => void
   /** Street View je Zufahrt der Streifen einer Querung (Details von ① Sichtverhältnisse) */
   sichtLinks?: (fgsIds: string[]) => SichtLink[]
   /** Trottoirüberfahrt: Alternative Fussgängerstreifen mit Fragen prüfen (Sitzung, nicht im Fall; 27.10.2026) */
-  alternative?: boolean; setAlternative?: (x: boolean) => void }) {
+  alternative?: boolean; setAlternative?: (x: boolean) => void
+  /** «Datenlage hier» (Quellenregister, Datenlage.tsx) unter dem Kopf */
+  datenlage?: ReactNode }) {
   // ausgeblendete Felder je Maske einblenden (Nutzertest 23.10.2026: ein Schalter je Maske, nahe bei ihr)
   const [alleGrund, setAlleGrund] = useState(false)
   const [alleErw, setAlleErw] = useState(false)
@@ -507,6 +509,7 @@ export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sich
         <p className="bedarf-leitfrage">Darf hier ein Fussgängerstreifen hin, und welche Querung passt?</p>
         <p className="klein bedarf-kopfzeile">{blaetter.map(b => kopfText(b)).join(' · ')}</p>
       </div>
+      {datenlage}
       <p className="klein">Offene Fragen anklicken und beantworten; der Knopf «?» erklärt jedes Feld, die Hilfe den Ablauf.</p>
       {blaetter.map(b => <div key={b.gruppe}>
         {blaetter.length > 1 && <h3>{querungTitel(b)}</h3>}

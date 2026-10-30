@@ -22,6 +22,8 @@ export const PARK_MIN_M2 = 0.5
 export interface KatasterFeld { id: string; klasse: ParkKlasse; ring: P[]; name: string }
 export interface ParkQuelle {
   id: string
+  /** Kennung im Quellenregister (daten/quellenregister.ts) */
+  quelleId: string
   name: string
   quellenangabe: string
   gemeinden: number[]                 // BFS-Nummern
@@ -114,7 +116,7 @@ async function bernLaden(lat: number, lon: number, radiusM: number, signal?: Abo
 }
 
 export const PARKKATASTER: ParkQuelle[] = [
-  { id: 'bernpark', name: 'Parkfelder Stadt Bern (amtlich)', quellenangabe: 'Geodaten Stadt Bern, Parkplätze öffentlich',
+  { id: 'bernpark', quelleId: 'bern.park', name: 'Parkfelder Stadt Bern (amtlich)', quellenangabe: 'Geodaten Stadt Bern, Parkplätze öffentlich',
     gemeinden: [351], laden: bernLaden },
 ]
 

@@ -20,6 +20,8 @@ import { schulenStand } from './daten/schulen'
 import { ladeHaltestellenBern, haltestellenStand, type BernHalte, type Bereich } from './daten/haltestellen'
 import type { VsigLinie } from './daten/vsig'
 import { ladeVerkehrsdatenBern, type VdLinie } from './daten/verkehrsdaten'
+import { datenlage, gemeindeAmOrt, quelle as registerQuelle, type Datenlage } from './daten/quellenregister'
+import { DatenlageZeile, QUELLE_JE_SCHLUESSEL, genutzteQuellen, quelleInfo, zustandJeQuelle } from './Datenlage'
 import type { GeoVorbelegung } from './bedarf/vorbelegung'
 import { lv95, wgs, dist, sub, add, dot, links, einheit as einheitP, imPolygon, type P } from './geo'
 import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, aufnehmen, vereinigen, vereinigenNamen } from './ausschnitt'
@@ -1716,6 +1718,16 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // Geodaten für die Vorbelegung (Haltestellen, Verkehrsdaten, OSM-Tags der Wege, Strassenlampen) um den Ladeort
   // Berner Daten nur, wenn der Streifen auf einer AV-Fläche der Stadt Bern liegt (Korrektur M4, wie die Ebenen-Vorgabe)
   const streifenBern = useMemo(() => bernZustaendig(rechnung?.streifen[0]?.m ?? daten?.ort, av ?? []), [rechnung, daten, av])
+  // «Datenlage hier» (Quellenregister): erst nach dem AV-Abruf (ohne AV-Fläche am Ort gilt die AV als nicht frei: keine Rechnung);
+  // Ort wie die Berner Zuständigkeit (Streifen bzw. Ladeort), Kanton sonst aus einer geladenen AV-Fläche
+  const ortLage = useMemo<Datenlage | null>(() => {
+    if (!av || !fall) return null
+    const p = rechnung?.streifen[0]?.m ?? daten?.ort ?? lv95(fall.ort.lat, fall.ort.lon)
+    const g = gemeindeAmOrt(p, av), [lat, lon] = wgs(p[0], p[1])
+    const kanton = g?.kanton ?? av.find(f => f.kanton)?.kanton
+    return datenlage({ lat, lon, bfs: g?.bfs ?? null, ...(kanton ? { kanton } : {}) })
+  }, [av, fall, rechnung, daten])
+  const quellZustand = useMemo(() => zustandJeQuelle(quellen), [quellen])
   const geoVor = useMemo<GeoVorbelegung>(() => {
     if (!daten) return {}
     const halte = streifenBern && bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.halte : null
@@ -2221,6 +2233,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             )}
             </>} />}
           bedarf={fall && blaetter.length > 0 && <BedarfAbschnitt fall={fall} blaetter={blaetter} vorgabe={bedarfVorgabe} aendern={aendern}
+            datenlage={ortLage && <DatenlageZeile lage={ortLage} />}
             zeigen={zeigeBedarf} alternative={alternative} setAlternative={setAlternative} sichtLinks={fgsIds => (rechnung?.streifen ?? []).filter(x => fgsIds.includes(x.fgsId)).flatMap(x =>
               nachNr(x.zufahrten, zNamen.get(x.fgsId)).flatMap(z => {
                 const u = zufahrtStreetView(z, x), nr = zufahrtNr(zNamen.get(x.fgsId), z.zufahrt)
@@ -2369,10 +2382,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
         <details className="abschnitt" open={quellenOffen} onToggle={e => setQuellenOffen(e.currentTarget.open)}>
         <summary><h2>Geladene Quellen{quellenFehler && <span className="fehler"> (Fehler)</span>}</h2></summary>
+        {ortLage && <DatenlageZeile lage={ortLage} zustand={quellZustand} />}
         <table>
           <tbody>
             {Object.entries(quellen).map(([k, q]) => (
-              <tr key={k}><td>{q.name}{q.server && <div className="klein">{q.server}</div>}</td>
+              <tr key={k}><td>{q.name}{q.server && <div className="klein">{q.server}</div>}
+                {registerQuelle(QUELLE_JE_SCHLUESSEL[k] ?? '') && <div className="klein quelle-info">{quelleInfo(registerQuelle(QUELLE_JE_SCHLUESSEL[k])!)}</div>}</td>
                 {q.fehler ? <td className="fehler">{q.fehler}{k === 'parkkataster' && parkKat?.fehler && <>{' '}
                   <button className="zweit klein" onClick={() => setParkKat(x => (x ? { ...x, felder: null, fehler: undefined, laedt: false } : x))}>
                     erneut laden</button></>}</td> :
@@ -2495,7 +2510,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             ...(fall.ort.herkunft ? [`Übergang aus dem Luftbild (nicht in OSM): ${ETH_MODELL_QUELLE}`] : []),
             ...(hoehenWerte ? ['Längsneigung der Knotensicht: Höhenmodell swissALTI3D © swisstopo (Profile, api3.geo.admin.ch)'] : []),
             ...(kurveNeigung ? ['Längsgefälle der Kurvenregel: Höhenmodell swissALTI3D © swisstopo (Profil entlang der Fahrlinie, api3.geo.admin.ch)'] : [])]}
-          ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} />
+          ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} datenlage={ortLage}
+          quellenIds={genutzteQuellen(fall.quellen, { herkunftP: fall.ort.herkunft?.p ?? null, hoehen: !!(hoehenWerte || kurveNeigung) })} />
       )}
     </div>
   )
