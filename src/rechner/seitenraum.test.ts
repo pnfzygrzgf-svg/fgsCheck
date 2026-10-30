@@ -162,8 +162,8 @@ describe('Fall-Datei', () => {
     expect(fallVersion(f)).toBe(4)
     expect(JSON.parse(fallSchreiben(f)).version).toBe(4)
     expect(fallVersion(fallMit(x => { x.flaechenPlan = [{ ...fp, standard: undefined }] }))).toBe(2)
-    // eine App mit Version 3 lehnt die Datei ab (statt die Kennzeichnung still zu verlieren); hier: Version 5 abgelehnt
-    expect(() => fallLesen(JSON.stringify({ ...JSON.parse(fallSchreiben(f)), version: 5 }))).toThrow('neueren fgsCheck-Version')
+    // eine App mit Version 3 lehnt die Datei ab (statt die Kennzeichnung still zu verlieren); hier: Version 6 abgelehnt
+    expect(() => fallLesen(JSON.stringify({ ...JSON.parse(fallSchreiben(f)), version: 6 }))).toThrow('neueren fgsCheck-Version')
     const [g, h] = fallLesen(fallSchreiben(f))
     expect(h).toEqual([])
     expect(g.flaechenPlan).toEqual([fp])

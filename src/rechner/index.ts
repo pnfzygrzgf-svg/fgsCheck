@@ -25,9 +25,9 @@ import type { PlanArt, FlaechePlan } from '../fall'
 import { furtQuert, E1_KURZ } from './standardinsel'
 import { parkOhneSeitenraum, SR_NAME, SR_ERSETZT, type SrErsetzt } from './seitenraum'
 import { f1 } from '../texte'
-import type { Rechnung, StreifenErgebnis } from './typen'
+import type { Rechnung, StreifenErgebnis, QuerungSicht } from './typen'
 import type { TempoAmtlich } from './tempo'
-import { vonHandAusFall, streifenHerkunftText, istTrottoirueberfahrt, type Fall } from '../fall'
+import { vonHandAusFall, streifenHerkunftText, istTrottoirueberfahrt, handGeplant, type Fall } from '../fall'
 import { titelImFall } from '../benennung'
 
 const BRUECKE_UMRISS_M = 0.5
@@ -217,9 +217,13 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
       const m: P = [(h.p0[0] + h.p1[0]) / 2, (h.p0[1] + h.p1[1]) / 2]
       const s = neuerStreifen(h.id, gruppe.get(h.id)!, h.p0, h.p1, h.breite, 'hand', handUmriss(h.p0, h.p1, h.breite, h.richtung ?? fahrbahnRichtung(kxOhne.netz, m)))
       // ohne gespeicherte Herkunft (Fall-Dateien vor dem 11.10.2026): neutral, nicht «übernommen»
-      s.annahmen.push(h.herkunft === 'gezeichnet' ? 'Lage und Breite des Streifens von Hand gezeichnet (nicht aus OSM bzw. Luftbild).'
+      s.annahmen.push(h.bestand ? `Lage und Breite von Hand: ${streifenHerkunftText(h)}; Querungsart und Bestand wie die Querung ` +
+          '(nicht neu aus OSM bzw. Luftbild).'
+        : h.herkunft === 'gezeichnet' ? 'Lage und Breite des Streifens von Hand gezeichnet (nicht aus OSM bzw. Luftbild).'
         : !h.herkunft ? 'Streifen von Hand (Herkunft nicht gespeichert); Lage und Breite wie in der Fall-Datei (nicht neu aus OSM bzw. Luftbild).'
         : `Streifen von Hand: ${streifenHerkunftText(h)}; Lage und Breite wie übernommen bzw. angepasst (nicht neu aus OSM bzw. Luftbild).`)
+      // Lage einer bestehenden Querung (30.10.2026): das Lichtsignal des Übergangs gilt auch, wenn der Streifen von seinem Knoten weg liegt
+      if (h.bestand && nid !== null) s.osmKnoten = nid
       s.inseln = handInseln
       return s
     })
@@ -297,16 +301,21 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const mk = u ? markierung(u.tags) : null
   // unmarkierte OSM-Querung (Nutzerentscheid 29.10.2026): ohne Wahl am Streifen eine Querung ohne Vortritt (Annahme), Furt mit Insel
   // (Teilstreifen über eine AV-Insel bzw. eine angenommene Insel nach OSM und Luftbild), sonst ohne bauliche Massnahme. Streifen von
-  // Hand bleiben ein geplanter Fussgängerstreifen
-  const grau = quelle !== 'hand' && !!u && !!mk && !istFgs(mk)
-  const furt = streifen.length > 1 || streifen.some(s => s.inseln.length > 0)
-  kx.vonHand = vonHandAusFall(fall, grau ? (furt ? 'furt' : 'ohne_vortritt') : null)
+  // Hand bleiben ein geplanter Fussgängerstreifen, ausser sie sind nur die Lage der bestehenden Querung (StreifenHand.bestand, 30.10.2026:
+  // «Lage der Querung anpassen»): dann wie die Querung aus OSM + AV
+  const bestandIds = new Set(quelle === 'hand' ? fall.streifenHand.filter(h => h.bestand).map(h => h.id) : [])
+  const istBestand = (fid: string) => quelle !== 'hand' || bestandIds.has(fid)
+  const grau = !!u && !!mk && !istFgs(mk) && streifen.some(s => istBestand(s.fgsId))
+  const sb = streifen.filter(s => istBestand(s.fgsId))
+  const furt = sb.length > 1 || sb.some(s => s.inseln.length > 0)
+  const vorgabe = (typ: QuerungSicht) => (fid: string) => (grau && istBestand(fid) ? typ : null)
+  kx.vonHand = vonHandAusFall(fall, vorgabe(furt ? 'furt' : 'ohne_vortritt'))
   kx.tempoAmtlich = tempoAmtlich
   let erg = streifen.length ? pruefen(streifen, kx) : []
   // Begegnungszone (Nutzerentscheid 30.10.2026): liegt die angenommene Querung ohne Vortritt in einer Begegnungszone (Strecke oder
   // Zone wie im Bedarf: zoneFuerSicht mit den OSM-Tags und V_sig, Handeingabe im Bedarf geht vor), hat der Fussverkehr Vortritt: zweite
   // Rechnung als Querung in der Begegnungszone (Soll = Anhaltesichtweite). Eine Wahl am Streifen geht vor; Zone offen: ohne Vortritt
-  const autoAnnahme = (s: StreifenErgebnis) => !fall.streifen[s.fgsId]?.typ && !fall.streifen[s.fgsId]?.keinFgs && !!s.querung
+  const autoAnnahme = (s: StreifenErgebnis) => istBestand(s.fgsId) && !fall.streifen[s.fgsId]?.typ && !fall.streifen[s.fgsId]?.keinFgs && !!s.querung
   let bgzText: string | null = null
   if (grau && erg.some(autoAnnahme)) {
     const osmTags = new Map(osm.wege.map(w => [w.id, w.tags] as const))
@@ -314,7 +323,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
     const z = zoneFuerSicht(g, fall, { osmTags, vsig: vsigZone })
     if (z.wert === 'begegnungszone') {
       bgzText = z.text
-      kx.vonHand = vonHandAusFall(fall, 'begegnungszone')
+      kx.vonHand = vonHandAusFall(fall, vorgabe('begegnungszone'))
       erg = pruefen(streifen, kx)
     }
   }
@@ -324,8 +333,10 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
       : querungAnnahmeHinweis(mk!, u!.tags, s.querung!.typ === 'furt')
   }
   // Streifen von Hand an einem Übergang ohne Fussgängerstreifen (Planung, 16.10.2026): heute kein FGS, der Streifen von Hand
-  // wird als Fussgängerstreifen geprüft – nur als Hinweis zum Fall, nicht «kein Fussgängerstreifen» am Streifen
-  const planung = quelle === 'hand' && !!u && !!mk && !istFgs(mk)
+  // wird als Fussgängerstreifen geprüft – nur als Hinweis zum Fall, nicht «kein Fussgängerstreifen» am Streifen. Nicht, wenn alle nur
+  // die Lage der bestehenden Querung sind (ausser dort ist «Fussgängerstreifen (geplant bzw. zu prüfen)» gewählt)
+  const planung = quelle === 'hand' && !!u && !!mk && !istFgs(mk) &&
+    fall.streifenHand.some(h => streifen.some(s => s.fgsId === h.id) && handGeplant(fall, h))
   const annahme = erg.length > 0 && erg.every(s => s.querungAnnahme)
   const hinweis = u && mk ? (planung ? planungHinweis(mk, u.tags) : annahme ? erg[0].querungAnnahme! : markierungHinweis(mk, u.tags)) : ''
   // Übergang aus dem Luftbild (ETH-Modell, 29.10.2026): Herkunft und Befund der eigenen Luftbild-Erkennung an Fall und Streifen;
@@ -334,7 +345,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const lbHinweis = lbU ? luftbildUebergangHinweis(luftbild ? luftbild.befund : null, quelle === 'hand') : ''
   // der Knoten liegt nie auf einem OSM-Weg: diese Meldung gilt hier nicht
   if (lbU) meldungen = meldungen.filter(m => !m.startsWith('Übergang liegt nicht auf einem befahrbaren OSM-Weg'))
-  if (lbU && quelle !== 'hand') for (const s of erg) s.luftbildUebergang = lbHinweis
+  if (lbU) for (const s of erg) if (istBestand(s.fgsId)) s.luftbildUebergang = lbHinweis
   // Trottoirüberfahrt (Wahl am Streifen): gerechnet wie ein Fussgängerstreifen, gekennzeichnet; ohne Hinweis zur Markierung. Die
   // Zufahrten kommen am Ende nach nurVorbelegung (Anzeige wie «kein FGS»)
   for (const s of erg) if (istTrottoirueberfahrt(fall, s.fgsId)) s.trottoirueberfahrt = true

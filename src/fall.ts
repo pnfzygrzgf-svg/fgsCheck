@@ -4,7 +4,7 @@
 // localStorage gehalten (Zugriffe mit try/catch, die App läuft auch ohne). Kein Server.
 
 import { type P, imPolygon } from './geo'
-import { MARKIERUNGEN, type Markierung } from './daten/osm'
+import { MARKIERUNGEN, istFgs, type Markierung } from './daten/osm'
 import type { Hindernis } from './rechner/hindernisse'
 import type { SpurHand } from './rechner/spurhand'
 import type { VonHand } from './rechner/pruefen'
@@ -22,14 +22,19 @@ import { herkunftLesen, type LuftbildHerkunft } from './daten/luftbildFgs'
  * prüfte sie als Fussgängerstreifen); sie lehnt Version 3 mit ihrer Meldung ab. Ohne beides bleibt es bei 1 bzw. 2.
  * Trottoirüberfahrt am Streifen (23.10.2026): ebenfalls Version 3 (StreifenEingabe.typ), ohne neue Version; eine App mit Version 3
  * ohne diesen Wert übergeht ihn mit Hinweis.
+ * Version 5 (30.10.2026): Lage einer bestehenden Querung von Hand angepasst (StreifenHand.bestand) an einem Übergang ohne
+ * Fussgängerstreifen. Eine ältere App läse den Streifen als geplanten Fussgängerstreifen (still eine andere Bewertung); sie lehnt die
+ * Datei ab. An einem markierten Übergang rechnet sie gleich (Bestand, Fussgängerstreifen): dort bleibt es bei der bisherigen Version.
  */
-export const FALL_VERSION = 4
+export const FALL_VERSION = 5
 export const FALL_VERSION_BASIS = 1
-/** Version, mit der ein Fall geschrieben wird: 4 mit einem vorgezogenen Seitenraum (seit 23.10.2026: eine ältere App würde die Parkierung
- * darunter weiter zählen, sie lehnt die Datei mit «neuere Version, Seite neu laden» ab), 3 mit Bedarf bzw. Querung ohne Vortritt, 2 mit
- * Flächen (Plan), sonst 1 */
-export const fallVersion = (f: { flaechenPlan?: FlaechePlan[]; bedarf?: BedarfBlock; streifen?: Record<string, StreifenEingabe> }): number =>
-  (f.flaechenPlan?.some(x => x.standard?.typ === 'seitenraum') ? 4
+/** Version, mit der ein Fall geschrieben wird: 5 mit der Lage einer bestehenden Querung ohne Fussgängerstreifen von Hand angepasst
+ * (30.10.2026), 4 mit einem vorgezogenen Seitenraum (seit 23.10.2026: eine ältere App würde die Parkierung darunter weiter zählen, sie
+ * lehnt die Datei mit «neuere Version, Seite neu laden» ab), 3 mit Bedarf bzw. Querung ohne Vortritt, 2 mit Flächen (Plan), sonst 1 */
+export const fallVersion = (f: { flaechenPlan?: FlaechePlan[]; bedarf?: BedarfBlock; streifen?: Record<string, StreifenEingabe>
+  streifenHand?: StreifenHand[]; ort?: { markierung?: Markierung } }): number =>
+  (f.streifenHand?.some(h => !!h.bestand) && !(f.ort?.markierung && istFgs(f.ort.markierung)) ? 5
+    : f.flaechenPlan?.some(x => x.standard?.typ === 'seitenraum') ? 4
     : !bedarfLeer(f.bedarf) || Object.values(f.streifen ?? {}).some(e => !!e.typ) ? 3 : f.flaechenPlan?.length ? 2 : FALL_VERSION_BASIS)
 
 export interface StreifenHand { id: string; p0: P; p1: P; breite: number; richtung?: P   // richtung: Balken (Luftbild), sonst OSM-Weg
@@ -39,7 +44,14 @@ export interface StreifenHand { id: string; p0: P; p1: P; breite: number; richtu
   /** Annäherungsbereich je Ende (A, B) von Hand (30.10.2026): Versatz entlang der Bordkante und Breite, unabhängig von der Breite des
    * Streifens; null bzw. fehlt: wie gerechnet. Ältere Apps übergehen das Feld (keine neue Version) */
   ann?: [AnnHand | null, AnnHand | null]
+  /** Lage einer bestehenden Querung von Hand angepasst («Lage der Querung anpassen», 30.10.2026): Kennung des Streifens der Querung
+   * (OSM bzw. Luftbild, z. B. «5290100221» bzw. «5290100221-2»). Querungsart (auch die Annahme an einer unmarkierten OSM-Querung bzw. in
+   * der Begegnungszone), Lichtsignal des Übergangs, Bestand und Name bleiben wie an der Querung; nur Lage und Breite sind von Hand.
+   * Fehlt: Streifen von Hand wie bisher (an einem Übergang ohne Fussgängerstreifen ein geplanter Fussgängerstreifen) */
+  bestand?: string
 }
+/** Kennung eines Streifens der Querung (StreifenHand.bestand): OSM-Knoten bzw. negative Luftbild-Kennung, ggf. mit Teil «-2» */
+const BESTAND_ID = /^-?\d{1,15}(-\d{1,2}){0,3}$/
 /** Name eines Streifens von Hand höchstens so lang (Zeichen) */
 export const STREIFEN_NAME_MAX = 60
 export type StreifenHerkunft = 'gezeichnet' | 'osm' | 'luftbild' | 'luftbild_vorschlag'
@@ -303,6 +315,11 @@ export function fallLesen(text: string): [Fall, string[]] {
       if (istP(o.richtung) && Math.abs(Math.hypot(o.richtung[0], o.richtung[1]) - 1) < 0.01) sh.richtung = o.richtung
       if (HERKUNFTE.includes(o.herkunft as StreifenHerkunft)) sh.herkunft = o.herkunft as StreifenHerkunft
       if (o.angepasst === true) sh.angepasst = true
+      if (o.bestand !== undefined) {
+        // nur mit OSM-Übergang (ohne ihn gibt es keine bestehende Querung, ohneUebergang)
+        if (typeof o.bestand === 'string' && BESTAND_ID.test(o.bestand) && fall.ort.uebergang !== null) sh.bestand = o.bestand
+        else hinweise.push(`Kennung der bestehenden Querung am Streifen von Hand ${sh.id} ungültig, übergangen (gilt als Streifen von Hand ohne Querung)`)
+      }
       if (typeof o.name === 'string' && o.name.trim()) sh.name = o.name.trim().slice(0, STREIFEN_NAME_MAX)
       if (o.ann !== undefined) {
         const a = annLesen(o.ann)
@@ -431,9 +448,11 @@ export function annHandSetzen(s: StreifenHand, k: 0 | 1, h: AnnHand | null): voi
 }
 
 /** Eingaben des Falls als VonHand für die Rechnung; vorgabe: Querungsart ohne Eingabe am Streifen (unmarkierte OSM-Querung:
- * ohne Vortritt, 29.10.2026), sonst Fussgängerstreifen */
-export function vonHandAusFall(fall: Fall, vorgabe: QuerungSicht | null = null): VonHand {
+ * ohne Vortritt, 29.10.2026), sonst Fussgängerstreifen; als Funktion je Streifen (Streifen von Hand: nur die Lage einer bestehenden
+ * Querung, 30.10.2026) */
+export function vonHandAusFall(fall: Fall, vorgabe: QuerungSicht | null | ((fid: string) => QuerungSicht | null) = null): VonHand {
   const z = (fid: string, kennung: string) => fall.zufahrten[zufahrtSchluessel(fid, kennung)]
+  const vg = (fid: string) => (typeof vorgabe === 'function' ? vorgabe(fid) : vorgabe)
   return {
     spur: (fid, kennung) => z(fid, kennung)?.spur ?? null,
     streichen: (fid, kennung) => !!z(fid, kennung)?.streichen,
@@ -447,7 +466,8 @@ export function vonHandAusFall(fall: Fall, vorgabe: QuerungSicht | null = null):
       const e = fall.streifen[fid]
       if (e?.keinFgs || e?.typ === 'trottoirueberfahrt' || e?.typ === 'fgs') return null
       if (e?.typ) return { typ: e.typ, inselMarkiert: inselMarkiert(fall) }
-      return vorgabe ? { typ: vorgabe, inselMarkiert: inselMarkiert(fall), vorgabe: true } : null
+      const v = vg(fid)
+      return v ? { typ: v, inselMarkiert: inselMarkiert(fall), vorgabe: true } : null
     },
   }
 }
@@ -515,6 +535,8 @@ export function ohneUebergang(f: Fall): Fall {
   neu.ort.uebergang = null
   delete neu.ort.markierung
   delete neu.ort.herkunft
+  // ohne Übergang gibt es keine bestehende Querung mehr: die Streifen bleiben als Streifen von Hand (30.10.2026)
+  for (const h of neu.streifenHand) delete h.bestand
   return neu
 }
 
@@ -593,11 +615,13 @@ export function naechsteFixId(f: Fall): string {
  * umbenannt. Nicht zuordenbare Eingaben bleiben stehen (die App meldet sie als ohne Zufahrt). Angenommene Inseln (nach OSM und
  * Luftbild, inseln: die der Rechnung bzw. der Luftbild-Teile) gehen als Insel von Hand (Hindernis «insel», Name
  * INSEL_UEBERNOMMEN) in den Fall, damit die Streifen von Hand an der Insel geteilt bleiben (Zufahrten Inselteil, Einspur);
- * nicht, wenn schon eine Insel von Hand dieselbe Fläche deckt (inselnUebernehmen). Rückgabe: übertragene Eingaben.
+ * nicht, wenn schon eine Insel von Hand dieselbe Fläche deckt (inselnUebernehmen). bestand («Lage der Querung anpassen», 30.10.2026):
+ * die neuen Streifen sind die Lage der bestehenden Querung (StreifenHand.bestand = Kennung des Streifens der Querung, fgsId der neuen):
+ * Querungsart, Bestand und Name bleiben wie an der Querung. Rückgabe: übertragene Eingaben.
  */
 const ZUORDNUNG_M = 3.0
-export function streifenUebernehmen(f: Fall, neue: { p0: P; p1: P; bw: number; q0?: P; q1?: P; richtung?: P }[],
-  alte: { fgsId: string; p0: P; p1: P }[], herkunft?: StreifenHerkunft, inseln: { ring: P[] }[] = []): number {
+export function streifenUebernehmen(f: Fall, neue: { p0: P; p1: P; bw: number; q0?: P; q1?: P; richtung?: P; fgsId?: string }[],
+  alte: { fgsId: string; p0: P; p1: P }[], herkunft?: StreifenHerkunft, inseln: { ring: P[] }[] = [], bestand = false): number {
   const mitte = (a: P, b: P): P => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
   f.streifenHand = []
   const neuM: [string, P][] = []
@@ -606,6 +630,7 @@ export function streifenUebernehmen(f: Fall, neue: { p0: P; p1: P; bw: number; q
     const sh: StreifenHand = { id, p0: s.q0 ?? s.p0, p1: s.q1 ?? s.p1, breite: s.bw }
     if (s.richtung) sh.richtung = s.richtung
     if (herkunft) sh.herkunft = herkunft
+    if (bestand && s.fgsId && BESTAND_ID.test(s.fgsId)) sh.bestand = s.fgsId
     f.streifenHand.push(sh)
     neuM.push([id, mitte(s.p0, s.p1)])
   }
@@ -661,6 +686,8 @@ export function streifenHandTeilen(f: Fall, id: string, teile: [[P, P], [P, P]],
   const name = (n: number) => (s.name ? { name: `${s.name} (Teil ${n})`.slice(0, STREIFEN_NAME_MAX) } : {})
   const zweiter: StreifenHand = { ...s, id: neuId, p0: teile[1][0], p1: teile[1][1], angepasst: true, ...name(2) }
   Object.assign(s, { p0: teile[0][0], p1: teile[0][1], angepasst: true, ...name(1) })
+  // Lage einer bestehenden Querung: die Teile heissen nach ihr mit «-1» bzw. «-2» (benennung.streifenTitel)
+  if (s.bestand) { zweiter.bestand = `${s.bestand}-2`; s.bestand = `${s.bestand}-1` }
   // Annäherungsbereich von Hand: Ende A bleibt am ersten, Ende B geht an den zweiten Teil (die Enden an der Insel wie gerechnet)
   if (s.ann) {
     const [a, b] = s.ann
@@ -753,8 +780,17 @@ export function ortOhneUebergangText(f: Fall): string {
     'kein OSM-Übergang (Ort am Streifen von Hand)'
 }
 
+/** Streifen von Hand gilt als geplante Anlage (Bedarf «Neue Anlage», Planungs-Hinweis): ohne Kennung einer bestehenden Querung
+ * (gezeichnet bzw. bis 30.10.2026 übernommen) oder unter «Querung» ausdrücklich «Fussgängerstreifen (geplant bzw. zu prüfen)» gewählt */
+export const handGeplant = (f: Pick<Fall, 'streifen'>, h: StreifenHand): boolean => !h.bestand || f.streifen[h.id]?.typ === 'fgs'
+
 /** Herkunft eines Streifens von Hand als Text (Panel, Bericht) */
 export function streifenHerkunftText(s: StreifenHand): string {
+  if (s.bestand) {
+    const q = s.herkunft === 'osm' ? ' (aus OSM und AV)' : s.herkunft === 'luftbild' ? ' (aus dem Luftbild)'
+      : s.herkunft === 'luftbild_vorschlag' ? ' (aus dem Luftbild-Vorschlag, unsicher)' : ''
+    return `bestehende Querung${q}, Lage ${s.angepasst ? 'von Hand angepasst' : 'zum Anpassen übernommen (Enden noch nicht verschoben)'}`
+  }
   const t = s.herkunft === 'gezeichnet' ? 'von Hand gezeichnet' : s.herkunft === 'osm' ? 'aus OSM und AV übernommen' :
     s.herkunft === 'luftbild' ? 'aus dem Luftbild übernommen' : s.herkunft === 'luftbild_vorschlag' ? 'aus dem Luftbild-Vorschlag (unsicher) übernommen' :
     'von Hand (Herkunft nicht gespeichert)'

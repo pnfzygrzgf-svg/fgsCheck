@@ -48,7 +48,7 @@ import { Anleitung, BegriffeListe, Datenschutz, Fusszeile, QuellenTabelle, Rechn
 import { VerweisText } from './Verweise'
 import { RegelUebersicht } from './RegelUebersicht'
 import { streifenStreetView, zufahrtStreetView, zufahrtStreetViewTitel } from './streetview'
-import { type Fall, type FallErgebnis, type StreifenHand, type Fixpunkt, type PlanArt, type FlaechePlan, type FurtSeite, PLAN_ARTEN, naechstePlanId, planRingPruefen,
+import { type Fall, type FallErgebnis, type StreifenHand, handGeplant, type Fixpunkt, type PlanArt, type FlaechePlan, type FurtSeite, PLAN_ARTEN, naechstePlanId, planRingPruefen,
   inselStandard, seitenraumStandard, type PlanSeitenraum,
   naechsteFixId, FIXPUNKT_NAME_MAX, STREIFEN_NAME_MAX, leererFall, fallLesen, fallSchreiben, fallMerken, fallErinnern, fallVergessen,
   ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, streifenHandTeilen, teilungZuruecknehmbar,
@@ -134,6 +134,8 @@ const WERKZEUG_NAME: Record<Exclude<Werkzeug, null>, string> = { parkfeld: 'Park
   laengs: 'Längsparkierung', hecke: 'Hecke', mauer: 'Mauer', streifen: 'Streifen planen', tue: 'Trottoirüberfahrt', spurB: 'Fahrlinie selbst zeichnen', baum: 'Baum',
   fixpunkt: 'Fixpunkt', planflaeche: 'Fläche (Plan)', eckeRunden: 'Ecke runden', mittelinsel: 'Mittelinsel (Standard)',
   seitenraum: 'Vorgezogener Seitenraum', messen: 'Messen' }
+/** Streifen von Hand ohne eigenen Namen (Platzhalter des Namensfelds: die Nummer bzw. die Kennung der bestehenden Querung) */
+const ohneName = ({ name: _n, ...h }: StreifenHand): StreifenHand => { void _n; return h }
 /** Textfeld, übernommen erst beim Verlassen bzw. mit Enter (Escape: zurück); leer = kein eigener Text */
 function TextFeld({ wert, setze, platzhalter, titel, max = 80 }: { wert: string; setze: (x: string) => void; platzhalter?: string
   titel?: string; max?: number }) {
@@ -1865,8 +1867,6 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const vorschlagKarte = useMemo(() => [...fixVorschlag.values()].flat().map(v => ({ p: v.p,
     text: `Vorschlag Fixpunkt: nächste Gebäudeecke (AV), ${f1(v.abstandM)} m vom Streifen` })), [fixVorschlag])
 
-  // OSM-Querung ohne Fussgängerstreifen, Streifen aus OSM + AV: Übernahme als geplanter Streifen (Planungs-Wortlaut)
-  const planQuerung = !!rechnung && rechnung.streifenQuelle === 'osm' && !!rechnung.markierung && !istFgs(rechnung.markierung)
   /** Koordinaten eines Streifens von Hand in die Zwischenablage (tabulatorgetrennt Punkt, E, N); Rückmeldung als Meldung */
   const kopieren = async (id: string, v: Vermassung) => {
     try {
@@ -2119,7 +2119,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             })}>entfernen</button></p>
         )}
         {rechnung?.hinweis && <p className={rechnung.markierung && istFgs(rechnung.markierung) ? 'pruefen' :
-          rechnung.streifenQuelle === 'hand' ? 'hinweisbox' : 'keinfgs'}>{rechnung.hinweis}{fall?.ort.herkunft && rechnung.luftbildUebergang
+          rechnung.streifenQuelle === 'hand' && fall?.streifenHand.some(h => handGeplant(fall, h)) ? 'hinweisbox' : 'keinfgs'}>{rechnung.hinweis}{fall?.ort.herkunft && rechnung.luftbildUebergang
           ? ` (${herkunftText(fall.ort.herkunft)})` : ''}</p>}
         {/* Streifen ausserhalb der Abdeckung: beim Streifen (StreifenAnzeige); hier gesammelt nur die ohne eigenes Ergebnis */}
         {ausserhalbOhne.length > 0 && (
@@ -2139,15 +2139,16 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
               <>
                 <h3>{fall.streifenHand.every(s => istTrottoirueberfahrt(fall, s.id)) ? 'Trottoirüberfahrten von Hand'
                   : fall.streifenHand.some(s => istTrottoirueberfahrt(fall, s.id)) ? 'Streifen und Trottoirüberfahrten von Hand (ersetzen den Streifen aus OSM)'
+                  : fall.streifenHand.every(s => s.bestand) ? 'Lage der Querung von Hand (Querungsart und Bestand wie die Querung)'
                   : 'Streifen von Hand (ersetzen den Streifen aus OSM)'}</h3>
                 <ul className="liste">
                   {fall.streifenHand.map(s => (
                     <li key={s.id}>
                       <span className="farbe" style={{ background: '#fde047' }} />
                       {/* Name: erst beim Verlassen bzw. Enter übernommen (TextFeld), sonst rechnete jeder Tastendruck neu */}
-                      <TextFeld wert={s.name ?? ''} max={STREIFEN_NAME_MAX} platzhalter={titelImFall(s.id, { ...fall, streifenHand: [] }, rechnung?.streifen)}
+                      <TextFeld wert={s.name ?? ''} max={STREIFEN_NAME_MAX} platzhalter={titelImFall(s.id, { ...fall, streifenHand: [ohneName(s)] }, rechnung?.streifen)}
                         titel={`Name ${istTrottoirueberfahrt(fall, s.id) ? 'der Überfahrt' : 'des Streifens'} ` +
-                        '(erscheint in Panel, Karte und Bericht statt «' + titelImFall(s.id, { ...fall, streifenHand: [] }, rechnung?.streifen) + '»); leer: Nummer. Enter bzw. Feld verlassen übernimmt'}
+                        '(erscheint in Panel, Karte und Bericht statt «' + titelImFall(s.id, { ...fall, streifenHand: [ohneName(s)] }, rechnung?.streifen) + '»); leer: Nummer. Enter bzw. Feld verlassen übernimmt'}
                         setze={t => aendern(f => { const y = f.streifenHand.find(z => z.id === s.id); if (y) { if (t) y.name = t; else delete y.name } return f })} />
                       : {f1(dist(s.p0, s.p1))} m lang,{' '}
                       {/* Breite (Balkenlänge) änderbar; setzt «angepasst» nicht: das beschreibt verschobene Enden, die Breite steht
@@ -2299,19 +2300,21 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             <LuftbildAnzeige rechnung={rechnung} fall={fall} flugjahr={daten.flugjahr} hatBild={!!daten.luftbild} aendern={aendern}
               setMeldung={setMeldung} />
             {rechnung && rechnung.streifenQuelle !== 'hand' && rechnung.streifen.length > 0 && (
-              <p className="klein"><button className="zweit klein" onClick={() => {
+              <p className="klein"><button className="zweit klein" title={'Querung als Streifen von Hand übernehmen, um Enden und Breite zu ' +
+                'verschieben. Querungsart (auch die Annahme an einer unmarkierten OSM-Querung), Lichtsignal, Bestand und Name bleiben wie an ' +
+                'der Querung; für einen geplanten Fussgängerstreifen danach unter «Querung» «Fussgängerstreifen (geplant bzw. zu prüfen)» wählen'}
+                onClick={() => {
                 let n = 0, ni = 0
-                // angenommene Inseln (nach OSM und Luftbild) als Insel von Hand mit, sonst ginge die Teilung verloren
+                // angenommene Inseln (nach OSM und Luftbild) als Insel von Hand mit, sonst ginge die Teilung verloren; die Streifen
+                // bleiben die bestehende Querung (StreifenHand.bestand, 30.10.2026): Querungsart, Bestand und Name wie bisher
                 aendern(f => { const vor = f.hindernisse.length
                   n = streifenUebernehmen(f, rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? rechnung.luftbild.teile : rechnung.streifen, rechnung.streifen,
-                    rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? 'luftbild' : 'osm', rechnung.inseln ?? [])
+                    rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? 'luftbild' : 'osm', rechnung.inseln ?? [], true)
                   ni = f.hindernisse.length - vor; return f })
-                setMeldung((n ? `${planQuerung ? 'Querung als geplanten Streifen' : 'Streifen'} übernommen; ${n} Eingaben (Tempo, Spur, ` +
-                  'Streichen, Lichtsignal, kein FGS) auf die neuen Nummern übertragen – bitte prüfen.' : planQuerung ?
-                  'Querung als geplanten Streifen übernommen: Enden verschieben und Breite anpassen.' : 'Streifen übernommen.') +
+                setMeldung('Lage der Querung zum Anpassen übernommen: Enden verschieben bzw. Breite anpassen; Querungsart und Bestand bleiben.' +
+                  (n ? ` ${n} Eingaben (Tempo, Spur, Streichen, Lichtsignal, Querung) übertragen – bitte prüfen.` : '') +
                   (ni ? ' Die Insel aus dem Luftbild steht jetzt als Insel von Hand unter den Hindernissen.' : ''))
-              }}>{planQuerung ? 'Querung als geplanten Streifen' : `Streifen aus ${rechnung.streifenQuelle === 'luftbild' ? 'dem Luftbild' : 'OSM'}`}
-                {' '}übernehmen und anpassen</button> (Enden danach verschieben)</p>
+              }}>Lage der Querung anpassen</button> (Enden verschieben; Querungsart und Bestand bleiben)</p>
             )}
             <h3>Hindernisse ({fall.hindernisse.length})</h3>
             <p className="klein">Höhe von Hecken und Mauern vor Ort prüfen: sichtbehindernd sind sie nur, wenn sie die Sicht
@@ -2421,7 +2424,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             alleStreifen={rechnung?.streifen ?? []} alleNamen={zNamen} blatt={blaetter.find(b => b.streifen.includes(s.fgsId)) ?? null}
             gewaehlteZ={gewaehlteZ} spurZeichnen={key => { setSpurFuer(key); setZeichnung([]); setWerkzeug('spurB') }}
             ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null} neuLaden={() => umStreifenLaden(s.fgsId)} ksPhase={ksPhase} setKsPhase={setKsPhase}
-            grau={!!rechnung && rechnung.streifenQuelle !== 'hand' && !!rechnung.markierung && !istFgs(rechnung.markierung)}
+            grau={!!rechnung && !!rechnung.markierung && !istFgs(rechnung.markierung) &&
+              (rechnung.streifenQuelle !== 'hand' || !!fall.streifenHand.find(h => h.id === s.fgsId)?.bestand)}
             neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null} gelaende={erkWerte} />
         ))}
         {rechnung && <p className="klein">Rechenzeit {Math.round(rechnung.ms)} ms (Web Worker).</p>}
@@ -2657,7 +2661,7 @@ function LuftbildAnzeige({ rechnung, fall, flugjahr, hatBild, aendern, setMeldun
             let n = 0, ni = 0
             // die Insel, an der die Luftbild-Teile geteilt sind, als Insel von Hand mit (sonst ginge die Teilung verloren)
             aendern(f => { const vor = f.hindernisse.length
-              n = streifenUebernehmen(f, lb.teile, rechnung?.streifen ?? [], lb.nurVorschlag ? 'luftbild' : 'luftbild_vorschlag', lb.insel ? [lb.insel] : [])
+              n = streifenUebernehmen(f, lb.teile, rechnung?.streifen ?? [], lb.nurVorschlag ? 'luftbild' : 'luftbild_vorschlag', lb.insel ? [lb.insel] : [], true)
               ni = f.hindernisse.length - vor; return f })
             setMeldung(`Streifen aus dem Luftbild als Streifen von Hand übernommen${n ? `; ${n} Eingaben übertragen – bitte prüfen` : ''}` +
               `${ni ? '; die Insel aus dem Luftbild steht jetzt als Insel von Hand unter den Hindernissen' : ''}.`)

@@ -274,6 +274,10 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
     const streifenPoly: Multi = [[umrissRing(s)]]
     const ziele = vereinigung(streifenPoly, [ann[0]], [ann[1]])
     let [lsa, lsaQ] = lsaEinordnen(netz, streifenPoly)
+    // Lage einer bestehenden Querung von Hand angepasst (30.10.2026, Streifen von Hand mit osmKnoten): das Lichtsignal ihres Übergangs
+    // gilt, auch wenn der Streifen jetzt weiter als LSA_QUERUNG_M von seinem Knoten liegt
+    const uk = s.quelle === 'hand' && s.osmKnoten !== null ? netz?.U.get(s.osmKnoten) : undefined
+    if (lsa === 'nein' && uk && (uk.t.crossing === 'traffic_signals' || uk.t['crossing:signals'] === 'yes')) { lsa = 'ja'; lsaQ = `OSM Knoten ${s.osmKnoten}` }
     const lsaHand = kx.vonHand?.lsa?.(fid) ?? null
     if (lsaHand) { lsa = lsaHand; lsaQ = 'von Hand' }
     // angenommene Querung ohne Vortritt (unmarkierte OSM-Querung, 29.10.2026) nicht an einem Streifen mit Lichtsignal

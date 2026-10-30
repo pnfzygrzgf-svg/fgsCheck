@@ -3,7 +3,8 @@
 // Nur Anzeige: die Schlüssel bleiben (Streifen «hand-1», Zufahrt «70» bzw. «a151», Eingaben «Streifen|Kennung», Ergebnis-Auszug
 // der Fall-Datei); die Rechnung ist unverändert.
 // - Streifen von Hand: eigener Name (Feld name der Fall-Datei), sonst «Streifen 1» (Nummer aus der Id). Streifen aus OSM bzw.
-//   Luftbild wie bisher «Streifen <Nr.>».
+//   Luftbild wie bisher «Streifen <Nr.>»; ebenso die Lage einer bestehenden Querung, von Hand angepasst (StreifenHand.bestand,
+//   30.10.2026): «Querung 5290100221» wie vor dem Anpassen.
 // - Querung, die kein Fussgängerstreifen ist (30.10.2026): «Querung <Nr.>» statt «Streifen <Nr.>» – Querung ohne Vortritt (Furt,
 //   Nase, Einengung bzw. ohne bauliche Massnahme; auch die an einer unmarkierten OSM-Querung angenommene) und «kein FGS».
 //   Fussgängerstreifen (auch mit Lichtsignal, geplant, aus dem Luftbild) bleiben «Streifen», die Trottoirüberfahrt
@@ -92,10 +93,16 @@ export const streifenArtVon = (fgsId: string, erg: readonly StreifenErgebnis[] |
  * (27.10.2026): «Trottoirüberfahrt 1»; Querung, die kein Fussgängerstreifen ist (30.10.2026): «Querung 1». Die Kennung bleibt.
  * art: true wie «tue» (Trottoirüberfahrt), false wie «fgs» */
 export function streifenTitel(fgsId: string, hand: StreifenHand[] = [], art: StreifenArt | boolean = 'fgs'): string {
-  const name = hand.find(x => x.id === fgsId)?.name?.trim()
+  const h = hand.find(x => x.id === fgsId), name = h?.name?.trim()
   if (name) return name
-  const m = /^hand-(\d+)$/.exec(fgsId)
-  return `${streifenWort(art === true ? 'tue' : art === false ? 'fgs' : art)} ${m ? m[1] : luftbildNr(fgsId) ?? fgsId}`
+  return `${streifenWort(art === true ? 'tue' : art === false ? 'fgs' : art)} ${nummer(fgsId, h)}`
+}
+/** Nummer im Namen: Streifen von Hand «1» (aus «hand-1»); Lage einer bestehenden Querung von Hand angepasst (StreifenHand.bestand,
+ * 30.10.2026) die Kennung der Querung wie vor dem Anpassen («5290100221»); Übergang aus dem Luftbild «Luftbild» */
+function nummer(fgsId: string, h: StreifenHand | undefined): string {
+  const id = h?.bestand ?? fgsId
+  const m = /^hand-(\d+)$/.exec(id)
+  return m ? m[1] : luftbildNr(id) ?? id
 }
 /** Kopf eines Streifens in Panel und Bericht: «Querung 718541860» bzw. «Streifen 1 – Glockenstrasse»; der Doppelpunkt mit dem
  * Status folgt ohne Leerzeichen (30.10.2026: ohne Strasse stand «Streifen 718541860 : verdeckt») */
@@ -110,10 +117,8 @@ function luftbildNr(fgsId: string): string | null {
 }
 /** Kurzform für Beschriftungen im Bild (mehrere Streifen): Name bzw. Nummer */
 export function streifenKurz(fgsId: string, hand: StreifenHand[] = []): string {
-  const name = hand.find(x => x.id === fgsId)?.name?.trim()
-  if (name) return name
-  const m = /^hand-(\d+)$/.exec(fgsId)
-  return m ? m[1] : luftbildNr(fgsId) ?? fgsId
+  const h = hand.find(x => x.id === fgsId), name = h?.name?.trim()
+  return name || nummer(fgsId, h)
 }
 
 export interface ZufahrtName {

@@ -15,7 +15,7 @@ import { tag } from './lesetext'
 import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
 import { type P, add, sub, dot, dist, einheit, rechts, links, lv95, imPolygon, abstandStrecke, segSchnitt } from '../geo'
 import type { StreifenErgebnis, ZufahrtErgebnis } from '../rechner/typen'
-import type { Fall, PlanSeitenraum } from '../fall'
+import { handGeplant, type Fall, type PlanSeitenraum } from '../fall'
 import type { Quelle } from './eingaben'
 import type { NeigungMessung } from '../knotensicht/rechner/typen'
 import type { KsFahrstreifen } from '../tue/knotensicht'
@@ -560,14 +560,18 @@ export function automatik(x: AutoEingang): void {
   }
 
   // ── A6 Neuanlage ──
-  const handIds = new Set(fall.streifenHand.map(h => h.id))
+  // Lage einer bestehenden Querung von Hand angepasst (StreifenHand.bestand, 30.10.2026): Bestand wie die Querung, ausser dort ist
+  // «Fussgängerstreifen (geplant bzw. zu prüfen)» gewählt
+  const handIds = new Set(fall.streifenHand.filter(h => handGeplant(fall, h)).map(h => h.id))
   const vonHand = st.some(s => handIds.has(s.fgsId))
+  const lage = st.some(s => fall.streifenHand.some(h => h.id === s.fgsId && h.bestand))
   const mk = fall.ort.markierung
   // Übergang aus dem Luftbild (ETH-Modell), nicht in OSM: Bestand nur angenommen, Quelle Luftbild
   const lbU = eigenId !== null && eigenId < 0 && (!!fall.ort.herkunft || st.some(s => !!s.luftbildUebergang))
   if (lbU) setze('neuanlage', false, 'luftbild', `${vonHand ? 'Streifen von Hand am ' : ''}${LUFTBILD_UEBERGANG_TEXT}: Bestand angenommen – prüfen`)
-  else if (!vonHand) setze('neuanlage', false, mk && istFgs(mk) ? 'osm' : 'rechnung', mk && istFgs(mk)
-    ? 'bestehender Übergang (OSM mit Markierung bzw. Lichtsignal)' : 'Streifen aus OSM und AV bzw. Luftbild erkannt: Bestand')
+  else if (!vonHand) setze('neuanlage', false, mk && istFgs(mk) ? 'osm' : 'rechnung', (mk && istFgs(mk)
+    ? 'bestehender Übergang (OSM mit Markierung bzw. Lichtsignal)' : 'Streifen aus OSM und AV bzw. Luftbild erkannt: Bestand') +
+    (lage ? '; Lage der Querung von Hand angepasst' : ''))
   else if (eigenId !== null && mk && istFgs(mk)) setze('neuanlage', false, 'osm', 'Streifen von Hand an einem markierten OSM-Übergang: Bestand')
   else if (eigenId === null || (mk && !istFgs(mk)))
     setze('neuanlage', true, 'annahme', eigenId === null ? 'Streifen von Hand ohne OSM-Übergang: neue Anlage angenommen'

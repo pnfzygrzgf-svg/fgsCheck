@@ -113,10 +113,13 @@ export function Anleitung() {
             nächsten Knoten («Koordinaten kopieren» für CAD bzw. Tabelle; im Bericht als Tabelle). Den Annäherungsbereich an jedem Ende
             (Wartefläche, auf die die Sicht geprüft wird) lässt sich unabhängig von der Streifenbreite anpassen: beim Bearbeiten des
             Streifens die Mitte entlang der Bordkante ziehen bzw. eine Seite breiter oder schmaler; «Lage und Masse» nennt Versatz und
-            Breite je Ende, «zurücksetzen» stellt den gerechneten Bereich wieder her. An einer OSM-Querung ohne
-            Fussgängerstreifen: «Querung als geplanten Streifen übernehmen und anpassen»; dort prüft die App jeden Streifen von Hand
-            als Fussgängerstreifen, auch wenn er nur die Lage korrigiert («sinngemäss, ohne Normbezug» gilt nur für den Streifen aus
-            OSM + AV). Einen Fall ohne OSM-Übergang merkt sich der Browser nur als letzten solchen Fall («Letzten geplanten Fall
+            Breite je Ende, «zurücksetzen» stellt den gerechneten Bereich wieder her. Liegt eine Querung aus OSM bzw. dem
+            Luftbild falsch: «Lage der Querung anpassen» übernimmt sie als Streifen von Hand, danach Enden verschieben und Breite
+            anpassen; die App sucht die AV-Bordkanten an der neuen Lage. Querungsart (auch die Annahme an einer unmarkierten
+            OSM-Querung bzw. in der Begegnungszone und eine gewählte Art), Lichtsignal des Übergangs, Bestand und Name bleiben wie an
+            der Querung, die Herkunft lautet «Lage von Hand angepasst». Wer an einer Querung ohne Fussgängerstreifen einen neuen
+            planen will, wählt danach unter «Querung» «Fussgängerstreifen (geplant bzw. zu prüfen)»; ein gezeichneter Streifen
+            («Streifen planen») gilt dort immer als geplanter Fussgängerstreifen. Einen Fall ohne OSM-Übergang merkt sich der Browser nur als letzten solchen Fall («Letzten geplanten Fall
             wiederherstellen»; ein anderer Fall ohne Übergang ersetzt ihn erst nach Rückfrage): mit «Fall speichern» sichern.</li>
             <li><b>Trottoirränder planen:</b> Werkzeug «Fläche (Plan)» mit der Art Trottoir, Fahrbahn bzw. Insel wählen und die
             geplante Fläche zeichnen (Trottoirnase, Fahrbahnverengung, verschobener Randstein, neue Insel): Ecken anklicken, die App

@@ -578,7 +578,8 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
                 : `; ${rechnung.luftbild ? KEIN_STREIFEN_TEXT : NICHT_GEPRUEFT_TEXT}`}</td></tr>
               : <tr><td>OSM-Übergang</td><td>{fall.ort.uebergang !== null ? <>Knoten {fall.ort.uebergang}{mk ? ` (${UEBERGANG_TEXT[mk] ?? mk})` : ''}</> :
               ortOhneUebergangText(fall)}</td></tr>}
-            <tr><td>Streifen aus</td><td>{rechnung.streifenQuelle === 'hand' ? 'Eingabe von Hand' : rechnung.streifenQuelle === 'luftbild' ? 'Luftbild (erkannt, prüfen)' : 'OSM und AV'}</td></tr>
+            <tr><td>Streifen aus</td><td>{rechnung.streifenQuelle === 'hand' ? (fall.streifenHand.every(h => h.bestand)
+              ? 'bestehende Querung, Lage von Hand angepasst' : 'Eingabe von Hand') : rechnung.streifenQuelle === 'luftbild' ? 'Luftbild (erkannt, prüfen)' : 'OSM und AV'}</td></tr>
             {(fall.flaechenPlan?.length ?? 0) > 0 && <tr><td>Bodenbedeckung</td><td>Rechnung mit geplanter Bodenbedeckung (von Hand):
               AV mit {fall.flaechenPlan!.length} Fläche(n) (Plan), siehe «Eingaben von Hand»</td></tr>}
             <tr><td>Daten geladen</td><td>{fall.quellen.geladen ?? '–'}; Rechnung {rechnungZeit ? `${datum(rechnungZeit)} ${zeit(rechnungZeit)}` : '–'}</td></tr>
