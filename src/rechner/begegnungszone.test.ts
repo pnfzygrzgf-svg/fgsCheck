@@ -47,11 +47,11 @@ describe('Soll in der Begegnungszone: Anhaltesichtweite je Tempo', () => {
     for (const [v, sw] of Object.entries(AHS_40240)) expect(sollQuerung(o, Number(v))).toBe(sw)
     expect(sollQuerung(o, 80)).toBe(75)
     expect(quelleQuerung(o)).toBe(QUELLE_BGZ)
-    expect(quelleQuerungAbbiegen(o)).toBe(`${QUELLE_BGZ}, bis Beginn des Abbiegens`)
+    expect(quelleQuerungAbbiegen(o, 55)).toBe('Annahme: bis Beginn des Abbiegens; Anhaltesichtweite nach VSS 40 240 Z. 8.2 wären 55 m')
     // ohne Vortritt unverändert: Formel mit L
     expect(sollQuerung({ typ: 'ohne_vortritt', L: 8, ganzeFahrbahn: false }, 30)).toBe(55.6)
     expect(sichtQuelleKurz(QUELLE_BGZ)).toBe('Begegnungszone, Anhaltesichtweite')
-    expect(sichtQuelleKurz(quelleQuerungAbbiegen(o))).toBe('Begegnungszone, bis Beginn des Abbiegens')
+    expect(sichtQuelleKurz(quelleQuerungAbbiegen(o, 55))).toBe('Annahme: bis Beginn des Abbiegens; Anhaltesichtweite nach VSS 40 240 Z. 8.2 wären 55 m')
     expect(annahmeBgz([20, 20, 30])).toContain('20 km/h: 15 m; 30 km/h: 25 m')
   })
   it('Tempo der Zufahrt: OSM maxspeed 30 bzw. 50 an einer living_street -> 25 bzw. 55 m', () => {
@@ -184,7 +184,16 @@ describe('Abbieger in der Begegnungszone: höchstens bis zum Beginn des Abbiegen
     expect(o.typ).toBe('begegnungszone')
     const abb = r.streifen[0].zufahrten.filter(z => z.art === 'abbiegend')
     expect(abb.map(z => [z.strasse, z.tempo, z.knotenM, z.sichtweite, z.sichtweiteQuelle])).toEqual([
-      ['Hauptstrasse', 50, 8, 9.1, quelleQuerungAbbiegen(o)], ['Hauptstrasse', 50, 8, 16.3, quelleQuerungAbbiegen(o)]])
+      ['Hauptstrasse', 50, 8, 9.1, quelleQuerungAbbiegen(o, 55)], ['Hauptstrasse', 50, 8, 16.3, quelleQuerungAbbiegen(o, 55)]])
+    for (const z of abb) expect(z.annahmeGrenze).toEqual({ grenze: 'bis Beginn des Abbiegens', normM: 55 })
+    // Annahme der App unter der Anhaltesichtweite: Sicht-Tabelle und Befundblatt nennen sie mit dem ungekürzten Wert
+    expect(sichtQuelleKurz(abb[0].sichtweiteQuelle)).toBe('Annahme: bis Beginn des Abbiegens; Anhaltesichtweite nach VSS 40 240 Z. 8.2 wären 55 m')
+    const [b] = befundblaetter(r, fall(), OHNE)
+    expect(b.sicht.filter(x => x.zufahrt.startsWith('a')).map(x => x.annahme)).toEqual([
+      'Annahme: bis Beginn des Abbiegens; Anhaltesichtweite nach VSS 40 240 Z. 8.2: 55 m',
+      'Annahme: bis Beginn des Abbiegens; Anhaltesichtweite nach VSS 40 240 Z. 8.2: 55 m'])
+    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toMatchObject({ zustand: 'nicht_anwendbar',
+      soll: '15 geradeaus, 9,1; 16,3 für Abbiegende (Annahme: bis Beginn des Abbiegens)' })
     for (const z of r.streifen[0].zufahrten.filter(x => x.art !== 'abbiegend')) expect([z.sichtweite, z.sichtweiteQuelle]).toEqual([15, QUELLE_BGZ])
   })
   it('Tempo von Hand 20 km/h am Abbieger mit dem längeren Bogen: Anhaltesichtweite 15 m vor dem Beginn des Abbiegens, ohne Zusatz', () => {
@@ -192,5 +201,6 @@ describe('Abbieger in der Begegnungszone: höchstens bis zum Beginn des Abbiegen
     const t20 = rechneFall(OSM2, AV2, [], 30, fall(x => { x.zufahrten[`30|${z0.kennung}`] = { tempo: 20 } }), null)
       .streifen[0].zufahrten.find(z => z.kennung === z0.kennung)!
     expect([t20.tempo, t20.sichtweite, t20.sichtweiteQuelle]).toEqual([20, 15, QUELLE_BGZ])
+    expect(t20.annahmeGrenze).toBeUndefined()
   })
 })

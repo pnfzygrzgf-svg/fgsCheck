@@ -404,7 +404,7 @@ describe('Befundblatt: Abbieger an einer Querung ohne Vortritt bis zum Beginn de
     const ab = r.streifen[0].zufahrten.filter(z => z.art === 'abbiegend')
     expect(ab.length).toBe(2)
     for (const z of ab) {
-      expect(z.sichtweiteQuelle).toBe('VSS 40 240 Z. 8.2 (L 5,0 m), bis Beginn des Abbiegens')
+      expect(z.sichtweiteQuelle).toBe('Annahme: bis Beginn des Abbiegens; nach VSS 40 240 Z. 8.2 wären es 57,9 m (L 5,0 m)')
       expect(z.sichtweite).toBeLessThan(20)
       expect(z.status).toBe('frei')
     }
@@ -412,13 +412,20 @@ describe('Befundblatt: Abbieger an einer Querung ohne Vortritt bis zum Beginn de
     const sichtAb = b.sicht.filter(s => s.zufahrt.startsWith('a'))
     expect(sichtAb.map(s => [s.regel, s.frei])).toEqual([['E3', true], ['E3', true]])
     expect(b.befund.alle.filter(e => e.id === 'E3' || e.id === 'E3a')).toEqual([])
-    expect(b.vorbelegt.rechner?.sichtVorh).toContain('(Querung ohne Vortritt, bis Beginn des Abbiegens)')
+    expect(b.vorbelegt.rechner?.sichtVorh).toContain('(Annahme: bis Beginn des Abbiegens; nach VSS 40 240 Z. 8.2 wären es 57,9 m)')
+    // Herkunft Annahme (30.10.2026): Sichtzeile, Masse-Zeile «erfüllt (Annahme)», Liste der Annahmen
+    expect(sichtAb.map(s => s.annahme)).toEqual(['Annahme: bis Beginn des Abbiegens; VSS 40 240 Z. 8.2: 57,9 m',
+      'Annahme: bis Beginn des Abbiegens; VSS 40 240 Z. 8.2: 57,9 m'])
+    const mz = b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')!
+    expect(mz.soll).toMatch(/für Abbiegende \(Annahme: bis Beginn des Abbiegens\)$/)
+    expect(mz.zustand).toBe('annahme')
+    expect(b.annahmen.filter(a => a.includes('Annahme: bis Beginn des Abbiegens; VSS 40 240 Z. 8.2: 57,9 m')).length).toBe(2)
   })
   it('Parkfeld im Bogen: verdeckt vor dem Beginn des Abbiegens, E3 mit dem Grund des Solls «bis Beginn des Abbiegens»', () => {
     const fb = fallP(rechteck(-7, -7, -5, -5.5))
     const [b] = befundblaetter(rechneFall(osmE, avE, [], 30, fb, null), fb, OHNE_EBENEN)
     const e3 = b.befund.alle.filter(e => e.id === 'E3')
     expect(e3.length).toBe(1)
-    expect(e3[0].detail).toContain('(VSS 40 240 Z. 8.2, L 5,0 m, bis Beginn des Abbiegens); verdeckt durch Parkfeld')
+    expect(e3[0].detail).toContain('(Annahme: bis Beginn des Abbiegens; VSS 40 240 Z. 8.2: 57,9 m); verdeckt durch Parkfeld')
   })
 })

@@ -61,6 +61,9 @@ export interface ZufahrtErgebnis {
   /** Querung ohne Vortritt: Sichtfeld nur bis hier geprüft (Reichweite der geladenen Daten); sichtweite ist dann das Soll, darüber
    * nicht geprüft (ohneVortritt.REICHWEITE_SICHT_M) */
   geprueftBisM?: number
+  /** Querung ohne Vortritt bzw. in der Begegnungszone (30.10.2026): eine Annahme der App kürzt das Soll unter den Normwert (Abbieger
+   * bis Beginn des Abbiegens); grenze: Text der Annahme, normM: ungekürzter Wert nach VSS 40 240 Z. 8.2. Fehlt sonst */
+  annahmeGrenze?: { grenze: string; normM: number }
   fahrstreifenOsmN?: number | null  // Fahrstreifen dieser Richtung nach OSM (lanes, Busstreifen nach Regel), nur gerade Zufahrten mit
                                   // OSM-Weg (seit E1 Bedarfsmodul: Vorbelegung «Fahrstreifen je Richtung»; die Rechnung nutzt ihn nicht)
   /** Sichtfeld frei bis hier [m ab dem Streifenrand, entlang der Sichtpunkte, abgerundet] (Automatik Paket B, 21.10.2026; nur gerade

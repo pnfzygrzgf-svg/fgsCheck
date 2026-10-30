@@ -244,7 +244,9 @@ export function Anleitung() {
             der Sichtweite nach {V('VSS 40 240')}, Ziffer 8.2, max(v · L / 1,2 m/s; Anhaltesichtweite {Object.entries(AHS_40240).map(([t, sw]) =>
             `${t} km/h ${sw} m`).join(', ')}) je Teilquerung, v = Tempo der Zufahrt, L = Querdistanz Bord bis Bord bzw. bis zur Insel; ist
             die Insel im Bedarf als «nur markiert» angegeben, gilt die ganze Fahrbahn. Sichtfeld und Hindernisse wie beim
-            Fussgängerstreifen, ohne die Kurvenregeln; geprüft wird höchstens bis {REICHWEITE_SICHT_M} m ab dem Streifen (so weit reichen
+            Fussgängerstreifen, ohne die Kurvenregeln. Abbiegende Zufahrten prüft die App höchstens bis zum Beginn des Abbiegens: eine
+            eigene Annahme, keine Normvorgabe; greift sie, nennt die Spalte «nötige Sicht» sie mit dem ungekürzten Wert nach Ziffer 8.2,
+            und die erweiterte Prüfung führt das Soll als Annahme. Geprüft wird höchstens bis {REICHWEITE_SICHT_M} m ab dem Streifen (so weit reichen
             die geladenen Daten): ein höheres Soll erscheint mit «geprüft bis {REICHWEITE_SICHT_M} m, darüber nicht geprüft» und gilt in der
             erweiterten Prüfung als offen. Ist die Sicht verdeckt, entscheidet die freie Länge bis zum ersten Hindernis: unter
             der Anhaltesichtweite rot (Muss), darüber gelb (Soll) bzw. bei wenig Querenden und wenig Verkehr die Ausnahme nach {V('VSS 40 240')}, Ziffer 8.2.

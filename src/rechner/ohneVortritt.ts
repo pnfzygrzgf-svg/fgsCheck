@@ -17,12 +17,14 @@
 // Wegende bzw. Knoten jenseits davon gilt nicht als Grenze (er kann an der Grenze der OSM-Daten liegen). Das Befundblatt führt
 // die Sicht dann als offen, nicht als erfüllt.
 //
-// Abbieger (Nutzerentscheid 30.10.2026, Variante A): v ist nach Z. 8.2 (S. 8) die gefahrene Geschwindigkeit. Ein Fahrzeug weiter
-// hinten auf seiner Strasse ist für die Querung noch nicht als Einbieger erkennbar, im Abbiegen fährt es langsam. Für abbiegende
-// Zufahrten gilt darum Soll = min(Z. 8.2 mit dem Tempo der Strasse des Arms; Länge der Fahrlinie bis zum Beginn des Abbiegens),
-// mindestens SPUR_MIN_M (abbiegen.ts): gemessen vom Streifen entlang der Fahrlinie bis zum Bogenende auf dem Arm (Strecke bis zum
-// Knoten, an dem das Fahrzeug abbiegt, und Bogen), nie entlang des Arms darüber hinaus und nie über einen weiteren Knoten. Das
-// Tempo von Hand je Zufahrt bleibt wirksam. Gerade Zufahrten unverändert.
+// Abbieger (Nutzerentscheid 30.10.2026, Variante A) – eigene Annahme der App, keine Normvorgabe: Z. 8.2 (S. 8) ergäbe v · L / 1,2 m/s
+// ohne Grenze. Die App nimmt an, dass ein Fahrzeug weiter hinten auf seiner Strasse für die Querung noch nicht als Einbieger erkennbar
+// ist und im Abbiegen langsam fährt. Für abbiegende Zufahrten gilt darum Soll = min(Z. 8.2 mit dem Tempo der Strasse des Arms; Länge
+// der Fahrlinie bis zum Beginn des Abbiegens), mindestens SPUR_MIN_M (abbiegen.ts): gemessen vom Streifen entlang der Fahrlinie bis
+// zum Bogenende auf dem Arm (Strecke bis zum Knoten, an dem das Fahrzeug abbiegt, und Bogen), nie entlang des Arms darüber hinaus und
+// nie über einen weiteren Knoten. Greift die Grenze, ist das Soll eine Annahme (Nutzerentscheid 30.10.2026): die Quelle nennt sie und
+// den ungekürzten Normwert («Annahme: bis Beginn des Abbiegens; nach VSS 40 240 Z. 8.2 wären es 89,1 m»), ZufahrtErgebnis.annahmeGrenze
+// trägt beides, das Befundblatt führt das Soll als Annahme. Das Tempo von Hand je Zufahrt bleibt wirksam. Gerade Zufahrten unverändert.
 //
 // Begegnungszone (Nutzerentscheid 30.10.2026): liegt eine unmarkierte OSM-Querung ohne Wahl am Streifen in einer Begegnungszone
 // (Strecke oder Zone wie im Bedarfsmodul, rechneFall), hat der Fussverkehr dort Vortritt. Nach Z. 8.2 (S. 8) gilt dann die
@@ -57,8 +59,20 @@ export const sichtOhneVortritt = (v: number, L: number): number => auf01(sollSic
 export const quelleOhneVortritt = (L: number): string => `VSS 40 240 Z. 8.2 (L ${f1(L)} m)`
 /** Zusatz der Quelle, wenn eine abbiegende Zufahrt nur bis zum Beginn des Abbiegens gemessen ist */
 export const BIS_ABBIEGEN = 'bis Beginn des Abbiegens'
-/** Quelle der Sichtweite eines Abbiegers, der vor dem Soll nach Z. 8.2 abbiegt */
-export const quelleOhneVortrittAbbiegen = (L: number): string => `${quelleOhneVortritt(L)}, ${BIS_ABBIEGEN}`
+/** Zahl wie in der Anzeige: höchstens eine Nachkommastelle, Komma */
+const zahl = (x: number): string => String(Math.round(x * 10) / 10).replace('.', ',')
+/** Grenze der App unter dem Normwert (eigene Annahme, keine Normvorgabe; ZufahrtErgebnis.annahmeGrenze) */
+export interface AnnahmeGrenze { grenze: string; normM: number }
+/** Quelle einer Sichtweite, die eine Annahme der App unter den Normwert kürzt: Annahme und ungekürzter Normwert (ohne Vortritt mit L) */
+export const quelleAnnahme = (o: Pick<OhneVortritt, 'typ' | 'L'>, a: AnnahmeGrenze): string => (istBgz(o)
+  ? `Annahme: ${a.grenze}; Anhaltesichtweite nach VSS 40 240 Z. 8.2 wären ${zahl(a.normM)} m`
+  : `Annahme: ${a.grenze}; nach VSS 40 240 Z. 8.2 wären es ${zahl(a.normM)} m (L ${f1(o.L)} m)`)
+/** Kurzform für Befundtexte: «Annahme: bis Beginn des Abbiegens; VSS 40 240 Z. 8.2: 89,1 m» */
+export const annahmeKurz = (a: AnnahmeGrenze, bgz: boolean): string =>
+  `Annahme: ${a.grenze}; ${bgz ? 'Anhaltesichtweite nach ' : ''}VSS 40 240 Z. 8.2: ${zahl(a.normM)} m`
+/** Quelle der Sichtweite eines Abbiegers, der vor dem Soll nach Z. 8.2 abbiegt (normM: ungekürzter Wert nach Z. 8.2) */
+export const quelleOhneVortrittAbbiegen = (L: number, normM: number): string =>
+  quelleAnnahme({ typ: 'ohne_vortritt', L }, { grenze: BIS_ABBIEGEN, normM })
 
 /** Querung in der Begegnungszone (Vortritt Fussverkehr) statt ohne Vortritt */
 export const istBgz = (o: Pick<OhneVortritt, 'typ'> | null | undefined): boolean => o?.typ === 'begegnungszone'
@@ -68,8 +82,8 @@ export const sollQuerung = (o: OhneVortritt, v: number): number => (istBgz(o) ? 
 export const QUELLE_BGZ = 'VSS 40 240 Z. 8.2: Anhaltesichtweite (Begegnungszone)'
 /** Quelle der Sichtweite der Querung (Spalte «Sichtweite») */
 export const quelleQuerung = (o: OhneVortritt): string => (istBgz(o) ? QUELLE_BGZ : quelleOhneVortritt(o.L))
-/** Quelle der Sichtweite eines Abbiegers, der vor dem Soll abbiegt */
-export const quelleQuerungAbbiegen = (o: OhneVortritt): string => `${quelleQuerung(o)}, ${BIS_ABBIEGEN}`
+/** Quelle der Sichtweite eines Abbiegers, der vor dem Soll abbiegt (normM: ungekürztes Soll) */
+export const quelleQuerungAbbiegen = (o: OhneVortritt, normM: number): string => quelleAnnahme(o, { grenze: BIS_ABBIEGEN, normM })
 /** Länge der Fahrlinie der Querung (Begegnungszone: höchstens die Anhaltesichtweite, wie beim Fussgängerstreifen) */
 export const weiteQuerung = (o: OhneVortritt, basis: number): number => (istBgz(o) ? basis : weiteOhneVortritt(o.L, basis))
 
@@ -79,7 +93,8 @@ export function annahmeBgz(tempi: number[]): string {
   const ueber = t.filter(v => v > AHS_MAX_V)
   return 'Querung in der Begegnungszone (Vortritt Fussverkehr): Sichtweite = Anhaltesichtweite nach VSS 40 240 Z. 8.2 (S. 8)' +
     (t.length ? `; ${t.map(v => `${v} km/h: ${ahs(v)} m`).join('; ')}` : '') + '. v = Tempo der Zufahrt (V85 nur über das Tempo von Hand). ' +
-    'Abbieger: Sicht höchstens bis zum Beginn des Abbiegens. Die Kurvenregeln für Fussgängerstreifen gelten hier nicht.' +
+    'Abbieger: Sicht höchstens bis zum Beginn des Abbiegens (eigene Annahme der App, keine Normvorgabe; ohne sie gälte die ' +
+    'Anhaltesichtweite ungekürzt). Die Kurvenregeln für Fussgängerstreifen gelten hier nicht.' +
     (ueber.length ? ` Tempo über ${AHS_MAX_V} km/h (${ueber.join(', ')} km/h): verwendet ist der Wert ${ahs(AHS_MAX_V)} m.` : '')
 }
 
@@ -92,8 +107,9 @@ export function annahmeOhneVortritt(o: OhneVortritt, tempi: number[], randAngeno
     `max(v · L / ${f1(GEH_V)} m/s; Anhaltesichtweite), L = ${f1(o.L)} m${o.ganzeFahrbahn ? ' (Insel nur markiert: ganze Fahrbahn)' : ''}` +
     (randAngenommen ? ' aus angenommenen Bordkanten (keine passende AV-Sehne, 0,3 m vor den Enden) – prüfen' : '') +
     (teile.length ? `; ${teile.join('; ')}` : '') + '. v = Tempo der Zufahrt (V85 nur über das Tempo von Hand). Abbieger: Sicht ' +
-    'höchstens bis zum Beginn des Abbiegens (Strecke bis zu ihrem Knoten und Bogen), weiter hinten ist ein Fahrzeug noch nicht als ' +
-    'Einbieger erkennbar; das Tempo von Hand je Zufahrt gilt auch für sie. Die Kurvenregeln für Fussgängerstreifen (bfu, VSS 40 241 ' +
+    'höchstens bis zum Beginn des Abbiegens (Strecke bis zu ihrem Knoten und Bogen) – eigene Annahme der App, keine Normvorgabe: nach ' +
+    'Z. 8.2 gälte die Formel ohne Grenze; die App nimmt an, dass ein Fahrzeug weiter hinten noch nicht als Einbieger erkennbar ist. ' +
+    'Das Tempo von Hand je Zufahrt gilt auch für sie. Die Kurvenregeln für Fussgängerstreifen (bfu, VSS 40 241 ' +
     `Tab. 2) gelten hier nicht. Geprüft wird höchstens bis ${REICHWEITE_SICHT_M} m (Reichweite der geladenen Daten).` +
     (ueber.length ? ` Tempo über ${AHS_MAX_V} km/h (${ueber.join(', ')} km/h): die Anhaltesichtweite der Tabelle endet bei ${AHS_MAX_V} km/h, ` +
       `verwendet ist ihr Wert ${ahs(AHS_MAX_V)} m.` : '')

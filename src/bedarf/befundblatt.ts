@@ -33,6 +33,7 @@ import type { Fall } from '../fall'
 import type { P } from '../geo'
 import { sichtweiteKurve } from '../rechner/tempo'
 import { sichtQuelleKurz } from '../texte'
+import { annahmeKurz } from '../rechner/ohneVortritt'
 import { sichtFgs } from './tabellen'
 
 export interface BlattOptionen {
@@ -57,6 +58,8 @@ export interface SichtZeile {
   bisM?: number
   /** Sichtfeld frei bis (gerade Zufahrten, Sichtrechner) */
   freiBisM?: number
+  /** Soll durch eine Annahme der App unter dem Normwert (ohneVortritt.annahmeKurz), z. B. Abbieger bis Beginn des Abbiegens */
+  annahme?: string
 }
 export interface OffenZeile { feld: string; name: string; gruppe: GruppeId | null; regeln: string[]
   /** Feld hat eine vorgeschlagene Annahme, die ein hartes Verbot trägt: bestätigen statt eingeben (Korrektur M2) */
@@ -443,7 +446,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
         // die Anhaltesichtweite ist, sonst vorerst weich
         if (ov) {
           const a = ahs(z.tempo), fb = z.freiBisM
-          const grund = sollGrund(z.sichtweiteQuelle), sw = String(z.sichtweite).replace('.', ',')
+          const grund = z.annahmeGrenze ? annahmeKurz(z.annahmeGrenze, false) : sollGrund(z.sichtweiteQuelle), sw = String(z.sichtweite).replace('.', ',')
           if (fb !== undefined) {
             const zeile = `${wo}: frei bis ${fb} m, Soll ${sw} m (${grund}); ${statusKurz(z)}`
             if (fb >= a - 1e-9 && e3aMoeglich) neu.push(eintrag('E3a', { staerke: 'weich', zustand: 'verletzt', ist: `${fgText} Querende, DTV ${dtvW}`,
@@ -468,6 +471,14 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       if (tempoOffen.length) neu.push(eintrag(regel, { staerke: 'hart', zustand: 'offen',
         fehlend: [...new Set(tempoOffen.flatMap(x => x.fehlend))],
         detail: `${titel(s.fgsId)}: ${tempoOffen.map(x => x.z).join(', ')} frei, aber ${[...new Set(tempoOffen.map(x => x.grund))].join('; ')}` }))
+    }
+    // Soll unter dem Normwert durch eine Annahme der App (Abbieger bis Beginn des Abbiegens, 30.10.2026): an der Zeile und unter den
+    // Annahmen; die Masse-Zeile gilt dann als «erfüllt (Annahme)»
+    for (const x of sicht) {
+      const s = g.streifen.find(y => y.fgsId === x.fgsId), z = s?.zufahrten.find(y => y.zufahrt === x.zufahrt)
+      if (!s || !z?.annahmeGrenze) continue
+      x.annahme = annahmeKurz(z.annahmeGrenze, s.querung?.typ === 'begegnungszone')
+      befund.annahmen.push(`Sichtweite ${g.streifen.length > 1 ? `${titel(s.fgsId)}, ` : ''}${x.name}: ${String(x.soll).replace('.', ',')} m – ${x.annahme}`)
     }
     // Nachprüfung: erreicht der Baum eine Sichtregel, für die der Sichtrechner keine Sicht hat (z. B. E3 bei Fussgängerstreifen, wenn
     // ein Streifen nicht angezeigt ist), bleibt sie offen: Sichtweite von Hand eingeben (wie bei Querungsarten, die er nicht prüft)
@@ -502,18 +513,25 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       // Runde 5 (Stelle 14, Muster 3): gerade und abbiegende Zufahrten getrennt; frei, aber offen nur wegen der Frage nach schnellerem
       // Fahren: «erfüllt unter Vorbehalt» (wie Kasten und Befundblatt)
       const sollVon = (ab: boolean) => [...new Set(sicht.filter(x => x.zufahrt.startsWith('a') === ab).map(x => String(x.soll).replace('.', ',')))].join('; ')
+      // Soll durch eine Annahme der App gekürzt (30.10.2026): Grenze hinter der Gruppe
+      const annVon = (ab: boolean) => {
+        const gr = [...new Set(sicht.filter(x => x.zufahrt.startsWith('a') === ab && x.annahme).map(x =>
+          g.streifen.flatMap(y => y.zufahrten).find(y => y.fgsId === x.fgsId && y.zufahrt === x.zufahrt)?.annahmeGrenze?.grenze).filter(Boolean))]
+        return gr.length ? ` (Annahme: ${gr.join(', ')})` : ''
+      }
       const sG = sollVon(false), sA = sollVon(true)
+      const mitAnnahme = sicht.some(x => x.annahme)
       const offenEintraege = neu.filter(x => x.zustand === 'offen' && regeln.includes(x.id as 'H1' | 'E3'))
       const nurAnzeichen = offenR && !teil && !zahl && offenEintraege.every(x => (x.fehlend ?? []).every(f => f === 'anzeichenSchneller'))
       const vSv = gebildet.eingaben.vSig.wert
       // nur Querungen in der Begegnungszone (30.10.2026): Sicht zur Information, die Sichtregeln gelten dort nicht (A2 beendet den Baum)
       const nurBgz = sicht.every(x => g.streifen.some(s => s.fgsId === x.fgsId && streifenTyp(s) === 'begegnungszone'))
       const mz: MassZeile = { groesse: 'Sichtweite (Sichtrechner)', einheit: 'm',
-        soll: sG && sA ? `${sG} geradeaus, ${sA} für Abbiegende` : sG || `${sA} für Abbiegende`,
+        soll: sG && sA ? `${sG} geradeaus${annVon(false)}, ${sA} für Abbiegende${annVon(true)}` : sG ? `${sG}${annVon(false)}` : `${sA} für Abbiegende${annVon(true)}`,
         ist: (zahl ? `verdeckt (${zahl} von ${n} Zufahrten)` : teil ? `frei, ${teil} von ${n} Zufahrten nur bis ` +
           `${sicht.find(x => x.bisM !== undefined)!.bisM} m geprüft` : `frei (${zf(n)})`) +
           (nurBgz ? `; ${BGZ_SICHT_TEXT}` : erreicht0 ? '' : '; Sichtregel hier nicht geprüft'),
-        zustand: nurBgz ? 'nicht_anwendbar' : !erreicht0 ? 'offen' : verletztR ? 'verletzt' : nurAnzeichen ? 'vorbehalt' : offenR || teil ? 'offen' : 'erfuellt', regeln,
+        zustand: nurBgz ? 'nicht_anwendbar' : !erreicht0 ? 'offen' : verletztR ? 'verletzt' : nurAnzeichen ? 'vorbehalt' : offenR || teil ? 'offen' : mitAnnahme ? 'annahme' : 'erfuellt', regeln,
         ...(nurAnzeichen && erreicht0 && !verletztR ? { zusatz: `gilt, wenn nicht schneller als ${vSv !== null ? `${vSv} km/h` : 'signalisiert'} gefahren ` +
           'wird (Frage oben)' } : {}) }
       befund.masse.push(mz)

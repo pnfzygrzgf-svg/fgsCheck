@@ -92,9 +92,10 @@ export const ART: Record<string, string> = { beide: 'geradeaus', einbahn: 'gerad
 export const tempoHerkunft = (q: string): string => (q === 'Ersatz' ? 'Annahme' : q === 'Korrektur' ? 'von Hand' : q === 'Geoportal' ? 'Geoportal' : 'OSM')
 /** Herleitung der nötigen Sichtweite in Worten (die Fundstelle steht im Tooltip), z. B. «nach Tempo» statt «VSS Tab. 1» */
 export function sichtQuelleKurz(q: string): string {
-  if (/40 240/.test(q) && /Begegnungszone/.test(q)) return /Beginn des Abbiegens/.test(q) ? 'Begegnungszone, bis Beginn des Abbiegens'
-    : 'Begegnungszone, Anhaltesichtweite'
-  if (/40 240/.test(q)) return /Beginn des Abbiegens/.test(q) ? 'Querung ohne Vortritt, bis Beginn des Abbiegens' : 'Querung ohne Vortritt'
+  // Annahme der App unter dem Normwert (30.10.2026): Annahme und ungekürzter Normwert sichtbar, ohne L
+  if (/^Annahme: /.test(q)) return q.replace(/ \(L [^)]*\)$/, '')
+  if (/40 240/.test(q) && /Begegnungszone/.test(q)) return 'Begegnungszone, Anhaltesichtweite'
+  if (/40 240/.test(q)) return 'Querung ohne Vortritt'
   if (/^bis Kreiselring/.test(q)) return 'bis zum Kreiselring'
   if (/^bis Knoten/.test(q)) return 'bis zur Kreuzung'
   if (/^bis Wegende/.test(q)) return 'bis zum Wegende'

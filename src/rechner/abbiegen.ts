@@ -42,7 +42,7 @@ import { liniePunkte, sichtweiteRadiusHand } from './spurhand'
 import type { HindernisDaten } from './hindernisse'
 import { SEHNE_HALB, INSELRAND_M } from './flaechen'
 import {
-  type OhneVortritt, sollQuerung, quelleQuerung, quelleQuerungAbbiegen, weiteQuerung, REICHWEITE_SICHT_M,
+  type OhneVortritt, sollQuerung, quelleQuerung, quelleQuerungAbbiegen, weiteQuerung, REICHWEITE_SICHT_M, BIS_ABBIEGEN,
 } from './ohneVortritt'
 
 export const BORD_ABSTAND_M = 1.5
@@ -1015,12 +1015,14 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   // geo.sTb = Länge der Fahrlinie vom Streifen (Mitte) bis dorthin: Strecke bis zum Knoten, an dem das Fahrzeug abbiegt, und Bogen.
   // Soll = min(Z. 8.2; geo.sTb − h), mindestens SPUR_MIN_M. Hofzufahrt (eigene Regel), Strecke «bis Knoten» (Knoten jenseits des
   // Solls: kürzer) und eine gedeckte Zufahrt bleiben wie bisher
+  let annahmeB: { grenze: string; normM: number; quelle: string } | null = null
   if (k.ov && !hof && deckung === null && swQuelleB === quelleK && geo.sTb !== undefined) {
     const sAbb = geo.sTb
     const swAbb = Math.max(auf01(sAbb - h), SPUR_MIN_M)
     if (swAbb < swB) {
+      annahmeB = { grenze: BIS_ABBIEGEN, normM: swB, quelle: quelleQuerungAbbiegen(k.ov, swB) }
       swB = swAbb; gesamtB = swB + h
-      swQuelleB = quelleQuerungAbbiegen(k.ov)
+      swQuelleB = annahmeB.quelle
       bisB.push(['abbiegen', sAbb])
       lb = linieB(swB, gesamtB, radiusB)
       if (lb === null) return wegGeometrie('keine Fahrlinie (Bogen)')
@@ -1163,6 +1165,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     strasse: a.name || null, ueberStrasse: zf.name || null, knotenM: Math.round(bisKnoten * 10) / 10,
     tempo: tempoB, tempoQuelle: tempoQB, sichtweite: geprueftB ? geprueftB.soll : swB, sichtweiteQuelle: swQuelleB,
     ...(geprueftB ? { geprueftBisM: geprueftB.bis } : {}),
+    ...(annahmeB && swQuelleB === annahmeB.quelle ? { annahmeGrenze: { grenze: annahmeB.grenze, normM: annahmeB.normM } } : {}),
     freiBisM,
     kurvenradiusM: radiusHand !== null ? radiusRunden(radiusHand) : radiusOut, radiusQuelle: radiusText ?? radiusQuelleB, ...konfliktFelder(konflikte), konflikte,
     spurHinweis: hinweisB, spurHinweisM: null, fahrbahnM: fsB ? Math.round(fsB.breite * 100) / 100 : null,

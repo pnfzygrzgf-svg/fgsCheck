@@ -119,7 +119,7 @@ describe('Sichtrechner ohne Vortritt: abbiegende Zufahrt (Querweg Tempo 30, 40 m
     const ov = rechneFall(OSM, AV, [], 12, fallMit(x => { x.streifen[fid] = { typ: 'ohne_vortritt' } }), null)
     const ab = ov.streifen[0].zufahrten.find(z => z.art === 'abbiegend')!
     expect(sichtOhneVortritt(30, 8)).toBe(55.6)
-    expect([ab.zufahrt, ab.tempo, ab.sichtweite, ab.sichtweiteQuelle]).toEqual(['a90', 30, 42.9, 'VSS 40 240 Z. 8.2 (L 8,0 m), bis Beginn des Abbiegens'])
+    expect([ab.zufahrt, ab.tempo, ab.sichtweite, ab.sichtweiteQuelle]).toEqual(['a90', 30, 42.9, 'Annahme: bis Beginn des Abbiegens; nach VSS 40 240 Z. 8.2 wären es 55,6 m (L 8,0 m)'])
     expect(gerade(ov).map(z => z.sichtweite)).toEqual([92.6, 92.6])
   })
 })
@@ -195,7 +195,11 @@ describe('Reichweite der geladenen Daten (Korrektur E1): ohne Vortritt geprüft 
     }
     expect(zs.some(({ z }) => z.geprueftBisM === REICHWEITE_SICHT_M && z.sichtweite > REICHWEITE_SICHT_M)).toBe(true)
     // Abbieger (Soll nach Z. 8.2 bis 490 m): höchstens bis zum Beginn des Abbiegens
-    for (const { z } of zs.filter(x => x.z.art === 'abbiegend')) expect(z.sichtweiteQuelle, z.zufahrt).toBe(quelleOhneVortrittAbbiegen(42.4))
+    // (Annahme der App, 30.10.2026: die Quelle nennt den ungekürzten Wert nach Z. 8.2)
+    for (const { z } of zs.filter(x => x.z.art === 'abbiegend')) {
+      expect(z.annahmeGrenze, z.zufahrt).toEqual({ grenze: 'bis Beginn des Abbiegens', normM: sichtOhneVortritt(z.tempo, 42.4) })
+      expect(z.sichtweiteQuelle, z.zufahrt).toBe(quelleOhneVortrittAbbiegen(42.4, sichtOhneVortritt(z.tempo, 42.4)))
+    }
   })
 })
 
@@ -235,7 +239,9 @@ describe('Abbieger ohne Vortritt: Sicht höchstens bis zum Beginn des Abbiegens 
     const alle = ov.streifen[0].zufahrten.filter(z => z.art === 'abbiegend')
     expect(alle.length).toBe(4)
     for (const z of alle) {
-      expect(z.sichtweiteQuelle, z.zufahrt).toBe(quelleOhneVortrittAbbiegen(5))
+      expect(z.sichtweiteQuelle, z.zufahrt).toBe(quelleOhneVortrittAbbiegen(5, Z82))
+      expect(z.sichtweiteQuelle, z.zufahrt).toBe('Annahme: bis Beginn des Abbiegens; nach VSS 40 240 Z. 8.2 wären es 57,9 m (L 5,0 m)')
+      expect(z.annahmeGrenze, z.zufahrt).toEqual({ grenze: 'bis Beginn des Abbiegens', normM: Z82 })
       expect(z.sichtweite, z.zufahrt).toBeLessThan(Z82)
       // Beginn des Abbiegens hinter dem Knoten, an dem das Fahrzeug abbiegt (Strecke bis zum Knoten und Bogen)
       expect(z.sichtweite, z.zufahrt).toBeGreaterThan(z.knotenM!)
@@ -272,10 +278,11 @@ describe('Abbieger ohne Vortritt: Sicht höchstens bis zum Beginn des Abbiegens 
     expect(sichtOhneVortritt(30, 5)).toBe(34.8)
     expect(z0.sichtweite).toBeGreaterThan(34.8)
     expect([t30.tempo, t30.sichtweite, t30.sichtweiteQuelle]).toEqual([30, 34.8, quelleOhneVortritt(5)])
+    expect(t30.annahmeGrenze).toBeUndefined()
     // 40 km/h: 46,3 m nach Z. 8.2, hinter dem Beginn des Abbiegens -> Beginn des Abbiegens wie mit 50 km/h
     const t40 = mitTempo(40)
     expect(sichtOhneVortritt(40, 5)).toBeGreaterThan(z0.sichtweite)
-    expect([t40.tempo, t40.sichtweite, t40.sichtweiteQuelle]).toEqual([40, z0.sichtweite, quelleOhneVortrittAbbiegen(5)])
+    expect([t40.tempo, t40.sichtweite, t40.sichtweiteQuelle]).toEqual([40, z0.sichtweite, quelleOhneVortrittAbbiegen(5, sichtOhneVortritt(40, 5))])
   })
   it('Annahme je Streifen nennt die Regel für Abbieger', () => {
     expect(ov.streifen[0].annahmen.find(a => a.startsWith('Querung ohne Vortritt'))).toContain('höchstens bis zum Beginn des Abbiegens')
