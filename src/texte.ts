@@ -36,6 +36,7 @@ export const GRUND: Record<string, string> = {
   wegende: 'die Strasse endet kurz vor dem Streifen: von dort kommt niemand',
   einbahn_widerspruch: 'nicht geprüft: die Einbahn-Angaben in OSM widersprechen sich – bitte vor Ort prüfen',
   hand: 'von Hand ausgeschlossen',
+  mitgeprueft: 'durch die Zufahrt{anderer} mitgeprüft: an einer Einmündung zählt aus der gequerten Strasse eine Zufahrt bis zum nächsten Knoten',
   hofzufahrt: 'Hof- bzw. Garagenzufahrt, die weiter weg einmündet als die Sicht nach der bfu-Knotenregel: die Strecke prüft die gerade Zufahrt',
 }
 /** Überschrift der Liste und Erklärung im Tooltip */
@@ -67,6 +68,10 @@ export function entfallenGrund(e: Entfallen, s: Pick<StreifenErgebnis, 'fgsId' |
     if (tue) roh = roh.replace(' – geprüft {anderer}', ' – der andere Teil{anderer} ist eine Trottoirüberfahrt, dort wird die Sicht nicht geprüft')
     anderer = tue ? (andere.length === 1 ? ` (${titel(andere[0].fgsId)})` : '')
       : andere.length === 1 ? `beim anderen Teil (${titel(andere[0].fgsId)})` : 'beim anderen Teil des Streifens'
+  } else if (e.grund === 'mitgeprueft') {
+    // Einmündung (30.10.2026): die Zufahrt entlang der gequerten Strasse bis zu diesem Knoten
+    const g = s.zufahrten.find(z => z.art !== 'abbiegend' && e.osmKnoten !== '' && z.osmKnoten === e.osmKnoten)
+    anderer = g ? ` «${zName(s.fgsId, g.zufahrt)}»` : ''
   } else if (e.grund === 'gedeckt') {
     const g = s.zufahrten.find(z => z.art !== 'abbiegend' && e.osmKnoten !== '' && z.osmKnoten === e.osmKnoten)
     anderer = g ? ` «${zName(s.fgsId, g.zufahrt)}»` : ''

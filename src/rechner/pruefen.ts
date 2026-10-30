@@ -12,7 +12,7 @@
 
 import { type P, add, dist, dot, rechts, sub, richtungGrad, neg } from '../geo'
 import type { OsmNetz } from './netz'
-import { kennungGerade, verlaengern, streckeLaenge, type Knotenbereich, type Suche, type SpurGerade, type ArmInfo } from './netz'
+import { kennungGerade, kennungArm, verlaengern, streckeLaenge, type Knotenbereich, type Suche, type SpurGerade, type ArmInfo } from './netz'
 import type { Fahrbahn, Inseln, Gebaeude, Flaechen } from './flaechen'
 import { Kreisel, KREISEL_LOKAL_M, KREISEL_RMS_M, KREISEL_BOGEN_M } from './kreisel'
 import {
@@ -38,7 +38,8 @@ import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvex
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
 import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt, QuerungSicht, AnnBasis, AnnHand } from './typen'
 import { type Augpunkt, type Erkennung, type ErkennungEnde, ERKENNUNG_MAX_M, entlangLinie, erkennungRechnen, zielPunkte } from './erkennung'
-import { type OhneVortritt, sollQuerung, quelleQuerung, annahmeOhneVortritt, annahmeBgz, istBgz, weiteQuerung, REICHWEITE_SICHT_M } from './ohneVortritt'
+import { type OhneVortritt, sollQuerung, quelleQuerung, quelleAnnahme, annahmeOhneVortritt, annahmeBgz, istBgz, weiteQuerung, REICHWEITE_SICHT_M,
+  BIS_KNOTEN, EINMUENDUNG_NAH_M } from './ohneVortritt'
 
 const RAND_TOL = 1.0
 const KNOTEN_SPERRE = 10.0
@@ -59,6 +60,8 @@ const SPUR_PRUEF_M = 40.0
 const LSA_QUERUNG_M = 6.0
 const LSA_AMPEL_M = 30.0
 const f1 = (x: number) => x.toFixed(1).replace('.', ',')
+/** auf 0,1 m aufwärts (wie das Soll ohne Vortritt) */
+const auf01 = (x: number) => Math.ceil(x * 10 - 1e-9) / 10
 
 /** Eingaben von Hand (E2: Tempo bestätigen/korrigieren, Parkierung/Velostreifen; im Referenzvergleich die Berner Werte) */
 export interface VonHand {
@@ -243,6 +246,17 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
     vorab.set(s.fgsId, zufahrtenBilden(s, netz, inseln, r0, r1, tk))
   }
   teilstreifenPaare(S, new Map([...vorab].map(([fid, [zfs]]) => [fid, zfs])), inseln)
+  // Querung an einer Einmündung (Nutzerentscheid 30.10.2026, ohneVortritt.ts): je Übergang die Fahrtrichtungen der Zufahrten, deren
+  // nächster Knoten bis EINMUENDUNG_NAH_M vom Streifenrand liegt und dort ohne Fortsetzung der gequerten Strasse nur Abbieger hat
+  const einmRichtungen = new Map<string, P[]>()
+  if (netz) for (const s of S) for (const zf of vorab.get(s.fgsId)![0]) {
+    if (zf.g === null || zf.teilPartner !== null) continue
+    const su = netz.stromauf(zf.g, zf.sd!, zf.gegenEinbahn)
+    if (su.art !== 'knoten' || su.dist - s.bw / 2 > EINMUENDUNG_NAH_M) continue
+    const kb = netz.knotenbereich(su, zf.g)
+    if ((kb.forts === null || kb.fortsService) && kb.arme.some(a => a.rolle === 'abbiegend'))
+      einmRichtungen.set(s.uebergangId, [...(einmRichtungen.get(s.uebergangId) ?? []), zf.d])
+  }
   const aus: StreifenErgebnis[] = []
   for (const s of S) {
     const fid = s.fgsId
@@ -273,7 +287,10 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
     const kf = (feld: Multi, pts: P[]) => konflikteSuchen(feld, streifenPoly, gebaeude, ziele, pts, kx.hindernisse ?? null)
     const keinFgs = kx.vonHand?.keinFgs?.(fid) ?? false
     for (const zf of keinFgs ? [] : zfs) {
-      const r = geradeUndAbbiegend(s, zf, kx, kreisel, sf, kf, streifenPoly, erg, keinFgs ? null : ov)
+      // Gegenseite der Einmündung: Fahrtrichtung entgegen einer Zufahrt mit nahem Einmündungsknoten (nur Querung ohne Vortritt bzw. in
+      // der Begegnungszone)
+      const einm = !!ov && zf.g !== null && (einmRichtungen.get(s.uebergangId) ?? []).some(d0 => dot(d0, zf.d) < -0.5)
+      const r = geradeUndAbbiegend(s, zf, kx, kreisel, sf, kf, streifenPoly, erg, keinFgs ? null : ov, einm)
       erg.push(...r.ergebnisse)
       ent.push(...r.entfallen)
     }
@@ -311,7 +328,7 @@ function ohneVortritt(s: StreifenX, S: StreifenX[], q: { typ: QuerungSicht; inse
 const einheitV = (v: P): P => { const l = Math.hypot(v[0], v[1]); return l > 0 ? [v[0] / l, v[1] / l] : [1, 0] }
 
 function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kreisel, sf: (p: P[]) => Multi,
-  kf: (f: Multi, p: P[]) => Konflikt[], streifenPoly: Multi, bisher: ZufahrtErgebnis[], ov: OhneVortritt | null = null):
+  kf: (f: Multi, p: P[]) => Konflikt[], streifenPoly: Multi, bisher: ZufahrtErgebnis[], ov: OhneVortritt | null = null, einm = false):
   { ergebnisse: ZufahrtErgebnis[]; entfallen: Entfallen[] } {
   const { netz, fahrbahn, inseln, gebaeude } = kx
   const fid = s.fgsId
@@ -458,12 +475,29 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       sw = swR; gesamt = swR + h; swQuelle = qR!
     }
   }
+  // Gegenseite einer Querung an einer Einmündung (Nutzerentscheid 30.10.2026, ohneVortritt.ts): eine Zufahrt entlang der gequerten
+  // Strasse höchstens bis zum nächsten Knoten (eigene Annahme der App: Soll = min(Normwert; Strecke bis zum Knoten, auf 0,1 m), mindestens
+  // SPUR_MIN_M), keine Fortsetzung durch den Knoten; die Abbieger an diesem Knoten entfallen (durch diese Zufahrt mitgeprüft)
+  let annahmeK: { grenze: string; normM: number; quelle: string; sw: number } | null = null
+  let armeMitgeprueft = false
+  if (einm && ov && kInSicht) {
+    const swK = Math.max(auf01(su!.dist - h), SPUR_MIN_M)
+    if (swK < swEigen) {
+      const a = { grenze: BIS_KNOTEN, normM: swEigen }
+      annahmeK = { ...a, quelle: quelleAnnahme(ov, a), sw: swK }
+      bis = null   // fest ab dem Streifenrand der Rechnung (wie das Soll ohne Vortritt), nicht nach dem Rand neu gerundet
+      sw = swK; gesamt = sw + h; swQuelle = annahmeK.quelle
+      wegRoh = verlaengern(wegRoh, gesamt + 1.0)
+    }
+    hatGerade = true; grundGerade = null; armeMitgeprueft = true
+    hinweis = 'knoten'; hinweisM = su!.dist
+  }
   // Querung ohne Vortritt: geprüft höchstens bis REICHWEITE_SICHT_M (Reichweite der geladenen Daten, ohneVortritt.ts); ein Wegende
   // bzw. Strassenende jenseits davon ist keine Grenze (Grenze der OSM-Daten möglich): ausgewiesen wird das Soll nach Z. 8.2
   let geprueftBis: number | null = null
   if (ov && sw > REICHWEITE_SICHT_M) {
     geprueftBis = REICHWEITE_SICHT_M
-    sw = REICHWEITE_SICHT_M; gesamt = sw + h; bis = null; swQuelle = quelleQuerung(ov)
+    sw = REICHWEITE_SICHT_M; gesamt = sw + h; bis = null; swQuelle = annahmeK ? annahmeK.quelle : quelleQuerung(ov)
     if (hinweis === 'spur_ende') { hinweis = kInSicht ? 'knoten' : ''; hinweisM = kInSicht ? su!.dist : null }
   }
   // Spur auf die Streifenmitte verschieben, glätten
@@ -551,7 +585,14 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   if (su !== null && netz) {
     if (su.hinweise.includes('einbahn_widerspruch') || sg!.endeGrund === 'einbahn_widerspruch') netzHinweis.push('einbahn_widerspruch')
     if (su.art === 'knoten' && su.dist <= h + 3) netzHinweis.push('knoten_am_streifen')
-    if (kInSicht) arme.push(...kbe!.arme.filter(a => a.rolle !== 'gerade' && a.rolle !== 'gerade_verboten'))
+    if (kInSicht && armeMitgeprueft) {
+      // Einmündung (30.10.2026): Abbieger an diesem Knoten durch die Zufahrt entlang der gequerten Strasse mitgeprüft
+      for (const a of kbe!.arme.filter(x => x.rolle !== 'gerade' && x.rolle !== 'gerade_verboten')) {
+        const grad = richtungGrad(a.fahrt)
+        entf.push(entfallen(fid, 'abbiegend', grad, `a${grad}`, 'mitgeprueft', `Querung an einer Einmündung: eine Zufahrt ${zf.name ? `in der ${zf.name} ` : ''}` +
+          `bis zum Knoten ${f1(su.dist - h)} m vor dem Streifen`, a.wid, a.knoten, kennungArm(a)))
+      }
+    } else if (kInSicht) arme.push(...kbe!.arme.filter(a => a.rolle !== 'gerade' && a.rolle !== 'gerade_verboten'))
     arme.push(...su.nebenarme.filter(na => na.dist - h < swEigen).map(na => netz.nebenarm(su!, na)))
     netzHinweis.push(...arme.filter(a => a.rolle === 'nebenast').map(a => `nebenast:${a.name || 'Weg ' + a.wid}`))
     if (kbe !== null && kbe.forts !== null) netzHinweis.push(...kbe.forts.hinweise)
@@ -873,7 +914,8 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       fgsId: fid, zufahrt: schluessel([...bisher, ...ergebnisse], art, gradD), kennung: kennungG, richtung: gradD, art,
       strasse: zf.name || null, ueberStrasse: null, knotenM: null, tempo, tempoQuelle: tempoQ,
       // geprüft bis zur Reichweite (ohne Vortritt): ausgewiesen das Soll, geprüft bis geprueftBisM (nicht, wenn ein Gebäude kürzt)
-      sichtweite: geprueftBis !== null && sw >= geprueftBis - 1e-9 ? swEigen : sw,
+      sichtweite: geprueftBis !== null && sw >= geprueftBis - 1e-9 ? (annahmeK ? annahmeK.sw : swEigen) : sw,
+      ...(annahmeK && swQuelle === annahmeK.quelle ? { annahmeGrenze: { grenze: annahmeK.grenze, normM: annahmeK.normM } } : {}),
       ...(geprueftBis !== null && sw >= geprueftBis - 1e-9 ? { geprueftBisM: geprueftBis } : {}),
       sichtweiteQuelle: swQuelle, kurvenradiusM: radiusG, radiusQuelle: radiusQG,
       ...konfliktFelder(konflikte), konflikte,

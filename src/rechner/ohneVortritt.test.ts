@@ -215,9 +215,13 @@ describe('Abbieger ohne Vortritt: Sicht höchstens bis zum Beginn des Abbiegens 
     lv(300, YN + 4), lv(300, YN - 4), lv(-300, YN - 4), lv(-300, YN + 4), ...bogen([-B - R, YN + 4 + R], 270, 360),
     ...bogen([-B - R, -4 - R], 0, 90), lv(-300, -4)]
   const AV = [av('Strasse_Weg', ring)]
-  const OSM = (zebra: boolean): OsmDaten => ({
+  // Kreuzung statt Einmündung (30.10.2026): das Verbindungsstück setzt sich nach Norden über die Hauptstrasse fort; so bleibt die Querung
+  // ohne Einmündung und der ferne Knoten (Nebenstrasse) hat Abbieger
+  const AVK = [...AV, av('Strasse_Weg', rechteck(-B, 3.9, B, 300))]
+  const OSM = (zebra: boolean, kreuzung = false): OsmDaten => ({
     wege: [weg(1, [[10, -300, 0], [11, 0, 0], [13, 300, 0]], { highway: 'tertiary', name: 'Hauptstrasse', maxspeed: '50' }),
-      weg(2, [[11, 0, 0], [30, 0, -10], [21, 0, YN]], { highway: 'residential', name: 'Verbindung', maxspeed: '30' }),
+      weg(2, [...(kreuzung ? [[50, 0, 300]] as [number, number, number][] : []), [11, 0, 0], [30, 0, -10], [21, 0, YN]],
+        { highway: 'residential', name: 'Verbindung', maxspeed: '30' }),
       weg(3, [[40, -300, YN], [21, 0, YN], [41, 300, YN]], { highway: 'residential', name: 'Nebenstrasse', maxspeed: '50' })],
     tram: [], ampeln: [], querungen: [], relationen: [],
     uebergaenge: [{ id: 30, tags: zebra ? { highway: 'crossing', crossing: 'uncontrolled', 'crossing:markings': 'zebra' } :
@@ -227,16 +231,17 @@ describe('Abbieger ohne Vortritt: Sicht höchstens bis zum Beginn des Abbiegens 
   const abb = (r: FallRechnung, strasse: string) => r.streifen[0].zufahrten.filter(z => z.art === 'abbiegend' && z.strasse === strasse)
   const fgs = rechneFall(OSM(true), AV, [], 30, fall(), null)
   const ov = rechneFall(OSM(false), AV, [], 30, fall(), null)
+  const ovK = rechneFall(OSM(false, true), AVK, [], 30, fall(), null)
   const Z82 = sichtOhneVortritt(50, 5)
   it('Fussgängerstreifen unverändert: Abbieger nach Kurvenradius (bfu), gerade Zufahrt nach Tab. 1', () => {
     expect(fgs.streifen[0].querung).toBeUndefined()
     expect(kurz(fgs).map(x => x.slice(1))).toEqual([['90', 'gerade', 30, 25, 'VSS Tab. 1', 'frei'],
       ['a0', 'abbiegend', 50, 15, 'bfu', 'frei'], ['a180', 'abbiegend', 50, 20, 'bfu', 'frei']].map(x => [x[0], x[1] === 'gerade' ? 'beide' : x[1], ...x.slice(2)]))
   })
-  it('ohne Vortritt (crossing=unmarked, L 5,0 m): Abbieger an Haupt- und Nebenstrasse unter dem Soll nach Z. 8.2 (57,9 m), Quelle mit Zusatz', () => {
-    expect(ov.streifen[0].querung).toEqual({ typ: 'ohne_vortritt', L: 5, ganzeFahrbahn: false })
+  it('ohne Vortritt (crossing=unmarked, L 5,0 m, Kreuzung): Abbieger an Haupt- und Nebenstrasse unter dem Soll nach Z. 8.2 (57,9 m), Quelle mit Zusatz', () => {
+    expect(ovK.streifen[0].querung).toEqual({ typ: 'ohne_vortritt', L: 5, ganzeFahrbahn: false })
     expect(Z82).toBe(57.9)
-    const alle = ov.streifen[0].zufahrten.filter(z => z.art === 'abbiegend')
+    const alle = ovK.streifen[0].zufahrten.filter(z => z.art === 'abbiegend')
     expect(alle.length).toBe(4)
     for (const z of alle) {
       expect(z.sichtweiteQuelle, z.zufahrt).toBe(quelleOhneVortrittAbbiegen(5, Z82))
@@ -258,8 +263,8 @@ describe('Abbieger ohne Vortritt: Sicht höchstens bis zum Beginn des Abbiegens 
       expect(Math.abs(Math.abs(ende[0] - O[0]) - (B + R)), z.zufahrt).toBeLessThan(1.5)
     }
   })
-  it('ferner Knoten (Nebenstrasse, 34 m): bis zu jenem Knoten und Bogen, nicht in die Nebenstrasse hinein', () => {
-    const neben = abb(ov, 'Nebenstrasse')
+  it('ferner Knoten (Nebenstrasse, 34 m; Kreuzung): bis zu jenem Knoten und Bogen, nicht in die Nebenstrasse hinein', () => {
+    const neben = abb(ovK, 'Nebenstrasse')
     expect(neben.length).toBe(2)
     for (const z of neben) {
       expect(z.knotenM).toBe(32)
@@ -269,9 +274,9 @@ describe('Abbieger ohne Vortritt: Sicht höchstens bis zum Beginn des Abbiegens 
       expect(Math.min(...z.sichtpunkte.map(p => p[1] - O[1])), z.zufahrt).toBeGreaterThan(YN - 4)
     }
   })
-  it('Tempo von Hand wirkt (ferner Knoten): Soll = min(Z. 8.2 mit dem Tempo von Hand; Beginn des Abbiegens)', () => {
-    const z0 = abb(ov, 'Nebenstrasse').reduce((a, b) => (a.sichtweite > b.sichtweite ? a : b))
-    const mitTempo = (v: number) => abb(rechneFall(OSM(false), AV, [], 30, fall(x => { x.zufahrten[`30|${z0.kennung}`] = { tempo: v } }), null),
+  it('Tempo von Hand wirkt (ferner Knoten, Kreuzung): Soll = min(Z. 8.2 mit dem Tempo von Hand; Beginn des Abbiegens)', () => {
+    const z0 = abb(ovK, 'Nebenstrasse').reduce((a, b) => (a.sichtweite > b.sichtweite ? a : b))
+    const mitTempo = (v: number) => abb(rechneFall(OSM(false, true), AVK, [], 30, fall(x => { x.zufahrten[`30|${z0.kennung}`] = { tempo: v } }), null),
       'Nebenstrasse').find(z => z.kennung === z0.kennung)!
     // 30 km/h: 34,8 m nach Z. 8.2, vor dem Beginn des Abbiegens -> Z. 8.2 ohne Zusatz
     const t30 = mitTempo(30)

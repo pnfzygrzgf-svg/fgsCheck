@@ -26,6 +26,14 @@
 // den ungekürzten Normwert («Annahme: bis Beginn des Abbiegens; nach VSS 40 240 Z. 8.2 wären es 89,1 m»), ZufahrtErgebnis.annahmeGrenze
 // trägt beides, das Befundblatt führt das Soll als Annahme. Das Tempo von Hand je Zufahrt bleibt wirksam. Gerade Zufahrten unverändert.
 //
+// Einmündung (Nutzerentscheid 30.10.2026) – ebenfalls eigene Annahme der App: mündet die gequerte Strasse unmittelbar an der Querung in
+// eine andere (eine Zufahrt der Querung hat ihren nächsten Knoten höchstens EINMUENDUNG_NAH_M vom Streifenrand, dort setzt sich die
+// gequerte Strasse nicht fort, und es biegen Fahrzeuge ab), gilt für die Gegenseite – Fahrzeuge, die in der gequerten Strasse auf die
+// Querung zufahren – genau eine Zufahrt entlang der gequerten Strasse, höchstens bis zum nächsten Knoten: Soll = min(Normwert; Strecke
+// bis zum Knoten, auf 0,1 m aufwärts), mindestens SPUR_MIN_M, keine Fortsetzung durch den Knoten; die Abbieger an diesem Knoten entfallen
+// («mitgeprueft»). Greift die Grenze, nennt die Quelle die Annahme und den Normwert (annahmeGrenze wie bei den Abbiegern). Die Abbieger
+// an der Einmündung selbst bleiben wie oben; Querungen ohne Einmündung und Fussgängerstreifen unverändert.
+//
 // Begegnungszone (Nutzerentscheid 30.10.2026): liegt eine unmarkierte OSM-Querung ohne Wahl am Streifen in einer Begegnungszone
 // (Strecke oder Zone wie im Bedarfsmodul, rechneFall), hat der Fussverkehr dort Vortritt. Nach Z. 8.2 (S. 8) gilt dann die
 // Anhaltesichtweite nach dem Tempo der Zufahrt (Tab. AHS_40240), nicht die Formel mit L; Typ «begegnungszone» derselben Rechnung
@@ -59,6 +67,10 @@ export const sichtOhneVortritt = (v: number, L: number): number => auf01(sollSic
 export const quelleOhneVortritt = (L: number): string => `VSS 40 240 Z. 8.2 (L ${f1(L)} m)`
 /** Zusatz der Quelle, wenn eine abbiegende Zufahrt nur bis zum Beginn des Abbiegens gemessen ist */
 export const BIS_ABBIEGEN = 'bis Beginn des Abbiegens'
+/** Grenze der Gegenseite an einer Einmündung (eigene Annahme der App, 30.10.2026) */
+export const BIS_KNOTEN = 'bis zum nächsten Knoten'
+/** Einmündung: nächster Knoten einer Zufahrt höchstens so weit vom Streifenrand (m), ohne Fortsetzung der gequerten Strasse, mit Abbiegern */
+export const EINMUENDUNG_NAH_M = 15
 /** Zahl wie in der Anzeige: höchstens eine Nachkommastelle, Komma */
 const zahl = (x: number): string => String(Math.round(x * 10) / 10).replace('.', ',')
 /** Grenze der App unter dem Normwert (eigene Annahme, keine Normvorgabe; ZufahrtErgebnis.annahmeGrenze) */

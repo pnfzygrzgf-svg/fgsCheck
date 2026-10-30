@@ -246,7 +246,9 @@ export function Anleitung() {
             die Insel im Bedarf als «nur markiert» angegeben, gilt die ganze Fahrbahn. Sichtfeld und Hindernisse wie beim
             Fussgängerstreifen, ohne die Kurvenregeln. Abbiegende Zufahrten prüft die App höchstens bis zum Beginn des Abbiegens: eine
             eigene Annahme, keine Normvorgabe; greift sie, nennt die Spalte «nötige Sicht» sie mit dem ungekürzten Wert nach Ziffer 8.2,
-            und die erweiterte Prüfung führt das Soll als Annahme. Geprüft wird höchstens bis {REICHWEITE_SICHT_M} m ab dem Streifen (so weit reichen
+            und die erweiterte Prüfung führt das Soll als Annahme. Liegt die Querung an einer Einmündung (die gequerte Strasse mündet
+            unmittelbar daneben in eine andere), prüft die App aus der gequerten Strasse nur eine Zufahrt bis zum nächsten Knoten, ebenfalls
+            als Annahme; die Abbieger an jenem Knoten gelten als mitgeprüft. Geprüft wird höchstens bis {REICHWEITE_SICHT_M} m ab dem Streifen (so weit reichen
             die geladenen Daten): ein höheres Soll erscheint mit «geprüft bis {REICHWEITE_SICHT_M} m, darüber nicht geprüft» und gilt in der
             erweiterten Prüfung als offen. Ist die Sicht verdeckt, entscheidet die freie Länge bis zum ersten Hindernis: unter
             der Anhaltesichtweite rot (Muss), darüber gelb (Soll) bzw. bei wenig Querenden und wenig Verkehr die Ausnahme nach {V('VSS 40 240')}, Ziffer 8.2.

@@ -7,7 +7,7 @@ import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 /** alle Gründe, die der Rechner vergibt (src/rechner, nur gelesen) */
 const GRUENDE = ['hofzufahrt', 'einbahn_osm', 'richtungsfahrbahn', 'insel', 'teilstreifen', 'insel_einbahn', 'einspurig', 'einmuendung', 'gerade_verboten',
   'gedeckt', 'kein_zufluss', 'verbot', 'kreisel', 'wenden', 'nebenast', 'zu_steil', 'arm_schmal', 'arm_ohne_fahrbahn', 'geometrie',
-  'wegende', 'einbahn_widerspruch', 'hand']
+  'wegende', 'einbahn_widerspruch', 'hand', 'mitgeprueft']
 const z = (zufahrt: string, richtung: number, osmWeg: string | null, art = 'beide', osmKnoten: string | null = null) =>
   ({ zufahrt, richtung, osmWeg, art, osmKnoten }) as ZufahrtErgebnis
 const st = (fgsId: string, zufahrten: ZufahrtErgebnis[]) => ({ fgsId, zufahrten }) as Pick<StreifenErgebnis, 'fgsId' | 'zufahrten'>
