@@ -5,8 +5,10 @@
 // höchstens 110 m), rot von dort bis zum Soll (verdeckt) bzw. grau (Fahrlinie endet, weiter zurück nicht geprüft). Reicht die Fahrlinie
 // nicht so weit, geht das Band gerade in ihrer letzten Richtung weiter. Das verdeckende Hindernis (Erkennung.hindernis) wird über seine
 // Kennung gesucht (Hindernisse von Hand, Vorschläge, Kataster).
-// Sichtlinien (30.10.2026): Klick auf ein Band zeigt die dünnen Sichtlinien der Rechnung (ZufahrtErgebnis.erkennungLinien) bis zum Soll
-// bzw. bis zur Erkennungsdistanz, wenn sie weiter reicht: je Augpunkt eine Linie zum genutzten Zielpunkt der Markierung.
+// Höchstens bis zum Soll (Nutzerentscheid 30.10.2026): reicht die Erkennungsdistanz weiter, endet das Band trotzdem beim Soll (der
+// Tooltip nennt den gefundenen Wert); ebenso die Sichtlinien.
+// Sichtlinien (30.10.2026): Klick auf ein Band zeigt die dünnen Sichtlinien der Rechnung (ZufahrtErgebnis.erkennungLinien) bis zum Soll:
+// je Augpunkt eine Linie zum genutzten Zielpunkt der Markierung.
 // Gelände (30.10.2026): Band und Linien zeigen die Erkennungsdistanz nach der Geländeprüfung (erkennungGelaende.erkennungAnzeige, Werte
 // je gelaendeSchluessel); fehlt sie, wie gerechnet mit «Gelände nicht geprüft».
 // Bewuchs (30.10.2026): sieht man die Markierung ab einer Distanz nur über AV-Bodenbedeckung mit Bewuchs (Erkennung.bewuchsAb), ist das
@@ -27,9 +29,9 @@ const HINDERNIS_WORT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Au
 export interface ErkennungBand {
   /** Schlüssel «fgsId|zufahrt» */
   zufahrt: string
-  /** sichtbar (in den Daten frei): ab dem Streifenrand bis zur Erkennungsdistanz bzw. bis zum Beginn des Bewuchses */
+  /** sichtbar (in den Daten frei): ab dem Streifenrand bis zur Erkennungsdistanz bzw. bis zum Beginn des Bewuchses, höchstens bis zum Soll */
   gruen: P[]
-  /** Bewuchs: nicht sicher frei, vom Beginn des Bewuchses bis zur Erkennungsdistanz (gelb); null: kein Bewuchs */
+  /** Bewuchs: nicht sicher frei, vom Beginn des Bewuchses bis zur Erkennungsdistanz, höchstens bis zum Soll (gelb); null: keiner */
   gelb: P[] | null
   /** fehlt bis zum Soll: verdeckt (rot) bzw. nicht geprüft (Fahrlinie endet, grau); null: erfüllt */
   fehlt: { art: 'verdeckt' | 'ungeprueft'; linie: P[] } | null
@@ -88,7 +90,7 @@ export function erkennungBaender(s: StreifenErgebnis, gelaende?: Gelaende): Erke
     if (!e || z.art === 'abbiegend' || !z.sichtpunkte.length || z.spur.length < 2) return []
     const soll = erkennungSoll(z)
     const a0 = lageAuf(z.spur, z.sichtpunkte[0])
-    const bis = Math.min(e.wert, ERKENNUNG_MAX_M), sicher = Math.min(e.bewuchsAb ?? bis, bis)
+    const bis = Math.min(e.wert, ERKENNUNG_MAX_M, soll), sicher = Math.min(e.bewuchsAb ?? bis, bis)
     const gruen = abschnitt(z.spur, a0, a0 + sicher)
     const gelb = sicher < bis - 1e-9 ? abschnitt(z.spur, a0 + sicher, a0 + bis) : []
     const kurz = e.wert < soll - 1e-9
@@ -106,12 +108,12 @@ export function erkennungBaender(s: StreifenErgebnis, gelaende?: Gelaende): Erke
 /** Sichtlinie auf der Karte: Augpunkt, genutzter Zielpunkt der Markierung, Befund und Tooltip */
 export interface SichtlinieKarte { x: number; auge: P; ziel: P; art: 'frei' | 'bewuchs' | 'verdeckt'; text: string }
 
-/** Sichtlinien einer Zufahrt zum Zeigen: ab dem ersten Augpunkt hinter dem Streifenrand bis zum Soll bzw. bis zur Erkennungsdistanz,
- * wenn sie weiter reicht (leer ohne gerechnete Erkennungsdistanz) */
+/** Sichtlinien einer Zufahrt zum Zeigen: ab dem ersten Augpunkt hinter dem Streifenrand bis zum Soll (leer ohne gerechnete
+ * Erkennungsdistanz) */
 export function erkennungSichtlinien(z: ZufahrtErgebnis, gelaende?: Gelaende): SichtlinieKarte[] {
   const a = erkennungAnzeige(z, gelaende)
   if (!a || !a.linien.length || z.art === 'abbiegend') return []
-  const bis = Math.max(erkennungSoll(z), a.e.wert, z.erkennungM!.wert)
+  const bis = erkennungSoll(z)
   return a.linien.filter(x => x.x > 1e-6 && x.x <= bis + 1e-6).map(x => ({ x: x.x, auge: x.auge, ziel: x.ziel, art: x.befund,
     text: `Sichtlinie ${Math.round(x.x)} m vor dem Streifen auf die Markierung: ${x.befund === 'frei' ? 'in den Daten frei'
       : x.befund === 'bewuchs' ? `nicht sicher (Bewuchs AV: ${BEWUCHS_NAME[x.grund ?? ''] ?? x.grund}) – vor Ort oder in Street View prüfen`

@@ -2486,7 +2486,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             am letzten Sichtpunkt: blau (gewählte Zufahrt; die übrigen blass ab Zoom {FAHRZEUG_ZOOM}), <span className="farbe rund" style={{ background: AV_FARBEN.Trottoir,
             borderColor: '#334155' }} />wartende Person am Streifenende</li>}
           {rechnung?.streifen.some(s => !s.trottoirueberfahrt && s.zufahrten.some(z => z.erkennungM)) && <li>Erkennungsdistanz entlang der
-            Fahrlinie: <span className="farbe" style={{ background: STATUS_FARBE.frei }} />Markierung sichtbar (in den geladenen Daten frei),
+            Fahrlinie, höchstens bis zum Soll: <span className="farbe" style={{ background: STATUS_FARBE.frei }} />Markierung sichtbar (in den geladenen Daten frei),
             {' '}<span className="farbe" style={{ background: ERKENNUNG_BEWUCHS }} />nicht sicher (Sicht nur über Bewuchs der AV: Wald, bestockte
             Fläche, Gartenanlage; vor Ort oder in Street View prüfen), <span className="farbe"
             style={{ background: STATUS_FARBE.verdeckt }} />verdeckt bis zum Soll (doppelte Sichtweite, höchstens 110 m; das verdeckende
