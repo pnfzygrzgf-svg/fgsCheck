@@ -90,6 +90,8 @@ export interface ThemaTeil {
   ohneAngaben: string[]
   /** ohne Befund geprüfte Regeln */
   ohneBefund: string[]
+  /** erfüllt-Grund je Regel aus ohneBefund, sofern sie einen liefert (Befund.erfuelltGrund, über alle Querungen ohne Doppel) */
+  erfuelltGrund: Record<string, string>
   /** geprüfte Regeln (Prüfübersicht, über alle Querungen) */
   geprueft: number
   /** Felder der Maske in diesem Thema (ohne Grundprüfung und ohne Felder mit Frage), Reihenfolge der Maske */
@@ -113,6 +115,10 @@ export interface ThemenAnsicht {
   /** Ablauf endet ohne Ortslage (alle Querungen) */
   ohneOrtslage: boolean
 }
+
+/** Zeile einer ohne Befund geprüften Regel (Panel und Bericht): «Wenig Querende: ohne Befund – Querung im Fusswegnetz (Geoportal Stadt
+ * Bern)»; ohne Grund nur «…: ohne Befund» */
+export const ohneBefundZeile = (titel: string, grund?: string): string => `${titel}: ohne Befund${grund ? ` – ${grund}` : ''}`
 
 /** Thema mit eigenem Aufklapper: Befund, Frage, Verweis, ungeprüfter Block oder Regel */
 export const hatInhalt = (t: ThemaTeil): boolean =>
@@ -232,12 +238,16 @@ export function themenAnsicht(blaetter: readonly BefundBlatt[]): ThemenAnsicht {
     const xs = eintraege.flatMap(e => e.xs)
     const fragen = fragenJe.get(thema.id) ?? [], bloecke = bloeckeJe.get(thema.id) ?? [], ohneAngaben = ohneAngabenJe.get(thema.id) ?? []
     const ohneBefund = [...new Set(us.flatMap(u => u.themen[i].ohneBefundIds))]
+    const erfuelltGrund = Object.fromEntries(ohneBefund.flatMap(id => {
+      const g = [...new Set(blaetter.map(b => b.befund.erfuelltGrund?.[id]).filter((x): x is string => !!x))]
+      return g.length ? [[id, g.join('; ')]] : []
+    }))
     // je Regel einmal (über alle Querungen): Muss vor Soll vor Hinweis
     const ids = (st: readonly string[]) => new Set(xs.filter(x => st.includes(x.staerke)).map(x => x.id))
     const muss = ids(['hart', 'hart_bericht']), soll = [...ids(['weich'])].filter(id => !muss.has(id))
     const hinweise = [...ids(['hinweis'])].filter(id => !muss.has(id) && !soll.includes(id))
     return {
-      thema, eintraege, fragen, verweise: verweiseJe.get(thema.id) ?? [], bloecke, ohneAngaben, ohneBefund,
+      thema, eintraege, fragen, verweise: verweiseJe.get(thema.id) ?? [], bloecke, ohneAngaben, ohneBefund, erfuelltGrund,
       geprueft: Math.max(0, ...us.map(u => u.themen[i].geprueft)), felder: felderJe.get(thema.id) ?? [],
       zahl: { muss: muss.size, soll: soll.length, hinweise: hinweise.length,
         offen: fragen.filter(f => !nurAusfuehrung(f)).length + bloecke.length + ohneAngaben.filter(id => !istAusfuehrung(id)).length },

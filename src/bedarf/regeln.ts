@@ -12,6 +12,9 @@ import { freigabeSollInsel, freigabeSollNorm, gelbZulaessig, rundeBern } from '.
 import { sichtweiteKurve } from '../rechner/tempo'
 import { f3Klasse } from './durchfahrt'
 import type { Staerke } from './typen'
+import type { Quelle } from './eingaben'
+import { QUELLE_TEXT } from './fallBedarf'
+import { FELD_DEF, wertText } from './felder'
 
 export type RegelFn = (k: Kontext) => Ergebnis | null
 
@@ -41,6 +44,17 @@ function fgUnter(k: Kontext, schwelle: number): boolean {
 function fgIst(k: Kontext): string {
   const fg = k.o('fg5h')
   return fg !== null ? String(fg) : `Klasse ${k.o('fgKlasse') ?? '?'}`
+}
+/** erfüllt-Grund «genug Querende» (C3, C3b; nur nach fgUnter, liest keine weiteren Felder) */
+const fgGenug = (k: Kontext, s: number): string => `genug Querende (${fgIst(k)} in 5 Spitzenstunden, Schwelle ${s})`
+/** erfüllt-Grund der Ausnahme bei wenig Querenden (C3; 30.10.2026): Fusswegnetz bzw. besonderer Grund mit der Herkunft des Werts. Liest
+ * die Eingaben direkt (kein k.w), damit die Liste der genutzten Felder und damit die Annahmen unverändert bleiben */
+function ausnahmeGrund(k: Kontext, netz: boolean): string {
+  const herkunft = (q: Quelle | null | undefined) => (q ? ` (${QUELLE_TEXT[q]})` : '')
+  if (netz) return `Querung im Fusswegnetz${herkunft(k.e.netzQualifiziert?.quelle)}`
+  const b = k.e.beduerfnis, d = FELD_DEF.get('beduerfnis')!
+  const werte = (b?.wert ?? []).filter(x => x !== 'fusswegnetz' || k.an('Bern'))
+  return `besonderer Grund für Vortritt: ${wertText(d, werte)}${herkunft(b?.quelle)}`
 }
 
 /** Sicht für die Querung ohne Vortritt (E3/E3a): bei markierter Insel L = ganze Fahrbahn (Entscheid 6) */
@@ -156,12 +170,20 @@ export const REGELN: Record<BefundId, RegelFn> = {
     throw new Offen(['tempoRegime'])
   },
   'C2-B': k => (k.w('tempoRegime') !== 't30_zone' ? null : ja(['basisnetz', 'publikumsintensiv'].includes(k.w('netz')))),
+  // 30.10.2026: ohne Befund mit Grund (Ausnahme: Fusswegnetz bzw. besonderer Grund; genug Querende); Auswertung wie bisher
   C3: k => {
     const s = K.C3.werte.fgMin
-    if (!fgUnter(k, s)) return ja(false, { ist: fgIst(k), soll: `≥ ${s}` })
-    return ja(!k.w('netzQualifiziert') && !k.bed(), { ist: fgIst(k), soll: `≥ ${s}` })
+    if (!fgUnter(k, s)) return ja(false, { ist: fgIst(k), soll: `≥ ${s}`, grund: fgGenug(k, s) })
+    const netz = k.w('netzQualifiziert')
+    const v = !netz && !k.bed()
+    return ja(v, { ist: fgIst(k), soll: `≥ ${s}`, ...(v ? {} : { grund: ausnahmeGrund(k, netz) }) })
   },
-  C3b: k => (!fgUnter(k, K.C3b.werte.fgMin) ? ja(false) : ja(k.w('netzQualifiziert') || k.bed(), { ist: fgIst(k) })),
+  C3b: k => {
+    const s = K.C3b.werte.fgMin
+    if (!fgUnter(k, s)) return ja(false, { grund: fgGenug(k, s) })
+    const v = k.w('netzQualifiziert') || k.bed()
+    return ja(v, { ist: fgIst(k), ...(v ? {} : { grund: 'weder Fusswegnetz noch besonderer Grund für Vortritt (siehe «Wenig Querende»)' }) })
+  },
   // Runde 2 (Korrektur A4): ohne Zählung und ohne Schätzklasse offen, nicht «ohne Befund»
   C3c: k => {
     if (k.o('fg5h') === null && k.o('fgKlasse') === null) throw new Offen(['fg5h', 'fgKlasse'])

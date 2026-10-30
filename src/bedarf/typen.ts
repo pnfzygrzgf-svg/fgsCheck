@@ -187,6 +187,8 @@ export interface Befund {
    * hier nicht anwendbar sind (Ergebnis null), und Regeln, die nur still für die Empfehlung ausgewertet wurden
    */
   erfuellt: string[]
+  /** erfüllt-Grund je Regel aus erfuellt, sofern die Regel einen liefert (Ergebnis.grund; 30.10.2026): reine Anzeige */
+  erfuelltGrund: Record<string, string>
   /** Regeln ausgeschalteter Ebenen, die mit eingeschalteter Ebene anwendbar wären (Prüfübersicht «nicht geprüft (Ebene ausgeschaltet)») */
   ebeneAus: string[]
   /** fehlende Felder je offener Regel, auch still ausgewerteter (für die Fragen hinter «vorläufig»; Korrektur M3) */

@@ -40,7 +40,7 @@ import { QUELLEN_ANNAHME, QUELLEN_BESTAETIGBAR, type Quelle, KURVE_BEDINGUNGEN }
 import { mitTiteln, regelName, regelTitel } from './bedarf/regelname'
 import { ABSCHNITTE, EBENE_WORT, LEGENDE, THEMEN, abschnittVon, gruppeVonThema, istAusfuehrung, mitEinheit, nachAbschnitt, pruefUebersicht, themaName,
   themaVon, verbindlichkeitVon } from './bedarf/themen'
-import { BLOCK_GRUENDE, hatInhalt, themaGliederung, themenAnsicht, type ThemaFrage, type ThemaTeil, type ThemenAnsicht } from './bedarf/themenansicht'
+import { BLOCK_GRUENDE, hatInhalt, ohneBefundZeile, themaGliederung, themenAnsicht, type ThemaFrage, type ThemaTeil, type ThemenAnsicht } from './bedarf/themenansicht'
 import { FELD_HILFEN, SICHTBAR, bedingungText, bezuegeImFall, feldZiel, frageVon, leerText, regelPfade, schalter, schalterText, sichtbar,
   wozuTeilen, type SichtKontext } from './bedarf/feldhilfen'
 import { A2_OFFEN_TEXT, OHNE_ORTSLAGE_TEXT, typText, herkunftKurz } from './bedarf/befundblatt'
@@ -1015,11 +1015,14 @@ function themaFrageZeile(f: ThemaFrage, blaetter: readonly BefundBlatt[], eingab
 }
 
 /** Regeln als aufklappbare Liste der Kurztitel, je mit Verweis in die Regelübersicht (auch auf Touch); im Bericht nur die Zahl */
-function RegelListe({ ids, kopf, druck }: { ids: readonly string[]; kopf: ReactNode; druck: boolean }) {
+function RegelListe({ ids, kopf, druck, gruende }: { ids: readonly string[]; kopf: ReactNode; druck: boolean
+  /** erfüllt-Grund je Regel (ohne Befund geprüfte Regeln, 30.10.2026) */
+  gruende?: Readonly<Record<string, string>> }) {
   if (druck) return <>{kopf}</>
   return <details className="klein thema-ohne"><summary>{kopf}</summary>
     <ul>{ids.map(id => <li key={id}><a href={`#${regelAnker(id)}`} className="werk-link" title="in der Regelübersicht"
-      onClick={e => { e.preventDefault(); e.stopPropagation(); regelZeigen(id) }}>{regelTitel(id)}</a></li>)}</ul></details>
+      onClick={e => { e.preventDefault(); e.stopPropagation(); regelZeigen(id) }}>{regelTitel(id)}</a>{gruende?.[id]
+      ? T(`: ohne Befund – ${gruende[id]}`) : null}</li>)}</ul></details>
 }
 /** Text eines Felds im Verweis: Name des Felds bzw. die Frage (Objekt, Hinweis) */
 const verweisText = (feld: string): string => (FELD_DEF.has(feld) ? feldName(feld) : frageVon(feld))
@@ -1128,7 +1131,11 @@ function ThemaAnzeige({ t, blaetter, druck, eingabe, begriffe }: { t: ThemaTeil;
     {!glied && verweisZeilen(t.verweise)}
     {t.ohneBefund.length > 0 && (() => {
       const kopf = <><span className="grund-symbol" aria-hidden="true">✓</span> {zahlWort(t.ohneBefund.length, 'Regel', 'Regeln')} ohne Befund</>
-      return druck ? <p className="klein">{kopf}</p> : <RegelListe ids={t.ohneBefund} druck={false} kopf={kopf} />
+      // Bericht: die Regeln mit erfüllt-Grund als eigene Zeile (30.10.2026), die übrigen nur gezählt
+      const mitGrund = t.ohneBefund.filter(id => t.erfuelltGrund[id])
+      return druck ? <><p className="klein">{kopf}</p>{mitGrund.length > 0 && <ul className="klein">{mitGrund.map(id =>
+        <li key={id}>{T(ohneBefundZeile(regelTitel(id), t.erfuelltGrund[id]))}</li>)}</ul>}</>
+        : <RegelListe ids={t.ohneBefund} druck={false} kopf={kopf} gruende={t.erfuelltGrund} />
     })()}
     {eingabe && felderVor.length > 0 && <div className="thema-vorbelegt"><p className="klein">Von der App vorbelegt (prüfen; ein anderer Wert
       gilt als Eingabe von Hand):</p>
@@ -1229,7 +1236,9 @@ function ErweiterteAnzeige({ blaetter, ansicht, druck = false, eingabe }: { blae
             regeln={[...(uebersicht?.nichtGeprueftWegen.keys() ?? [])].filter(id => themaVon(id) === t.thema.id)} />}</Fragment>
     })}
     {ohne.length > 0 && <p className="klein thema-ohne">Ohne Befund: {ohne.map((t, i) => <Fragment key={t.thema.id}>{i ? ', ' : ''}<span
-      title={t.ohneBefund.map(regelTitel).join(', ')}>{t.thema.name}</span></Fragment>)}</p>}
+      title={t.ohneBefund.map(regelTitel).join(', ')}>{t.thema.name}</span></Fragment>)}{ohne.some(t => Object.keys(t.erfuelltGrund).length)
+      && <>. Davon mit Grund: {ohne.flatMap(t => t.ohneBefund.filter(id => t.erfuelltGrund[id]).map(id => ohneBefundZeile(regelTitel(id), t.erfuelltGrund[id])))
+        .map((z, i) => <Fragment key={i}>{i ? '; ' : ''}{T(z)}</Fragment>)}.</>}</p>}
     {eingabe && nWeitere > 0 && <details className="befund-thema bedarf-thema thema-angaben" id={themaId('weitere')}>
       <summary><b>Weitere Angaben</b> <span className="klein">({nWeitere})</span></summary>
       <Maske fall={eingabe.fall} blatt={blaetter[0]} aendern={eingabe.aendern} felder={weitere.flatMap(x => x.defs)} flach abschnitte={weitere}
@@ -1244,10 +1253,11 @@ function ErweiterteAnzeige({ blaetter, ansicht, druck = false, eingabe }: { blae
   </>
 }
 
-/** Ergebnis einer ohne Befund geprüften Regel in einer Zeile: Sicht je Zufahrt mit frei bis und Soll (H1, E3), sonst «ohne Befund» */
-function ohneBefundZeilen(id: string, blaetter: readonly BefundBlatt[]): string[] {
+/** Ergebnis einer ohne Befund geprüften Regel in einer Zeile: Sicht je Zufahrt mit frei bis und Soll (H1, E3), sonst «ohne Befund», mit
+ * dem erfüllt-Grund der Regel, sofern sie einen liefert (z. B. «Wenig Querende: ohne Befund – Querung im Fusswegnetz (von Hand)») */
+function ohneBefundZeilen(id: string, blaetter: readonly BefundBlatt[], grund?: string): string[] {
   const s = blaetter.flatMap(b => b.sicht.filter(x => x.regel === id))
-  if (!s.length) return [`${regelTitel(id)}: ohne Befund`]
+  if (!s.length) return [ohneBefundZeile(regelTitel(id), grund)]
   return s.map(x => `${regelTitel(id)}: ${x.name} ${x.frei ? `frei${x.freiBisM !== undefined ? ` bis ${x.freiBisM} m` : ''}` : x.status}, ` +
     `Soll ${String(x.soll).replace('.', ',')} m`)
 }
@@ -1258,7 +1268,7 @@ function ThemaOhneBefund({ t, blaetter, eingabe }: { t: ThemaTeil; blaetter: rea
   return <details className="befund-thema bedarf-thema thema-ohne-befund" id={themaId(t.thema.id)}>
     <summary title={t.thema.umfang}><b>{t.thema.name}</b> <span className="klein thema-zahl"><span className="grund-symbol" aria-hidden="true">✓</span>
       {' '}{zahlWort(t.ohneBefund.length || t.geprueft, 'Regel', 'Regeln')} ohne Befund</span></summary>
-    <ul className="klein">{(t.ohneBefund.length ? t.ohneBefund : []).flatMap(id => ohneBefundZeilen(id, blaetter).map((z, i) =>
+    <ul className="klein">{(t.ohneBefund.length ? t.ohneBefund : []).flatMap(id => ohneBefundZeilen(id, blaetter, t.erfuelltGrund[id]).map((z, i) =>
       <li key={`${id}-${i}`}><span className="grund-symbol" aria-hidden="true">✓</span> {T(z)}<InUebersicht id={id} /></li>))}</ul>
     {felder.length > 0 && <div className="thema-angaben"><p className="klein">Angaben ({felder.length}):</p>
       <Maske fall={eingabe.fall} blatt={blaetter[0]} aendern={eingabe.aendern} felder={felder} flach ohneKoepfe zaehlt={eingabe.zaehlt} alle={eingabe.alle}

@@ -193,7 +193,10 @@ export function Anleitung() {
             Nutzungszonenplan und die ÖV-Linien aus dem Geoportal, überall aus OSM Schulen, Heime und Vortrittszeichen in der Nähe. Daraus
             belegt sie Tempo, Strecke oder Zone (Tempo 30 ohne Zonenangabe nach der Strassenhierarchie, als Annahme), Strassentyp,
             besonderen Grund für Vortritt, Fusswegnetz, ertastbare Markierungen, Gewerbe und bebautes Gebiet, Linienbus, Tramhalt und an
-            einer Kreuzung die Vortrittsrolle vor; was die Daten nicht klären, bleibt offen. Ein Verbot (Tempo-30-Zone ohne besonderen
+            einer Kreuzung die Vortrittsrolle vor; was die Daten nicht klären, bleibt offen. Das Fusswegnetz steht auch auf der Karte
+            (Ebene «Fusswegnetz (Richtplan Bern)»): Basisnetz gestrichelt, die für die Vorbelegung genutzte Linie kräftig, publikumsattraktive
+            Bereiche schraffiert. Bleibt eine Regel dank einer solchen Angabe ohne Befund, nennt die Zeile im Thema den Grund (z. B. «Wenig
+            Querende: ohne Befund – Querung im Fusswegnetz (Geoportal Stadt Bern)»). Ein Verbot (Tempo-30-Zone ohne besonderen
             Grund, Begegnungszone), das nur auf Annahmen beruht, bleibt offen, bis die Annahme mit «Vorschlag bestätigen» übernommen oder
             von Hand geändert ist. Ausnahme Tempo 20: ist genau 20 km/h signalisiert (Geoportal bzw. OSM) und widerspricht keine
             Zonenangabe, schlägt die App die Begegnungszone vor (Herkunft «Vorschlag»); der Vorschlag gilt für die Beurteilung wie eine

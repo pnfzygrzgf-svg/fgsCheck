@@ -47,6 +47,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
   const alle: Eintrag[] = []
   const ausgewertet: string[] = []
   const erfuellt: string[] = []
+  const erfuelltGrund: Record<string, string> = {}
   const ebeneAus: string[] = []
   /** Regel einer ausgeschalteten Ebene: wäre sie mit eingeschalteter Ebene anwendbar? (Schattenrechnung ohne Wirkung auf den Befund;
    * Korrektur S6: nur dann «nicht geprüft (Ebene ausgeschaltet)») */
@@ -114,7 +115,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     }
     k.ergebnisse.set(id, r)
     if (stumm || r === null) return
-    if (r !== 'offen' && !r.verletzt) erfuellt.push(id)
+    if (r !== 'offen' && !r.verletzt) { erfuellt.push(id); if (r.grund) erfuelltGrund[id] = r.grund }
     if (def.groesse) {
       const m = masse.get(def.groesse) ?? { einheit: def.einheit ?? '', soll: [], verletzt: false, offen: false, regeln: [] }
       m.regeln.push(id)
@@ -299,7 +300,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
   }
   return {
     beurteilt: ende !== 'ausserorts' && ende !== 'offen', ende, zulaessigkeit: zul, empfehlung: empf,
-    norm, lokal, alle, masse: massZeilen, annahmen, ausgewertet, erfuellt, ebeneAus, offenFelder: Object.fromEntries(k.offenFelder), offenGruppen: gruppen(alle), nichtGeprueft,
+    norm, lokal, alle, masse: massZeilen, annahmen, ausgewertet, erfuellt, erfuelltGrund, ebeneAus, offenFelder: Object.fromEntries(k.offenFelder), offenGruppen: gruppen(alle), nichtGeprueft,
   }
 }
 

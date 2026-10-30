@@ -30,6 +30,9 @@ export interface Ergebnis {
   text?: string
   /** Masse-Zeile nicht als verletzt werten (Hinweis statt Befund; Runde 4) */
   ohneMassBefund?: true
+  /** erfüllt-Grund (30.10.2026): warum die Regel hier ohne Befund bleibt, z. B. «Querung im Fusswegnetz (Geoportal Stadt Bern)»; nur
+   * bei verletzt false, reine Anzeige (Zeile «ohne Befund – …» im Thema und im Bericht), ohne Wirkung auf den Befund */
+  grund?: string
 }
 
 export type Stand = Ergebnis | 'offen' | null

@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, ERKENNUNG_UNGEPRUEFT, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
-  OHNE_VORTRITT_FARBE, TUE_RAND, FAHRZEUG_ZOOM,
+  OHNE_VORTRITT_FARBE, TUE_RAND, FAHRZEUG_ZOOM, fusswegnetzMarke,
   hindernisText, hindernisFarbe, FIXPUNKT_FARBE, PLAN_FARBEN, planMarke, NrMarke, type Werkzeug, type KartenHinweis, type Masslinie } from './Karte'
 import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
@@ -81,7 +81,9 @@ import Trenner from './Trenner'
 import { ladeBreite } from './panelbreite'
 import { befundblaetter, type BefundBlatt } from './bedarf/befundblatt'
 import { ebenenVorgabe, ebenenWirksam } from './bedarf/fallBedarf'
-import { radstreifenAusRechnung } from './bedarf/vorbelegung'
+import { radstreifenAusRechnung, querungen } from './bedarf/vorbelegung'
+import { fusswegnetzKarte, FUSSWEGNETZ_FARBE, BASISNETZ_TEXT } from './fusswegnetzKarte'
+import { AUTO_C } from './bedarf/automatikC'
 import { OsmNetz, fahrbahnRichtung } from './rechner/netz'
 import { fangen, fangRadiusM, FANG_PX, fixpunktVorschlaege, fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT, VORSCHLAG_M,
   type FixVorschlag } from './fixpunkt'
@@ -1740,6 +1742,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       kurveNeigung: kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null,
     }
   }, [daten, bernGeo, streifenBern, av, kurveNeigung])
+  // Fusswegnetz auf der Karte (30.10.2026): die für die Vorbelegung geladenen Richtplan-Daten (nur Stadt Bern), ohne eigene Abfrage
+  const fusswegnetz = useMemo(() => {
+    const rp = geoVor.richtplan
+    if (!rp || 'fehler' in rp) return null
+    return fusswegnetzKarte(rp, querungen(rechnung?.streifen ?? []).map(g => g.streifen), rp.bereich)
+  }, [geoVor, rechnung])
   const blaetter = useMemo(() => (fall && rechnung && rechnung.streifen.length ? befundblaetter(rechnung, fall, { vorgabe: bedarfVorgabe,
     titel, zufahrt: (fid, z) => zufahrtText(zNamen.get(fid), z), geo: geoVor, ...(alternative ? { alternative } : {}) }) : []),
   [fall, rechnung, bedarfVorgabe, titel, zNamen, geoVor, alternative])
@@ -1949,6 +1957,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     <div className="app" style={{ '--panel-breite': `${panelBreite}px` } as CSSProperties}>
       <Karte mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         luftbildKandidaten={lbKandidaten} onLuftbildKandidat={pruefenLuftbild}
+        fusswegnetz={fusswegnetz} fusswegnetzQuelle={BERN_DIENSTE_C.richtplan.quelle}
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? LEER_HIND} streifenHand={fall?.streifenHand ?? LEER_HAND}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} rundenR={rundenR}
         rundenAngebot={angebotKarte} rundenVorschau={rundenVorschau} inselVorschau={inselVorschau}
@@ -2381,6 +2390,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             borderColor: TUE_RAND, borderStyle: 'dashed' }} />Trottoirüberfahrt (gerechnete Fläche, Strich: gezeichnete Achse),
             <span className="farbe" style={{ background: '#0ea5e9' }} />Annäherungsbereiche,
             <span className="farbe" style={{ borderColor: LUFTBILD_FARBE, borderWidth: 2 }} />Balken aus dem Luftbild (gestrichelt: unsicher)</li>
+          {fusswegnetz && <li><span className="farbe gestrichelt" style={{ borderColor: FUSSWEGNETZ_FARBE, borderStyle: 'dashed', borderWidth: 2,
+            opacity: 0.6 }} />{BASISNETZ_TEXT}, <span className="farbe" style={{ background: FUSSWEGNETZ_FARBE }} />davon für die Vorbelegung
+            genutzt (quert die Fahrbahn bis {AUTO_C.netzM} m vom Streifen), <span className="farbe" style={{ background: fusswegnetzMarke,
+            borderColor: FUSSWEGNETZ_FARBE }} />publikumsattraktiver Bereich; Ebene «Fusswegnetz (Richtplan Bern)», nur in der Stadt Bern</li>}
           <li><NrMarke nr="1" />{NUMMERN_TEXT} (je Streifen nach der Herkunft der Fahrzeuge, gerade und abbiegende gemeinsam; von Hand
             gestrichene behalten ihre Nummer ohne Schild, aus den Daten entfallene Richtungen haben keine), Schild hinter dem letzten Sichtpunkt; <NrMarke nr="2" gewaehlt />gewählte Zufahrt (Klick
             aufs Schild wählt sie)</li>
