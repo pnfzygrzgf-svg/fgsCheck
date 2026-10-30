@@ -73,7 +73,8 @@ export interface ZufahrtErgebnis {
   freiBisM?: number
   /** Erkennungsdistanz (Nutzerentscheid 23.10.2026; erkennung.ts): ab wie vielen Metern vor dem Streifen Fahrende die Markierung im
    * eigenen Fahrstreifen sehen, geprüft bis zum Doppelten der Sichtweite nach Tempo (höchstens 110 m) bzw. bis zum Ende der Fahrlinie.
-   * Nur gerade Zufahrten von Fussgängerstreifen; 2D ohne Gelände (Annahme). Zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll */
+   * Nur gerade Zufahrten von Fussgängerstreifen; 2D ohne Gelände (Annahme; das Gelände prüft die App danach entlang der Sichtlinien,
+   * erkennungGelaende.ts). Zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll */
   erkennungM?: Erkennung
   /** Sichtlinien der Erkennungsdistanz (30.10.2026; erkennung.ts): dünn, alle 10 m ein Augpunkt mit dem genutzten Zielpunkt und dem
    * Befund, für die Karte (Klick auf das Band). Zusätzliches Ausgabefeld ohne Einfluss auf erkennungM */

@@ -7,14 +7,19 @@
 // Kennung gesucht (Hindernisse von Hand, Vorschläge, Kataster).
 // Sichtlinien (30.10.2026): Klick auf ein Band zeigt die dünnen Sichtlinien der Rechnung (ZufahrtErgebnis.erkennungLinien) bis zum Soll
 // bzw. bis zur Erkennungsdistanz, wenn sie weiter reicht: je Augpunkt eine Linie zum genutzten Zielpunkt der Markierung.
+// Gelände (30.10.2026): Band und Linien zeigen die Erkennungsdistanz nach der Geländeprüfung (erkennungGelaende.erkennungAnzeige, Werte
+// je gelaendeSchluessel); fehlt sie, wie gerechnet mit «Gelände nicht geprüft».
 
 import { add, dist, einheit, sub, type P } from './geo'
 import { ERKENNUNG_FAKTOR, ERKENNUNG_MAX_M } from './rechner/erkennung'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 import { erkennungWert } from './texte'
+import { erkennungAnzeige, gelaendeText, type GelaendeStand } from './erkennungGelaende'
+
+type Gelaende = Readonly<Record<string, GelaendeStand>> | null | undefined
 
 /** Wort für das verdeckende Hindernis (wie texte.erkennungZusatz) */
-const HINDERNIS_WORT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld', baum: 'Baum' }
+const HINDERNIS_WORT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld', baum: 'Baum', gelaende: 'Gelände (swissALTI3D)' }
 
 export interface ErkennungBand {
   /** Schlüssel «fgsId|zufahrt» */
@@ -71,10 +76,10 @@ export function abschnitt(linie: P[], von: number, bis: number): P[] {
 }
 
 /** Bänder der Erkennungsdistanz eines Streifens (leer bei Trottoirüberfahrt bzw. ohne gerechnete Erkennungsdistanz) */
-export function erkennungBaender(s: StreifenErgebnis): ErkennungBand[] {
+export function erkennungBaender(s: StreifenErgebnis, gelaende?: Gelaende): ErkennungBand[] {
   if (s.trottoirueberfahrt) return []
   return s.zufahrten.flatMap(z => {
-    const e = z.erkennungM
+    const e = erkennungAnzeige(z, gelaende)?.e
     if (!e || z.art === 'abbiegend' || !z.sichtpunkte.length || z.spur.length < 2) return []
     const soll = erkennungSoll(z)
     const a0 = lageAuf(z.spur, z.sichtpunkte[0])
@@ -84,7 +89,7 @@ export function erkennungBaender(s: StreifenErgebnis): ErkennungBand[] {
     const wer = e.hindernis ? HINDERNIS_WORT[e.hindernis.klasse] ?? e.hindernis.name : ''
     const text = `Erkennungsdistanz: Markierung ${e.bis === 'fahrlinie_endet' ? 'auf' : 'ab'} ${erkennungWert(e)} sichtbar, Soll ${Math.round(soll)} m` +
       (e.bis === 'verdeckt' ? (wer ? `; verdeckt durch ${wer}` : '; weiter entfernt verdeckt')
-        : e.bis === 'fahrlinie_endet' ? '; Fahrlinie endet, weiter zurück nicht geprüft' : '')
+        : e.bis === 'fahrlinie_endet' ? '; Fahrlinie endet, weiter zurück nicht geprüft' : '') + `; ${gelaendeText(e)}`
     return [{ zufahrt: `${z.fgsId}|${z.zufahrt}`, gruen, fehlt: fehlt && fehlt.linie.length >= 2 ? fehlt : null, soll, text,
       ...(e.bis === 'verdeckt' && e.hindernis?.id ? { hindernisId: e.hindernis.id } : {}) }]
   })
@@ -95,11 +100,12 @@ export interface SichtlinieKarte { x: number; auge: P; ziel: P; art: 'frei' | 'v
 
 /** Sichtlinien einer Zufahrt zum Zeigen: ab dem ersten Augpunkt hinter dem Streifenrand bis zum Soll bzw. bis zur Erkennungsdistanz,
  * wenn sie weiter reicht (leer ohne gerechnete Erkennungsdistanz) */
-export function erkennungSichtlinien(z: ZufahrtErgebnis): SichtlinieKarte[] {
-  const e = z.erkennungM, l = z.erkennungLinien
-  if (!e || !l?.length || z.art === 'abbiegend') return []
-  const bis = Math.max(erkennungSoll(z), e.wert)
-  return l.filter(x => x.x > 1e-6 && x.x <= bis + 1e-6).map(x => ({ x: x.x, auge: x.auge, ziel: x.ziel, art: x.befund,
+export function erkennungSichtlinien(z: ZufahrtErgebnis, gelaende?: Gelaende): SichtlinieKarte[] {
+  const a = erkennungAnzeige(z, gelaende)
+  if (!a || !a.linien.length || z.art === 'abbiegend') return []
+  const bis = Math.max(erkennungSoll(z), a.e.wert, z.erkennungM!.wert)
+  return a.linien.filter(x => x.x > 1e-6 && x.x <= bis + 1e-6).map(x => ({ x: x.x, auge: x.auge, ziel: x.ziel, art: x.befund,
     text: `Sichtlinie ${Math.round(x.x)} m vor dem Streifen auf die Markierung: ${x.befund === 'frei' ? 'in den Daten frei'
-      : `verdeckt${x.grund ? ` (${x.grund})` : ''}`}` }))
+      : `verdeckt${x.grund ? ` (${x.grund})` : ''}`}${x.gelaende === true ? ', Gelände frei' : x.gelaende === false ? ''
+      : x.bruecke ? ', Gelände nicht prüfbar (Brücke)' : x.befund === 'frei' ? ', Gelände nicht geprüft' : ''}` }))
 }

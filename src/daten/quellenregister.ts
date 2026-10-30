@@ -98,7 +98,9 @@ export const QUELLEN: readonly Quelle[] = [
     lizenz: SWISSTOPO_LIZENZ, stand: LIVE, cors: true,
     datenschutz: 'an einer Trottoirüberfahrt bis vier Linien der Knotensicht (Koordinaten) für Höhenprofile (api3.geo.admin.ch); mit einer ' +
       'Kurve vor dem Streifen bzw. mit Radstreifen oder Radweg die Fahrlinie der Zufahrt (50 m, Koordinaten) für die Längsneigung ' +
-      '(Kurvenregel, Sicht vom Velo; api3.geo.admin.ch)', empfaenger: 'swisstopo', module: ['knotensicht/daten/hoehen.ts'] },
+      '(Kurvenregel, Sicht vom Velo; api3.geo.admin.ch); am Fussgängerstreifen je gerade Zufahrt bis 14 Sichtlinien (Augpunkt und ' +
+      'Markierung, Koordinaten) für das Gelände der Erkennungsdistanz (api3.geo.admin.ch)', empfaenger: 'swisstopo',
+    module: ['knotensicht/daten/hoehen.ts', 'daten/sichtProfil.ts'] },
   { id: 'osm', themen: ['strassennetz', 'uebergaenge', 'haltestellen', 'strassentyp', 'tempo', 'schulen'], name: 'OpenStreetMap (Overpass)',
     anbieter: 'OpenStreetMap', gebiet: { art: 'schweiz' }, dienst: 'overpass', lizenz: 'ODbL, © OpenStreetMap-Mitwirkende', stand: LIVE, cors: true,
     datenschutz: 'Kartenausschnitt (Übergänge und Strassennamen) mit etwas Rand bei der Suche (automatisch beim Start und nach dem ' +

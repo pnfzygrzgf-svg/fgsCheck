@@ -354,9 +354,9 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   erkennungM: {
     was: 'Aus welcher Entfernung Fahrende den Streifen (Markierung bzw. Tafel) erkennen, in Metern. Pflicht ist mindestens die ' +
       'nötige Sichtweite, empfohlen das Doppelte (auch in der Grundprüfung).',
-    vorschlag: 'aus dem Sichtrechner als Annahme: kleinster Wert der geraden Zufahrten (Sicht von der Fahrlinie auf die Markierung, ' +
-      'geprüft bis 110 m; Gebäude, Hecken, Mauern, Bäume und Auto-Parkfelder verdecken), ohne Gelände und ohne die blaue Tafel ' +
-      '(Signal 4.11). Ein Wert «mindestens …» gilt nur, wenn er das Doppelte erreicht; sonst bleibt das Feld offen (Hinweis).',
+    vorschlag: 'aus dem Sichtrechner als Annahme: kleinster Wert der geraden Zufahrten (Sicht von der Fahrlinie auf die Markierung bis ' +
+      '110 m; Gebäude, Hecken, Mauern, Bäume, Auto-Parkfelder und, sobald geladen, das Gelände verdecken), ohne die blaue Tafel. Ein ' +
+      'Wert «mindestens …» gilt nur, wenn er das Doppelte erreicht; sonst bleibt das Feld offen (Hinweis).',
   },
 
   // ── Insel ──

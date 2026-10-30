@@ -28,6 +28,7 @@ import { tueFlaeche } from './tue/karte'
 import { LESENAME } from './bedarf/quellen'
 import { ART, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, tempoHerkunft, f1, f2, mText, streifenStatus,
   erkennungText } from './texte'
+import { erkennungAnzeige, gelaendeText, type GelaendeStand } from './erkennungGelaende'
 import { KnotensichtBericht } from './tue/KnotensichtBlock'
 import { koordText, vorzeichenText, fixpunktMasse } from './rechner/vermassung'
 import { fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT } from './fixpunkt'
@@ -426,8 +427,9 @@ function LageTabelle({ s, fixpunkte, namen, plan = false }: { s: StreifenErgebni
   )
 }
 
-function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen }: { s: StreifenErgebnis; fall: Fall; ausserhalb: Ausserhalb | null
-  namen: ZufahrtNamen | undefined; alle: StreifenErgebnis[]; alleNamen: Map<string, ZufahrtNamen> }) {
+function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende }: { s: StreifenErgebnis; fall: Fall; ausserhalb: Ausserhalb | null
+  namen: ZufahrtNamen | undefined; alle: StreifenErgebnis[]; alleNamen: Map<string, ZufahrtNamen>
+  gelaende: Readonly<Record<string, GelaendeStand>> | null }) {
   return (
     <section className="bericht-block">
       <h3>{streifenKopf(streifenTitel(s.fgsId, fall.streifenHand, streifenArt(s)), s.strasse)}{s.trottoirueberfahrt ? '' : `: ${streifenStatus(s)}`}
@@ -460,7 +462,10 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen }: { s: S
                 <td>{mText(z.sichtweite)} m<div className="klein">({sichtQuelleKurz(z.sichtweiteQuelle)}{z.kurvenradiusM != null ? `, Kurvenradius ${f1(z.kurvenradiusM)} m` : ''})</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
                 <td><b>{statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}
-                  {z.erkennungM && <div className="klein">{erkennungText(z.erkennungM)}; ohne Gelände</div>}</td>
+                  {z.erkennungM && (() => {
+                    const a = erkennungAnzeige(z, gelaende)!.e
+                    return <div className="klein">{erkennungText(a)}; {gelaendeText(a)}</div>
+                  })()}</td>
                 <td className="klein">{hindernisseText(z)}</td>
               </tr>
             ))}
@@ -480,7 +485,9 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen }: { s: S
 }
 
 export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjahr, luftbildStand, zusatzQuellen, ausserhalb = [], aendern,
-  schliessen, namen = new Map(), blaetter = [], quellenIds = [], datenlage = null }: {
+  schliessen, namen = new Map(), blaetter = [], quellenIds = [], datenlage = null, gelaende = null }: {
+  /** Geländeprüfung der Erkennungsdistanz je erkennungGelaende.gelaendeSchluessel */
+  gelaende?: Readonly<Record<string, GelaendeStand>> | null
   /** genutzte Quellen (Kennungen im Quellenregister) und Datenlage am Ort für die Tabelle unter «Quellen» */
   quellenIds?: readonly string[]; datenlage?: Datenlage | null
   namen?: Namen                  // Zufahrten nach Strasse und Herkunft (benennung.ts), je Streifen
@@ -616,7 +623,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
                     'mitgeprüfte Abbiegezufahrt(en) mitgezählt' : '')}</li>)}
           </ul>
         </section>
-        {rechnung.streifen.map(s => <StreifenTabelle key={s.fgsId} s={s} fall={fall} ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null}
+        {rechnung.streifen.map(s => <StreifenTabelle key={s.fgsId} s={s} fall={fall} gelaende={gelaende} ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null}
           namen={namen.get(s.fgsId)} alle={rechnung.streifen} alleNamen={namen} />)}
 
         <section className="bericht-block">

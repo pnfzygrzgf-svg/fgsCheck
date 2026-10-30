@@ -23,6 +23,7 @@ import { messLaenge, messText, type Messung } from './messen'
 import { FARBE_VELO, VELO_SICHT_FARBE, fahrzeugFarbe, fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
 import { erkennungBaender, erkennungSichtlinien, type SichtlinieKarte } from './erkennungKarte'
 import { veloSoll, type VeloSoll } from './veloSicht'
+import type { GelaendeStand } from './erkennungGelaende'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { LUFTBILD_FGS_NAME, kandidatTooltip, type KandidatAnzeige, type LuftbildKandidat } from './daten/luftbildFgs'
 import type { FusswegnetzKarte } from './fusswegnetzKarte'
@@ -377,6 +378,8 @@ export default function Karte(props: {
   streifenTitel: (fgsId: string) => string                 // Anzeige: Name bzw. «Streifen 1»
   /** Längsneigung der Fahrlinie je «fgsId|zufahrt» (Höhenprofil): Soll der Sicht vom Velo nach Tab. 3 */
   neigung?: Readonly<Record<string, NeigungMessung>> | null
+  /** Geländeprüfung der Erkennungsdistanz je erkennungGelaende.gelaendeSchluessel (Band und Sichtlinien) */
+  gelaende?: Readonly<Record<string, GelaendeStand>> | null
   onUebergang: (k: OsmKnoten) => void
   onZufahrt: (key: string | null) => void
   onKlick: (p: P) => void
@@ -921,7 +924,7 @@ export default function Karte(props: {
       // Erkennungsdistanz (27.10.2026) je gerade Zufahrt entlang der Fahrlinie: grün sichtbar, rot verdeckt bis zum Soll, grau nicht
       // geprüft; das verdeckende Hindernis wie ein Konflikt. Die Sichtfelder (Sichtweite) bleiben, wie sie sind. Klick auf das Band:
       // Sichtlinien zeigen bzw. wieder ausblenden (eigener Klick, geht nicht an die Karte weiter)
-      for (const b of erkennungBaender(s)) {
+      for (const b of erkennungBaender(s, props.gelaende)) {
         const klick = (e: L.LeafletMouseEvent) => {
           if (cb.current.werkzeug) return
           L.DomEvent.stopPropagation(e); setErkWahl(w => (w === b.zufahrt ? null : b.zufahrt))
@@ -959,7 +962,7 @@ export default function Karte(props: {
         .bindTooltip(`Streifen aus Luftbild (${lb.befund === 'erkannt' ? 'erkannt' : 'unsicher'}${lb.nurVorschlag ? ', mit Flächen (Plan) nur Vorschlag' : ''}), prüfen: ${t.nBalken} Balken, ` +
           `Balkenlänge ${t.bw.toFixed(1).replace('.', ',')} m`, { sticky: true }).addTo(eb.sicht)
     }
-  }, [rechnung, werkzeug, props.zufahrtNamen, ksPhase, hindernisse, props.neigung])
+  }, [rechnung, werkzeug, props.zufahrtNamen, ksPhase, hindernisse, props.neigung, props.gelaende])
 
   // Nummernschilder der Zufahrten (benennung.ts) hinter dem letzten Sichtpunkt; Klick wählt die Zufahrt wie die Zeile im Panel
   // (auf der gewählten: Auswahl aufheben); gestrichene Zufahrten ohne Schild (keine Fahrlinie);
@@ -1318,7 +1321,7 @@ export default function Karte(props: {
     if (!rechnung || !erkWahl) return
     const z = rechnung.streifen.filter(s => !s.trottoirueberfahrt).flatMap(s => s.zufahrten).find(x => zufahrtKey(x) === erkWahl)
     if (!z) return
-    for (const l of erkennungSichtlinien(z)) {
+    for (const l of erkennungSichtlinien(z, props.gelaende)) {
       const farbe = ERKENNUNG_LINIE_FARBE[l.art], pl = [l.auge, l.ziel].map(ll)
       L.polyline(pl, { pane: ERK_PANE, color: '#0f172a', weight: 4, opacity: 0.45, interactive: false }).addTo(eb.erkLinien)
       L.polyline(pl, { pane: ERK_PANE, color: farbe, weight: 2, opacity: 0.95, interactive: !werkzeug })
@@ -1326,7 +1329,7 @@ export default function Karte(props: {
       L.circleMarker(ll(l.auge), { pane: ERK_PANE, radius: 3, color: '#111827', weight: 1, fillColor: farbe, fillOpacity: 1, interactive: false })
         .addTo(eb.erkLinien)
     }
-  }, [rechnung, erkWahl, werkzeug])
+  }, [rechnung, erkWahl, werkzeug, props.gelaende])
 
   // gewählte Zufahrt hervorheben
   useEffect(() => {

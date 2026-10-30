@@ -30,6 +30,7 @@ import type { StreifenErgebnis } from '../rechner/typen'
 import { zufahrtNamen } from '../benennung'
 import { erkennungSatz, erkennungZusatz } from '../texte'
 import { ERKENNUNG_FAKTOR, type Erkennung } from '../rechner/erkennung'
+import { erkennungAnzeige, type GelaendeStand } from '../erkennungGelaende'
 import { sichtFgs } from './tabellen'
 import { type Fall, inselStandard } from '../fall'
 import type { Quelle, TempoRegime } from './eingaben'
@@ -117,6 +118,9 @@ export interface GeoVorbelegung extends AutoGeo {
   /** ÖV-Linien (Bus, Trolleybus, Tram …), auf das Rechteck zugeschnitten */
   oevLinien?: BernErgebnis<OevLinienDaten> | null
   // vortritt (Vortrittszeichen nach OSM, überall) und strassentyp stehen in AutoGeo (automatik.ts)
+  /** Erkennungsdistanz mit Gelände (30.10.2026): Geländeprüfung je erkennungGelaende.gelaendeSchluessel; fehlt der Eintrag: 2D,
+   * «ohne Gelände» */
+  erkennungGelaende?: Readonly<Record<string, GelaendeStand>> | null
 }
 
 /** Radstreifen an den geraden Zufahrten nach der Rechnung (OSM): true/false, null wenn eine Zufahrt ohne Angabe ist */
@@ -400,7 +404,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   if (!w.tempoRegime && (zoneText || hierText)) feldHinweis('tempoRegime', [zoneText, hierText].filter(Boolean).join('; '))
   // Erkennungsdistanz aus dem Sichtrechner (Nutzerentscheid 23.10.2026): kleinster Wert der geraden Zufahrten, als Annahme (nach
   // dem Tempo aus V_sig: ein Wert «mindestens» bzw. «so weit geprüft» gilt nur, wenn er das Doppelte der Sichtweite erreicht)
-  erkennungVorbelegen(st, fall, w, setze, feldHinweis)
+  erkennungVorbelegen(st, fall, w, setze, feldHinweis, geo.erkennungGelaende ?? null)
   dtvVorbelegen(st, gerade.map(z => z.spur), geo.verkehrsdaten ?? null, setze, feldHinweis)
   const licht = beleuchtungHinweis(st, gerade.map(z => wegId(z.osmWeg)), tags, geo.lampen ?? null)
   if (licht) feldHinweis('beleuchtung', licht)
@@ -644,27 +648,29 @@ function innerortsAusTempo(st: StreifenErgebnis[], w: Vorbelegung, setze: Setze,
 
 /**
  * Erkennungsdistanz (Nutzerentscheid 23.10.2026, Abschnitt 34 der Regeln): kleinster Wert über die geprüften geraden Zufahrten der
- * Fussgängerstreifen (ZufahrtErgebnis.erkennungM; Abbieger rechnet der Sichtrechner nicht), Quelle «annahme» (2D, ohne Gelände und
- * ohne Signal 4.11). Endet die Fahrlinie vorher, ist der Wert ihre Länge («mindestens …»); bei gleichem Wert zählt ein gerechneter vor
+ * Fussgängerstreifen (ZufahrtErgebnis.erkennungM; Abbieger rechnet der Sichtrechner nicht), Quelle «annahme» (ohne Signal 4.11). Mit
+ * der Geländeprüfung (30.10.2026, erkennungGelaende.ts) der Wert danach («mit Gelände (swissALTI3D)»), sonst 2D («ohne Gelände»). Endet die Fahrlinie vorher, ist der Wert ihre Länge («mindestens …»); bei gleichem Wert zählt ein gerechneter vor
  * einem «mindestens». Eine Handeingabe geht vor (fallBedarf.eingabenBilden).
  * Untergrenzen («mindestens» bzw. frei bis zur Prüfgrenze) belegen das Feld nur, wenn sie das Doppelte der Sichtweite nach dem höchsten
  * bekannten Tempo erreichen (Tempo der Zufahrten, signalisiert vorbelegt bzw. von Hand, V85 von Hand): sonst würde die Grundprüfung
  * aus einer nicht weit genug geprüften Sicht eine Verletzung ableiten. Dann bleibt das Feld offen, mit dem Ergebnis als Hinweis.
  */
-export function erkennungVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vorbelegung, setze: Setze, feldHinweis: FeldHinweis): void {
+export function erkennungVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vorbelegung, setze: Setze, feldHinweis: FeldHinweis,
+  gelaende: Readonly<Record<string, GelaendeStand>> | null = null): void {
   const kand = st.flatMap((s, i) => {
     if (streifenTyp(s) !== 'fgs') return []
     const namen = zufahrtNamen(s)
     return s.zufahrten.filter(z => z.art !== 'abbiegend' && z.erkennungM).map(z => {
       const nr = namen.zufahrt.get(z.zufahrt)?.nr
       const name = `${st.length > 1 ? `Teil ${i + 1}, ` : ''}${nr ? `Zufahrt ${nr}` : `Zufahrt ${z.zufahrt}`}`
-      return { e: z.erkennungM!, name, tempo: z.tempo }
+      return { e: erkennungAnzeige(z, gelaende)!.e, name, tempo: z.tempo }
     })
   })
   if (!kand.length) return
   const rang = (x: { e: Erkennung }) => x.e.wert + (x.e.bis === 'fahrlinie_endet' ? 0.5 : 0)
   const min = kand.reduce((a, b) => (rang(b) < rang(a) ? b : a))
-  const text = `Sichtrechner: Streifen ${erkennungSatz(min.e)} (${min.name}, ${erkennungZusatz(min.e)}), ohne Gelände; nur Markierung geprüft, ` +
+  const text = `Sichtrechner: Streifen ${erkennungSatz(min.e)} (${min.name}, ${erkennungZusatz(min.e)}), ` +
+    `${min.e.gelaende === 'mit' ? 'mit Gelände (swissALTI3D)' : 'ohne Gelände'}; nur Markierung geprüft, ` +
     'blaue Tafel (Signal 4.11) nicht'
   const zahl = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? x : null)
   const hand = (p: string) => zahl(fall.bedarf?.felder[p]?.wert)

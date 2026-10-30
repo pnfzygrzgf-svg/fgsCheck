@@ -124,7 +124,7 @@ export const TUE_NUR_EINMUENDUNG = 'nur an Einmündungen'
 const ENDE_TEXT: Record<string, string> = { knoten: 'Fahrlinie endet am Knoten, weiter zurück nicht geprüft',
   wegende: 'Fahrlinie endet am Wegende, weiter zurück nicht geprüft', kreisel: 'Fahrlinie endet im Kreisel, weiter zurück nicht geprüft',
   gebaeude: 'weiter zurück nicht prüfbar' }
-const HINDERNIS_TEXT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld' }
+const HINDERNIS_TEXT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld', gelaende: 'Gelände (swissALTI3D)' }
 /** Wert der Erkennungsdistanz: «64 m» bzw. «mindestens 30 m» (Fahrlinie endet vorher) */
 export const erkennungWert = (e: Erkennung): string => `${e.bis === 'fahrlinie_endet' ? 'mindestens ' : ''}${e.wert} m`
 /** «erkennbar ab 64 m» bzw. «erkennbar auf mindestens 30 m» (Untergrenze, weiter zurück nicht geprüft) */
@@ -136,8 +136,9 @@ export const erkennungZusatz = (e: Erkennung): string => (e.bis === 'fahrlinie_e
 export const erkennungText = (e: Erkennung): string => `Streifen ${erkennungSatz(e)} (${erkennungZusatz(e)})`
 /** Tooltip zur Erkennungsdistanz */
 export const ERKENNUNG_TITEL = 'Erkennungsdistanz aus dem Sichtrechner: Sicht von der Fahrlinie auf die Markierung im eigenen Fahrstreifen, ' +
-  'geprüft bis 110 m. Hindernisse: Gebäude, Hecken, Mauern, Bäume und Auto-Parkfelder. Annahme: 2D ohne Gelände (Kuppen, Senken); ' +
-  'nur die Markierung, die blaue Tafel (Signal 4.11) nicht.'
+  'geprüft bis 110 m. Hindernisse: Gebäude, Hecken, Mauern, Bäume und Auto-Parkfelder. Gelände (Kuppen, Senken, Böschungen): danach ' +
+  'entlang einzelner Sichtlinien (alle 10 m) aus dem Höhenmodell swissALTI3D, Auge 1,1 m über dem Boden; ohne Antwort 2D («Gelände ' +
+  'nicht geprüft»). Annahme; nur die Markierung, die blaue Tafel (Signal 4.11) nicht.'
 
 /** Status einer Zufahrt; bei «verdeckt_hindernis» mit den Arten der verdeckenden Hindernisse (Hecke, Mauer, übriges Hindernis) */
 export function statusText(z: ZufahrtErgebnis, hindernisse: Hindernis[]): string {

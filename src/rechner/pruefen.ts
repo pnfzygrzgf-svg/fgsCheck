@@ -842,6 +842,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     const grenze = ERKENNUNG_MAX_M
     const ziele = zielPunkte(sichtpunkte[0], s)
     const hd = kx.hindernisse ?? null
+    const erkOpt = { bruecke: kx.brueckenumriss ?? null }
     // Augpunkt im Gebäude neben der Fahrbahn (Strasse wird schmaler, biegt ab, Linie von Hand daneben): auf die nächste Fahrbahn bis
     // 5 m, sonst endet die Fahrlinie dort (null)
     const aufLinie = (p: P): P | null => {
@@ -858,7 +859,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
         if (!p) { ende = 'gebaeude'; break }
         augen.push({ p, x: Math.min(k * SCHRITT, grenze) })
       }
-      return erkennungRechnen(augen, ziele, gebaeude, hd, ende && augen[augen.length - 1].x < grenze - 1e-6 ? ende : null)
+      return erkennungRechnen(augen, ziele, gebaeude, hd, ende && augen[augen.length - 1].x < grenze - 1e-6 ? ende : null, erkOpt)
     }
     const entlang = (linie: P[], pts: P[], start: number) => entlangLinie(linie, pts, start, SCHRITT)
     const geoEnde: Record<string, ErkennungEnde> = { 'bis Gebäude': 'gebaeude', 'bis Wegende': 'wegende', 'bis Knoten (Strassenende)': 'knoten' }
@@ -866,7 +867,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     if (kt || geoEnde[swQuelle]) {
       const lage = entlang(spurK ?? weg, sichtpunkte, hRand)
       const augen = sichtpunkte.map((p, k) => ({ p, x: lage[k].a - lage[0].a })).filter(a => a.x <= grenze + 1e-6)
-      return erkennungRechnen(augen, ziele, gebaeude, hd, augen[augen.length - 1].x < grenze - 1e-6 ? (kt ? 'kreisel' : geoEnde[swQuelle]) : null)
+      return erkennungRechnen(augen, ziele, gebaeude, hd, augen[augen.length - 1].x < grenze - 1e-6 ? (kt ? 'kreisel' : geoEnde[swQuelle]) : null, erkOpt)
     }
     // verlängerte Fahrlinie: Ende nach OSM (Strassenende = Knoten ohne Fortsetzung, Wegende), Knoten ohne gerade Fortsetzung bzw.
     // Kreisel bis zur Prüfgrenze (wie hatGerade bzw. die Kreisel-Regel in der Sichtweite); alle Enden ab dem ersten Sichtpunkt
@@ -897,7 +898,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       augen.push({ p, x }); vorher = x
     }
     const reicht = augen[augen.length - 1].x
-    return erkennungRechnen(augen, ziele, gebaeude, hd, reicht < grenze - 1e-6 ? ende ?? 'wegende' : null)
+    return erkennungRechnen(augen, ziele, gebaeude, hd, reicht < grenze - 1e-6 ? ende ?? 'wegende' : null, erkOpt)
   }
   if (geradeGestrichen) {
     entf.push(entfallen(fid, 'gerade', gradD, String(gradD), 'hand', 'von Hand gestrichen', zf.g?.wid ?? null,

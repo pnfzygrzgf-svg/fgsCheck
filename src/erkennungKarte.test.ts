@@ -26,15 +26,15 @@ describe('Erkennungsdistanz auf der Karte', () => {
     expect(nah(b.gruen[0], [0, 1]) && nah(b.gruen[b.gruen.length - 1], [0, 34])).toBe(true)
     expect(b.fehlt!.art).toBe('verdeckt')
     expect(nah(b.fehlt!.linie[0], [0, 34]) && nah(b.fehlt!.linie[b.fehlt!.linie.length - 1], [0, 49])).toBe(true)
-    expect(b.text).toBe('Erkennungsdistanz: Markierung ab 33 m sichtbar, Soll 48 m; verdeckt durch Auto-Parkfeld')
+    expect(b.text).toBe('Erkennungsdistanz: Markierung ab 33 m sichtbar, Soll 48 m; verdeckt durch Auto-Parkfeld; Gelände nicht geprüft')
     expect(b.hindernisId).toBe('h1')
   })
   it('erfüllt: nur grün; Fahrlinie endet vorher: grau bis zum Soll', () => {
     const [ok] = erkennungBaender(s([z({ wert: 110, bis: 'frei' })]))
-    expect(ok.fehlt).toBeNull(); expect(ok.text).toBe('Erkennungsdistanz: Markierung ab 110 m sichtbar, Soll 48 m')
+    expect(ok.fehlt).toBeNull(); expect(ok.text).toBe('Erkennungsdistanz: Markierung ab 110 m sichtbar, Soll 48 m; Gelände nicht geprüft')
     const [kurz] = erkennungBaender(s([z({ wert: 30, bis: 'fahrlinie_endet', ende: 'knoten' })]))
     expect(kurz.fehlt!.art).toBe('ungeprueft')
-    expect(kurz.text).toBe('Erkennungsdistanz: Markierung auf mindestens 30 m sichtbar, Soll 48 m; Fahrlinie endet, weiter zurück nicht geprüft')
+    expect(kurz.text).toBe('Erkennungsdistanz: Markierung auf mindestens 30 m sichtbar, Soll 48 m; Fahrlinie endet, weiter zurück nicht geprüft; Gelände nicht geprüft')
   })
   it('nur gerechnet: ohne Erkennungsdistanz, Abbieger und Trottoirüberfahrt nichts', () => {
     expect(erkennungBaender(s([z(undefined), z({ wert: 10, bis: 'verdeckt' }, { art: 'abbiegend' })]))).toEqual([])
@@ -47,7 +47,7 @@ describe('Erkennungsdistanz auf der Karte', () => {
     const kurz = erkennungSichtlinien(z({ wert: 33, bis: 'verdeckt' }, { erkennungLinien: l }))
     expect(kurz.map(x => x.x)).toEqual([10, 20, 30, 40])
     expect(kurz.map(x => x.art)).toEqual(['frei', 'frei', 'frei', 'verdeckt'])
-    expect(kurz[0].text).toBe('Sichtlinie 10 m vor dem Streifen auf die Markierung: in den Daten frei')
+    expect(kurz[0].text).toBe('Sichtlinie 10 m vor dem Streifen auf die Markierung: in den Daten frei, Gelände nicht geprüft')
     expect(kurz[3].text).toBe('Sichtlinie 40 m vor dem Streifen auf die Markierung: verdeckt (Gebäude (AV))')
     expect(nah(kurz[1].auge, [0, 21]) && nah(kurz[1].ziel, [0, 0.5])).toBe(true)
     // Erkennungsdistanz über dem Soll: bis zu ihr

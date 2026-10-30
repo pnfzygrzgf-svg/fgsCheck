@@ -40,6 +40,8 @@ import { ladeNeigung } from './knotensicht/daten/hoehen'
 import { kurveProfilLinie, kurveProfilSchluessel, strassenKurve } from './bedarf/kurvenregel'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { veloSoll } from './veloSicht'
+import { erkennungAnzeige, gelaendePruefen, gelaendeSchluessel, gelaendeText, type GelaendeStand } from './erkennungGelaende'
+import { ladeSichtProfil } from './daten/sichtProfil'
 import type { HoehenVorgabe } from './knotensicht/rechner/typen'
 import Bericht from './Bericht'
 import { Anleitung, BegriffeListe, Datenschutz, Fusszeile, QuellenTabelle, RechnungGrundlagen } from './Hilfe'
@@ -510,6 +512,37 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       })
     }
   }, [rechnung])
+
+  // Erkennungsdistanz mit Gelände (30.10.2026; erkennungGelaende.ts): nach jeder Rechnung je gerade Zufahrt eines Fussgängerstreifens
+  // die Höhenprofile der Sichtlinien bis zur Erkennungsdistanz (höchstens 14, daten/sichtProfil.ts mit Cache), je Zufahrt und Lage der
+  // Linien einmal je Ladevorgang; ein neuer Ort bricht ab. Ohne Antwort bleibt die Erkennungsdistanz 2D («Gelände nicht geprüft»)
+  const [erkGelaende, setErkGelaende] = useState<{ nr: number; werte: Record<string, GelaendeStand> } | null>(null)
+  const erkLaeuft = useRef(new Set<string>())
+  useEffect(() => {
+    const ctrl = abbruchRef.current, nr = ladeNr.current
+    if (!rechnung || !ctrl || ctrl.signal.aborted) return
+    for (const z of rechnung.streifen.filter(s => !s.trottoirueberfahrt).flatMap(s => s.zufahrten)) {
+      const key = gelaendeSchluessel(z), lauf = `${nr}|${key}`
+      if (!key || !z.erkennungM || erkLaeuft.current.has(lauf)) continue
+      erkLaeuft.current.add(lauf)
+      const setze = (g: GelaendeStand) => setErkGelaende(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [key]: g } }))
+      setze({ stand: 'laedt' })
+      setzeQuelle('hoehen', { name: HOEHEN_NAME })
+      const abrufe: Abruf<unknown>[] = []
+      gelaendePruefen(z.erkennungM, z.erkennungLinien ?? [], (a, b) => ladeSichtProfil(a, b, ctrl.signal).then(r => { abrufe.push(r); return r.daten }))
+        .then(g => {
+          if (ctrl.signal.aborted || ladeNr.current !== nr) return
+          setze({ stand: 'ok', ...g })
+          if (abrufe.length) setzeQuelle('hoehen', { name: HOEHEN_NAME, objekte: `${g.abfragen} Profile der Sichtlinien (Erkennungsdistanz)`,
+            ms: Math.max(...abrufe.map(a => a.ms)), bytes: abrufe.reduce((x, a) => x + a.bytes, 0), server: abrufe[0].quelle })
+        }, err => {
+          if (ctrl.signal.aborted || istAbbruch(err)) { erkLaeuft.current.delete(lauf); return }
+          setze({ stand: 'fehler', text: (err as Error).message })
+          setzeQuelle('hoehen', { name: HOEHEN_NAME, fehler: `${(err as Error).message} (Erkennungsdistanz ohne Gelände)` })
+        })
+    }
+  }, [rechnung])
+  const erkWerte = erkGelaende && erkGelaende.nr === ladeNr.current ? erkGelaende.werte : null
 
   const aendern = useCallback((f: (x: Fall) => Fall) => setFall(x => (x ? f(structuredClone(x)) : x)), [])
 
@@ -1757,8 +1790,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       oevLinien: c ? bernErgebnis(c.oevLinien, bq) : null,
       vortritt: { zeichen: vortrittsZeichen(daten.osm), bereich: { mitte: daten.ort, radiusM: OSM_RADIUS_M, form: 'kreis' } },
       kurveNeigung: kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null,
+      erkennungGelaende: erkGelaende && erkGelaende.nr === ladeNr.current ? erkGelaende.werte : null,
     }
-  }, [daten, bernGeo, streifenBern, av, kurveNeigung])
+  }, [daten, bernGeo, streifenBern, av, kurveNeigung, erkGelaende])
   // Ebene «Richtplan Fussverkehr (Geoportal Bern)» (30.10.2026): Stand für die Legende; die Richtplan-Daten der Vorbelegung (nur
   // Stadt Bern) nutzt sie mit, und die dort genutzte Basisnetz-Linie zeichnet sie kräftiger
   const [rpStand, setRpStand] = useState<RichtplanStand>({ an: false })
@@ -1994,7 +2028,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} rundenR={rundenR}
         rundenAngebot={angebotKarte} rundenVorschau={rundenVorschau} inselVorschau={inselVorschau}
         inselGriffe={alleGriffe} onInselZug={griffZug} onInselLos={griffLos}
-        neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null}
+        neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null} gelaende={erkWerte}
         onRundenAngebot={ja => { if (ja) angebotAnnehmen(); else setRundenAngebot(null) }} fixpunkte={fall?.fixpunkte ?? LEER_FIX} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
         flaechenPlan={fall?.flaechenPlan ?? LEER_PLAN}
         masslinien={masslinien} messung={werkzeug === 'messen' ? messung : null} zufahrtNamen={zNamen} streifenTitel={titel}
@@ -2388,7 +2422,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             gewaehlteZ={gewaehlteZ} spurZeichnen={key => { setSpurFuer(key); setZeichnung([]); setWerkzeug('spurB') }}
             ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null} neuLaden={() => umStreifenLaden(s.fgsId)} ksPhase={ksPhase} setKsPhase={setKsPhase}
             grau={!!rechnung && rechnung.streifenQuelle !== 'hand' && !!rechnung.markierung && !istFgs(rechnung.markierung)}
-            neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null} />
+            neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null} gelaende={erkWerte} />
         ))}
         {rechnung && <p className="klein">Rechenzeit {Math.round(rechnung.ms)} ms (Web Worker).</p>}
           </>} />
@@ -2455,8 +2489,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             Fahrlinie: <span className="farbe" style={{ background: STATUS_FARBE.frei }} />Markierung sichtbar, <span className="farbe"
             style={{ background: STATUS_FARBE.verdeckt }} />verdeckt bis zum Soll (doppelte Sichtweite, höchstens 110 m; das verdeckende
             Hindernis rot), <span className="farbe gestrichelt" style={{ background: ERKENNUNG_UNGEPRUEFT }} />nicht geprüft (Fahrlinie
-            endet). Klick auf das Band: die geprüften Sichtlinien (alle 10 m ein Augpunkt, je die Linie zur Markierung), nochmals bzw.
-            daneben klicken blendet sie aus</li>}
+            endet); das Gelände (swissALTI3D) prüft die App entlang der Sichtlinien nach, sobald die Höhenprofile da sind. Klick auf
+            das Band: die geprüften Sichtlinien (alle 10 m ein Augpunkt, je die Linie zur Markierung), nochmals bzw. daneben klicken
+            blendet sie aus</li>}
           <li><span className="farbe" style={{ background: QUELLE_FARBE.hand }} />von Hand, <span className="farbe" style={{ background: QUELLE_FARBE.osm }} />aus OSM (gestrichelt: Vorschlag, prüfen),
             <span className="farbe" style={{ background: QUELLE_FARBE.kataster }} />aus Baumkataster</li>
           <li><span className="farbe gestrichelt" style={{ borderColor: INSEL_FARBE, borderWidth: 2 }} />{INSEL_TEXT};
@@ -2488,7 +2523,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <h3>Daten</h3>
         <p className="klein">
           Luftbild und Streifen-Erkennung {LUFTBILD_QUELLE}{daten?.flugjahr ? ` (Flugjahr ${daten.flugjahr})` : ''} · Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '…'}, geodienste.ch ·
-          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}{hoehenWerte || kurveNeigung ? ' · Höhenmodell swissALTI3D © swisstopo' : ''}.
+          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}{hoehenWerte || kurveNeigung || erkWerte ? ' · Höhenmodell swissALTI3D © swisstopo' : ''}.
         </p>
         <p className="klein">
           Streifen aus dem Luftbild, die in OSM fehlen: {ETH_MODELL_QUELLE} (<a href={ETH_MODELL_URL} target="_blank" rel="noopener noreferrer">Artikel ↗</a>,{' '}
@@ -2514,7 +2549,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <Fusszeile />
       </aside>
       {bericht && fall && rechnung && (
-        <Bericht fall={fall} rechnung={rechnung} rechnungZeit={rechnungZeit} kantone={kantone} flugjahr={daten?.flugjahr ?? ''}
+        <Bericht fall={fall} rechnung={rechnung} gelaende={erkWerte} rechnungZeit={rechnungZeit} kantone={kantone} flugjahr={daten?.flugjahr ?? ''}
           luftbildStand={daten?.luftbild ? 'da' : fall.luftbild !== false && quellen.luftbild && !quellen.luftbild.fehler ? 'laedt' : 'fehlt'}
           zusatzQuellen={[...(fall.baumkataster && kataster?.baeume ? [`Baumkataster: ${kataster.quelle.quellenangabe} (WFS map.bern.ch)`] : []),
             ...(parkAn && parkKat?.felder ? [`Amtliche Parkfelder: ${parkKat.quelle.quellenangabe} (WFS map.bern.ch)`] : []),
@@ -2524,9 +2559,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             ...BERN_C_KEYS.filter(k => fall.quellen[k]).map(bernDienstBericht),
             ...(fall.ort.herkunft ? [`Übergang aus dem Luftbild (nicht in OSM): ${ETH_MODELL_QUELLE}`] : []),
             ...(hoehenWerte ? ['Längsneigung der Knotensicht: Höhenmodell swissALTI3D © swisstopo (Profile, api3.geo.admin.ch)'] : []),
-            ...(kurveNeigung ? ['Längsgefälle der Kurvenregel: Höhenmodell swissALTI3D © swisstopo (Profil entlang der Fahrlinie, api3.geo.admin.ch)'] : [])]}
+            ...(kurveNeigung ? ['Längsgefälle der Kurvenregel: Höhenmodell swissALTI3D © swisstopo (Profil entlang der Fahrlinie, api3.geo.admin.ch)'] : []),
+            ...(erkWerte ? ['Gelände der Erkennungsdistanz: Höhenmodell swissALTI3D © swisstopo (Profile entlang der Sichtlinien, api3.geo.admin.ch)'] : [])]}
           ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} datenlage={ortLage}
-          quellenIds={genutzteQuellen(fall.quellen, { herkunftP: fall.ort.herkunft?.p ?? null, hoehen: !!(hoehenWerte || kurveNeigung) })} />
+          quellenIds={genutzteQuellen(fall.quellen, { herkunftP: fall.ort.herkunft?.p ?? null, hoehen: !!(hoehenWerte || kurveNeigung || erkWerte) })} />
       )}
     </div>
   )
@@ -2643,8 +2679,10 @@ function StreetViewZufahrt({ url, nr }: { url: string | null; nr: string }) {
 const GEDECKT_TITEL = 'Geprüft; den Weg ab dem Knoten prüft die gerade Zufahrt mit; das Ergebnis zählt trotzdem'
 
 function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, spurZeichnen, ausserhalb, neuLaden, namen, alleStreifen, alleNamen, blatt,
-  ksPhase, setKsPhase, grau = false, neigung = null }: {
+  ksPhase, setKsPhase, grau = false, neigung = null, gelaende = null }: {
   s: StreifenErgebnis; fall: Fall; auswahl: string | null; setAuswahl: (k: string | null) => void
+  /** Geländeprüfung der Erkennungsdistanz je erkennungGelaende.gelaendeSchluessel */
+  gelaende?: Readonly<Record<string, GelaendeStand>> | null
   /** unmarkierte OSM-Querung (29.10.2026): ohne Wahl als Querung ohne Vortritt angenommen, Fussgängerstreifen ausdrücklich wählbar */
   grau?: boolean
   /** Längsneigung der Fahrlinie je «fgsId|zufahrt» (Höhenprofil; Sicht vom Velo) */
@@ -2760,7 +2798,10 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
                 <td><span className="farbe" style={{ background: STATUS_FARBE[z.status] }} />{statusText(z, fall.hindernisse)}
                   {z.unter5m && <div className="klein warnung">Parkfeld unter 5 m</div>}
-                  {z.erkennungM && <div className="klein" title={ERKENNUNG_TITEL}>{erkennungText(z.erkennungM)}</div>}</td>
+                  {z.erkennungM && (() => {
+                    const a = erkennungAnzeige(z, gelaende)!.e
+                    return <div className="klein" title={ERKENNUNG_TITEL}>{erkennungText(a)}; {gelaendeText(a)}</div>
+                  })()}</td>
               </tr>
               {/* Sicht vom Velo (29.10.2026): zweite Prüfung von der Veloachse, nur mit Radstreifen bzw. Radweg */}
               {z.velo && (() => {
@@ -2783,7 +2824,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
       )}
       {gewaehlteZ && gewaehlteZ.fgsId === s.fgsId && <ZufahrtDetail z={gewaehlteZ} name={zufahrtLang(namen, gewaehlteZ.zufahrt)}
         nr={zufahrtNr(namen, gewaehlteZ.zufahrt)} fall={fall}
-        aendern={aendern} spurZeichnen={spurZeichnen} />}
+        aendern={aendern} spurZeichnen={spurZeichnen} gelaende={gelaende} />}
       {s.entfallen.length > 0 && (
         <details>
           <summary className="klein" title={ENTFALLEN_ERKLAERUNG}>{ENTFALLEN_TITEL} ({s.entfallen.length})</summary>
@@ -2805,9 +2846,11 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
   )
 }
 
-function ZufahrtDetail({ z, name, nr, fall, aendern, spurZeichnen }: {
+function ZufahrtDetail({ z, name, nr, fall, aendern, spurZeichnen, gelaende = null }: {
   z: ZufahrtErgebnis; name: string; nr: string; fall: Fall; aendern: (f: (x: Fall) => Fall) => void; spurZeichnen: (key: string) => void
+  gelaende?: Readonly<Record<string, GelaendeStand>> | null
 }) {
+  const erk = erkennungAnzeige(z, gelaende)?.e
   const key = zufahrtSchluessel(z.fgsId, z.kennung)
   const zh = fall.zufahrten[key] ?? {}
   const setze = (neu: Partial<typeof zh> | null) => aendern(f => {
@@ -2830,7 +2873,7 @@ function ZufahrtDetail({ z, name, nr, fall, aendern, spurZeichnen }: {
         <tr><td>Sichtweite</td><td>{mText(z.sichtweite)} m ({z.sichtweiteQuelle}){z.geprueftBisM != null &&
           <span className="warnung">; geprüft bis {z.geprueftBisM} m (Reichweite der geladenen Daten), darüber nicht geprüft</span>}</td></tr>
         {z.kurvenradiusM != null && <tr><td>Radius</td><td>{f1(z.kurvenradiusM)} m ({z.radiusQuelle})</td></tr>}
-        {z.erkennungM && <tr><td>Erkennbar</td><td title={ERKENNUNG_TITEL}>{erkennungText(z.erkennungM)}; Sichtrechner, ohne Gelände (Annahme)</td></tr>}
+        {erk && <tr><td>Erkennbar</td><td title={ERKENNUNG_TITEL}>{erkennungText(erk)}; Sichtrechner, {gelaendeText(erk)} (Annahme)</td></tr>}
         {z.knotenM != null && <tr><td>Knoten</td><td>{f1(z.knotenM)} m vor dem Streifen</td></tr>}
         {z.deckung && <tr><td>Mitgeprüft</td><td title={GEDECKT_TITEL}>ab dem Knoten durch die gerade Zufahrt ({z.deckung}); zählt trotzdem</td></tr>}
         <tr><td>Fahrbahn</td><td>{z.fahrbahnM != null ? `${f2(z.fahrbahnM)} m` : '–'}, Fahrstreifen
