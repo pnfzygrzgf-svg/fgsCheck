@@ -2,8 +2,8 @@
 import { describe, expect, it } from 'vitest'
 import type { P } from './geo'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
-import type { Erkennung } from './rechner/erkennung'
-import { abschnitt, erkennungBaender, erkennungSoll } from './erkennungKarte'
+import type { Erkennung, ErkennungLinie } from './rechner/erkennung'
+import { abschnitt, erkennungBaender, erkennungSichtlinien, erkennungSoll } from './erkennungKarte'
 
 const z = (e: Erkennung | undefined, extra: Partial<ZufahrtErgebnis> = {}): ZufahrtErgebnis => ({
   fgsId: 'f1', zufahrt: 'n', art: 'beide', sichtweite: 24, sichtpunkte: [[0, 1], [0, 25]] as P[], spur: [[0, 0], [0, 30]] as P[],
@@ -39,5 +39,21 @@ describe('Erkennungsdistanz auf der Karte', () => {
   it('nur gerechnet: ohne Erkennungsdistanz, Abbieger und Trottoirüberfahrt nichts', () => {
     expect(erkennungBaender(s([z(undefined), z({ wert: 10, bis: 'verdeckt' }, { art: 'abbiegend' })]))).toEqual([])
     expect(erkennungBaender(s([z({ wert: 10, bis: 'verdeckt' })], true))).toEqual([])
+  })
+  it('Sichtlinien (30.10.2026): bis zum Soll bzw. zur Erkennungsdistanz, ohne den Augpunkt am Streifenrand; Text mit dem Befund', () => {
+    const lin = (x: number, befund: 'frei' | 'verdeckt', grund?: string): ErkennungLinie => ({ x, auge: [0, 1 + x] as P, ziel: [0, 0.5] as P, befund, ...(grund ? { grund } : {}) })
+    const l = [0, 10, 20, 30, 40, 50, 60, 70].map(x => lin(x, x < 40 ? 'frei' : 'verdeckt', x < 40 ? undefined : 'Gebäude (AV)'))
+    // Soll 48 m, verdeckt ab 33 m: Linien 10 … 40 m
+    const kurz = erkennungSichtlinien(z({ wert: 33, bis: 'verdeckt' }, { erkennungLinien: l }))
+    expect(kurz.map(x => x.x)).toEqual([10, 20, 30, 40])
+    expect(kurz.map(x => x.art)).toEqual(['frei', 'frei', 'frei', 'verdeckt'])
+    expect(kurz[0].text).toBe('Sichtlinie 10 m vor dem Streifen auf die Markierung: in den Daten frei')
+    expect(kurz[3].text).toBe('Sichtlinie 40 m vor dem Streifen auf die Markierung: verdeckt (Gebäude (AV))')
+    expect(nah(kurz[1].auge, [0, 21]) && nah(kurz[1].ziel, [0, 0.5])).toBe(true)
+    // Erkennungsdistanz über dem Soll: bis zu ihr
+    expect(erkennungSichtlinien(z({ wert: 62, bis: 'verdeckt' }, { erkennungLinien: l })).map(x => x.x)).toEqual([10, 20, 30, 40, 50, 60])
+    // ohne Linien bzw. Abbieger nichts
+    expect(erkennungSichtlinien(z({ wert: 33, bis: 'verdeckt' }))).toEqual([])
+    expect(erkennungSichtlinien(z({ wert: 33, bis: 'verdeckt' }, { erkennungLinien: l, art: 'abbiegend' }))).toEqual([])
   })
 })

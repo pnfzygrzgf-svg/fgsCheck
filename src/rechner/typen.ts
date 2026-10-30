@@ -4,7 +4,7 @@ import type { P } from '../geo'
 import type { Multi, Poly } from './poly'
 import type { Entfallen } from './zufahrten'
 import type { Vermassung } from './vermassung'
-import type { Erkennung } from './erkennung'
+import type { Erkennung, ErkennungLinie } from './erkennung'
 import type { KnotensichtAntwort } from '../tue/knotensicht'
 
 export interface Konflikt {
@@ -75,6 +75,9 @@ export interface ZufahrtErgebnis {
    * eigenen Fahrstreifen sehen, geprüft bis zum Doppelten der Sichtweite nach Tempo (höchstens 110 m) bzw. bis zum Ende der Fahrlinie.
    * Nur gerade Zufahrten von Fussgängerstreifen; 2D ohne Gelände (Annahme). Zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll */
   erkennungM?: Erkennung
+  /** Sichtlinien der Erkennungsdistanz (30.10.2026; erkennung.ts): dünn, alle 10 m ein Augpunkt mit dem genutzten Zielpunkt und dem
+   * Befund, für die Karte (Klick auf das Band). Zusätzliches Ausgabefeld ohne Einfluss auf erkennungM */
+  erkennungLinien?: ErkennungLinie[]
   /** Sicht des Veloverkehrs (29.10.2026; VSS 40 241 Z. 14 mit VSS 40 273 Tab. 3): zweite Prüfung von der Veloachse, nur gerade Zufahrten
    * eines Fussgängerstreifens mit Radstreifen bzw. Radweg nach OSM. Zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll */
   velo?: VeloSicht

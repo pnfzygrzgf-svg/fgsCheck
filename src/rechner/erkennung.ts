@@ -17,6 +17,9 @@
 //   Augpunkt nicht.
 // - Erkennungsdistanz: grösste Distanz, ab der die Sicht durchgehend bis zum Streifen frei ist (vom Streifen aus gesucht, zwischen
 //   dem letzten freien und dem ersten verdeckten Augpunkt halbierend verfeinert), abgerundet auf ganze Meter.
+// - Sichtlinien (30.10.2026, zusätzliches Ausgabefeld ZufahrtErgebnis.erkennungLinien, ohne Wirkung auf die Erkennungsdistanz): dünn,
+//   ein Augpunkt alle LINIEN_ABSTAND_M ab dem Streifenrand bis zum letzten Augpunkt (dazu dieser), zwischen zwei Augpunkten gerade
+//   eingeschoben, je mit dem genutzten Zielpunkt (dem ersten freien, sonst dem ersten) und dem Befund. Die Karte zeigt sie auf Klick.
 // Grenzen: 2D, ohne Kuppen und Senken; nur die Markierung, die blaue Tafel (Signal 4.11) nicht. Das Ergebnis ist eine Annahme
 // («Sichtrechner, ohne Gelände»).
 
@@ -38,6 +41,8 @@ const ZIEL_VERSATZ = [0, -0.5, 0.5, -1, 1].map(f => f * ZIEL_HALB_M)
 const BAUM_AUGE_M = 1.0
 /** Schritte der halbierenden Suche zwischen dem letzten freien und dem ersten verdeckten Augpunkt */
 const VERFEINERN = 6
+/** Sichtlinien zum Zeigen: ein Augpunkt alle so viele Meter ab dem Streifenrand (dünn) */
+export const LINIEN_ABSTAND_M = 10
 
 export type ErkennungBis = 'frei' | 'fahrlinie_endet' | 'verdeckt'
 export type ErkennungEnde = 'knoten' | 'wegende' | 'gebaeude' | 'kreisel'
@@ -47,6 +52,11 @@ export interface ErkennungHindernis { klasse: 'gebaeude' | 'baum' | 'hindernis' 
 export interface Erkennung { wert: number; bis: ErkennungBis; hindernis?: ErkennungHindernis; ende?: ErkennungEnde }
 /** Augpunkt: Lage und Abstand x ab dem Streifenrand entlang der Fahrlinie */
 export interface Augpunkt { p: P; x: number }
+export type LinienBefund = 'frei' | 'verdeckt'
+/** Sichtlinie vom Augpunkt (Abstand x ab dem Streifenrand) zum genutzten Zielpunkt der Markierung; grund: Name des Hindernisses */
+export interface ErkennungLinie { x: number; auge: P; ziel: P; befund: LinienBefund; grund?: string }
+/** Erkennungsdistanz und die dünnen Sichtlinien einer Zufahrt */
+export interface ErkennungErgebnis { e: Erkennung; linien: ErkennungLinie[] }
 
 /**
  * Lage von Punkten entlang einer Linie (Prüfung 23.10.2026): je Punkt der Abstand a entlang der Linie (Projektion, Suche um den
@@ -109,6 +119,39 @@ function linieKreuzt(a: P, b: P, linie: P[]): boolean {
   return false
 }
 
+/** Sichtlinie vom Augpunkt: der erste freie Zielpunkt, sonst der erste mit dem Hindernis davor (wie verdecktVon) */
+function sichtLinie(auge: P, ziele: P[], kand: Kandidat[]): { befund: LinienBefund; ziel: P; grund?: string } {
+  const gilt = kand.filter(k => (k.baum ? dist(k.baum, auge) >= BAUM_AUGE_M : !(k.geom && enthaelt(k.geom, auge))))
+  let erstes: ErkennungHindernis | null = null
+  for (const z of ziele) {
+    const sb = segBox(auge, z)
+    const k = gilt.find(c => ueberlappt(c.box, sb) && (c.geom ? linieTrifft([auge, z], c.geom) : linieKreuzt(auge, z, c.linie!)))
+    if (!k) return { befund: 'frei', ziel: z }
+    erstes ??= k.info
+  }
+  return { befund: 'verdeckt', ziel: ziele[0], grund: erstes!.name }
+}
+
+/** Lage auf der Folge der Augpunkte beim Abstand x (zwischen zwei Augpunkten gerade eingeschoben) */
+function augeBei(augen: Augpunkt[], x: number): P {
+  let i = 0
+  while (i < augen.length - 2 && augen[i + 1].x < x) i++
+  const a = augen[i], b = augen[Math.min(i + 1, augen.length - 1)]
+  const t = b.x > a.x ? Math.max(0, Math.min(1, (x - a.x) / (b.x - a.x))) : 0
+  return add(a.p, sub(b.p, a.p), t)
+}
+
+/** Dünne Sichtlinien: x = 0, LINIEN_ABSTAND_M, 2 · LINIEN_ABSTAND_M … bis zum letzten Augpunkt, dazu dieser */
+function sichtLinien(augen: Augpunkt[], ziele: P[], kand: Kandidat[]): ErkennungLinie[] {
+  const xEnde = augen[augen.length - 1].x, xs = [0]
+  for (let x = LINIEN_ABSTAND_M; x < xEnde - 1e-6; x += LINIEN_ABSTAND_M) xs.push(x)
+  if (xEnde > 1e-6) xs.push(xEnde)
+  return xs.map(x => {
+    const auge = augeBei(augen, x), l = sichtLinie(auge, ziele, kand)
+    return { x: Math.round(x * 100) / 100, auge, ziel: l.ziel, befund: l.befund, ...(l.grund ? { grund: l.grund } : {}) }
+  })
+}
+
 /** Hindernis, das die Sicht vom Augpunkt auf alle Zielpunkte verdeckt (das zum ersten Zielpunkt), sonst null (sichtbar) */
 function verdecktVon(auge: P, ziele: P[], kand: Kandidat[]): ErkennungHindernis | null {
   // Hindernisse, die am Augpunkt nicht zählen (Augpunkt im Gebäude bzw. Hindernis, Baum direkt daneben)
@@ -124,13 +167,18 @@ function verdecktVon(auge: P, ziele: P[], kand: Kandidat[]): ErkennungHindernis 
 }
 
 /**
- * Erkennungsdistanz entlang der Augpunkte (nach x aufsteigend, der letzte an der Prüfgrenze bzw. am Ende der Fahrlinie). ende:
- * Grund, wenn die Fahrlinie vor der Prüfgrenze endet (sonst null).
+ * Erkennungsdistanz entlang der Augpunkte (nach x aufsteigend, der letzte an der Prüfgrenze bzw. am Ende der Fahrlinie) und die
+ * dünnen Sichtlinien. ende: Grund, wenn die Fahrlinie vor der Prüfgrenze endet (sonst null).
  */
 export function erkennungRechnen(augen: Augpunkt[], ziele: P[], gebaeude: Gebaeude, hd: HindernisDaten | null,
-  ende: ErkennungEnde | null): Erkennung | undefined {
+  ende: ErkennungEnde | null): ErkennungErgebnis | undefined {
   if (!augen.length || !ziele.length) return undefined
   const kand = kandidaten(boxVon([...augen.map(a => a.p), ...ziele]), gebaeude, hd)
+  const e = erkennung2D(augen, ziele, kand, ende)
+  return { e, linien: sichtLinien(augen, ziele, kand) }
+}
+
+function erkennung2D(augen: Augpunkt[], ziele: P[], kand: Kandidat[], ende: ErkennungEnde | null): Erkennung {
   let frei: Augpunkt | null = null
   for (const a of augen) {
     const h = verdecktVon(a.p, ziele, kand)

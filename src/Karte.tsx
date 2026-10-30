@@ -21,7 +21,7 @@ import { KS_LAGE } from './tue/texte'
 import { ksDreieckSichtbar, ksFahrzeugStand, ksPhaseNach, tueFlaeche, tueGezeichnet, type KsPhase } from './tue/karte'
 import { messLaenge, messText, type Messung } from './messen'
 import { FARBE_VELO, VELO_SICHT_FARBE, fahrzeugFarbe, fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
-import { erkennungBaender } from './erkennungKarte'
+import { erkennungBaender, erkennungSichtlinien, type SichtlinieKarte } from './erkennungKarte'
 import { veloSoll, type VeloSoll } from './veloSicht'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { LUFTBILD_FGS_NAME, kandidatTooltip, type KandidatAnzeige, type LuftbildKandidat } from './daten/luftbildFgs'
@@ -87,6 +87,10 @@ export const STATUS_FARBE: Record<string, string> = {
 }
 /** Erkennungsdistanz: Teil bis zum Soll, den die Rechnung nicht geprüft hat (Fahrlinie endet), grau gestrichelt */
 export const ERKENNUNG_UNGEPRUEFT = '#64748b'
+/** Sichtlinien der Erkennungsdistanz (Klick auf das Band): Farben wie das Band */
+export const ERKENNUNG_LINIE_FARBE: Record<SichtlinieKarte['art'], string> = { frei: STATUS_FARBE.frei, verdeckt: STATUS_FARBE.verdeckt }
+/** Sichtlinien über den Vektoren und dem Richtplan bzw. den taktilen Markierungen (401–403), unter den Fahrzeugen (590) */
+const ERK_PANE = 'erkennungLinien'
 /** Tooltip der Sicht vom Velo: Ergebnis, Soll mit Längsneigung, schnelle E-Bikes (nur über 30 km/h) */
 function veloTooltip(namen: ZufahrtNamen | undefined, z: ZufahrtErgebnis, vs: VeloSoll): string {
   return `Sicht vom Velo ${esc(zufahrtText(namen, z.zufahrt))}: ${vs.frei ? 'frei' : `verdeckt, frei bis ${z.velo!.freiBisM} m`}, Soll ${vs.A} m ` +
@@ -404,6 +408,8 @@ export default function Karte(props: {
   const ksPhase: KsPhase = props.ksPhase ?? 'beide'
   // Zoomstufe (Fahrzeuge der nicht gewählten Zufahrten erst ab FAHRZEUG_ZOOM)
   const [zoom, setZoom] = useState(19)
+  // Zufahrt («fgsId|zufahrt»), deren Sichtlinien der Erkennungsdistanz gezeigt werden (Klick auf das Band); nur Anzeige
+  const [erkWahl, setErkWahl] = useState<string | null>(null)
   // Griffe der Mittelinseln je Gruppe: nur beim Überfahren der Insel bzw. des Griffs oder bei gewählter Insel sichtbar
   const griffe = useRef(new Map<string, { mk: L.Marker; fest: boolean }>())
   const griffZeit = useRef(new Map<string, number>())
@@ -498,12 +504,13 @@ export default function Karte(props: {
     map.createPane(GRIFF_PANE).style.zIndex = '630'
     // Fahrzeuge und wartende Personen: unter den Markern (Griffe der Streifenenden beim Verschieben bleiben greifbar)
     map.createPane(FAHRZEUG_PANE).style.zIndex = '590'
+    map.createPane(ERK_PANE).style.zIndex = '404'
     const eb: Record<string, L.LayerGroup> = {
       av: L.layerGroup().addTo(map), plan: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), lbfgs: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
       nr: L.layerGroup().addTo(map), fahrzeug: L.layerGroup().addTo(map),
       hind: L.layerGroup().addTo(map), fix: L.layerGroup().addTo(map), mess: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
       standort: L.layerGroup().addTo(map), ecken: L.layerGroup().addTo(map), inselVorschau: L.layerGroup().addTo(map),
-      griffe: L.layerGroup().addTo(map),
+      griffe: L.layerGroup().addTo(map), erkLinien: L.layerGroup().addTo(map),
     }
     // Richtplan Fussverkehr (Vektordaten des Geoportals, 30.10.2026; daten/richtplanKarte.ts): in der Ebenenwahl nur, solange die Karte
     // die Stadt Bern zeigt; anfangs aus. Eingeschaltet lädt sie ab RP_KARTE_ZOOM den Ausschnitt mit Rand (nach dem Verschieben kurz
@@ -707,8 +714,11 @@ export default function Karte(props: {
     map.attributionControl.addAttribution('© OpenStreetMap-Mitwirkende')
     map.on('click', (e: L.LeafletMouseEvent) => {
       if (cb.current.werkzeug) { cb.current.onKlick(lv95(e.latlng.lat, e.latlng.lng)); return }
-      // Klick auf eine leere Stelle (nicht auf ein Objekt der Karte) hebt die Auswahl der Zufahrt auf und zeigt beide Phasen der Knotensicht
-      if (!(e.originalEvent.target as Element | null)?.closest?.('.leaflet-interactive')) { cb.current.onZufahrt(null); cb.current.onKsPhase?.('beide') }
+      // Klick auf eine leere Stelle (nicht auf ein Objekt der Karte) hebt die Auswahl der Zufahrt auf, zeigt beide Phasen der Knotensicht
+      // und blendet die Sichtlinien der Erkennungsdistanz aus
+      if (!(e.originalEvent.target as Element | null)?.closest?.('.leaflet-interactive')) {
+        cb.current.onZufahrt(null); cb.current.onKsPhase?.('beide'); setErkWahl(null)
+      }
     })
     map.on('dblclick', () => { if (cb.current.werkzeug) cb.current.onDoppelklick() })
     map.on('moveend', () => { markerAbgleich(); namenAbgleich(); cb.current.onAusschnitt() })
@@ -909,8 +919,14 @@ export default function Karte(props: {
           fillOpacity: 0.12, interactive: false }).addTo(eb.sicht)
       } else L.polygon(s.umriss.map(ll), { color: '#fde047', weight: 2, fillColor: '#fde047', fillOpacity: 0.5, interactive: false }).addTo(eb.sicht)
       // Erkennungsdistanz (27.10.2026) je gerade Zufahrt entlang der Fahrlinie: grün sichtbar, rot verdeckt bis zum Soll, grau nicht
-      // geprüft; das verdeckende Hindernis wie ein Konflikt. Die Sichtfelder (Sichtweite) bleiben, wie sie sind
+      // geprüft; das verdeckende Hindernis wie ein Konflikt. Die Sichtfelder (Sichtweite) bleiben, wie sie sind. Klick auf das Band:
+      // Sichtlinien zeigen bzw. wieder ausblenden (eigener Klick, geht nicht an die Karte weiter)
       for (const b of erkennungBaender(s)) {
+        const klick = (e: L.LeafletMouseEvent) => {
+          if (cb.current.werkzeug) return
+          L.DomEvent.stopPropagation(e); setErkWahl(w => (w === b.zufahrt ? null : b.zufahrt))
+        }
+        const tip = `${esc(b.text)}<br><i>Klick: Sichtlinien zeigen bzw. ausblenden</i>`
         const stil = { weight: 4, opacity: 0.95, lineCap: 'butt' as const, interactive: !cb.current.werkzeug }
         const teile: { linie: P[]; farbe: string; strich?: string }[] = [{ linie: b.gruen, farbe: STATUS_FARBE.frei },
           ...(b.fehlt ? [b.fehlt.art === 'verdeckt' ? { linie: b.fehlt.linie, farbe: STATUS_FARBE.verdeckt }
@@ -918,7 +934,8 @@ export default function Karte(props: {
         for (const { linie, farbe, strich } of teile) {
           if (linie.length < 2) continue
           L.polyline(linie.map(ll), { color: '#0f172a', weight: 7, opacity: 0.45, lineCap: 'butt', interactive: false }).addTo(eb.sicht)
-          L.polyline(linie.map(ll), { ...stil, color: farbe, ...(strich ? { dashArray: strich } : {}) }).bindTooltip(esc(b.text), { sticky: true }).addTo(eb.sicht)
+          L.polyline(linie.map(ll), { ...stil, color: farbe, ...(strich ? { dashArray: strich } : {}) }).bindTooltip(tip, { sticky: true })
+            .on('click', klick).addTo(eb.sicht)
         }
         const h = b.hindernisId ? [...hindernisse, ...(rechnung.vorschlaege ?? []).map(v => v.hindernis)].find(x => x.id === b.hindernisId) : undefined
         if (h) (hindernisEbene(h, { color: '#7f1d1d', weight: 2, fillColor: '#dc2626', fillOpacity: 0.6, interactive: !cb.current.werkzeug }) as L.Path)
@@ -1291,6 +1308,25 @@ export default function Karte(props: {
       }
     }
   }, [rechnung, auswahl, zoom, werkzeug, bearbeiten, ksPhase, props.neigung])
+
+  // Sichtlinien der Erkennungsdistanz (30.10.2026) der Zufahrt, deren Band angeklickt ist: je Augpunkt (alle 10 m) die Linie zum
+  // genutzten Zielpunkt der Markierung, frei grün, verdeckt rot; Klick auf das Band bzw. daneben blendet sie aus
+  useEffect(() => {
+    const eb = ebenenRef.current
+    if (!eb) return
+    eb.erkLinien.clearLayers()
+    if (!rechnung || !erkWahl) return
+    const z = rechnung.streifen.filter(s => !s.trottoirueberfahrt).flatMap(s => s.zufahrten).find(x => zufahrtKey(x) === erkWahl)
+    if (!z) return
+    for (const l of erkennungSichtlinien(z)) {
+      const farbe = ERKENNUNG_LINIE_FARBE[l.art], pl = [l.auge, l.ziel].map(ll)
+      L.polyline(pl, { pane: ERK_PANE, color: '#0f172a', weight: 4, opacity: 0.45, interactive: false }).addTo(eb.erkLinien)
+      L.polyline(pl, { pane: ERK_PANE, color: farbe, weight: 2, opacity: 0.95, interactive: !werkzeug })
+        .bindTooltip(esc(l.text), { sticky: true }).on('click', e => L.DomEvent.stopPropagation(e)).addTo(eb.erkLinien)
+      L.circleMarker(ll(l.auge), { pane: ERK_PANE, radius: 3, color: '#111827', weight: 1, fillColor: farbe, fillOpacity: 1, interactive: false })
+        .addTo(eb.erkLinien)
+    }
+  }, [rechnung, erkWahl, werkzeug])
 
   // gewählte Zufahrt hervorheben
   useEffect(() => {

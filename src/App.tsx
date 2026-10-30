@@ -2455,7 +2455,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             Fahrlinie: <span className="farbe" style={{ background: STATUS_FARBE.frei }} />Markierung sichtbar, <span className="farbe"
             style={{ background: STATUS_FARBE.verdeckt }} />verdeckt bis zum Soll (doppelte Sichtweite, höchstens 110 m; das verdeckende
             Hindernis rot), <span className="farbe gestrichelt" style={{ background: ERKENNUNG_UNGEPRUEFT }} />nicht geprüft (Fahrlinie
-            endet)</li>}
+            endet). Klick auf das Band: die geprüften Sichtlinien (alle 10 m ein Augpunkt, je die Linie zur Markierung), nochmals bzw.
+            daneben klicken blendet sie aus</li>}
           <li><span className="farbe" style={{ background: QUELLE_FARBE.hand }} />von Hand, <span className="farbe" style={{ background: QUELLE_FARBE.osm }} />aus OSM (gestrichelt: Vorschlag, prüfen),
             <span className="farbe" style={{ background: QUELLE_FARBE.kataster }} />aus Baumkataster</li>
           <li><span className="farbe gestrichelt" style={{ borderColor: INSEL_FARBE, borderWidth: 2 }} />{INSEL_TEXT};

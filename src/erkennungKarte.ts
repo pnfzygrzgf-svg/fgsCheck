@@ -5,6 +5,8 @@
 // höchstens 110 m), rot von dort bis zum Soll (verdeckt) bzw. grau (Fahrlinie endet, weiter zurück nicht geprüft). Reicht die Fahrlinie
 // nicht so weit, geht das Band gerade in ihrer letzten Richtung weiter. Das verdeckende Hindernis (Erkennung.hindernis) wird über seine
 // Kennung gesucht (Hindernisse von Hand, Vorschläge, Kataster).
+// Sichtlinien (30.10.2026): Klick auf ein Band zeigt die dünnen Sichtlinien der Rechnung (ZufahrtErgebnis.erkennungLinien) bis zum Soll
+// bzw. bis zur Erkennungsdistanz, wenn sie weiter reicht: je Augpunkt eine Linie zum genutzten Zielpunkt der Markierung.
 
 import { add, dist, einheit, sub, type P } from './geo'
 import { ERKENNUNG_FAKTOR, ERKENNUNG_MAX_M } from './rechner/erkennung'
@@ -86,4 +88,18 @@ export function erkennungBaender(s: StreifenErgebnis): ErkennungBand[] {
     return [{ zufahrt: `${z.fgsId}|${z.zufahrt}`, gruen, fehlt: fehlt && fehlt.linie.length >= 2 ? fehlt : null, soll, text,
       ...(e.bis === 'verdeckt' && e.hindernis?.id ? { hindernisId: e.hindernis.id } : {}) }]
   })
+}
+
+/** Sichtlinie auf der Karte: Augpunkt, genutzter Zielpunkt der Markierung, Befund und Tooltip */
+export interface SichtlinieKarte { x: number; auge: P; ziel: P; art: 'frei' | 'verdeckt'; text: string }
+
+/** Sichtlinien einer Zufahrt zum Zeigen: ab dem ersten Augpunkt hinter dem Streifenrand bis zum Soll bzw. bis zur Erkennungsdistanz,
+ * wenn sie weiter reicht (leer ohne gerechnete Erkennungsdistanz) */
+export function erkennungSichtlinien(z: ZufahrtErgebnis): SichtlinieKarte[] {
+  const e = z.erkennungM, l = z.erkennungLinien
+  if (!e || !l?.length || z.art === 'abbiegend') return []
+  const bis = Math.max(erkennungSoll(z), e.wert)
+  return l.filter(x => x.x > 1e-6 && x.x <= bis + 1e-6).map(x => ({ x: x.x, auge: x.auge, ziel: x.ziel, art: x.befund,
+    text: `Sichtlinie ${Math.round(x.x)} m vor dem Streifen auf die Markierung: ${x.befund === 'frei' ? 'in den Daten frei'
+      : `verdeckt${x.grund ? ` (${x.grund})` : ''}`}` }))
 }

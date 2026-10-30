@@ -37,7 +37,7 @@ const gerade = (r: ReturnType<typeof rechne>) => r.streifen[0].zufahrten.filter(
 const vonWesten = (zs: ZufahrtErgebnis[]) => zs.find(z => z.richtung === 0)!
 const vonOsten = (zs: ZufahrtErgebnis[]) => zs.find(z => z.richtung === 180)!
 /** alle Ergebnisfelder ausser der Erkennungsdistanz (Regression: Status, Soll, Sichtfeld, frei bis, Konflikte unverändert) */
-const ohneErk = (zs: ZufahrtErgebnis[]) => zs.map(z => { const { erkennungM: _e, ...rest } = z; return JSON.stringify(rest) })
+const ohneErk = (zs: ZufahrtErgebnis[]) => zs.map(z => { const { erkennungM: _e, erkennungLinien: _l, ...rest } = z; return JSON.stringify(rest) })
 
 const r0 = rechne()
 // Gebäude über der südlichen Fahrbahnhälfte 76 bis 80 m westlich (jenseits des Sichtfelds der Sichtprüfung, Soll 55 m)
@@ -62,6 +62,23 @@ describe('Erkennungsdistanz: Sichtrechner (gerade Zufahrten)', () => {
     // Regression: alle übrigen Felder wie ohne Gebäude (es liegt ausserhalb des Sichtfelds)
     expect(ohneErk(rGeb.streifen[0].zufahrten)).toEqual(ohneErk(r0.streifen[0].zufahrten))
     expect(erkennungText(w.erkennungM!)).toMatch(/^Streifen erkennbar ab \d+ m \(weiter entfernt verdeckt: Gebäude\)$/)
+  })
+  it('Sichtlinien (30.10.2026): alle 10 m ein Augpunkt bis zur Prüfgrenze mit dem genutzten Zielpunkt; frei vor, verdeckt hinter dem Gebäude', () => {
+    const w = vonWesten(gerade(rGeb))
+    const l = w.erkennungLinien!
+    expect(l.map(x => x.x)).toEqual([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110])
+    expect(l.filter(x => x.x <= 70).every(x => x.befund === 'frei' && x.grund === undefined)).toBe(true)
+    expect(l.filter(x => x.x >= 80).every(x => x.befund === 'verdeckt' && x.grund === 'Gebäude (AV)')).toBe(true)
+    // Augpunkte auf der Fahrlinie westlich des Streifens, Ziele auf der Markierung im eigenen Fahrstreifen (südliche Hälfte)
+    for (const x of l) {
+      expect(x.auge[0] - O[0]).toBeLessThan(0)
+      expect(Math.abs(x.ziel[0] - O[0])).toBeLessThan(4)
+      expect(x.ziel[1] - O[1]).toBeLessThanOrEqual(0.01)
+    }
+    expect(l[11].auge[0] - l[1].auge[0]).toBeCloseTo(-100, 0)
+    // ohne Hindernis alle frei; die Erkennungsdistanz selbst bleibt wie ohne Sichtlinien
+    expect(vonWesten(gerade(r0)).erkennungLinien!.every(x => x.befund === 'frei')).toBe(true)
+    expect(w.erkennungM).toEqual({ wert: w.erkennungM!.wert, bis: 'verdeckt', hindernis: { klasse: 'gebaeude', name: 'Gebäude (AV)' } })
   })
   it('Auto-Parkfeld im Blick verdeckt (Nutzerentscheid 23.10.2026), Zweirad-Feld nicht; Hecke von Hand ebenso', () => {
     // Parkfeld bis 1 m an die Mitte, 75 bis 80 m westlich (jenseits des Sichtfelds der Sichtprüfung)

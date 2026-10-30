@@ -37,7 +37,7 @@ import { D_VELO_M, RADSTREIFEN_M, TAB3, veloSichtweite } from '../knotensicht/re
 import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvexeHuelle, enthaelt, abstandMulti, huelle, abstandLinieMulti } from './poly'
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
 import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt, QuerungSicht, AnnBasis, AnnHand } from './typen'
-import { type Augpunkt, type Erkennung, type ErkennungEnde, ERKENNUNG_MAX_M, entlangLinie, erkennungRechnen, zielPunkte } from './erkennung'
+import { type Augpunkt, type ErkennungErgebnis, type ErkennungEnde, ERKENNUNG_MAX_M, entlangLinie, erkennungRechnen, zielPunkte } from './erkennung'
 import { type OhneVortritt, sollQuerung, quelleQuerung, quelleAnnahme, annahmeOhneVortritt, annahmeBgz, istBgz, weiteQuerung, REICHWEITE_SICHT_M,
   BIS_KNOTEN, EINMUENDUNG_NAH_M } from './ohneVortritt'
 
@@ -837,7 +837,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
    * Messbezug (Prüfung 23.10.2026): x = Abstand ENTLANG der Fahrlinie ab dem ersten Sichtpunkt (Projektion auf die Linie, nicht die
    * Summe der Sichtpunkt-Abstände, die bei seitlich versetzten Punkten zickzackt); Enden nach OSM (ab der Streifenmitte) ebenso.
    */
-  function erkennungGerade(): Erkennung | undefined {
+  function erkennungGerade(): ErkennungErgebnis | undefined {
     if (!sichtpunkte.length) return undefined
     const grenze = ERKENNUNG_MAX_M
     const ziele = zielPunkte(sichtpunkte[0], s)
@@ -907,7 +907,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     const konflikte = kf(feld, sichtpunkte)
     const freiBisM = freiBis(sichtpunkte, konflikte, sf, kf, sw)
     // Erkennungsdistanz (zusätzliches Ausgabefeld, nur Fussgängerstreifen: eine Querung ohne Vortritt hat keine Balken)
-    const erkennungM = ov ? undefined : erkennungGerade()
+    const erk = ov ? undefined : erkennungGerade()
     // Velo (29.10.2026): zweite Sicht von der Veloachse, nur Fussgängerstreifen mit Radstreifen bzw. Radweg nach OSM
     const velo = ov ? undefined : veloSicht(fs, zf.g !== null && netz ? netz.w(zf.g.wid).t : null, sichtpunkte, ref, tempo, sf, kf)
     ergebnisse.push({
@@ -929,7 +929,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       netzHinweis: [...new Set(netzHinweis)], punkteVerschoben: nVerschoben, sichtpunkte, feld, spur: weg, annahmen,
       ...(fso ? { fahrstreifenOsmN: fso.n } : {}),
       freiBisM,
-      ...(erkennungM ? { erkennungM } : {}),
+      ...(erk ? { erkennungM: erk.e, erkennungLinien: erk.linien } : {}),
       ...(velo ? { velo } : {}),
     })
   } else if (!hatGerade) {
