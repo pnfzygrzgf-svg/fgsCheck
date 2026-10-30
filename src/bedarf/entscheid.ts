@@ -214,9 +214,9 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     // 6. Prüfung der beurteilten Anlage
     if (typ === null) k.annahmen.add('Querungstyp der Anlage fehlt: nur Empfehlung, keine Prüfung von Streifen, Position und Sicht')
     if (typ === 'fgs' || typ === 'lsa' || mzsFgs) {
-      // Richtlinie Hindernisfreie Architektur (30.10.2026): Ausrichtung, gerade Trottoirkante, Abstand zum Kreisel; wie die Streifenmasse
-      // nur beim Fussgängerstreifen (auch mit Lichtsignal bzw. über dem Mehrzweckstreifen)
-      reihe(['F1a', 'F1b', 'F1-K', 'F1c', 'F1d', 'F1e', 'F1d-R', 'G11', 'G12'])
+      // Richtlinie Hindernisfreie Architektur (30.10.2026): gerade Trottoirkante, Abstand zum Kreisel; wie die Streifenmasse nur beim
+      // Fussgängerstreifen (auch mit Lichtsignal bzw. über dem Mehrzweckstreifen). Die Ausrichtung (Kap. 4.1) ist Quelle von F1d
+      reihe(['F1a', 'F1b', 'F1-K', 'F1c', 'F1d', 'F1e', 'G11', 'G12'])
     }
     // Insel, Einengung, vorgezogener Seitenraum (F2 bis F4, E2b, E2c) und Randstein, Absenkung, Tastlinien (F7) gehören zur Querung
     // auf der Fahrbahn, nicht zur Trottoirüberfahrt (27.10.2026); deren Ausstattung prüft F5

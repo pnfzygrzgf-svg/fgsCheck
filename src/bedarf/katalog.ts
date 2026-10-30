@@ -437,21 +437,15 @@ export const KATALOG = {
     pruefsatz: 'Liegt der äusserste Balken mehr als 0,50 m von der Trottoirkante entfernt? Dann ist ein kleinerer Abstand nötig.',
     bedingung: 'max(randAbstand) > 0.50', ergebnis: 'Äusserster Balken mehr als 0,50 m von der Trottoirkante',
     quellen: [q('40241', 'Z. 21'), q('640850a', 'Ziff. 6.17')], werte: { max: 0.5 }, groesse: 'Abstand Balken–Trottoirkante', einheit: 'm' },
+  // 30.10.2026: Richtlinie Hindernisfreie Architektur Kap. 4.1 als weitere Quelle (dieselbe Prüfung; statt eigener Regel F1d-R, Ebene bleibt Norm)
   F1d: { id: 'F1d', titel: 'Winkel des Streifens', gruppe: 'F', thema: 'ausruestung', art: 'befund', ebene: 'Norm', staerke: 'weich', eingaben: ['achsWinkel'],
     pruefsatz: 'Weicht der Streifen mehr als 10° vom rechten Winkel (90°) zum Fahrbahnrand ab? Er sollte rechtwinklig liegen, Abweichung begründen; Toleranz angenommen.',
     bedingung: '|achsWinkel − 90| > 10', ergebnis: 'Streifen nicht rechtwinklig zum Fahrbahnrand (Toleranz 10° als Annahme)', kurzsatz: 'Streifen nicht rechtwinklig ({ist})',
-    quellen: [q('40241', 'Z. 21'), q('640075', 'Anh. 8.1.4')], werte: { recht: 90, tol: 10 }, bemerkung: 'Schwelle 10° ist eine Annahme (S3)',
+    quellen: [q('40241', 'Z. 21'), q('640075', 'Anh. 8.1.4'), q('HA', 'Kap. 4.1, S. 10')], werte: { recht: 90, tol: 10 }, bemerkung: 'Schwelle 10° ist eine Annahme (S3)',
     groesse: 'Winkel zum Fahrbahnrand', einheit: '°' },
   F1e: { id: 'F1e', titel: 'Streifen über den Busstreifen', gruppe: 'F', thema: 'ausruestung', art: 'befund', ebene: 'Norm', staerke: 'hart', eingaben: ['busspur', 'busDurchmarkiert'],
     pruefsatz: 'Fehlen die Balken auf dem Busstreifen? Dann ist es nötig, sie über den Busstreifen durchzuziehen.',
     bedingung: 'busspur && !busDurchmarkiert', ergebnis: 'Balken über den Busstreifen durchziehen', kurzsatz: 'Balken fehlen auf dem Busstreifen', quellen: [q('40241', 'Z. 21')] },
-  // Richtlinie Hindernisfreie Architektur (30.10.2026): Ausrichtung des Streifens (Kap. 4.1, S. 10); Schwelle wie bei der Leitlinie
-  // (Abweichung vom rechten Winkel über 10°, regeln.ts liest sie dort)
-  'F1d-R': { id: 'F1d-R', titel: 'Streifen rechtwinklig für Sehbehinderte', gruppe: 'F', thema: 'ausruestung', art: 'befund', ebene: 'Richtlinie', staerke: 'weich', eingaben: ['achsWinkel'],
-    pruefsatz: 'Weicht der Streifen mehr als 10° vom rechten Winkel (90°) zum Fahrbahnrand ab? Damit sich Sehbehinderte ausrichten können, sollte er rechtwinklig liegen; Abweichung begründen.',
-    bedingung: '|achsWinkel − 90| > 10 (Toleranz wie bei der Leitlinie)', ergebnis: 'Schräger Streifen: für Sehbehinderte schwer auszurichten (Toleranz 10° als Annahme)',
-    kurzsatz: 'Streifen schräg, für Sehbehinderte schwer auszurichten ({ist})', quellen: [q('HA', 'Kap. 4.1, S. 10')], werte: { recht: 90, tol: 10 },
-    bemerkung: 'gleiche Schwelle wie die Leitlinie bei schräger Querung', einheit: '°' },
   F2: { id: 'F2', titel: 'Mindesttiefe der Insel', gruppe: 'F', thema: 'insel', art: 'befund', ebene: 'Norm', staerke: 'hart', eingaben: ['insel'],
     pruefsatz: 'Ist die Insel in Gehrichtung weniger als 1,50 m tief? Dann ist eine tiefere Insel nötig.',
     bedingung: 'insel.vorhanden && insel.breite < 1.50', ergebnis: 'Insel schmaler als 1,50 m', kurzsatz: 'Insel zu wenig tief ({ist} statt {soll})', quellen: [q('40241', 'Z. 24'), q('40240', 'Abb. 10–14')],

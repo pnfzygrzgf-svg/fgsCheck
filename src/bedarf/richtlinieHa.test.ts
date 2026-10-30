@@ -1,6 +1,7 @@
-// Tests Richtlinie Hindernisfreie Architektur «Strassen – Wege – Plätze» 2025 (30.10.2026): Ausrichtung des Streifens (F1d-R) und
-// Lage an gerader Trottoirkante (G11) nach Kap. 4.1, Inseltiefe als Soll (F2c) nach Kap. 4.2, Abstand zum Kreisel (G12) nach Kap. 4.4.
-// Ebene Richtlinie, Stärke Soll; nur beim Fussgängerstreifen; Vorbelegung aus der AV (Trottoirkante) bzw. OSM (Kreiselring).
+// Tests Richtlinie Hindernisfreie Architektur «Strassen – Wege – Plätze» 2025 (30.10.2026): Lage an gerader Trottoirkante (G11) nach
+// Kap. 4.1, Inseltiefe als Soll (F2c) nach Kap. 4.2, Abstand zum Kreisel (G12) nach Kap. 4.4. Ebene Richtlinie, Stärke Soll; nur beim
+// Fussgängerstreifen; Vorbelegung aus der AV (Trottoirkante) bzw. OSM (Kreiselring). Die Ausrichtung des Streifens (Kap. 4.1) prüft
+// die Normregel F1d mit derselben Schwelle; die Richtlinie ist dort weitere Quelle (Nutzerentscheid 30.10.2026, statt F1d-R).
 // Künstliche Strassen wie vorbelegungGeo.test.ts (keine echten Daten): Hauptstrasse West–Ost, Fahrbahn 8 m, Übergang bei x = 0.
 import { describe, expect, it } from 'vitest'
 import { wgs, type P } from '../geo'
@@ -21,21 +22,24 @@ import { kurzform } from './zusammenfassung'
 import { verbindlichkeitVon } from './themen'
 import type { RegelDef } from './typen'
 
-const NEU = ['F1d-R', 'G11', 'F2c', 'G12'] as const
+const NEU = ['G11', 'F2c', 'G12'] as const
 const DEF = KATALOG as Readonly<Record<string, RegelDef>>
 
-describe('Katalog: vier Punkte der Richtlinie', () => {
+describe('Katalog: drei Punkte der Richtlinie, Ausrichtung als Quelle von F1d', () => {
   it('Ebene Richtlinie, Stärke Soll, Quelle mit Kapitel und Seite', () => {
     const fund = Object.fromEntries(NEU.map(id => [id, DEF[id].quellen.map(q => `${q.werk} ${q.ziffer}`)]))
-    expect(fund).toEqual({ 'F1d-R': ['HA Kap. 4.1, S. 10'], G11: ['HA Kap. 4.1, S. 10'], F2c: ['HA Kap. 4.2, S. 10'], G12: ['HA Kap. 4.4, S. 11'] })
+    expect(fund).toEqual({ G11: ['HA Kap. 4.1, S. 10'], F2c: ['HA Kap. 4.2, S. 10'], G12: ['HA Kap. 4.4, S. 11'] })
     for (const id of NEU) expect([DEF[id].ebene, DEF[id].staerke], id).toEqual(['Richtlinie', 'weich'])
     expect(verbindlichkeitVon({ id: 'G12', ebene: 'Richtlinie', staerke: 'weich' })).toBe('Soll (Richtlinie), Abweichung begründen')
   })
-  it('Ausrichtung: dieselbe Schwelle wie die Leitlinie bei schräger Querung (10° um 90°)', () => {
-    expect(KATALOG['F1d-R'].werte).toEqual({ recht: KATALOG.F7e.werte.recht, tol: KATALOG.F7e.werte.tol })
+  it('Ausrichtung: keine eigene Regel F1d-R; die Richtlinie ist weitere Quelle der Normregel F1d (Ebene Norm, Soll)', () => {
+    expect(DEF['F1d-R']).toBeUndefined()
+    expect(DEF.F1d.quellen.map(q => `${q.werk} ${q.ziffer}`)).toEqual(['40241 Z. 21', '640075 Anh. 8.1.4', 'HA Kap. 4.1, S. 10'])
+    expect([DEF.F1d.ebene, DEF.F1d.staerke]).toEqual(['Norm', 'weich'])
+    expect(KATALOG.F1d.werte).toEqual({ recht: KATALOG.F7e.werte.recht, tol: KATALOG.F7e.werte.tol })
   })
-  it('Themen: gerade Trottoirkante und Kreisel bei Lage und Abständen, Ausrichtung bei Masse und Ausrüstung, Inseltiefe bei Insel', () => {
-    expect(NEU.map(id => DEF[id].thema)).toEqual(['ausruestung', 'lage', 'insel', 'lage'])
+  it('Themen: gerade Trottoirkante und Kreisel bei Lage und Abständen, Inseltiefe bei Insel', () => {
+    expect(NEU.map(id => DEF[id].thema)).toEqual(['lage', 'insel', 'lage'])
   })
 })
 
@@ -45,17 +49,20 @@ describe('Auswertung', () => {
     return Object.fromEntries(NEU.map(id => [id, b.alle.find(x => x.id === id)?.staerke ?? (b.ausgewertet.includes(id) ? 'erfüllt' : '-')]))
   }
   const ALLE: Abw = { achsWinkel: 75, streifenGerade: false, insel: { ...INSEL_OK, breite: 1.7 }, lage: 'kreisel', abstandKreiselM: 3 }
-  it('alle vier verletzt: Soll (gelb)', () => {
-    expect(ids(ALLE)).toEqual({ 'F1d-R': 'weich', G11: 'weich', F2c: 'weich', G12: 'weich' })
+  it('alle drei verletzt: Soll (gelb)', () => {
+    expect(ids(ALLE)).toEqual({ G11: 'weich', F2c: 'weich', G12: 'weich' })
   })
-  it('Richtlinie aus: keine der vier ausgewertet; «nicht geprüft (Ebene ausgeschaltet)»', () => {
-    expect(ids(ALLE, { richtlinie: false })).toEqual({ 'F1d-R': '-', G11: '-', F2c: '-', G12: '-' })
-    expect(beurteile(fall(ALLE), { ebenen: { richtlinie: false } }).ebeneAus).toEqual(expect.arrayContaining([...NEU]))
+  it('Richtlinie aus: keine der drei ausgewertet; «nicht geprüft (Ebene ausgeschaltet)»; die Ausrichtung (F1d, Norm) bleibt', () => {
+    expect(ids(ALLE, { richtlinie: false })).toEqual({ G11: '-', F2c: '-', G12: '-' })
+    const aus = beurteile(fall(ALLE), { ebenen: { richtlinie: false } })
+    expect(aus.ebeneAus).toEqual(expect.arrayContaining([...NEU]))
+    expect(aus.ebeneAus).not.toContain('F1d')
+    expect(aus.alle.find(x => x.id === 'F1d')?.staerke).toBe('weich')
   })
   it('nur beim Fussgängerstreifen (auch mit Lichtsignal); Inseltiefe bei jeder Querung auf der Fahrbahn', () => {
-    expect(ids({ ...ALLE, typ: 'lsa' })).toEqual({ 'F1d-R': 'weich', G11: 'weich', F2c: 'weich', G12: 'weich' })
-    for (const typ of ['furt', 'ohne_vortritt'] as const) expect(ids({ ...ALLE, typ })).toEqual({ 'F1d-R': '-', G11: '-', F2c: 'weich', G12: '-' })
-    expect(ids({ ...ALLE, typ: 'trottoirueberfahrt', lage: 'einmuendung' })).toEqual({ 'F1d-R': '-', G11: '-', F2c: '-', G12: '-' })
+    expect(ids({ ...ALLE, typ: 'lsa' })).toEqual({ G11: 'weich', F2c: 'weich', G12: 'weich' })
+    for (const typ of ['furt', 'ohne_vortritt'] as const) expect(ids({ ...ALLE, typ })).toEqual({ G11: '-', F2c: 'weich', G12: '-' })
+    expect(ids({ ...ALLE, typ: 'trottoirueberfahrt', lage: 'einmuendung' })).toEqual({ G11: '-', F2c: '-', G12: '-' })
   })
   it('Kreisel: Masse-Zeile mit Soll und Ist; ein angenommener Abstand gilt nur unter Vorbehalt der Annahme', () => {
     const e = fall({ lage: 'kreisel', abstandKreiselM: 7.3 })
@@ -96,16 +103,17 @@ describe('Fragen und Sichtbarkeit', () => {
 })
 
 describe('Regelübersicht in der Gliederung der Quelle', () => {
-  it('nach Quelle: Richtlinie in der Reihenfolge der Kapitel 4.1, 4.2, 4.4', () => {
+  it('nach Quelle: Richtlinie in der Reihenfolge der Kapitel 4.1, 4.2, 4.4, die Normregel F1d unter Kap. 4.1 (auch unter VSS 40 241)', () => {
     const g = regelGruppen(regelZeilen(), 'quelle', { werk: 'HA' }).find(x => x.schluessel === 'werk-HA')!
-    expect(g.zeilen.map(z => z.id)).toEqual(['F1d-R', 'G11', 'F2c', 'G12'])
+    expect(g.zeilen.map(z => z.id)).toEqual(['F1d', 'G11', 'F2c', 'G12'])
+    expect(regelGruppen(regelZeilen(), 'quelle', { werk: '40241' })[0].zeilen.map(z => z.id)).toContain('F1d')
+    // Verbindlichkeit nach der ersten Fundstelle: bleibt die Norm
+    expect(g.zeilen[0].verbindlichkeit).toBe('Soll nach VSS-Norm')
   })
   it('nach Thema: nach den Normregeln, Kapitel 4.1 vor 4.4', () => {
     const lage = regelGruppen(regelZeilen(), 'thema').find(x => x.schluessel === 'thema-lage')!.zeilen.map(z => z.id)
     expect(lage.indexOf('G11')).toBeLessThan(lage.indexOf('G12'))
     expect(lage.indexOf('G2')).toBeLessThan(lage.indexOf('G11'))
-    const aus = regelGruppen(regelZeilen(), 'thema').find(x => x.schluessel === 'thema-ausruestung')!.zeilen.map(z => z.id)
-    expect(aus.indexOf('F7e')).toBeLessThan(aus.indexOf('F1d-R'))
   })
 })
 

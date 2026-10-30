@@ -27,13 +27,13 @@ const ue = (abw: Abw, eb: { bern?: boolean; kantonBE?: boolean } = {}) => {
 }
 
 describe('Themen', () => {
-  it('höchstens 11 Themen, eindeutig; jede der 182 Regeln hat genau ein bekanntes Thema; kein Thema leer (auch nicht in der erweiterten Prüfung)', () => {
+  it('höchstens 11 Themen, eindeutig; jede der 181 Regeln hat genau ein bekanntes Thema; kein Thema leer (auch nicht in der erweiterten Prüfung)', () => {
     expect(THEMEN.length).toBeLessThanOrEqual(11)
     expect(new Set(THEMEN.map(t => t.id)).size).toBe(THEMEN.length)
     expect(new Set(THEMEN.map(t => t.name)).size).toBe(THEMEN.length)
     const ids = new Set(THEMEN.map(t => t.id))
     for (const id of REGEL_IDS) expect(ids.has(DEF[id].thema), id).toBe(true)
-    expect(REGEL_IDS.length).toBe(182)
+    expect(REGEL_IDS.length).toBe(181)
     for (const t of THEMEN) {
       expect(REGEL_IDS.filter(id => DEF[id].thema === t.id).length, t.name).toBeGreaterThan(0)
       expect(ERWEITERT_IDS.filter(id => DEF[id].thema === t.id).length, t.name).toBeGreaterThan(0)
@@ -165,7 +165,7 @@ describe('Befundblatt nach Thema und Prüfübersicht (alle Testfälle mal Varian
     for (const id of ['A1', 'B3', 'D1b', 'E1', 'E2', 'H2']) expect(ERWEITERT_IDS).not.toContain(id)
     const o = ue({ innerorts: null })
     expect(o.geprueft).toBe(0)
-    expect(o.gruende[0]).toEqual({ grund: 'Ortslage fehlt', n: 117 })   // 30.10.2026: + F1d-R, G11, G12
+    expect(o.gruende[0]).toEqual({ grund: 'Ortslage fehlt', n: 116 })   // 30.10.2026: + G11, G12
     expect(zaehlText(o.themen.find(z => z.thema.id === 'sicht')!)).toBe('nicht geprüft (Ortslage fehlt)')
     expect(zaehlText(ue({ tempoRegime: 'begegnungszone', vSig: 20 }).themen.find(z => z.thema.id === 'sicht')!)).toBe('nicht geprüft (Baum endet: Begegnungszone)')
     expect(zaehlText(ue({ innerorts: false }).themen.find(z => z.thema.id === 'insel')!)).toBe('nicht geprüft (Baum endet: ausserorts)')
@@ -180,7 +180,7 @@ describe('Befundblatt nach Thema und Prüfübersicht (alle Testfälle mal Varian
   })
   it('Beispiel Grundfall S0 (Fussgängerstreifen, Tempo 50, DTV 8000, ohne Insel)', () => {
     const u = ue({})
-    expect([u.geprueft, u.ohneBefund, u.offen, u.befunde, u.hinweise, u.nichtGeprueft, u.nichtAnwendbar]).toEqual([44, 43, 0, 0, 1, 7, 102])   // Runde 4: Begegnungszone (A2) bei Strecke nicht anwendbar; 30.10.2026: F1d-R, G11 ohne Befund, G12 nur am Kreisel
+    expect([u.geprueft, u.ohneBefund, u.offen, u.befunde, u.hinweise, u.nichtGeprueft, u.nichtAnwendbar]).toEqual([43, 42, 0, 0, 1, 7, 102])   // Runde 4: Begegnungszone (A2) bei Strecke nicht anwendbar; 30.10.2026: G11 ohne Befund, G12 nur am Kreisel
     expect(zaehlText(u.themen.find(z => z.thema.id === 'insel')!)).toBe('3 geprüft, 2 ohne Befund, 1 Hinweis')
     // Korrektur S6: «Ebene ausgeschaltet» nur für Regeln, die mit eingeschalteter Ebene gälten (D6-2 ja, C2-B auf der Strecke nicht)
     const b0 = beurteile(fall({}))
@@ -190,8 +190,8 @@ describe('Befundblatt nach Thema und Prüfübersicht (alle Testfälle mal Varian
     expect(u.nichtGeprueftWegen.has('C2-B')).toBe(false)
     expect(b0.annahmen).toEqual(beurteile(fall({}), { ebenen: { bern: false, kantonBE: false } }).annahmen)
     const ub = ue({}, { bern: true, kantonBE: true })
-    expect([ub.geprueft, ub.ohneBefund, ub.offen, ub.befunde, ub.hinweise, ub.nichtGeprueft]).toEqual([50, 47, 0, 1, 2, 1])   // 30.10.2026: + F1d-R, G11
+    expect([ub.geprueft, ub.ohneBefund, ub.offen, ub.befunde, ub.hinweise, ub.nichtGeprueft]).toEqual([49, 46, 0, 1, 2, 1])   // 30.10.2026: + G11
     const uo = ue({ dtv: null, fg5h: null, fgKlasse: null }, { bern: true, kantonBE: true })
-    expect([uo.geprueft, uo.ohneBefund, uo.offen, uo.befunde, uo.hinweise]).toEqual([51, 41, 9, 0, 1])   // 30.10.2026: + F1d-R, G11
+    expect([uo.geprueft, uo.ohneBefund, uo.offen, uo.befunde, uo.hinweise]).toEqual([50, 40, 9, 0, 1])   // 30.10.2026: + G11
   })
 })

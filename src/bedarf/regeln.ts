@@ -408,11 +408,6 @@ export const REGELN: Record<BefundId, RegelFn> = {
     return ja(Math.abs(a - W.recht) > W.tol, { ist: fmt(a, 1), soll: `${W.recht} ± ${W.tol} (Annahme)` })
   },
   F1e: k => (!k.w('busspur') ? null : ja(!k.w('busDurchmarkiert'))),
-  // Richtlinie Hindernisfreie Architektur Kap. 4.1 (30.10.2026): dieselbe Schwelle wie die Leitlinie bei schräger Querung
-  'F1d-R': k => {
-    const a = k.w('achsWinkel'), W = K.F7e.werte
-    return ja(Math.abs(a - W.recht) > W.tol, { ist: fmt(a, 1), soll: `${W.recht} ± ${W.tol} (Annahme)` })
-  },
   F2: k => {
     if (!k.w('insel').vorhanden) return null
     const b = k.s('insel', 'breite'), W = K.F2.werte

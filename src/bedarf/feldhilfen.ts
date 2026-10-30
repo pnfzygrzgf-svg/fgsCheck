@@ -854,7 +854,7 @@ export const GELTUNG: Partial<Record<RegelId, Bedingung>> = {
   F1a: FGS_ARTIG_K, F1b: FGS_ARTIG_K, F1c: FGS_ARTIG_K, F1d: FGS_ARTIG_K, 'F1-K': alle(FGS_ARTIG_K, kann('kantonsstrasse', true)),
   F1e: alle(FGS_ARTIG_K, kann('busspur', true)),
   // Richtlinie Hindernisfreie Architektur (30.10.2026); Kreisel nur mit bekannter Lage am Kreisel (regeln.ts)
-  'F1d-R': FGS_ARTIG_K, G11: FGS_ARTIG_K, G12: alle(FGS_ARTIG_K, { feld: 'lage', ist: ['kreisel'] }),
+  G11: FGS_ARTIG_K, G12: alle(FGS_ARTIG_K, { feld: 'lage', ist: ['kreisel'] }),
   F2: alle(NICHT_TUE, INSEL_K), F2b: alle(NICHT_TUE, INSEL_K), F2c: alle(NICHT_TUE, INSEL_K), F2d: alle(NICHT_TUE, INSEL_K),
   'F2-B': alle(NICHT_TUE, INSEL_K), F2e: alle(NICHT_TUE, BAULICH_K), F2f: alle(NICHT_TUE, BAULICH_K), F2g: alle(NICHT_TUE, BAULICH_K),
   F3: alle(NICHT_TUE, BAULICH_K), 'F3-M': alle(NICHT_TUE, INSEL_K, kann('insel.art', 'markiert')),

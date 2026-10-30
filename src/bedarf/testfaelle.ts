@@ -235,13 +235,11 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'F1d', name: 'Winkel 79', abw: { achsWinkel: 79 }, erwartet: { F1d: 'weich' } },
   { regel: 'F1d', name: 'Winkel 80', abw: { achsWinkel: 80 }, erwartet: { F1d: '-' } },
   { regel: 'F1e', name: 'Busspur nicht durchmarkiert', abw: { busspur: true }, erwartet: { F1e: 'hart' } },
-  // Richtlinie Hindernisfreie Architektur (30.10.2026): Ausrichtung mit der Schwelle der Leitlinie (10°), nur Fussgängerstreifen
-  { regel: 'F1d-R', name: 'Winkel 79', abw: { achsWinkel: 79 }, erwartet: { 'F1d-R': 'weich', F1d: 'weich' }, ist: { 'F1d-R': '79,0' } },
-  { regel: 'F1d-R', name: 'Winkel 80', abw: { achsWinkel: 80 }, erwartet: { 'F1d-R': '-' } },
-  { regel: 'F1d-R', name: 'Winkel 70, Richtlinie aus', abw: { achsWinkel: 70 }, ebenen: { richtlinie: false }, erwartet: { 'F1d-R': '-', F1d: 'weich' } },
-  { regel: 'F1d-R', name: 'Winkel 70, Furt', abw: { achsWinkel: 70, typ: 'furt' }, erwartet: { 'F1d-R': '-' } },
-  { regel: 'F1d-R', name: 'Winkel 70, mit Lichtsignal', abw: { achsWinkel: 70, typ: 'lsa' }, erwartet: { 'F1d-R': 'weich' } },
-  { regel: 'F1d-R', name: 'Winkel offen', abw: { achsWinkel: null }, erwartet: { 'F1d-R': 'offen', F1d: 'offen' } },
+  // 30.10.2026: Richtlinie Hindernisfreie Architektur Kap. 4.1 ist weitere Quelle von F1d (statt eigener Regel F1d-R); F1d bleibt Norm
+  { regel: 'F1d', name: 'Winkel 70, Richtlinie aus', abw: { achsWinkel: 70 }, ebenen: { richtlinie: false }, erwartet: { F1d: 'weich' }, ist: { F1d: '70,0' } },
+  { regel: 'F1d', name: 'Winkel 70, Furt', abw: { achsWinkel: 70, typ: 'furt' }, erwartet: { F1d: '-' } },
+  { regel: 'F1d', name: 'Winkel 70, mit Lichtsignal', abw: { achsWinkel: 70, typ: 'lsa' }, erwartet: { F1d: 'weich' } },
+  { regel: 'F1d', name: 'Winkel offen', abw: { achsWinkel: null }, erwartet: { F1d: 'offen' } },
   { regel: 'F2', name: 'Insel 1,49', abw: { insel: ins({ breite: 1.49 }) }, erwartet: { F2: 'hart', F2b: '-' } },
   { regel: 'F2b', name: 'Insel 1,50', abw: { insel: ins({ breite: 1.5 }) }, erwartet: { F2: '-', F2b: 'weich', F2c: 'weich' } },
   { regel: 'F2b', name: 'Insel 1,99', abw: { insel: ins({ breite: 1.99 }) }, erwartet: { F2b: 'weich' } },
