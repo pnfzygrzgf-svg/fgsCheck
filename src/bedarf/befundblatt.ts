@@ -585,6 +585,17 @@ export function herkunftKurz(text: string): string {
   if (t.split(/\s+/).length > 15 && t.includes(': ')) t = t.slice(0, t.indexOf(': '))
   return t
 }
+/** Felder, deren Herkunft der Vorbelegung sichtbar neben dem Wert steht (30.10.2026: Fusswegnetz mit Kategorie und Abstand) */
+export const HERKUNFT_SICHTBAR: readonly string[] = ['netzQualifiziert', 'netz']
+/** Herkunft der Vorbelegung als sichtbare Zeile neben dem Wert (nur HERKUNFT_SICHTBAR), höchstens max Zeichen (gekürzt mit «…» an
+ * einer Wortgrenze; der volle Text bleibt im Tooltip); null: Feld ohne sichtbare Herkunft */
+export function herkunftSichtbar(pfad: string, text: string, max = 160): string | null {
+  if (!HERKUNFT_SICHTBAR.includes(pfad)) return null
+  const t = lesetext(text)
+  if (t.length <= max) return t
+  const k = t.slice(0, max - 1), i = k.lastIndexOf(' ')
+  return `${(i > max / 2 ? k.slice(0, i) : k).replace(/[\s,;:–-]+$/, '')} …`
+}
 /**
  * Annahme der Liste «Annahmen» als Zeilen «Feld: Wert – Herkunft» (Runde 5). Eintrag «feld: Annahme» des Befunds bzw. der Grundprüfung;
  * Objekt-Felder (z. B. q3, kurve): die Unterfelder mit Annahme bzw. Schätzung. Andere Texte unverändert.

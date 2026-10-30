@@ -368,12 +368,15 @@ function netzVorbelegen(x: AutoEingangC): boolean {
   const d = rp.basisnetz ? rp.basisnetz.map(l => querAbstand(l.teile, a, AUTO_C.wunschM)).filter((v): v is number => v !== null)
     .sort((p, q) => p - q)[0] ?? null : null
   const basis = d !== null && d <= AUTO_C.netzM + 1e-9
-  const pub = !!rp.publikum?.some(f => st.some(s => inFlaeche(s.m, f.ringe)))
+  const pubF = rp.publikum?.find(f => st.some(s => inFlaeche(s.m, f.ringe))) ?? null, pub = !!pubF
   if (pub) setze('netz', 'publikumsintensiv', 'geoportal', `Streifen in einem publikumsattraktiven Bereich (${quelle})` +
     (basis ? `; zudem quert eine Basisnetz-Linie die Fahrbahn ${wo(d!)}` : ''))
   else if (basis) setze('netz', 'basisnetz', 'geoportal', `Basisnetz-Linie quert die Fahrbahn ${wo(d!)} (${quelle})`)
   if (pub || basis) {
-    setze('netzQualifiziert', true, 'geoportal', `Querung im Fusswegnetz des Richtplans Fussverkehr (behördliche Netzplanung; ${GEOPORTAL_BERN})`)
+    // 30.10.2026: Kategorie und Abstand im Text (Anzeige neben dem Wert)
+    const basisText = basis ? `Basisnetz Fussweg bestehend: Linie quert die Fahrbahn ${wo(d!)}` : ''
+    const kat = pub ? `publikumsattraktiver Bereich${pubF!.name ? ` «${pubF!.name}»` : ''}${basis ? `; zudem ${basisText}` : ''}` : basisText
+    setze('netzQualifiziert', true, 'geoportal', `${kat} (${quelle})`)
     // Korrektur S4 (Nutzerentscheid): gebündelt nur bei einem Basisnetz-Treffer; im publikumsattraktiven Bereich bleibt die Nachfrage
     // offen (dort ist verteiltes Queren möglich)
     if (basis) setze('nachfrage', 'punktuell', 'annahme', 'Basisnetz-Linie quert die Fahrbahn an der Querung: gebündelte Nachfrage angenommen')

@@ -25,7 +25,8 @@ import { erkennungBaender } from './erkennungKarte'
 import { veloSoll, type VeloSoll } from './veloSicht'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { LUFTBILD_FGS_NAME, kandidatTooltip, type KandidatAnzeige, type LuftbildKandidat } from './daten/luftbildFgs'
-import { FUSSWEGNETZ_FARBE, FUSSWEGNETZ_NAME, STRICH_FUSSWEGNETZ, type FusswegnetzKarte } from './fusswegnetzKarte'
+import { FUSSWEGNETZ_FARBE, FUSSWEGNETZ_NAME, type FusswegnetzKarte } from './fusswegnetzKarte'
+import { RP_WMS_NAME, RP_WMS_URL, rpWmsOptionen, rpWmsVerfuegbar } from './daten/richtplanWms'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
@@ -47,10 +48,6 @@ export const PLAN_FARBEN: Record<PlanArt, { flaeche: string; linie: string }> = 
   insel: { flaeche: AV_FARBEN.Verkehrsinsel, linie: '#3f6212' },
 }
 export const PLAN_MUSTER = 'fgs-plan-'
-/** Schraffur der publikumsattraktiven Bereiche (Fusswegnetz, Richtplan Bern): dünne violette Linien ohne Grund */
-export const FUSSWEGNETZ_MUSTER = 'fgs-fusswegnetz'
-/** Hintergrund der Legenden-Marke eines publikumsattraktiven Bereichs (wie das Muster) */
-export const fusswegnetzMarke = `repeating-linear-gradient(-45deg, ${FUSSWEGNETZ_FARBE}66 0 1px, transparent 1px 5px)`
 export const STRICH_PLAN = '6 3'
 /** Hintergrund einer Legenden-Farbmarke für eine Fläche (Plan) (CSS, schräg gestreift wie das Muster) */
 export const planMarke = (art: PlanArt) => `repeating-linear-gradient(45deg, ${PLAN_FARBEN[art].linie} 0 2px, ${PLAN_FARBEN[art].flaeche} 2px 5px)`
@@ -66,9 +63,6 @@ function PlanMuster() {
             <line x1="0" y1="0" x2="0" y2="7" stroke={PLAN_FARBEN[a].linie} strokeWidth="2" />
           </pattern>
         ))}
-        <pattern id={FUSSWEGNETZ_MUSTER} width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
-          <line x1="0" y1="0" x2="0" y2="9" stroke={FUSSWEGNETZ_FARBE} strokeWidth="1.5" strokeOpacity="0.35" />
-        </pattern>
       </defs>
     </svg>
   )
@@ -139,10 +133,9 @@ const HINTERGRUND_KARTE = 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkar
 // 14.10.2026 schon vor dem Klick (Übergangssuche, viele Namen): nur im Sichtbereich mit Rand (MARKER_RAND) und erst ab NAMEN_ZOOM
 // gezeichnet (weiter draussen zu dicht; die Suche beginnt ebenfalls bei Zoom 16)
 const NAMEN_PANE = 'strassennamen'
-// Fusswegnetz (Richtplan Bern, 30.10.2026): Linien und Umrisse knapp über den Vektoren (overlayPane 400), Flächen darunter; beide Panes
-// lassen Klicks durch (nur die Linien selbst zeigen ihren Tooltip), damit Hindernisse und Flächen (Plan) darunter anklickbar bleiben
+// Fusswegnetz (Richtplan Bern, 30.10.2026): die für die Prüfung genutzte Linie knapp über den Vektoren (overlayPane 400); das Pane lässt
+// Klicks durch (nur die Linie selbst zeigt ihren Tooltip), damit Hindernisse und Flächen (Plan) darunter anklickbar bleiben
 const FWN_PANE = 'fusswegnetz'
-const FWN_FLAECHE_PANE = 'fusswegnetzFlaeche'
 const ECKEN_PANE = 'eckenRunden'                   // «Ecke runden»: Ecken der gewählten Fläche (Plan), über allem anklickbar
 const GRIFF_PANE = 'inselGriff'                     // «Mittelinsel (Standard)»: Griff zum Ziehen
 // Vierfachpfeil im Kreis (Griff der Mittelinsel)
@@ -319,6 +312,8 @@ export default function Karte(props: {
   fusswegnetz?: FusswegnetzKarte | null
   /** Quellenangabe der Ebene Fusswegnetz */
   fusswegnetzQuelle?: string
+  /** WMS-Ebene «Richtplan Fussverkehr (Geoportal Bern)» ein- bzw. ausgeschaltet (Legende) */
+  onRichtplanWms?: (an: boolean) => void
   onLuftbildKandidat?: (k: LuftbildKandidat) => void
   strassennamen: Strassenname[]                      // aus der Übergangssuche und den OSM-Daten des gewählten Übergangs (daten/osm.namenKarte)
   gewaehlt: number | null
@@ -455,9 +450,6 @@ export default function Karte(props: {
     const fwnPane = map.createPane(FWN_PANE)
     fwnPane.style.zIndex = '401'
     fwnPane.style.pointerEvents = 'none'
-    const fwnFlaechePane = map.createPane(FWN_FLAECHE_PANE)
-    fwnFlaechePane.style.zIndex = '395'
-    fwnFlaechePane.style.pointerEvents = 'none'
     // «Ecke runden»: Ecken der gewählten Fläche (Plan) in einem eigenen Pane über allen Ebenen und Markern (markerPane 600), unter
     // den Tooltips (650); anklickbar auch im Werkzeugmodus (index.css: .karte-werkzeug)
     map.createPane(ECKEN_PANE).style.zIndex = '620'
@@ -475,12 +467,27 @@ export default function Karte(props: {
       // Fusswegnetz: erst mit Daten in der Ebenenwahl und auf der Karte (Effekt unten)
       fwn: L.layerGroup(),
     }
+    // Richtplan Fussverkehr als WMS des Geoportals (30.10.2026): in der Ebenenwahl nur, solange die Karte die Stadt Bern zeigt;
+    // anfangs aus. Wer die Stadt verlässt, verliert den Eintrag (keine Abfragen); zurück in Bern gilt die letzte Wahl wieder
+    const rpWms = L.tileLayer.wms(RP_WMS_URL, { ...rpWmsOptionen(), maxZoom: 22 })
+    let rpWmsDa = false, rpWmsWahl = false
+    const rpWmsAbgleich = () => {
+      const b = map.getBounds(), da = rpWmsVerfuegbar({ s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() })
+      const wahl = ebenenWahlRef.current
+      if (!wahl || da === rpWmsDa) return
+      rpWmsDa = da
+      if (da) { wahl.addOverlay(rpWms, RP_WMS_NAME); if (rpWmsWahl) rpWms.addTo(map) }
+      else { rpWmsWahl = map.hasLayer(rpWms); wahl.removeLayer(rpWms); map.removeLayer(rpWms) }
+    }
+    rpWms.on('add', () => cb.current.onRichtplanWms?.(true)).on('remove', () => cb.current.onRichtplanWms?.(false))
     ebenenWahlRef.current = L.control.layers({ 'Luftbild (SWISSIMAGE)': luftbild, 'Landeskarte (swisstopo)': landeskarte }, { 'Amtliche Vermessung': eb.av,
       'Flächen (Plan)': eb.plan,
       'OSM-Übergänge': eb.osm, [LUFTBILD_FGS_NAME]: eb.lbfgs, 'Strassennamen (OSM)': eb.namen, 'Sichtfelder': eb.sicht, 'Nummern der Zufahrten': eb.nr, 'Fahrzeuge': eb.fahrzeug, 'Hindernisse': eb.hind,
       'Fixpunkte und Masse': eb.fix },
     { collapsed: true }).addTo(map)
     fwnWarDa.current = false
+    rpWmsAbgleich()
+    map.on('moveend', rpWmsAbgleich)
     L.control.scale({ imperial: false }).addTo(map)
     // «Zum eigenen Standort» unter den Zoom-Knöpfen
     const standortKnopf = new L.Control({ position: 'topleft' })
@@ -553,9 +560,9 @@ export default function Karte(props: {
     return () => { map.attributionControl.removeAttribution(text) }
   }, [av, kantone, kartenRef])
 
-  // Fusswegnetz (Richtplan Fussverkehr Stadt Bern, 30.10.2026): Basisnetz dünn gestrichelt, die für die Vorbelegung genutzte Linie
-  // kräftig, publikumsattraktive Bereiche schraffiert (Tooltip am Umriss, die Fläche bleibt durchlässig). Eintrag in der Ebenenwahl nur
-  // mit Daten (Stadt Bern); eingeschaltet, sobald Daten da sind, danach gilt die Wahl in der Ebenenwahl
+  // Fusswegnetz (Richtplan Fussverkehr Stadt Bern, 30.10.2026): nur die für die Vorbelegung genutzte Basisnetz-Linie, kräftig (das
+  // ganze Netz zeigt die WMS-Ebene). Eintrag in der Ebenenwahl nur mit einer solchen Linie; eingeschaltet, sobald sie da ist, danach gilt
+  // die Wahl in der Ebenenwahl
   const fwn = props.fusswegnetz ?? null, fwnQuelle = props.fusswegnetzQuelle
   useEffect(() => {
     const map = kartenRef.current, eb = ebenenRef.current, wahl = ebenenWahlRef.current
@@ -566,16 +573,9 @@ export default function Karte(props: {
     wahl.addOverlay(eb.fwn, FUSSWEGNETZ_NAME)
     if (!fwnWarDa.current) eb.fwn.addTo(map)
     fwnWarDa.current = true
-    for (const f of fwn.flaechen) {
-      L.polygon(f.ringe.map(r => r.map(ll)), { pane: FWN_FLAECHE_PANE, stroke: false, fillColor: `url(#${FUSSWEGNETZ_MUSTER})`, fillOpacity: 1,
-        interactive: false }).addTo(eb.fwn)
-      for (const r of f.ringe) L.polyline([...r, r[0]].map(ll), { pane: FWN_PANE, color: FUSSWEGNETZ_FARBE, weight: 1, opacity: 0.45 })
-        .bindTooltip(esc(f.text), { sticky: true }).addTo(eb.fwn)
-    }
-    for (const l of [...fwn.linien.filter(x => !x.genutzt), ...fwn.linien.filter(x => x.genutzt)]) {
-      L.polyline(l.teile.map(t => t.map(ll)), { pane: FWN_PANE, color: FUSSWEGNETZ_FARBE, weight: l.genutzt ? 4 : 2, opacity: l.genutzt ? 0.9 : 0.6,
-        ...(l.genutzt ? {} : { dashArray: STRICH_FUSSWEGNETZ }) }).bindTooltip(esc(l.text), { sticky: true }).addTo(eb.fwn)
-    }
+    for (const l of fwn.linien)
+      L.polyline(l.teile.map(t => t.map(ll)), { pane: FWN_PANE, color: FUSSWEGNETZ_FARBE, weight: 4, opacity: 0.9 })
+        .bindTooltip(esc(l.text), { sticky: true }).addTo(eb.fwn)
     if (!fwnQuelle) return
     map.attributionControl.addAttribution(fwnQuelle)
     return () => { map.attributionControl.removeAttribution(fwnQuelle) }

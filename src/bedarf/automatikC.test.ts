@@ -19,6 +19,10 @@ import { leererFall, type Fall } from '../fall'
 import { querungen, vorbelegen, type GeoVorbelegung } from './vorbelegung'
 import { automatik, type AutoGeo } from './automatik'
 import { AUTO_C, ortAbstandText, abstandOrt, querAbstand, querungsAchse } from './automatikC'
+import { herkunftSichtbar } from './befundblatt'
+import { feldThema } from './themenansicht'
+import { FELD_DEFS } from './felder'
+import { bezuege } from './feldhilfen'
 import { createElement } from 'react'
 import { offeneFragen } from './zusammenfassung'
 import { bestaetigungsFelder } from './feldbedarf'
@@ -399,6 +403,38 @@ describe('Paket C: Fusswegnetz (Richtplan Fussverkehr)', () => {
     expect(teil.feldHinweise!.netz).toContain('teilweise nicht erreichbar')
     const ohne = vor({})
     expect([ohne.werte.netz, ohne.feldHinweise!.netz, ohne.werte.netzQualifiziert, ohne.werte.nachfrage]).toEqual([undefined, undefined, undefined, undefined])
+  })
+})
+
+describe('Fusswegnetz: Kategorie und Abstand im Text, Feld «Stellung im Fusswegnetz» in «Nachfrage» (30.10.2026)', () => {
+  it('Netzplanung «ja» nennt die Kategorie: Basisnetz mit Abstand bzw. publikumsattraktiver Bereich mit Name', () => {
+    expect(vor({ richtplan: RP([quer(3)]) }).werte.netzQualifiziert.text)
+      .toBe('Basisnetz Fussweg bestehend: Linie quert die Fahrbahn 3 m vom Streifen (Richtplan Fussverkehr, Geoportal Stadt Bern)')
+    expect(vor({ richtplan: RP([quer(0)]) }).werte.netzQualifiziert.text).toContain('Linie quert die Fahrbahn beim Streifen')
+    const benannt = RP([quer(5)], [rechteck(-50, -50, 50, 50)])!
+    if (!('fehler' in benannt)) benannt.publikum![0].name = 'Bahnhof'
+    expect(vor({ richtplan: benannt }).werte.netzQualifiziert.text).toBe('publikumsattraktiver Bereich «Bahnhof»; zudem Basisnetz Fussweg ' +
+      'bestehend: Linie quert die Fahrbahn 5 m vom Streifen (Richtplan Fussverkehr, Geoportal Stadt Bern)')
+    expect(vor({ richtplan: RP([], [rechteck(-50, -50, 50, 50)]) }).werte.netzQualifiziert.text)
+      .toBe('publikumsattraktiver Bereich (Richtplan Fussverkehr, Geoportal Stadt Bern)')
+  })
+  it('sichtbar neben dem Wert nur bei Netzplanung und Stellung im Netz; lange Texte gekürzt', () => {
+    const t = vor({ richtplan: RP([quer(3)]) }).werte.netzQualifiziert.text
+    expect(herkunftSichtbar('netzQualifiziert', t)).toBe(t)
+    expect(herkunftSichtbar('dtv', t)).toBeNull()
+    const k = herkunftSichtbar('netz', `${'Wort '.repeat(40)}Ende`, 60)!
+    expect(k.length).toBeLessThanOrEqual(61)
+    expect(k.endsWith(' …')).toBe(true)
+  })
+  it('Feld «netz» im Thema «Nachfrage» direkt nach der Netzplanung, Frage nach der Stufe; die Regeln lesen es weiter', () => {
+    expect(feldThema('netz')).toBe('nachfrage')
+    const i = FELD_DEFS.findIndex(d => d.pfad === 'netzQualifiziert')
+    expect(FELD_DEFS[i + 1].pfad).toBe('netz')
+    expect(frageVon('netz')).toBe('Zu welcher Stufe des Berner Fusswegnetzes gehört die Querung?')
+    expect(bezuege('netz').map(x => x.id)).toEqual(expect.arrayContaining(['C2-B', 'C4-B']))
+    // Regeln greifen weiter (Ebene Bern): Fusswegnetz in der Zone bzw. wenig Verkehr
+    const b = beurteile(testfall({ tempoRegime: 't30_zone', vSig: 30, netz: 'basisnetz', dtv: 2000 }), { ebenen: { bern: true, kantonBE: true } })
+    expect(b.alle.map(x => x.id)).toEqual(expect.arrayContaining(['C2-B', 'C4-B']))
   })
 })
 

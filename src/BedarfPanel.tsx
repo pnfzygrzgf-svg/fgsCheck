@@ -43,7 +43,7 @@ import { ABSCHNITTE, EBENE_WORT, LEGENDE, THEMEN, abschnittVon, gruppeVonThema, 
 import { BLOCK_GRUENDE, hatInhalt, ohneBefundZeile, themaGliederung, themenAnsicht, type ThemaFrage, type ThemaTeil, type ThemenAnsicht } from './bedarf/themenansicht'
 import { FELD_HILFEN, SICHTBAR, bedingungText, bezuegeImFall, feldZiel, frageVon, leerText, regelPfade, schalter, schalterText, sichtbar,
   wozuTeilen, type SichtKontext } from './bedarf/feldhilfen'
-import { A2_OFFEN_TEXT, OHNE_ORTSLAGE_TEXT, typText, herkunftKurz } from './bedarf/befundblatt'
+import { A2_OFFEN_TEXT, OHNE_ORTSLAGE_TEXT, typText, herkunftKurz, herkunftSichtbar } from './bedarf/befundblatt'
 import { offeneFragen, zusammenfassung, zfEingabeBlatt, type OffeneFrage } from './bedarf/zusammenfassung'
 import { lesetext, tooltipText } from './bedarf/lesetext'
 import type { MassZeile } from './bedarf/typen'
@@ -288,6 +288,8 @@ function HerkunftZelle({ d, h, quelle, zurueck, offen, hinweis, bestaetigen }: {
     <span className="quelle-chip hand">von Hand</span>{' '}{zurueckKnopf}
   </>
   if (h.zustand === 'vorbelegt') return <><span className={`quelle-chip q-${h.quelle}`} title={`${d.name}: ${tooltipText(h.text)}`}>{QUELLE_TEXT[h.quelle!]}</span>
+    {/* Fusswegnetz (30.10.2026): Kategorie und Abstand sichtbar neben dem Wert, nicht nur im Tooltip */}
+    {herkunftSichtbar(d.pfad, h.text) && <>{' '}<span className="klein herkunft-sichtbar" title={tooltipText(h.text)}>– {herkunftSichtbar(d.pfad, h.text)}</span></>}
     {bestaetigen && h.vorbelegt && QUELLEN_BESTAETIGBAR.includes(h.quelle!) && <>{' '}<button type="button" className="zweit klein"
       title={`Annahme übernehmen: ${tooltipText(h.text)} (wird Handeingabe «bestätigt»; ein Verbot, das auf ihr beruht, gilt dann)`}
       aria-label={`${d.name}: Vorschlag bestätigen`} onClick={bestaetigen}>Vorschlag bestätigen</button></>}

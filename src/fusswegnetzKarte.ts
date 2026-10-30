@@ -1,8 +1,8 @@
-// ── Fusswegnetz (Richtplan Fussverkehr Stadt Bern) auf der Karte (30.10.2026; nur Darstellung, ohne Wirkung auf die Rechnung) ──
+// ── Fusswegnetz: die für die Prüfung genutzte Basisnetz-Linie auf der Karte (30.10.2026; nur Darstellung, ohne Wirkung auf die Rechnung) ──
 //
-// Zeigt die schon für die Vorbelegung geladenen Daten (daten/richtplanFussverkehr.ts, keine eigene Abfrage): Basisnetz-Linien und
-// publikumsattraktive Bereiche. Die Basisnetz-Linie, die die Vorbelegung nutzt (quert die Fahrbahn bis AUTO_C.netzM vom Streifen, die
-// nächste je Querung wie automatikC.netzVorbelegen), ist markiert, damit sichtbar ist, warum «Fusswegnetz» vorbelegt ist.
+// Aus den schon für die Vorbelegung geladenen Daten (daten/richtplanFussverkehr.ts, keine eigene Abfrage) nur die Basisnetz-Linie, die
+// die Vorbelegung nutzt (quert die Fahrbahn bis AUTO_C.netzM vom Streifen, die nächste je Querung wie automatikC.netzVorbelegen), damit
+// sichtbar ist, warum «Fusswegnetz» vorbelegt ist. Das ganze Netz und die Bereiche zeigt die WMS-Ebene des Geoportals (richtplanWms.ts).
 
 import type { P } from './geo'
 import type { StreifenErgebnis } from './rechner/typen'
@@ -10,29 +10,29 @@ import type { RichtplanDaten } from './daten/richtplanFussverkehr'
 import { imBereich, type Bereich } from './daten/haltestellen'
 import { AUTO_C, querAbstand, querungsAchse } from './bedarf/automatikC'
 
-export const FUSSWEGNETZ_NAME = 'Fusswegnetz (Richtplan Bern)'
+export const FUSSWEGNETZ_NAME = 'Fusswegnetz: für die Prüfung genutzte Linie'
 export const FUSSWEGNETZ_FARBE = '#6b21a8'
-export const STRICH_FUSSWEGNETZ = '6 4'
 export const BASISNETZ_TEXT = 'Basisnetz Fussverkehr (Richtplan Stadt Bern)'
 
+/** von der Vorbelegung genutzte Basisnetz-Linie (quert die Fahrbahn bis AUTO_C.netzM vom Streifen, nächste Linie der Querung) */
 export interface FwnLinie { id: string; teile: P[][]
-  /** von der Vorbelegung genutzt (quert die Fahrbahn bis AUTO_C.netzM vom Streifen, nächste Linie der Querung) */
-  genutzt: boolean
+  /** Abstand der Querung der Fahrbahn vom Streifen [m] */
+  abstandM: number
   /** Tooltip (Klartext) */
   text: string }
-export interface FwnFlaeche { id: string; ringe: P[][]; text: string }
-export interface FusswegnetzKarte { linien: FwnLinie[]; flaechen: FwnFlaeche[] }
+export interface FusswegnetzKarte { linien: FwnLinie[] }
 
 const wo = (d: number) => (Math.round(d) === 0 ? 'beim Streifen' : `${Math.round(d)} m vom Streifen`)
 
 /**
- * Ebene «Fusswegnetz» aus den geladenen Richtplan-Daten (null: nicht geladen bzw. ausserhalb Berns). querungen: Streifen je Querung
- * (vorbelegung.querungen); bereich: geladener Ausschnitt (ohne Deckung bis AUTO_C.wunschM keine Markierung, wie die Vorbelegung).
+ * Ebene «Fusswegnetz: für die Prüfung genutzte Linie» aus den geladenen Richtplan-Daten; null: nicht geladen, ausserhalb Berns bzw.
+ * keine Linie genutzt. querungen: Streifen je Querung (vorbelegung.querungen); bereich: geladener Ausschnitt (ohne Deckung bis
+ * AUTO_C.wunschM keine Linie, wie die Vorbelegung).
  */
 export function fusswegnetzKarte(rp: RichtplanDaten | null | undefined, querungen: readonly StreifenErgebnis[][], bereich?: Bereich):
   FusswegnetzKarte | null {
-  if (!rp || (!rp.basisnetz?.length && !rp.publikum?.length)) return null
-  const linien = rp.basisnetz ?? []
+  const linien = rp?.basisnetz ?? []
+  if (!linien.length) return null
   const genutzt = new Map<string, number>()
   for (const st of querungen) {
     if (!st.length) continue
@@ -44,13 +44,7 @@ export function fusswegnetzKarte(rp: RichtplanDaten | null | undefined, querunge
     // gleich nahe Linien (z. B. an der Querung geteilte Abschnitte) alle
     d.forEach((x, i) => { if (x !== null && x <= min + 1e-6) genutzt.set(linien[i].id, Math.min(x, genutzt.get(linien[i].id) ?? Infinity)) })
   }
-  return {
-    linien: linien.map(l => {
-      const g = genutzt.get(l.id)
-      return { id: l.id, teile: l.teile, genutzt: g !== undefined,
-        text: g !== undefined ? `${BASISNETZ_TEXT}: für die Vorbelegung genutzt, quert die Fahrbahn ${wo(g)}` : BASISNETZ_TEXT }
-    }),
-    flaechen: (rp.publikum ?? []).map(f => ({ id: f.id, ringe: f.ringe,
-      text: f.name ? `Publikumsattraktiver Bereich: ${f.name}` : 'Publikumsattraktiver Bereich (Richtplan Stadt Bern)' })),
-  }
+  const aus = linien.filter(l => genutzt.has(l.id)).map(l => ({ id: l.id, teile: l.teile, abstandM: genutzt.get(l.id)!,
+    text: `${BASISNETZ_TEXT}: für die Vorbelegung genutzt, quert die Fahrbahn ${wo(genutzt.get(l.id)!)}` }))
+  return aus.length ? { linien: aus } : null
 }

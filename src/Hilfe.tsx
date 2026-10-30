@@ -196,9 +196,10 @@ export function Anleitung() {
             Nutzungszonenplan und die ÖV-Linien aus dem Geoportal, überall aus OSM Schulen, Heime und Vortrittszeichen in der Nähe. Daraus
             belegt sie Tempo, Strecke oder Zone (Tempo 30 ohne Zonenangabe nach der Strassenhierarchie, als Annahme), Strassentyp,
             besonderen Grund für Vortritt, Fusswegnetz, ertastbare Markierungen, Gewerbe und bebautes Gebiet, Linienbus, Tramhalt und an
-            einer Kreuzung die Vortrittsrolle vor; was die Daten nicht klären, bleibt offen. Das Fusswegnetz steht auch auf der Karte
-            (Ebene «Fusswegnetz (Richtplan Bern)»): Basisnetz gestrichelt, die für die Vorbelegung genutzte Linie kräftig, publikumsattraktive
-            Bereiche schraffiert. Bleibt eine Regel dank einer solchen Angabe ohne Befund, nennt die Zeile im Thema den Grund (z. B. «Wenig
+            einer Kreuzung die Vortrittsrolle vor; was die Daten nicht klären, bleibt offen. Die Basisnetz-Linie, aus der die App das
+            Fusswegnetz vorbelegt, steht kräftig auf der Karte (Ebene «Fusswegnetz: für die Prüfung genutzte Linie»); den ganzen Richtplan
+            Fussverkehr in der Darstellung des Geoportals zeigt die Ebene «Richtplan Fussverkehr (Geoportal Bern)» (in der Stadt Bern,
+            anfangs aus). Bleibt eine Regel dank einer solchen Angabe ohne Befund, nennt die Zeile im Thema den Grund (z. B. «Wenig
             Querende: ohne Befund – Querung im Fusswegnetz (Geoportal Stadt Bern)»). Ein Verbot (Tempo-30-Zone ohne besonderen
             Grund, Begegnungszone), das nur auf Annahmen beruht, bleibt offen, bis die Annahme mit «Vorschlag bestätigen» übernommen oder
             von Hand geändert ist. Ausnahme Tempo 20: ist genau 20 km/h signalisiert (Geoportal bzw. OSM) und widerspricht keine
@@ -396,7 +397,9 @@ export function Datenschutz() {
               (Swiss OpenStreetMap Association), bei Störung ersatzweise {weitere.join(', ')}.</li>
             <li>map.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern: Rechteck ±150 m für amtliche Parkfelder bzw. den
               Baumkataster, Haltestellen, Verkehrsdaten, Richtplan Fussverkehr, Strassenhierarchie und Strassentypen, signalisierte
-              Höchstgeschwindigkeit, Volksschulen und Kindergärten (±200 m), taktil-visuelle Markierungen, Nutzungszonen und ÖV-Linien.</li>
+              Höchstgeschwindigkeit, Volksschulen und Kindergärten (±200 m), taktil-visuelle Markierungen, Nutzungszonen und ÖV-Linien.
+              Die Kartenebene «Richtplan Fussverkehr (Geoportal Bern)» sendet den sichtbaren Kartenausschnitt (Kartenbilder und
+              Legendenbilder) nur, wenn sie eingeschaltet ist.</li>
           </ul>
           Die Streifen aus dem Luftbild (ETH-Modell) liegen als Datei je Stadt auf dieser Seite: dafür geht keine Anfrage an einen
           anderen Dienst.

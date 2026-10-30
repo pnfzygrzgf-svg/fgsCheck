@@ -36,6 +36,9 @@ export function mehrheit(ids: readonly string[]): Thema | null {
 const FELD_THEMA: Readonly<Record<string, Thema>> = {
   lage: 'lage', zweirichtung: 'fahrstreifen', radstreifen: 'fahrstreifen', tram: 'fahrstreifen', strassentyp: 'fahrstreifen',
   starkBelastet: 'fahrstreifen', neuanlage: 'zulaessigkeit', mzsMitFgs: 'ohneVortritt', inselMoeglich: 'insel',
+  // 30.10.2026: Stellung im Berner Fusswegnetz neben der amtlichen Fusswegnetzplanung (die Regeln C2-B, C4-B stehen in Zulässigkeit
+  // bzw. Fahrstreifen und verweisen hierher)
+  netz: 'nachfrage',
 }
 
 const themaCache = new Map<string, Thema | null>()
