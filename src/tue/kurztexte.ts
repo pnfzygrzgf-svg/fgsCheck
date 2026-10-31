@@ -46,7 +46,13 @@ const REGELN: Regel[] = [
   // Einbahn vom Knoten weg: aus dem Ergebnis (Arm der Zufahrt, Velo gegen die Einbahn) in knotensicht.ts, hier ohne Text
   [/^Die Zufahrt ist (nach OSM )?eine Einbahn vom Knoten weg/, () => null],
   [/spitzer Winkel/, () => 'Spitzer Winkel: Seiten links und rechts prüfen.'],
-  [/^Kreisverkehr/, () => 'Kreisverkehr: Ergebnis nur zur Orientierung.'],
+  // Kreisverkehr: seit 31.10.2026 rechnet der Kern dort nicht mehr (Meldung statt Ergebnis), der frühere Hinweis entfällt
+  // neue Hinweise des Kerns (31.10.2026)
+  [/^Lichtsignalanlage: Im Betrieb regelt das Lichtsignal/, () => 'Lichtsignalanlage am Knoten (OSM): gerechnet ist die Sicht bei ausgeschalteter Anlage.'],
+  [/^Arm .+ endet nach (\d+) m/, m => ({ text: `Die Strasse mit Vortritt endet nach ${m[1]} m an einer Kreuzung: weiter weg ist die Fahrlinie ` +
+    'gerade angenommen, Sicht vor Ort prüfen.', unklar: true })],
+  [/^Neben der Zufahrt liegt nach der AV eine weite Fahrbahnfläche/, () => ({ text: 'Neben der Ausfahrt liegt eine weite Fahrbahnfläche ' +
+    '(Platz): Lage der Ausfahrt nach OSM angenommen, vor Ort prüfen.', unklar: true })],
   // Auge von Hand (27.10.2026; Kern: «D von Hand …»)
   [/^D von Hand ([\d,]+) m hinter der .*: weniger als ([\d,]+) m/, m => `Auge von Hand ${m[1]} m hinter dem vorderen Rand: weniger als ${m[2]} m (VSS 40 273 Ziffer 12).`],
   [/^D von Hand liegt (\d+) m vom Nullpunkt entfernt/, m => `Auge von Hand ${m[1]} m vom vorderen Rand entfernt: Lage prüfen.`],

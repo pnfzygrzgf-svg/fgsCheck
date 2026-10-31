@@ -182,4 +182,15 @@ describe('Block 3 (Nutzerentscheide 30.10.2026)', () => {
     expect(WERKE['40837'].name).toBe('VSS 40 837')
     expect(WERKE.HBLSA).toBeDefined()
   })
+  it('VSS 40 040b (Entscheid 31.10.2026): Begriffe verkehrs- bzw. siedlungsorientiert bei E1, E2 und E2a; eine Regel mit eigenem Befund', () => {
+    expect(WERKE['40040']).toMatchObject({ name: 'VSS 40 040b', titel: 'Strassentypen', ausgabe: '2019-03', bezug: 'kostenpflichtig' })
+    expect(LESENAME['40040']).toBe('VSS-Norm 40 040b Strassentypen')
+    expect(WERK_INFO['40040'].ebene).toBe('Norm')
+    for (const id of ['E1', 'E2', 'E2a']) expect(D(id).quellen, id).toContainEqual({ werk: '40040', ziffer: 'Z. 5, S. 2' })
+    // erste Quelle bleibt VSS 40 240 (Reihenfolge im Thema)
+    for (const id of ['E1', 'E2', 'E2a']) expect(D(id).quellen[0].werk, id).toBe('40240')
+    expect((Object.keys(KATALOG) as RegelId[]).filter(id => D(id).quellen.some(q => q.werk === '40040')).sort()).toEqual(['E1', 'E2', 'E2a'])
+    // E1 und E2 sind Verzweigungen des Ablaufs (Weichen): gezählt wird nur E2a
+    expect(regelnJeWerk().get('40040')).toBe(1)
+  })
 })

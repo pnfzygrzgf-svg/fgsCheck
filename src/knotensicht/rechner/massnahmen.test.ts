@@ -51,7 +51,7 @@ describe('E3a: Massnahmen, Fall A (50 km/h, Parkfeld in der Südwest-Ecke)', () 
   it('heute: nach links 25,25 m < 50 m nicht erfüllt, nach rechts erfüllt; Liste in der Reihenfolge 1 bis 7', () => {
     expect(seite(e, 'links').vorhanden).toBeCloseTo(25.25, 2)
     expect([seite(e, 'links').status, seite(e, 'rechts').status]).toEqual(['nicht_erfuellt', 'erfuellt'])
-    expect(e.massnahmen!.map(m => m.nr)).toEqual([1, 2, 3, 4, 5, 6, 7])
+    expect(e.massnahmen!.map(m => m.nr)).toEqual([1, 2, 3, 4, 10, 5, 6, 7])
   })
   it('1 Hindernis entfernen: ohne Parkfeld erfüllt', () => {
     const m = nr(e, 1)!
@@ -123,7 +123,9 @@ describe('E3a: Massnahmen, Fall B (30 km/h, Parkfeld näher): Haltelinie reicht'
   })
   it('D von Hand: Haltelinie und Spiegel ohne Rechnung', () => {
     const d = rechne('30', [parkfeld(-13, -8)], { D: lv(0.75, -6) })
-    expect(nr(d, 2)).toMatchObject({ reicht: null, text: 'D von Hand gesetzt: nicht gerechnet.' })
+    expect(nr(d, 2)).toMatchObject({ reicht: null })
+    expect(nr(d, 2)!.text).toBe('D von Hand gesetzt: nicht gerechnet. Nur an bestehenden Knoten und Zufahrten, mit Zusatzmassnahmen (z. B. ' +
+      'Sperrfläche, versetzte Randlinie); bfu: nur im Bestand, die Sicht muss spätestens ab B 1,50 m reichen (bfu BM.021 Kap. 3.3, S. 5).')
     expect(nr(d, 7)!.sichtUnterMin).toBe(false)
   })
 })
@@ -142,7 +144,7 @@ describe('E3a: Massnahmen, Fall C (Parkfeld in der Südost-Ecke): Rechtsabbiegeg
     expect(r.meldungen).toEqual([])
     const e = r.ergebnis!
     expect(seite(e, 'rechts').vorhanden).toBeCloseTo(15.25, 1)
-    expect(e.massnahmen!.map(m => m.nr)).toEqual([1, 2, 3, 4, 5, 6, 8])
-    expect(nr(e, 8)!.text).toContain('Aufhebung der gefährlichen Ausfahrt')
+    expect(e.massnahmen!.map(m => m.nr)).toEqual([1, 2, 3, 4, 10, 5, 6, 8])
+    expect(nr(e, 8)!.text).toContain('die gefährliche Ausfahrt aufheben')
   })
 })

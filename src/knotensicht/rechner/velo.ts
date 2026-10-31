@@ -12,7 +12,9 @@
 // Neigung unbekannt (kein Höhenprofil, nicht von Hand; Entscheid 31.10.2026): strengster Wert, Tab. 3 Spalte ≤ −4 bzw. Tab. 2
 // Spalte ≤ −6.
 // Trottoir: Tab. 2 nach der Längsneigung des Trottoirs in Gehrichtung auf die Zufahrt zu (Spalten ≤ −6, −4, −2, ≥ 0 %; Zwischenwerte
-// zur Spalte talwärts daneben: −6 < i ≤ −4 -> «−4», −4 < i < 0 -> «−2»). Achse des Trottoirs: Mitte der AV-Fläche Trottoir aus
+// zur Spalte talwärts daneben: −6 < i ≤ −4 -> «−4», −4 < i < 0 -> «−2»). Die Richtung der Neigung (in Gehrichtung auf die Zufahrt zu,
+// talwärts negativ) ist eine Auslegung (Block 5, TROTTOIR_NEIGUNG_AUSLEGUNG): Tab. 2 nennt keine Richtung; gestützt auf bfu BM.021
+// Tab. 3, Fussnote S. 7 (bei Gefälle höhere Geschwindigkeit auf dem Trottoir). Achse des Trottoirs: Mitte der AV-Fläche Trottoir aus
 // Querschnitten entlang der Vortrittsstrasse (wie die Fahrbahn), der Bordkante folgend.
 // Nur Zahlenwerte der Norm, kein Normtext.
 
@@ -77,6 +79,9 @@ export function veloSichtweite(tempo: number, i: number, ebikeVerboten = false, 
   return { A, spalte, zeile, ebike, text }
 }
 
+/** Richtung der Neigung des Trottoirs als Auslegung (Block 5; Annahmen, Panel, Hilfe) */
+export const TROTTOIR_NEIGUNG_AUSLEGUNG = 'Richtung der Neigung: in Gehrichtung auf die Zufahrt zu, talwärts negativ (Auslegung; VSS 40 273 ' +
+  'Tab. 2 nennt keine Richtung; gestützt auf bfu BM.021 Tab. 3, Fussnote S. 7: bei Gefälle höhere Geschwindigkeit auf dem Trottoir)'
 /** VSS 40 273 Tab. 2: A [m] auf dem Trottoir je Spalte (≤ −6, −4, −2, ≥ 0 %) */
 export const TAB2 = [30, 20, 20, 15]
 export const TAB2_SPALTEN = ['≤ −6', '−4', '−2', '≥ 0']
@@ -201,15 +206,19 @@ const TROTTOIR_SCHRITT = 0.05
 
 /**
  * Lage der Trottoirachse neben einem Arm (Mittellinie ml vom Knoten weg) auf der Seite seite (+1 links von u, −1 rechts): je
- * Querschnitt (QUER_VON_M bis QUER_BIS_M) ab dem Fahrbahnrand (rand) nach aussen das Trottoir der AV (istTrottoir), Mitte und
- * Breite; Median über mindestens drei Querschnitte. -> { versatz (Abstand der Achse von ml, ohne Vorzeichen), breite, n } bzw. null
+ * Querschnitt (QUER_VON_M bis QUER_BIS_M) ab dem Fahrbahnrand (rand0, bzw. randBei je Stelle) nach aussen das Trottoir der AV
+ * (istTrottoir), Mitte und Breite; Median über mindestens drei Querschnitte. -> { versatz (Abstand der Achse von ml, ohne Vorzeichen;
+ * mit randBei: Abstand vom Rand plus rand0), breite, n } bzw. null
  */
-export function trottoirNeben(ml: P[], seite: 1 | -1, rand: number, istTrottoir: (p: P) => boolean): { abstand: number; breite: number; n: number } | null {
+export function trottoirNeben(ml: P[], seite: 1 | -1, rand0: number, istTrottoir: (p: P) => boolean,
+  randBei: ((s: number) => number) | null = null): { abstand: number; breite: number; n: number } | null {
   const ab: number[] = []
   for (let s = QUER_VON_M; s <= QUER_BIS_M + 1e-9; s += QUER_SCHRITT_M) ab.push(s)
   const mitten: number[] = [], breiten: number[] = []
-  for (const [q, t] of punkteAufSpur(ml, ab)) {
+  // Rand je Stelle (randBei; Befund 31.10.2026, Teilung der Fahrbahn): Lage des Trottoirs relativ zum Rand, auf rand0 bezogen
+  for (const [[q, t], k] of punkteAufSpur(ml, ab).map((x, k) => [x, k] as const)) {
     const n = links(t)
+    const rand = randBei ? randBei(ab[k]) : rand0, dr = rand - rand0
     const bei = (x: number) => istTrottoir(add(q, n, seite * x))
     let x0: number | null = null
     for (let x = rand + TROTTOIR_SUCHE_VON_M; x <= rand + TROTTOIR_SUCHE_BIS_M + 1e-9; x += TROTTOIR_SCHRITT) if (bei(x)) { x0 = x; break }
@@ -224,7 +233,7 @@ export function trottoirNeben(ml: P[], seite: 1 | -1, rand: number, istTrottoir:
     const r0 = grenze(x0 - TROTTOIR_SCHRITT, x0), r1 = grenze(x1 + TROTTOIR_SCHRITT, x1)
     const b = r1 - r0
     if (b < TROTTOIR_BREITE_MIN || b > TROTTOIR_BREITE_MAX) continue
-    mitten.push((r0 + r1) / 2); breiten.push(b)
+    mitten.push((r0 + r1) / 2 - dr); breiten.push(b)
   }
   if (mitten.length < 3) return null
   return { abstand: median(mitten), breite: median(breiten), n: mitten.length }

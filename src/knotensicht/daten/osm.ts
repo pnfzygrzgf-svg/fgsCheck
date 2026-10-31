@@ -399,8 +399,10 @@ export const HW_KNOTEN = ['motorway', 'motorway_link', 'trunk', 'trunk_link', 'p
  */
 export function knotenAbfrage(s: number, w: number, n: number, e: number): string {
   const b = [s, w, n, e].map(v => v.toFixed(6)).join(',')
+  // Korrektur 31.10.2026 (Punkt 16): Punkte an Kreiseln (junction=roundabout bzw. circular) gehören nicht dazu (Differenz der Mengen)
   return `[out:json][timeout:20];way(${b})["highway"~"^(${HW_KNOTEN.join('|')})$"]["access"!~"^(no|private)$"]` +
-    `["motor_vehicle"!~"^(no|private)$"]->.w;node(way_link.w:3-)(${b});out skel qt;` +
+    `["motor_vehicle"!~"^(no|private)$"]->.w;way.w["junction"~"^(roundabout|circular)$"]->.r;` +
+    `(node(way_link.w:3-)(${b}); - node(w.r););out skel qt;` +
     `way(${b})["highway"~"^(${HW_ALLE.join('|')})$"]["name"];out tags center;`
 }
 

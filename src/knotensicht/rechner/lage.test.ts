@@ -76,7 +76,7 @@ describe('Lage: Zufahrt auf der durchgehenden Strasse (Arm West)', () => {
     // Rechnung unverändert: die Richtung links wird wie bisher geprüft
     expect(seite(e, 'links').status).not.toBe('keine_zufahrt')
     // Annahmen mit der Lage
-    expect(e.annahmen.join(' | ')).toContain('zum Gegenverkehr')
+    expect(e.annahmen.join(' | ')).toContain('beim Gegenverkehr')
   })
   it('Massnahme 4: Rechtsabbiegegebot nicht anwendbar, Vermerk Linksabbiegeverbot', () => {
     // Gebäude in der Ecke Südwest (x −30 … −3, y −60 … −3,5) verdeckt die Sicht von D nach Süden: eine Richtung nicht erfüllt

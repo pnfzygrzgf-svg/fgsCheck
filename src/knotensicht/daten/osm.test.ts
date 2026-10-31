@@ -147,7 +147,7 @@ describe('Strassennamen vor dem Klick (Wegmitten aus der Knotensuche)', () => {
   const xy = (s: Strassenname) => { const p = lv95(s.lat, s.lon); return [r1(p[0] - O[0]), r1(p[1] - O[1])] }
   it('Abfrage: Knoten mit drei und mehr Strassenarmen (way_link), dazu benannte befahrbare Wege nur als Mittelpunkt (ohne Geometrie)', () => {
     const q = knotenAbfrage(46.9, 7.4, 46.91, 7.42)
-    expect(q).toContain('node(way_link.w:3-)(46.900000,7.400000,46.910000,7.420000);out skel qt;')
+    expect(q).toContain('node(way_link.w:3-)(46.900000,7.400000,46.910000,7.420000); - node(w.r););out skel qt;')
     expect(q).toContain('|living_street|road)$"]["access"!~"^(no|private)$"]')
     expect(q).not.toContain('service|road)$"]["access"')
     expect(q).toMatch(/way\(46\.900000,7\.400000,46\.910000,7\.420000\)\["highway"~"\^\(motorway\|.*\|busway\)\$"\]\["name"\];out tags center;$/)

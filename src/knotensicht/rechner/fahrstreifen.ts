@@ -7,6 +7,7 @@
 // fahrstreifen_tags, busstreifen_rechts, bus_ueberspringen, fahrstreifen_osm, fahrstreifen_arm, fahrstreifen_lage,
 // fahrstreifen_uebernehmen, fs_hinweis, osm_breite, lage_osm, fahrbahn_osm, wege_abschnitte, weg_bei, hoch_bei,
 // querschnitt_am_knoten wie in Python.
+// Lage je Querschnitt (Entscheid 31.10.2026, nicht in Python): randProfil, fahrstreifenLagen, profilBei.
 
 import { type P, add, dist, dot, einheit, neg, sub, median, drehung } from '../geo'
 import { type OsmNetz, type Gequert, type Suche, type Knotenbereich, type ArmInfo, einbahnTag, RASTER, FAST_GERADE_GRAD } from './netz'
@@ -283,6 +284,8 @@ export interface Fs {
   parkR: boolean; parkL: boolean; abzugParkR: number; abzugParkL: number; veloR: number; veloL: number
   jeRichtung: number; vomRand: number; nSehnen: number; mehrstreifig: number; zweiRichtungen: number
   abzugQuelle: string | null; osm?: FsoLage; quelle?: string; osmQuelle?: string
+  /** freier Abzug rechts bzw. links (max. Parkierung, Velostreifen) [m], für die Lage je Stelle (fahrstreifenLagen) */
+  randRFrei?: number; randLFrei?: number
 }
 
 /** fahrstreifen_uebernehmen -> Verschiebung (m) oder null */
@@ -348,7 +351,9 @@ export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Fahrba
   let trefferR = 0, trefferL = 0
   ref.forEach(([q, r], i) => {
     const sh = fahrbahn.sehne(q, r)
-    if (sh === null) return
+    // Sehnen an der Suchgrenze (kein Rand innert SEHNE_HALB: Platz, Kreuzungsfläche) zählen nicht, wie in querschnitt und randProfil
+    // (Befund 31.10.2026, Hubelmattstrasse/Loryplatz: Median 22 m = Suchgrenze als Fahrbahnrand, D 21 m neben der Zufahrt)
+    if (sh === null || Math.max(sh[0], sh[1]) >= SEHNE_HALB - 0.5) return
     er.push(sh[0]); el.push(sh[1])
     // Parkstreifen: Auto-Parkfeld am Prüfpunkt PARK_SONDE_M innerhalb der Bordkante (fahrstreifenmitte, park.trifft)
     if (park && !park.leer) {
@@ -383,9 +388,166 @@ export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Fahrba
   const out: Fs = { lage: rechtsM - vomRand, breite, rechts: rechtsM, links: linksM, lagePlausi: rechtsM - vomRand,
     parkR: pr > 0, parkL: pl > 0, abzugParkR: pr, abzugParkL: pl, veloR: Math.round(vr * 100) / 100,
     veloL: Math.round(vl * 100) / 100, jeRichtung: je, vomRand, nSehnen: er.length, mehrstreifig: je > MEHRSTREIFIG_AB ? 1 : 0,
-    zweiRichtungen: zweiRichtungen ? 1 : 0, abzugQuelle: quellen.length ? quellen.join(', ') : null }
+    zweiRichtungen: zweiRichtungen ? 1 : 0, abzugQuelle: quellen.length ? quellen.join(', ') : null, randRFrei, randLFrei }
   if (fso) out.osm = fahrstreifenLage(fso, netto, randRFrei, rechtsM)
   return out
+}
+
+// ---------------------------------------------------------------- Lage je Querschnitt (Entscheid 31.10.2026)
+// Statt einer festen seitlichen Verschiebung der OSM-Linie (Median der Sehnen) folgt die Achse der AV-Fahrbahn: je Querschnittstelle
+// die Ränder, Ausreisser (Breite stark abweichend: Einmündungstrichter, Parkbucht, Kreuzungsfläche, Lücke im Polygon) verworfen, die
+// Ränder über benachbarte Stellen geglättet; zwischen den Stellen linear, vor der ersten und nach der letzten Stelle konstant.
+
+/** Annahme: eine Sehne gilt als Ausreisser, wenn ihre Breite um mehr als diesen Anteil der Bezugsbreite (Median) abweicht … */
+export const PROFIL_AUSREISSER_ANTEIL = 0.25
+/** … bzw. um mehr als so viele Meter (es gilt die kleinere Grenze; Annahme) */
+export const PROFIL_AUSREISSER_M = 1.5
+/** Annahme: gleitender Median der Ränder über so viele gültige Stellen (an den Enden symmetrisch verkürzt) */
+export const PROFIL_GLAETTUNG = 5
+
+/** Ränder je Stelle: s = Bogenlänge auf der Referenzlinie (nur gültige Stellen, aufsteigend), rechts/links = geglättete Abstände
+ *  in Richtung r der Sehne bzw. dagegen (wie Fahrbahn.sehne); n gültige, verworfen = Ausreisser, breite = Bezugsbreite (Median) */
+export interface RandProfil { s: number[]; rechts: number[]; links: number[]; n: number; verworfen: number; breite: number
+  /** Stellen, an denen ein Rand (Eckausrundung, Mündung, Bucht) aus dem anderen und der Breite der Nachbarstellen ersetzt ist */
+  ersetzt?: number
+  /** erste Stelle mit beiden Rändern stetig (Beginn der Strecke; davor Mündung bzw. Eckausrundung) */
+  sStrecke?: number }
+
+/** Wert eines Profils bei x: zwischen den Stellen linear, davor und danach konstant */
+export function profilBei(s: number[], werte: number[], x: number): number {
+  if (!s.length) return 0
+  if (x <= s[0]) return werte[0]
+  const n = s.length - 1
+  if (x >= s[n]) return werte[n]
+  let k = 0
+  while (k < n - 1 && s[k + 1] < x) k++
+  const d = s[k + 1] - s[k]
+  return d > 0 ? werte[k] + (werte[k + 1] - werte[k]) * (x - s[k]) / d : werte[k]
+}
+
+/** gleitender Median über PROFIL_GLAETTUNG Werte, an den Enden symmetrisch verkürzt (ein linearer Verlauf bleibt erhalten) */
+export function gleitenderMedian(xs: number[], fenster = PROFIL_GLAETTUNG): number[] {
+  const h0 = Math.floor(fenster / 2)
+  return xs.map((_, i) => {
+    const h = Math.min(h0, i, xs.length - 1 - i)
+    return median(xs.slice(i - h, i + h + 1))
+  })
+}
+
+/**
+ * Randprofil aus Sehnen je Stelle (s aufsteigend; sehne = [rechts, links] wie Fahrbahn.sehne oder null). Sehnen an der Suchgrenze
+ * (SEHNE_HALB − 0,5 m) zählen nicht. bezug: Bezugsbreite für die Ausreisser (Vorgabe: Median der Breiten dieser Stellen).
+ * Weniger als SEHNE_MIN_PUNKTE gültige Stellen: null (feste Lage wie bisher).
+ */
+export function randProfil(s: number[], sehnen: ([number, number] | null)[], bezug: number | null = null): RandProfil | null {
+  const roh = s.map((x, i) => ({ s: x, sh: sehnen[i] })).filter((x): x is { s: number; sh: [number, number] } =>
+    x.sh !== null && x.sh !== undefined && Math.max(x.sh[0], x.sh[1]) < SEHNE_HALB - 0.5)
+  if (roh.length < SEHNE_MIN_PUNKTE) return null
+  const breite = bezug ?? bezugsBreite(roh.map(x => x.sh[0] + x.sh[1]))
+  const tol = ausreisserTol(breite)
+  // je Rand: Stellen auf einem stetigen Zug (stetig); Eckausrundung am Knoten, Mündungen und Buchten springen heraus (Befund 31.10.2026,
+  // Buchserstrasse/Sonnenhofweg, Jolimontstrasse). Beide Ränder stetig und Breite in der Grenze: Stelle gilt wie bisher
+  const xs = roh.map(x => x.s)
+  const stetigR = stetig(xs, roh.map(x => x.sh[0])), stetigL = stetig(xs, roh.map(x => x.sh[1]))
+  const beide = roh.filter((x, i) => stetigR[i] && stetigL[i] && Math.abs(x.sh[0] + x.sh[1] - breite) <= tol + 1e-9)
+  if (beide.length < SEHNE_MIN_PUNKTE) return null
+  // ein Rand stetig, der andere nicht: der andere aus der Breite der benachbarten Stellen mit beiden Rändern (Fahrbahn ohne die Aufweitung)
+  const bS = beide.map(x => x.s), bB = beide.map(x => x.sh[0] + x.sh[1])
+  const ok: { s: number; sh: [number, number] }[] = []
+  let ersetzt = 0
+  roh.forEach((x, i) => {
+    const b = profilBei(bS, bB, x.s)
+    if (stetigR[i] && stetigL[i]) { if (Math.abs(x.sh[0] + x.sh[1] - breite) <= tol + 1e-9) ok.push(x) }
+    else if (stetigR[i] && Math.abs(x.sh[0] - (b - profilBei(bS, beide.map(y => y.sh[1]), x.s))) <= tol) { ok.push({ s: x.s, sh: [x.sh[0], b - x.sh[0]] }); ersetzt++ }
+    else if (stetigL[i] && Math.abs(x.sh[1] - (b - profilBei(bS, beide.map(y => y.sh[0]), x.s))) <= tol) { ok.push({ s: x.s, sh: [b - x.sh[1], x.sh[1]] }); ersetzt++ }
+  })
+  return { s: ok.map(x => x.s), rechts: gleitenderMedian(ok.map(x => x.sh[0])), links: gleitenderMedian(ok.map(x => x.sh[1])),
+    n: ok.length, verworfen: roh.length - ok.length, ersetzt: ersetzt, sStrecke: bS[0], breite }
+}
+
+/** Annahme: ein Rand ändert sich entlang der Strecke höchstens so stark je Meter (schräge OSM-Linie, Kurve); grössere Sprünge sind
+ *  Eckausrundung, Mündung, Bucht */
+export const PROFIL_SPRUNG_M_PRO_M = 0.15
+/** ein Zug überbrückt höchstens so lange Lücken (eine ausgelassene Stelle bei 2 m Abstand: einzelne Bucht, fehlende Sehne) */
+export const PROFIL_LUECKE_M = 4
+/** je Stelle: gehört ihr Rand zu einem stetigen Zug von mindestens SEHNE_MIN_PUNKTE Stellen? Jede Stelle schliesst an den Zug an,
+ *  dessen letzter Wert ihr am nächsten liegt (innerhalb der Grenze), sonst beginnt sie einen neuen; ein einzelner Sprung (Bucht)
+ *  unterbricht den Zug darum nicht */
+export function stetig(s: number[], w: number[]): boolean[] {
+  const zug: number[] = [], letzte: number[] = []     // Zug je Stelle; letzte Stelle je Zug
+  for (let i = 0; i < s.length; i++) {
+    let best = -1, bestD = Infinity
+    letzte.forEach((k, z) => {
+      const d = Math.abs(w[i] - w[k])
+      if (s[i] - s[k] <= PROFIL_LUECKE_M + 1e-9 && d <= PROFIL_SPRUNG_M_PRO_M * (s[i] - s[k]) + 1e-9 && d < bestD) { best = z; bestD = d }
+    })
+    if (best < 0) { best = letzte.length; letzte.push(i) } else letzte[best] = i
+    zug.push(best)
+  }
+  const n = new Map<number, number>()
+  for (const z of zug) n.set(z, (n.get(z) ?? 0) + 1)
+  return zug.map(z => n.get(z)! >= SEHNE_MIN_PUNKTE)
+}
+
+const ausreisserTol = (b: number) => Math.min(PROFIL_AUSREISSER_ANTEIL * b, PROFIL_AUSREISSER_M)
+
+/** Bezugsbreite: die Breite, in deren Toleranz die meisten Stellen liegen (bei Gleichstand die schmalere), dort der Median; robust
+ *  auch, wenn mehr als die Hälfte der Stellen in einer Aufweitung (Platz, Einmündung, Bucht) liegt, anders als der Median aller */
+export function bezugsBreite(breiten: number[]): number {
+  let best: number[] = []
+  for (const b of [...breiten].sort((x, y) => x - y)) {
+    const hier = breiten.filter(x => Math.abs(x - b) <= ausreisserTol(b) + 1e-9)
+    if (hier.length > best.length) best = hier
+  }
+  return median(best)
+}
+
+/** Randprofil entlang einer Referenzlinie: Sehnen an den Stellen ab (Bogenlänge), Richtung r der Sehne links der Laufrichtung (wie
+ *  querschnitt und die Zufahrt in rechnen.ts): rechts = Abstand zum Rand links der Laufrichtung, links = zum Rand rechts davon */
+export function randProfilEntlang(fahrbahn: Fahrbahn, linie: P[], ab: number[], bezug: number | null = null): RandProfil | null {
+  const pk = punkteAufSpur(linie, ab)
+  return randProfil(ab.slice(0, pk.length), pk.map(([q, t]) => fahrbahn.sehne(q, [-t[1], t[0]])), bezug)
+}
+
+/**
+ * Lage der Fahrstreifenmitte je Stelle (wie fahrstreifenmitte, aber mit den Rändern je Stelle statt dem Median): Abzüge
+ * (Parkierung, Velostreifen), Zweirichtungs- und Mehrstreifen-Entscheid bleiben die von fs; je Stelle lage = rechter Rand − Abstand
+ * vom Rand. art wie fahrstreifenmitte.
+ */
+export function fahrstreifenLagen(rp: RandProfil, fs: Fs, art: string): number[] {
+  const rR = fs.randRFrei ?? fs.abzugParkR, rL = fs.randLFrei ?? fs.abzugParkL
+  return rp.s.map((_, i) => {
+    const netto = Math.max(rp.rechts[i] + rp.links[i] - rR - rL, 2.0)
+    const je = fs.zweiRichtungen && art !== 'einbahn' ? netto / 2 : netto
+    return rp.rechts[i] - (rR + (fs.mehrstreifig ? FAHRSTREIFEN_MAX : je) / 2)
+  })
+}
+
+/** Annahme: in der Mündung ändert sich die Lage der Zufahrtsachse höchstens so stark je Meter (wie PROFIL_SPRUNG_M_PRO_M) */
+export const MUENDUNG_LAGE_M_PRO_M = PROFIL_SPRUNG_M_PRO_M
+
+/**
+ * Lage der Zufahrtsachse in der Mündung (Auftrag 31.10.2026): zwischen dem Knoten und der ersten stetigen Stelle sStrecke folgt die
+ * Achse dem rechten AV-Rand mit dem Abstand, den sie an sStrecke zu ihm hat (statt einer festen Lage zur OSM-Linie); je Meter ab sStrecke
+ * zum Knoten hin, Stellen ohne rechten Rand (rechtsBei null) linear überbrückt, Änderung höchstens MUENDUNG_LAGE_M_PRO_M je Meter
+ * (die Eckausrundung zieht die Achse sonst in den Arm daneben). prof.s wie rp.s; ab sStrecke bleibt prof.
+ */
+export function lageMuendung(prof: { s: number[]; lage: number[] }, rp: RandProfil, rechtsBei: (s: number) => number | null):
+  { s: number[]; lage: number[] } {
+  const s1 = rp.sStrecke
+  const k1 = s1 === undefined ? -1 : prof.s.findIndex(x => x >= s1 - 1e-9)
+  if (k1 < 0) return prof
+  const d1 = rp.rechts[k1] - prof.lage[k1]
+  const s: number[] = [], l: number[] = []
+  let vor = prof.lage[k1], sv = prof.s[k1]
+  for (let x = Math.ceil(sv) - 1; x >= 0; x--) {
+    const re = rechtsBei(x)
+    if (re === null) continue
+    const g = MUENDUNG_LAGE_M_PRO_M * (sv - x)
+    vor = Math.min(vor + g, Math.max(vor - g, re - d1)); sv = x
+    s.unshift(x); l.unshift(vor)
+  }
+  return { s: [...s, ...prof.s.slice(k1)], lage: [...l, ...prof.lage.slice(k1)] }
 }
 
 /** querschnitt_am_knoten */

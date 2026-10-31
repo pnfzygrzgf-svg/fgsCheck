@@ -1,15 +1,16 @@
 // ── Anhaltesichtweite S_A auf übrigen Strassen (VSS 40 090b, Abb. 2) ──
 //
 // VSS 40 090b Abb. 2, abgelesen, Ablesegenauigkeit ±2 m. Nur Zahlenwerte, kein Normtext.
-// Digitalisiert am 15.10.2026: Seite 5 bei 300 dpi gerendert, Achsen an allen Gitterlinien geeicht (i alle 1 %, S_A alle
-// 10 m, stückweise linear), Kurvenmitte je Pixelspalte verfolgt, je Stützstelle Ausgleichsgerade über ±0,6 %, auf ganze
-// Meter gerundet. Monoton: mit zunehmendem Gefälle (kleinerem i) nie kleiner.
-// Kontrolle bei i = 0 gegen den unteren Wert der VSS 40 273 Tab. 1: 40, 50 und 80 km/h stimmen (±1 m). 30 km/h liegt im
-// Diagramm 4 m höher (24 statt 20 m), 60 und 70 km/h 3 bzw. 2 m tiefer (67 statt 70 m, 88 statt 90 m). Die Eichung ist an den
-// Achsbeschriftungen geprüft und in der Prüfrunde unabhängig nachgemessen (Abweichung ≤ 0,9 m): die Abweichung steht im
-// Diagramm selbst (Tab. 1 offenbar gerundet). Entscheid 15.10.2026: Die Kurven werden so verschoben, dass sie bei i = 0 den
-// unteren Wert der Tab. 1 treffen (wert = Diagrammwert − Abweichung bei i = 0); aus Abb. 2 zählt nur die Wirkung der Neigung,
-// die VSS 40 273 bleibt bei i = 0 die Referenz, und an der 2-%-Grenze entsteht kein Sprung. Der rohe Diagrammwert bleibt in «roh».
+// Eigene Ablesung vom 30./31.10.2026 (Neigungstabelle.csv), Ablesegenauigkeit ±2 m; Werte ohne Ablesung aus der Digitalisierung
+// vom 15.10.2026 (70 km/h bei −12 und +12 %, 80 km/h bei −12, −10 und +12 %). Digitalisierung 15.10.2026: Seite 5 bei 300 dpi
+// gerendert, Achsen an allen Gitterlinien geeicht (i alle 1 %, S_A alle 10 m, stückweise linear), Kurvenmitte je Pixelspalte
+// verfolgt, je Stützstelle Ausgleichsgerade über ±0,6 %, auf ganze Meter gerundet. Monoton: mit zunehmendem Gefälle (kleinerem i)
+// nie kleiner (geprüft 31.10.2026, keine Zelle verletzt das).
+// Kontrolle bei i = 0 gegen den unteren Wert der VSS 40 273 Tab. 1 (Ablesung 30./31.10.2026): 30 km/h +4 m (24 statt 20 m),
+// 40 km/h +2 m (37 statt 35 m), 50 km/h +1 m (51 statt 50 m), 60 km/h −2 m (68 statt 70 m), 70 km/h −3 m (87 statt 90 m),
+// 80 km/h +1 m (111 statt 110 m): die Abweichung steht im Diagramm selbst (Tab. 1 offenbar gerundet).
+// Entscheid 15.10.2026: Die Kurven werden so verschoben, dass sie bei i = 0 den unteren Wert der Tab. 1 treffen (wert =
+// Diagrammwert − Abweichung bei i = 0); aus Abb. 2 zählt nur die Wirkung der Neigung, die VSS 40 273 bleibt bei i = 0 die Referenz, und an der 2-%-Grenze entsteht kein Sprung. Der rohe Diagrammwert bleibt in «roh».
 // Die Kurven 70 und 80 km/h sind nicht über den ganzen Bereich gezeichnet (ANHALTESICHT_GEZEICHNET, mit den gestrichelten
 // Stücken); die Werte ausserhalb sind verlängert (Gerade über die letzten 2 % der Kurve). Die Kurven ab 50 km/h sind an den Enden
 // gestrichelt; durchgezogen sind (am 300-dpi-Render nachgemessen, 31.10.2026) 30 und 40 km/h −12 … +12 %, 50 km/h −11 … +10 %,
@@ -24,15 +25,16 @@ export const ANHALTESICHT_I = [-12, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12]
 export const ANHALTESICHT_I_MIN = ANHALTESICHT_I[0]
 export const ANHALTESICHT_I_MAX = ANHALTESICHT_I[ANHALTESICHT_I.length - 1]
 
-/** VSS 40 090b Abb. 2, abgelesen, Ablesegenauigkeit ±2 m: VP [km/h] -> S_A [m] je Stützstelle von ANHALTESICHT_I */
+/** VSS 40 090b Abb. 2, abgelesen (eigene Ablesung 30./31.10.2026; Lücken aus der Digitalisierung 15.10.2026), Ablesegenauigkeit ±2 m:
+ *  VP [km/h] -> S_A [m] je Stützstelle von ANHALTESICHT_I */
 export const ANHALTESICHT: Record<number, number[]> = {
   //    −12  −10   −8   −6   −4   −2    0   +2   +4   +6   +8  +10  +12
-  30: [  27,  26,  26,  25,  24,  24,  24,  23,  23,  22,  22,  22,  22],
-  40: [  40,  38,  38,  37,  37,  36,  36,  35,  35,  34,  34,  33,  33],
-  50: [  57,  55,  54,  53,  52,  51,  50,  49,  48,  46,  46,  45,  44],
-  60: [  80,  77,  74,  72,  70,  69,  67,  66,  64,  63,  61,  60,  59],
-  70: [ 109, 103,  99,  95,  92,  90,  88,  85,  83,  81,  79,  78,  76],
-  80: [ 143, 135, 128, 123, 119, 114, 110, 106, 103, 100,  97,  95,  92],
+  30: [  26,  26,  26,  25,  25,  25,  24,  24,  24,  23,  23,  22,  22],
+  40: [  40,  40,  39,  38,  38,  37,  37,  36,  35,  34,  34,  33,  33],
+  50: [  58,  56,  54,  53,  52,  51,  51,  50,  49,  47,  46,  45,  45],
+  60: [  81,  78,  76,  74,  72,  70,  68,  66,  64,  62,  61,  60,  58],
+  70: [ 109, 101,  99,  95,  92,  89,  87,  85,  84,  82,  80,  78,  76],   // −12 und +12 % aus der Digitalisierung 15.10.2026
+  80: [ 143, 135, 130, 123, 118, 114, 111, 106, 103, 100,  97,  94,  92],   // −12, −10 und +12 % aus der Digitalisierung 15.10.2026
 }
 /** Stufen der Abb. 2, aufsteigend */
 export const ANHALTESICHT_STUFEN = Object.keys(ANHALTESICHT).map(Number).sort((a, b) => a - b)

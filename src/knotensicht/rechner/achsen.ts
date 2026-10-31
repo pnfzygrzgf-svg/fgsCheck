@@ -19,6 +19,16 @@ const SPUR_PRUEF_M = 40.0
 
 export type AchsTreffer = [number, number, number, number, number]     // linie, segment, t, abstand, winkel
 
+/** Ende der OSM-Linie einer Spur (Befund 31.10.2026, Knoten 132629283): ab geradeAb (Bogenlänge ab dem Anfang der Spur) ist sie gerade
+ *  verlängert, weil am OSM-Knoten «knoten» kein Weg bis 45° weiterführt; wege: die befolgten OSM-Wege */
+export interface SpurEnde { geradeAb: number; knoten: number; wege: number[] }
+/** Wegwechsel auf der Spur (Befund 31.10.2026, Knoten 282773328): bei ab (Bogenlänge ab dem Anfang der Spur) geht sie am OSM-Knoten
+ *  «knoten» vom Weg von auf den Weg nach über; vorgabe: nach kam aus vorzug (z. B. zuführende Einbahn an einer Teilung) statt aus der
+ *  kleinsten Richtungsänderung */
+export interface SpurWechsel { ab: number; knoten: number; von: number; nach: number; vorgabe: boolean }
+/** Vorgabe für die Fortsetzung am Wegende: OSM-Knoten und Weg, auf dem die Spur ankommt -> Weg, dem sie folgen soll (bzw. null) */
+export type SpurVorzug = (knoten: number, wid: number) => number | null
+
 export class OsmAchsen {
   linien: { pts: P[]; wid: number }[] = []
   knoten = new Map<number, [number, number][]>()      // OSM-Knoten -> [linie, index]
@@ -55,6 +65,13 @@ export class OsmAchsen {
 
   /** Achsen.spur: Punkte entlang der Achse ab der Lotfusspunkt-Lage, gegen die Fahrtrichtung */
   spur(start: [number, number, number], rueck: P, laenge: number): P[] {
+    return this.spurMitEnde(start, rueck, laenge).linie
+  }
+
+  /** wie spur, dazu die Stelle, ab der die Spur gerade verlängert ist (null: folgt bis laenge den OSM-Wegen). vorzug (optional, ohne
+   *  vorzug wie bisher): gibt er am Wegende einen Weg vor, folgt die Spur diesem (auch über 45°); wechsel: alle Wegwechsel */
+  spurMitEnde(start: [number, number, number], rueck: P, laenge: number, vorzug: SpurVorzug | null = null):
+    { linie: P[]; ende: SpurEnde | null; wechsel: SpurWechsel[] } {
     const [i, s, t] = start
     const pts = this.linien[i].pts
     const v = sub(pts[s + 1], pts[s])
@@ -63,27 +80,43 @@ export class OsmAchsen {
     let folge = vorwaerts ? pts.slice(s + 1) : pts.slice(0, s + 1).reverse()
     let endKnoten = vorwaerts ? this.ids[i][pts.length - 1] : this.ids[i][0]
     const besucht = new Set([i])
+    const wechsel: SpurWechsel[] = []
+    let aktuell = i
     for (;;) {
       weg.push(...folge)
       if (streckeLaenge(weg) >= laenge) break
       const ende = weg[weg.length - 1]
       const rich = dist(weg[weg.length - 1], weg[weg.length - 2]) > 0 ? einheit(sub(ende, weg[weg.length - 2])) : rueck
-      let best: [number, number, P[], number] | null = null
-      for (const [j, k] of this.knoten.get(endKnoten) ?? []) {
-        if (besucht.has(j)) continue
-        const lp = this.linien[j].pts
-        for (const [seq, endK] of [[lp.slice(k), this.ids[j][lp.length - 1]], [lp.slice(0, k + 1).reverse(), this.ids[j][0]]] as [P[], number][]) {
-          if (seq.length < 2 || dist(seq[0], seq[1]) === 0) continue
-          const w = Math.acos(Math.max(-1, Math.min(1, dot(rich, einheit(sub(seq[1], seq[0]))))))
-          if (w < 45 * Math.PI / 180 && (best === null || w < best[0])) best = [w, j, seq, endK]
+      const suche = (nur: number | null) => {
+        let best: [number, number, P[], number] | null = null
+        for (const [j, k] of this.knoten.get(endKnoten) ?? []) {
+          if (besucht.has(j) || (nur !== null && this.linien[j].wid !== nur)) continue
+          const lp = this.linien[j].pts
+          for (const [seq, endK] of [[lp.slice(k), this.ids[j][lp.length - 1]], [lp.slice(0, k + 1).reverse(), this.ids[j][0]]] as [P[], number][]) {
+            if (seq.length < 2 || dist(seq[0], seq[1]) === 0) continue
+            const w = Math.acos(Math.max(-1, Math.min(1, dot(rich, einheit(sub(seq[1], seq[0]))))))
+            if ((nur !== null || w < 45 * Math.PI / 180) && (best === null || w < best[0])) best = [w, j, seq, endK]
+          }
         }
+        return best
       }
-      if (best === null) { weg.push(add(ende, rich, laenge)); break }
+      // Vorgabe (vorzug) zuerst; ohne passende Linie wie ohne Vorgabe
+      const vor0 = vorzug ? vorzug(endKnoten, this.linien[aktuell].wid) : null
+      const bestVor = vor0 !== null ? suche(vor0) : null
+      const vor = bestVor ? vor0 : null
+      const best = bestVor ?? suche(null)
+      if (best === null) {
+        const geradeAb = streckeLaenge(weg)
+        weg.push(add(ende, rich, laenge))
+        return { linie: weg, ende: { geradeAb, knoten: endKnoten, wege: [...besucht].map(j => this.linien[j].wid) }, wechsel }
+      }
+      wechsel.push({ ab: streckeLaenge(weg), knoten: endKnoten, von: this.linien[aktuell].wid, nach: this.linien[best[1]].wid, vorgabe: vor !== null })
       besucht.add(best[1])
+      aktuell = best[1]
       folge = best[2].slice(1)
       endKnoten = best[3]
     }
-    return weg
+    return { linie: weg, ende: null, wechsel }
   }
 }
 

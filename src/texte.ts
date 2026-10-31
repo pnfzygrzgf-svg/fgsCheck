@@ -146,7 +146,7 @@ export const erkennungText = (e: Erkennung): string => (e.bewuchsAb === undefine
 export const ERKENNUNG_TITEL = 'Erkennungsdistanz aus dem Sichtrechner: Sicht von der Fahrlinie auf die Markierung im eigenen Fahrstreifen, ' +
   'geprüft bis 110 m. Hindernisse: Gebäude, Hecken, Mauern, Bäume und Auto-Parkfelder; über Bewuchs der AV (Wald, bestockte Fläche, ' +
   'Gartenanlage) nicht sicher frei. Gelände (Kuppen, Senken, Böschungen): danach ' +
-  'entlang einzelner Sichtlinien (alle 10 m) aus dem Höhenmodell swissALTI3D, Auge 1,1 m über dem Boden; ohne Antwort 2D («Gelände ' +
+  'entlang einzelner Sichtlinien (alle 10 m) aus dem Höhenmodell swissALTI3D, Auge 1,0 m über dem Boden (VSS 40 241 Ziffer 14, S. 6); ohne Antwort 2D («Gelände ' +
   'nicht geprüft»). Annahme; nur die Markierung, die blaue Tafel (Signal 4.11) nicht.'
 
 /** Status einer Zufahrt; bei «verdeckt_hindernis» mit den Arten der verdeckenden Hindernisse (Hecke, Mauer, übriges Hindernis) */

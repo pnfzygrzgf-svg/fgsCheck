@@ -3,7 +3,7 @@
 // Die Rechnung (rechner/erkennung.ts) prüft die Sicht auf die Markierung in 2D und gibt dünne Sichtlinien mit (ZufahrtErgebnis.
 // erkennungLinien: alle 10 m ein Augpunkt mit dem genutzten Zielpunkt). Danach holt die App je Sichtlinie bis zur Erkennungsdistanz
 // ein Höhenprofil (daten/sichtProfil.ts, derselbe Profil-Dienst wie Längsneigung, Kurvenregel und Velo-Sicht) und prüft, ob das
-// Gelände (DTM, ohne Gebäude und Bewuchs) die Linie schneidet: Augpunkt AUGHOEHE_M über dem Gelände, Ziel die Markierung am Boden
+// Gelände (DTM, ohne Gebäude und Bewuchs) die Linie schneidet: Augpunkt AUGHOEHE_M (1,0 m, VSS 40 241 Ziffer 14, S. 6) über dem Gelände, Ziel die Markierung am Boden
 // (ZIEL_HOEHE_M), Gelände verdeckt erst, wenn es mehr als GELAENDE_TOL_M über die Linie ragt.
 // Warum je Sichtlinie ein Profil (statt eines Rasters bzw. weniger Profile entlang der Fahrlinie und Interpolation): in Kurven läuft
 // die Sichtlinie quer über die Innenseite (Böschung, Hang), die ein Profil entlang der Fahrlinie gar nicht erfasst; der Dienst liefert

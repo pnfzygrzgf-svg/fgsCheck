@@ -93,7 +93,7 @@ describe('Amtliche Parkfelder: zählen sofort, einzeln verwerfbar', () => {
     expect(links(e).verdeckerListe.map(t => [t.id, t.art, t.quelle, t.wirkung])).toEqual([[vor.id, 'Parkfeld Auto', 'amtlich (Parkkataster)', 'voll']])
     expect(links(e).verdeckerListe[0].sErst).toBeCloseTo(13.7, 6)
     expect(e.hindernis.amtlich.map(v => v.id)).toEqual([vor.id])
-    expect(e.annahmen.some(a => a.startsWith('Parkfelder gelten als belegt'))).toBe(true)
+    expect(e.annahmen.some(a => a.includes('Parkfelder gelten als besetzt'))).toBe(true)
   })
   it('verworfen: zählt nicht, kommt getrennt zurück; Quelle abgeschaltet (park null): keine Wirkung', () => {
     const e = rechne(mit({ park: park([vor]), verworfen: [vor.id] }))

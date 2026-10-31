@@ -231,7 +231,7 @@ describe('Werkverzeichnis: voller Titel und offizielle Adressen', () => {
       if (!w.pdf && !w.seite) expect(id === 'ENTSCHEID' || !!w.bezug, id).toBe(true)
     }
     // Normen: kein Link (kostenpflichtig, Nutzerentscheid 23.10.2026), nur der Vermerk
-    for (const id of ['40241', '40240', '40242', '40837', '40213', '640075', '640850a', '640852'] as const)
+    for (const id of ['40241', '40240', '40242', '40837', '40213', '40040', '640075', '640850a', '640852'] as const)
       expect([WERKE[id].pdf, WERKE[id].seite, WERKE[id].bezug], id).toEqual([null, null, 'kostenpflichtig'])
     expect([WERKE.ENTSCHEID.pdf, WERKE.ENTSCHEID.seite]).toEqual([null, null])
   })

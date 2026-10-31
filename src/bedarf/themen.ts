@@ -201,7 +201,7 @@ export function nachThema(alle: readonly Eintrag[]): { thema: ThemaDef; eintraeg
 // ── Reihenfolge der Regeln im Thema nach der Norm (27.10.2026) ──
 
 /** Normen in der Reihenfolge, in der ihre Ziffern ordnen (erste Fundstelle aus einer dieser Normen zählt) */
-const NORM_REIHE = ['40241', '40240', '40242', '40837', '40273', '40213', '640075', '640850a', '640852']
+const NORM_REIHE = ['40241', '40240', '40242', '40837', '40273', '40213', '40040', '640075', '640850a', '640852']
 // LSA_REIHE (Reihenfolge der LSA-Zeiten nach VSS 40 837) mit Block I gestrichen 30.10.2026
 const KAT_INDEX = new Map(REGEL_IDS.map((id, i) => [id as string, i]))
 /** Schlüssel einer Regel: Norm, Ziffer als Zahlen; Regeln ohne Norm danach in der Reihenfolge des Katalogs */

@@ -12,7 +12,8 @@
 //   beidseits des ersten Sichtpunkts (innerhalb der Streifenenden). Sichtbar ist der Streifen, wenn die Sichtlinie zu
 //   mindestens einem Zielpunkt frei ist (nächster sichtbarer Teil der Balken).
 // - Hindernisse: Gebäude (AV), Hecken, Mauern und übrige sichtbehindernde Hindernisse, Bäume (Stamm) und Auto-Parkfelder
-//   (Nutzerentscheid 23.10.2026, wie in der Sichtprüfung: Augpunkt rund 1,1 m, Auto rund 1,5 m hoch, die Markierung liegt am Boden).
+//   (Nutzerentscheid 23.10.2026, wie in der Sichtprüfung: Augpunkt 1,0 m (AUGHOEHE_M), Auto rund 1,5 m hoch, die Markierung liegt am
+//   Boden).
 //   Wie in der Sichtprüfung zählen ein Gebäude, Hindernis bzw. Parkfeld, in dem der Augpunkt liegt, und ein Baum bis 1 m am
 //   Augpunkt nicht.
 // - Erkennungsdistanz: grösste Distanz, ab der die Sicht durchgehend bis zum Streifen frei ist (vom Streifen aus gesucht, zwischen
@@ -47,8 +48,9 @@ const ZIEL_VERSATZ = [0, -0.5, 0.5, -1, 1].map(f => f * ZIEL_HALB_M)
 export const BEWUCHS_ARTEN = ['geschlossener_Wald', 'Wytweide_dicht', 'uebrige_bestockte', 'Gartenanlage']
 export const BEWUCHS_NAME: Record<string, string> = { geschlossener_Wald: 'geschlossener Wald', Wytweide_dicht: 'Wytweide dicht',
   uebrige_bestockte: 'übrige bestockte Fläche', Gartenanlage: 'Gartenanlage' }
-/** Augpunkt über der Fahrbahn [m] (Annahme wie oben: rund 1,1 m; Geländeprüfung der Sichtlinien in erkennungGelaende.ts) */
-export const AUGHOEHE_M = 1.1
+/** Augpunkt über der Fahrbahn [m] (Normwert (VSS 40 241 Ziffer 14, S. 6; VSS 40 273 Ziffer 10, S. 7: Personenwagen), Entscheid
+ * 31.10.2026, vorher 1,1 m als Annahme; Geländeprüfung der Sichtlinien in erkennungGelaende.ts und sichtGelaende.ts) */
+export const AUGHOEHE_M = 1.0
 /** Baum näher am Augpunkt zählt nicht (wie konflikteSuchen) */
 const BAUM_AUGE_M = 1.0
 /** Schritte der halbierenden Suche zwischen dem letzten freien und dem ersten verdeckten Augpunkt */

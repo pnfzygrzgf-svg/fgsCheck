@@ -4,16 +4,21 @@
 // Arm gegen den Arm rechts davon (sein Verkehr hat Vortritt): Zufahrtstempo 30 km/h für alle Arme (Ziffer 15), D mit B 5,00 m
 // (Abb. 4) auf der Achse des Zufahrtsstreifens, Zielpunkte auf der Fahrstreifenachse des rechten Arms (rechnen.ts). Die vorhandene
 // Sichtweite ergibt mit der Wahrnehmbarkeit (Eingabe, Ziffer 18) den Zustand nach Abb. 6.
-// Schmale Zufahrten (b ≤ 3,50 m nach dem AV-Querschnitt eines der beiden Arme, Abb. 5): zusätzlich die Paarmatrix. Punkte alle
-// PAAR_SCHRITT_M auf beiden Fahrbahnachsen bis PAAR_LAENGE_M ab ihrem Schnittpunkt; massgebend sind die Paare, deren Abstände
-// zusammen höchstens die Anhaltestrecke PAAR_LAENGE_M ergeben (Auslegung: in Abb. 5 enden die Sichtlinien an Punkten, die entlang der
-// Achsen rund 20 m auseinander liegen; Paare mit kleinerer Summe liegen im selben Sichtfeld), ohne Punkte im Schnittpunkt (45 Paare).
-// Ein verdecktes massgebendes Paar: «Sichtfeld nach Abb. 5 nicht frei». Auf einem breiten Arm (nur einer schmal) liegen die Punkte auf
-// seinem Fahrstreifen (rechnen.ts).
+// Schmale Zufahrten (b ≤ 3,50 m nach dem AV-Querschnitt eines der beiden Arme, Abb. 5): zusätzlich das Sichtfeld der schmalen
+// Zufahrt (Block 5, Entscheid 31.10.2026, ersetzt die Paarmatrix). Die Norm zeigt in Abb. 5 (S. 11) nur eine Grafik; die Konstruktion
+// beschreibt die bfu BM.021 (2022), Kap. 3.2.2 und Abb. 4 (S. 4): ein Pfad von ENG_LAENGE_M (doppelte Anhaltestrecke bei rund
+// 25 km/h und 1 s Reaktionszeit) mit Punkten alle ENG_SCHRITT_M, vom wartenden Fahrzeug je eine Sichtlinie. Umsetzung: Beobachter =
+// D des Rechtsvortritts (B 5,00 m, Fahrersitz; Annahme), Pfad ab D (Lotfusspunkt auf der Achse der Zufahrt; Annahme: Pfadbeginn in D)
+// entlang der Achse der Zufahrt bis zum Schnittpunkt X mit der Achse des rechten Arms, dann auf dieser (Fahrbahnmitte bei schmalem
+// Arm, sonst Fahrstreifenachse; rechnen.ts). Gezählt werden X und die Punkte dahinter (Punkte auf der eigenen Achse vor D nicht);
+// Sichtlinien D -> Punkt gegen Gebäude und volle Hindernisse. Sichtfeld frei = alle Linien frei, sonst «Sichtfeld nach Abb. 5 nicht
+// frei».
 
-import { type P, winkelGrad, imPolygon } from '../geo'
+import { type P, winkelGrad, imPolygon, dist } from '../geo'
 import type { ArmInfo } from './typen'
 import { punkteAufSpur } from './spur'
+import { lot } from './hauptachsen'
+import { abschneiden } from './netz'
 import { linieTrifft } from './hindernisse'
 import type { Verdeckend } from './sicht'
 
@@ -28,10 +33,11 @@ export const RV_A_MIN_M = 15
 export const ABB6_GRENZEN = [15, 20, 25] as const
 /** Zielpunkte auf der Achse des rechten Arms bis so weit ab K: 1,5 × grösste Stufe der Abb. 6 */
 export const RV_ZIEL_M = Math.ceil(1.5 * ABB6_GRENZEN[2])
-/** Abb. 5: schmale Zufahrt bis zu dieser Fahrbahnbreite [m]; Anhaltestrecke [m]; Abstand der Punkte [m] */
+/** Abb. 5: schmale Zufahrt bis zu dieser Fahrbahnbreite [m]; bfu BM.021 Abb. 4: Länge des Pfads (doppelte Anhaltestrecke bei rund
+ *  25 km/h) und Abstand der Punkte darauf [m] */
 export const SCHMAL_M = 3.5
-export const PAAR_LAENGE_M = 20
-export const PAAR_SCHRITT_M = 2
+export const ENG_LAENGE_M = 20
+export const ENG_SCHRITT_M = 2
 /** ein Arm gilt als «von rechts», wenn er mehr als so viel rechts der Fahrtrichtung liegt [°] (sonst geradeaus bzw. links; eine
  *  durchgehende Strasse mit einem Knick bis 25° gilt als geradeaus, Annahme nach der Prüfrunde) */
 export const RECHTS_MIN_GRAD = 25
@@ -106,49 +112,53 @@ export function linkerArm(z: ArmInfo, arme: ArmInfo[], rechts: ArmInfo | null): 
   return andere.length ? andere[andere.length - 1] : null
 }
 
-/** Paar der Matrix nach Abb. 5: Punkt i auf der Achse des gewählten Arms, Punkt j auf der Achse des rechten Arms */
-export interface Paar { i: number; j: number; frei: boolean }
-export interface Paarmatrix {
-  K: P                        // Schnittpunkt der Fahrbahnachsen
-  s: number[]                 // Abstände der Punkte ab K [m] (gleich auf beiden Achsen)
-  punkte1: P[]                // gewählter Arm
-  punkte2: P[]                // rechter Arm
-  paare: Paar[]               // massgebende Paare (s1, s2 ≥ PAAR_SCHRITT_M, s1 + s2 ≤ PAAR_LAENGE_M)
-  sichtbar: number            // Anzahl freie massgebende Paare
-  anteil: number              // Anteil freie massgebende Paare [0, 1]
-  erste: { s1: number; s2: number; verdecker: string } | null   // erste verdeckte Kombination (kleinste Summe, dann kleinerer Abstand)
-  frei: boolean
+/** Sichtlinie des Sichtfelds einer schmalen Zufahrt (bfu BM.021 Abb. 4): Punkt bei Pfadlänge s ab D (sRechts ab X auf dem rechten Arm) */
+export interface EngLinie { s: number; sRechts: number; p: P; frei: boolean; verdecker: string | null }
+/** Sichtfeld einer schmalen Zufahrt (VSS 40 273 Abb. 5, Konstruktion nach bfu BM.021 Kap. 3.2.2, Abb. 4; Block 5) */
+export interface SichtfeldEng {
+  D: P                        // Beobachtungspunkt (Fahrersitz)
+  X: P                        // Schnittpunkt der Achse der Zufahrt mit der Achse des rechten Arms
+  bisX: number                // Pfadlänge vom Lotfusspunkt von D auf der Achse der Zufahrt bis X [m]
+  laenge: number              // Länge des Pfads [m] (ENG_LAENGE_M)
+  pfad: P[]                   // ab dem Lotfusspunkt von D über X auf der Achse des rechten Arms bis laenge
+  linien: EngLinie[]          // geprüfte Sichtlinien: X und die Punkte dahinter
+  sichtbar: number            // Anzahl freie Linien
+  anteil: number              // Anteil freie Linien [0, 1]
+  erste: { s: number; sRechts: number; verdecker: string } | null   // erste verdeckte Linie (kleinste Pfadlänge)
+  frei: boolean               // alle Linien frei
   ohneFlaechen: string[]      // Hindernisse, in denen ein Punkt liegt: nicht gerechnet (Hinweis)
-  verdecker: { id: string; name: string; art: string; quelle: string }[]   // Flächen, die ein massgebendes Paar verdecken
+  verdecker: { id: string; name: string; art: string; quelle: string }[]   // Flächen, die eine Linie verdecken
 }
 
 /**
- * Paarmatrix nach Abb. 5. achse1, achse2: Fahrbahnachsen ab ihrem Schnittpunkt K vom Knoten weg; flaechen: Gebäude und
- * Hindernisse (nur Wirkung «voll» verdeckt; Palisade und Hinweis nicht). Hindernisse (nicht Gebäude der AV), in denen ein Punkt
- * liegt, zählen nicht (die Achse läuft durch sie hindurch).
+ * Sichtfeld einer schmalen Zufahrt nach bfu BM.021 Abb. 4. D: Beobachtungspunkt; achseZ: Achse der Zufahrt ab X vom Knoten weg (zu D
+ * hin); achseR: Achse des rechten Arms ab X vom Knoten weg; flaechenAlle: Gebäude und Hindernisse (nur Wirkung «voll»; Palisade und
+ * Hinweis nicht). Punkte alle schritt ab D entlang des Pfads bis laenge; Punkte vor X (auf der eigenen Achse vor D) zählen nicht, X
+ * immer. Hindernisse (nicht Gebäude der AV), in denen ein Punkt liegt, zählen nicht (der Pfad läuft durch sie hindurch).
  */
-export function paarmatrix(achse1: P[], achse2: P[], flaechenAlle: Verdeckend[], laenge = PAAR_LAENGE_M, schritt = PAAR_SCHRITT_M): Paarmatrix {
-  const s: number[] = []
-  for (let x = 0; x <= laenge + 1e-9; x += schritt) s.push(Math.round(x * 1e6) / 1e6)
-  const punkte1 = punkteAufSpur(achse1, s).map(x => x[0]), punkte2 = punkteAufSpur(achse2, s).map(x => x[0])
+export function sichtfeldEng(D: P, achseZ: P[], achseR: P[], flaechenAlle: Verdeckend[], laenge = ENG_LAENGE_M,
+  schritt = ENG_SCHRITT_M): SichtfeldEng {
+  const X = achseR[0] ?? achseZ[0]
+  const fuss = lot(achseZ, D)
+  const bisX = fuss.s
+  // Pfadlängen der Punkte: X, dann die Vielfachen von schritt hinter X bis laenge
+  const sListe = [bisX]
+  for (let k = 1; k * schritt <= laenge + 1e-9; k++) if (k * schritt > bisX + 1e-6) sListe.push(Math.round(k * schritt * 1e6) / 1e6)
+  const ziele = punkteAufSpur(achseR, sListe.map(x => Math.max(0, x - bisX))).map(x => x[0])
   const voll = flaechenAlle.filter(f => (f.wirkung ?? 'voll') === 'voll')
-  const durch = voll.filter(f => f.quelle && f.quelle !== 'AV' && [...punkte1, ...punkte2].some(p => imPolygon(p, f.poly)))
+  const durch = voll.filter(f => f.quelle && f.quelle !== 'AV' && ziele.some(p => imPolygon(p, f.poly)))
   const fl = voll.filter(f => !durch.includes(f))
-  const paare: Paar[] = []
-  let erste: Paarmatrix['erste'] = null, ersteRang = Infinity
-  const verdecker = new Map<string, Paarmatrix['verdecker'][number]>()
+  const verdecker = new Map<string, SichtfeldEng['verdecker'][number]>()
   // punkteAufSpur lässt Punkte jenseits des Achsenendes weg (am Ende): Schleife über die vorhandenen Punkte
-  for (let i = 0; i < punkte1.length; i++) for (let j = 0; j < punkte2.length; j++) {
-    // ohne Punkte im Schnittpunkt (ein Fahrzeug dort steht schon im Konfliktbereich)
-    if (s[i] === 0 || s[j] === 0 || s[i] + s[j] > laenge + 1e-9) continue
-    const v = fl.find(f => linieTrifft([punkte1[i], punkte2[j]], [f.poly])) ?? null
-    paare.push({ i, j, frei: !v })
+  const linien: EngLinie[] = ziele.map((p, k) => {
+    const v = fl.find(f => dist(D, p) > 1e-9 && linieTrifft([D, p], [f.poly])) ?? null
     if (v && !verdecker.has(v.id)) verdecker.set(v.id, { id: v.id, name: v.name, art: v.art ?? 'Gebäude', quelle: v.quelle ?? 'AV' })
-    // erste verdeckte Kombination: kleinste Summe, dann kleinster grösserer Abstand, dann kleineres s1
-    const rang = (s[i] + s[j]) * 1e4 + Math.max(s[i], s[j]) * 10 + s[i] / 100
-    if (v && rang < ersteRang) { ersteRang = rang; erste = { s1: s[i], s2: s[j], verdecker: v.name } }
-  }
-  const sichtbar = paare.filter(p => p.frei).length
-  return { K: punkte1[0] ?? achse1[0], s, punkte1, punkte2, paare, sichtbar, anteil: paare.length ? sichtbar / paare.length : 1, erste,
-    frei: !erste, ohneFlaechen: durch.map(f => f.id), verdecker: [...verdecker.values()] }
+    return { s: sListe[k], sRechts: Math.max(0, sListe[k] - bisX), p, frei: !v, verdecker: v?.name ?? null }
+  })
+  const e = linien.find(l => !l.frei) ?? null
+  const sichtbar = linien.filter(l => l.frei).length
+  const pfad = [...abschneiden(achseZ, bisX).reverse(), ...abschneiden(achseR, Math.max(0, laenge - bisX)).slice(1)]
+  return { D, X, bisX, laenge, pfad, linien, sichtbar, anteil: linien.length ? sichtbar / linien.length : 1,
+    erste: e ? { s: e.s, sRechts: e.sRechts, verdecker: e.verdecker! } : null, frei: !e, ohneFlaechen: durch.map(f => f.id),
+    verdecker: [...verdecker.values()] }
 }

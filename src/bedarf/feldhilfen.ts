@@ -26,7 +26,7 @@ const KB = ['kurve.radiusStrasse', 'kurve.b1Innerorts50', 'kurve.b2EinFahrstreif
 
 /** Werke als Kurztext für «Wozu» (statt SR-Nummer bzw. vollem Titel) */
 export const WERK_KURZ: Record<WerkId, string> = {
-  '40241': 'VSS 40 241', '40240': 'VSS 40 240', '40242': 'VSS 40 242', '40837': 'VSS 40 837', '40273': 'VSS 40 273', '40213': 'VSS 40 213',
+  '40241': 'VSS 40 241', '40240': 'VSS 40 240', '40242': 'VSS 40 242', '40837': 'VSS 40 837', '40273': 'VSS 40 273', '40213': 'VSS 40 213', '40040': 'VSS 40 040b',
   '640075': 'SN 640 075', '640850a': 'SN 640 850a', '640852': 'SN 640 852',
   VOT30: 'Tempo-30-Zonen-Verordnung', SSV: 'Signalisationsverordnung', VRV: 'Verkehrsregelnverordnung',
   MP: 'Masterplan Fussverkehr Bern', MPV: 'Masterplan Veloinfrastruktur Bern', HBLSA: 'Handbuch Lichtsignalanlagen Bern',

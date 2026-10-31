@@ -4,8 +4,10 @@
 // Stufe der Tabelle aufgerundet; über 80 km/h gilt die Stufe 80 mit Hinweis (die Tabelle endet dort).
 // Wert nach Strassentyp (E1): Erschliessungs-, Sammel- und Verbindungsstrassen (ES) der untere Wert; Hauptverkehrsstrassen und
 // wichtige Verbindungsstrassen (HVS) der Zwischenwert = Mittel von unterem und oberem Wert, auf ganze Meter aufgerundet
-// (Entscheid 1 vom 15.10.2026, Praxis Kanton Zug); HVS mit ungünstigen Verhältnissen (mehr als zwei Fahrstreifen, grosse
-// Längsneigung, hoher Schwerverkehrsanteil) der obere Wert. Bei ES heben die ungünstigen Verhältnisse nicht an (nur Hinweis).
+// (Entscheid 1 vom 15.10.2026, Praxis Kanton Zug); HVS mit ungünstigen Verhältnissen der obere Wert. Bei ES heben die ungünstigen
+// Verhältnisse nicht an (nur Hinweis). Die Ziffer 13.1 nennt für die ungünstigen Verhältnisse keine Masse; die App nimmt sie nach der
+// Praxis des Kantons Solothurn (AVT, Richtlinien Strassenverkehrsanlagen 12/2024, S. 3; Entscheid 31.10.2026, Annahme): mehr als ein
+// Fahrstreifen je Richtung, Gefälle über NEIGUNG_GROSS_PROZENT in einer Richtung, Schwerverkehrsanteil über SCHWERVERKEHR_PROZENT.
 // Anhaltesichtweite (VSS 40 090b Abb. 2, anhaltesicht.ts): immer gerechnet, als Untergrenze nur bei |i| > 2 % angewendet
 // (Entscheid 2; die unteren Werte der Tab. 1 gelten für i ≤ ±2 %, VSS 40 273 Ziffer 13.1): massgebend = max(Wert nach
 // Strassentyp, Anhaltesichtweite bei i). Die Kurven der Abb. 2 sind bei i = 0 auf den unteren Wert der Tab. 1 verschoben
@@ -49,14 +51,20 @@ export const STRASSENTYP_TEXT: Record<Strassentyp, string> = {
 export const HVS_HIGHWAY = ['trunk', 'primary', 'secondary', 'tertiary']
 export const istHvsHighway = (hw: string): boolean => HVS_HIGHWAY.includes(hw.replace(/_link$/, ''))
 
-/** ungünstige Verhältnisse (VSS 40 273 Ziffer 13.1) */
+/** ungünstige Verhältnisse (VSS 40 273 Ziffer 13.1; Masse nach Kanton Solothurn, Annahme) */
 export interface Ungunst { fahrstreifen: boolean; neigung: boolean; schwerverkehr: boolean }
 export const KEINE_UNGUNST: Ungunst = { fahrstreifen: false, neigung: false, schwerverkehr: false }
 export const UNGUNST_TEXT: Record<keyof Ungunst, string> = {
-  fahrstreifen: 'mehr als zwei Fahrstreifen', neigung: 'grosse Längsneigung', schwerverkehr: 'hoher Schwerverkehrsanteil',
+  fahrstreifen: 'mehr als ein Fahrstreifen je Richtung', neigung: 'grosse Längsneigung (Gefälle über 5 % in einer Richtung)',
+  schwerverkehr: 'hoher Schwerverkehrsanteil (über 8 %)',
 }
-/** Vorgabe «grosse Längsneigung» ab |i| über diesem Wert [%] */
-export const NEIGUNG_GROSS_PROZENT = 4
+/** Herkunft der Masse der ungünstigen Verhältnisse (Panel, Annahmen, Bericht) */
+export const UNGUNST_MASSE_TEXT = 'Masse nach Kanton Solothurn, AVT, Richtlinien Strassenverkehrsanlagen 12/2024, S. 3 (Annahme; VSS 40 273 ' +
+  'Ziffer 13.1 nennt keine Masse)'
+/** Vorgabe «grosse Längsneigung» ab |i| über diesem Wert [%] (Gefälle in einer Richtung; Kanton Solothurn, Annahme) */
+export const NEIGUNG_GROSS_PROZENT = 5
+/** Vorgabe «hoher Schwerverkehrsanteil» ab einem Anteil über diesem Wert [%] (Kanton Solothurn, Annahme) */
+export const SCHWERVERKEHR_PROZENT = 8
 /** Anhaltesichtweite als Untergrenze erst bei |i| über diesem Wert [%] (die unteren Werte der Tab. 1 gelten für i ≤ ±2 %,
  *  VSS 40 273 Ziffer 13.1) */
 export const NEIGUNG_EBEN_PROZENT = 2

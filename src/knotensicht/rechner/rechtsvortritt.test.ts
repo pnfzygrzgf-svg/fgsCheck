@@ -10,7 +10,7 @@ import { wgs, type P } from '../geo'
 import type { OsmDaten, OsmWeg } from '../daten/osm'
 import type { AvFlaeche } from '../daten/av'
 import { rechneKnoten } from './rechnen'
-import { ABB6, abb6Spalte, zustandAbb6, rvMindest, rechterArm, linkerArm, WAHRNEHMBARKEITEN, type Wahrnehmbarkeit,
+import { ABB6, abb6Spalte, zustandAbb6, rvMindest, rechterArm, linkerArm, sichtfeldEng, WAHRNEHMBARKEITEN, type Wahrnehmbarkeit,
   type Zustand } from './rechtsvortritt'
 import { KEINE_ALLE_EINGABEN, type ArmInfo, type Eingaben, type Ergebnis, type KnotenFall } from './typen'
 
@@ -95,12 +95,14 @@ describe('E3c: T-Knoten mit Gebäudeecke rechts (Strahlensatz)', () => {
   // Ecke C = (cx; −4). Sichtlinie D (0,75; −8) – (1,25 + s; 1,5) trifft y = −4 bei t = 4/9,5, x = 0,75 + 4/9,5 · (0,5 + s).
   // Verdeckt ab x = cx: s = (cx − 0,75) · 9,5/4 − 0,5. cx = 8: 16,71875 m; cx = 10: 21,46875 m.
   const ecke = (cx: number) => rechteck(cx, -4, cx + 20, -24)
-  it('D 5,00 m hinter dem Rand des rechten Arms, Tempo 30 fest, von links keine Prüfung', () => {
+  it('D 5,00 m hinter dem Rand des rechten Arms, Tempo von Hand angezeigt (Punkt 24), von links keine Prüfung', () => {
     const e = rechne(osm(), [tFahrbahn(), ecke(8)], { eingaben: eg({ tempo: { links: null, rechts: { art: 'signalisiert', wert: 50, begruendung: '' } } }) })
     expect(e.B).toBe(5)
     expect(rel(e.D).map(x => Math.round(x * 100) / 100)).toEqual([0.75, -8])
     const r = seite(e, 'rechts')
-    expect([r.tempo, r.rv, r.strasse]).toEqual([30, true, '1 Hauptstrasse (Ost)'])
+    expect([r.tempo, r.rv, r.strasse]).toEqual([50, true, '1 Hauptstrasse (Ost)'])
+    // über 30 km/h: Hinweis auf die Voraussetzung des Rechtsvortritts (Korrektur Punkt 24, 31.10.2026)
+    expect(r.hinweise.some(h => h.startsWith('Tempo 50 km/h: Die Norm geht beim Rechtsvortritt von 30 km/h aus'))).toBe(true)
     expect(rel(r.K).map(x => Math.round(x * 100) / 100)).toEqual([1.25, 1.5])
     expect(seite(e, 'links').status).toBe('keine_zufahrt')
     expect(e.rechtsvortritt!.arm.rechtsName).toBe('1 Hauptstrasse (Ost)')
@@ -124,17 +126,25 @@ describe('E3c: T-Knoten mit Gebäudeecke rechts (Strahlensatz)', () => {
     const e = rechne(osm(), [tFahrbahn(), ecke(10)])
     expect(e.rechtsvortritt!.arm.vorhanden).toBeCloseTo(21.46875, 2)
     expect([e.rechtsvortritt!.wahrnehmbarkeit, e.rechtsvortritt!.wahrnehmbarkeitGewaehlt, e.rechtsvortritt!.arm.status]).toEqual(['gut', false, 'erfuellt'])
-    expect(e.annahmen.join(' | ')).toContain('Wahrnehmbarkeit des Knotens «gut» angenommen')
+    expect(e.annahmen.join(' | ')).toContain('Die Wahrnehmbarkeit des Knotens ist mit «gut» angenommen (VSS 40 273 Ziffer 18, S. 12)')
+    // Block 5: Voraussetzungen nach Ziffer 15 als Hinweis (Wortlaut Korrektur 31.10.2026); beim Rechtsvortritt kein Überholfall
+    expect(e.hinweise).toContain('Ob hier Rechtsvortritt korrekt ist, prüft die App nicht. Das muss vor Ort gemäss VSS 40 273 geprüft werden.')
+    expect([e.ueberholen, e.annahmen.some(x => x.includes('Überholfall'))]).toEqual([null, false])
+    // Themen in der Reihenfolge der Rechnung; ohne schmale Fahrbahn keine «Enge Kreuzung»
+    expect(e.annahmenThemen!.map(x => x.thema)).toEqual(['vortritt', 'wartend', 'verkehr', 'hindernisse', 'wahrnehmbarkeit'])
+    expect(e.annahmen.join(' | ')).not.toMatch(/[Ee]nge Kreuzung/)
     for (const w of ['schlecht', 'sehr_schlecht'] as Wahrnehmbarkeit[])
       expect(rechne(osm(), [tFahrbahn(), ecke(10)], { eingaben: eg({ wahrnehmbarkeit: w }) }).rechtsvortritt!.arm.zustand).toBe('sanieren')
     expect(rechne(osm(), [tFahrbahn(), ecke(10)], { eingaben: eg({ wahrnehmbarkeit: 'sehr_gut' }) }).rechtsvortritt!.arm.zustand).toBe('anzustreben')
   })
-  it('Velo von rechts mit 30 km/h (Tab. 3, untere Zeile), keine Paarmatrix bei 5 m breiter Zufahrt', () => {
-    const e = rechne(osm(), [tFahrbahn(), ecke(10)])
+  it('Velo von rechts mit 30 km/h (Tab. 3, untere Zeile), kein Sichtfeld der schmalen Zufahrt bei 5 m breiter Zufahrt', () => {
+    // Tempo 30 von Hand (OSM hier 50): Tab. 3 untere Zeile; mit 50 km/h obere Zeile (Korrektur Punkt 24)
+    const e = rechne(osm(), [tFahrbahn(), ecke(10)], { eingaben: eg({ tempo: { links: null, rechts: { art: 'signalisiert', wert: 30, begruendung: '' } } }) })
     const v = seite(e, 'rechts').velo!
     expect([v.tempo, v.A]).toEqual([30, 25])
+    expect(seite(rechne(osm(), [tFahrbahn(), ecke(10)]), 'rechts').velo!.tempo).toBe(50)
     expect(seite(e, 'links').velo).toBeNull()
-    expect([e.rechtsvortritt!.arm.schmal, e.rechtsvortritt!.arm.paare]).toEqual([false, null])
+    expect([e.rechtsvortritt!.arm.schmal, e.rechtsvortritt!.arm.sichtfeld]).toEqual([false, null])
   })
   it('T-Einmündung von Ost (Stamm links): kein Arm rechts, keine Prüfung', () => {
     const e = rechne(osm(), [tFahrbahn()], { zufahrt: '1:1:1' })
@@ -159,32 +169,65 @@ describe('E3c: alle Arme einer Kreuzung', () => {
   })
 })
 
-describe('E3c: schmale Zufahrt 3,0 m, Paarmatrix nach Abb. 5', () => {
-  // Nebenstrasse x = −1,5 … +1,5 (b = 3,0 m ≤ 3,50 m): Punkte auf ihrer Fahrbahnachse x = 0. Der rechte Arm (Ost, 6 m) ist breit: Punkte
-  // auf seiner Fahrstreifenachse y = +1,5. Schnitt (0; 1,5). Punkte (0; 1,5 − a) und (b; 1,5), a, b = 2, 4, … 20, massgebend a + b ≤ 20
-  // (45 Paare, ohne den Schnittpunkt). Hauswand: Gebäude x ≥ 2,8, y ≤ −4. Die Sichtlinie erreicht y = −4 bei x = b · (a − 5,5)/a:
-  // verdeckt, wenn b · (a − 5,5) > 2,8 · a. Verdeckt sind (8;10), (8;12), (10;8), (10;10), (12;6), (12;8), (14;6): 7 von 45; erste
-  // Kombination (kleinste Summe 18, dann kleinerer grösserer Abstand 10, dann kleineres a): 8 m Süd, 10 m Ost.
-  it('Anteil sichtbarer Paare 38/45, erste verdeckte Kombination 8 m / 10 m, Status nicht erfüllt mit Zusatz', () => {
+describe('Block 5: Sichtfeld der schmalen Zufahrt nach bfu BM.021 Abb. 4 (VSS 40 273 Abb. 5)', () => {
+  // Geometrie allein: Achse der Zufahrt x = 0 von X = (0; 0) nach Süden, rechter Arm y = 0 nach Osten, D = (0,5; −6): Lotfusspunkt
+  // (0; −6), bisX = 6 m. Punkte: X (s = 6) und s = 8, 10, … 20 (sRechts 2, 4, … 14): 8 Linien; Punkte vor X (s = 2, 4) zählen nicht.
+  it('Pfad ab D über X, Punkte alle 2 m bis 20 m, X immer dabei; Punkte auf der eigenen Achse vor D nicht', () => {
+    const az: P[] = [[0, 0], [0, -50]], ar: P[] = [[0, 0], [50, 0]]
+    const m = sichtfeldEng([0.5, -6], az, ar, [])
+    const r = (x: number) => Math.round(x * 1e6) / 1e6
+    expect([r(m.bisX), m.linien.length, m.frei, m.sichtbar, m.anteil]).toEqual([6, 8, true, 8, 1])
+    expect(m.linien.map(l => r(l.s))).toEqual([6, 8, 10, 12, 14, 16, 18, 20])
+    expect(m.linien.map(l => r(l.sRechts))).toEqual([0, 2, 4, 6, 8, 10, 12, 14])
+    expect(m.pfad.map(p => p.map(x => Math.round(x * 1e6) / 1e6 + 0))).toEqual([[0, -6], [0, 0], [14, 0]])
+    // bisX nicht auf dem Raster (7 m): X, dann 8, 10, … 20
+    const r6 = (x: number) => Math.round(x * 1e6) / 1e6
+    expect(sichtfeldEng([0.5, -7], az, ar, []).linien.map(l => r6(l.s))).toEqual([7, 8, 10, 12, 14, 16, 18, 20])
+    // D weiter als die Pfadlänge vor X: nur X
+    expect(sichtfeldEng([0.5, -25], az, ar, []).linien.map(l => r6(l.s))).toEqual([25])
+    // Gebäude x 3 … 10, y −1 … −3: verdeckt die Linien zu (x; 0), wenn die Linie bei y = −1 rechts von x = 3 liegt: 0,5 + (x − 0,5) · 5/6 > 3
+    // -> x > 3,5: sRechts 4 … 14 verdeckt, erste bei s = 10; Hindernis von Hand mit einem Punkt darin zählt nicht (Hinweis)
+    const geb = { id: 'g', name: 'Gebäude (AV)', art: 'Gebäude', quelle: 'AV', poly: [[[3, -1], [10, -1], [10, -3], [3, -3], [3, -1]]] as P[][] }
+    const v = sichtfeldEng([0.5, -6], az, ar, [geb])
+    expect([v.frei, v.sichtbar, v.erste!.s, r(v.erste!.sRechts), v.erste!.verdecker]).toEqual([false, 2, 10, 4, 'Gebäude (AV)'])
+    expect(v.verdecker.map(x => x.id)).toEqual(['g'])
+    const durch = { id: 'h', name: 'Parkfeld', art: 'Parkfeld Auto', quelle: 'von Hand', poly: [[[1, 1], [5, 1], [5, -1], [1, -1], [1, 1]]] as P[][] }
+    expect(sichtfeldEng([0.5, -6], az, ar, [durch])).toMatchObject({ frei: true, ohneFlaechen: ['h'] })
+  })
+  // Rechnung: Nebenstrasse x = −1,5 … +1,5 (b = 3,0 m ≤ 3,50 m): Achse der Zufahrt = Fahrbahnmitte x = 0; der rechte Arm (Ost, 6 m) ist
+  // breit: Fahrstreifenachse y = +1,5. X = (0; 1,5). Zufahrtsstreifen x = 0,75 (Mitte der rechten Hälfte), B 5,00 m ab y = −3:
+  // Dachse (0,75; −8), D (0,25; −8), Lotfusspunkt (0; −8), bisX = 9,5 m. Punkte X und s = 10, 12, … 20 (sRechts 0,5 … 10,5): 7 Linien.
+  // Hauswand x ≥ 2,8, y ≤ −4: die Linie D -> (x; 1,5) liegt bei y = −4 bei 0,25 + (x − 0,25) · 4 / 9,5; verdeckt, wenn > 2,8, also
+  // x > 6,306: sRechts 6,5, 8,5, 10,5 verdeckt (s = 16, 18, 20), erste bei s = 16.
+  it('Hauswand: 3 von 7 Sichtlinien verdeckt, erste bei 16 m Pfadlänge (6,5 m auf dem rechten Arm), Status nicht erfüllt mit Zusatz', () => {
     const e = rechne(osm(), [tFahrbahn(1.5), rechteck(2.8, -4, 20, -20)], { eingaben: eg({ wahrnehmbarkeit: 'sehr_gut' }) })
     const a = e.rechtsvortritt!.arm
     expect(a.breite).toBeCloseTo(3.0, 2)
     expect(a.schmal).toBe(true)
-    const m = a.paare!
-    expect(rel(m.K).map(x => Math.round(x * 100) / 100)).toEqual([0, 1.5])
-    expect([m.paare.length, m.sichtbar, m.frei]).toEqual([45, 38, false])
-    expect(m.anteil).toBeCloseTo(38 / 45, 6)
-    expect([m.erste!.s1, m.erste!.s2]).toEqual([8, 10])
-    const verdeckt = m.paare.filter(p => !p.frei).map(p => `${m.s[p.i]};${m.s[p.j]}`).sort()
-    expect(verdeckt).toEqual(['10;10', '10;8', '12;6', '12;8', '14;6', '8;10', '8;12'])
+    const m = a.sichtfeld!
+    expect(rel(m.X).map(x => Math.round(x * 100) / 100)).toEqual([0, 1.5])
+    expect(rel(m.D).map(x => Math.round(x * 100) / 100)).toEqual([0.25, -8])
+    expect(m.bisX).toBeCloseTo(9.5, 6)
+    expect([m.linien.length, m.sichtbar, m.frei]).toEqual([7, 4, false])
+    expect(m.linien.map(l => Math.round(l.sRechts * 10) / 10)).toEqual([0, 0.5, 2.5, 4.5, 6.5, 8.5, 10.5])
+    expect(m.linien.filter(l => !l.frei).map(l => l.s)).toEqual([16, 18, 20])
+    expect(m.erste!.s).toBe(16)
+    expect(m.erste!.sRechts).toBeCloseTo(6.5, 6)
     expect(e.hinweise.join(' ')).toContain('nur die Zufahrt ist höchstens 3,50 m breit')
     expect(a.status).toBe('nicht_erfuellt')
     expect(seite(e, 'rechts').statusZusatz).toContain('Sichtfeld nach Abb. 5 nicht frei')
+    expect(seite(e, 'rechts').hinweise.join(' ')).toContain('3 von 7 Sichtlinien verdeckt; erste verdeckte bei 16,0 m Pfadlänge ab D')
+    expect(e.annahmen.join(' | ')).toContain('Konstruktion nach bfu BM.021 Kap. 3.2.2, Abb. 4')
+    // schmale Fahrbahn: Thema «Enge Kreuzung» am Schluss
+    expect(e.annahmenThemen!.at(-1)).toMatchObject({ thema: 'eng', titel: 'Enge Kreuzung' })
+    expect(e.annahmenThemen!.at(-1)!.text).toMatch(/^Enge Kreuzung: eine Fahrbahn ist höchstens 3,50 m breit \(Zufahrt /)
     expect(e.massnahmen?.[0].nr).toBe(0)
+    // Massnahme «Hindernis entfernen» rechnet das Sichtfeld ohne das Hindernis (hier nur ein Gebäude der AV: keine Zeile)
+    expect(e.massnahmen!.find(x => x.nr === 1)!.zeilen).toEqual([])
   })
-  it('ohne die Hauswand: alle 45 Paare frei', () => {
+  it('ohne die Hauswand: alle 7 Sichtlinien frei', () => {
     const e = rechne(osm(), [tFahrbahn(1.5)])
-    expect([e.rechtsvortritt!.arm.paare!.sichtbar, e.rechtsvortritt!.arm.paare!.frei, e.rechtsvortritt!.arm.status]).toEqual([45, true, 'erfuellt'])
+    expect([e.rechtsvortritt!.arm.sichtfeld!.sichtbar, e.rechtsvortritt!.arm.sichtfeld!.frei, e.rechtsvortritt!.arm.status]).toEqual([7, true, 'erfuellt'])
   })
   it('Einbahn vom Knoten weg auf der Zufahrt: keine Prüfung, auch nach rechts', () => {
     const o = osm()

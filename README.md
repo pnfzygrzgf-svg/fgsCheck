@@ -491,8 +491,8 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   unverändert): freie Sicht von den Sichtpunkten bzw. einer nur dafür verlängerten Fahrlinie auf die Markierung im eigenen
   Fahrstreifen, Abstand entlang der Fahrlinie, bis 110 m (`REICHWEITE_SICHT_M`) bzw. bis zum Ende der Fahrlinie; Gebäude, Hecken,
   Mauern, Bäume und Auto-Parkfelder verdecken; Abbieger und Querungen ohne Vortritt ohne Wert. In der Rechnung 2D; danach prüft die App das
-  Gelände entlang der Sichtlinien (`src/erkennungGelaende.ts`, `src/daten/sichtProfil.ts`: alle 10 m ein Augpunkt, Auge 1,1 m über
-  Gelände, Ziel die Markierung am Boden, Toleranz 0,3 m, ein Höhenprofil swissALTI3D je Sichtlinie, höchstens 14 je Zufahrt, mit
+  Gelände entlang der Sichtlinien (`src/erkennungGelaende.ts`, `src/daten/sichtProfil.ts`: alle 10 m ein Augpunkt, Auge 1,0 m über
+  Gelände (VSS 40 241 Ziffer 14, S. 6; seit 31.10.2026, vorher 1,1 m als Annahme), Ziel die Markierung am Boden, Toleranz 0,3 m, ein Höhenprofil swissALTI3D je Sichtlinie, höchstens 14 je Zufahrt, mit
   Zwischenspeicher; Linien auf Brücken nicht): schneidet das Gelände eine Linie, endet die Erkennungsdistanz dort («Gelände»), ohne
   Antwort bleibt sie 2D («Gelände nicht geprüft»). Geht die Sicht nur noch über Bewuchs der AV (geschlossener Wald, dichte Wytweide,
   übrige bestockte Fläche, Gartenanlage; `BEWUCHS_ARTEN`), ist sie ab dort «nicht sicher» (kein Befund). Auf der Karte zeigt ein Band
@@ -500,7 +500,7 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   verdeckt, grau nicht geprüft); ein Klick darauf zeigt die geprüften Sichtlinien (`ZufahrtErgebnis.erkennungLinien`).
   Gelände auch für die Sicht auf die Wartefläche (seit 31.10.2026, VSS 40 241 Ziffer 14, S. 6: Kuppen im Bereich der Fahrbahn;
   `src/sichtGelaende.ts`): je Zufahrt mit Sichtpunkten (gerade und abbiegend, nicht an der Trottoirüberfahrt) alle 10 m bis zur
-  Soll-Sichtweite eine Sichtlinie vom Augpunkt (1,1 m über Gelände) zur ungünstigsten Ecke der Wartefläche (Ziel 0,60 m über Boden,
+  Soll-Sichtweite eine Sichtlinie vom Augpunkt (1,0 m über Gelände, VSS 40 241 Ziffer 14, S. 6) zur ungünstigsten Ecke der Wartefläche (Ziel 0,60 m über Boden,
   untere Grenze des Sichtfelds; Annahme), Toleranz 0,3 m, ein Höhenprofil je Linie, höchstens 14 Abfragen je Zufahrt mit Verfeinerung,
   Linien auf Brücken nicht. Verdeckt das Gelände eine Linie vor der Soll-Sichtweite, wird die Zufahrt «verdeckt (Gelände, swissALTI3D)»
   (Status `verdeckt_gelaende`, ein 2D-Befund wie «verdeckt (Baum)» bleibt vorne); die Sichtprüfung zeigt je Zufahrt die Zeile «Gelände:

@@ -327,7 +327,12 @@ describe('Knotensicht: Geometrie der Überfahrt wie im SichtweitenCheck (K1)', (
     const k = schief(60, 3)
     const a = Math.min(k.einbiegewinkel, 180 - k.einbiegewinkel)
     expect(Math.abs(a - 60)).toBeLessThan(3)
-    expect(k.laenge).toBeCloseTo(k.breite / Math.sin(k.einbiegewinkel * Math.PI / 180), 2)
+    // Seit 31.10.2026 folgt die Achse der Zufahrt in der Mündung dem rechten Fahrbahnrand (SichtweitenCheck, lageMuendung, höchstens
+    // 0,15 m Lageänderung je m): sie kann dort einige Grad von der OSM-Richtung abweichen. Länge = Breite / sin des Achswinkels, hier
+    // innerhalb α ± 5°
+    const lo = k.breite / Math.sin(Math.min(90, a + 5) * Math.PI / 180), hi = k.breite / Math.sin((a - 5) * Math.PI / 180)
+    expect(k.laenge).toBeGreaterThanOrEqual(lo - 0.005)
+    expect(k.laenge).toBeLessThanOrEqual(hi + 0.005)
   })
   it('Auge der Ausfahrenden (Trottoir) zur Gehlinie: entlang der Zufahrt 3,00 + 0,50 / sin α, rechtwinklig 3,50 m', () => {
     for (const alpha of [90, 60]) {
@@ -598,5 +603,16 @@ describe('Überfahrt verschieben und benennen (27.10.2026)', () => {
     const k = ks(rechnen(f).streifen[0].knotensicht)
     expect(text(renderToStaticMarkup(<KnotensichtBlock ks={{ ...k, durchgehend: true, unklar: [KS_DURCHGEHEND] }} fgsId="hand-1" titel={x => x}
       lage={null} breiteHand={null} setzeBreite={() => {}} />))).not.toMatch(/Der Streifen/)
+  })
+})
+
+describe('Kurztexte zu den neuen Hinweisen des Kerns (31.10.2026)', () => {
+  it('Lichtsignalanlage, kurzer Arm (unsicher), weite Fahrbahnfläche (unsicher); Kreisverkehr ohne Kurztext', () => {
+    expect(kurzHinweis('Lichtsignalanlage: Im Betrieb regelt das Lichtsignal, …')?.text).toContain('ausgeschalteter Anlage')
+    expect(kurzHinweis('Arm 2 Hubelmattstrasse (Südost) endet nach 30 m an der Kreuzung mit der Weissensteinstrasse. Weiter weg …'))
+      .toEqual({ text: 'Die Strasse mit Vortritt endet nach 30 m an einer Kreuzung: weiter weg ist die Fahrlinie gerade angenommen, Sicht ' +
+        'vor Ort prüfen.', unklar: true })
+    expect(kurzHinweis('Neben der Zufahrt liegt nach der AV eine weite Fahrbahnfläche (an 7 von 11 Querschnittstellen …')?.unklar).toBe(true)
+    expect(kurzHinweis('Kreisverkehr: nicht Gegenstand der VSS 40 273')).toBeNull()
   })
 })

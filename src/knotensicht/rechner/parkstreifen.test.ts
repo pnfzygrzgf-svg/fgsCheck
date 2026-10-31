@@ -72,7 +72,9 @@ describe('Parkstreifen an der Fahrstreifenachse der Vortrittsstrasse', () => {
     // nach rechts (Rand y = +3) kein Parkstreifen
     expect(rechts(e).parkStreifen.abzug).toBe(0)
     expect(rel(rechts(e).K)[1]).toBeCloseTo(1.5, 2)
-    expect(e.annahmen.some(a => a.includes('nach links Abzug 1,90 m für Parkstreifen rechts') && a.includes('nach rechts kein Parkstreifen'))).toBe(true)
+    expect(e.annahmen.join(' | ')).toContain('Parkierung: von links ja, von rechts nein.')
+    expect(e.herleitung!.join(' | ')).toContain('Fahrlinie nach links: ')
+    expect(e.herleitung!.join(' | ')).toContain('Abzug 1,90 m für Parkstreifen rechts')
   })
   it('ein einzelnes Feld (5 m): Treffer nur an einem Feld, unter 4: kein Abzug; zwei Felder: Abzug', () => {
     const eins = links(rechne(park(suedreihe(-20, 1))))
@@ -82,8 +84,11 @@ describe('Parkstreifen an der Fahrstreifenachse der Vortrittsstrasse', () => {
     expect(eins.randAbstand).toBeCloseTo(1.5, 6)
     expect(links(rechne(park(suedreihe(-20, 2)))).parkStreifen.abzug).toBeCloseTo(1.9, 6)
   })
-  it('Velo-Felder, verworfene Felder und Felder ausserhalb der Fahrbahn: kein Abzug', () => {
-    expect(links(rechne(park(suedreihe(-10, 8, 'velo')))).parkStreifen.abzug).toBe(0)
+  it('Velo-Felder verschieben die Fahrlinie wie Auto-Felder (Korrektur Punkt 23, 31.10.2026)', () => {
+    expect(links(rechne(park(suedreihe(-10, 8, 'velo')))).parkStreifen.abzug).toBeCloseTo(1.9, 6)
+    expect(links(rechne(park(suedreihe(-10, 8, 'motorrad')))).parkStreifen.abzug).toBeCloseTo(1.9, 6)
+  })
+  it('verworfene Felder und Felder ausserhalb der Fahrbahn: kein Abzug', () => {
     const felder = suedreihe(-10, 8)
     expect(links(rechne({ ...park(felder), verworfen: felder.map(f => f.id) })).parkStreifen.abzug).toBe(0)
     // Parkbucht hinter dem Rand (y = −5 … −3): Prüfpunkt bei y = −2,05 ist 0,95 m entfernt (über 0,4 m)
@@ -119,7 +124,9 @@ describe('Parkstreifen auf der Zufahrt: Achse, D und FB nach links', () => {
     const d = rel(e.D)
     expect(d[0]).toBeCloseTo(-0.675, 2); expect(d[1]).toBeCloseTo(-6, 2)
     expect(e.zufahrtLageQuelle).toContain('Abzug 1,90 m für Parkstreifen rechts')
-    expect(e.annahmen.some(a => a.startsWith('Parkstreifen auf der Zufahrt'))).toBe(true)
+    // Wortlaut des Auftraggebers (Korrektur 31.10.2026, Punkt 5)
+    expect(e.annahmen.join(' | ')).toContain('Parkierung entlang Zufahrt. Von der verfügbaren Fahrbahnbreite werden 1,90 m für Parkfelder ' +
+      'abgezogen. Achse des Zufahrtsstreifens, D und FB entsprechend verschoben.')
     expect(e.hindernis.inD).toEqual([])                // D liegt nicht in einem Feld
   })
 })

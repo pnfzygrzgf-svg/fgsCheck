@@ -98,7 +98,7 @@ describe('K0: amtliches Tempo in der Rechnung (vor OSM, von Hand geht vor)', () 
   it('ohne OSM-Angabe: V_sig ersetzt die Annahme 50 km/h', () => {
     const e = rechne(osm({}), { tempoAmtlich: daten([linie('a', 30, [-200, 0], [200, 0])]) })
     expect([seite(e, 'links').tempo, seite(e, 'links').tempoAnnahme]).toEqual([30, false])
-    expect(e.annahmen.some(a => a.startsWith('Tempo nach links: ohne Angabe in OSM'))).toBe(false)
+    expect(e.annahmen.some(a => a.includes('Tempo nach links: ohne Angabe in OSM'))).toBe(false)
   })
   it('Tempo von Hand geht vor; Hinweis nennt das Geoportal', () => {
     const e = rechne(osm(), { tempoAmtlich: daten([linie('a', 30, [-200, 0], [200, 0])]),

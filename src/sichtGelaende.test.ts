@@ -44,9 +44,9 @@ const werteVon = (z: ZufahrtErgebnis, st: GelaendeStand): Record<string, Gelaend
 describe('Sicht auf die Wartefläche: Sichtlinie gegen das Höhenprofil', () => {
   it('Ziel 0,60 m über dem Boden (Parameter von gelaendeFrei), Toleranz wie bei der Erkennung', () => {
     expect(ZIEL_HOEHE_WARTE_M).toBe(0.6)
-    expect(AUGHOEHE_M).toBe(1.1)
-    // Linie bei d = 24 von 50 m: 1,1 + (0,6 − 1,1) · 0,48 = 0,86 m über dem Boden
-    const mitte = 1.1 + (0.6 - 1.1) * 0.48
+    expect(AUGHOEHE_M).toBe(1.0)
+    // Linie bei d = 24 von 50 m: 1,0 + (0,6 − 1,0) · 0,48 = 0,808 m über dem Boden
+    const mitte = 1.0 + (0.6 - 1.0) * 0.48
     expect(gelaendeFrei(profil(50, d => (d === 24 ? mitte + GELAENDE_TOL_M + 0.1 : 0)), GELAENDE_TOL_M, ZIEL_HOEHE_WARTE_M)).toBe(false)
     expect(gelaendeFrei(profil(50, d => (d === 24 ? mitte + GELAENDE_TOL_M - 0.1 : 0)), GELAENDE_TOL_M, ZIEL_HOEHE_WARTE_M)).toBe(true)
     // dieselbe Erhebung mit dem Ziel am Boden (Erkennungsdistanz) verdeckt

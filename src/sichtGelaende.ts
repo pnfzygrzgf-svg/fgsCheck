@@ -6,7 +6,7 @@
 // wie die Erkennungsdistanz (erkennungGelaende.ts, derselbe Profil-Dienst daten/sichtProfil.ts, dieselbe Prüfung gelaendeFrei):
 // - Augpunkte: auf den Sichtpunkten der 2D-Rechnung, Abstand x entlang der Sichtpunkte ab dem ersten (am Streifenrand), alle
 //   SICHT_LINIEN_ABSTAND_M bis zur Soll-Sichtweite und der Punkt an der Soll-Sichtweite selbst (bzw. am letzten Sichtpunkt, wenn die
-//   Sichtpunkte kürzer sind: Querung ohne Vortritt über die Reichweite, Spur endet im Gebäude). Augpunkt AUGHOEHE_M über dem Boden.
+//   Sichtpunkte kürzer sind: Querung ohne Vortritt über die Reichweite, Spur endet im Gebäude). Augpunkt AUGHOEHE_M (1,0 m, VSS 40 241 Ziffer 14, S. 6) über dem Boden.
 // - Ziel: die Ecken der beiden Warteflächen (Annäherungsbereiche, StreifenErgebnis.ann), die auch das 2D-Sichtfeld aufspannen. Je
 //   Augpunkt EINE Sichtlinie zum ungünstigsten Zielpunkt (Annahme): zur Ecke, die am stärksten von der Fahrtrichtung abweicht (äusserer
 //   Rand des Sichtkeils; diese Linie verläuft am weitesten neben der Fahrbahn, z. B. über die Innenseite einer Kurve). Eine Linie je
@@ -210,8 +210,8 @@ export function sichtGelaendeText(a: Pick<SichtGelaendeAnzeige, 'stand' | 'abM' 
 }
 /** Tooltip der Zeile */
 export const SICHT_GELAENDE_TITEL = 'Gelände (Kuppen, Senken, Böschungen) zwischen Fahrlinie und Wartefläche: nach der Rechnung entlang ' +
-  'einzelner Sichtlinien (alle 10 m bis zur nötigen Sicht) aus dem Höhenmodell swissALTI3D geprüft, Auge 1,1 m und Ziel 0,60 m über dem ' +
-  'Boden (Annahme); verdeckt es die Sicht vor der nötigen Sicht, ist die Zufahrt verdeckt. Ohne Antwort gilt die Rechnung in 2D ' +
+  'einzelner Sichtlinien (alle 10 m bis zur nötigen Sicht) aus dem Höhenmodell swissALTI3D geprüft, Auge 1,0 m (VSS 40 241 Ziffer 14, S. 6) ' +
+  'und Ziel 0,60 m über dem Boden (Annahme); verdeckt es die Sicht vor der nötigen Sicht, ist die Zufahrt verdeckt. Ohne Antwort gilt die Rechnung in 2D ' +
   '(«Gelände: nicht geprüft»).'
 /** Tooltip einer geländeverdeckten Sichtlinie auf der Karte */
 export const sichtGelaendeLinieText = (x: number): string =>

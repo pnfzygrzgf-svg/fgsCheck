@@ -46,10 +46,10 @@ describe('Gelände: Sichtlinie gegen das Höhenprofil', () => {
     expect(gelaendeFrei(profil(50, () => 500))).toBe(true)
     expect(gelaendeFrei(profil(50, d => 500 + 0.06 * d))).toBe(true)
     expect(gelaendeFrei(profil(50, d => 500 - 0.06 * d))).toBe(true)
-    // Linie bei d = 25 auf 0,55 m über dem Boden: 0,8 m Kuppe schneidet, 0,7 m (unter Toleranz) nicht
-    expect(gelaendeFrei(profil(50, d => (d === 24 ? 0.55 + GELAENDE_TOL_M + 0.1 : 0)))).toBe(false)
-    expect(gelaendeFrei(profil(50, d => (d === 24 ? 0.55 + GELAENDE_TOL_M - 0.1 : 0)))).toBe(true)
-    expect(AUGHOEHE_M).toBe(1.1)
+    // Linie bei d = 24 von 50 m: 1,0 · (1 − 0,48) = 0,52 m über dem Boden; 0,1 m über der Toleranz schneidet, 0,1 m darunter nicht
+    expect(gelaendeFrei(profil(50, d => (d === 24 ? 0.52 + GELAENDE_TOL_M + 0.1 : 0)))).toBe(false)
+    expect(gelaendeFrei(profil(50, d => (d === 24 ? 0.52 + GELAENDE_TOL_M - 0.1 : 0)))).toBe(true)
+    expect(AUGHOEHE_M).toBe(1.0)
     expect(gelaendeFrei([{ dist: 0, h: 1 }])).toBeNull()
   })
 })

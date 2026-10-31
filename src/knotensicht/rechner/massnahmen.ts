@@ -4,19 +4,23 @@
 // bzw. «reicht nicht» oder als Vermerk. Gerechnet werden nur Varianten der bestehenden Rechnung (rechnen.ts liefert sie über
 // MassnahmenEingang.variante): andere Lage von D, ein Hindernis weniger, tieferes Tempo. «Reicht» heisst: jede Richtung mit Verkehr
 // erreicht den massgebenden Wert. Die Massnahmen ändern die Rechnung nicht, bis der Nutzer eine als Eingabe übernimmt.
-// 1 Hindernis entfernen: je Verdecker bis A (ohne Gebäude der AV, nicht verhältnismässig; ohne «nur Hinweis»), Achse unverändert.
-// 2 Haltelinie vorverlegen (nur bestehende Anlagen): D ab der heutigen Kante (bzw. Trottoirhinterkante) in Schritten von
-//   HALTELINIE_SCHRITT_M näher an die Kante, bis HALTELINIE_MIN_M; die erste Lage, an der beide Richtungen reichen.
+// 1 Hindernis entfernen: je Verdecker bis A (ohne Gebäude der AV, nicht verhältnismässig; ohne «nur Hinweis»), Achse unverändert;
+//   Vermerk Privatgrund (SVG Art. 4, kantonale Pflanzabstände; bfu BM.021 Kap. 1, S. 1).
+// 2 Haltelinie vorverlegen (nur bestehende Anlagen, mit Zusatzmassnahmen; bfu BM.021 Kap. 3.3, S. 5: die Sicht muss spätestens ab
+//   B HALTELINIE_MIN_M reichen): D ab der heutigen Kante (bzw. Trottoirhinterkante) in Schritten von HALTELINIE_SCHRITT_M näher an
+//   die Kante, bis HALTELINIE_MIN_M; die erste Lage, an der beide Richtungen reichen.
 // 3 «Stop»: nur ausserorts mit Wirkung (B 5,00 auf 3,00 m, Ziffer 12). 4 Rechtsabbiegegebot: wenn nur nach links ausreichend.
+// 10 Geschwindigkeitsdrosselung (Block 5, zwischen 4 und 5 gezeigt): Vermerk ohne Rechnung, Bedingung siedlungsorientierte Strasse.
 // 5 Tempo senken: nächsttiefere Stufen der Tab. 1 (mit Anhaltesichtweite) bis es reicht. 6 Lichtsignalanlage: Vermerk.
 // 7 Spiegel: nur wenn 2 bis HALTELINIE_MIN_M nicht reicht; Bedingungen als Häkchen (die App zählt nur). 8 Aufhebung der Ausfahrt:
 // Vermerk bei Grundstückzufahrten.
 // E3b: der Velo-Teil zählt mit (Entscheid 1): eine Richtung ist «nicht erfüllt», wenn Auto oder Velo nicht erfüllt sind; jede
 // Variante rechnet auch die Veloachse (ein tieferes Tempo gilt dort als zulässige Höchstgeschwindigkeit der Tab. 3), «reicht» heisst
-// Auto und Velo reichen. Der Trottoirverkehr (Tab. 2) ist nicht Teil der Liste.
+// Auto und Velo reichen. Der Trottoirverkehr (Tab. 2) ist nicht Teil der Liste. Block 5: der Überholfall (Ziffer 6, nur ausserorts)
+// zählt wie das Velo mit, sofern geprüft.
 // E3c, Rechtsvortritt: zuoberst (Nr. 0) «Rechtsvortritt aufheben und Vortritt signalisieren» (Fundstelle VSS 40 273 Ziffer 16,
 // nicht 17), wenn der Zustand nach Abb. 6 «zu sanieren» bzw. das Sichtfeld nach Abb. 5 nicht frei ist. «Reicht» heisst dann: nicht
-// mehr «zu sanieren» und Paarmatrix frei. Haltelinie, Stop, Rechtsabbiegegebot, Tempo und Spiegel passen nicht zum Rechtsvortritt (B 5,00 m nach Abb. 4, Tempo fest
+// mehr «zu sanieren» und Sichtfeld der schmalen Zufahrt frei (bfu BM.021 Abb. 4, Block 5). Haltelinie, Stop, Rechtsabbiegegebot, Tempo und Spiegel passen nicht zum Rechtsvortritt (B 5,00 m nach Abb. 4, Tempo fest
 // 30 km/h nach Ziffer 15): nur Vermerk bzw. weggelassen.
 
 import type { P } from '../geo'
@@ -50,7 +54,7 @@ export interface MassnahmeZeile {
   uebernehmen?: Uebernahme
 }
 export interface Massnahme {
-  nr: number                  // 1 … 8, Reihenfolge der Ziffer 14 (Plan E3a)
+  nr: number                  // 1 … 8, Reihenfolge der Ziffer 14 (Plan E3a); 0 und 9 Rechtsvortritt (E3c), 10 Geschwindigkeitsdrosselung
   titel: string
   reicht: boolean | null      // null = Vermerk ohne Rechnung bzw. nicht anwendbar
   text: string
@@ -62,7 +66,8 @@ export interface Massnahme {
 /** Ergebnis einer Variante je Richtung mit Verkehr */
 export interface VarianteRichtung { richtung: Richtung; lage: Lage; vorhanden: number; massgebend: number; reicht: boolean; tempo: number
   velo?: { vorhanden: number; massgebend: number; reicht: boolean } | null
-  paareFrei?: boolean         // Rechtsvortritt, schmale Zufahrt: Paarmatrix nach Abb. 5 frei (E3c)
+  ueberholfall?: { vorhanden: number; massgebend: number; reicht: boolean } | null   // Block 5: Überholfall (Ziffer 6), nur wenn geprüft
+  sichtfeldFrei?: boolean     // Rechtsvortritt, schmale Zufahrt: Sichtfeld nach bfu BM.021 Abb. 4 (VSS 40 273 Abb. 5) frei
   nurVelo?: boolean           // E4: Velo gegen die Einbahn, von dieser Seite keine Motorfahrzeuge (vorhanden, massgebend: die des Velos)
 }
 /** Variante der bestehenden Rechnung: D an anderer Lage, ohne ein Hindernis, anderes Tempo je Richtung */
@@ -70,6 +75,8 @@ export interface Variante { D?: P; ohne?: string[]; tempo?: Partial<Record<Richt
 
 export interface MassnahmenEingang {
   richtungen: RichtungErgebnis[]
+  /** Korrektur 31.10.2026 (Punkt 13): LSA-Knoten (Lichtsignal in OSM am Knoten bzw. auf einem Arm): ohne Massnahme «Lichtsignalanlage» */
+  lsa?: boolean
   variante: (v: Variante) => VarianteRichtung[]
   /** D und Haltelinie, wenn D b Meter hinter dem Bezug (Kante bzw. Trottoirhinterkante) steht; null = D von Hand (nicht gerechnet) */
   haltelinie: { dHeute: number; bezug: string; lage: (b: number) => { D: P; haltelinie: P } } | null
@@ -78,6 +85,8 @@ export interface MassnahmenEingang {
   ausserorts: boolean
   regelung: Regelung
   grundstueck: boolean
+  /** Block 5: siedlungsorientierte Strasse (ES bzw. Tempo ≤ 30) für den Vermerk Geschwindigkeitsdrosselung; fehlt = nicht bekannt */
+  siedlungsorientiert?: boolean | null
   /** Rechtsvortritt (E3c): aufheben = zu sanieren bzw. Sichtfeld nach Abb. 5 nicht frei; null = kein Rechtsvortritt */
   rechtsvortritt?: { aufheben: boolean; verdecker: { id: string; name: string; art: string; quelle: string }[]
     wahrnehmbarkeit: string[] } | null   // Zustand nach Abb. 6 je Wahrnehmbarkeit bei der vorhandenen Sichtweite (Zeilen)
@@ -87,16 +96,22 @@ const f1 = (x: number) => x.toFixed(1).replace('.', ',')
 const f2 = (x: number) => x.toFixed(2).replace('.', ',')
 /** mit Verkehr: Motorfahrzeuge bzw. (E4, Velo gegen die Einbahn) nur Velos */
 const mitVerkehr = (r: RichtungErgebnis) => r.status !== 'keine_zufahrt' || !!r.velo
-/** Auto bzw. Velo nicht erfüllt (E3b) */
-const nicht = (r: RichtungErgebnis) => r.status === 'nicht_erfuellt' || r.velo?.status === 'nicht_erfuellt'
+/** Auto, Velo bzw. Überholfall nicht erfüllt (E3b, Block 5) */
+const nicht = (r: RichtungErgebnis) => r.status === 'nicht_erfuellt' || r.velo?.status === 'nicht_erfuellt' ||
+  r.ueberholfall?.status === 'nicht_erfuellt'
 const ok = (r: RichtungErgebnis) => (r.status === 'erfuellt' || r.status === 'massgebend' || (r.status === 'keine_zufahrt' && !!r.velo)) &&
-  r.velo?.status !== 'nicht_erfuellt'
+  r.velo?.status !== 'nicht_erfuellt' && r.ueberholfall?.status !== 'nicht_erfuellt'
 const alle = (v: VarianteRichtung[]) => v.every(x => x.reicht)
 const zahlen = (v: VarianteRichtung[]) => v.map(x => x.nurVelo ? `${lageWort(x)} nur Velo ${f1(x.vorhanden)} m (erforderlich ${x.massgebend} m)` :
   `${lageWort(x)} ${f1(x.vorhanden)} m (erforderlich ${x.massgebend} m)` +
-  (x.paareFrei !== undefined ? `, Abb. 5 ${x.paareFrei ? 'frei' : 'nicht frei'}` : '') +
+  (x.sichtfeldFrei !== undefined ? `, Abb. 5 ${x.sichtfeldFrei ? 'frei' : 'nicht frei'}` : '') +
+  (x.ueberholfall ? `, Überholfall ${f1(x.ueberholfall.vorhanden)} m (erforderlich ${x.ueberholfall.massgebend} m)` : '') +
   (x.velo ? `, Velo ${f1(x.velo.vorhanden)} m (erforderlich ${x.velo.massgebend} m)` : '')).join(', ')
 const gross = (t: string) => t[0].toUpperCase() + t.slice(1)
+/** Block 5: Vermerke zu den Massnahmen 1 und 2 (Fundstellen, eigene Worte) */
+export const HINDERNIS_PRIVAT_TEXT = 'Auf Privatgrund: SVG Art. 4 und kantonale Pflanzabstände (bfu BM.021 Kap. 1, S. 1).'
+export const HALTELINIE_ZUSATZ_TEXT = 'Nur an bestehenden Knoten und Zufahrten, mit Zusatzmassnahmen (z. B. Sperrfläche, versetzte Randlinie); ' +
+  `bfu: nur im Bestand, die Sicht muss spätestens ab B ${HALTELINIE_MIN_M.toFixed(2).replace('.', ',')} m reichen (bfu BM.021 Kap. 3.3, S. 5).`
 const wort = (b: boolean) => (b ? 'reicht' : 'reicht nicht')
 
 /** Massnahmen nach Ziffer 14; null, wenn keine Richtung «nicht erfüllt» ist */
@@ -119,9 +134,9 @@ export function massnahmenRechnen(m: MassnahmenEingang): Massnahme[] | null {
 
   // 1 Hindernis entfernen (je Verdecker bis A, ohne Gebäude der AV und ohne «nur Hinweis»)
   const kandidaten = new Map<string, { name: string; art: string; quelle: string }>()
-  for (const r of rs) for (const t of [...r.verdeckerListe, ...(r.velo?.verdeckerListe ?? [])])
+  for (const r of rs) for (const t of [...r.verdeckerListe, ...(r.velo?.verdeckerListe ?? []), ...(r.ueberholfall?.verdeckerListe ?? [])])
     if (t.quelle !== 'AV' && t.wirkung !== 'hinweis' && !kandidaten.has(t.id)) kandidaten.set(t.id, { name: t.name, art: t.art, quelle: t.quelle })
-  // Rechtsvortritt: auch die Flächen, die eine Sichtlinie der Paarmatrix (Abb. 5) verdecken
+  // Rechtsvortritt: auch die Flächen, die eine Sichtlinie des Sichtfelds der schmalen Zufahrt (Abb. 5) verdecken
   for (const t of rv?.verdecker ?? []) if (t.quelle !== 'AV' && !kandidaten.has(t.id)) kandidaten.set(t.id, { name: t.name, art: t.art, quelle: t.quelle })
   const zeilen1: MassnahmeZeile[] = [...kandidaten].map(([id, k]) => {
     const v = m.variante({ ohne: [id] })
@@ -135,7 +150,7 @@ export function massnahmenRechnen(m: MassnahmenEingang): Massnahme[] | null {
   }
   out.push({ nr: 1, titel: 'Hindernis entfernen', reicht: kandidaten.size ? zeilen1.some(z => z.reicht) : null, zeilen: zeilen1,
     text: kandidaten.size ? 'Je Hindernis im Sichtdreieck (bis zur erforderlichen Sichtweite) die Rechnung ohne es (Parkfeld aufheben, Bepflanzung zurückschneiden, ' +
-      'Einfriedung ersetzen); Gebäude der AV sind ausgenommen (nicht verhältnismässig), die Fahrstreifenachse bleibt.' :
+      'Einfriedung ersetzen); Gebäude der AV sind ausgenommen (nicht verhältnismässig), die Fahrstreifenachse bleibt. ' + HINDERNIS_PRIVAT_TEXT :
       'Im Sichtdreieck (bis zur erforderlichen Sichtweite) verdecken nur Gebäude der AV (nicht verhältnismässig zu entfernen).' })
 
   // 2 Haltelinie vorverlegen
@@ -143,7 +158,7 @@ export function massnahmenRechnen(m: MassnahmenEingang): Massnahme[] | null {
   const zeilen2: MassnahmeZeile[] = []
   let text2: string
   if (rv) text2 = 'Beim Rechtsvortritt nicht anwendbar (keine Haltelinie, B 5,00 m nach Abb. 4).'
-  else if (!m.haltelinie) text2 = 'D von Hand gesetzt: nicht gerechnet.'
+  else if (!m.haltelinie) text2 = `D von Hand gesetzt: nicht gerechnet. ${HALTELINIE_ZUSATZ_TEXT}`
   else {
     const { dHeute, bezug, lage } = m.haltelinie
     halteReicht = false
@@ -170,7 +185,7 @@ export function massnahmenRechnen(m: MassnahmenEingang): Massnahme[] | null {
     }
     if (!halteReicht) zeilen2.push({ reicht: false, text: letzte ? `bis D ${f2(letzteB)} m hinter der ${bezug}: ${zahlen(letzte)}; reicht nicht` :
       `D steht schon ${f2(dHeute)} m hinter der ${bezug} (höchstens bis ${f2(HALTELINIE_MIN_M)} m): reicht nicht` })
-    text2 = `Nur an bestehenden Knoten und Zufahrten, mit begleitenden Markierungen (Sperrfläche, Randlinie). D ab der heutigen Lage ` +
+    text2 = `${HALTELINIE_ZUSATZ_TEXT} D ab der heutigen Lage ` +
       `(${f2(dHeute)} m hinter der ${bezug}) in Schritten von ${f2(HALTELINIE_SCHRITT_M)} m näher an die ${bezug}, bis ` +
       `${f2(HALTELINIE_MIN_M)} m; «vorverlegt» zählt ab der heutigen Haltelinie bzw. dem heutigen Nullpunkt.`
   }
@@ -203,6 +218,13 @@ export function massnahmenRechnen(m: MassnahmenEingang): Massnahme[] | null {
     `${gross(lageNach(links!))} erfüllt, ${lageNach(rechts!)} nicht: Rechtsabbiegegebot möglich (Ziffer 14); die Rechnung bleibt, nur Vermerk.` :
     `Nicht anwendbar: ${!links ? 'von links kein Verkehr' : !ok(links) ? `${lageNach(links)} nicht ausreichend` : 'von rechts kein Verkehr'}.` })
 
+  // 10 Geschwindigkeitsdrosselung (Block 5): Vermerk ohne Rechnung, zwischen Rechtsabbiegegebot und Tempo senken
+  const so = m.siedlungsorientiert ?? null
+  out.push({ nr: 10, titel: 'Geschwindigkeitsdrosselung', reicht: null, zeilen: [], text: 'Bauliche Massnahme zum ' +
+    'Verlangsamen, z. B. Aufpflästerung des Knotens oder andere Gestaltung nach VSS 40 213 (Ziffer 14, S. 9). Nur auf siedlungsorientierten ' +
+    'Strassen' + (so === true ? ', hier gegeben' : so === false ? ', hier nicht gegeben (Hauptverkehrsstrasse über 30 km/h)' : '') +
+    '. Die App rechnet sie nicht.' })
+
   // 5 Tempo senken (je Richtung, die nicht reicht)
   const zeilen5: MassnahmeZeile[] = []
   let tempoReicht = true
@@ -218,15 +240,15 @@ export function massnahmenRechnen(m: MassnahmenEingang): Massnahme[] | null {
     }
     if (!gefunden) { tempoReicht = false; if (r.stufe <= TAB1_STUFEN[0]) zeilen5.push({ reicht: false, text: `${lageNach(r)}: schon die tiefste Stufe der Tab. 1` }) }
   }
-  if (rv) out.push({ nr: 5, titel: 'Tempo senken', reicht: null, zeilen: [], text: 'Beim Rechtsvortritt gilt 30 km/h fest (Ziffer 15): ' +
-    'keine Rechnung; die Wahrnehmbarkeit des Knotens verbessern (Ziffer 18, z. B. besondere Markierung, vertikaler Versatz) hebt den ' +
-    'Zustand nach Abb. 6.' })
+  if (rv) out.push({ nr: 5, titel: 'Tempo senken', reicht: null, zeilen: [], text: 'Beim Rechtsvortritt hängt die nötige Sicht fürs Auto ' +
+    'nicht vom Tempo ab (Abb. 6, S. 12; die Norm geht von 30 km/h aus, Ziffer 15, S. 10). Wirksamer ist, die Wahrnehmbarkeit des ' +
+    'Knotens zu verbessern (Ziffer 18, S. 12–13; z. B. besondere Markierung, vertikaler Versatz): das hebt den Zustand nach Abb. 6.' })
   else out.push({ nr: 5, titel: 'Tempo senken', reicht: tempoReicht, zeilen: zeilen5, text: 'Nächsttiefere Stufen der Tab. 1, mit der ' +
-    'Anhaltesichtweite bei der Längsneigung. Senkung der Höchstgeschwindigkeit nur mit Gutachten nach SSV; auf ' +
-    'siedlungsorientierten Strassen auch Gestaltung nach VSS 40 213 (z. B. Aufpflästerung).' })
+    'Anhaltesichtweite bei der Längsneigung. Senkung der Höchstgeschwindigkeit nur mit Gutachten nach SSV.' })
 
-  // 6 Lichtsignalanlage
-  out.push({ nr: 6, titel: 'Lichtsignalanlage im Dauerbetrieb', reicht: null, zeilen: [], text: 'Vermerk ohne Rechnung (Ziffer 14).' })
+  // 6 Lichtsignalanlage (Korrektur 31.10.2026, Punkt 13: entfällt an einem LSA-Knoten, dort regelt schon ein Lichtsignal)
+  if (!m.lsa) out.push({ nr: 6, titel: 'Lichtsignalanlage im Dauerbetrieb', reicht: null, zeilen: [], text: 'Mögliche Massnahme an bestehenden Knoten (Ziffer 14, S. 9). ' +
+    'Die App rechnet sie nicht.' })
 
   // 7 Spiegel: nur wenn die Haltelinie bis 1,50 m nicht reicht
   if (halteReicht !== true && !rv) out.push({ nr: 7, titel: 'Spiegel (Notbehelf)', reicht: null, zeilen: [], bedingungen: SPIEGEL_BEDINGUNGEN,
@@ -237,6 +259,6 @@ export function massnahmenRechnen(m: MassnahmenEingang): Massnahme[] | null {
 
   // 8 Aufhebung der Ausfahrt
   if (m.grundstueck) out.push({ nr: 8, titel: 'Aufhebung der Ausfahrt', reicht: null, zeilen: [],
-    text: 'Grundstückzufahrt: Aufhebung der gefährlichen Ausfahrt als letzte Massnahme (Ziffer 14).' })
+    text: 'Bei einer Grundstückzufahrt die letzte mögliche Massnahme: die gefährliche Ausfahrt aufheben (Ziffer 14, S. 9).' })
   return out
 }

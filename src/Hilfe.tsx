@@ -79,8 +79,8 @@ export function Anleitung() {
             <li><b>Ergebnis lesen:</b> je Streifen die Zufahrten mit Tempo, Sichtweite und Status (frei bzw. verdeckt und wodurch). Zeile
             anklicken: Sichtfeld, Sichtpunkte und Hindernisse auf der Karte. Nach der Rechnung prüft die App zudem, ob eine Kuppe im
             Bereich der Fahrbahn die Sicht auf die Wartefläche nimmt ({V('VSS 40 241')}, Ziffer 14, S. 6): je Zufahrt alle 10 m bis zur
-            nötigen Sicht eine Sichtlinie zur Wartefläche, mit dem Höhenmodell swissALTI3D; Annahme: Auge 1,1 m, Ziel 0,60 m über dem
-            Boden. Verdeckt das Gelände die Sicht vorher, gilt die Zufahrt als verdeckt («Gelände: verdeckt ab … m»; bei der gewählten
+            nötigen Sicht eine Sichtlinie zur Wartefläche, mit dem Höhenmodell swissALTI3D; Auge 1,0 m (Normwert, gleiche Ziffer), Ziel 0,60 m über dem
+            Boden (Annahme). Verdeckt das Gelände die Sicht vorher, gilt die Zufahrt als verdeckt («Gelände: verdeckt ab … m»; bei der gewählten
             Zufahrt rot gestrichelt auf der Karte), ohne Antwort bleibt die Prüfung in 2D («Gelände: nicht geprüft»). Hinweise in Braun sind Annahmen («aus OSM, prüfen»,
             «Annahme» beim Tempo). Gerade Zufahrten eines Fussgängerstreifens zeigen zudem, ab welcher Distanz die Markierung im
             eigenen Fahrstreifen frei sichtbar ist («Streifen erkennbar ab …»; geprüft bis 110 m; Gebäude, Hecken, Mauern, Bäume und

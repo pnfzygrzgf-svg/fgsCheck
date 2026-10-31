@@ -16,8 +16,8 @@ import { type OsmNetz, streckeLaenge, MFZ_HW } from './netz'
 import type { OsmAchsen } from './achsen'
 import type { Fahrbahn } from './flaechen'
 import { punkteAufSpur } from './spur'
-import { armInfo, himmelsrichtung, strassenArme, vortrittPaar, nummerieren, NR_GRUNDSTUECK } from './knoten'
-import { armMittellinie } from './hauptachsen'
+import { armInfo, himmelsrichtung, strassenArme, vortrittPaar, nummerieren, NR_GRUNDSTUECK, teilungsFortsetzung } from './knoten'
+import { armMittellinieMitEnde, armLinieAus, type ArmLinie } from './hauptachsen'
 import type { ArmInfo, ZufahrtspunktEingabe } from './typen'
 
 /** Vortrittsstrasse: nächster Strassenweg bis zu diesem Abstand vom Zufahrtspunkt */
@@ -52,7 +52,9 @@ export interface GrundstueckGeo {
   kp: P                                   // Knotenpunkt auf der Vortrittsstrasse
   arme: [ArmInfo, ArmInfo]                // vortrittsberechtigte Arme ab kp
   grund: string                           // warum diese Arme
-  mittellinie: (a: ArmInfo, laenge: number) => P[]
+  /** Mittellinie eines Arms ab kp bis laenge; ende: ab wo sie gerade verlängert ist (SpurEnde); an einer Teilung der Fahrbahn in zwei
+   *  Einbahnen auf der zuführenden (ArmLinie) */
+  mittellinie: (a: ArmInfo, laenge: number, seite?: 'zu' | 'weg') => ArmLinie
   zArm: ArmInfo                           // Zufahrt (Arm des Wegs service bzw. Pseudo-Arm ohne OSM-Weg, wid −1)
   zMl: (laenge: number) => P[]            // Mittellinie der Zufahrt ab kp (Achse des Zufahrtsstreifens, ohne Versatz)
   richtung: P
@@ -162,7 +164,8 @@ export function grundstueckGeometrie(netz: OsmNetz, achsen: OsmAchsen, fahrbahn:
   const strasse = wk.name || wk.hw
   return {
     eingabe: z.p, kp, arme: [vor, zur], grund: `OSM-Weg ${best.wid} am Zufahrtspunkt`, zArm, richtung: r, gezeichnet, weg: null, strasse, hinweise,
-    mittellinie: (a, laenge) => li >= 0 ? achsen.spur(start, a.sd > 0 ? tang : neg(tang), laenge) : [kp, add(kp, a.richtung, laenge)],
+    mittellinie: (a, laenge, seite = 'zu') => li >= 0 ? armLinieAus(netz, achsen.spurMitEnde(start, a.sd > 0 ? tang : neg(tang), laenge,
+      teilungsFortsetzung(netz, seite))) : { linie: [kp, add(kp, a.richtung, laenge)], ende: null, teilungen: [], abschnitte: [] },
     zMl: laenge => [kp, add(kp, r, laenge)],
   }
 }
@@ -203,7 +206,7 @@ function serviceZufahrt(netz: OsmNetz, achsen: OsmAchsen, p: P, hinweise: string
   const strasse = [...new Set(vp[0].map(a => a.name || a.hw))].join(' / ')
   return {
     eingabe: p, kp, arme: nummerieren(vp[0]) as [ArmInfo, ArmInfo], grund: vp[1], zArm, richtung: zArm.richtung, gezeichnet: false, weg: best.wid, strasse, hinweise,
-    mittellinie: (a, laenge) => armMittellinie(netz, achsen, a, laenge),
+    mittellinie: (a, laenge, seite = 'zu') => armMittellinieMitEnde(netz, achsen, a, laenge, seite),
     zMl: laenge => bisLaenge(netz.armLinie([best!.wid, idx, sd], laenge), laenge),
   }
 }

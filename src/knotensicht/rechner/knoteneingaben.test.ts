@@ -69,14 +69,14 @@ describe('E2b: Vortrittsregelung', () => {
   it('Vorgabe ohne Signal: Vortritt (Annahme); ausserorts B 5,00 m', () => {
     const e = rechne(osm({ maxspeed: '60' }), [fahrbahn])
     expect([e.regelung, e.regelungVorgabe, e.regelungGewaehlt, e.B]).toEqual(['vortritt', 'vortritt', false, 5])
-    expect(e.annahmen.join(' | ')).toContain('Vortrittsregelung «Vortritt» angenommen (ohne Signal in OSM')
+    expect(e.annahmen.join(' | ')).toContain('Vortrittsregelung «Kein Vortritt (Signal 3.02)» angenommen (ohne Signal in OSM')
   })
   it('Vorgabe ohne Signal nach der Vortrittsstrasse (Entscheid 17.10.2026): Quartierstrasse Tempo 30 -> Rechtsvortritt, sonst Vortritt', () => {
     // residential mit maxspeed 30: Rechtsvortritt (Annahme), B 5,00 m nach Abb. 4
     const q = rechne(osm({ highway: 'residential', maxspeed: '30' }), [fahrbahn])
     expect([q.regelung, q.regelungVorgabe, q.regelungGewaehlt, q.B]).toEqual(['rechtsvortritt', 'rechtsvortritt', false, 5])
     expect(q.regelungQuelle).toContain('Quartierstrasse mit Tempo 30 km/h')
-    expect(q.annahmen.join(' | ')).toContain('Vortrittsregelung «Rechtsvortritt» angenommen (ohne Signal in OSM')
+    expect(q.annahmen.join(' | ')).toContain('Vortrittsregelung «Rechtsvortritt (ohne Signal)» angenommen (ohne Signal in OSM. Quartierstrasse')
     // unclassified nur mit Zonen-Tag
     expect(rechne(osm({ highway: 'unclassified', maxspeed: '30' }), [fahrbahn]).regelungVorgabe).toBe('vortritt')
     const z = rechne(osm({ highway: 'unclassified', maxspeed: '30', 'zone:maxspeed': 'CH:30' }), [fahrbahn])
@@ -94,8 +94,8 @@ describe('E2b: Vortrittsregelung', () => {
     expect([e.regelung, e.regelungGewaehlt, e.ausserorts, e.B]).toEqual(['stop', true, true, 3])
     nahe(e.Dachse, 1.25, -6)
     nahe(e.D, 0.75, -6)
-    expect(e.annahmen.some(a => a.startsWith('Vortrittsregelung'))).toBe(false)
-    expect(e.annahmen.join(' | ')).toContain('B = 3,00 m (ausserorts, Stop')
+    expect(e.annahmen.some(a => a.includes('Vortrittsregelung'))).toBe(false)
+    expect(e.annahmen.join(' | ')).toContain('steht 3,00 m hinter der Kante des Fahrstreifens mit Vortritt (Beobachtungsdistanz B ausserorts, Stop')
   })
   it('Vorgabe aus OSM highway=stop an der Zufahrt: Stop, B 3,00 m ausserorts; give_way: Vortritt', () => {
     const stop = osm({ maxspeed: '60' }, { vortritt: [{ id: 99, tags: { highway: 'stop' }, lat: ll(0, -4)[0], lon: ll(0, -4)[1] }] })
@@ -104,7 +104,7 @@ describe('E2b: Vortrittsregelung', () => {
     // von Hand Vortritt gewählt: B 5,00 m, Hinweis auf das Signal
     const v = rechne(stop, [fahrbahn], { eingaben: eg({ regelung: 'vortritt' }) })
     expect(v.B).toBe(5)
-    expect(v.hinweise.join(' ')).toContain('an der Zufahrt; gewählt ist «Vortritt»')
+    expect(v.hinweise.join(' ')).toContain('an der Zufahrt; gewählt ist «Kein Vortritt (Signal 3.02)».')
     const gw = osm({ maxspeed: '60' }, { vortritt: [{ id: 98, tags: { highway: 'give_way' }, lat: ll(0, -4)[0], lon: ll(0, -4)[1] }] })
     expect(rechne(gw, [fahrbahn]).regelung).toBe('vortritt')
   })
@@ -131,7 +131,7 @@ describe('E2b: Haltelinie', () => {
     nahe(e.nullpunkt, 1.25, -4)
     nahe(e.Dachse, 1.25, -7)
     nahe(e.D, 0.75, -7)
-    expect(e.nullpunktText).toBe('Vorderkante der Haltelinie')
+    expect(e.nullpunktText).toBe('Vorderkante der Halte- oder Wartelinie')
     // Querlinie senkrecht zur Achse, 3 m lang
     nahe(e.haltelinie!.quer[0], 1.25 + 1.5, -4); nahe(e.haltelinie!.quer[1], 1.25 - 1.5, -4)
   })
@@ -167,7 +167,7 @@ describe('E2b: D von Hand', () => {
     expect(e.Dlage.seitlich).toBeCloseTo(1.25, 6)
     expect(Math.abs(seite(e, 'links').vorhanden - 36.25)).toBeLessThan(0.01)
     expect(e.hinweise.join(' ')).toContain('weniger als 3,00 m (Ziffer 12')
-    expect(e.annahmen.some(a => a.startsWith('Beobachtungspunkt D am Fahrersitz'))).toBe(false)
+    expect(e.annahmen.some(a => a.includes('Das Auge des Lenkers'))).toBe(false)
     // Sichtdreieck ab D
     nahe(seite(e, 'rechts').dreieck[0], 0, -5, 1e-9)
   })
@@ -193,7 +193,7 @@ describe('E2b: Trottoir', () => {
     nahe(e.nullpunkt, 1.25, -5, 0.06)
     nahe(e.D, 0.75, -8, 0.06)
     expect(e.nullpunktText).toBe('Trottoirhinterkante')
-    expect(e.annahmen.join(' | ')).toContain('Trottoir zwischen Zufahrt und Vortrittsstrasse')
+    expect(e.annahmen.join(' | ')).toContain('Zwischen Zufahrt und Vortrittsstrasse liegt ein Trottoir')
   })
   it('Häkchen «Trottoir ohne Hindernisse»: B ab der Bordkante (y −3): D (0,75; −6)', () => {
     const e = rechne(osm(), [fbT, neben, trottoir], { eingaben: eg({ trottoirFrei: true }) })
@@ -201,7 +201,7 @@ describe('E2b: Trottoir', () => {
     nahe(e.nullpunkt, 1.25, -3)
     nahe(e.D, 0.75, -6)
     expect(e.nullpunktText).toBe('Bordkante (Trottoir ohne Hindernisse)')
-    expect(e.annahmen.some(a => a.startsWith('Trottoir zwischen'))).toBe(false)
+    expect(e.annahmen.some(a => a.includes('liegt ein Trottoir'))).toBe(false)
   })
   it('ohne Trottoir in der AV: Häkchen ohne Wirkung, Grund genannt', () => {
     const e = rechne(osm(), [fahrbahn], { eingaben: eg({ trottoirFrei: true }) })
@@ -229,7 +229,8 @@ describe('E2b: Tempo von Hand', () => {
   })
   it('ohne OSM-Tempo: Annahme 50 km/h verschwindet für die Richtung mit Tempo von Hand', () => {
     const e = rechne(osm({ maxspeed: '' }), [fahrbahn], { eingaben: eg({ tempo: { links: null, rechts: { art: 'fahrbar', wert: 20, begruendung: '' } } }) })
-    expect(e.annahmen.filter(a => a.startsWith('Tempo nach'))).toEqual([expect.stringContaining('Tempo nach links')])
+    const t = e.annahmen.join(' | ')
+    expect([t.includes('Tempo nach links: ohne Angabe in OSM'), t.includes('Tempo nach rechts')]).toEqual([true, false])
     expect(seite(e, 'rechts')).toMatchObject({ tempo: 20, tempoAnnahme: false, tempoQuelle: 'von Hand: fahrbares Tempo bei Verkehrsberuhigung' })
   })
 })
@@ -304,11 +305,13 @@ describe('E2b: Grundstückzufahrt', () => {
       zufahrtspunkt: { p: a.rand, richtung: [-a.fbRichtung[0], -a.fbRichtung[1]] } })
     expect(g.meldungen).toEqual([])
     const e = g.ergebnis!
-    nahe(e.D, ...rel(a.D), 1e-3)
+    // Seit 31.10.2026 folgt die Achse der Knotenzufahrt in der Mündung dem rechten Rand (lageMuendung, höchstens 0,15 m je m) und ist
+    // dort leicht gebogen; die Grundstückzufahrt bleibt eine Gerade. Bei 55° liegt D darum bis rund 0,2 m, K bis rund 0,8 m daneben (vorher 1 mm).
+    nahe(e.D, ...rel(a.D), 0.3)
     expect(rel(g.knoten!.p)[0]).toBeGreaterThan(0)            // Knotenpunkt auf dem Ostweg
     for (const r of ['links', 'rechts'] as const) {
-      nahe(seite(e, r).K, ...rel(seite(a, r).K), 1e-3)
-      expect(seite(e, r).vorhanden).toBeCloseTo(seite(a, r).vorhanden, 2)
+      nahe(seite(e, r).K, ...rel(seite(a, r).K), 1.0)            // K: Schnitt mit der Spurachse, bei 55° bis rund 0,8 m
+      expect(Math.abs(seite(e, r).vorhanden - seite(a, r).vorhanden)).toBeLessThan(1)
     }
   })
   it('OSM-Weg service parallel zur Strasse mit Einmündung weit weg: nicht übernommen, senkrecht mit Hinweis (Prüfrunde Nr. 4)', () => {

@@ -48,6 +48,8 @@ export const WERK_INFO: Readonly<Record<WerkId, WerkInfo>> = {
     'für den Veloverkehr.', gilt: NORM },
   '40213': { ebene: 'Norm', was: 'VSS 40 213 ist die Norm des VSS für bauliche Elemente, die den Verkehr verlangsamen, etwa ' +
     'Einengungen und Trottoirnasen.', gilt: NORM },
+  '40040': { ebene: 'Norm', was: 'VSS 40 040b ist die Norm des VSS, die Strassen nach ihrer Aufgabe im Netz in Typen einteilt; ' +
+    'fgsCheck nutzt daraus die Unterscheidung verkehrsorientiert und siedlungsorientiert.', gilt: NORM },
   '640075': { ebene: 'Norm', was: 'SN 640 075 ist die Schweizer Norm für einen Strassenraum ohne Hindernisse, damit ihn auch Menschen ' +
     'mit Rollstuhl, Rollator oder Sehbehinderung benützen können (Randsteine, Inseln, Signalzeiten).', gilt: NORM },
   '640850a': { ebene: 'Norm', was: 'SN 640 850a ist die Schweizer Norm für Markierungen auf der Fahrbahn: Form, Masse und Einsatz, auch ' +
@@ -152,6 +154,7 @@ export function werkBezug(w: WerkId): string | null {
 export const LESENAME: Readonly<Record<WerkId, string>> = {
   '40241': 'VSS-Norm 40 241 Fussgängerstreifen', '40240': 'VSS-Norm 40 240 Querungsanlagen', '40242': 'VSS-Norm 40 242 Trottoirüberfahrten',
   '40837': 'VSS-Norm 40 837 Lichtsignalanlagen', '40273': 'VSS-Norm 40 273 Sicht in Knoten', '40213': 'VSS-Norm 40 213 Verkehrsberuhigungselemente',
+  '40040': 'VSS-Norm 40 040b Strassentypen',
   '640075': 'Norm SN 640 075 Hindernisfreier Verkehrsraum', '640850a': 'Norm SN 640 850a Markierungen',
   '640852': 'Norm SN 640 852 Taktil-visuelle Markierungen',
   VOT30: 'Tempo-30-Zonen-Verordnung (SR 741.213.3)', SSV: 'Signalisationsverordnung (SSV)', VRV: 'Verkehrsregelnverordnung (VRV)',
