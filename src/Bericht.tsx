@@ -29,6 +29,7 @@ import { LESENAME } from './bedarf/quellen'
 import { ART, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, tempoHerkunft, f1, f2, mText, streifenStatus,
   erkennungText } from './texte'
 import { erkennungAnzeige, gelaendeText, type GelaendeStand } from './erkennungGelaende'
+import { sichtGelaendeText } from './sichtGelaende'
 import { KnotensichtBericht } from './tue/KnotensichtBlock'
 import { koordText, vorzeichenText, fixpunktMasse } from './rechner/vermassung'
 import { fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT } from './fixpunkt'
@@ -462,6 +463,7 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
                 <td>{mText(z.sichtweite)} m<div className="klein">({sichtQuelleKurz(z.sichtweiteQuelle)}{z.kurvenradiusM != null ? `, Kurvenradius ${f1(z.kurvenradiusM)} m` : ''})</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
                 <td><b>{statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}
+                  {z.sichtGelaende && <div className="klein">Sicht auf die Wartefläche, {sichtGelaendeText(z.sichtGelaende)}</div>}
                   {z.erkennungM && (() => {
                     const a = erkennungAnzeige(z, gelaende)!.e
                     return <div className="klein">{erkennungText(a)}; {gelaendeText(a)}</div>

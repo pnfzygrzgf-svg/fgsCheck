@@ -1,7 +1,7 @@
 // Tests VSS 40 090b Abb. 2 (abgelesen, ±2 m): Tabelle, Kontrolle bei i = 0 gegen VSS 40 273 Tab. 1, Interpolation, Stufen,
 // Randverhalten, Monotonie
 import { describe, expect, it } from 'vitest'
-import { ANHALTESICHT, ANHALTESICHT_I, ANHALTESICHT_STUFEN, anhaltesichtweite, anhalteAbweichung } from './anhaltesicht'
+import { ANHALTESICHT, ANHALTESICHT_I, ANHALTESICHT_STUFEN, ANHALTESICHT_DURCHGEZOGEN, anhaltesichtweite, anhalteAbweichung } from './anhaltesicht'
 import { TAB1 } from './sichtweite'
 
 describe('VSS 40 090b Abb. 2: Anhaltesichtweite übrige Strassen', () => {
@@ -72,5 +72,25 @@ describe('VSS 40 090b Abb. 2: Anhaltesichtweite übrige Strassen', () => {
     expect(anhaltesichtweite(80, -11).hinweise.join(' ')).toContain('verlängert')
     expect(anhaltesichtweite(80, -8)).toMatchObject({ unsicher: false, hinweise: [] })
     expect(anhaltesichtweite(50, Number.NaN).i).toBe(0)
+  })
+  it('gestrichelte Kurvenenden gelten als nicht gezeichnet (Entscheid 31.10.2026): Wert bleibt, aber unsicher mit Hinweis', () => {
+    expect(ANHALTESICHT_DURCHGEZOGEN).toEqual({ 30: [-12, 12], 40: [-12, 12], 50: [-11, 10], 60: [-10, 10], 70: [-9, 9], 80: [-8, 8] })
+    // 80 km/h: −8 % durchgezogen, −9 % gestrichelt (Wert aus der Tabelle unverändert: (135 + 128) / 2 = 131,5), −11 % verlängert
+    const a = anhaltesichtweite(80, -9)
+    expect(a).toMatchObject({ roh: 131.5, unsicher: true, verlaengert: false })
+    expect(a.hinweise).toContain('Kurve 80 km/h in Abb. 2 nur von −8 bis +8 % durchgezogen: Wert aus dem gestrichelten Stück, unsicher.')
+    expect(anhaltesichtweite(80, 8)).toMatchObject({ unsicher: false, verlaengert: false })
+    expect(anhaltesichtweite(80, -11)).toMatchObject({ unsicher: true, verlaengert: true })
+    expect(anhaltesichtweite(80, -11).hinweise).toContain('Kurve 80 km/h in Abb. 2 nur von −8 bis +8 % durchgezogen: Wert verlängert ' +
+      '(gezeichnet nur von −10 bis +10 %), unsicher.')
+    // 50 km/h: +10 % durchgezogen, +10,5 % gestrichelt; −11 % durchgezogen, −11,5 % gestrichelt
+    expect([10, 10.5, -11, -11.5].map(i => anhaltesichtweite(50, i).unsicher)).toEqual([false, true, false, true])
+    expect(anhaltesichtweite(50, 10.5).hinweise.join(' ')).toContain('nur von −11 bis +10 % durchgezogen')
+    // 60 und 70 km/h an den neuen Grenzen; 30 und 40 km/h bis ±12 % durchgezogen
+    expect([-10, -10.5, 10, 10.5].map(i => anhaltesichtweite(60, i).unsicher)).toEqual([false, true, false, true])
+    expect([-9, -9.5, 9, 9.5].map(i => anhaltesichtweite(70, i).unsicher)).toEqual([false, true, false, true])
+    expect([-12, 12].flatMap(i => [30, 40].map(v => anhaltesichtweite(v, i).unsicher))).toEqual([false, false, false, false])
+    // Werte der Abb. 2 unverändert
+    expect(anhaltesichtweite(70, -10).roh).toBe(103)
   })
 })

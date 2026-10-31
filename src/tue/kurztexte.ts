@@ -18,6 +18,12 @@ export const KS_EINBAHN = 'Die einmündende Strasse ist eine Einbahn vom Knoten 
 /** Einbahn vom Knoten weg mit Velo gegen die Einbahn: geprüft wird die Sicht der Velofahrenden */
 export const KS_EINBAHN_VELO = 'Die einmündende Strasse ist eine Einbahn vom Knoten weg: aus ihr fahren nur Velos (gegen die Einbahn, OSM).'
 export const KS_UNEBEN = 'Höhenprofil uneben (Kuppe, Wanne oder Brücke?): Längsneigung vor Ort prüfen.'
+/** Höhenprofil nach dem Laden nicht verfügbar bzw. zu kurz: Längsneigung unbekannt, der Kern nimmt den strengsten Tabellenwert */
+export const KS_PROFIL_FEHLT = 'Höhenprofil nicht verfügbar: Längsneigung unbekannt, strengster Wert angenommen.'
+export const KS_PROFIL_KURZ = 'Höhenprofil zu kurz: Längsneigung unbekannt, strengster Wert angenommen.'
+/** Zeile im Panel ohne gemessene Neigung: Höhenmodell lädt bzw. geladen ohne brauchbares Profil */
+export const KS_NEIGUNG_LAEDT = 'Längsneigung 0 % angenommen, solange das Höhenmodell lädt.'
+export const KS_NEIGUNG_UNBEKANNT = 'Längsneigung unbekannt (kein brauchbares Höhenprofil): strengster Wert angenommen.'
 
 export interface Kurz { text: string; unklar?: true }
 type Regel = [RegExp, (m: RegExpMatchArray) => Kurz | string | null]
@@ -26,7 +32,9 @@ const REGELN: Regel[] = [
   [/durchgehenden Strasse/, () => ({ text: KS_DURCHGEHEND, unklar: true })],
   [/^Zielpunkte reichen über den AV-Ausschnitt/, () => ({ text: KS_AV_KNAPP, unklar: true })],
   [/Höhenprofil uneben/, () => ({ text: KS_UNEBEN, unklar: true })],
-  [/^Höhenmodell nicht verfügbar|^Höhenprofil mit \d+ Punkten/, () => 'Höhenprofil nicht verfügbar: Längsneigung 0 % angenommen.'],
+  // Neigung unbekannt (Kern, Entscheid 31.10.2026): strengster Tabellenwert; ohne «von Hand eingeben»
+  [/^Höhenmodell nicht verfügbar/, () => KS_PROFIL_FEHLT],
+  [/^Höhenprofil mit \d+ Punkten/, () => KS_PROFIL_KURZ],
   [/^Höhenprofil: (\d+) Punkte? weit neben/, m => `Höhenprofil: ${m[1]} Punkt${m[1] === '1' ? '' : 'e'} weit neben der Ausgleichsgeraden nicht gerechnet.`],
   [/^Kein Schnitt der Zufahrtsachse mit der Fahrstreifenachse/, () => 'Kein Schnitt der Ausfahrt mit der Fahrlinie: Anfang der Sicht angenähert.'],
   [/^Kein Schnitt der Zufahrtsachse mit der Veloachse/, () => 'Kein Schnitt der Ausfahrt mit der Veloachse: Anfang der Sicht angenähert.'],
@@ -42,7 +50,7 @@ const REGELN: Regel[] = [
   // Auge von Hand (27.10.2026; Kern: «D von Hand …»)
   [/^D von Hand ([\d,]+) m hinter der .*: weniger als ([\d,]+) m/, m => `Auge von Hand ${m[1]} m hinter dem vorderen Rand: weniger als ${m[2]} m (VSS 40 273 Ziffer 12).`],
   [/^D von Hand liegt (\d+) m vom Nullpunkt entfernt/, m => `Auge von Hand ${m[1]} m vom vorderen Rand entfernt: Lage prüfen.`],
-  [/^D' von Hand ([\d,]+) m hinter .*: weniger als ([\d,]+) m/, m => `Auge von Hand (Trottoir) ${m[1]} m hinter dem hinteren Rand: weniger als ${m[2]} m (VSS 40 273 Ziffer 13.2).`],
+  [/^D' von Hand ([\d,]+) m hinter .*: weniger als (?:B = )?([\d,]+) m/, m => `Auge von Hand (Trottoir) ${m[1]} m hinter dem hinteren Rand: weniger als ${m[2]} m (VSS 40 273 Ziffer 13.2).`],
   [/^D' von Hand liegt (\d+) m vom hinteren Rand entfernt/, m => `Auge von Hand (Trottoir) ${m[1]} m vom hinteren Rand entfernt: Lage prüfen.`],
   [/^D liegt in einem Gebäude/, () => 'Das Auge der Ausfahrenden liegt in einem Gebäude: Lage prüfen.'],
   [/^D liegt im Hindernis «([^»]+)»/, m => `Das Auge der Ausfahrenden liegt in «${m[1]}»: dieses Hindernis zählt nicht.`],

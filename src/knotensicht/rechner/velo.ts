@@ -9,6 +9,8 @@
 // Tab. 3 nach der zulässigen Höchstgeschwindigkeit (bis 30 km/h bzw. darüber) und der Längsneigung in Fahrtrichtung des Velos
 // (Spalten ≤ −4, −2, 0, > 0 %, je bis zur Spaltenzahl gerechnet: −4 < i ≤ −2 -> «−2», −2 < i ≤ 0 -> «0»); schnelle E-Bikes verboten
 // (nur über 30 km/h): talwärts (Spalten ≤ −4 und −2) 35 m, eben 30 m, bergwärts (> 0) 25 m.
+// Neigung unbekannt (kein Höhenprofil, nicht von Hand; Entscheid 31.10.2026): strengster Wert, Tab. 3 Spalte ≤ −4 bzw. Tab. 2
+// Spalte ≤ −6.
 // Trottoir: Tab. 2 nach der Längsneigung des Trottoirs in Gehrichtung auf die Zufahrt zu (Spalten ≤ −6, −4, −2, ≥ 0 %; Zwischenwerte
 // zur Spalte talwärts daneben: −6 < i ≤ −4 -> «−4», −4 < i < 0 -> «−2»). Achse des Trottoirs: Mitte der AV-Fläche Trottoir aus
 // Querschnitten entlang der Vortrittsstrasse (wie die Fahrbahn), der Bordkante folgend.
@@ -58,17 +60,20 @@ export function tab3Spalte(i: number): 0 | 1 | 2 | 3 {
 
 export interface VeloSichtweite { A: number; spalte: number; zeile: 'bis30' | 'ueber30'; ebike: boolean; text: string }
 
+/** Zusatz im Text, wenn die Neigung unbekannt ist (Entscheid 31.10.2026) */
+export const NEIGUNG_UNBEKANNT_TEXT = 'Neigung unbekannt: strengster Wert'
+
 /** erforderliche Knotensichtweite A für den Veloverkehr nach Tab. 3: zulässige Höchstgeschwindigkeit [km/h], Längsneigung [%],
- *  schnelle E-Bikes verboten (gilt nur über 30 km/h) */
-export function veloSichtweite(tempo: number, i: number, ebikeVerboten = false): VeloSichtweite {
+ *  schnelle E-Bikes verboten (gilt nur über 30 km/h); unbekannt: Neigung unbekannt, Spalte ≤ −4 (strengster Wert) */
+export function veloSichtweite(tempo: number, i: number, ebikeVerboten = false, unbekannt = false): VeloSichtweite {
   const zeile = tempo <= TAB3_GRENZE ? 'bis30' : 'ueber30'
-  const spalte = tab3Spalte(i)
+  const spalte = unbekannt ? 0 : tab3Spalte(i)
   const ebike = ebikeVerboten && zeile === 'ueber30'
   const A = ebike ? (spalte <= 1 ? TAB3_EBIKE.talwaerts : spalte === 2 ? TAB3_EBIKE.eben : TAB3_EBIKE.bergwaerts) : TAB3[zeile][spalte]
   const z = zeile === 'bis30' ? `bis ${TAB3_GRENZE} km/h` : `über ${TAB3_GRENZE} km/h`
   const s = `Spalte ${TAB3_SPALTEN[spalte]} %`
-  const text = ebike ? `Tab. 3, ${z}, schnelle E-Bikes verboten, ${spalte <= 1 ? 'talwärts' : spalte === 2 ? 'eben' : 'bergwärts'} (${s})` :
-    `Tab. 3, ${z}, ${s}`
+  const text = ebike ? `Tab. 3, ${z}, schnelle E-Bikes verboten, ${spalte <= 1 ? 'talwärts' : spalte === 2 ? 'eben' : 'bergwärts'} ` +
+    `(${s}${unbekannt ? `; ${NEIGUNG_UNBEKANNT_TEXT}` : ''})` : `Tab. 3, ${z}, ${s}${unbekannt ? ` (${NEIGUNG_UNBEKANNT_TEXT})` : ''}`
   return { A, spalte, zeile, ebike, text }
 }
 
@@ -80,9 +85,10 @@ export function tab2Spalte(i: number): 0 | 1 | 2 | 3 {
   const x = Number.isFinite(i) ? i : 0
   return x <= -6 + 1e-9 ? 0 : x <= -4 + 1e-9 ? 1 : x < -1e-9 ? 2 : 3
 }
-export function trottoirSichtweite(i: number): { A: number; spalte: number; text: string } {
-  const spalte = tab2Spalte(i)
-  return { A: TAB2[spalte], spalte, text: `Tab. 2, Spalte ${TAB2_SPALTEN[spalte]} %` }
+/** erforderliche Sichtweite A auf dem Trottoir nach Tab. 2; unbekannt: Neigung unbekannt, Spalte ≤ −6 (strengster Wert) */
+export function trottoirSichtweite(i: number, unbekannt = false): { A: number; spalte: number; text: string } {
+  const spalte = unbekannt ? 0 : tab2Spalte(i)
+  return { A: TAB2[spalte], spalte, text: `Tab. 2, Spalte ${TAB2_SPALTEN[spalte]} %${unbekannt ? ` (${NEIGUNG_UNBEKANNT_TEXT})` : ''}` }
 }
 
 // ---------------------------------------------------------------- Radwege aus OSM

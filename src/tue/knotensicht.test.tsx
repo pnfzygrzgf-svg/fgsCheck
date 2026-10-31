@@ -10,12 +10,13 @@ import { rechneFall } from '../rechner'
 import { fallLesen, fallSchreiben, leererFall, rechnungsSchluessel, type Fall } from '../fall'
 import { handSetzen } from '../bedarf/fallBedarf'
 import { befundblaetter } from '../bedarf/befundblatt'
-import { knotensichtAnfuegen, knotensichtTue, ksDatenAusRoh, zufahrtFinden, type Knotensicht, type KnotensichtAntwort } from './knotensicht'
-import { HOEHEN_QUELLE } from '../knotensicht/rechner/neigung'
+import { hoehenNichtVerfuegbar, knotensichtAnfuegen, knotensichtTue, ksDatenAusRoh, zufahrtFinden, type Knotensicht, type KnotensichtAntwort } from './knotensicht'
+import { HOEHEN_QUELLE, neigungMessung } from '../knotensicht/rechner/neigung'
+import type { HoehenVorgabe } from '../knotensicht/rechner/typen'
 import { KnotensichtBericht, KnotensichtBlock } from './KnotensichtBlock'
 import { BedarfAbschnitt } from '../BedarfPanel'
 import { TUE_NUR_EINMUENDUNG } from '../texte'
-import { kurzHinweis, KS_EINBAHN, KS_EINBAHN_VELO } from './kurztexte'
+import { kurzHinweis, KS_EINBAHN, KS_EINBAHN_VELO, KS_NEIGUNG_LAEDT, KS_NEIGUNG_UNBEKANNT, KS_PROFIL_FEHLT, KS_PROFIL_KURZ } from './kurztexte'
 import { augePlausibel, augenNachVerschieben, tueFlaeche, tueMasse } from './karte'
 import { streifenTitel } from '../benennung'
 import { KS_DURCHGEHEND } from './kurztexte'
@@ -81,7 +82,9 @@ describe('Knotensicht im Worker-Weg (rechneFall + knotensichtAnfuegen)', () => {
     expect([k.knoten, k.zufahrt, Math.round(k.breite * 100) / 100, k.breiteQuelle]).toEqual([11, '2:0:1', 3, 'av_neben'])
     expect(k.richtungen.map(r => [r.richtung, r.tempo, !!r.trottoir, !!r.auto, !!r.velo])).toEqual([['links', 50, true, true, true], ['rechts', 50, true, true, true]])
     expect([k.phaseTrottoir.status, k.phaseFahrbahn.status, k.ok]).toEqual(['erfuellt', 'erfuellt', true])
-    expect(k.neigungGemessen).toBe(false); expect(k.annahmeGrund).toEqual(['Tempo nach OSM', 'Längsneigung 0 % angenommen'])
+    // Höhenmodell lädt (hoehen null): vorerst 0 %, nicht «unbekannt»
+    expect([k.neigungGemessen, k.neigungUnbekannt]).toEqual([false, false]); expect(k.annahmeGrund).toEqual(['Tempo nach OSM', 'Längsneigung 0 % angenommen'])
+    expect(k.annahmen).toContain('Längsneigung vorerst 0 % (Höhenmodell lädt).')
     expect([k.zufahrtName, k.richtungen.map(r => r.strasse), k.richtungen.map(r => r.tempoHerkunft)]).toEqual(['Querweg', ['Hauptstrasse', 'Hauptstrasse'], ['osm', 'osm']])
     expect(k.karte.kanten).toHaveLength(2)
     expect(Object.keys(k.profile).sort()).toEqual(['links', 'rechts', 'trottoir', 'zufahrt'])
@@ -182,13 +185,16 @@ describe('Knotensicht: Anzeige und Bericht (Render-Wächter)', () => {
       'Breite 3,00 m, angrenzendes Trottoir nach AV', 'Wie breit ist die Überfahrt?', 'Längsneigung 0 % angenommen']) expect(t).toContain(x)
     expect(t).not.toContain('SichtweitenCheck ↗'); expect(t).not.toMatch(/\bQ3-\d+\b/); expect(t).not.toMatch(/ß/)
   })
-  it('Hinweis zur Neigung nur ohne Höhenmodell', () => {
+  it('Hinweis zur Neigung nur ohne Höhenmodell; lädt: vorerst 0 %', () => {
+    expect(t).toContain(KS_NEIGUNG_LAEDT)
     const g = { ...k, neigungGemessen: true }
-    expect(text(renderToStaticMarkup(<KnotensichtBlock ks={g} fgsId="hand-1" titel={x => x} lage={null} breiteHand={null} setzeBreite={() => {}} />))).not.toContain('Längsneigung 0 % angenommen: Höhenmodell')
+    const tg = text(renderToStaticMarkup(<KnotensichtBlock ks={g} fgsId="hand-1" titel={x => x} lage={null} breiteHand={null} setzeBreite={() => {}} />))
+    expect(tg).not.toContain('Längsneigung 0 % angenommen'); expect(tg).not.toContain(KS_NEIGUNG_UNBEKANNT)
   })
   it('Bericht: Satz mit beiden Phasen, Tabelle, Herkunft der Rechnung', () => {
     const b = text(renderToStaticMarkup(<KnotensichtBericht ks={k} fgsId="hand-1" titel={x => x} />))
     expect(b).toContain('aufs Trottoir genügt, auf die Fahrbahn genügt'); expect(b).toContain('Rechnung nach SichtweitenCheck 0.6.0')
+    expect(b).toContain('Längsneigung vorerst 0 % angenommen (Höhenmodell lädt).')
     expect(b).toContain('Sicht auf die Wartefläche gilt hier nicht')
   })
 })
@@ -201,16 +207,44 @@ describe('Knotensicht: Korrekturen nach Review (S1–S3, K3, K4, K7)', () => {
     const b = befundblaetter(rechnen(fallTue(), { avRadius: 30 }), fallTue(), { vorgabe: { bern: false, kantonBE: false } })[0]
     expect(b.vorbelegt.werte['q3.knotensichtOk']).toBeUndefined(); expect(b.vorbelegt.feldHinweise?.['q3.knotensichtOk']).toContain('ohne eindeutiges Ergebnis')
   })
-  it('S1: Höhenprofil uneben: Hinweis, unsicher; nicht verfügbar: Hinweis, 0 % als Annahme', () => {
+  it('S1: Höhenprofil uneben: Hinweis, unsicher; nicht verfügbar: Hinweis, Neigung unbekannt (strengster Wert) als Annahme', () => {
     const uneben = { i: 1, quelle: HOEHEN_QUELLE, laenge: 50, punkte: 20, hinweis: 'Höhenprofil uneben (Streuung 0,5 m um die Ausgleichsgerade; Kuppe, Wanne, Brücke?): Längsneigung vor Ort bzw. von Hand prüfen.' }
     const ok = { ...uneben, i: 0, hinweis: null }
     const k = ks(rechnen(fallTue(), { hoehen: { '11|2:0:1|3,00': { links: uneben, rechts: ok, zufahrt: ok, trottoir: ok } } }).streifen[0].knotensicht)
     expect(k.ok).toBeNull(); expect(k.unklar[0]).toContain('Höhenprofil uneben')
-    const weg = { i: null, quelle: `${HOEHEN_QUELLE} nicht verfügbar`, laenge: 0, punkte: 0, hinweis: 'Höhenmodell nicht verfügbar (x): Längsneigung 0 % angenommen, von Hand eingeben.' }
-    const g = ks(rechnen(fallTue(), { hoehen: { '11|2:0:1|3,00': { links: weg, rechts: ok, zufahrt: ok, trottoir: ok } } }).streifen[0].knotensicht)
-    expect(g.ok).toBe(true); expect(g.neigungGemessen).toBe(false)
-    expect(g.richtungen[0].hinweise.fahrbahn).toContain('Höhenprofil nicht verfügbar: Längsneigung 0 % angenommen.')
+    // nicht verfügbar (Entscheid 31.10.2026): Höhenmodell geladen, Profil ohne Neigung → unbekannt, der Kern nimmt den strengsten Wert
+    const weg = neigungMessung(new Error('x'))
+    const g = ks(rechnen(fallTue(), { hoehen: { '11|2:0:1|3,00': { links: weg, rechts: ok, zufahrt: ok, trottoir: weg } } }).streifen[0].knotensicht)
+    expect([g.ok, g.neigungGemessen, g.neigungUnbekannt]).toEqual([true, false, true])
+    expect(g.annahmeGrund).toContain('Längsneigung unbekannt, strengster Wert angenommen')
+    expect(g.annahmeGrund).not.toContain('Längsneigung 0 % angenommen')
+    // Phase Trottoir: Tab. 2 Spalte ≤ −6 % (30 m statt 15 m bei 0 %)
+    expect(g.richtungen.map(r => r.trottoir?.soll)).toEqual([30, 30])
+    expect(k.richtungen.map(r => r.trottoir?.soll)).toEqual([15, 15])
+    expect(g.richtungen[0].hinweise.fahrbahn).toContain(KS_PROFIL_FEHLT)
+    expect(g.richtungen[0].hinweise.trottoir).toContain(KS_PROFIL_FEHLT)
+    expect(g.annahmen).toContain('Längsneigung unbekannt (kein brauchbares Höhenprofil): strengster Wert der Tab. 2 bzw. Tab. 3 angenommen.')
     expect(JSON.stringify(g)).not.toContain('von Hand eingeben')
+    const t = text(renderToStaticMarkup(<KnotensichtBlock ks={g} fgsId="hand-1" titel={x => x} lage={null} breiteHand={null} setzeBreite={() => {}} />))
+    expect(t).toContain(KS_NEIGUNG_UNBEKANNT); expect(t).not.toContain('0 % angenommen')
+    expect(text(renderToStaticMarkup(<KnotensichtBericht ks={g} fgsId="hand-1" titel={x => x} />))).toContain('Längsneigung unbekannt, strengster Wert angenommen.')
+    // Profil zu kurz: eigener kurzer Hinweis
+    expect(kurzHinweis(neigungMessung([{ dist: 0, h: 500 }]).hinweis!)?.text).toBe(KS_PROFIL_KURZ)
+    expect(kurzHinweis(weg.hinweis!)?.text).toBe(KS_PROFIL_FEHLT)
+  })
+  it('Dienst-Fehler (App, catch-Zweig): alle Profile «nicht verfügbar», Neigung unbekannt, strengster Wert (Trottoir 30 m), Vorbelegung als Annahme', () => {
+    const k0 = ks(rechnen(fallTue()).streifen[0].knotensicht)
+    const hv = hoehenNichtVerfuegbar(Object.keys(k0.profile) as (keyof HoehenVorgabe)[], new Error('HTTP 503'))
+    expect(Object.keys(hv).sort()).toEqual(['links', 'rechts', 'trottoir', 'zufahrt'])
+    expect(hv.links).toMatchObject({ i: null, quelle: `${HOEHEN_QUELLE} nicht verfügbar` })
+    const f = fallTue(x => { x.bedarf = { felder: { 'q3.vSigHaupt': { wert: 50, quelle: 'hand' } } } })
+    const r = rechnen(f, { hoehen: { [k0.hoehenSchluessel]: hv } })
+    const g = ks(r.streifen[0].knotensicht)
+    expect([g.neigungGemessen, g.neigungUnbekannt]).toEqual([false, true])
+    expect(g.richtungen.map(x => x.trottoir?.soll)).toEqual([30, 30])
+    expect(g.hinweise.concat(...g.richtungen.flatMap(x => [x.hinweise.fahrbahn, x.hinweise.trottoir]))).toContain(KS_PROFIL_FEHLT)
+    const w = befundblaetter(r, f, { vorgabe: { bern: false, kantonBE: false } })[0].vorbelegt.werte['q3.knotensichtOk']
+    expect(w).toMatchObject({ quelle: 'annahme' })
   })
   it('S2: Streifen über die durchgehende Strasse: Flag des Kerns, ein Hinweis, keine Vorbelegung', () => {
     const k = ks(rechnen(fallTue(() => {}, lv(-30, -6), lv(-30, 6))).streifen[0].knotensicht)

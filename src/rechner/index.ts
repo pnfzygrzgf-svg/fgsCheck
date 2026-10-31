@@ -18,7 +18,7 @@ import { pruefen, type Kontext, R2_FLAECHEN } from './pruefen'
 import { eckCacheLeeren } from './abbiegen'
 import { HindernisDaten, type Hindernis } from './hindernisse'
 import { parkVorschlaege, baumVorschlaege, parkKatasterFelder, osmUeberdeckt, doppeltAmtlich, type Vorschlag } from './vorschlaege'
-import { abstandPunkt, flaeche } from './poly'
+import { flaeche } from './poly'
 import { avMitPlan, planAmRand, planNahLinie, planKurz, anteilInPlanInsel, PLAN_NAME, planStandardKurz, planTitel, INSEL_DOPPELT_ANTEIL,
   type PlanTeil } from './planflaechen'
 import type { PlanArt, FlaechePlan } from '../fall'
@@ -29,14 +29,13 @@ import type { Rechnung, StreifenErgebnis, QuerungSicht } from './typen'
 import type { TempoAmtlich } from './tempo'
 import { vonHandAusFall, streifenHerkunftText, istTrottoirueberfahrt, handGeplant, type Fall } from '../fall'
 import { titelImFall } from '../benennung'
+import { brueckenumriss } from './bruecke'
 
-const BRUECKE_UMRISS_M = 0.5
 const HAND_SCHRAEG_MAX = 60 * Math.PI / 180
 const HAND_MIN_M = 1.0                 // Streifen von Hand: kürzere (z. B. Länge 0) werden nicht gerechnet
 
 export function kontextBauen(osm: OsmDaten | null, av: AvFlaeche[], sosf: AvFlaeche[] = [], hindernisse: Hindernis[] = []): Kontext {
   eckCacheLeeren()
-  const bruecken = sosf.filter(f => f.art === 'Bruecke_Passerelle').map(f => f.ringe)
   return {
     netz: osm ? new OsmNetz(osm) : null,
     fahrbahn: new Fahrbahn(av),
@@ -45,7 +44,7 @@ export function kontextBauen(osm: OsmDaten | null, av: AvFlaeche[], sosf: AvFlae
     flaechenRand: new Flaechen(av, ANN_RAND_ARTEN),
     flaechenR2: new Flaechen(av, [...R2_FLAECHEN, 'Gebaeude']),
     bewuchs: new Flaechen(av, BEWUCHS_ARTEN),
-    brueckenumriss: bruecken.length ? { enthaelt: (p: P) => bruecken.some(r => abstandPunkt([r], p) <= BRUECKE_UMRISS_M) } : null,
+    brueckenumriss: brueckenumriss(sosf),
     hindernisse: hindernisse.length ? new HindernisDaten(hindernisse) : null,
   }
 }

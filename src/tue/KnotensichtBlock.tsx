@@ -11,6 +11,7 @@ import { TUE_NUR_EINMUENDUNG } from '../texte'
 import { FELD_DEF, wertText } from '../bedarf/felder'
 import { TUE_BREITE_MAX, TUE_BREITE_MIN } from '../knotensicht/rechner/typen'
 import type { KsPhase } from './karte'
+import { KS_NEIGUNG_LAEDT, KS_NEIGUNG_UNBEKANNT } from './kurztexte'
 
 const FARBE = (ok: boolean | null) => (ok === true ? '#10b981' : ok === false ? '#dc2626' : '#64748b')
 const f2 = (x: number) => x.toFixed(2).replace('.', ',')
@@ -86,7 +87,7 @@ export function KnotensichtBlock({ ks, fgsId, titel, lage, breiteHand, setzeBrei
         {augeZuruecksetzen && <button type="button" className="zweit klein" onClick={augeZuruecksetzen}
           title="Auge der Ausfahrenden wieder wie gerechnet">Standort zurücksetzen</button>}</p>}
       {breiteUngueltig(breiteHand) && <p className="warnung">Breite von Hand {f2(breiteHand!)} m nicht verwendet: zulässig sind {f2(TUE_BREITE_MIN)} bis {f2(TUE_BREITE_MAX)} m.</p>}
-      {!ks.neigungGemessen && <p className="pruefen">Längsneigung 0 % angenommen: Höhenmodell noch nicht geladen bzw. nicht verfügbar.</p>}
+      {!ks.neigungGemessen && <p className="pruefen">{ks.neigungUnbekannt ? KS_NEIGUNG_UNBEKANNT : KS_NEIGUNG_LAEDT}</p>}
       {hw.length > 0 && <ul className="annahmen">{hw.map(h => <li key={h}>{h}</li>)}</ul>}
       <details><summary>Annahmen ({ks.annahmen.length})</summary><ul className="annahmen">{ks.annahmen.map(a => <li key={a}>{a}</li>)}</ul>
         <p>Rechnung nach {ks.quelle}.</p></details>
@@ -123,7 +124,8 @@ export function KnotensichtBericht({ ks, fgsId, titel }: { ks: KnotensichtAntwor
   const hw = alleHinweise(ks)
   return <>
     <p className="klein"><b>{KS_TITEL}</b>, Ausfahrt aus {ks.zufahrtName}: {phasenSatz(ks)}. {breiteSatz(ks)}; Längsneigung{' '}
-      {ks.neigungGemessen ? 'aus dem Höhenmodell' : '0 % angenommen'}. Die Sicht auf die Wartefläche gilt hier nicht.</p>
+      {ks.neigungGemessen ? 'aus dem Höhenmodell' : ks.neigungUnbekannt ? 'unbekannt, strengster Wert angenommen' : 'vorerst 0 % angenommen (Höhenmodell lädt)'}.
+      Die Sicht auf die Wartefläche gilt hier nicht.</p>
     <KnotensichtTabelle k={ks} klasse="bericht-tabelle" />
     {hw.length > 0 && <ul className="klein">{hw.map(h => <li key={h}>{h}</li>)}</ul>}
     <p className="klein">Rechnung nach {ks.quelle}: Werte nach VSS 40 273 Tab. 1, Tab. 2 und Tab. 3, Phasen nach VSS 40 242 Ziffer 14.4.</p>

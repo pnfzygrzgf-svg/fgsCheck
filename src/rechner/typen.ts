@@ -28,6 +28,7 @@ export interface ZufahrtErgebnis {
   kurvenradiusM: number | null
   radiusQuelle: string | null
   status: string                  // frei | verdeckt | verdeckt_gebaeude | verdeckt_hindernis | verdeckt_baum | verdeckt_zweirad
+                                  // (App nach der Geländeprüfung zusätzlich verdeckt_gelaende, sichtGelaende.ts)
   nAuto: number; nZweirad: number; nGebaeude: number; nBaeume: number; nHindernisse: number
   ueberdeckungM2: number          // Auto-Parkfelder im Sichtfeld
   minAbstandAutoM: number | null  // kleinster Abstand Auto-Parkfeld – Streifen
@@ -82,8 +83,27 @@ export interface ZufahrtErgebnis {
   /** Sicht des Veloverkehrs (29.10.2026; VSS 40 241 Z. 14 mit VSS 40 273 Tab. 3): zweite Prüfung von der Veloachse, nur gerade Zufahrten
    * eines Fussgängerstreifens mit Radstreifen bzw. Radweg nach OSM. Zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll */
   velo?: VeloSicht
+  /** Sicht auf die Wartefläche mit Gelände (Entscheid 30.10.2026; sichtGelaende.ts): nur Anzeige in der App nach der Geländeprüfung,
+   * nie aus der Rechnung (Worker) und nicht in der Fall-Datei */
+  sichtGelaende?: SichtGelaendeAnzeige
   deckung?: string                // Abbiegezufahrt, die ab dem Knoten von der geraden Zufahrt gedeckt ist (nur mit GEDECKT_RECHNEN,
                                   // seit 14.10.2026 standardmässig aus): Text wie beim Entfallen «Knoten … m vor dem Streifen; …»
+}
+
+/** Rangfolge der Status einer Zufahrt (der Streifen zeigt den höchsten); verdeckt_gelaende nur in der App nach der Geländeprüfung
+ * der Sicht auf die Wartefläche (sichtGelaende.ts), nie aus der Rechnung */
+export const RANG_STATUS: Record<string, number> = { frei: 0, verdeckt_zweirad: 1, verdeckt_baum: 2, verdeckt_hindernis: 2.5,
+  verdeckt_gebaeude: 3, verdeckt_gelaende: 3.5, verdeckt: 4 }
+
+/** Geländeprüfung der Sicht auf die Wartefläche einer Zufahrt (ZufahrtErgebnis.sichtGelaende): Stand (mit: geprüft, laedt: Profile
+ * laden, ohne: nicht geprüft, bruecke: alle Sichtlinien auf einer Brücke, nicht prüfbar), abM (Sicht durch das Gelände verdeckt ab
+ * hier [m ab dem Streifenrand]; null: Gelände frei), bisM (so weit geprüft) und die Sichtlinien (frei: true, false verdeckt, null nicht
+ * geprüft) */
+export interface SichtGelaendeAnzeige {
+  stand: 'mit' | 'laedt' | 'ohne' | 'bruecke'
+  abM: number | null
+  bisM: number
+  linien: { x: number; auge: P; ziel: P; frei: boolean | null; bruecke?: true }[]
 }
 
 /** Sicht von der Veloachse einer Zufahrt (ZufahrtErgebnis.velo) */

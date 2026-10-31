@@ -34,7 +34,7 @@ describe('Katalog: drei Punkte der Richtlinie, Ausrichtung als Quelle von F1d', 
   })
   it('Ausrichtung: keine eigene Regel F1d-R; die Richtlinie ist weitere Quelle der Normregel F1d (Ebene Norm, Soll)', () => {
     expect(DEF['F1d-R']).toBeUndefined()
-    expect(DEF.F1d.quellen.map(q => `${q.werk} ${q.ziffer}`)).toEqual(['40241 Z. 21', '640075 Anh. 8.1.4', 'HA Kap. 4.1, S. 10'])
+    expect(DEF.F1d.quellen.map(q => `${q.werk} ${q.ziffer}`)).toEqual(['40241 Z. 21, S. 11', '640075 Anh. 8.1.4', 'HA Kap. 4.1, S. 10'])
     expect([DEF.F1d.ebene, DEF.F1d.staerke]).toEqual(['Norm', 'weich'])
     expect(KATALOG.F1d.werte).toEqual({ recht: KATALOG.F7e.werte.recht, tol: KATALOG.F7e.werte.tol })
   })

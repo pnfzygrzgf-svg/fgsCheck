@@ -110,8 +110,11 @@ export function sichtQuelleKurz(q: string): string {
 }
 export const STATUS: Record<string, string> = {
   frei: 'frei', verdeckt: 'verdeckt (Auto-Parkfeld)', verdeckt_gebaeude: 'verdeckt (Gebäude)', verdeckt_hindernis: 'verdeckt (Hecke, Mauer bzw. übriges Hindernis)',
-  verdeckt_baum: 'verdeckt (Baum)', verdeckt_zweirad: 'verdeckt (Zweirad-Feld)', kein_fgs: 'kein FGS (von Hand)', ohne_zufahrt: 'keine Zufahrt',
+  verdeckt_baum: 'verdeckt (Baum)', verdeckt_zweirad: 'verdeckt (Zweirad-Feld)', verdeckt_gelaende: 'verdeckt (Gelände, swissALTI3D)', kein_fgs: 'kein FGS (von Hand)', ohne_zufahrt: 'keine Zufahrt',
 }
+/** Status einer Zufahrt im Tooltip des Sichtfelds auf der Karte: «verdeckt gebaeude» wie bisher, das Gelände (sichtGelaende.ts) als
+ * «verdeckt (Gelände)» */
+export const statusKurzKarte = (status: string): string => (status === 'verdeckt_gelaende' ? 'verdeckt (Gelände)' : status.replace('_', ' '))
 /** Status eines Streifens als Text; Trottoirüberfahrt (Wahl am Streifen) statt «kein FGS (von Hand)» */
 export const streifenStatus = (s: Pick<StreifenErgebnis, 'status' | 'trottoirueberfahrt'>): string =>
   s.trottoirueberfahrt ? 'Trottoirüberfahrt' : STATUS[s.status] ?? s.status

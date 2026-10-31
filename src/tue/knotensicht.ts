@@ -13,7 +13,9 @@
 //   Baumkataster (eingeschaltet, ohne verworfene; zählen sofort, im Kern als Baum mit Palisade) und amtliche Parkfelder ohne verworfene;
 //   Parkierung unter einem vorgezogenen Seitenraum entfällt bzw. wird gekürzt (seitenraum.parkOhneSeitenraum). Flächen (Plan) wirken
 //   auf die AV wie in der Sichtprüfung (avMitPlan).
-// - Längsneigung: Profile aus dem Höhenmodell (App, daten/hoehen der Kopie), je Knoten und Zufahrt; ohne Profile 0 %.
+// - Längsneigung: Profile aus dem Höhenmodell (App, daten/hoehen der Kopie), je Knoten und Zufahrt. Solange das Höhenmodell lädt
+//   (hoehen null), vorerst 0 %; danach ohne brauchbares Profil (Dienst-Fehler, Profil fehlt bzw. zu kurz) unbekannt: der Kern nimmt den
+//   strengsten Tabellenwert (Entscheid 31.10.2026).
 // Das Ergebnis ist schlank und serialisierbar (Worker → App), mit den Linien für die Höhenprofile und den Sichtdreiecken für die Karte.
 
 import type { P } from '../geo'
@@ -29,7 +31,7 @@ import { D_MFZ_M } from '../knotensicht/rechner/hauptachsen'
 import { faLage, fbLage, fbVeloLage, veloLage } from '../knotensicht/rechner/fahrzeug'
 import { kurzHinweise, ksUeberHaupt, KS_DURCHGEHEND, KS_EINBAHN, KS_EINBAHN_VELO } from './kurztexte'
 import { fahrstreifenTags } from '../rechner/fahrstreifen'
-import { HOEHEN_QUELLE } from '../knotensicht/rechner/neigung'
+import { HOEHEN_QUELLE, neigungMessung } from '../knotensicht/rechner/neigung'
 import { KEINE_ALLE_EINGABEN, TUE_BREITE_MAX, TUE_BREITE_MIN, TEMPO_MIN, TEMPO_MAX, type HoehenVorgabe, type Lage, type Richtung, type RichtungStatus,
   type TueBreiteQuelle, type TuePhase, type TempoAmtlichLinie } from '../knotensicht/rechner/typen'
 import type { Hindernis } from '../rechner/hindernisse'
@@ -111,8 +113,11 @@ export interface Knotensicht {
   unklar: string[]
   /** Zufahrt auf der durchgehenden Strasse (Überfahrt gehört über die einmündende Strasse) */
   durchgehend: boolean
-  /** Längsneigung aus dem Höhenmodell in allen Profilen (sonst 0 % angenommen) */
+  /** Längsneigung aus dem Höhenmodell in allen Profilen (sonst vorerst 0 % bzw. unbekannt) */
   neigungGemessen: boolean
+  /** Höhenmodell geladen, aber in mindestens einer geprüften Richtung bzw. am Trottoir keine Neigung bestimmbar: der Kern nimmt dort den
+   * strengsten Tabellenwert (Entscheid 31.10.2026); false: gemessen bzw. vorerst 0 % (Höhenmodell lädt) */
+  neigungUnbekannt: boolean
   /** wesentliche Annahmen (Breite, Tempo, Neigung): Quelle «Annahme» im Bedarf */
   annahmeGrund: string[]
   /** kurze Annahmen (eigene Texte) und Hinweise zur ganzen Knotensicht (kurztexte.ts) */
@@ -277,11 +282,14 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   const gemessen = (m: { i: number | null } | undefined) => !!m && m.i !== null
   const neigungGemessen = !!hoehen && e.richtungen.every(rr => (rr.status === 'keine_zufahrt' && !rr.velo) || rr.neigungHand ||
     gemessen(hoehen[rr.richtung])) && (!tp || gemessen(hoehen.trottoir))
+  // unbekannt (Kern, Entscheid 31.10.2026): Richtung mit Auto- bzw. Veloverkehr oder Trottoir ohne Neigung nach dem Laden
+  const neigungUnbekannt = !neigungGemessen && (e.richtungen.some(rr => (rr.status !== 'keine_zufahrt' && rr.neigungUnbekannt) ||
+    !!rr.velo?.neigungUnbekannt) || !!tp?.richtungen.some(x => x.neigungUnbekannt))
   const mitVerkehr = richtungen.filter(x => x.auto || x.velo)
   const annahmeGrund = [...(t.breiteQuelle === 'annahme' || (t.breiteQuelle === 'eingabe' && bh?.annahme) ? ['Breite angenommen'] : []),
     ...(mitVerkehr.some(x => x.tempoHerkunft === 'annahme') ? ['Tempo angenommen'] : []),
     ...(mitVerkehr.some(x => x.tempoHerkunft === 'osm') ? ['Tempo nach OSM'] : []),
-    ...(neigungGemessen ? [] : ['Längsneigung 0 % angenommen'])]
+    ...(neigungGemessen ? [] : [neigungUnbekannt ? 'Längsneigung unbekannt, strengster Wert angenommen' : 'Längsneigung 0 % angenommen'])]
   const ok = unklar.length || !klar(t.phaseTrottoir.status) || !klar(t.phaseFahrbahn.status) ? null
     : gut(t.phaseTrottoir.status) && gut(t.phaseFahrbahn.status)
   const dreiecke: KsDreieck[] = [
@@ -328,7 +336,9 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
         ? 'von Hand' : `${f2(B_INNERORTS_M)} m hinter dem hinteren Rand`} (Trottoir).`,
     `Gehlinie ${f2(t.gehlinie)} m vor dem hinteren Rand der Überfahrt; Fahrlinie der Autos ${f2(D_MFZ_M)} m vom rechten Fahrbahnrand.`,
     `Tempo ${mitVerkehr.map(x => `${x.lage === 'gegenueber' ? 'von gegenüber' : `von ${x.lage}`} ${x.tempo} km/h (${HERKUNFT_WORT[x.tempoHerkunft]})`).join(', ') || '–'}.`,
-    neigungGemessen ? 'Längsneigung aus dem Höhenmodell (swissALTI3D).' : 'Längsneigung 0 % (Höhenmodell nicht geladen bzw. nicht verfügbar).',
+    neigungGemessen ? 'Längsneigung aus dem Höhenmodell (swissALTI3D).' : neigungUnbekannt
+      ? 'Längsneigung unbekannt (kein brauchbares Höhenprofil): strengster Wert der Tab. 2 bzw. Tab. 3 angenommen.'
+      : 'Längsneigung vorerst 0 % (Höhenmodell lädt).',
     `Strassentyp der Hauptstrasse: ${STRASSENTYP_TEXT[e.strasse.typ]} (nach OSM).`,
     `Sichthindernisse: Gebäude der AV${hindernisse.length ? ` und ${hindernisse.length} weitere (von Hand, Bäume aus dem Baumkataster, ` +
       'amtliche Parkfelder)' : ''}; Parkfelder gelten als belegt.`,
@@ -336,12 +346,19 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   return {
     quelle: KS_QUELLE, streifenId: s.fgsId ?? '', knoten: z.knoten, zufahrt: e.zufahrt, zufahrtName: strassenName(arme.get(e.zufahrt)?.name),
     breite: t.breite, breiteQuelle: t.breiteQuelle, breiteText: t.breiteText, laenge: t.laenge, einbiegewinkel: e.einbiegewinkel,
-    phaseTrottoir: t.phaseTrottoir, phaseFahrbahn: t.phaseFahrbahn, richtungen, ok, unklar: [...new Set(unklar)], durchgehend, neigungGemessen,
+    phaseTrottoir: t.phaseTrottoir, phaseFahrbahn: t.phaseFahrbahn, richtungen, ok, unklar: [...new Set(unklar)], durchgehend, neigungGemessen, neigungUnbekannt,
     annahmeGrund, annahmen, hinweise: allg.texte,
     karte: { D: e.D, Dtrottoir: tp?.D ?? null, vorderkante: t.vorderkante, hinterkante: t.hinterkante,
       kanten: u ? [kante(t.vorderkante), kante(t.hinterkante)] : [], dreiecke, fahrzeuge },
     profile, hoehenSchluessel, fahrstreifen,
   }
+}
+
+/** Höhenvorgabe nach einem Fehler des Höhendienstes (App, Entscheid 31.10.2026): jedes Profil i = null mit der Quelle «… nicht
+ * verfügbar» (wie ein fehlerhaftes Einzelprofil, neigungMessung des Kerns); der Kern rechnet dann mit unbekannter Neigung */
+export function hoehenNichtVerfuegbar(profile: readonly (keyof HoehenVorgabe)[], err: unknown): HoehenVorgabe {
+  const f = err instanceof Error ? err : new Error(String(err))
+  return Object.fromEntries(profile.map(n => [n, neigungMessung(f)])) as HoehenVorgabe
 }
 
 /** Herkunft der Neigung: aus dem Höhenmodell (Text der Messung beginnt mit der Quelle) */

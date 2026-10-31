@@ -23,7 +23,7 @@ export interface SichtEingaben {
   neigungGross: boolean | null      // grosse Längsneigung (Vorgabe: |i| > 4 % in einer Richtung)
   schwerverkehr: boolean            // hoher Schwerverkehrsanteil (nur von Hand)
   neigung: Record<Richtung, number | null> // Längsneigung in Fahrtrichtung von FA [%], talwärts negativ; null = Vorgabe aus dem
-                                           // Höhenmodell (E3a), ohne Messung 0 %
+                                           // Höhenmodell (E3a), ohne Messung unbekannt (strengster Wert; solange es lädt 0 %)
 }
 export const KEINE_EINGABEN: SichtEingaben = {
   typ: null, fahrstreifen: null, neigungGross: null, schwerverkehr: false, neigung: { links: null, rechts: null },
@@ -199,6 +199,7 @@ export interface VeloErgebnis extends SichtTeil {
   tempo: number               // zulässige Höchstgeschwindigkeit (Zeile der Tab. 3)
   tempoQuelle: string
   neigung: number
+  neigungUnbekannt: boolean   // Neigung unbekannt: Spalte ≤ −4 (strengster Wert, Entscheid 31.10.2026)
   text: string                // z. B. «Tab. 3, bis 30 km/h, Spalte 0 %»
   ebike: boolean              // Wert «schnelle E-Bikes verboten» angewendet
 }
@@ -208,6 +209,7 @@ export interface TrottoirRichtung extends SichtTeil {
   richtung: Richtung
   lage: Lage                  // wie die Richtung der Vortrittsstrasse auf derselben Seite
   neigung: number             // Längsneigung des Trottoirs in Gehrichtung auf die Zufahrt zu [%]
+  neigungUnbekannt: boolean   // kein Profil des Trottoirs nach dem Laden: Spalte ≤ −6 (strengster Wert, Entscheid 31.10.2026)
   neigungQuelle: string
   text: string                // z. B. «Tab. 2, Spalte ≥ 0 %»
 }
@@ -269,13 +271,15 @@ export interface RichtungErgebnis {
   typWert: number             // [m]
   typText: string             // z. B. «Zwischenwert, Hauptverkehrsstrasse»
   neigung: number             // Längsneigung in Fahrtrichtung [%], wie gerechnet
-  neigungVorgabe: number      // Vorgabe: aus dem Höhenmodell (E3a), sonst 0 %
+  neigungVorgabe: number      // Vorgabe: aus dem Höhenmodell (E3a), sonst 0 % (unbekannt bzw. lädt)
   neigungHand: boolean        // Längsneigung von Hand (sonst Vorgabe)
-  neigungQuelle: string       // «von Hand», «swissALTI3D (swisstopo), Profil …» bzw. warum 0 %
+  neigungUnbekannt: boolean   // weder von Hand noch gemessen, Höhenmodell geladen: strengster Wert (Entscheid 31.10.2026)
+  neigungVorgabeUnbekannt: boolean  // Vorgabe unbekannt (auch bei Eingabe von Hand)
+  neigungQuelle: string       // «von Hand», «swissALTI3D (swisstopo), Profil …» bzw. warum unbekannt bzw. vorerst 0 %
   neigungVorgabeQuelle: string  // Quelle der Vorgabe (auch bei Eingabe von Hand): Profil, Fehler, lädt bzw. ohne Profil
   profilLinie: P[]            // Fahrstreifenachse ab K bis max(20 m, A massgebend): Linie des Höhenprofils (E3a)
   anhalte: Anhaltesicht | null      // VSS 40 090b Abb. 2 (immer gerechnet ab 30 km/h)
-  anhalteAngewendet: boolean        // nur bei |i| > 2 %
+  anhalteAngewendet: boolean        // nur bei |i| > 2 % bzw. Neigung unbekannt
   massgebend: number          // max(typWert, Anhaltesichtweite bei |i| > 2 %)
   massgebendText: string      // Herkunft des massgebenden Werts
   vorhanden: number           // [m], ab K entlang der Achse

@@ -23,6 +23,8 @@ import { ksDreieckSichtbar, ksFahrzeugStand, ksPhaseNach, tueFlaeche, tueGezeich
 import { messLaenge, messText, type Messung } from './messen'
 import { FARBE_VELO, VELO_SICHT_FARBE, fahrzeugFarbe, fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
 import { erkennungBaender, erkennungSichtlinien, type SichtlinieKarte } from './erkennungKarte'
+import { sichtGelaendeLinieText } from './sichtGelaende'
+import { statusKurzKarte } from './texte'
 import { veloSoll, type VeloSoll } from './veloSicht'
 import type { GelaendeStand } from './erkennungGelaende'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
@@ -85,7 +87,7 @@ export const UEBERGANG_TEXT: Record<string, string> = { markiert: 'Fussgängerst
   unbelegt: 'ohne Angabe zur Art, kein FGS' }
 export const STATUS_FARBE: Record<string, string> = {
   frei: '#10b981', verdeckt: '#dc2626', verdeckt_gebaeude: '#dc2626', verdeckt_hindernis: '#ea580c', verdeckt_baum: '#ca8a04',
-  verdeckt_zweirad: '#a855f7', kein_fgs: '#64748b', ohne_zufahrt: '#64748b',
+  verdeckt_zweirad: '#a855f7', kein_fgs: '#64748b', ohne_zufahrt: '#64748b', verdeckt_gelaende: '#dc2626',
 }
 /** Erkennungsdistanz: Teil bis zum Soll, den die Rechnung nicht geprüft hat (Fahrlinie endet), grau gestrichelt */
 export const ERKENNUNG_UNGEPRUEFT = '#64748b'
@@ -882,7 +884,7 @@ export default function Karte(props: {
       for (const z of s.zufahrten) {
         const farbe = STATUS_FARBE[z.status] ?? '#10b981'
         L.polygon(multiLl(z.feld), { color: farbe, weight: 1, fillColor: farbe, fillOpacity: 0.1, interactive: !cb.current.werkzeug })
-          .bindTooltip(`Sichtfeld ${esc(zufahrtText(cb.current.zufahrtNamen.get(z.fgsId), z.zufahrt))}${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(z.status.replace('_', ' '))}`, { sticky: true })
+          .bindTooltip(`Sichtfeld ${esc(zufahrtText(cb.current.zufahrtNamen.get(z.fgsId), z.zufahrt))}${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(statusKurzKarte(z.status))}`, { sticky: true })
           .on('click', () => { if (!cb.current.werkzeug) cb.current.onZufahrt(zufahrtKey(z)) }).addTo(eb.sicht)
         // Sicht vom Velo (29.10.2026): gestrichelt wie die Velo-Dreiecke der Knotensicht
         const vs = veloSoll(z, props.neigung)
@@ -990,7 +992,7 @@ export default function Karte(props: {
       const g = zufahrtKey(z) === auswahl, titel = mehrere ? cb.current.streifenTitel(s.fgsId) : null
       L.marker(ll(lage.p), { icon: nrIcon(nr, lage.aussen, g, titel), interactive: !werkzeug, keyboard: false, zIndexOffset: g ? 1000 : 0 })
         .bindTooltip(`${titel ? `${esc(titel)}: ` : ''}<b>${esc(zufahrtText(zNamen.get(s.fgsId), z.zufahrt))}</b>` +
-          `${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(z.status.replace('_', ' '))}` +
+          `${z.deckung ? ' (mitgeprüft)' : ''}: ${z.status === 'frei' ? 'frei' : esc(statusKurzKarte(z.status))}` +
           `<br><i>Klick: ${g ? 'Auswahl aufheben' : 'Zufahrt wählen'}</i>`, { direction: 'top', offset: [lage.aussen[0] * SCHILD_PX, -lage.aussen[1] * SCHILD_PX - 10] })
         .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onZufahrt(g ? null : zufahrtKey(z)) })
         .addTo(eb.nr)
@@ -1383,6 +1385,15 @@ export default function Karte(props: {
         .bindTooltip(`${esc(k.layer)} im Sichtfeld des Velos, ${k.abstand.toFixed(1)} m vom Streifen`).addTo(eb.auswahl)
       z.velo.sichtpunkte.forEach((p, i) => L.circleMarker(ll(p), { radius: i === z.velo!.sichtpunkte.length - 1 ? 4 : 2, color: FARBE_VELO, weight: 1,
         dashArray: '2 2', fillColor: '#ffffff', fillOpacity: 1, interactive: false }).addTo(eb.auswahl))
+    }
+    // Sicht auf die Wartefläche mit Gelände (Entscheid 30.10.2026; sichtGelaende.ts): Sichtlinien, die das Gelände verdeckt, rot
+    // gestrichelt über dunklem Rand (wie die Sichtlinien der Erkennungsdistanz)
+    for (const l of z.sichtGelaende?.linien ?? []) {
+      if (l.frei !== false) continue
+      const pl = [l.auge, l.ziel].map(ll)
+      L.polyline(pl, { pane: ERK_PANE, color: '#0f172a', weight: 4, opacity: 0.45, interactive: false }).addTo(eb.auswahl)
+      L.polyline(pl, { pane: ERK_PANE, color: STATUS_FARBE.verdeckt_gelaende, weight: 2, opacity: 0.95, dashArray: '6 4' })
+        .bindTooltip(esc(sichtGelaendeLinieText(l.x)), { sticky: true }).addTo(eb.auswahl)
     }
     for (const k of z.konflikte)
       L.polygon(multiLl(k.geom), { color: '#7f1d1d', weight: 2, fillColor: '#dc2626', fillOpacity: 0.6 })

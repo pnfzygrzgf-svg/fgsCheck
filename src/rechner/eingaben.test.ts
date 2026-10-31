@@ -864,7 +864,7 @@ describe('Sicht vom Velo an Zufahrten mit Radstreifen (29.10.2026)', () => {
     expect(b.befund.ausgewertet).toContain('H1')
     {
       expect(e).toMatchObject({ staerke: 'weich', zustand: 'verletzt', ist: `frei bis ${v.freiBisM} m`, soll: '50 m' })
-      expect(e!.detail).toMatch(/Velo \(Radstreifen\): frei bis \d+ m, Soll 50 m \(VSS 40 273 Tab\. 3, über 30 km\/h, Spalte 0 %; Längsneigung 0 % angenommen \(Höhenmodell nicht verfügbar bzw\. lädt\)\); verdeckt durch Parkfeld; sind schnelle E-Bikes verboten, gilt 30 m/)
+      expect(e!.detail).toMatch(/Velo \(Radstreifen\): frei bis \d+ m, Soll 50 m \(VSS 40 273 Tab\. 3, über 30 km\/h, Spalte 0 %; Längsneigung vorerst 0 % angenommen \(Höhenmodell lädt\)\); verdeckt durch Parkfeld; sind schnelle E-Bikes verboten, gilt 30 m/)
     }
   })
 })
@@ -929,7 +929,7 @@ describe('Velo auf der Karte (29.10.2026)', () => {
     for (const z of mitVelo) {
       const f = velos.find(x => x.zufahrt === `${z.fgsId}|${z.zufahrt}`)!
       expect(f.rolle).toBe('zufahrt')
-      expect(f.text).toBe(`Velo am Sichtpunkt, ${z.velo!.soll} m vor dem Streifen (VSS 40 273 Tab. 3; Längsneigung 0 % angenommen (Höhenmodell nicht verfügbar bzw. lädt))`)
+      expect(f.text).toBe(`Velo am Sichtpunkt, ${z.velo!.soll} m vor dem Streifen (VSS 40 273 Tab. 3; Längsneigung vorerst 0 % angenommen (Höhenmodell lädt))`)
       // zum Streifen hin: der Schritt in Fahrtrichtung bringt näher an den Streifen
       expect(dist([f.mitte[0] + f.richtung[0], f.mitte[1] + f.richtung[1]], s.m)).toBeLessThan(dist(f.mitte, s.m))
     }
@@ -948,7 +948,15 @@ describe('Sicht vom Velo mit gemessener Längsneigung (29.10.2026)', () => {
     const m = (i: number | null) => ({ [key]: { i, quelle: 'swissALTI3D', laenge: 50, punkte: 20, hinweis: null } })
     expect([veloSoll(z, m(-5))!.A, veloSoll(z, m(0))!.A, veloSoll(z, m(3))!.A, veloSoll(z, null)!.A]).toEqual([55, 50, 45, 50])
     expect(veloSoll(z, m(-3))!.neigungText).toBe('Längsneigung −3 % (swissALTI3D)')
-    expect(veloSoll(z, m(null))!.neigungText).toBe('Längsneigung 0 % angenommen (Höhenmodell nicht verfügbar)')
+    // Profil geladen, aber ohne Neigung (Entscheid 31.10.2026): unbekannt, strengster Wert der Tab. 3 (Spalte ≤ −4 %); fehlt die Messung
+    // (lädt): vorerst 0 %
+    expect(veloSoll(z, m(null))).toMatchObject({ A: 55, i: 0, gemessen: false, unbekannt: true, ebikeA: 35,
+      neigungText: 'Längsneigung unbekannt (Höhenmodell nicht verfügbar): strengster Wert der Tab. 3 angenommen' })
+    expect(veloSoll(z, m(null))!.text).toContain('Spalte ≤ −4 %')
+    expect(veloSoll({ ...z, tempo: 30 }, m(null))!.A).toBe(30)
+    expect(veloSoll({ ...z, tempo: 30 }, m(0))!.A).toBe(25)
+    expect(veloSoll(z, null)).toMatchObject({ A: 50, i: 0, gemessen: false, unbekannt: false, neigungText: 'Längsneigung vorerst 0 % angenommen (Höhenmodell lädt)' })
+    expect(veloSoll(z, {})!.neigungText).toBe('Längsneigung vorerst 0 % angenommen (Höhenmodell lädt)')
     expect(veloSoll(z, m(3))!.ebikeA).toBe(25)
     // «frei bis» kleiner als das Soll bei −5 %, grösser bei +3 %: das Ergebnis folgt der Neigung ohne neue Rechnung
     const zk = { ...z, velo: { ...z.velo!, freiBisM: 48, konflikte: [{ klasse: 'auto' as const, layer: 'Parkfeld', flaeche: 2, abstand: 49, geom: [] }] } }

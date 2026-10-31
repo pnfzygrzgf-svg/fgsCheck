@@ -37,7 +37,7 @@ import { freiBis } from './freibis'
 import { D_VELO_M, RADSTREIFEN_M, TAB3, veloSichtweite } from '../knotensicht/rechner/velo'
 import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvexeHuelle, enthaelt, abstandMulti, huelle, abstandLinieMulti } from './poly'
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
-import type { ZufahrtErgebnis, StreifenErgebnis, Konflikt, QuerungSicht, AnnBasis, AnnHand } from './typen'
+import { RANG_STATUS, type ZufahrtErgebnis, type StreifenErgebnis, type Konflikt, type QuerungSicht, type AnnBasis, type AnnHand } from './typen'
 import { type Augpunkt, type ErkennungErgebnis, type ErkennungEnde, ERKENNUNG_MAX_M, entlangLinie, erkennungRechnen, zielPunkte } from './erkennung'
 import { type OhneVortritt, sollQuerung, quelleQuerung, quelleAnnahme, annahmeOhneVortritt, annahmeBgz, istBgz, weiteQuerung, REICHWEITE_SICHT_M,
   BIS_KNOTEN, EINMUENDUNG_NAH_M } from './ohneVortritt'
@@ -54,8 +54,8 @@ const VRV_ABSTAND = 5.0            // VRV Art. 18 Abs. 2e
 export const R2_FLAECHEN = ['uebrige_befestigte']
 const R2_MIN_PUNKTE = 3
 const R2_NAH_M = 3.0
-export const RANG_STATUS: Record<string, number> = { frei: 0, verdeckt_zweirad: 1, verdeckt_baum: 2, verdeckt_hindernis: 2.5,
-  verdeckt_gebaeude: 3, verdeckt: 4 }
+// Rangfolge der Status (typen.ts, auch für die Geländeprüfung der App, sichtGelaende.ts)
+export { RANG_STATUS }
 const SPUR_AUF_FAHRBAHN = 0.7
 const SPUR_PRUEF_M = 40.0
 const LSA_QUERUNG_M = 6.0

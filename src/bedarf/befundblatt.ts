@@ -35,6 +35,7 @@ import { sichtweiteKurve } from '../rechner/tempo'
 import { sichtQuelleKurz } from '../texte'
 import { annahmeKurz } from '../rechner/ohneVortritt'
 import { sichtFgs } from './tabellen'
+import { GELAENDE_NAME } from '../erkennungGelaende'
 
 export interface BlattOptionen {
   /** Vorgabe der Ebenen nach dem Ort (fallBedarf.ebenenVorgabe) */
@@ -99,14 +100,14 @@ export interface BefundBlatt {
 
 const tausender = (x: number): string => String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')
 /**
- * Informationszeile im Thema Trottoirüberfahrt (VSS 40 242 Z. 15.2.1, S. 17; Nutzerentscheid 30.10.2026): Verkehr der Seitenstrasse und der
+ * Informationszeile im Thema Trottoirüberfahrt (VSS 40 242 Z. 15.2.1, S. 15; Nutzerentscheid 30.10.2026): Verkehr der Seitenstrasse und der
  * Hauptfahrbahn mit ihrem Verhältnis, ohne Schwelle und ohne Befund; fehlt ein Wert, «offen». Seitenstrasse: Feld q3.dtvEinm; Hauptfahrbahn:
  * DTV der Hauptstrasse aus den Verkehrsdaten (wie die Schätzung der Wartezeit, vorbelegung.dtvHauptstrasse), sonst offen
  */
 export function tueVerkehrZeile(seite: number | null, haupt: number | null): string {
   const fz = (x: number | null) => (x === null ? 'offen' : `${tausender(x)} Fz/Tag`)
   const v = seite !== null && haupt !== null && seite > 0 ? `1 : ${(Math.round(haupt / seite * 10) / 10).toFixed(1).replace('.', ',')}` : 'offen'
-  return `Verkehr: Seitenstrasse ${fz(seite)}, Hauptfahrbahn ${fz(haupt)}, Verhältnis ${v}. Norm (VSS 40 242 Z. 15.2.1, S. 17): Verkehr ` +
+  return `Verkehr: Seitenstrasse ${fz(seite)}, Hauptfahrbahn ${fz(haupt)}, Verhältnis ${v}. Norm (VSS 40 242 Z. 15.2.1, S. 15): Verkehr ` +
     'der Seitenstrasse deutlich geringer als auf der Hauptfahrbahn; bei geringem Gesamtverkehr sind auch gleiche Mengen zulässig.'
 }
 
@@ -226,7 +227,8 @@ function statusKurzK(k: readonly { klasse: string; layer: string }[]): string {
 }
 function statusKurz(z: ZufahrtErgebnis): string {
   if (z.status === 'frei') return 'frei'
-  const arten = [...new Set(z.konflikte.map(konfliktName))].slice(0, 3)
+  // Gelände (Geländeprüfung der App, sichtGelaende.ts; nur in der Sitzung)
+  const arten = [...new Set([...z.konflikte.map(konfliktName), ...(z.sichtGelaende?.abM != null ? [GELAENDE_NAME] : [])])].slice(0, 3)
   return `verdeckt${arten.length ? ` durch ${arten.join(', ')}` : ''}`
 }
 /** Hindernis im Lesetext (Runde 5, Stelle 42): keine Layer- bzw. Rohnamen */
@@ -693,7 +695,8 @@ export function sichtAnzeige(g: QuerungGruppe, titel: (fgsId: string) => string,
         continue
       }
       const k = [...z.konflikte].sort((a, b) => a.abstand - b.abstand)[0]
-      teile.push(`${name}: verdeckt${k ? `, ${konfliktName(k)} ${m1(k.abstand)} vor dem Streifen` : ''}` +
+      const gel = !k && z.sichtGelaende?.abM != null ? `, ${GELAENDE_NAME} ab ${m1(z.sichtGelaende.abM)}` : ''
+      teile.push(`${name}: verdeckt${k ? `, ${konfliktName(k)} ${m1(k.abstand)} vor dem Streifen` : gel}` +
         `${z.freiBisM !== undefined ? `, frei bis ${m1(z.freiBisM)}` : ''}, ${soll}`)
     }
   }

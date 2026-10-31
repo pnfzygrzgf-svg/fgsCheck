@@ -14,9 +14,9 @@
 // E3b: der Velo-Teil zählt mit (Entscheid 1): eine Richtung ist «nicht erfüllt», wenn Auto oder Velo nicht erfüllt sind; jede
 // Variante rechnet auch die Veloachse (ein tieferes Tempo gilt dort als zulässige Höchstgeschwindigkeit der Tab. 3), «reicht» heisst
 // Auto und Velo reichen. Der Trottoirverkehr (Tab. 2) ist nicht Teil der Liste.
-// E3c, Rechtsvortritt: zuoberst (Nr. 0) «Rechtsvortritt aufheben und Vortritt signalisieren» (Ziffer 16), wenn der Zustand nach
-// Abb. 6 «zu sanieren» bzw. das Sichtfeld nach Abb. 5 nicht frei ist. «Reicht» heisst dann: nicht mehr «zu sanieren» und Paarmatrix
-// frei. Haltelinie, Stop, Rechtsabbiegegebot, Tempo und Spiegel passen nicht zum Rechtsvortritt (B 5,00 m nach Abb. 4, Tempo fest
+// E3c, Rechtsvortritt: zuoberst (Nr. 0) «Rechtsvortritt aufheben und Vortritt signalisieren» (Fundstelle VSS 40 273 Ziffer 16,
+// nicht 17), wenn der Zustand nach Abb. 6 «zu sanieren» bzw. das Sichtfeld nach Abb. 5 nicht frei ist. «Reicht» heisst dann: nicht
+// mehr «zu sanieren» und Paarmatrix frei. Haltelinie, Stop, Rechtsabbiegegebot, Tempo und Spiegel passen nicht zum Rechtsvortritt (B 5,00 m nach Abb. 4, Tempo fest
 // 30 km/h nach Ziffer 15): nur Vermerk bzw. weggelassen.
 
 import type { P } from '../geo'
@@ -106,10 +106,10 @@ export function massnahmenRechnen(m: MassnahmenEingang): Massnahme[] | null {
   if (!rs.some(nicht) && !rv?.aufheben) return null
   const out: Massnahme[] = []
 
-  // 0 Rechtsvortritt aufheben (E3c, Ziffer 16)
+  // 0 Rechtsvortritt aufheben (E3c, VSS 40 273 Ziffer 16)
   if (rv?.aufheben) out.push({ nr: 0, titel: 'Rechtsvortritt aufheben und Vortritt signalisieren', reicht: null, zeilen: [],
     text: 'Zustand nach Abb. 6 «zu sanieren» bzw. Sichtfeld nach Abb. 5 nicht frei: lassen sich Sichtweite und Wahrnehmbarkeit nicht ' +
-      'mit verhältnismässigem Aufwand verbessern, ist der Rechtsvortritt aufzuheben und der Vortritt zu signalisieren (Ziffer 16); ' +
+      'mit verhältnismässigem Aufwand verbessern, ist der Rechtsvortritt aufzuheben und der Vortritt zu signalisieren (VSS 40 273 Ziffer 16); ' +
       'danach gilt Teil D (Vortrittsregelung im Panel umstellen und neu rechnen).' })
   // Wahrnehmbarkeit verbessern (E3c, Ziffern 17 und 18): Zustand je Stufe bei der heutigen Sichtweite (Nr. 9, als Zweites gezeigt)
   if (rv) out.push({ nr: 9, titel: 'Wahrnehmbarkeit verbessern', reicht: null, zeilen: rv.wahrnehmbarkeit.map(text => ({ text, reicht: null })),

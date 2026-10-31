@@ -359,6 +359,12 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   H1-V nennt VSS 40 273 Z. 13.3 und Tab. 3 mit S. 9. VSS 40 837, Handbuch LSA Bern und VRV haben keine aktive Regel mehr und fehlen
   darum in der Quellentabelle. Alte Fall-Dateien lesen sich weiter (gestrichene Felder und die Objekte `lsaZeiten`/`hvl` werden still
   übergangen, Fall-Version unverändert).
+  Block 4 (31.10.2026): Gedruckte Seiten der VSS 40 242 im Katalog am PDF geprüft und korrigiert (Z. 14.1–14.5 S. 10–14, Z. 15.1
+  S. 14, Z. 15.2.1–15.2.3 S. 15–16; ab Z. 15.2.5 stimmten sie); Seiten nachgetragen bei VSS 40 241 Z. 18, 21–23, 25–29 und VSS 40 240
+  Z. 13.2, 16, 22, Tab. 3, Abb. 10–14. Die Knotensicht der Trottoirüberfahrt folgt dem nachgezogenen Kern des SichtweitenCheck:
+  ohne brauchbares Höhenprofil gilt die Längsneigung als unbekannt und der strengste Tabellenwert (Tab. 2: 30 m, Tab. 3: Spalte
+  ≤ −4 %), D' heisst B = 3,00 m nach VSS 40 273 Ziffer 13.2; Abb. 2 der VSS 40 090b: gestrichelte Kurvenenden gelten als nicht
+  gezeichnet. Neu prüft die App das Gelände auch für die Sicht auf die Wartefläche (siehe «Sichtprüfung», `src/sichtGelaende.ts`).
   Ein Streifen lässt sich als Trottoirüberfahrt wählen (`StreifenEingabe.typ = 'trottoirueberfahrt'`): ohne Sicht auf die Wartefläche
   (Zufahrten nur für die Vorbelegung des Bedarfs), setzt im Bedarf den Querungstyp und rechnet die Knotensicht der Einbiegenden (`src/tue/`, Werkzeug «Trottoirüberfahrt»
   unter Planen bzw. Auswahl «Querung» am Streifen): zwei Phasen je Richtung, vom hinteren Rand der Überfahrt aufs Trottoir und von
@@ -366,7 +372,9 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Knotens (bis 20 m), den die Querung quert, bei geteilten Streifen gemeinsam. Breite: von Hand (Bedarf), sonst AV (Trottoir quer
   bzw. schmaleres angrenzendes Trottoir, begrenzt auf 2,00 bis 3,50 m nach VSS 40 242 Ziffer 16), sonst 2,00 m als Annahme; die
   Gehlinie liegt 0,50 m vor dem hinteren Rand der Überfahrt. Tempo: von Hand («Tempo auf der Hauptstrasse»), sonst in der Stadt
-  Bern das signalisierte Tempo des Geoportals, sonst OSM. Längsneigung aus Höhenprofilen (swissALTI3D), ohne Profil 0 %.
+  Bern das signalisierte Tempo des Geoportals, sonst OSM. Längsneigung aus Höhenprofilen (swissALTI3D); solange sie laden, vorerst
+  0 %; liefert der Dienst kein brauchbares Profil, gilt die Neigung als unbekannt und der Kern nimmt den strengsten Wert der Tab. 2
+  bzw. Tab. 3 (Entscheid 31.10.2026, Quelle «unbekannt, strengster Wert»).
   Hindernisse wie in der Sichtprüfung: von Hand gezeichnete, Bäume aus dem Baumkataster und amtliche Parkfelder; Parkierung unter
   einem vorgezogenen Seitenraum entfällt, Flächen (Plan) ersetzen die AV darunter. Weil Bäume aus dem Baumkataster zählen, kann
   das Ergebnis vom SichtweitenCheck abweichen. Das Ergebnis belegt die Frage zur Sicht beim Ausfahren nur vor, wenn beide Phasen
@@ -489,7 +497,15 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Antwort bleibt sie 2D («Gelände nicht geprüft»). Geht die Sicht nur noch über Bewuchs der AV (geschlossener Wald, dichte Wytweide,
   übrige bestockte Fläche, Gartenanlage; `BEWUCHS_ARTEN`), ist sie ab dort «nicht sicher» (kein Befund). Auf der Karte zeigt ein Band
   entlang der Fahrlinie das Ergebnis höchstens bis zum Soll (`src/erkennungKarte.ts`: grün in den Daten frei, gelb Bewuchs, rot
-  verdeckt, grau nicht geprüft); ein Klick darauf zeigt die geprüften Sichtlinien (`ZufahrtErgebnis.erkennungLinien`). Nur die Markierung
+  verdeckt, grau nicht geprüft); ein Klick darauf zeigt die geprüften Sichtlinien (`ZufahrtErgebnis.erkennungLinien`).
+  Gelände auch für die Sicht auf die Wartefläche (seit 31.10.2026, VSS 40 241 Ziffer 14, S. 6: Kuppen im Bereich der Fahrbahn;
+  `src/sichtGelaende.ts`): je Zufahrt mit Sichtpunkten (gerade und abbiegend, nicht an der Trottoirüberfahrt) alle 10 m bis zur
+  Soll-Sichtweite eine Sichtlinie vom Augpunkt (1,1 m über Gelände) zur ungünstigsten Ecke der Wartefläche (Ziel 0,60 m über Boden,
+  untere Grenze des Sichtfelds; Annahme), Toleranz 0,3 m, ein Höhenprofil je Linie, höchstens 14 Abfragen je Zufahrt mit Verfeinerung,
+  Linien auf Brücken nicht. Verdeckt das Gelände eine Linie vor der Soll-Sichtweite, wird die Zufahrt «verdeckt (Gelände, swissALTI3D)»
+  (Status `verdeckt_gelaende`, ein 2D-Befund wie «verdeckt (Baum)» bleibt vorne); die Sichtprüfung zeigt je Zufahrt die Zeile «Gelände:
+  frei / verdeckt ab x m / lädt / nicht geprüft», die Karte die verdeckten Linien der gewählten Zufahrt rot gestrichelt, der Bericht eine
+  Zeile. Das Ergebnis gilt nur in der Sitzung (Fall-Datei unverändert); ohne Antwort bleibt die Rechnung 2D. Nur die Markierung
   (nicht die blaue Tafel, Signal 4.11): die Vorbelegung setzt den kleinsten sicher freien Wert der geraden Zufahrten (Herkunft «mit Gelände» bzw. «ohne Gelände») als Annahme ins Feld «Ab welcher Distanz ist der Streifen erkennbar» (eine Untergrenze nur, wenn sie das Doppelte der
   Sichtweite erreicht; Handeingabe geht vor).
   Datenschicht «Automatik Paket C» (nur Daten, in `GeoVorbelegung` durchgereicht; in Bern geladen, wenn die AV-Fläche am Ladeort
@@ -592,7 +608,7 @@ IP-Adresse):
 | wmts.geo.admin.ch (swisstopo) | Kartenkacheln (Luftbild bzw. Landeskarte) des sichtbaren Ausschnitts |
 | api3.geo.admin.ch (swisstopo, SearchServer) | Ortssuche: der eingegebene Suchbegriff (Ort, Adresse, Strasse, PLZ) |
 | wms.geo.admin.ch, api3.geo.admin.ch | Luftbild ±30 m um den Übergang, Kartenbild des Berichts; Flugjahr der 1-km-Kachel |
-| api3.geo.admin.ch (swisstopo, Höhenprofil) | an einer Trottoirüberfahrt bis vier Linien der Knotensicht und, mit einer Kurve vor dem Streifen, bzw. mit Radstreifen oder Radweg die Fahrlinie der Zufahrt (50 m, Koordinaten) für die Längsneigung (Kurvenregel, Sicht vom Velo); am Fussgängerstreifen je gerade Zufahrt bis 14 Sichtlinien (Koordinaten von Augpunkt und Markierung) für das Gelände der Erkennungsdistanz |
+| api3.geo.admin.ch (swisstopo, Höhenprofil) | je Zufahrt mit Sicht auf die Wartefläche bis 14 Sichtlinien (Koordinaten); an einer Trottoirüberfahrt bis vier Linien der Knotensicht und, mit einer Kurve vor dem Streifen, bzw. mit Radstreifen oder Radweg die Fahrlinie der Zufahrt (50 m, Koordinaten) für die Längsneigung (Kurvenregel, Sicht vom Velo); am Fussgängerstreifen je gerade Zufahrt bis 14 Sichtlinien (Koordinaten von Augpunkt und Markierung) für das Gelände der Erkennungsdistanz |
 | geodienste.ch (AV-WFS) | Rechteck ±150 m um den Übergang (BBOX) |
 | Overpass: overpass.osm.ch, ersatzweise overpass-api.de, overpass.kumi.systems, overpass.private.coffee | Kartenausschnitt (Übergänge und Strassennamen) mit Rand (Suche, automatisch beim Start und nach dem Verschieben bzw. Zoomen) bzw. Umkreis 300 m |
 | map.bern.ch (nur Stadt Bern) | Rechteck ±150 m (amtliche Parkfelder, Baumkataster, Haltestellen, Verkehrsdaten) |

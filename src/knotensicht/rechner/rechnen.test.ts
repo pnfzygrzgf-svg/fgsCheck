@@ -156,7 +156,14 @@ describe('E1: erforderliche Sichtweite an einer Hauptverkehrsstrasse', () => {
     expect(seite(e, 'rechts').status).toBe('erfuellt')            // frei bis 105 m ≥ 70 m
     const t = e.annahmen.join(' | ')
     expect(t).toContain('Strassentyp «Hauptverkehrsstrasse oder wichtige Verbindungsstrasse» aus OSM highway=tertiary angenommen')
-    expect(t).toContain('Zwischenwert der Tab. 1 massgebend')
+    expect(t).toContain('Zwischenwert der Tab. 1 massgebend (Mittel von unterem und oberem Wert, aufgerundet; Entscheid 15.10.2026 – ' +
+      'die Norm nennt nur einen Bereich)')
+    // Strassentyp aus OSM als Annahme der App, tertiary auf der sicheren Seite; 2-%-Grenze mit Normgrundlage
+    expect(t).toContain('(Annahme der App, im Panel wählbar: trunk, primary, secondary, tertiary und deren links gelten als ' +
+      'Hauptverkehrsstrasse, tertiary damit auf der sicheren Seite; sonst Erschliessungsstrasse)')
+    expect(t).toContain('Untergrenze erst über ±2 %, weil die unteren Werte der Tab. 1 für i ≤ ±2 % gelten (VSS 40 273 Ziffer 13.1)')
+    expect(seite(e, 'links').typText).toBe('Zwischenwert, Hauptverkehrsstrasse (Mittel von unterem und oberem Wert, aufgerundet; ' +
+      'Entscheid 15.10.2026 – die Norm nennt nur einen Bereich)')
     expect(t).toContain('Längsneigung von links und von rechts 0 % (eben')
   })
   it('Strassentyp von Hand ES: unterer Wert 50 m, Annahme zum Strassentyp entfällt', () => {

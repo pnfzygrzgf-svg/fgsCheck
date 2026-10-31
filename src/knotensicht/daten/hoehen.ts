@@ -45,7 +45,7 @@ export async function ladeProfil(linie: P[], signal?: AbortSignal): Promise<Abru
   return { ...r, daten: profilLesen(r.daten) }
 }
 
-/** Längsneigung zum Knoten hin aus dem Profil der Linie; Fehler des Dienstes ergeben i = null mit Hinweis (Rechnung mit 0 %).
+/** Längsneigung zum Knoten hin aus dem Profil der Linie; Fehler des Dienstes ergeben i = null mit Hinweis (Neigung unbekannt).
  *  Ein Abbruch (anderer Ort geladen) wird weitergereicht. -> [Messung, Abruf bzw. Fehlertext] */
 export async function ladeNeigung(linie: P[], signal?: AbortSignal): Promise<[NeigungMessung, Abruf<ProfilPunkt[]> | string]> {
   try {

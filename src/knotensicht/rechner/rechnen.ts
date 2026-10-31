@@ -12,6 +12,9 @@
 // Annahmen kommen als Text zurück und stehen in der Seite.
 // E3a: Längsneigung je Richtung von Hand bzw. als Vorgabe aus dem Höhenmodell (fall.hoehen, geholt von der App entlang der
 // profilLinie je Richtung und des zufahrtProfil); Massnahmen nach Ziffer 14 (massnahmen.ts) als Varianten dieser Rechnung.
+// Neigung unbekannt (Entscheid 31.10.2026): weder von Hand noch messbar (kein Profil, zu kurz, Dienst-Fehler), Höhenmodell fertig
+// geladen: je Tabelle der strengste Wert (Tab. 2 Spalte ≤ −6, Tab. 3 Spalte ≤ −4, Anhaltesichtweite bei −12 %); solange das
+// Höhenmodell lädt, vorerst 0 %.
 // E3b: je Richtung die Prüfung des Veloverkehrs auf der Veloachse (velo.ts, Tab. 3; Radstreifen verschiebt die Autoachse, ein Radweg
 // näher als 2,00 m den Nullpunkt von B), mit Trottoir an der Zufahrt die Prüfung des Trottoirverkehrs von D' aus (Tab. 2); der
 // Gesamtstatus je Richtung ist der schlechteste der Teile (Entscheid 1).
@@ -31,8 +34,9 @@
 //     tempoAmtlich: { linien, bereich, quelle } | null,   // Stadt Bern: V_sig des Geoportals (daten/vsig.ts), sonst null = OSM
 //   }) -> Rechnung; ergebnis.trottoirueberfahrt: TueErgebnis (Breite mit Herkunft, Abstand des hinteren Rands vom Fahrbahnrand, Länge
 //      auf der Achse, vorderer und hinterer Rand, durchgehend = Zufahrt auf der durchgehenden Strasse (Ziffer 14.2), Status je Phase),
-//      Phase Trottoir = ergebnis.trottoirPruefung (D' 3,00 m hinter dem hinteren Rand, Zielpunkte auf der Gehlinie 0,50 m vor dem
-//      hinteren Rand der Überfahrt, Tab. 2), Phase Fahrbahn = ergebnis.richtungen (Auto Tab. 1, Velo Tab. 3, B ab der Bordkante).
+//      Phase Trottoir = ergebnis.trottoirPruefung (D' = B 3,00 m hinter dem hinteren Rand, VSS 40 273 Ziffer 13.2; Zielpunkte auf
+//      der Gehlinie 0,50 m vor dem hinteren Rand der Überfahrt, Tab. 2), Phase Fahrbahn = ergebnis.richtungen (Auto Tab. 1, Velo
+//      Tab. 3, B ab der Bordkante).
 //
 // Im Modus gilt (VSS 40 242 Ziffern 12.3, 14.4): kein Rechtsvortritt (Vorgabe Vortritt bzw. Stop aus OSM; «Rechtsvortritt» gewählt:
 // gerechnet wie Vortritt), Nullpunkt von B an der Bordkante (vorderer Rand der Überfahrt; eine Haltelinie bzw. ein Radweg nach Ziffer 12
@@ -52,7 +56,8 @@ import { punkteAufSpur } from './spur'
 import { wegTempo, tempoEntlang, zonenTempo, amtlichEntlang, TEMPO_ERSATZ } from './tempo'
 import { tueBand, TUE_GEHLINIE_M, TUE_BREITE_ANNAHME_M, type TueBand } from './trottoirueberfahrt'
 import { sichtweiteA, zielLaenge, sichtStatus, istHvsHighway, TAB1, TAB1_MAX, ZIEL_FAKTOR, STRASSENTYP_TEXT, NEIGUNG_GROSS_PROZENT,
-  NEIGUNG_EBEN_PROZENT, type Strassentyp, type Ungunst, HVS_HIGHWAY } from './sichtweite'
+  NEIGUNG_EBEN_PROZENT, ZWISCHENWERT_TEXT, type Strassentyp, type Ungunst, HVS_HIGHWAY } from './sichtweite'
+import { ANHALTESICHT_I_MIN } from './anhaltesicht'
 import { knotenInfo, vortrittPaar, vortrittsSignale, signalAnArm, armText, nachNr } from './knoten'
 import { grundstueckGeometrie, type GrundstueckGeo } from './grundstueck'
 import { parkStreifen, sondenRechts, parkStreifenText, KEIN_PARKSTREIFEN, PARK_SONDE_RADIUS_M, PARK_EIN_FELD_TREFFER,
@@ -255,19 +260,26 @@ export function regelungVorgabe(signaleZufahrt: VortrittsHinweis[], strasse: Vor
   return ['vortritt', 'ohne Signal in OSM']
 }
 
-/** Längsneigung einer Richtung: von Hand, sonst Vorgabe aus dem Höhenmodell (E3a), sonst 0 % */
+/** Längsneigung einer Richtung: von Hand, sonst Vorgabe aus dem Höhenmodell (E3a), sonst unbekannt (strengster Wert, Entscheid
+ *  31.10.2026) bzw. vorerst 0 %, solange das Höhenmodell lädt. i bleibt bei unbekannter Neigung 0 (kein Mass; die Rechnungen
+ *  nehmen mit «unbekannt» den strengsten Tabellenwert, die Vorgabe «grosse Längsneigung» bleibt aus) */
 interface NeigungStand { i: number; vorgabe: number; hand: boolean; quelle: string; vorgabeQuelle: string; gemessen: boolean
-  hinweis: string | null }
+  unbekannt: boolean; vorgabeUnbekannt: boolean; hinweis: string | null }
+/** Quelle einer unbekannten Neigung (Panel, Bericht) */
+export const NEIGUNG_UNBEKANNT_QUELLE = 'unbekannt, strengster Wert'
 // hoehenDa: die App hat die Profile zu diesem Fall geholt (Fall.hoehen gesetzt). Vorher (null) lädt das Höhenmodell noch: der
 // Bericht wartet darauf. Fehlt danach die Messung einer Richtung, wurde für sie kein Profil geholt (nicht geprüft, kein Verkehr):
-// kein «lädt», sonst wartete der Druck ewig (Befund 17.10.2026).
+// kein «lädt», sonst wartete der Druck ewig (Befund 17.10.2026); die Neigung ist dann unbekannt.
 export function neigungBestimmen(hand: number | null, m: NeigungMessung | undefined, hoehenDa: boolean): NeigungStand {
   const vorgabe = m?.i ?? 0
   const gemessen = m !== undefined && m.i !== null
-  const vorgabeQuelle = gemessen ? m!.quelle : m ? `${m.quelle}: 0 % angenommen` : hoehenDa ? 'ohne Profil: 0 % angenommen' :
-    'Höhenmodell lädt: vorerst 0 %'
-  if (hand !== null) return { i: hand, vorgabe, hand: true, quelle: 'von Hand', vorgabeQuelle, gemessen, hinweis: null }
-  return { i: vorgabe, vorgabe, hand: false, quelle: vorgabeQuelle, vorgabeQuelle, gemessen, hinweis: m?.hinweis ?? null }
+  const vorgabeUnbekannt = !gemessen && (m !== undefined || hoehenDa)
+  const vorgabeQuelle = gemessen ? m!.quelle : m ? `${m.quelle}: ${NEIGUNG_UNBEKANNT_QUELLE}` : hoehenDa ?
+    `ohne Profil: ${NEIGUNG_UNBEKANNT_QUELLE}` : 'Höhenmodell lädt: vorerst 0 %'
+  if (hand !== null) return { i: hand, vorgabe, hand: true, quelle: 'von Hand', vorgabeQuelle, gemessen, unbekannt: false, vorgabeUnbekannt,
+    hinweis: null }
+  return { i: vorgabe, vorgabe, hand: false, quelle: vorgabeQuelle, vorgabeQuelle, gemessen, unbekannt: vorgabeUnbekannt, vorgabeUnbekannt,
+    hinweis: m?.hinweis ?? null }
 }
 
 /** nurRv: nur für «alle Arme» (E3c): ohne Massnahmen, Trottoir und ohne die Rechnung der übrigen Arme */
@@ -635,9 +647,10 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     rechts: neigungBestimmen(eg.neigung.rechts, hoehen?.rechts, !!hoehen) }
   const strasse = strasseBestimmen(netz, [aL, aR], eg, { links: ns.links.i, rechts: ns.rechts.i })
   if (!strasse.typGewaehlt && !rv)
-    annahmen.push(`Strassentyp «${STRASSENTYP_TEXT[strasse.typ]}» aus ${strasse.typQuelle} angenommen (Vorgabe: trunk, primary, secondary, ` +
-      `tertiary und deren links = Hauptverkehrsstrasse, sonst Erschliessungsstrasse; im Panel wählbar): ${strasse.typ === 'es' ?
-      'unterer Wert der Tab. 1 massgebend.' : 'Zwischenwert der Tab. 1 massgebend (Mittel von unterem und oberem Wert, auf ganze Meter aufgerundet).'}`)
+    annahmen.push(`Strassentyp «${STRASSENTYP_TEXT[strasse.typ]}» aus ${strasse.typQuelle} angenommen (Annahme der App, im Panel ` +
+      'wählbar: trunk, primary, secondary, tertiary und deren links gelten als Hauptverkehrsstrasse, tertiary damit auf der sicheren ' +
+      `Seite; sonst Erschliessungsstrasse): ${strasse.typ === 'es' ? 'unterer Wert der Tab. 1 massgebend.' :
+      `Zwischenwert der Tab. 1 massgebend (${ZWISCHENWERT_TEXT}).`}`)
   if (eg.fahrstreifen === null && strasse.ungunst.fahrstreifen && !rv)
     annahmen.push(`Mehr als zwei Fahrstreifen aus ${strasse.fahrstreifenQuelle} angenommen (ungünstige Verhältnisse).`)
   if (eg.neigungGross === null && strasse.ungunst.neigung && !rv)
@@ -646,20 +659,25 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   if (strasse.typ === 'es' && ung && !rv)
     hinweise.push('Ungünstige Verhältnisse an einer Erschliessungs-, Sammel- oder Verbindungsstrasse: der untere Wert bleibt massgebend; ' +
       'gilt die Strasse als Hauptverkehrsstrasse, hebt die Wahl im Panel auf den oberen Wert.')
-  // 0 % ohne Messung (Höhenmodell nicht geladen bzw. Fehler, oder von Hand 0) als Annahme; gemessene Werte mit Quelle
-  // Richtungen ohne Profil (nicht geprüft bzw. kein Verkehr; Profile geladen, aber für sie keines geholt) erscheinen hier nicht
+  // 0 % (Höhenmodell lädt noch, oder von Hand 0) bzw. unbekannt (Höhenmodell geladen, keine Messung: strengster Wert) als
+  // Annahme; gemessene Werte mit Quelle. Richtungen ohne Profil (nicht geprüft bzw. kein Verkehr; Profile geladen, aber für sie
+  // keines geholt) erscheinen hier nicht
   const ohneProfil = (r: Richtung) => !ns[r].hand && !!hoehen && hoehen[r] === undefined
-  const eben = (['links', 'rechts'] as Richtung[]).filter(r => ns[r].i === 0 && !(ns[r].gemessen && !ns[r].hand) && !ohneProfil(r))
+  const eben = (['links', 'rechts'] as Richtung[]).filter(r => ns[r].i === 0 && !ns[r].unbekannt && !(ns[r].gemessen && !ns[r].hand) &&
+    !ohneProfil(r))
   const lageR = (r: Richtung) => ({ lage: lageLR[r === 'links' ? 0 : 1] })
   if (eben.length) annahmen.push(`Längsneigung ${eben.map(r => lageKurz(lageR(r))).join(' und ')} 0 % (eben; ${eben.some(r => !ns[r].hand) ?
-    'ohne Messung aus dem Höhenmodell, ' : ''}im Panel je Richtung einzugeben).`)
+    'vorerst, das Höhenmodell lädt noch; ' : ''}im Panel je Richtung einzugeben).`)
+  // unbekannte Neigung: Annahme an dieser Stelle, sobald die Richtungen gerechnet sind (nur Richtungen mit Verkehr)
+  const annahmeNeigung = annahmen.length
   const gemessen = (['links', 'rechts'] as Richtung[]).filter(r => ns[r].gemessen && !ns[r].hand)
   if (gemessen.length) annahmen.push(`Längsneigung ${gemessen.map(r => `${lageKurz(lageR(r))} ${fi(ns[r].i)} %`).join(', ')} aus dem Höhenmodell ` +
     `swissALTI3D (swisstopo): Ausgleichsgerade über das Höhenprofil der Fahrstreifenachse ab K bis A massgebend (mindestens ` +
     `${PROFIL_MIN_M} m), in Fahrtrichtung, talwärts negativ; im Panel überschreibbar. Kuppen und Wannen nicht geprüft.`)
   if (!rv) annahmen.push(`Anhaltesichtweite nach VSS 40 090b Abb. 2 (übrige Strassen; aus dem Diagramm abgelesen, ±2 m; VP = Tempo der Tab. 1), ` +
-    `Kurven bei 0 % auf den unteren Wert der Tab. 1 verschoben (aus Abb. 2 zählt nur die Wirkung der Neigung), ` +
-    `als Untergrenze nur bei |i| über ${NEIGUNG_EBEN_PROZENT} % angewendet.`)
+    `Kurven bei 0 % auf den unteren Wert der Tab. 1 verschoben (Entscheid 15.10.2026: aus Abb. 2 zählt nur die Wirkung der Neigung); ` +
+    `Untergrenze erst über ±${NEIGUNG_EBEN_PROZENT} %, weil die unteren Werte der Tab. 1 für i ≤ ±${NEIGUNG_EBEN_PROZENT} % gelten ` +
+    '(VSS 40 273 Ziffer 13.1); gestrichelte Kurvenenden gelten als nicht gezeichnet, Werte dort unsicher (Entscheid 31.10.2026).')
   // Hindernisse (E2a): in D liegende nicht rechnen (z. B. Parkierung entlang der Zufahrt an der Stelle des wartenden Fahrzeugs)
   const hvAlle = hindernisVerdeckend(zaehlend)
   const inD = hvAlle.filter(v => imPolygon(D, v.poly)).map(v => v.id)
@@ -689,6 +707,14 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
           lg === 'gegenueber' ? `Gegenverkehr aus ${armText(a)}: kein Vortrittsverhältnis beim Geradeausfahren (Linksabbiegen nicht geprüft)` :
           `Verkehr von links (${armText(a)}) muss dieser Zufahrt den Vortritt lassen: nicht geprüft` },
       avZentrum, v, ke.ebikeVerboten))
+  // Neigung unbekannt (Entscheid 31.10.2026): je Richtung mit Verkehr ohne Neigung von Hand und ohne Messung
+  const unbekannt = richtungen.filter(r => r.neigungUnbekannt)
+  if (unbekannt.length) annahmen.splice(annahmeNeigung, 0, `Längsneigung ${unbekannt.map(r => lageKurz(r)).join(' und ')} unbekannt ` +
+    `(kein Höhenprofil): strengster Wert der Tab. 3 (Spalte ≤ −4 %)${rv ? '' : ` bzw. Anhaltesichtweite (VSS 40 090b Abb. 2) bei ` +
+    `${fi(ANHALTESICHT_I_MIN)} %`} angenommen; Neigung von Hand eingeben, um das zu verfeinern (Entscheid 31.10.2026).`)
+  if (unbekannt.some(r => r.status !== 'keine_zufahrt') && !rv && eg.neigungGross === null && strasse.typ === 'hvs' && !strasse.ungunst.neigung)
+    hinweise.push('Längsneigung unbekannt: die Vorgabe «grosse Längsneigung» (ungünstige Verhältnisse) bleibt aus, weil kein Mass bekannt ' +
+      'ist; trifft sie zu, im Panel setzen (oberer Wert der Tab. 1).')
   annahmen.push(`Fahrstreifenachse der vortrittsberechtigten Fahrzeuge ${f2(D_MFZ_M)} m vom rechten Fahrbahnrand (d, VSS 40 273 ` +
     `Ziffer 10), Rand aus der AV-Fahrbahn; bei einem Parkstreifen rechts ${f2(D_MFZ_M)} m neben dem Parkstreifen (Abzug ` +
     `${f2(PARKSTREIFEN)} m, wenn Prüfpunkte ${f2(PARK_SONDE_M)} m innerhalb des Rands, je 2 m bis zum Ende der Zielpunkte, auf ` +
@@ -777,11 +803,13 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     'von dieser Seite keine Motorfahrzeuge (Einbahn vom Knoten weg).')
   for (const r of richtungen) if (r.tempoAnnahme) annahmen.push(`Tempo ${lageNach(r)}: ohne Angabe in OSM ${TEMPO_ERSATZ} km/h angenommen.`)
 
-  // Trottoir (E3b, Ziffer 13.2, Tab. 2): D' 3,00 m hinter der Trottoirhinterkante, Zielpunkte beidseits auf der Trottoirachse
+  // Trottoir (E3b, Ziffer 13.2, Tab. 2): D' = B 3,00 m hinter der Trottoirhinterkante (Ziffer 13.2), Zielpunkte beidseits auf der
+  // Trottoirachse
   let trottoirPruefung: TrottoirPruefung | null = null, trottoirProfil: P[] = []
   if ((trAt || tueB) && !nurRv) {
-    // Trottoirüberfahrt (K0): D' hinter dem hinteren Rand der Überfahrt, Zielpunkte auf der Gehlinie TUE_GEHLINIE_M vor dem hinteren
-    // Trottoirrand je Seite (VSS 40 242 Ziffer 14.4); sonst (E3b) hinter der Trottoirhinterkante nach AV, Zielpunkte auf der Trottoirachse
+    // Trottoirüberfahrt (K0): D' = B 3,00 m hinter dem hinteren Rand der Überfahrt (VSS 40 273 Ziffer 13.2), Zielpunkte auf der
+    // Gehlinie TUE_GEHLINIE_M vor dem hinteren Trottoirrand je Seite (VSS 40 242 Ziffer 14.4); sonst (E3b) hinter der
+    // Trottoirhinterkante nach AV, Zielpunkte auf der Trottoirachse
     const sH = tueB ? tueB.sHinter : trAt!.sHinter
     let Dt = beobachtungAb(zAchse, sH, B_INNERORTS_M, dSeitlich)
     // K0: D' von Hand (nur im Modus Trottoirüberfahrt): frei gesetzt, Achspunkt um den Fahrersitz versetzt wie bei D; das Band bleibt
@@ -790,8 +818,8 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       const l = lageAnAchse(zAchse, ke.Dtrottoir)
       dtHinter = l.s - sH
       Dt = { ...Dt, D: ke.Dtrottoir, Dachse: add(ke.Dtrottoir, links(l.t), dSeitlich) }
-      if (dtHinter < B_INNERORTS_M - 0.005) hinweise.push(`D' von Hand ${f2(dtHinter)} m hinter dem hinteren Rand: weniger als ` +
-        `${f2(B_INNERORTS_M)} m (VSS 40 273 Ziffer 13.2).`)
+      if (dtHinter < B_INNERORTS_M - 0.005) hinweise.push(`D' von Hand ${f2(dtHinter)} m hinter dem hinteren Rand der Überfahrt: weniger ` +
+        `als B = ${f2(B_INNERORTS_M)} m (VSS 40 273 Ziffer 13.2).`)
       if (dist(ke.Dtrottoir, Dt.nullpunkt) > D_HAND_WEIT_M)
         hinweise.push(`D' von Hand liegt ${Math.round(dist(ke.Dtrottoir, Dt.nullpunkt))} m vom hinteren Rand entfernt: Lage prüfen.`)
     }
@@ -813,32 +841,37 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     })
     const hvT = hvAlle.filter(v => !imPolygon(Dt.D, v.poly))
     const mT = hoehen?.trottoir
+    // Neigung des Trottoirs: gemessen; nach dem Laden ohne Messung unbekannt (Tab. 2 Spalte ≤ −6, Entscheid 31.10.2026); lädt: 0 %
+    const gemessenT = mT !== undefined && mT.i !== null
+    const unbekanntT = !gemessenT && !!hoehen
     const trRichtungen = (['links', 'rechts'] as Richtung[]).map((r, j): TrottoirRichtung => {
       // Profil vom Ende links zum Ende rechts: i in Gehrichtung von rechts; von links −i
-      const gemessen = mT !== undefined && mT.i !== null
-      const i = gemessen ? (j === 0 ? -mT!.i! : mT!.i!) || 0 : 0
-      const quelle = gemessen ? `${mT!.quelle}, ${tueB ? 'Gehlinie' : 'Trottoirachse'}` : mT ? `${mT.quelle}: 0 % angenommen` : hoehen ? 'ohne Profil: 0 % angenommen' :
-        'Höhenmodell lädt: vorerst 0 %'
-      const tw = trottoirSichtweite(i)
+      const i = gemessenT ? (j === 0 ? -mT!.i! : mT!.i!) || 0 : 0
+      const quelle = gemessenT ? `${mT!.quelle}, ${tueB ? 'Gehlinie' : 'Trottoirachse'}` : mT ? `${mT.quelle}: ${NEIGUNG_UNBEKANNT_QUELLE}` :
+        hoehen ? `ohne Profil: ${NEIGUNG_UNBEKANNT_QUELLE}` : 'Höhenmodell lädt: vorerst 0 %'
+      const tw = trottoirSichtweite(i, unbekanntT)
       const teil = sichtTeil(Dt.D, linien[j], Math.ceil(ZIEL_FAKTOR * tw.A), [...k.gebaeude, ...hvT], tw.A)
-      return { ...teil, richtung: r, lage: lageLR[j], neigung: i, neigungQuelle: quelle, text: tw.text,
+      return { ...teil, richtung: r, lage: lageLR[j], neigung: i, neigungUnbekannt: unbekanntT, neigungQuelle: quelle, text: tw.text,
         hinweise: [...teil.hinweise, ...(mT?.hinweis && j === 0 ? [mT.hinweis] : [])] }
     })
     trottoirPruefung = { D: Dt.D, Dachse: Dt.Dachse, hinterkante: Dt.nullpunkt, achseQuelle: quellen.join('; '), richtungen: trRichtungen,
       ...(tueB ? { gehlinie: true } : {}) }
     trottoirProfil = [...abschneiden(linien[0], TROTTOIR_PROFIL_M).reverse(), ...abschneiden(linien[1], TROTTOIR_PROFIL_M).slice(1)]
+    const neigungT = gemessenT ? `aus dem Höhenmodell (Ausgleichsgerade über ${TROTTOIR_PROFIL_M} m beidseits)` : unbekanntT ?
+      'unbekannt (kein Höhenprofil): strengster Wert der Tab. 2 (Spalte ≤ −6 %) angenommen (Entscheid 31.10.2026)' :
+      '0 % (vorerst, das Höhenmodell lädt noch)'
+    const sitz = zufahrtVelo ? 'auf der Achse des Velogegenverkehrs' : `am Fahrersitz ${f2(FAHRERSITZ_M)} m links der Zufahrtsachse`
     if (tueB) annahmen.push(`Trottoirüberfahrt, Phase Trottoir (VSS 40 242 Ziffer 14.4; Werte VSS 40 273 Ziffer 13.2, Tab. 2): ` +
-      (dtHinter !== null ? `Beobachtungspunkt D' von Hand, ${f2(dtHinter)} m hinter dem hinteren Rand der Überfahrt; Zielpunkte auf der ` :
-      `Beobachtungspunkt D' ${zufahrtVelo ? '' : 'am Fahrersitz '}${f2(B_INNERORTS_M)} m hinter dem hinteren Rand der Überfahrt ` +
-      `(${zufahrtVelo ? 'auf der Achse des Velogegenverkehrs' : `${f2(FAHRERSITZ_M)} m links der Zufahrtsachse`}); Zielpunkte auf der `) +
+      (dtHinter !== null ? `Beobachtungspunkt D' von Hand, ${f2(dtHinter)} m hinter dem hinteren Rand der Überfahrt (Vorgabe D' = B ` +
+      `${f2(B_INNERORTS_M)} m, VSS 40 273 Ziffer 13.2); Zielpunkte auf der ` :
+      `Beobachtungspunkt D' = B ${f2(B_INNERORTS_M)} m hinter dem hinteren Rand der Überfahrt (VSS 40 273 Ziffer 13.2), ${sitz}; ` +
+      'Zielpunkte auf der ') +
       `Gehlinie ${f2(TUE_GEHLINIE_M)} m vor dem hinteren Rand der Überfahrt beidseits der Zufahrt (${quellen.join('; ')}); Längsneigung des ` +
-      `Trottoirs in Gehrichtung auf die Zufahrt zu ${mT?.i !== null && mT?.i !== undefined ? `aus dem Höhenmodell (Ausgleichsgerade über ` +
-      `${TROTTOIR_PROFIL_M} m beidseits)` : '0 % (ohne Messung)'}; Spalten der Tab. 2 bis zur Spaltenzahl gerechnet. Hindernisse wie für ` +
+      `Trottoirs in Gehrichtung auf die Zufahrt zu ${neigungT}; Spalten der Tab. 2 bis zur Spaltenzahl gerechnet. Hindernisse wie für ` +
       'Motorfahrzeuge; Hecken und Zäune an der Grundstücksgrenze von Hand.')
-    else annahmen.push(`Trottoir (Ziffer 13.2, Tab. 2): Beobachtungspunkt D' ${zufahrtVelo ? '' : 'am Fahrersitz '}${f2(B_INNERORTS_M)} m hinter der ` +
-      `Trottoirhinterkante (${zufahrtVelo ? 'auf der Achse des Velogegenverkehrs' : `${f2(FAHRERSITZ_M)} m links der Zufahrtsachse`}); Zielpunkte auf der Trottoirachse beidseits der Zufahrt (${quellen.join('; ')}); ` +
-      `Längsneigung des Trottoirs in Gehrichtung auf die Zufahrt zu ${mT?.i !== null && mT?.i !== undefined ? 'aus dem Höhenmodell ' +
-      `(Ausgleichsgerade über ${TROTTOIR_PROFIL_M} m beidseits)` : '0 % (ohne Messung)'}; Spalten der Tab. 2 bis zur Spaltenzahl gerechnet ` +
+    else annahmen.push(`Trottoir (Ziffer 13.2, Tab. 2): Beobachtungspunkt D' = B ${f2(B_INNERORTS_M)} m hinter der Trottoirhinterkante ` +
+      `(VSS 40 273 Ziffer 13.2), ${sitz}; Zielpunkte auf der Trottoirachse beidseits der Zufahrt (${quellen.join('; ')}); ` +
+      `Längsneigung des Trottoirs in Gehrichtung auf die Zufahrt zu ${neigungT}; Spalten der Tab. 2 bis zur Spaltenzahl gerechnet ` +
       `(−6 < i ≤ −4: Spalte −4, −4 < i < 0: Spalte −2). Hindernisse wie für Motorfahrzeuge; Hecken und Zäune an der Grundstücksgrenze von Hand.`)
   }
   // Gesamtstatus je Richtung: schlechtester von Auto, Velo und Trottoir dieser Seite (Entscheid 1 vom 16.10.2026)
@@ -913,7 +946,8 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     let velo: VarianteRichtung['velo'] = null
     if (r.velo) {
       // tieferes Tempo: höchstens die heutige zulässige Höchstgeschwindigkeit (ein V85 von Hand macht die Zeile nicht strenger)
-      const Av = v.tempo?.[r.richtung] !== undefined ? veloSichtweite(Math.min(t, r.velo.tempo), r.velo.neigung, ke.ebikeVerboten).A : r.velo.A
+      const Av = v.tempo?.[r.richtung] !== undefined ? veloSichtweite(Math.min(t, r.velo.tempo), r.velo.neigung, ke.ebikeVerboten,
+        r.velo.neigungUnbekannt).A : r.velo.A
       const flV = r.velo.ohneFlaechen.length ? fl.filter(f => !r.velo!.ohneFlaechen.includes(f.id)) : fl
       const sv = sichtEntlang(v.D ?? D, r.velo.achse, Math.max(r.velo.sMax, Math.ceil(ZIEL_FAKTOR * Av)), flV, Av)
       velo = { vorhanden: sv.vorhanden, massgebend: Av, reicht: sv.vorhanden + 1e-6 >= Av }
@@ -921,7 +955,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     // Velo gegen die Einbahn (E4): von dieser Seite nur Velos
     if (r.status === 'keine_zufahrt')
       return { richtung: r.richtung, lage: r.lage, vorhanden: velo!.vorhanden, massgebend: velo!.massgebend, reicht: velo!.reicht, tempo: t, velo, nurVelo: true }
-    const sw = t === r.tempo ? null : sichtweiteA(t, strasse.typ, strasse.ungunst, r.neigung)
+    const sw = t === r.tempo ? null : sichtweiteA(t, strasse.typ, strasse.ungunst, r.neigung, r.neigungUnbekannt)
     const A = sw ? sw.massgebend : r.massgebend
     const si = sichtEntlang(v.D ?? D, r.achse, r.sMax, fl, A)
     // Rechtsvortritt: Abb. 6 nicht «zu sanieren» und (schmale Zufahrt) Paarmatrix ohne die entfernten Hindernisse frei
@@ -1083,7 +1117,7 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
     te ? `von Hand: ${TEMPO_ART_TEXT[te.art]}${te.begruendung.trim() ? ` (${te.begruendung.trim()})` : ''}` : tempoVorgabeQuelle
   if (!rvR && te && te.art === 'signalisiert' && te.wert !== tempoVorgabe && !vorgabeAnnahme)
     hinweise.push(`Signalisiertes Tempo von Hand ${te.wert} km/h, ${trefferA ? amtlich!.quelle : 'OSM'} ${tempoVorgabe} km/h: Signalisation vor Ort prüfen.`)
-  const sw0 = sichtweiteA(tempo, strasse.typ, strasse.ungunst, ns.i)
+  const sw0 = sichtweiteA(tempo, strasse.typ, strasse.ungunst, ns.i, ns.unbekannt)
   // Rechtsvortritt: massgebend die kleinste Sichtweite, die nach Abb. 6 nicht «zu sanieren» ist (sehr schlecht: keine, 25 m gezeigt),
   // oberer Wert die grösste Stufe der Abb. 6; Zielpunkte bis RV_ZIEL_M
   const rvMin = rvWahr ? rvMindest(rvWahr) : null
@@ -1122,7 +1156,9 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
     tempoArt: rvR ? null : te?.art ?? null, tempoBegruendung: rvR ? '' : te?.begruendung.trim() ?? '', stufe: sw.stufe,
     erforderlichUnten: sw.unten, erforderlichOben: sw.oben, zwischenwert: sw.zwischen, typStufe: sw.typStufe, typWert: sw.typWert,
     typText: sw.typText, neigung: sw.neigung, neigungVorgabe: ns.vorgabe, neigungHand: ns.hand,
-    // ohne Verkehr von dieser Seite kein Profil
+    // ohne Verkehr von dieser Seite kein Profil (dann auch nicht «unbekannt»)
+    neigungUnbekannt: ((a.zufluss && !rvGrund) || !!nurVelo) && ns.unbekannt,
+    neigungVorgabeUnbekannt: ((a.zufluss && !rvGrund) || !!nurVelo) && ns.vorgabeUnbekannt,
     neigungQuelle: (a.zufluss && !rvGrund) || nurVelo || ns.hand ? ns.quelle : rvGrund ? 'nicht geprüft: ohne Profil' :
       'kein Verkehr von dieser Seite: ohne Profil',
     neigungVorgabeQuelle: (a.zufluss && !rvGrund) || nurVelo ? ns.vorgabeQuelle : rvGrund ? 'nicht geprüft: ohne Profil' :
@@ -1152,7 +1188,7 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
     const achseV = abBogen(va, xv ? xv.sb : lot(va, kp).s)
     // zulässige Höchstgeschwindigkeit: signalisiert von Hand bzw. OSM (V85, VP und fahrbares Tempo ändern die Zeile nicht)
     const vt = te && te.art !== 'signalisiert' ? tempoVorgabe : tempo
-    const vsw = veloSichtweite(vt, ns.i, ebikeVerboten)
+    const vsw = veloSichtweite(vt, ns.i, ebikeVerboten, ns.unbekannt)
     const teil = sichtTeil(D, achseV, Math.ceil(ZIEL_FAKTOR * vsw.A), [...k.gebaeude, ...hindernisse], vsw.A)
     const vh = [...teil.hinweise]
     if (!xv) vh.push('Kein Schnitt der Zufahrtsachse mit der Veloachse: Anfang als Lot vom Knoten.')
@@ -1162,7 +1198,7 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
     if (kurve > KURVE_GRAD) vh.push(`Veloachse in einer Kurve (Richtungsänderung rund ${Math.round(kurve)}° bis A): A darf nach Ziffer 13.3 ` +
       'reduziert werden, wenn die gefahrenen Geschwindigkeiten tiefer sind; nicht gerechnet.')
     return { ...teil, fuehrung: vs.fuehrung, lageText, randAbstand: qs.links - versatz, radweg: rw, tempo: vt,
-      tempoQuelle: vt === tempo ? tempoQuelle : tempoVorgabeQuelle, neigung: ns.i, text: vsw.text, ebike: vsw.ebike, hinweise: vh }
+      tempoQuelle: vt === tempo ? tempoQuelle : tempoVorgabeQuelle, neigung: ns.i, neigungUnbekannt: ns.unbekannt, text: vsw.text, ebike: vsw.ebike, hinweise: vh }
   }
   if (!a.zufluss || rvGrund) {
     // ohne Motorfahrzeuge von dieser Seite; mit Velo gegen die Einbahn die Velo-Prüfung, Profil der Neigung auf der Veloachse

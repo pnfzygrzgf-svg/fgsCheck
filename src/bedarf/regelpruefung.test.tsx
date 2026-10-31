@@ -33,7 +33,7 @@ describe('Stärke Hinweis (A)', () => {
   })
   it('G3b ohne Berichtsvorbehalt; Q3-M6 nur noch mit Z. 14.2', () => {
     expect([D('G3b').pruefsatz, D('G3b').ergebnis].join(' ')).not.toMatch(/Bericht/)
-    expect(D('Q3-M6').quellen).toEqual([{ werk: '40242', ziffer: 'Z. 14.2, S. 15' }])
+    expect(D('Q3-M6').quellen).toEqual([{ werk: '40242', ziffer: 'Z. 14.2, S. 11' }])
   })
   it('Trottoirrand zurückgesetzt (F5c) und viel Verkehr in der Seitenstrasse machen die Trottoirüberfahrt nicht mehr unzulässig', () => {
     const b = beurteile(fall({ lage: 'einmuendung', typ: 'trottoirueberfahrt', q3: { ...Q3_OK, randDurchgehend: false, hvl5m: false } }))
@@ -115,7 +115,7 @@ describe('Fundstellen (E)', () => {
 
 describe('Verkehr an der Trottoirüberfahrt als Information (F)', () => {
   it('Zeile mit Verhältnis; fehlt ein Wert: offen', () => {
-    const NORM = ' Norm (VSS 40 242 Z. 15.2.1, S. 17): Verkehr der Seitenstrasse deutlich geringer als auf der Hauptfahrbahn; bei geringem ' +
+    const NORM = ' Norm (VSS 40 242 Z. 15.2.1, S. 15): Verkehr der Seitenstrasse deutlich geringer als auf der Hauptfahrbahn; bei geringem ' +
       'Gesamtverkehr sind auch gleiche Mengen zulässig.'
     expect(tueVerkehrZeile(1500, 12000)).toBe('Verkehr: Seitenstrasse 1 500 Fz/Tag, Hauptfahrbahn 12 000 Fz/Tag, Verhältnis 1 : 8,0.' + NORM)
     expect(tueVerkehrZeile(null, 12000)).toBe('Verkehr: Seitenstrasse offen, Hauptfahrbahn 12 000 Fz/Tag, Verhältnis offen.' + NORM)

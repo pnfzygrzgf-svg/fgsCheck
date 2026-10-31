@@ -7,10 +7,13 @@
 // (Entscheid 1 vom 15.10.2026, Praxis Kanton Zug); HVS mit ungünstigen Verhältnissen (mehr als zwei Fahrstreifen, grosse
 // Längsneigung, hoher Schwerverkehrsanteil) der obere Wert. Bei ES heben die ungünstigen Verhältnisse nicht an (nur Hinweis).
 // Anhaltesichtweite (VSS 40 090b Abb. 2, anhaltesicht.ts): immer gerechnet, als Untergrenze nur bei |i| > 2 % angewendet
-// (Entscheid 2): massgebend = max(Wert nach Strassentyp, Anhaltesichtweite bei i). Die Kurven der Abb. 2 sind bei i = 0 auf den
-// unteren Wert der Tab. 1 verschoben (Entscheid 15.10.2026), aus Abb. 2 zählt nur die Wirkung der Neigung.
+// (Entscheid 2; die unteren Werte der Tab. 1 gelten für i ≤ ±2 %, VSS 40 273 Ziffer 13.1): massgebend = max(Wert nach
+// Strassentyp, Anhaltesichtweite bei i). Die Kurven der Abb. 2 sind bei i = 0 auf den unteren Wert der Tab. 1 verschoben
+// (Entscheid 15.10.2026), aus Abb. 2 zählt nur die Wirkung der Neigung.
+// Neigung unbekannt (kein Höhenprofil, nicht von Hand; Entscheid 31.10.2026): die Anhaltesichtweite gilt als angewendet, mit dem
+// strengsten Wert der Abb. 2 (bei i = ANHALTESICHT_I_MIN, −12 %); die Vorgabe «grosse Längsneigung» setzt die Rechnung dann nicht.
 
-import { anhaltesichtweite, ANHALTESICHT_STUFEN, type Anhaltesicht } from './anhaltesicht'
+import { anhaltesichtweite, ANHALTESICHT_STUFEN, ANHALTESICHT_I_MIN, type Anhaltesicht } from './anhaltesicht'
 
 /** VSS 40 273 Tab. 1: Zufahrtsgeschwindigkeit [km/h] -> [unterer Wert, oberer Wert] der Knotensichtweite A [m] */
 export const TAB1: Record<number, [number, number]> = {
@@ -54,7 +57,8 @@ export const UNGUNST_TEXT: Record<keyof Ungunst, string> = {
 }
 /** Vorgabe «grosse Längsneigung» ab |i| über diesem Wert [%] */
 export const NEIGUNG_GROSS_PROZENT = 4
-/** Anhaltesichtweite als Untergrenze erst bei |i| über diesem Wert [%] (Tab. 1 gilt für i ≤ ±2 %) */
+/** Anhaltesichtweite als Untergrenze erst bei |i| über diesem Wert [%] (die unteren Werte der Tab. 1 gelten für i ≤ ±2 %,
+ *  VSS 40 273 Ziffer 13.1) */
 export const NEIGUNG_EBEN_PROZENT = 2
 
 export type TypStufe = 'unten' | 'zwischen' | 'oben'
@@ -62,6 +66,8 @@ const STUFE_TEXT: Record<TypStufe, string> = { unten: 'unterer Wert', zwischen: 
 
 /** Zwischenwert für Hauptverkehrsstrassen: Mittel von unterem und oberem Wert, auf ganze Meter aufgerundet (Entscheid 1) */
 export const zwischenwert = (unten: number, oben: number): number => Math.ceil((unten + oben) / 2)
+/** Herkunft des Zwischenwerts (Entscheid 1 vom 15.10.2026; die Norm nennt für Hauptverkehrsstrassen nur einen Bereich) */
+export const ZWISCHENWERT_TEXT = 'Mittel von unterem und oberem Wert, aufgerundet; Entscheid 15.10.2026 – die Norm nennt nur einen Bereich'
 
 export interface Sichtweite {
   tempo: number            // Zufahrtstempo (Eingang)
@@ -73,10 +79,11 @@ export interface Sichtweite {
   ungunst: Ungunst
   typStufe: TypStufe       // Wert der Tab. 1 nach Strassentyp und ungünstigen Verhältnissen
   typWert: number          // [m]
-  typText: string          // z. B. «Zwischenwert, Hauptverkehrsstrasse»
+  typText: string          // z. B. «Zwischenwert, Hauptverkehrsstrasse (Mittel …)»
   neigung: number          // Längsneigung in Fahrtrichtung [%], talwärts negativ
+  neigungUnbekannt: boolean         // Neigung unbekannt: Anhaltesichtweite mit dem strengsten Wert (i = ANHALTESICHT_I_MIN)
   anhalte: Anhaltesicht | null      // VSS 40 090b Abb. 2 (null unter 30 km/h: keine Kurve)
-  anhalteAngewendet: boolean        // |i| > 2 % und Anhaltesichtweite massgebend geprüft
+  anhalteAngewendet: boolean        // |i| > 2 % bzw. Neigung unbekannt und Anhaltesichtweite massgebend geprüft
   massgebend: number       // max(typWert, Anhaltesichtweite bei |i| > 2 %) [m]
   massgebendText: string   // Herkunft des massgebenden Werts
   hinweis: string | null   // z. B. über 80 km/h
@@ -86,8 +93,10 @@ export interface Sichtweite {
 const fi = (x: number) => (x > 0 ? '+' : x < 0 ? '−' : '') + String(Math.round(x * 10) / 10).replace('-', '').replace('.', ',')
 
 /** Knotensichtweite A nach VSS 40 273 Tab. 1 für das Zufahrtstempo (km/h), den Strassentyp, die ungünstigen Verhältnisse und
- *  die Längsneigung i [%] (in Fahrtrichtung, talwärts negativ); ohne Angaben: ES, eben (unterer Wert, wie E0) */
-export function sichtweiteA(tempo: number, typ: Strassentyp = 'es', ungunst: Ungunst = KEINE_UNGUNST, neigung = 0): Sichtweite {
+ *  die Längsneigung i [%] (in Fahrtrichtung, talwärts negativ); ohne Angaben: ES, eben (unterer Wert, wie E0). neigungUnbekannt:
+ *  keine Neigung bekannt (Entscheid 31.10.2026), Anhaltesichtweite angewendet mit dem Wert bei i = ANHALTESICHT_I_MIN */
+export function sichtweiteA(tempo: number, typ: Strassentyp = 'es', ungunst: Ungunst = KEINE_UNGUNST, neigung = 0,
+  neigungUnbekannt = false): Sichtweite {
   const ueber = tempo > TAB1_MAX
   const stufe = ueber ? TAB1_MAX : tempoStufe(tempo)
   const [unten, oben] = TAB1[stufe]
@@ -96,19 +105,21 @@ export function sichtweiteA(tempo: number, typ: Strassentyp = 'es', ungunst: Ung
   const typStufe: TypStufe = typ === 'es' ? 'unten' : ungUnstig ? 'oben' : 'zwischen'
   const typWert = typStufe === 'unten' ? unten : typStufe === 'oben' ? oben : zwischen
   const typText = `${STUFE_TEXT[typStufe]}, ${typ === 'es' ? 'Erschliessungsstrasse' : ungUnstig ? 'Hauptverkehrsstrasse mit ungünstigen Verhältnissen' :
-    'Hauptverkehrsstrasse'}`
+    `Hauptverkehrsstrasse (${ZWISCHENWERT_TEXT})`}`
   const i = Number.isFinite(neigung) ? neigung : 0
   const hinweise: string[] = []
-  // Abb. 2 hat keine Kurve unter 30 km/h: dort keine Anhaltesichtweite (die Kurve 30 km/h läge weit über Tab. 1)
-  const anhalte = stufe >= ANHALTESICHT_STUFEN[0] ? anhaltesichtweite(tempo, i) : null
-  const steil = Math.abs(i) > NEIGUNG_EBEN_PROZENT + 1e-9
+  // Abb. 2 hat keine Kurve unter 30 km/h: dort keine Anhaltesichtweite (die Kurve 30 km/h läge weit über Tab. 1); Neigung
+  // unbekannt: strengster Wert der Abb. 2 (Entscheid 31.10.2026)
+  const anhalte = stufe >= ANHALTESICHT_STUFEN[0] ? anhaltesichtweite(tempo, neigungUnbekannt ? ANHALTESICHT_I_MIN : i) : null
+  const steil = neigungUnbekannt || Math.abs(i) > NEIGUNG_EBEN_PROZENT + 1e-9
   if (!anhalte && steil) hinweise.push(`Tempo unter ${ANHALTESICHT_STUFEN[0]} km/h: Abb. 2 der VSS 40 090b ohne Kurve, Anhaltesichtweite nicht angewendet.`)
   const anhalteAngewendet = !!anhalte && steil
   if (anhalte && anhalteAngewendet) hinweise.push(...anhalte.hinweise)
   const massgebend = anhalteAngewendet ? Math.max(typWert, anhalte!.meter) : typWert
-  const massgebendText = anhalteAngewendet && anhalte!.meter > typWert ? `Anhaltesichtweite bei ${fi(i)} %` : typText
+  const massgebendText = !(anhalteAngewendet && anhalte!.meter > typWert) ? typText : neigungUnbekannt ?
+    `Anhaltesichtweite, Neigung unbekannt (strengster Wert bei ${fi(ANHALTESICHT_I_MIN)} %)` : `Anhaltesichtweite bei ${fi(i)} %`
   return {
-    tempo, stufe, unten, oben, zwischen, typ, ungunst, typStufe, typWert, typText, neigung: i, anhalte, anhalteAngewendet,
+    tempo, stufe, unten, oben, zwischen, typ, ungunst, typStufe, typWert, typText, neigung: i, neigungUnbekannt, anhalte, anhalteAngewendet,
     massgebend, massgebendText,
     hinweis: ueber ? `Tempo ${tempo} km/h über der Tab. 1 (bis ${TAB1_MAX} km/h): Werte der Stufe ${TAB1_MAX} km/h, prüfen` : null,
     hinweise,

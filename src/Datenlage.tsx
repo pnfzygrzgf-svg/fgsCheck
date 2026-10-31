@@ -13,7 +13,7 @@ import { wgs } from './geo'
 
 /** Schlüssel in Fall.quellen bzw. in «Geladene Quellen» -> Kennung im Register */
 export const QUELLE_JE_SCHLUESSEL: Readonly<Record<string, string>> = {
-  av: 'av', sosf: 'av', osm: 'osm', suche: 'osm', luftbild: 'swissimage', hoehen: 'swissalti',
+  av: 'av', sosf: 'av', osm: 'osm', suche: 'osm', luftbild: 'swissimage', hoehen: 'swissalti', hoehenSicht: 'swissalti',
   kataster: BAUMKATASTER[0].quelleId, baumkataster: BAUMKATASTER[0].quelleId, parkkataster: PARKKATASTER[0].quelleId,
   haltestellen: HALT_QUELLE_ID, verkehrsdaten: VD_QUELLE_ID,
   ...Object.fromEntries(BERN_C_KEYS.map(k => [k, BERN_DIENSTE_C[k].quelleId])),

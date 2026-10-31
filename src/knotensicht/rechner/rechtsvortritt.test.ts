@@ -116,6 +116,8 @@ describe('E3c: T-Knoten mit Gebäudeecke rechts (Strahlensatz)', () => {
       expect(seite(e, 'rechts').status).toBe(w === 'sehr_gut' ? 'massgebend' : 'nicht_erfuellt')
       // sehr gut: Massnahmen nur wegen des Velos (Tab. 3), ohne «Rechtsvortritt aufheben»
       expect(e.massnahmen?.[0].nr === 0).toBe(w !== 'sehr_gut')
+      // Fundstelle der Aufhebung: VSS 40 273 Ziffer 16 (die Wahrnehmbarkeit Ziffer 17)
+      if (w !== 'sehr_gut') expect(e.massnahmen![0].text).toContain('(VSS 40 273 Ziffer 16)')
     }
   })
   it('Ecke bei x = 10: 21,47 m; sehr gut und gut anzustreben, schlecht und sehr schlecht zu sanieren; Vorgabe gut als Annahme', () => {

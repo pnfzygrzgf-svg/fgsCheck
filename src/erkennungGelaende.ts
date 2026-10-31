@@ -37,14 +37,16 @@ export type GelaendeStand = { stand: 'laedt' }
 /** Höhenprofil entlang der Strecke Augpunkt → Ziel (dist ab dem Augpunkt) */
 export type ProfilLader = (auge: P, ziel: P) => Promise<ProfilPunkt[]>
 
-const xKey = (x: number) => (Math.round(x * 100) / 100).toFixed(2)
+/** Schlüssel einer Sichtlinie nach dem Abstand x (auf 0,01 m) in GelaendeStand.frei (auch sichtGelaende.ts) */
+export const xKey = (x: number) => (Math.round(x * 100) / 100).toFixed(2)
 
-/** Sicht über das Gelände frei? Profil vom Augpunkt zum Ziel; null, wenn das Profil zu kurz ist */
-export function gelaendeFrei(profil: readonly ProfilPunkt[], tol = GELAENDE_TOL_M): boolean | null {
+/** Sicht über das Gelände frei? Profil vom Augpunkt zum Ziel; null, wenn das Profil zu kurz ist. Augpunkt AUGHOEHE_M über dem Boden,
+ * Ziel zielHoehe über dem Boden (Erkennungsdistanz: Markierung am Boden; Sicht auf die Wartefläche: sichtGelaende.ZIEL_HOEHE_WARTE_M) */
+export function gelaendeFrei(profil: readonly ProfilPunkt[], tol = GELAENDE_TOL_M, zielHoehe = ZIEL_HOEHE_M): boolean | null {
   if (profil.length < 2) return null
   const a = profil[0], b = profil[profil.length - 1], L = b.dist - a.dist
   if (!(L > 0)) return null
-  const zA = a.h + AUGHOEHE_M, zB = b.h + ZIEL_HOEHE_M
+  const zA = a.h + AUGHOEHE_M, zB = b.h + zielHoehe
   for (const p of profil.slice(1, -1)) {
     const t = (p.dist - a.dist) / L
     if (p.h > zA + (zB - zA) * t + tol) return false

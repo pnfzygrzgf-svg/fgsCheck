@@ -77,7 +77,11 @@ export function Anleitung() {
             wechseln; Fragen, die zu einem Feld springen, öffnen den richtigen Reiter. Werkzeuge auf der Karte wirken in beiden Reitern,
             ihre Hinweise stehen dann über den Reitern; ein Klick auf eine Zufahrt bzw. ein Hindernis wechselt zur Sichtprüfung. Der Bericht enthält beides.</li>
             <li><b>Ergebnis lesen:</b> je Streifen die Zufahrten mit Tempo, Sichtweite und Status (frei bzw. verdeckt und wodurch). Zeile
-            anklicken: Sichtfeld, Sichtpunkte und Hindernisse auf der Karte. Hinweise in Braun sind Annahmen («aus OSM, prüfen»,
+            anklicken: Sichtfeld, Sichtpunkte und Hindernisse auf der Karte. Nach der Rechnung prüft die App zudem, ob eine Kuppe im
+            Bereich der Fahrbahn die Sicht auf die Wartefläche nimmt ({V('VSS 40 241')}, Ziffer 14, S. 6): je Zufahrt alle 10 m bis zur
+            nötigen Sicht eine Sichtlinie zur Wartefläche, mit dem Höhenmodell swissALTI3D; Annahme: Auge 1,1 m, Ziel 0,60 m über dem
+            Boden. Verdeckt das Gelände die Sicht vorher, gilt die Zufahrt als verdeckt («Gelände: verdeckt ab … m»; bei der gewählten
+            Zufahrt rot gestrichelt auf der Karte), ohne Antwort bleibt die Prüfung in 2D («Gelände: nicht geprüft»). Hinweise in Braun sind Annahmen («aus OSM, prüfen»,
             «Annahme» beim Tempo). Gerade Zufahrten eines Fussgängerstreifens zeigen zudem, ab welcher Distanz die Markierung im
             eigenen Fahrstreifen frei sichtbar ist («Streifen erkennbar ab …»; geprüft bis 110 m; Gebäude, Hecken, Mauern, Bäume und
             Auto-Parkfelder verdecken; endet die Fahrlinie vorher, «erkennbar auf mindestens …»). Danach prüft die App das Gelände
@@ -287,7 +291,10 @@ export function Anleitung() {
                   Fahrzeug je Phase und die Fahrzeuge am Ende der nötigen Sichtweite; am Fussgängerstreifen je Zufahrt ein Fahrzeug am letzten
                   Sichtpunkt und eine wartende Person je Streifenende (nur Darstellung). Die beiden wartenden Fahrzeuge (grau: Sicht auf die
                   Fahrbahn, ocker: Sicht aufs Trottoir) lassen sich am Auge ziehen, etwa nach der Markierung in der Seitenstrasse; «Standort
-                  zurücksetzen» im Block Knotensicht gilt wieder die Rechnung. Dort lässt sich auch das geplante Tempo der Hauptstrasse wählen.</li>
+                  zurücksetzen» im Block Knotensicht gilt wieder die Rechnung. Dort lässt sich auch das geplante Tempo der Hauptstrasse wählen.
+                  Die Längsneigung misst die App im Höhenmodell swissALTI3D; solange es lädt, gilt vorerst 0 %. Gibt es danach kein
+                  brauchbares Profil (Dienst nicht erreichbar, Profil zu kurz), ist die Neigung unbekannt und die Rechnung nimmt den strengsten
+                  Wert der Tabelle (Annahme; die Vorbelegung bleibt dann eine Annahme).</li>
               </ol></li>
             <li><b>Grundprüfung (Big Five, bfu):</b> oben im Reiter «Bedarf und Querungstyp» prüft ein Kasten die fünf Punkte der
             {V('bfu-Fachdokumentation «Fussgängerstreifen»')} und das Tempo als Vorbedingung, mit eigenen Regeln nach den Werten der bfu: Tempo
