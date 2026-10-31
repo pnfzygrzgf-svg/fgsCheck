@@ -681,6 +681,13 @@ wählen und als Custom domain `fgscheck.ch` eintragen. Der Referenzvergleich (`s
   Kreuzungen über die Zufahrt ohne Vortritt; erweiterte Prüfung nach der Gliederung der Normen mit Seitenangaben; Werkzeug
   «Messen»; Fahrzeuge und wartende Personen auf der Karte; Vermessung schon beim Planen ohne Ort; wartende Fahrzeuge der Knotensicht ziehbar, Planungstempo im Block; Tempo 20 als
   Begegnungszone vorgeschlagen; Erkennungsdistanz des Streifens aus dem Sichtrechner; Street View je Zufahrt.
+- v0.7 (31.10.2026): Smartphone-Ansicht wie VeloroutenCheck; Sicht vom Velo mit gemessener Längsneigung (Radstreifen bzw.
+  Radweg); Kurvenregel nur an einer Kurve der Strasse selbst, mit fünf vorbelegten Voraussetzungen; Hofzufahrten; Kartenebenen
+  «Streifen aus dem Luftbild (ETH-Modell)», «Richtplan Fussverkehr (Geoportal Bern)» und «Taktile Markierungen (Stadt Bern)»;
+  Erkennungsdistanz mit Gelände (swissALTI3D) und Sichtlinien auf Klick; Querung ohne Vortritt (Abbieger bis Beginn des Abbiegens,
+  Begegnungszone, Einmündung), «Querung» statt «Streifen» für Querungen ohne Fussgängerstreifen; Annäherungsbereich von Hand;
+  Richtlinie Hindernisfreie Architektur im Bedarfsmodul; Quellenregister und «Datenlage hier»; Regelprüfung nach Quelle mit
+  Blöcken 4 und 5 (Seiten der Normen geprüft, Augenhöhe 1,0 m nach VSS 40 241); Knotensicht mit dem Kern des SichtweitenCheck 0.7.0.
 
 ## Lizenz
 
