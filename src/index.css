@@ -1,0 +1,557 @@
+:root {
+  color-scheme: light;
+  --bg: #f1f5f9;
+  --accent: #b45309;
+  /* Zweitfarbe «Bedarf und Querungstyp» (dunkles Petrol, hebt sich vom Bernstein ab): Kontrast auf Weiss 7,3:1, auf --bedarf-hell
+     6,5:1, Weiss auf --bedarf 7,3:1 (WCAG AA und AAA für Text) */
+  --bedarf: #0f5f6b;
+  --bedarf-hell: #e7f3f4;
+  --text-strong: #1e293b;
+  --text: #334155;
+  --text-muted: #64748b;
+  --border: #cbd5e1;
+  --fehler: #b91c1c;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+}
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; height: 100%; background: var(--bg); }
+.app { display: flex; height: 100%; }
+.kartenrahmen { position: relative; flex: 1; min-width: 0; height: 100%; }
+.karte { width: 100%; height: 100%; }
+/* Ortssuche und Hinweise über der Karte: zwischen Zoom-Knöpfen (links) und Ebenenwahl (rechts), Karte darum bleibt bedienbar;
+   z-index unter den Leaflet-Knöpfen (1000), damit die aufgeklappte Ebenenwahl darüber liegt, über den Kartenebenen (bis 700) */
+.kartenkopf { position: absolute; top: 10px; left: 56px; right: 62px; max-width: 380px; margin: 0 auto; z-index: 900;
+  display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.kartenkopf > * { pointer-events: auto; }
+.ortssuche { position: relative; }
+.ortssuche input { width: 100%; font: inherit; font-size: 16px; padding: 7px 28px 7px 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: #ffffff; color: var(--text-strong); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.ortssuche input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+.ortssuche-laedt { position: absolute; right: 10px; top: 7px; color: var(--text-muted); }
+.ortssuche-liste { list-style: none; margin: 4px 0 0; padding: 4px 0; background: #ffffff; border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.25); max-height: 50vh; overflow-y: auto; }
+.ortssuche-liste li { padding: 6px 10px; cursor: pointer; line-height: 1.3; }
+.ortssuche-liste li.aktiv { background: #fef3c7; }
+.ortssuche-liste li.ortssuche-leer { cursor: default; color: var(--text-muted); }
+.ortssuche-art { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.ortssuche-fehler, .kartenhinweis { font-size: 12px; background: rgba(255,255,255,.92); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px 8px; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.2); align-self: center; text-align: center; }
+.ortssuche-fehler, .kartenhinweis.fehler { color: var(--fehler); }
+.standort-knopf a { display: flex !important; align-items: center; justify-content: center; color: var(--text-strong); }
+.panel { width: var(--panel-breite, 560px); max-width: 70vw; overflow-y: auto; padding: 12px 16px; background: #ffffff; border-left: 1px solid var(--border); }
+h1 { font-size: 20px; margin: 4px 0 8px; color: var(--text-strong); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+h1 .logo { flex-shrink: 0; display: block; }
+/* Logo in der App: Knopf «Zur Startseite» (tastaturbedienbar) */
+h1 .logo-knopf { flex-shrink: 0; padding: 0; border: 0; background: none; border-radius: 6px; line-height: 0; }
+h1 .logo-knopf:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app-laedt { margin: 0; padding: 24px 16px; color: var(--text-muted); text-align: center; }
+h2 { font-size: 15px; margin: 18px 0 6px; color: var(--text-strong); }
+.marke { font-size: 12px; font-weight: 600; color: #ffffff; background: var(--accent); border-radius: 6px; padding: 2px 6px; vertical-align: middle; }
+.hinweis { background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 8px 10px; margin: 0; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+th, td { text-align: left; vertical-align: top; padding: 4px 6px; border-bottom: 1px solid #e2e8f0; }
+th { font-weight: 600; color: var(--text-muted); font-size: 12px; }
+.zahlen td:first-child { color: var(--text-muted); width: 45%; }
+.klein { font-size: 12px; color: var(--text-muted); }
+.fehler { color: var(--fehler); }
+.legende { list-style: none; padding: 0; margin: 0; font-size: 12px; }
+.legende li { margin: 3px 0; }
+.farbe { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.3); }
+.farbe.rund { border-radius: 50%; margin-left: 2px; }
+/* Trenner zwischen Karte und Bereich (Trenner.tsx): ziehbar, mit Pfeiltasten bedienbar; unter 700 px und im Druck ausgeblendet */
+.trenner { flex: none; width: 7px; cursor: col-resize; background: var(--border); touch-action: none; }
+.trenner:hover, .trenner:focus-visible { background: var(--accent); outline: none; }
+@media print { .trenner { display: none; } }
+@media (max-width: 700px) {
+  .trenner { display: none; }
+  .app { flex-direction: column; }
+  .kartenrahmen { height: 60%; flex: none; }
+  .panel { width: 100%; max-width: none; border-left: none; border-top: 1px solid var(--border); }
+}
+
+/* ── Smartphone (seit 28.10.2026, wie VeloroutenCheck) ─────────────────────────────────────────────────────────────────────
+   Keine automatische Schriftvergrösserung; Auswahlfelder nie breiter als ihr Platz. Touch: Tippziele ≥ 44 px (ausser den Knöpfen im
+   Text wie ⓘ und Begriffe; Klappen-Titel sind ganze Zeilen) und Eingaben 16 px, sonst zoomt iOS beim Antippen hinein (vorher 13,3 bzw. 14 px). Unter 700 px: Karte
+   oben mit dem Knopf für die Höhe (Karte.tsx), Panel mit dem sicheren Bereich (iPhone-Balken, Notch quer; viewport-fit=cover). */
+html { -webkit-text-size-adjust: 100%; }
+select { max-width: 100%; }
+@media (pointer: coarse) {
+  button:not(.begriff-knopf):not(.hilfe-knopf):not(.frage-knopf):not(.feld-link):not(.logo-knopf), select, input:not([type=checkbox]):not([type=radio]) { min-height: 44px; }
+  input, select, textarea { font-size: 16px !important; }
+  label.knopf { display: inline-flex; align-items: center; min-height: 44px; }   /* «Fall laden» (Label mit Datei-Eingabe): Text mittig */
+}
+.karte-hoehe { display: none; }
+@media (max-width: 700px) {
+  .kartenrahmen { height: var(--karte-h, 45dvh); }
+  .panel { padding: 12px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  .karte-hoehe { display: flex; align-items: center; justify-content: center; position: absolute; top: 64px; right: 10px; z-index: 1000;
+    width: 44px; height: 44px; min-height: 0; padding: 0; border: 2px solid rgba(0,0,0,.2); border-radius: 6px; background: #ffffff;
+    color: var(--text-strong); font-size: 18px; cursor: pointer; }
+  .karte-hoehe:hover { filter: none; background: #f4f4f4; }
+  .leaflet-left { margin-left: env(safe-area-inset-left); }
+  /* Quellenangabe einzeilig, Platz für den Massstab links lassen; Tippen klappt sie auf (Karte.tsx). Vorher zweizeilig über dem
+     unteren Kartenrand (Nutzerbefund 28.10.2026) */
+  .leaflet-control-attribution { max-width: calc(100vw - 90px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-size: 10px; cursor: pointer; }
+  .leaflet-control-attribution.offen { white-space: normal; }
+}
+@media (max-width: 700px) { .regel-nr, .quelle-chip, .begriff-knopf, .quellen-tabelle { font-size: 12px; } }   /* kleine Schriften mindestens 12 px */
+/* Zufahrten-Tabelle auf schmalen Bildschirmen in der Breite des Panels (bei 375 px vorher 382 px, das Panel scrollte seitlich) */
+@media (max-width: 700px) { table.zufahrten { table-layout: fixed; width: 100%; } .zufahrten td, .zufahrten th { overflow-wrap: anywhere; } }
+h3 { font-size: 13px; margin: 8px 0 4px; color: var(--text-strong); }
+button { font: inherit; padding: 6px 10px; border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 6px; cursor: pointer; }
+button:hover { filter: brightness(1.1); }
+.knopfzeile { margin: 10px 0 4px; }
+.streifen { border-top: 1px solid var(--border); margin-top: 12px; }
+.zufahrten tbody tr { cursor: pointer; }
+.zufahrten tbody tr:hover { background: #f1f5f9; }
+.zufahrten tbody tr.aktiv { background: #fffbeb; }
+.detail { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; margin-bottom: 8px; }
+.annahmen { margin: 4px 0 8px; padding-left: 18px; font-size: 12px; color: #92400e; }
+.warnung { color: #b45309; }
+details { margin-bottom: 6px; }
+summary { cursor: pointer; }
+/* ein- und ausblendbare Abschnitte im Panel (Geladene Quellen, Legende, Grundlagen): Titel wie h2, Standard-Pfeil davor */
+details.abschnitt > summary { margin: 18px 0 6px; }
+details.abschnitt > summary h2 { display: inline; margin: 0; }
+details.abschnitt > summary h2 .fehler { font-size: 13px; font-weight: 600; }
+/* E2: Eingaben */
+button.zweit { background: #ffffff; color: var(--accent); }
+button.klein, .knopf.klein { padding: 2px 6px; font-size: 12px; }
+/* Hauptknopf klein (ohne «zweit»): weisse Schrift auf Bernstein; sonst gewinnt .klein (grau, gleiche bzw. höhere Spezifität als
+   button) und die Schrift ist unlesbar (Nutzerbefund 16.10.2026: «ersetzen», «bestätigen»). Zweitknöpfe bleiben Bernstein auf Weiss. */
+button.klein:not(.zweit) { color: #ffffff; }
+button:disabled { opacity: .5; cursor: default; }
+.knopf { display: inline-block; font: inherit; padding: 6px 10px; border: 1px solid var(--accent); background: #ffffff; color: var(--accent); border-radius: 6px; cursor: pointer; }
+.knopfzeile { display: flex; flex-wrap: wrap; gap: 6px; }
+.werkzeuge { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.werkzeuge button { padding: 4px 8px; font-size: 12px; }
+/* Gruppe Planen (Planen.tsx): über der Reiterleiste, in beiden Reitern; Knöpfe umbrechend */
+.planen { margin: 12px 0 0; padding: 6px 8px 4px; border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px; }
+.planen > h2 { margin: 0 0 2px; font-size: 14px; }
+.planen details.geplant { margin: 6px 0 2px; }
+.planen details.geplant > summary { font-size: 12px; font-weight: 600; color: var(--text-strong); }
+@media (max-width: 700px) { .planen .werkzeuge button { padding: 6px 10px; } }
+button.aktiv { background: var(--accent); color: #ffffff; }
+.werkzeughilfe { font-size: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 6px 8px; margin: 4px 0; }
+.werkzeughilfe div { margin-top: 4px; }
+.werkzeughilfe input[type=number], .spur input[type=number] { width: 4.5em; }
+.liste { list-style: none; padding: 0; margin: 0 0 6px; font-size: 12px; }
+.liste li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 3px 0; border-bottom: 1px solid #f1f5f9; }
+.liste li.aktiv { background: #fffbeb; }
+/* Planung: Lage und Masse eines Streifens von Hand (aufklappbar, ganze Zeilenbreite) */
+.liste li details.masse { flex-basis: 100%; margin: 2px 0 2px 18px; }
+.masse table { border-collapse: collapse; margin: 2px 0 4px; }
+.masse td, .masse th { padding: 1px 6px 1px 0; text-align: left; font-variant-numeric: tabular-nums; }
+.masse td + td, .masse th + th { text-align: right; }
+.masse > div > div { margin: 2px 0; }
+.aktionen { margin-left: auto; display: flex; gap: 4px; }
+.farbe.gestrichelt { background: transparent; border: 2px dashed; }
+/* Streifen aus dem Luftbild (ETH-Modell), nicht in OSM: hohles Quadrat, gelb gestrichelt mit dunklem Schatten (Karte und Legende) */
+.lbfgs-marke { box-sizing: border-box; border: 2px dashed #eab308; background: rgba(234, 179, 8, 0.08); box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.55); cursor: pointer; }
+.lbfgs-marke.gewaehlt { border-width: 3px; box-shadow: 0 0 0 2px #0f172a; }
+.farbe.lbfgs-marke { width: 12px; height: 12px; }
+.zeile { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.spur { margin: 6px 0; }
+.ecke { background: #ffffff; border: 2px solid #0f172a; border-radius: 50%; cursor: move; }
+/* Annäherungsbereich von Hand (Karte.tsx, 30.10.2026): Mitte und Seiten je Ende, in der Farbe der Annäherungsbereiche */
+.ann-griff { background: #ffffff; border: 2px solid #0284c7; cursor: move; }
+.ann-mitte { border-radius: 2px; background: #0ea5e9; }
+.ann-seite { border-radius: 1px; }
+/* Legende der WMS-Ebene Richtplan Fussverkehr (App.tsx): Bilder des Geoportals klein */
+.rp-legende ul { list-style: none; padding-left: 0; margin: 2px 0; }
+.rp-marke { vertical-align: middle; margin-right: 4px; }
+.rp-tip { max-width: 320px; white-space: normal; }
+/* Werkzeugmodus (Karte.tsx): Objekte der Karte lassen Klicks an die Karte durch (Punkt setzen, Ecke fangen); nur die Ecken beim
+   «Ecke runden» bleiben anklickbar */
+.karte-werkzeug .leaflet-interactive:not(.ecke-runden) { pointer-events: none !important; }
+.karte-werkzeug .ecke-runden { cursor: pointer; }
+.runden-angebot { font-size: 12px; }
+/* «Mittelinsel (Standard)»: Griff zum Ziehen (Karte.tsx) und Lagehinweise an der Vorschau */
+.insel-griff { cursor: move; background: none; border: none; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.insel-griff.sichtbar { opacity: 1; pointer-events: auto; }
+/* leaflet.css setzt .leaflet-marker-icon.leaflet-interactive auf pointer-events: auto (spezifischer als .insel-griff): der
+   unsichtbare Griff fängt sonst Klicks bzw. Antippen der Inselmitte ab, die Insel liesse sich dort nicht wählen */
+.leaflet-marker-icon.insel-griff:not(.sichtbar) { pointer-events: none; }
+.insel-griff svg { display: block; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35)); }
+.leaflet-tooltip.insel-hinweis { white-space: normal; max-width: 260px; font-size: 12px; }
+/* lange Tooltips (Luftbild-Kandidaten, Knotensicht, Fahrzeuge …) umbrechen statt über den Kartenrand zu laufen (29.10.2026) */
+/* höhere Spezifität: leaflet.css wird nach dieser Datei geladen und setzt sonst white-space: nowrap */
+.leaflet-container .leaflet-tooltip { white-space: normal; overflow-wrap: break-word; width: max-content; max-width: min(320px, 80vw); }
+.runden-knoepfe { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+/* Strassennamen (OSM) auf der Karte: weiss mit dunklem Halo, mittig über dem Punkt, nicht anklickbar (Pane ohne pointer-events) */
+.strassenname { pointer-events: none; }
+.strassenname span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-size: 12px; font-weight: 600;
+  color: #ffffff; text-shadow: 0 0 2px #0f172a, 0 0 2px #0f172a, 0 0 4px #0f172a; }
+.keinfgs { background: #f1f5f9; border: 1px solid #94a3b8; border-left: 4px solid #64748b; border-radius: 6px; padding: 6px 8px; margin: 6px 0; font-weight: 600; color: #334155; }
+/* Trottoirüberfahrt am Streifen (23.10.2026): Verweis auf die Knotensicht, Rand in der Trottoirfarbe der Karte */
+.tue { background: #f8f8ee; border: 1px solid #b5b08a; border-left: 4px solid #8a8350; border-radius: 6px; padding: 6px 8px; margin: 6px 0; color: #334155; }
+.pruefen { background: #fefce8; border: 1px dashed #a16207; border-left: 4px solid #eab308; border-radius: 6px; padding: 6px 8px; margin: 6px 0; font-weight: 600; color: #713f12; }
+.zahl { width: 4.5em; }
+.textfeld { width: 12em; }
+/* Fixpunkte (Vermassung): Kreuz im Quadrat (SVG im divIcon), Vorschläge blass; Masslinie beschriftet in Fixpunkt-Farbe mit Halo */
+.fixpunkt { background: none; border: none; }
+.fixpunkt.blass { opacity: 0.45; }
+.masstext { pointer-events: none; }
+.masstext span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-size: 12px; font-weight: 700;
+  color: #be185d; text-shadow: 0 0 2px #ffffff, 0 0 2px #ffffff, 0 0 4px #ffffff; }
+/* Griff am Auge eines wartenden Fahrzeugs der Knotensicht (27.10.2026): ziehen setzt den Standort von Hand; von Hand gesetzt gefüllt */
+.auge-griff { border: 2px solid #111827; border-radius: 50%; background: #ffffff; cursor: grab; box-sizing: border-box; }
+.auge-griff.hand { background: #111827; }
+/* Werkzeug «Messen» (27.10.2026): Länge in der Farbe der Messlinie, etwas grösser */
+.messtext span { color: #6d28d9; font-size: 13px; }
+/* Gruppen der Themen und Gliederung eines Themas nach der Norm (27.10.2026) */
+.themen-gruppe { margin: 0.8em 0 0.2em; font-size: 0.9em; }
+.thema-abschnitt { margin: 0.6em 0 0.2em; }
+.thema-unter { margin: 0.3em 0 0.1em; }
+/* Nummernschild einer Zufahrt (17.10.2026, wie .arm-nr im SichtweitenCheck): weisser Kreis, dunkler Rand und Zahl; gewählte
+   Zufahrt Bernstein mit weisser Zahl. Leaflet setzt .leaflet-marker-icon auf display: block: Zahl über die Zeilenhöhe
+   (22 px − 2 × 2 px Rand) und text-align zentriert. Bei mehreren Streifen rechts daneben der Streifen (weiss mit Halo). */
+.zufahrt-nr { box-sizing: border-box; background: #ffffff; border: 2px solid #0f172a; border-radius: 50%; color: #0f172a; cursor: pointer;
+  text-align: center; font: 700 12px/18px system-ui, sans-serif; box-shadow: 0 0 2px #000; }
+.zufahrt-nr span { display: block; }
+.zufahrt-nr.gewaehlt { background: var(--accent); color: #ffffff; }
+.zufahrt-nr .nr-streifen { position: absolute; left: 24px; top: 1px; white-space: nowrap; font-size: 11px; font-weight: 600; color: #ffffff;
+  text-shadow: 0 0 2px #0f172a, 0 0 2px #0f172a, 0 0 4px #0f172a; pointer-events: none; }
+/* als Marke im Text (Panel, Legende, Bericht) vor dem Namen */
+span.zufahrt-nr { display: inline-block; width: 18px; height: 18px; font-size: 10px; line-height: 14px; vertical-align: -4px; margin-right: 4px;
+  cursor: inherit; box-shadow: none; }
+.bericht-seite span.zufahrt-nr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.masse .fixmasse td, .masse .fixmasse th { vertical-align: top; text-align: left; padding-right: 8px; }
+.hinweisbox { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 4px 8px; }
+.luftbild { margin: 6px 0; }
+.luftbild > div { margin-top: 4px; }
+/* E4: Einstiegshilfe, Datenschutz, Fusszeile */
+.hilfe { font-size: 12px; margin: 8px 0; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; background: #f8fafc; }
+.hilfe summary { font-weight: 600; color: var(--text-strong); }
+.hilfe ol, .hilfe ul { padding-left: 18px; margin: 4px 0; }
+.hilfe li { margin: 3px 0; }
+.hilfe p { margin: 6px 0 2px; }
+.fuss { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--border); line-height: 1.6; }
+.fuss a, .hilfe a { color: var(--accent); }
+
+/* Reiter im Panel (22.10.2026): «Sichtprüfung» (Bernstein) und «Bedarf und Querungstyp» (Petrol); aktiv gefüllt bzw. mit dicker
+   Oberkante, nicht nur unterstrichen; auch schmal je 50 % der Breite. Verborgene Reiterfelder bleiben im DOM (hidden). */
+.reiterleiste { display: flex; gap: 4px; margin: 14px 0 0; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 5;
+  background: #ffffff; padding-top: 4px; }
+@media print { .reiterleiste { display: none; } }
+.reiterleiste .reiter { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left;
+  margin-bottom: -2px; padding: 8px 10px; border: 1px solid var(--border); border-bottom: 2px solid var(--border); border-radius: 8px 8px 0 0;
+  background: #f1f5f9; color: var(--text); font-weight: 600; line-height: 1.25; }
+.reiterleiste .reiter:hover { filter: none; background: #e2e8f0; }
+.reiterleiste .reiter:focus-visible { outline: 2px solid var(--text-strong); outline-offset: 2px; }
+.reiterleiste .reiter-sicht.gewaehlt { background: #ffffff; color: var(--accent); border-color: var(--accent); border-top-width: 4px;
+  border-bottom-color: #ffffff; }
+.reiterleiste .reiter-bedarf.gewaehlt { background: var(--bedarf); color: #ffffff; border-color: var(--bedarf); }
+.reiterleiste .reiter:not(.gewaehlt) .reiter-name { text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+.reiter-zustand { display: inline-block; font-size: 12px; font-weight: 600; padding: 0 6px; border-radius: 9px; background: #ffffff;
+  border: 1px solid currentColor; }
+.reiter-zustand.gruen { color: #15803d; }
+.reiter-zustand.gelb { color: #92400e; }
+.reiter-zustand.rot { color: #b91c1c; }
+.reiter-zustand.grau { color: #475569; }
+.nur-vorlesen { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.reiterfeld[hidden] { display: none !important; }
+.reiterfeld-bedarf { border-left: 4px solid var(--bedarf); padding: 2px 0 4px 10px; }
+.bedarf-teaser { display: flex; align-items: baseline; gap: 6px; width: 100%; margin: 10px 0 6px; padding: 6px 10px; text-align: left;
+  font-size: 13px; background: var(--bedarf-hell); color: var(--bedarf); border: 1px solid var(--bedarf); border-left-width: 4px; border-radius: 6px; }
+.bedarf-teaser:hover { filter: none; background: #d3e9ec; }
+.bedarf-teaser:focus-visible { outline: 2px solid var(--text-strong); outline-offset: 2px; }
+.teaser-symbol { font-weight: 700; }
+
+/* Bedarfsmodul E1: Abschnitt «Bedarf und Querungstyp» und Befundblatt (rot Pflicht, gelb Empfehlung, blau Hinweis, grau offen) */
+.bedarf-kopf { margin: 10px 0 8px; padding: 8px 10px; background: var(--bedarf-hell); border-radius: 0 8px 8px 0; }
+.bedarf-kopf h2 { margin: 0; color: var(--bedarf); font-size: 16px; }
+.bedarf-leitfrage { margin: 2px 0 0; font-weight: 600; color: var(--text-strong); }
+.bedarf-kopfzeile { margin: 4px 0 0; color: var(--bedarf); }
+/* «Datenlage hier» (Quellenregister): ein Satz, Tabelle je Thema aufklappbar */
+.datenlage { margin: 4px 0 8px; color: var(--text); }
+.datenlage-satz { margin: 0; }
+.datenlage-details summary { cursor: pointer; color: var(--text-muted); }
+.quelle-info { color: var(--text-muted); }
+.bedarf-ebenen label { display: inline-block; margin: 2px 10px 2px 0; }
+.befundblatt { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin: 8px 0; background: #ffffff; }
+.befundblatt h3 { margin-top: 2px; }
+.befund-typ { margin: 2px 0 4px; }
+.bedarf-zusammenfassung { margin: 6px 0 8px; line-height: 1.45; }
+.befund-masse { font-size: 12px; }
+.befund-masse tr.verletzt td { color: #b91c1c; }
+.befund-masse tr.offen td, .befund-masse tr.nicht_anwendbar td { color: var(--text-muted); }
+.bedarf-gruppe { margin: 4px 0; }
+.bedarf-maske { font-size: 12px; }
+.bedarf-maske td { padding: 2px 4px; vertical-align: middle; }
+.bedarf-maske td:first-child { width: 42%; }
+.bedarf-maske tr.offen td:first-child { color: var(--text-muted); }
+.bedarf-maske select { max-width: 150px; font-size: 12px; }
+.bedarf-zahl { width: 90px; }
+.bedarf-liste label { display: inline-block; margin-right: 6px; }
+/* Automatik Paket A: vorbelegter Wert im Feld, Quellen-Chip, Anzeige des Sichtrechners, Frage oben */
+.bedarf-maske .vorbelegt { background: #f0f9ff; color: #0c4a6e; border: 1px solid #bae6fd; }
+.quelle-chip { display: inline-block; font-size: 11px; line-height: 1.4; padding: 0 6px; border-radius: 9px; border: 1px solid var(--border);
+  background: #f8fafc; color: var(--text); white-space: nowrap; cursor: default; }
+.quelle-chip.q-annahme, .quelle-chip.q-schaetzung { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+.quelle-chip.hand { background: #fff7ed; border-color: var(--accent); color: var(--accent); }
+/* Runde 4: Muss-Hinweis an offenen Feldern (nur Text), Verweise auf Quellen und Begriffe, Verzeichnisse in der Hilfe */
+.feld-bedarf { margin-top: 1px; color: var(--text-muted); font-weight: 400; }
+.werk-link { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
+.werk-link:hover { color: var(--accent); }
+.werk-extern { text-decoration: none; white-space: nowrap; }
+.streetview-link { white-space: nowrap; }
+a.knopf.streetview { text-decoration: none; }
+.werk-extern:hover { text-decoration: underline; }
+.url-text { overflow-wrap: anywhere; word-break: break-all; }
+.begriff-verweise { color: var(--text-muted); }
+.begriff-knopf { background: none; border: none; padding: 0 1px; color: var(--text-muted); font: inherit; font-size: 11px;
+  text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; }
+.begriff-knopf:hover, .begriff-knopf[aria-expanded="true"] { color: var(--accent); filter: none; }
+.begriff-def { display: block; margin: 2px 0; padding: 2px 6px; border-left: 2px solid var(--border); color: var(--text); }
+.hilfe-teil { margin: 6px 0; }
+.hilfe-teil > summary { cursor: pointer; font-weight: 600; color: var(--text-strong); }
+.tabelle-rahmen { overflow-x: auto; }
+.quellen-tabelle { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+.quellen-tabelle th, .quellen-tabelle td { text-align: left; vertical-align: top; padding: 3px 4px; border-top: 1px solid var(--border); }
+.quellen-tabelle td.zahl-zelle { text-align: right; }
+.quellen-tabelle td:first-child { min-width: 7.5em; }
+.begriffe-liste { margin: 4px 0; }
+.begriffe-liste dt { font-weight: 600; color: var(--text-strong); margin-top: 4px; }
+.begriffe-liste dd { margin: 0 0 2px 10px; }
+.hervor { background: #fef3c7; transition: background 0.4s; }
+.rechner-anzeige { margin: 0 0 2px; line-height: 1.35; color: var(--text); }
+/* Block «Offene Fragen» (23.10.2026) unter der Zusammenfassung: je Frage die Antwort direkt */
+.offene-fragen { margin: 6px 0 8px; padding: 6px 8px; background: #fffbeb; border-left: 3px solid #f59e0b; font-size: 13px; }
+.offene-fragen ul { list-style: none; margin: 4px 0 0; padding-left: 0; }
+.offene-fragen li { margin: 4px 0; }
+.offene-fragen .frage-punkt { display: inline-block; min-width: 1.4em; font-weight: 600; color: #92400e; }
+.offene-fragen .frage-antworten { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.offene-fragen p { margin: 2px 0 0; }
+/* Feldhilfen: Knopf «?» je Feld, Erklärung als eigene Zeile unter dem Feld (kein Tooltip, auch auf Touch lesbar) */
+.hilfe-knopf { padding: 0 5px !important; margin-left: 2px; border-radius: 9px; line-height: 1.4; font-weight: 700; }
+.bedarf-hilfe td { background: #f8fafc; border-left: 3px solid var(--border); }
+.feld-hilfe p { margin: 2px 0; }
+.feld-hilfe ul { margin: 1px 0 3px; padding-left: 16px; }
+.befundblatt.druck { border: 1px solid #9ca3af; break-inside: auto; }
+/* Grundprüfung bfu (Big Five): Zustand als Symbol und Text, Farbe nur zusätzlich (Druck ohne Hintergrundfarben lesbar) */
+.grundpruefung { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin: 8px 0; background: #ffffff; font-size: 12px; }
+.grund-punkte { list-style: none; margin: 4px 0; padding-left: 0; }
+.grund-punkte > li { border-left: 4px solid #94a3b8; padding: 2px 0 2px 8px; margin: 4px 0; }
+.grund-teile { list-style: none; margin: 1px 0 0; padding-left: 4px; }
+.grund-teile > li { margin: 1px 0; }
+.grund-symbol { display: inline-block; min-width: 1.1em; text-align: center; font-weight: 700; }
+.grund-punkte > li.gruen { border-color: #16a34a; }
+.grund-punkte > li.rot { border-color: #dc2626; }
+.grund-punkte > li.gelb { border-color: #eab308; }
+.grund-punkte > li.blau { border-color: #0ea5e9; }
+.grundpruefung li.gruen > .grund-symbol { color: #15803d; }
+.grundpruefung li.rot > .grund-symbol { color: #b91c1c; }
+.grundpruefung li.gelb > .grund-symbol { color: #a16207; }
+.grundpruefung li.blau > .grund-symbol { color: #0369a1; }
+.grundpruefung li.grau > .grund-symbol { color: var(--text-muted); }
+.bedarf-erweitert, .bedarf-grund-eingaben { margin: 8px 0; border-top: 1px dashed var(--border); padding-top: 4px; }
+.bedarf-maske tr.bedarf-block th { text-align: left; padding-top: 6px; color: var(--text-muted); }
+.grundpruefung.druck { border: 1px solid #9ca3af; font-size: 9.5pt; break-inside: avoid; }
+.grundpruefung.druck, .grundpruefung.druck * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+/* Runde 2: Einträge nach Thema; Symbol und Verbindlichkeitswort tragen die Bedeutung, Farbe nur zusätzlich */
+.befund-thema { margin: 6px 0; font-size: 12px; }
+.befund-thema > ul { list-style: none; margin: 2px 0; padding-left: 0; }
+.befund-thema > ul > li { border-left: 4px solid #94a3b8; padding: 1px 0 1px 8px; margin: 3px 0; }
+.befund-thema > ul > li.rot { border-color: #dc2626; }
+.befund-thema > ul > li.gelb { border-color: #eab308; }
+.befund-thema > ul > li.blau { border-color: #0ea5e9; }
+.befund-thema > ul > li.grau { color: var(--text-muted); }
+.befund-thema li.rot > .grund-symbol { color: #b91c1c; }
+.befund-thema li.gelb > .grund-symbol { color: #a16207; }
+.befund-thema li.blau > .grund-symbol { color: #0369a1; }
+.befundblatt.druck .befund-thema { font-size: 9.5pt; }
+.befundblatt.druck .befund-thema, .befundblatt.druck .befund-thema * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+/* Runde 2, Verdichtung: eine Zeile je Punkt bzw. Eintrag, Fragen als Sprung zum Feld, Details aufklappbar */
+.grund-kopf { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.grund-zaehlung { color: var(--text-muted); }
+.grund-tabelle { border-collapse: collapse; width: 100%; margin: 4px 0; font-size: 12px; }
+.grund-tabelle th, .grund-tabelle td { text-align: left; vertical-align: top; padding: 2px 4px; border-top: 1px solid var(--border); }
+.grund-tabelle th { font-weight: 600; white-space: nowrap; }
+.grund-tabelle td.grund-wort { white-space: nowrap; }
+.grund-tabelle tr { border-left: 4px solid #94a3b8; }
+.grund-tabelle tr.gruen { border-left-color: #16a34a; }
+.grund-tabelle tr.rot { border-left-color: #dc2626; }
+.grund-tabelle tr.gelb { border-left-color: #eab308; }
+.grund-tabelle tr.blau { border-left-color: #0ea5e9; }
+.grund-tabelle tr.gruen .grund-symbol { color: #15803d; }
+.grund-tabelle tr.rot .grund-symbol { color: #b91c1c; }
+.grund-tabelle tr.gelb .grund-symbol { color: #a16207; }
+.grund-tabelle tr.blau .grund-symbol { color: #0369a1; }
+/* Details je Punkt (23.10.2026): Knopf am Zeilenende, Details in einer Zeile darunter (Rand in der Farbe der Zeile) */
+.grund-auf-zelle { text-align: right; white-space: nowrap; }
+/* Knopf «Details» (Nutzertest 23.10.2026: das Symbol ▸ war kaum zu sehen): Petrol auf Weiss 7,3:1, Fläche mindestens 32 × 24 px */
+.grund-auf { background: #ffffff; border: 1px solid var(--bedarf); color: var(--bedarf); border-radius: 6px; padding: 2px 8px; min-width: 32px;
+  min-height: 24px; cursor: pointer; font: inherit; font-size: 12px; line-height: 1.2; }
+.grund-auf:hover { background: var(--bedarf-hell); filter: none; }
+.grund-auf:focus-visible { outline: 2px solid var(--bedarf); outline-offset: 1px; }
+.grund-tabelle tr.grund-zeile-klick { cursor: pointer; }
+.grund-tabelle tr.grund-detail td { border-top: none; padding: 0 4px 4px 10px; }
+.grund-tabelle tr.rand-gruen { border-left-color: #16a34a; }
+.grund-tabelle tr.rand-rot { border-left-color: #dc2626; }
+.grund-tabelle tr.rand-gelb { border-left-color: #eab308; }
+.grund-tabelle tr.rand-blau { border-left-color: #0ea5e9; }
+.grund-fuss { color: var(--text-muted); margin: 2px 0 0; }
+.grund-details > summary, .eintrag-details > summary, .bedarf-begruendung > summary { cursor: pointer; }
+.frage-knopf { background: none; border: none; padding: 0; color: var(--accent); text-decoration: underline; font: inherit; cursor: pointer; text-align: left; }
+.frage-knopf:hover { filter: none; text-decoration-thickness: 2px; }
+.befund-thema .eintrag-details > summary { list-style-position: outside; }
+.befund-thema .eintrag-details > span { display: block; margin: 1px 0 2px; }
+.legende { color: var(--text-muted); }
+/* Erweiterte Prüfung nach Thema (23.10.2026): je Thema ein Aufklapper, Zählung in Symbol und Wort, Fragen mit Eingabe wie im Block der
+   Grundprüfung, übrige Angaben zugeklappt; Masse und Annahmen am Ende */
+details.bedarf-thema { border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; margin: 6px 0; background: #ffffff; }
+details.bedarf-thema > summary { cursor: pointer; padding: 2px 0; }
+details.bedarf-thema[open] > summary { margin-bottom: 2px; }
+.thema-zahl { color: var(--text-muted); }
+.thema-fragen { margin: 4px 0; padding: 2px 8px; background: #fffbeb; border-left: 3px solid #f59e0b; font-size: 13px; }
+.thema-fragen ul { list-style: none; margin: 2px 0; padding-left: 0; }
+.thema-fragen li { margin: 4px 0; }
+.thema-fragen .frage-antworten { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.frage-fuer { color: var(--text-muted); }
+.thema-ohne { color: var(--text-muted); margin: 2px 0; }
+details.thema-ohne > summary { cursor: pointer; }
+.thema-verweis, .thema-block { margin: 2px 0; }
+.thema-block details.thema-ohne { display: inline; }
+.thema-fragen .feld-hilfe { margin: 2px 0 4px; }
+details.thema-ohne ul { margin: 1px 0 2px; padding-left: 18px; }
+.thema-querung { color: var(--text-muted); margin-top: 4px; }
+details.thema-angaben { margin: 4px 0 2px; }
+details.thema-angaben > summary { cursor: pointer; color: var(--bedarf); }
+.befund-thema > ul.annahmen-liste { list-style: disc; padding-left: 18px; }
+.befund-thema > ul.annahmen-liste > li { border-left: none; padding: 0; margin: 2px 0; }
+.annahmen-liste ul { margin: 1px 0; padding-left: 16px; }
+.befundblatt.druck .thema-fragen { background: #ffffff; font-size: 9.5pt; }
+@media (max-width: 480px) { .grund-tabelle th { white-space: normal; } }
+/* Druck: Einträge nicht trennen, Themenkopf beim Eintrag halten */
+.befundblatt.druck .befund-thema > ul > li, .grund-tabelle tr { break-inside: avoid; page-break-inside: avoid; }
+.befundblatt.druck .thema-kopf { display: block; break-after: avoid; page-break-after: avoid; }
+
+/* E4: Bericht (Druckansicht) – auf dem Bildschirm über der App, gedruckt allein (A4 hoch) */
+.bericht { position: fixed; inset: 0; z-index: 2000; overflow-y: auto; background: #e2e8f0; }
+.bericht-leiste { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 8px 16px; background: #ffffff; border-bottom: 1px solid var(--border); }
+.bericht-seite { max-width: 210mm; margin: 16px auto; padding: 14mm 14mm 10mm; background: #ffffff; color: #000000;
+  box-shadow: 0 1px 6px rgba(0,0,0,.15); font-size: 10.5pt; line-height: 1.35; }
+.bericht-seite h1 { font-size: 17pt; margin: 0 0 2px; color: #000000; }
+.bericht-seite h2 { font-size: 12.5pt; margin: 14px 0 4px; color: #000000; border-bottom: 1px solid #000000; padding-bottom: 1px; }
+.bericht-seite h3 { font-size: 11pt; margin: 10px 0 2px; color: #000000; }
+.bericht-seite .klein { font-size: 9pt; color: #1f2937; }
+.bericht-seite ul { margin: 2px 0 6px; padding-left: 16px; }
+.bericht-seite li { margin: 1px 0; }
+.bericht-seite .bericht-quellen { font-size: 9pt; margin: 2px 0 6px; }
+.bericht-seite .bericht-quellen th, .bericht-seite .bericht-quellen td { border-top: 1px solid #94a3b8; }
+.bericht-seite td, .bericht-seite th { border-bottom: 1px solid #9ca3af; padding: 3px 4px; color: #000000; }
+.bericht-seite th { font-size: 9pt; color: #000000; border-bottom: 1.5px solid #000000; }
+.bericht-zahlen td:first-child { width: 28%; color: #374151; }
+.bericht-tabelle { font-size: 9.5pt; }
+.bericht-eingabe { width: 100%; font: inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; }
+.nur-drucken { display: none; }
+.bericht-karte { margin: 10px 0; break-inside: avoid; page-break-inside: avoid; }
+.bericht-karte figcaption { margin-top: 4px; }
+.bericht-bild { position: relative; width: 100%; background: #f1f5f9; border: 1px solid #000000; overflow: hidden; }
+.bericht-bild img, .bericht-bild svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.bericht-ohne-bild { position: absolute; left: 8px; top: 6px; color: #475569; }
+.bericht-block { break-inside: auto; }
+.bericht-block h2, .bericht-block h3 { break-after: avoid; page-break-after: avoid; }
+.bericht-tabelle tr { break-inside: avoid; page-break-inside: avoid; }
+.bericht-lage { break-inside: avoid; page-break-inside: avoid; margin-top: 6px; }
+.bericht-lage h4 { font-size: 10pt; margin: 6px 0 2px; }
+.bericht-lage td { font-variant-numeric: tabular-nums; }
+.bericht-fuss { margin-top: 14px; padding-top: 6px; border-top: 1px solid #000000; font-size: 8.5pt; }
+.bericht-fuss p { margin: 3px 0; }
+.bericht-bild, .bericht-bild * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+/* Kein Seitenrand: dann setzt der Browser keine eigene Kopf- und Fusszeile. Der Rand kommt aus dem Rahmen (Bericht.tsx,
+   .bericht-rahmen): seitlich als Innenabstand, oben und unten als Kopf und Fuss der Tabelle, die sich auf jeder gedruckten
+   Seite wiederholen (wie VeloroutenCheck). */
+@page { size: A4 portrait; margin: 0; }
+.bericht-rahmen { width: 100%; border-collapse: collapse; }
+.bericht-seite .bericht-rahmen > thead > tr > td, .bericht-seite .bericht-rahmen > tfoot > tr > td,
+.bericht-seite .bericht-rahmen > tbody > tr > td { border: none; padding: 0; }
+@media print {
+  html, body, #root { height: auto; background: #ffffff; }
+  body.bericht-offen #root { display: none !important; }
+  .nicht-drucken { display: none !important; }
+  .nur-drucken { display: inline; }
+  .bericht { position: static; overflow: visible; background: #ffffff; }
+  .bericht-seite { max-width: none; margin: 0; padding: 0 12mm; box-shadow: none; }
+  .bericht-rand-oben { height: 12mm; }
+  .bericht-rand-unten { height: 14mm; }
+  .bericht-neue-seite { break-before: page; page-break-before: always; }
+  .bericht-neue-seite > td > .bericht-block:first-child > h2 { margin-top: 0; }
+}
+
+/* Startseite (Einstieg) */
+.start { max-width: 680px; margin: 0 auto; padding: 24px 16px 56px; font-size: 15px; line-height: 1.6; }
+html.startseite, html.startseite body, html.startseite #root { height: auto; min-height: 100%; }   /* Klasse aus Einstieg.tsx */
+.start p { margin: 0 0 14px; }
+.start-logo { width: 200px; max-width: 55%; display: block; margin: 8px auto 4px; cursor: pointer; }
+.start-titel { justify-content: center; font-size: 28px; font-weight: 800; margin: 0; }
+.start-untertitel { text-align: center; color: var(--text-muted); margin: 0 0 14px !important; }
+.start-knopf-zeile { text-align: center; margin-bottom: 22px; }
+.start-knopf { border: none; background: var(--accent); color: #ffffff; cursor: pointer; border-radius: 8px; padding: 9px 18px;
+  font-size: 14px; font-weight: 600; }
+.start-knopf:hover { filter: brightness(1.1); }
+.start-grenzen { font-size: 13px; color: var(--text-muted); background: #ffffff; border-left: 3px solid var(--accent);
+  padding: 8px 12px; border-radius: 4px; }
+.start-kachel { display: flex; align-items: center; gap: 14px; margin-top: 14px; text-decoration: none; background: #ffffff;
+  border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; color: var(--text); }
+.start-kachel:hover { box-shadow: 0 4px 12px #0002; }
+.start-kachel img { flex-shrink: 0; border-radius: 8px; object-fit: cover; }
+.start-kachel-titel { font-weight: 700; color: var(--text-strong); }
+.start-kachel-text { font-size: 13px; color: var(--text-muted); }
+.start-daten { margin-top: 22px; padding: 10px 14px; border-radius: 10px; background: #f8fafc; border: 1px solid var(--border);
+  font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
+.start-daten-titel { font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.start-daten ul { margin: 6px 0 0; padding-left: 20px; }
+.start-fuss { margin-top: 18px !important; font-size: 12px; color: var(--text-muted); text-align: center; }
+.start-fuss a { color: var(--accent); }
+.bedarf-maske tr.zaehlt-nicht td { color: var(--text-muted); }
+/* Regelübersicht (23.10.2026) */
+.regel-steuerung { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin: 4px 0; }
+.regel-steuerung input[type="search"] { width: 12em; max-width: 100%; }
+.regel-gruppe > summary { cursor: pointer; margin: 2px 0; }
+.regel-liste { list-style: none; margin: 2px 0 6px; padding-left: 8px; }
+.regel-liste > li { margin: 4px 0; padding: 2px 0 2px 6px; border-left: 2px solid var(--border); }
+/* Regelübersicht lesbar (Nutzertest 23.10.2026) */
+.regel-nr { color: var(--text-muted); font-size: 11px; }
+.regel-teile { display: grid; grid-template-columns: max-content 1fr; gap: 1px 6px; margin: 2px 0 0; }
+.regel-teile dt { color: var(--text-muted); }
+.regel-teile dd { margin: 0; }
+/* Feld als Textlink (dunkle Schrift auf hellem Grund; nicht der Grundstil «button» mit weisser Schrift) */
+button.feld-link, button.feld-link.klein { background: none; border: none; padding: 0; color: var(--bedarf); text-decoration: underline;
+  font: inherit; cursor: pointer; text-align: left; }
+button.feld-link:hover { filter: none; text-decoration-thickness: 2px; }
+/* Fragen-Knöpfe mit «klein»: sonst gewinnt button.klein:not(.zweit) (weisse Schrift) und die Schrift ist auf hellem Grund unsichtbar */
+button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; border: none; }
+
+/* Tabellen im Reiter «Bedarf und Querungstyp» auf dem Smartphone gestapelt statt in Spalten (Nutzerbefund 28.10.2026: bei 390 px
+   Grundprüfung 503 px, Bedarfsmasken bis 418 px, Befundmasse 387 px breit; das Panel scrollte seitlich, Texte waren abgeschnitten).
+   Grundprüfung: Thema und «Details» oben, Stand und Text darunter; Masken: Frage über Feld und Herkunft; Befundmasse in Spalten fester
+   Breite mit Umbruch. */
+@media (max-width: 700px) {
+  .grund-tabelle, .grund-tabelle tbody { display: block; width: 100%; }
+  .grund-tabelle tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; padding: 4px 0; border-top: 1px solid var(--border); }
+  .grund-tabelle th, .grund-tabelle td { border-top: none; white-space: normal !important; padding: 1px 6px; }
+  .grund-tabelle th { grid-column: 1; grid-row: 1; }
+  .grund-tabelle td.grund-auf-zelle { grid-column: 2; grid-row: 1; }
+  .grund-tabelle td:not(.grund-auf-zelle) { grid-column: 1 / -1; }
+  .grund-tabelle tr.grund-detail { border-top: none; padding-top: 0; }
+  .grund-tabelle tr.grund-detail td { padding: 0 6px 4px 10px; }
+  .bedarf-maske, .bedarf-maske tbody { display: block; width: 100%; }
+  .bedarf-maske tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; align-items: center; padding: 3px 0;
+    border-bottom: 1px solid #f1f5f9; }
+  .bedarf-maske td { padding: 1px 4px; }
+  .bedarf-maske td:first-child, .bedarf-maske tr.bedarf-block th, .bedarf-maske td[colspan] { width: auto; grid-column: 1 / -1; }
+  .bedarf-maske select { max-width: 100%; }
+  table.befund-masse { table-layout: fixed; width: 100%; }
+  .befund-masse td, .befund-masse th { overflow-wrap: anywhere; }
+}
+/* nicht geprüftes Thema (29.10.2026): deutlich abgesetzt – blasser Text, gestrichelter Rahmen, kein Symbol in Farbe */
+.befund-thema.thema-nicht-geprueft { opacity: 0.55; border: 1px dashed #94a3b8; border-radius: 6px; padding: 2px 8px; background: #f8fafc; }
+.befund-thema.thema-nicht-geprueft > summary { color: #475569; font-style: italic; }
+.befund-thema.thema-nicht-geprueft[open] { opacity: 0.8; }

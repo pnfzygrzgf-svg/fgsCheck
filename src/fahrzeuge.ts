@@ -1,0 +1,126 @@
+// ── Fahrzeuge und wartende Personen auf der Karte (27.10.2026, wie der SichtweitenCheck) ──
+//
+// Nur Darstellung, ohne Wirkung auf die Rechnung. Die Umrisse kommen aus dem Kern des SichtweitenCheck (knotensicht/rechner/fahrzeug.ts,
+// unverändert): Personenwagen 4,5 × 1,8 m, Lenker 2,0 m hinter der Front.
+// - Trottoirüberfahrt: die Fahrzeuge der Knotensicht (F_B wartend je Phase, F_A am Ende der Sichtweite A je Richtung; tue/knotensicht.ts).
+// - Fussgängerstreifen: je Zufahrt (gerade und abbiegende) ein Fahrzeug mit dem Auge auf dem letzten Sichtpunkt, entlang der Fahrlinie zum Streifen hin;
+//   je Streifenende eine wartende Person 0,6 m hinter der Bordkante (wie die Rechnung den Wartebereich prüft, rechner/streifen.ts).
+
+import { add, dist, einheit, sub, type P } from './geo'
+import { autoScheibe, autoUmriss, fbLage } from './knotensicht/rechner/fahrzeug'
+import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
+import { tueGezeichnet } from './tue/karte'
+import { veloSoll } from './veloSicht'
+import type { NeigungMessung } from './knotensicht/rechner/typen'
+
+/** Farben (27.10.2026): wartendes Fahrzeug mit Sicht auf die Fahrbahn grau, mit Sicht aufs Trottoir ocker, Fahrzeug am Ende der
+ * Sichtweite bzw. das herannahende am Fussgängerstreifen blau (hebt sich von den grünen und roten Sichtfeldern und vom gelben Streifen
+ * ab); blass: nicht gewählte Zufahrt */
+export const FARBE_WARTEND = '#4b5563'
+export const FARBE_WARTEND_TROTTOIR = '#b45309'
+export const FARBE_HERAN = '#2563eb'
+export const FARBE_HERAN_BLASS = '#93c5fd'
+/** Velo (29.10.2026): herannahendes Velo violett (Fussgängerstreifen und Knotensicht), nicht gewählt blass; Umriss weiss */
+export const FARBE_VELO = '#7c3aed'
+export const FARBE_VELO_BLASS = '#c4b5fd'
+/** Sichtfelder des Velos (Fussgängerstreifen, Knotensicht): frei türkis, verdeckt orange (die der Autos bleiben grün bzw. rot) */
+export const VELO_SICHT_FARBE = { frei: '#0d9488', verdeckt: '#ea580c' } as const
+/** Füllfarbe eines Fahrzeugs nach seiner Rolle; Person: Trottoirfarbe (Karte) */
+export function fahrzeugFarbe(f: Pick<FahrzeugForm, 'rolle' | 'phase'> & Partial<Pick<FahrzeugForm, 'art'>>, blass = false): string {
+  if (f.rolle === 'fb') return f.phase === 'trottoir' ? FARBE_WARTEND_TROTTOIR : FARBE_WARTEND
+  if (f.art === 'velo') return blass ? FARBE_VELO_BLASS : FARBE_VELO
+  return blass ? FARBE_HERAN_BLASS : FARBE_HERAN
+}
+
+/** Abstand der wartenden Person hinter der Bordkante [m] (wie rechner/streifen.inselProbe) */
+export const WARTE_HINTER_RAND_M = 0.6
+
+export interface FahrzeugForm {
+  art: 'auto' | 'velo' | 'person'
+  /** fb/fa: Knotensicht; zufahrt: Fahrzeug einer Zufahrt des Fussgängerstreifens; warte: wartende Person */
+  rolle: 'fb' | 'fa' | 'zufahrt' | 'warte'
+  mitte: P
+  richtung: P
+  text: string
+  /** Auto: Umriss und Windschutzscheibe (LV95) */
+  umriss?: P[]
+  scheibe?: P[]
+  /** Fahrzeug einer Zufahrt: Schlüssel «fgsId|zufahrt» (Karte: gewählte Zufahrt kräftig) */
+  zufahrt?: string
+  /** Auge (Lenker) bzw. Standort der Person */
+  auge?: P
+  /** wartendes Fahrzeug der Knotensicht: Phase (Sicht auf die Fahrbahn bzw. aufs Trottoir) und ob das Auge von Hand gesetzt ist */
+  phase?: 'fahrbahn' | 'trottoir'
+  vonHand?: boolean
+  /** auf der Karte ziehbar (Auge von Hand; Phase Trottoir erst, wenn der Kern es kennt) */
+  ziehbar?: boolean
+}
+
+const auto = (f: Omit<FahrzeugForm, 'umriss' | 'scheibe'>): FahrzeugForm =>
+  ({ ...f, ...(f.art === 'auto' ? { umriss: autoUmriss(f.mitte, f.richtung), scheibe: autoScheibe(f.mitte, f.richtung) } : {}) })
+
+/** Fahrzeuge der Knotensicht einer Trottoirüberfahrt (leer ohne gerechnete Knotensicht bzw. bei anderem Streifen) */
+export function tueFahrzeuge(s: StreifenErgebnis): FahrzeugForm[] {
+  const ks = s.knotensicht
+  // ohne Einmündung bzw. über die durchgehende Strasse keine Fahrzeuge (sie stünden mitten auf der Hauptstrasse; 27.10.2026)
+  if (!s.trottoirueberfahrt || !tueGezeichnet(ks) || (ks.streifenId && ks.streifenId !== s.fgsId)) return []
+  return (ks.karte.fahrzeuge ?? []).map(f => auto({ art: f.art, rolle: f.rolle, mitte: f.mitte, richtung: f.richtung, text: f.text,
+    ...(f.phase ? { phase: f.phase } : {}), ...(f.auge ? { auge: f.auge } : {}), ...(f.vonHand ? { vonHand: true } : {}),
+    ...(f.ziehbar ? { ziehbar: true } : {}) }))
+}
+
+/** Punkt der Linie (ab dem Streifen) beim Abstand a (am Ende festgehalten), Richtung zum Streifen hin und der Abstand */
+function punktEntlang(l: P[], a: number): [P, P, number] {
+  let s = 0
+  for (let i = 1; i < l.length; i++) {
+    const d = dist(l[i - 1], l[i])
+    if (d > 0 && s + d >= a - 1e-9) return [add(l[i - 1], sub(l[i], l[i - 1]), (a - s) / d), einheit(sub(l[i - 1], l[i])), a]
+    s += d
+  }
+  const n = l.length
+  return [l[n - 1], einheit(sub(l[n - 2], l[n - 1])), s]
+}
+/** Fahrtrichtung zum Streifen beim Punkt p: Fahrlinie (spur beginnt am Streifen) vom nächsten Stützpunkt zum vorherigen */
+function richtungZumStreifen(z: ZufahrtErgebnis, p: P): P | null {
+  const sp = z.spur
+  if (sp.length < 2) return null
+  let i = 0, d = Infinity
+  sp.forEach((q, k) => { const x = dist(q, p); if (x < d) { d = x; i = k } })
+  const [a, b] = i > 0 ? [sp[i], sp[i - 1]] : [sp[1], sp[0]]
+  const u = einheit(sub(b, a))
+  return u[0] || u[1] ? u : null
+}
+
+/** gerade Zufahrt mit Sichtpunkten (abbiegende und von Hand gestrichene nicht; gestrichene stehen unter entfallen) */
+export const geradeZufahrt = (z: ZufahrtErgebnis): boolean => z.art !== 'abbiegend' && z.sichtpunkte.length > 0
+
+/** Fahrzeuge (je Zufahrt mit Sichtpunkten) und wartende Personen (je Streifenende) eines Fussgängerstreifens; leer bei Trottoirüberfahrt */
+export function fgsFahrzeuge(s: StreifenErgebnis, neigung: Readonly<Record<string, NeigungMessung>> | null = null): FahrzeugForm[] {
+  if (s.trottoirueberfahrt) return []
+  const aus: FahrzeugForm[] = []
+  // je Zufahrt mit Sichtpunkten, gerade und abbiegende (27.10.2026: auch Abbieger, entlang ihrer gebogenen Fahrlinie zum Streifen hin)
+  for (const z of s.zufahrten) {
+    if (!z.sichtpunkte.length) continue
+    const auge = z.sichtpunkte[z.sichtpunkte.length - 1]
+    const u = richtungZumStreifen(z, auge)
+    if (!u) continue
+    const [mitte, richtung] = fbLage(auge, add(auge, u))
+    aus.push(auto({ art: 'auto', rolle: 'zufahrt', mitte, richtung, auge, zufahrt: `${z.fgsId}|${z.zufahrt}`,
+      text: `Fahrzeug am Sichtpunkt, ${z.sichtweite.toFixed(1).replace('.', ',')} m vor dem Streifen` }))
+    // Velo (29.10.2026): auf der Veloachse beim Soll nach Tab. 3 (mit der gemessenen Längsneigung), zum Streifen hin
+    const v = z.velo, vs = veloSoll(z, neigung)
+    if (v && vs && v.sichtpunkte.length >= 2) {
+      const [p, uv, m] = punktEntlang(v.sichtpunkte, vs.A)
+      if (uv[0] || uv[1]) aus.push({ art: 'velo', rolle: 'zufahrt', mitte: p, richtung: uv, auge: p, zufahrt: `${z.fgsId}|${z.zufahrt}`,
+        text: `Velo am Sichtpunkt, ${String(Math.round(m * 10) / 10).replace('.', ',')} m vor dem Streifen (VSS 40 273 Tab. 3; ${vs.neigungText})` })
+    }
+  }
+  // Wartebereich je Ende wie gerechnet (Bordkante, Richtung vom Streifen weg); ohne: Bordkante, von der Streifenmitte weg
+  for (const [r, a] of s.warte ?? s.rand.map(r => [r, einheit(sub(r, s.m))] as [P, P])) {
+    const aussen = einheit(a)
+    if (!aussen[0] && !aussen[1]) continue
+    const p = add(r, aussen, WARTE_HINTER_RAND_M)
+    aus.push({ art: 'person', rolle: 'warte', mitte: p, auge: p, richtung: [-aussen[0], -aussen[1]], text: 'Wartende Person' })
+  }
+  return aus
+}

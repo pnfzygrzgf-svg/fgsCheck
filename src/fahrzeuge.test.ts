@@ -1,0 +1,144 @@
+// Fahrzeuge und wartende Personen auf der Karte (27.10.2026, fahrzeuge.ts): Trottoirüberfahrt mit den Fahrzeugen der Knotensicht,
+// Fussgängerstreifen mit einem Fahrzeug je gerade Zufahrt und einer Person je Streifenende. Künstliche Strassen wie tue/knotensicht.test.tsx.
+import { describe, expect, it } from 'vitest'
+import { wgs, dist, type P } from './geo'
+import { osmParsen } from './daten/osm'
+import { avParsen, type GeoJson } from './daten/av'
+import { rechneFall } from './rechner'
+import { leererFall, type Fall } from './fall'
+import { knotensichtAnfuegen } from './tue/knotensicht'
+import { FARBE_VELO, FARBE_VELO_BLASS, VELO_SICHT_FARBE, FARBE_HERAN, FARBE_HERAN_BLASS, FARBE_WARTEND, FARBE_WARTEND_TROTTOIR, fahrzeugFarbe, fgsFahrzeuge, geradeZufahrt, tueFahrzeuge, WARTE_HINTER_RAND_M } from './fahrzeuge'
+import { LENKER_VOR_FRONT_M, PW_LAENGE_M } from './knotensicht/rechner/fahrzeug'
+
+const O: P = [2600000, 1200000]
+const ll = (x: number, y: number) => wgs(O[0] + x, O[1] + y)
+const lv = (x: number, y: number): P => [O[0] + x, O[1] + y]
+const weg = (id: number, pts: [number, number, number][], tags: Record<string, string>) =>
+  ({ type: 'way', id, tags, nodes: pts.map(p => p[0]), geometry: pts.map(p => { const [lat, lon] = ll(p[1], p[2]); return { lat, lon } }) })
+const OSM_ROH = { elements: [
+  weg(1, [[10, -300, 0], [11, -40, 0], [12, 0, 0], [13, 300, 0]], { highway: 'tertiary', name: 'Hauptstrasse', maxspeed: '50' }),
+  weg(2, [[11, -40, 0], [20, -40, -200]], { highway: 'residential', name: 'Querweg', maxspeed: '30' })] }
+const flaeche = (art: string, ring: P[]) => ({ properties: { Art: art, Kanton: 'BE', Qualitaet: 'AV93', BFSNr: null },
+  geometry: { type: 'Polygon', coordinates: [[...ring, ring[0]]] } })
+const rechteck = (x0: number, y0: number, x1: number, y1: number): P[] => [lv(x0, y0), lv(x1, y0), lv(x1, y1), lv(x0, y1)]
+const AV: GeoJson = { features: [
+  flaeche('Strasse_Weg', [lv(-300, -4), lv(-43, -4), lv(-43, -200), lv(-37, -200), lv(-37, -4), lv(300, -4), lv(300, 4), lv(-300, 4)]),
+  flaeche('Trottoir', rechteck(-300, 4, 300, 7)), flaeche('Trottoir', rechteck(-300, -7, -43, -4)), flaeche('Trottoir', rechteck(-37, -7, 300, -4))] }
+const REST = { park: null, vsig: null, avZentrum: lv(-40, -4), avRadius: 150, hoehen: null }
+function rechnen(fall: Fall) {
+  const r = rechneFall(osmParsen(OSM_ROH), avParsen(AV), [], null, fall, null, null, null, null)
+  knotensichtAnfuegen(r, { osm: OSM_ROH, av: AV }, fall, REST)
+  return r
+}
+const fall = (tue: boolean, p0: P, p1: P): Fall => {
+  const [lat, lon] = ll(-40, -4), x = leererFall(lat, lon, null)
+  x.streifenHand.push({ id: 'hand-1', p0, p1, breite: 4, herkunft: 'gezeichnet' })
+  if (tue) x.streifen['hand-1'] = { typ: 'trottoirueberfahrt' }
+  return x
+}
+
+describe('Trottoirüberfahrt: Fahrzeuge der Knotensicht', () => {
+  const s = rechnen(fall(true, lv(-44, -8), lv(-36, -8))).streifen[0]
+  const f = tueFahrzeuge(s)
+  it('F_B je Phase (Auge bei D\' und D), F_A je Richtung am Ende von A, Velo auf dem Radstreifen; Autos mit Umriss und Scheibe', () => {
+    expect(f.filter(x => x.rolle === 'fb').map(x => x.text)).toEqual(['wartendes Fahrzeug, Sicht aufs Trottoir, Auge hinter dem hinteren Rand',
+      'wartendes Fahrzeug, Sicht auf die Fahrbahn, Auge hinter dem vorderen Rand'])
+    expect(f.filter(x => x.rolle === 'fb').map(x => [x.phase, x.ziehbar ?? false])).toEqual([['trottoir', true], ['fahrbahn', true]])
+    expect(f.filter(x => x.rolle === 'fa' && x.art === 'auto').map(x => x.text)).toEqual(['Fahrzeug am Ende der nötigen Sichtweite, links',
+      'Fahrzeug am Ende der nötigen Sichtweite, rechts'])
+    expect(f.filter(x => x.rolle === 'fa' && x.art === 'velo').length).toBe(2)
+    for (const x of f.filter(y => y.art === 'auto')) { expect(x.umriss).toHaveLength(8); expect(x.scheibe).toHaveLength(4) }
+  })
+  it('Lenker beim Beobachtungspunkt: F_B der Phase Fahrbahn mit dem Auge bei D (Fahrersitz, rund 0,5 m neben der Achse)', () => {
+    const ks = s.knotensicht
+    if (!ks || 'fehler' in ks) throw new Error('keine Knotensicht')
+    const fbD = f.find(x => x.phase === 'fahrbahn')!
+    expect(fbD.auge).toEqual(ks.karte.D)
+    expect(dist(fbD.mitte, ks.karte.D)).toBeLessThan(Math.abs(LENKER_VOR_FRONT_M - PW_LAENGE_M / 2) + 0.6)
+  })
+  it('über die durchgehende Strasse bzw. ohne Einmündung: keine Fahrzeuge (27.10.2026)', () => {
+    const ks0 = s.knotensicht
+    if (!ks0 || 'fehler' in ks0) throw new Error('keine Knotensicht')
+    expect(tueFahrzeuge({ ...s, knotensicht: { ...ks0, durchgehend: true } })).toEqual([])
+    expect(tueFahrzeuge({ ...s, knotensicht: { fehler: 'kein Knoten', ohneZufahrt: true } })).toEqual([])
+  })
+  it('kein Fahrzeug der Knotensicht ohne Trottoirüberfahrt; keine Personen und Fahrzeuge des Fussgängerstreifens an der Überfahrt', () => {
+    expect(fgsFahrzeuge(s)).toEqual([])
+    const fgs = rechnen(fall(false, lv(-44, -8), lv(-36, -8))).streifen[0]
+    expect(tueFahrzeuge(fgs)).toEqual([])
+  })
+})
+
+describe('Fussgängerstreifen: Fahrzeug je gerade Zufahrt, Person je Streifenende', () => {
+  // Streifen über die Hauptstrasse (Gegenverkehr): zwei gerade Zufahrten
+  const s = rechnen(fall(false, lv(100, -6), lv(100, 6))).streifen[0]
+  const f = fgsFahrzeuge(s)
+  it('ein Auto je gerade Zufahrt mit dem Auge auf dem letzten Sichtpunkt, Richtung zum Streifen; Tooltip mit der Sichtweite', () => {
+    const gerade = s.zufahrten.filter(geradeZufahrt)
+    expect(gerade.length).toBe(2)
+    const autos = f.filter(x => x.rolle === 'zufahrt')
+    expect(autos.map(x => x.zufahrt).sort()).toEqual(gerade.map(z => `${z.fgsId}|${z.zufahrt}`).sort())
+    for (const z of gerade) {
+      const a = autos.find(x => x.zufahrt === `${z.fgsId}|${z.zufahrt}`)!
+      expect(a.auge).toEqual(z.sichtpunkte[z.sichtpunkte.length - 1])
+      // fährt auf den Streifen zu: die Front liegt näher am Streifen als das Auge
+      const front: P = [a.mitte[0] + a.richtung[0] * PW_LAENGE_M / 2, a.mitte[1] + a.richtung[1] * PW_LAENGE_M / 2]
+      expect(dist(front, s.m)).toBeLessThan(dist(a.auge!, s.m))
+      expect(a.text).toBe(`Fahrzeug am Sichtpunkt, ${z.sichtweite.toFixed(1).replace('.', ',')} m vor dem Streifen`)
+    }
+  })
+  it('eine wartende Person je Streifenende, 0,6 m hinter der Bordkante', () => {
+    const p = f.filter(x => x.art === 'person')
+    expect(p.length).toBe(2)
+    expect(p.every(x => x.text === 'Wartende Person')).toBe(true)
+    for (const x of p) expect(Math.min(...s.rand.map(r => dist(r, x.mitte)))).toBeCloseTo(WARTE_HINTER_RAND_M, 1)
+  })
+})
+
+describe('Fussgängerstreifen an der Einmündung: auch abbiegende Zufahrten mit Fahrzeug (27.10.2026)', () => {
+  // Streifen über den Querweg, 8 m vor der Hauptstrasse: gerade Zufahrt aus dem Querweg, Abbieger von der Hauptstrasse
+  const s = rechnen(fall(false, lv(-44, -8), lv(-36, -8))).streifen[0]
+  const autos = fgsFahrzeuge(s).filter(x => x.rolle === 'zufahrt')
+  it('je Zufahrt mit Sichtpunkten ein Auto, Auge auf dem letzten Sichtpunkt, entlang der Fahrlinie zum Streifen hin', () => {
+    const abb = s.zufahrten.filter(z => z.art === 'abbiegend' && z.sichtpunkte.length)
+    expect(abb.length).toBeGreaterThan(0)
+    expect(autos.map(x => x.zufahrt).sort()).toEqual(s.zufahrten.filter(z => z.sichtpunkte.length).map(z => `${z.fgsId}|${z.zufahrt}`).sort())
+    for (const z of abb) {
+      const a = autos.find(x => x.zufahrt === `${z.fgsId}|${z.zufahrt}`)!
+      expect(a.auge).toEqual(z.sichtpunkte[z.sichtpunkte.length - 1])
+      // Richtung wie die Fahrlinie beim Auge (zum Streifen hin: zum vorherigen Stützpunkt)
+      const sp = z.spur
+      let i = 0
+      sp.forEach((q, k) => { if (dist(q, a.auge!) < dist(sp[i], a.auge!)) i = k })
+      const [p, q] = i > 0 ? [sp[i], sp[i - 1]] : [sp[1], sp[0]]
+      const u = [q[0] - p[0], q[1] - p[1]], l = Math.hypot(u[0], u[1])
+      expect(a.richtung[0] * u[0] / l + a.richtung[1] * u[1] / l).toBeGreaterThan(0.99)
+    }
+  })
+  it('abbiegende Zufahrt ohne Sichtpunkte: kein Fahrzeug, kein Fehler', () => {
+    const ohne = { ...s, zufahrten: s.zufahrten.map(z => (z.art === 'abbiegend' ? { ...z, sichtpunkte: [] } : z)) }
+    expect(fgsFahrzeuge(ohne).filter(x => x.rolle === 'zufahrt').length).toBe(s.zufahrten.filter(z => z.art !== 'abbiegend' && z.sichtpunkte.length).length)
+  })
+})
+
+describe('Farben nach Rolle (27.10.2026)', () => {
+  it('Velo (29.10.2026): herannahend violett, nicht gewählt blass; wartendes Velo der Knotensicht wie die Phase; Sichtfeld-Farben eigene', () => {
+    expect(fahrzeugFarbe({ rolle: 'zufahrt', art: 'velo' })).toBe(FARBE_VELO)
+    expect(fahrzeugFarbe({ rolle: 'zufahrt', art: 'velo' }, true)).toBe(FARBE_VELO_BLASS)
+    expect(fahrzeugFarbe({ rolle: 'fa', art: 'velo' })).toBe(FARBE_VELO)
+    expect(fahrzeugFarbe({ rolle: 'fa', art: 'auto' })).toBe(FARBE_HERAN)
+    expect(fahrzeugFarbe({ rolle: 'fb', art: 'velo', phase: 'fahrbahn' })).toBe(FARBE_WARTEND)
+    expect(FARBE_VELO).toBe('#7c3aed')
+    expect(VELO_SICHT_FARBE).toEqual({ frei: '#0d9488', verdeckt: '#ea580c' })
+  })
+  it('wartend grau, am Ende der Sichtweite bzw. herannahend am Fussgängerstreifen blau (nicht gewählt blass)', () => {
+    expect(fahrzeugFarbe({ rolle: 'fb' })).toBe(FARBE_WARTEND)
+    expect(fahrzeugFarbe({ rolle: 'fb', phase: 'fahrbahn' })).toBe(FARBE_WARTEND)
+    expect(fahrzeugFarbe({ rolle: 'fb', phase: 'trottoir' })).toBe(FARBE_WARTEND_TROTTOIR)
+    expect(new Set([FARBE_WARTEND, FARBE_WARTEND_TROTTOIR, FARBE_HERAN]).size).toBe(3)
+    expect(fahrzeugFarbe({ rolle: 'fa' })).toBe(FARBE_HERAN)
+    expect(fahrzeugFarbe({ rolle: 'zufahrt' })).toBe(FARBE_HERAN)
+    expect(fahrzeugFarbe({ rolle: 'zufahrt' }, true)).toBe(FARBE_HERAN_BLASS)
+    expect(FARBE_WARTEND).not.toBe(FARBE_HERAN)
+  })
+})
