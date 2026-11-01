@@ -433,7 +433,18 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Befund»: je Regel eine Zeile mit Ist und Soll, darunter die Angaben des Themas); der Bericht behält die knappe Zeile «Ohne Befund».
   Nicht geprüfte Themen stehen im Panel als graue Zeile mit Grund («Sicht – nicht geprüft: Begegnungszone, flächiges Queren»).
   Bleibt eine Regel dank einer Angabe ohne Befund, nennt die Zeile im Thema den Grund (`erfuelltGrund`), z. B. «Wenig Querende:
-  ohne Befund – Querung im Fusswegnetz (Geoportal Stadt Bern)». In der Stadt Bern zeigt die Ebene «Richtplan Fussverkehr (Geoportal
+  ohne Befund – Querung im Fusswegnetz (Geoportal Stadt Bern)». **Geladene Quellen auf der Karte** (seit 01.11.2026, wie im
+  VeloroutenCheck; `src/quellenEbenen.ts`, Fenster in `Karte.tsx`): Der Knopf «Geladene Quellen» unten links öffnet ein an der Kopfzeile
+  verschiebbares Fenster (Lage und Wahl in localStorage `fgs.quellenPos`, `fgs.quellen`) mit je einem Kästchen pro Quelle der Vorbelegung,
+  nur Quellen mit Daten (`ebenenSichtbar`), die übrigen in einer Zeile «Ohne Daten im Ausschnitt»: Tempo (Geoportal V_sig; gestrichelt OSM
+  maxspeed, wo keine amtliche Linie gelesen ist), Verkehrsmenge (DTV), ÖV-Haltestellen (Tram, Bus), ÖV-Linien, Strassenhierarchie,
+  Strassentyp (Geoportal; gestrichelt OSM highway), Nutzungszonen, Schulen/Kindergärten/Heime (Geoportal und OSM), Beleuchtung (OSM
+  street_lamp, lit), Vortrittszeichen (OSM), Längsneigung (Profile der Fahrlinien aus swissALTI3D) und Brücken (AV-Einzelobjekte). Alle aus
+  den schon geladenen Daten (`ebenenAusGeo` aus `geoVor`), ohne neue Abfrage; gleiche Farbstufen wie VeloroutenCheck und
+  SichtweitenCheck; im eigenen Pane ohne Mausereignisse (die Klicks bleiben den Werkzeugen), Text beim Überfahren über einen
+  Treffertest, ab Zoomstufe 18 der Wert als Beschriftung. Der Tooltip einer Zufahrt nennt die gelesenen OSM-Tags ihres Wegs
+  (`osmTagZeile`). Die beiden folgenden Ebenen stehen seither ebenfalls in diesem Fenster statt in der Ebenenwahl oben rechts.
+  In der Stadt Bern zeigt die Ebene «Richtplan Fussverkehr (Geoportal
   Bern)» (`src/daten/richtplanKarte.ts`, anfangs aus, ab Zoomstufe 15) das Basisnetz Fussweg (bestehend) und die publikumsattraktiven
   Bereiche als Vektordaten aus dem REST-Dienst, in eigener Darstellung (Magenta) mit Text beim Überfahren; die Basisnetz-Linie, aus der
   die App das Fusswegnetz vorbelegt, ist darin kräftiger. Ebenso zeigt die Ebene «Taktile Markierungen (Stadt Bern)»
@@ -515,7 +526,10 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   `strassenhierarchie.ts` liest die Strassenhierarchie (Typ_id: Quartier-, Quartierverbindungsstrasse, Basisnetz …) und die
   Strassentypen (Strgatt_id: SS_30, SS_50, VS_50_60, HVS_50_60, HVS_80) als Linien;
   `vsig.ts` liest die signalisierte Höchstgeschwindigkeit (V_sig) je Strassenabschnitt;
-  `schulen.ts` liest Volksschulen und Kindergärten (Geoportal, ohne Kindertagesstätten) und überall aus OSM Schulen, Kindergärten
+  `schulen.ts` liest Volksschulen und Kindergärten (Geoportal) sowie seit 01.11.2026 (Nutzerentscheid) Kindertagesstätten (als Kindergarten),
+  Kinderangebote (als Schule), Heime und Spitäler (als Heim; Dienst `stadtplan`, Layer 620/624) nach `WEITERE_BERN`, je Art der nächste,
+  wenn die Art nicht schon von Volksschule bzw. Kindergarten belegt ist; Berufs-, Mittel- und Hochschulen zählen nicht; fallen diese
+  Dienste aus, gibt es kein «keines», und überall aus OSM Schulen, Kindergärten
   und Heime (amenity bzw. social_facility, Umkreis 200 m, eigene Menge der Overpass-Abfrage; Geoportal ebenfalls ±200 m, damit der
   Umkreis von 150 m um den Streifen ganz geladen ist);
   `taktil.ts` liest die taktil-visuellen Markierungen (Felder als Punkte, Linien inkl. Leitlinie auf dem Streifen);

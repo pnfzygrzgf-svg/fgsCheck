@@ -555,3 +555,36 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
 .befund-thema.thema-nicht-geprueft { opacity: 0.55; border: 1px dashed #94a3b8; border-radius: 6px; padding: 2px 8px; background: #f8fafc; }
 .befund-thema.thema-nicht-geprueft > summary { color: #475569; font-style: italic; }
 .befund-thema.thema-nicht-geprueft[open] { opacity: 0.8; }
+
+/* ── Geladene Quellen auf der Karte (seit 01.11.2026, quellenEbenen.ts; wie VeloroutenCheck): Knopf unten links über dem Massstab,
+   Fenster an der Kopfzeile verschiebbar, Legende je Quelle, Wert-Beschriftung ── */
+.q-knopf { position: absolute; left: 10px; bottom: 34px; z-index: 950; border: 2px solid rgba(0,0,0,.2); border-radius: 6px; background: #ffffff;
+  color: var(--text-strong); font-size: 12.5px; font-weight: 600; padding: 5px 10px; min-height: 0; cursor: pointer; }
+.q-knopf:hover { filter: none; background: #f4f4f4; }
+.q-knopf.offen { color: var(--accent); border-color: var(--accent); }
+/* Höhe: unten verankert, darum höchstens bis 10 px unter den oberen Rand (100 % − 72 px unten − 10 px), sonst ragt die Kopfzeile
+   hinaus und das Fenster lässt sich nicht mehr ziehen (Nutzerbefund 01.11.2026) */
+.q-fenster { position: absolute; left: 10px; bottom: 72px; z-index: 1010;   /* über den Leaflet-Knöpfen (1000), damit die Kopfzeile frei bleibt */
+  width: min(330px, calc(100% - 20px)); max-height: calc(100% - 82px);
+  overflow-y: auto; background: #ffffff; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.25); padding: 6px; font-size: 12.5px; }
+.q-kopf { display: flex; justify-content: space-between; align-items: center; font-weight: 700; padding: 2px 6px 6px; cursor: move;
+  user-select: none; touch-action: none; color: var(--text-strong); }
+.q-kopf .griff { color: var(--text-muted); margin-right: 4px; }
+.q-kopf button { border: none; background: none; font-size: 18px; line-height: 1; cursor: pointer; color: var(--text-muted); min-height: 0; padding: 0 4px; }
+.q-ebene { display: flex; gap: 8px; align-items: flex-start; padding: 6px; border-radius: 6px; cursor: pointer; }
+.q-ebene:hover { background: var(--bg); }
+.q-ebene input { margin: 2px 0 0; min-height: 0; accent-color: var(--accent); flex-shrink: 0; }
+.q-ebene small { display: block; color: var(--text-muted); font-size: 11.5px; line-height: 1.3; }
+.q-ebene small.zahl { display: inline; }
+.q-legende { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px; font-size: 11.5px; color: var(--text); }
+.q-legende i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+.q-fuss { margin: 6px 6px 2px; font-size: 11.5px; color: var(--text-muted); }
+.q-wert span { position: absolute; transform: translate(-50%, -50%); background: #ffffff; border: 2px solid; border-radius: 6px;
+  padding: 0 4px; font: 700 11px/16px system-ui, sans-serif; color: #111827; white-space: nowrap; }
+@media (pointer: coarse) { .q-knopf { padding: 9px 12px; } .q-ebene { padding: 9px 6px; } .q-ebene input { width: 18px; height: 18px; } }
+@media (max-width: 700px) { .q-ebene small, .q-legende, .q-fuss { font-size: 12px; } }
+/* Punkte der Quellen: Quadrate mit Zeichen (die Objekte der Prüfung sind Kreise); in der Legende gleich */
+.q-punkt span { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; box-sizing: border-box; border-radius: 4px;
+  border: 2px solid #ffffff; box-shadow: 0 0 0 1px #111827; color: #ffffff; font: 700 11px/1 system-ui, sans-serif; }
+.q-legende i.sym { width: 14px; height: 14px; border-radius: 3px; color: #ffffff; font: 700 9px/14px system-ui, sans-serif; text-align: center;
+  font-style: normal; vertical-align: middle; }

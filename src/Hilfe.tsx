@@ -205,11 +205,16 @@ export function Anleitung() {
             (nur mit Zonenangabe in OSM), in der Stadt Bern der DTV aus den Verkehrsdaten des Geoportals (Strassen ohne Eintrag:
             500 als Annahme) und ein Hinweis zur Beleuchtung nach OSM (das Feld bleibt offen); jede Angabe nennt ihre Herkunft (Geoportal
             Stadt Bern bzw. OSM). In der Stadt Bern lädt die App dafür zusätzlich den Richtplan Fussverkehr, die Strassenhierarchie und
-            Strassentypen, die signalisierte Höchstgeschwindigkeit, Volksschulen und Kindergärten, die taktil-visuellen Markierungen, den
+            Strassentypen, die signalisierte Höchstgeschwindigkeit, Volksschulen und Kindergärten (dazu Kitas als Kindergarten, Kinderangebote als
+            Schule, Heime und Spitäler als Heim), die taktil-visuellen Markierungen, den
             Nutzungszonenplan und die ÖV-Linien aus dem Geoportal, überall aus OSM Schulen, Heime und Vortrittszeichen in der Nähe. Daraus
             belegt sie Tempo, Strecke oder Zone (Tempo 30 ohne Zonenangabe nach der Strassenhierarchie, als Annahme), Strassentyp,
             besonderen Grund für Vortritt, Fusswegnetz, ertastbare Markierungen, Gewerbe und bebautes Gebiet, Linienbus, Tramhalt und an
-            einer Kreuzung die Vortrittsrolle vor; was die Daten nicht klären, bleibt offen. Die Ebene «Richtplan Fussverkehr (Geoportal
+            einer Kreuzung die Vortrittsrolle vor; was die Daten nicht klären, bleibt offen. Der Knopf «Geladene Quellen» unten links auf der
+            Karte zeigt, woraus die Felder vorbelegt sind: je Quelle ein Kästchen (Tempo, Verkehrsmenge, Haltestellen, ÖV-Linien,
+            Strassenhierarchie, Strassentyp, Nutzungszonen, Schulen und Heime, Beleuchtung, Vortrittszeichen, Längsneigung, Brücken), nur
+            Quellen mit Daten, mit Legende; die Maus über einem Objekt nennt Wert und Quelle; das Fenster lässt sich an der Kopfzeile
+            verschieben. Dort steht auch die Ebene «Richtplan Fussverkehr (Geoportal
             Bern)» (in der Stadt Bern, anfangs aus, ab Zoomstufe 15) zeigt das Basisnetz und die publikumsattraktiven Bereiche in Magenta;
             die Maus über einer Linie bzw. Fläche nennt, was es ist. Die Basisnetz-Linie, aus der die App das Fusswegnetz vorbelegt, ist
             dort kräftiger gezeichnet. Bleibt eine Regel dank einer solchen Angabe ohne Befund, nennt die Zeile im Thema den Grund (z. B. «Wenig

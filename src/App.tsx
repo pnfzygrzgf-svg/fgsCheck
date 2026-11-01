@@ -40,6 +40,7 @@ import type { Knotensicht } from './tue/knotensicht'
 import { ladeNeigung } from './knotensicht/daten/hoehen'
 import { hoehenNichtVerfuegbar } from './tue/knotensicht'
 import { kurveProfilLinie, kurveProfilSchluessel, strassenKurve } from './bedarf/kurvenregel'
+import { ebenenAusGeo, type ProfilAnzeige } from './quellenEbenen'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { veloSoll } from './veloSicht'
 import { erkennungAnzeige, gelaendePruefen, gelaendeSchluessel, gelaendeText, type GelaendeStand } from './erkennungGelaende'
@@ -1872,6 +1873,23 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       erkennungGelaende: erkGelaende && erkGelaende.nr === ladeNr.current ? erkGelaende.werte : null,
     }
   }, [daten, bernGeo, streifenBern, av, kurveNeigung, erkGelaende])
+  // «Geladene Quellen» auf der Karte (quellenEbenen.ts, seit 01.11.2026): die gelesenen Objekte der Vorbelegung je Quelle, dazu die
+  // Profile der Längsneigung (Fahrlinien) und die Brücken aus den AV-Einzelobjekten
+  const quellenEbenen = useMemo(() => {
+    if (!daten) return {}
+    const werte = kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : {}
+    const kz = rechnungRoh ? strassenKurve(rechnungRoh.streifen)?.z : undefined
+    const zs = rechnungRoh ? [...(kz ? [kz] : []), ...rechnungRoh.streifen.flatMap(s => s.zufahrten.filter(z => z.velo))] : []
+    const gesehen = new Set<string>()
+    const profile: ProfilAnzeige[] = zs.flatMap(z => {
+      const key = kurveProfilSchluessel(z), m = werte[key]
+      if (!m || gesehen.has(key)) return []
+      gesehen.add(key)
+      return [{ key, linie: kurveProfilLinie(z), i: m.i, laenge: m.laenge, zufahrt: 'Fahrlinie zum Streifen' }]
+    })
+    const bruecken = sosfRoh ? avParsen(sosfRoh).filter(f => f.art === 'Bruecke_Passerelle').map(f => f.ringe[0]).filter(Boolean) : []
+    return ebenenAusGeo(geoVor, geoVor.osm?.wege ?? [], profile, bruecken)
+  }, [daten, geoVor, kurveNeigung, rechnungRoh, sosfRoh])
   // Ebene «Richtplan Fussverkehr (Geoportal Bern)» (30.10.2026): Stand für die Legende; die Richtplan-Daten der Vorbelegung (nur
   // Stadt Bern) nutzt sie mit, und die dort genutzte Basisnetz-Linie zeichnet sie kräftiger
   const [rpStand, setRpStand] = useState<RichtplanStand>({ an: false })
@@ -2097,7 +2115,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
   return (
     <div className="app" style={{ '--panel-breite': `${panelBreite}px` } as CSSProperties}>
-      <Karte mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
+      <Karte quellenEbenen={quellenEbenen} osmTags={geoVor.osmTags ?? null} mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         luftbildKandidaten={lbKandidaten} onLuftbildKandidat={pruefenLuftbild}
         fusswegnetz={fusswegnetz} richtplanVorhanden={richtplanVorhanden} onRichtplan={setRpStand}
         taktilGenutzt={taktilGen} taktilVorhanden={taktilVorhanden} onTaktil={setTkStand}

@@ -143,7 +143,8 @@ describe('Datenschutz aus dem Register', () => {
     expect(t['geodienste.ch']).toBe('Rechteck ±150 m um den Übergang bzw. die geplanten Streifen.')
     expect(t['Overpass']).toContain('Server overpass.osm.ch (Swiss OpenStreetMap Association), bei Störung ersatzweise overpass-api.de')
     expect(t['map.bern.ch']).toBe('Rechteck ±150 m für amtliche Parkfelder, Baumkataster, Haltestellen, Verkehrsdaten, Richtplan Fussverkehr, ' +
-      'Strassenhierarchie und Strassentypen, signalisierte Höchstgeschwindigkeit, Volksschulen und Kindergärten (±200 m), taktil-visuelle ' +
+      'Strassenhierarchie und Strassentypen, signalisierte Höchstgeschwindigkeit, Volksschulen, Kindergärten, Kitas (als Kindergarten), ' +
+      'Kinderangebote (als Schule), Heime und Spitäler (als Heim) (±200 m), taktil-visuelle ' +
       'Markierungen, Nutzungszonen und ÖV-Linien. Die Kartenebene «Richtplan Fussverkehr (Geoportal Bern)» sendet den sichtbaren ' +
       'Kartenausschnitt mit Rand (Rechteck in LV95, je Layer eine Abfrage) nur, wenn sie eingeschaltet ist. Die Kartenebene «Taktile ' +
       'Markierungen (Stadt Bern)» sendet den sichtbaren Kartenausschnitt mit Rand (Rechteck in LV95, je Layer eine Abfrage, zwei Layer) ' +

@@ -24,7 +24,7 @@ import { abstandFlaeche, abstandLinie, flaecheAmPunkt, inFlaeche } from '../date
 import { HIERARCHIE_TEXT, type HierarchieTyp, type StrassenhierarchieDaten, type StrassentypCode, type StrassenKlasse } from '../daten/strassenhierarchie'
 import { istBauzone, type NzFlaeche } from '../daten/nutzungszonen'
 import { TVM_LEITLINIE_STREIFEN, type TaktilDaten, type TvmFeld, type TvmLinie } from '../daten/taktil'
-import type { SchulOrt } from '../daten/schulen'
+import { SCHUL_TEXT, type SchulOrt } from '../daten/schulen'
 
 /** Schwellen des Pakets C (Abschnitt 24 der Regeln; Annahmen ausser wo vermerkt) */
 export const AUTO_C = {
@@ -308,6 +308,12 @@ function grundVorbelegen(x: AutoEingangC): void {
     const n0 = nah(os)[0]
     if (n0) funde.push({ art, text: `${wort} «${n0.o.name}», ${ganz(n0.d)} m (${GEOPORTAL_BERN})`, quelle: 'geoportal' })
   }
+  // Weitere Berner Dienste (Nutzerentscheid 01.11.2026): Kita als Kindergarten, Kinderangebot als Schule, Heim und Spital als Heim;
+  // je Art der nächste, wenn die Art nicht schon belegt ist
+  if (bern?.weitere) for (const art of ['schule', 'kindergarten', 'heim'] as const) {
+    const n0 = nah(bern.weitere.filter(o => o.art === art))[0]
+    if (n0 && !funde.some(f => f.art === art)) funde.push({ art, text: `${n0.o.wort ?? SCHUL_TEXT[art]} «${n0.o.name}», ${ganz(n0.d)} m (${GEOPORTAL_BERN})`, quelle: 'geoportal' })
+  }
   if (osm) for (const { o, d } of nah(osm.orte)) {
     const heim = o.art === 'heim' || (o.art === 'sozial' && /assisted_living/.test(o.tag ?? ''))
     const art: Beduerfnis | null = heim ? 'heim' : o.art === 'schule' || o.art === 'kindergarten' ? o.art : null
@@ -343,6 +349,7 @@ function grundVorbelegen(x: AutoEingangC): void {
   }
   const fehlt: string[] = []
   if (!osm || !abgedeckt(pts, R, osm.bereich)) fehlt.push(`Heime nach OSM nicht im ganzen Umkreis von ${R} m geladen`)
+  if (bern && bern.weitere === null) fehlt.push(`Kitas, Kinderangebote, Heime und Spitäler (${GEOPORTAL_BERN}) nicht geladen`)
   if (!(bern?.volksschulen && bern.kindergaerten && abgedeckt(pts, R, bern.bereich)))
     fehlt.push(`Volksschulen bzw. Kindergärten (${GEOPORTAL_BERN}) nicht im ganzen Umkreis von ${R} m geladen${s.hinweis ? ` (${s.hinweis})` : ''}`)
   if (w['haltestelle.art']?.wert !== 'keine') fehlt.push('Haltestellen im Umkreis von 50 m nicht geklärt')

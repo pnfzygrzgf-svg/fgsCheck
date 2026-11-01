@@ -1,8 +1,12 @@
 // ── Schulen, Kindergärten und Heime im Umkreis für die Vorbelegung (besonderer Grund; Automatik Paket C, 21.10.2026) ──
 //
 // Stadt Bern (Geoportal): Services «Volksschulen» und «Kindergaerten», je Layer 0 (Punkte; Punktname, Rubrik_Desc = «Volksschule»
-// bzw. «Kindergarten»; geprüft 21.10.2026: 58 Volksschulen, 130 Kindergärten im ganzen Dienst). Kindertagesstätten bewusst nicht
-// (Nutzerentscheid). Adressen, Telefon und E-Mail werden nicht abgefragt.
+// bzw. «Kindergarten»; geprüft 21.10.2026: 58 Volksschulen, 130 Kindergärten im ganzen Dienst). Adressen, Telefon und E-Mail werden
+// nicht abgefragt.
+// Seit 01.11.2026 (Nutzerentscheid F7a; vorher Kindertagesstätten bewusst nicht) dazu WEITERE_BERN: Kindertagesstätten (als
+// Kindergarten), Kinderangebote (als Schule), Heime und Spitäler (als Heim; Dienst «stadtplan», Layer 620 bzw. 624, ganzer Kanton,
+// darum nur im Rechteck). Berufs-, Mittel- und Hochschulen zählen nicht (Nutzerentscheid). Felder des Diensts ungeprüft: der Name kommt
+// aus Punktname bzw. punktname (stadtplan klein geschrieben, geprüft 01.11.2026).
 // Überall aus OSM (gleiche Overpass-Abfrage wie das Strassennetz, eigene Menge im Umkreis SCHULEN_OSM_RADIUS_M):
 // amenity=school|kindergarten|social_facility|nursing_home und social_facility=nursing_home|group_home; Flächen (Wege,
 // Relationen) mit ihrem Mittelpunkt. Ausserhalb Berns nur OSM. Nur Daten, keine Regeln.
@@ -24,9 +28,39 @@ export interface SchulOrt {
   umriss?: P[]
   /** Umriss ist nur das Rechteck der Grenzen (out bb), nicht die Fläche selbst: Abstand zum Rand dieses Rechtecks (Runde 4) */
   grenzrechteck?: true
+  /** Geoportal, WEITERE_BERN: Bezeichnung der Art im Text (z. B. «Kindertagesstätte», «Spital») */
+  wort?: string
 }
-/** Volksschulen und Kindergärten der Stadt Bern; null: dieser Layer war nicht erreichbar */
-export interface SchulenBernDaten { volksschulen: SchulOrt[] | null; kindergaerten: SchulOrt[] | null }
+/** Volksschulen und Kindergärten der Stadt Bern; weitere: Kitas, Kinderangebote, Heime, Spitäler (seit 01.11.2026); null: Layer nicht erreichbar */
+export interface SchulenBernDaten { volksschulen: SchulOrt[] | null; kindergaerten: SchulOrt[] | null; weitere?: SchulOrt[] | null }
+
+/** Weitere Berner Dienste (Nutzerentscheid 01.11.2026, F7a): Dienst (Ordner Geoportal bzw. stadtplan), Layer, Art und Bezeichnung */
+export const WEITERE_BERN: readonly { dienst: string; ordner: 'Geoportal' | 'stadtplan'; layer: number; art: SchulArt; wort: string; kurz: string }[] = [
+  { dienst: 'Kindertagesstaetten', ordner: 'Geoportal', layer: 0, art: 'kindergarten', wort: 'Kindertagesstätte', kurz: 'kita' },
+  { dienst: 'Kinderangebote', ordner: 'Geoportal', layer: 0, art: 'schule', wort: 'Kinderangebot', kurz: 'kinder' },
+  { dienst: 'stadtplan', ordner: 'stadtplan', layer: 620, art: 'heim', wort: 'Heim', kurz: 'heim' },
+  { dienst: 'stadtplan', ordner: 'stadtplan', layer: 624, art: 'heim', wort: 'Spital', kurz: 'spital' },
+]
+export const weitereUrl = (w: typeof WEITERE_BERN[number], lat: number, lon: number, radiusM: number) => {
+  const u = arcgisUrl(w.dienst, lat, lon, radiusM, '*', { layer: w.layer })
+  return w.ordner === 'stadtplan' ? u.replace('/Geoportal/stadtplan/', '/stadtplan/') : u
+}
+/** Geoportal-Antwort eines weiteren Diensts -> Orte (Art und Bezeichnung nach WEITERE_BERN) */
+export function weitereAusGeoportal(gj: ArcgisGeoJson, w: typeof WEITERE_BERN[number]): SchulOrt[] {
+  return (gj.features ?? []).flatMap((f, i) => {
+    const p = punktLage(f), pr = f.properties ?? {}
+    return p ? [{ id: featureId(`bern${w.kurz}`, f, i), art: w.art, wort: w.wort, p, quelle: 'geoportal' as const,
+      name: textFeld(pr.Punktname) ?? textFeld(pr.punktname) ?? textFeld(pr.Name) ?? 'ohne Namen' }] : []
+  })
+}
+/** Alle weiteren Dienste parallel; einzelne Ausfälle als Hinweis, alle ausgefallen: null */
+async function ladeWeitere(lat: number, lon: number, radiusM: number, signal?: AbortSignal): Promise<{ orte: SchulOrt[] | null; hinweis: string | null }> {
+  const r = await Promise.allSettled(WEITERE_BERN.map(w => arcgisHolen(weitereUrl(w, lat, lon, radiusM), signal).then(a => weitereAusGeoportal(a.daten, w))))
+  for (const x of r) if (x.status === 'rejected' && (x.reason as Error)?.name === 'AbortError') throw x.reason
+  const ok = r.flatMap(x => (x.status === 'fulfilled' ? [x.value] : []))
+  const fehler = r.flatMap((x, k) => (x.status === 'rejected' ? [`${WEITERE_BERN[k].wort} nicht erreichbar`] : []))
+  return { orte: ok.length ? ok.flat() : null, hinweis: fehler.length ? fehler.join('; ') : null }
+}
 /** Schulen etc. für die Vorbelegung: Geoportal (nur Bern) und OSM, je mit abgedecktem Bereich; hinweis z. B. Ausfall des Geoportals */
 export interface SchulenStand {
   bern: (SchulenBernDaten & { bereich: Bereich }) | null
@@ -53,10 +87,13 @@ export const kindergaertenUrl = (lat: number, lon: number, radiusM: number) => a
 /** Volksschulen und Kindergärten im Rechteck ±radiusM um den Ort (zwei Abfragen) */
 export async function ladeSchulenBern(lat: number, lon: number, radiusM: number, signal?: AbortSignal):
   Promise<Abruf<SchulenBernDaten> & { hinweis: string | null }> {
-  const r = await arcgisPaar(arcgisHolen(volksschulenUrl(lat, lon, radiusM), signal), arcgisHolen(kindergaertenUrl(lat, lon, radiusM), signal),
-    ['Volksschulen', 'Kindergärten'])
+  const [r, weitere] = await Promise.all([
+    arcgisPaar(arcgisHolen(volksschulenUrl(lat, lon, radiusM), signal), arcgisHolen(kindergaertenUrl(lat, lon, radiusM), signal),
+      ['Volksschulen', 'Kindergärten']),
+    ladeWeitere(lat, lon, radiusM, signal)])
+  const hinweis = [r.daten.hinweis, weitere.hinweis].filter(Boolean).join('; ') || null
   return { ...r, daten: { volksschulen: r.daten.a && schulenAusGeoportal(r.daten.a, 'schule'),
-    kindergaerten: r.daten.b && schulenAusGeoportal(r.daten.b, 'kindergarten') }, hinweis: r.daten.hinweis }
+    kindergaerten: r.daten.b && schulenAusGeoportal(r.daten.b, 'kindergarten'), weitere: weitere.orte }, hinweis }
 }
 
 /** Art eines OSM-Objekts nach seinen Tags mit dem belegenden Tag, null = keine Schule, kein Kindergarten, kein Heim */

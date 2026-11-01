@@ -119,7 +119,7 @@ export const QUELLEN: readonly Quelle[] = [
   bernDienst('bern.strassen', ['strassentyp'], 'Strassenhierarchie und Strassentypen', 'Strassenhierarchie und Strassentypen',
     'daten/strassenhierarchie.ts'),
   bernDienst('bern.vsig', ['tempo'], 'Signalisierte Höchstgeschwindigkeit', 'signalisierte Höchstgeschwindigkeit', 'daten/vsig.ts'),
-  bernDienst('bern.schulen', ['schulen'], 'Volksschulen und Kindergärten', 'Volksschulen und Kindergärten (±200 m)', 'daten/schulen.ts'),
+  bernDienst('bern.schulen', ['schulen'], 'Volksschulen, Kindergärten, Kitas, Kinderangebote, Heime, Spitäler', 'Volksschulen, Kindergärten, Kitas (als Kindergarten), Kinderangebote (als Schule), Heime und Spitäler (als Heim) (±200 m)', 'daten/schulen.ts'),
   bernDienst('bern.taktil', ['taktil'], 'Taktil-visuelle Markierungen', 'taktil-visuelle Markierungen', 'daten/taktil.ts'),
   bernDienst('bern.zonen', ['zonen'], 'Nutzungszonenplan', 'Nutzungszonen', 'daten/nutzungszonen.ts'),
   bernDienst('bern.oev', ['oevLinien'], 'ÖV-Linien', 'ÖV-Linien', 'daten/oevLinien.ts'),

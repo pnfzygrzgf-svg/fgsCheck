@@ -326,6 +326,23 @@ describe('Paket C: besonderer Grund (Schulen, Kindergärten, Heime, Haltestelle)
     const beide = vor({ schulen: schulenBern([ort(60, 'schule')], [], [ort(61, 'schule', 'osm', 'amenity=school')]), haltestellen: hst([]) })
     expect(beide.feldHinweise!.beduerfnis).toBeUndefined()
   })
+  it('Weitere Berner Dienste (01.11.2026): Kita als Kindergarten, Kinderangebot als Schule, Spital als Heim; ausgefallen: kein «keines»', () => {
+    const w = (d: number, art: SchulOrt['art'], wort: string): SchulOrt => ({ ...ort(d, art), wort })
+    const mit = (weitere: SchulOrt[] | null): SchulenErgebnis => ({ bern: { volksschulen: [], kindergaerten: [], weitere, bereich: SB }, osm: { orte: [], bereich: SK } })
+    const v = vor({ schulen: mit([w(90, 'kindergarten', 'Kindertagesstätte'), w(120, 'heim', 'Spital'), w(140, 'schule', 'Kinderangebot')]), haltestellen: hst([]) })
+    expect(v.werte.beduerfnis).toMatchObject({ wert: ['schule', 'kindergarten', 'heim'], quelle: 'geoportal' })
+    expect(v.werte.beduerfnis.text).toContain('Kindertagesstätte «Beispiel», 90 m (Geoportal Stadt Bern)')
+    expect(v.werte.beduerfnis.text).toContain('Spital «Beispiel», 120 m')
+    // Volksschule geht vor dem Kinderangebot
+    const vs = vor({ schulen: { bern: { volksschulen: [ort(100, 'schule')], kindergaerten: [], weitere: [w(50, 'schule', 'Kinderangebot')], bereich: SB },
+      osm: { orte: [], bereich: SK } }, haltestellen: hst([]) })
+    expect(vs.werte.beduerfnis.text).toContain('Volksschule')
+    expect(vs.werte.beduerfnis.text).not.toContain('Kinderangebot')
+    // weitere Dienste nicht erreichbar: kein «keines» als Annahme
+    const aus = vor({ schulen: mit(null), haltestellen: hst([]) })
+    expect(aus.werte.beduerfnis).toBeUndefined()
+    expect(aus.feldHinweise!.beduerfnis).toContain('Kitas, Kinderangebote, Heime und Spitäler')
+  })
   it('«keines» nur mit ganz geladenem Umkreis und geklärten Haltestellen; Ausfall des Geoportals: offen mit Hinweis', () => {
     const k = (geo: GeoVorbelegung) => vor(geo).werte.beduerfnis
     // Korrektur S5: ausserhalb Berns kein «keines» aus OSM allein, nur Hinweis
