@@ -1,4 +1,4 @@
-// Tests Querung an einer Einmündung (Nutzerentscheid 30.10.2026): mündet die gequerte Strasse unmittelbar an der Querung in eine
+// Tests Querung an einer Einmündung: mündet die gequerte Strasse unmittelbar an der Querung in eine
 // andere, gilt für die Gegenseite einer Querung ohne Vortritt (bzw. in der Begegnungszone) genau eine Zufahrt entlang der gequerten
 // Strasse bis zum nächsten Knoten (Annahme der App, Normwert sichtbar); die Abbieger an jenem Knoten entfallen («mitgeprueft»).
 // Künstliche Strassen (keine echten Daten): Hauptstrasse West–Ost (y = 0), Seitenstrasse Nord–Süd (x = 0) mündet von Süden ein,

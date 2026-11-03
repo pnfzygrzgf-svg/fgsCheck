@@ -1,4 +1,4 @@
-// ── Flächen (Plan): geplante Bodenbedeckung von Hand mit der AV verschneiden (Nutzerentscheid 16.10.2026) ──
+// ── Flächen (Plan): geplante Bodenbedeckung von Hand mit der AV verschneiden ──
 //
 // Für die Planung neuer Trottoirränder (Trottoirnase, Fahrbahnverengung, verschobener Randstein, neue Insel) zeichnet man
 // Flächen (Plan) mit der Art Trottoir, Fahrbahn bzw. Insel (Fall.flaechenPlan). Vor dem Aufbau des Kontexts (index.rechneFall)
@@ -172,7 +172,7 @@ export function planAlsAv(plan: FlaechePlan[] | undefined, ohneId: string | null
     ringe: [x.ring], planId: x.id }))
 }
 
-// ---------------------------------------------------------------- Ecke runden (Nutzerentscheid 20.10.2026)
+// ---------------------------------------------------------------- Ecke runden
 // Eine fast gerade gezeichnete Ecke einer Fläche (Plan) (Abschrägung mit wenigen Punkten) liest der Eckradius als sehr grossen
 // Bogen (abbiegen.ts: über ECK_GROSS_M gilt eine Ecke nach Plan-Fläche als unplausibel, der Abbiegeradius wird geschätzt). Mit
 // «Ecke runden» ersetzt die App eine Ecke durch einen Kreisbogen mit dem geplanten Radius R, tangential an beide Kanten:
@@ -185,8 +185,8 @@ export function planAlsAv(plan: FlaechePlan[] | undefined, ohneId: string | null
 // - Ist t länger als eine der beiden Kanten, passt der Bogen nicht: die Fläche bleibt unverändert, Meldung mit dem grössten
 //   möglichen Radius. Nicht auf die kürzere Kante begrenzt: der Radius ist die geplante Grösse; ein still verkleinerter Radius
 //   ergäbe eine andere Fahrlinie und Sichtweite, als eingegeben (Nutzer wählt: kleinerer Radius bzw. Nachbarecke verschieben).
-// - Schneidet der Bogen eine andere Kante der Fläche (z. B. schmale Fläche, gegenüberliegender Rand näher als der Bogen;
-//   Prüfbefund 20.10.2026), wird ebenfalls nicht gerundet: der Ring hätte mehr Selbstüberschneidungen als vorher.
+// - Schneidet der Bogen eine andere Kante der Fläche (z. B. schmale Fläche, gegenüberliegender Rand näher als der Bogen),
+//   wird ebenfalls nicht gerundet: der Ring hätte mehr Selbstüberschneidungen als vorher.
 // - Gespeichert wird nur die Geometrie (Fall-Datei unverändert im Format); der Radius steht danach nicht mehr in der Datei, der
 //   Eckradius liest ihn aus dem Bogen.
 /** Bordkantenradius, ab dem eine Ecke als gross gilt (abbiegen.ts): AV-Ecke «prüfen», Ecke nach Plan-Fläche unplausibel (geschätzt) */

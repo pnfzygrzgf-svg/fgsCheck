@@ -51,7 +51,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
   const erfuelltGrund: Record<string, string> = {}
   const ebeneAus: string[] = []
   /** Regel einer ausgeschalteten Ebene: wäre sie mit eingeschalteter Ebene anwendbar? (Schattenrechnung ohne Wirkung auf den Befund;
-   * Korrektur S6: nur dann «nicht geprüft (Ebene ausgeschaltet)») */
+   * Nur dann «nicht geprüft (Ebene ausgeschaltet)») */
   const wuerdeGelten = (id: BefundId): boolean => {
     const ks = new Kontext(e, { Recht: true, Norm: true, Bern: true, 'Kanton BE': true, Richtlinie: true })
     for (const [a, b] of k.ergebnisse) ks.ergebnisse.set(a, b)
@@ -90,7 +90,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
       fehlend = x.felder
       k.offenFelder.set(id, fehlend)
     }
-    // Korrektur M2: ein hartes Verbot, das nur mit Tatsachen gilt, beruht hier auf einer Annahme bzw. Schätzung → offen, bis sie
+    // Ein hartes Verbot, das nur mit Tatsachen gilt, beruht hier auf einer Annahme bzw. Schätzung → offen, bis sie
     // bestätigt ist («Vorschlag bestätigen» macht den Wert zur Handeingabe mit Quelle «bestätigt»)
     let bestaetigen = false
     // Trottoirüberfahrt (27.10.2026): heutiger Zustand nach OSM als «Vorschlag» gilt für die Planung erst bestätigt; die dazu neu
@@ -188,15 +188,15 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
 
     // 3. C Zulässigkeit
     // Bei einer beurteilten Trottoirüberfahrt regelt 40 242 Z. 15 Zone und Verkehrsmenge: C und E laufen dann stumm, nur für
-    // die Empfehlung einer Alternative (Korrektur N1); mit «Alternative Fussgängerstreifen prüfen» sichtbar (27.10.2026)
+    // die Empfehlung einer Alternative; mit «Alternative Fussgängerstreifen prüfen» sichtbar (27.10.2026)
     const mzsFgs = typ === 'mehrzweck' && k.o('mzsMitFgs') === true
     if (!altEnde) {
       reihe(['C1', 'C2', 'C2b', 'C2-B', 'C3', 'C3b', 'C3c', 'C4', 'C4-B'], still)
-      // C3/C4 (weich) verletzt: zulässig nur mit Begründung, Querung ohne Vortritt als Alternative (Korrektur S2)
+      // C3/C4 (weich) verletzt: zulässig nur mit Begründung, Querung ohne Vortritt als Alternative
       zul = k.hat('C1') || k.hat('C2') ? 'nicht_angezeigt'
         : k.istOffen('C1') || k.istOffen('C2') || k.istOffen('A2') ? 'offen'
           : ['C2b', 'C3', 'C3b', 'C4'].some(id => k.hat(id)) ? 'mit_begruendung' : 'zulaessig'
-      // Runde 5 (F8): nur die verletzten Regeln als Grund
+      // Nur die verletzten Regeln als Grund
       if (!tue && zul !== 'nicht_angezeigt' && (k.hat('C3') || k.hat('C4')))
         empf.zusatz.push(`Querung ohne Vortritt prüfen (${['C3', 'C4'].filter(id => k.hat(id)).join(', ')})`)
 
@@ -235,7 +235,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     reihe(['D5-1', 'D5-2', 'D5-3', 'D5-4', 'D5-5', 'D5-6'], still)
     if (!altEnde) empfehlen(k, zul!, empf)
 
-    // Q3: Befunde nur für eine beurteilte Trottoirüberfahrt; an einer Einmündung sonst stumm als Option (Korrektur M2)
+    // Q3: Befunde nur für eine beurteilte Trottoirüberfahrt; an einer Einmündung sonst stumm als Option
     if (k.o('lage') === 'einmuendung' || typ === 'trottoirueberfahrt') {
       if (tue) pruefe('Q3-4')
       if (k.o('q3') === null) {
@@ -267,11 +267,11 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     if (still) empf.zusatz = empf.zusatz.filter(z => z.startsWith('Trottoirüberfahrt'))
     // Block I (LSA-Zeiten) gestrichen 30.10.2026: Signalzeiten gehören in einen eigenen Rechner; kein «nicht geprüft» mehr
 
-    // Runde 4 (Kann): Begegnungszone offen (A2 offen, z. B. nur angenommen): keine Empfehlung eines Typs, bis die Zone geklärt ist
+    // Begegnungszone offen (A2 offen, z. B. nur angenommen): keine Empfehlung eines Typs, bis die Zone geklärt ist
     // (in der Begegnungszone gilt flächiges Queren, sonst ein Typ nach C bis E); Trottoirüberfahrt unverändert
     if (!tue && k.istOffen('A2')) Object.assign(empf, { typ: 'keiner', elemente: [], grundlage: [] })
 
-    // Vorbehalt: harte Regel offen (Korrektur S2): aus C oder D, bei einer Trottoirüberfahrt aus Q3
+    // Vorbehalt: harte Regel offen: aus C oder D, bei einer Trottoirüberfahrt aus Q3
     const hartOffen = (id: string): boolean => k.istOffen(id) && ['hart', 'hart_bericht'].includes(KATALOG[id as RegelId].staerke ?? '')
     empf.offenWegen.push(...ausgewertet.filter(id => (tue ? id.startsWith('Q3') : id.startsWith('C') || id.startsWith('D')) && hartOffen(id)))
     empf.vorlaeufig = (!tue && zul === 'offen') || empf.offenWegen.length > 0 || (tue && k.o('q3') === null)
@@ -311,7 +311,7 @@ const Q3_IDS: BefundId[] = ['Q3-1', 'Q3-2', 'Q3-3', 'Q3-5', 'Q3-6', 'Q3-7', 'Q3-
 const Q3_IDS_TUE: BefundId[] = ['Q3-1', 'Q3-2', 'Q3-3', 'Q3-5', 'Q3-6', 'Q3-7', 'Q3-8', 'Q3-9', 'Q3-10', 'Q3-11', 'Q3-12',
   'Q3-M1', 'Q3-M2', 'Q3-M9', 'Q3-M3', 'Q3-M4', 'Q3-M5', 'Q3-M6', 'Q3-M7', 'Q3-M8', 'Q3-B']
 
-/** offene Einträge nach fehlendem Feld (Korrektur S6) */
+/** offene Einträge nach fehlendem Feld */
 function gruppen(alle: Eintrag[]): Befund['offenGruppen'] {
   const m = new Map<string, string[]>()
   for (const x of alle) if (x.zustand === 'offen') for (const f of x.fehlend ?? []) if (!(m.get(f) ?? []).includes(x.id)) m.set(f, [...(m.get(f) ?? []), x.id])

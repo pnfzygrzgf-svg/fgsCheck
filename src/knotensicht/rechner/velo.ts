@@ -9,7 +9,7 @@
 // Tab. 3 nach der zulässigen Höchstgeschwindigkeit (bis 30 km/h bzw. darüber) und der Längsneigung in Fahrtrichtung des Velos
 // (Spalten ≤ −4, −2, 0, > 0 %, je bis zur Spaltenzahl gerechnet: −4 < i ≤ −2 -> «−2», −2 < i ≤ 0 -> «0»); schnelle E-Bikes verboten
 // (nur über 30 km/h): talwärts (Spalten ≤ −4 und −2) 35 m, eben 30 m, bergwärts (> 0) 25 m.
-// Neigung unbekannt (kein Höhenprofil, nicht von Hand; Entscheid 31.10.2026): strengster Wert, Tab. 3 Spalte ≤ −4 bzw. Tab. 2
+// Neigung unbekannt (kein Höhenprofil, nicht von Hand): strengster Wert, Tab. 3 Spalte ≤ −4 bzw. Tab. 2
 // Spalte ≤ −6.
 // Trottoir: Tab. 2 nach der Längsneigung des Trottoirs in Gehrichtung auf die Zufahrt zu (Spalten ≤ −6, −4, −2, ≥ 0 %; Zwischenwerte
 // zur Spalte talwärts daneben: −6 < i ≤ −4 -> «−4», −4 < i < 0 -> «−2»). Die Richtung der Neigung (in Gehrichtung auf die Zufahrt zu,
@@ -62,7 +62,7 @@ export function tab3Spalte(i: number): 0 | 1 | 2 | 3 {
 
 export interface VeloSichtweite { A: number; spalte: number; zeile: 'bis30' | 'ueber30'; ebike: boolean; text: string }
 
-/** Zusatz im Text, wenn die Neigung unbekannt ist (Entscheid 31.10.2026) */
+/** Zusatz im Text, wenn die Neigung unbekannt ist */
 export const NEIGUNG_UNBEKANNT_TEXT = 'Neigung unbekannt: strengster Wert'
 
 /** erforderliche Knotensichtweite A für den Veloverkehr nach Tab. 3: zulässige Höchstgeschwindigkeit [km/h], Längsneigung [%],

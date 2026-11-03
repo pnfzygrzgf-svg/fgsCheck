@@ -1,12 +1,12 @@
-// ── Bedarfsmodul: Automatik Paket C (21.10.2026) ──
+// ── Bedarfsmodul: Automatik (21.10.2026) ──
 //
 // Vorbelegung aus den weiteren Diensten des Geoportals Stadt Bern (Richtplan Fussverkehr, Strassenhierarchie und Strassentypen,
 // signalisierte Höchstgeschwindigkeit, Volksschulen und Kindergärten, taktil-visuelle Markierungen, Nutzungszonen, ÖV-Linien) und
-// aus OSM (Schulen, Kindergärten, Heime). Daten in daten/*.ts, Geometrie-Hilfen in daten/geoHilfen.ts. Wie Paket A + B: jeder Wert
+// aus OSM (Schulen, Kindergärten, Heime). Daten in daten/*.ts, Geometrie-Hilfen in daten/geoHilfen.ts. Wie bei der übrigen Automatik: jeder Wert
 // trägt Quelle und Herkunft als Text, Annahmen die Quelle «annahme» (im Befund unter «Annahmen»); fehlen Daten, ist ein Dienst
 // ausgefallen oder deckt der geladene Ausschnitt den Umkreis nicht, bleibt das Feld offen (mit Hinweis, wo er weiterhilft). Eine
-// Handeingabe überschreibt jeden Wert. Die Geoportal-Quelle hat Vorrang vor OSM-Annahmen. Schwellen in AUTO_C (Nutzerentscheide
-// 21.10.2026, Abschnitt 24 der Regeln).
+// Handeingabe überschreibt jeden Wert. Die Geoportal-Quelle hat Vorrang vor OSM-Annahmen. Schwellen in AUTO_C
+// (Abschnitt 24 der Regeln).
 //
 // Ablauf in vorbelegung.vorbelegen: vsigVorbelegen und zoneNachVsig nach den OSM-Tags (vor «Strecke aus dem Tempo»), danach
 // tempoAusHierarchie; strassentypBern geht als geo.strassentyp an die Automatik (B6); automatikC am Schluss. Die Vortrittsrolle an
@@ -28,13 +28,13 @@ import { SCHUL_TEXT, type SchulOrt } from '../daten/schulen'
 
 /** Schwellen des Pakets C (Abschnitt 24 der Regeln; Annahmen ausser wo vermerkt) */
 export const AUTO_C = {
-  /** Schule, Kindergarten, Heim bis hier vom Streifen: besonderer Grund für Vortritt (Nutzerentscheid) */
+  /** Schule, Kindergarten, Heim bis hier vom Streifen: besonderer Grund für Vortritt */
   grundM: 150,
-  /** Basisnetz-Linie quert die Fahrbahn bis hier vom Streifen: Querung im Basisnetz (Nutzerentscheid) */
+  /** Basisnetz-Linie quert die Fahrbahn bis hier vom Streifen: Querung im Basisnetz */
   netzM: 15,
   /** Gehlinie (wunschlinieM) nur bis hier */
   wunschM: 30,
-  /** taktil-visuelles Feld bis hier von einem Streifenende (Nutzerentscheid) */
+  /** taktil-visuelles Feld bis hier von einem Streifenende */
   taktilM: 3,
   /** Leitlinie auf dem Streifen: Linie bis hier vom Streifenumriss (Lagegenauigkeit) */
   leitlinieM: 0.5,
@@ -114,7 +114,7 @@ export function querAbstand(teile: readonly P[][], a: Achse, maxM: number): numb
   return best
 }
 
-/** Abstand eines Orts (Schule, Heim) zum Streifen: Punkt bzw. Fläche (Umriss, 0 innerhalb; Korrektur S9) */
+/** Abstand eines Orts (Schule, Heim) zum Streifen: Punkt bzw. Fläche (Umriss, 0 innerhalb) */
 export function abstandOrt(o: SchulOrt, st: StreifenErgebnis[]): number {
   if (!o.umriss || o.umriss.length < 3) return abstandQuerung(o.p, st)
   const ecken = st.flatMap(eckenVon)
@@ -123,7 +123,7 @@ export function abstandOrt(o: SchulOrt, st: StreifenErgebnis[]): number {
 }
 
 /**
- * Abstand eines Orts als Text (Runde 4): bei einer OSM-Fläche, deren Umriss nur das Rechteck ihrer Grenzen ist, mit «Rand des Areals,
+ * Abstand eines Orts als Text: bei einer OSM-Fläche, deren Umriss nur das Rechteck ihrer Grenzen ist, mit «Rand des Areals,
  * Grenzrechteck» (das Rechteck kann grösser sein als das Areal), innerhalb «im Areal»; sonst «N m»
  */
 export function ortAbstandText(o: SchulOrt, d: number): string {
@@ -132,7 +132,7 @@ export function ortAbstandText(o: SchulOrt, d: number): string {
 }
 
 /**
- * Name eines Abschnitts des Geoportals im Text (Runde 5, F3): die Linien stammen aus dem Achsschnitt mit der Querungsachse (gequerter
+ * Name eines Abschnitts des Geoportals im Text: die Linien stammen aus dem Achsschnitt mit der Querungsachse (gequerter
  * Abschnitt). Heisst er im Geoportal anders als die gequerte Strasse in OSM, nennt der Text beide, damit kein falscher Eindruck entsteht.
  */
 export function abschnittName(ls: readonly { strasse: string }[], st: StreifenErgebnis[]): string {
@@ -164,7 +164,7 @@ export function vsigVorbelegen(st: StreifenErgebnis[], vsig: GeoVorbelegung['vsi
   const v = werte[werte.length - 1]
   let text = `Tempo ${v} km/h${abschnittName(ls, st)} (${GEOPORTAL_BERN}, signalisierte Höchstgeschwindigkeit)` +
     (werte.length > 1 ? `; Grenze zweier Abschnitte (${werte.join(' bzw. ')} km/h): höherer Wert` : '')
-  // Tempo des Amts für Umwelt weicht ab (Korrektur nach Prüfung Runde 5): nur Hinweis «Tempo prüfen»
+  // Tempo des Amts für Umwelt weicht ab: nur Hinweis «Tempo prüfen»
   const afu = uniq(ls.filter(l => l.vSig !== null && l.vAfu != null && l.vAfu !== l.vSig).map(l => l.vAfu!))
   if (afu.length) {
     text += `; Amt für Umwelt: ${afu.join(' bzw. ')} km/h, Tempo prüfen`
@@ -176,7 +176,7 @@ export function vsigVorbelegen(st: StreifenErgebnis[], vsig: GeoVorbelegung['vsi
     return
   }
   if (alt && alt.wert !== v) {
-    // Runde 5 (Nutzerentscheid 21.10.2026): der Sichtrechner rechnet in Bern selbst mit V_sig; eine Abweichung bleibt nur, wo die
+    // Der Sichtrechner rechnet in Bern selbst mit V_sig; eine Abweichung bleibt nur, wo die
     // Linien entlang der Zufahrten ein anderes Tempo tragen als über der Querung bzw. wo sie fehlen
     text += `; Sichtrechner ${alt.wert} km/h (${alt.quelle === 'geoportal' ? 'Geoportal entlang der Zufahrten' : 'OSM bzw. Annahme'})`
     hinweise.push(`Signalisiertes Tempo über der Querung ${v} km/h (${GEOPORTAL_BERN}), der Sichtrechner rechnet entlang der Zufahrten mit ` +
@@ -223,7 +223,7 @@ const typText = (h: HierarchieAnQuerung) => (h.codes.length ? `Strassentyp ${h.c
 const hierText = (h: HierarchieAnQuerung) => `${h.typen.map(x => HIERARCHIE_TEXT[x]).join(' bzw. ')}${h.namen ? (h.namen.startsWith('auf ') ? ` ${h.namen}` : ` (${h.namen})`) : ''}`
 
 /**
- * Tempo 30 ohne Zonenangabe in OSM (Nutzerentscheid 21.10.2026), als Annahme: Quartierstrasse (auch ergänzend) Tempo-30-Zone,
+ * Tempo 30 ohne Zonenangabe in OSM, als Annahme: Quartierstrasse (auch ergänzend) Tempo-30-Zone,
  * Basisnetz Strecke; Quartierverbindungsstrasse bzw. uneinheitlich: offen, Rückgabe = Hinweis. Strassentyp SS_30 stützt die Zone.
  */
 export function tempoAusHierarchie(st: StreifenErgebnis[], geo: GeoVorbelegung, w: Vorbelegung, setze: Setze): string {
@@ -245,7 +245,7 @@ export function tempoAusHierarchie(st: StreifenErgebnis[], geo: GeoVorbelegung, 
 }
 
 /**
- * Strassentyp in Bern (Nutzerentscheid 21.10.2026): Basisnetz verkehrsorientiert, Quartierstrasse (auch ergänzend)
+ * Strassentyp in Bern: Basisnetz verkehrsorientiert, Quartierstrasse (auch ergänzend)
  * siedlungsorientiert, Quartierverbindungsstrasse offen; Strassentypen HVS/VS stützen verkehrs-, SS siedlungsorientiert,
  * Widerspruch: offen. Rückgabe für AutoGeo.strassentyp (Vorrang vor OSM); wert null mit Text: offen mit Hinweis; null ohne Daten.
  */
@@ -285,11 +285,11 @@ export function automatikC(x: AutoEingangC): void {
 }
 
 /**
- * Besonderer Grund für Vortritt (Nutzerentscheid 21.10.2026): Volksschule bzw. Kindergarten (Geoportal, Tatsache) bis 150 m; Heim
+ * Besonderer Grund für Vortritt: Volksschule bzw. Kindergarten (Geoportal, Tatsache) bis 150 m; Heim
  * nach OSM (nursing_home, group_home, assisted_living) bis 150 m (Annahme); Haltestelle bis 50 m (vorbelegung, Tatsache); Schule bzw.
  * Kindergarten nach OSM: in Bern ohne Treffer im Geoportal nur Hinweis, ausserhalb Berns Annahme. Nichts im ganz geladenen Umkreis
- * (Haltestellen inbegriffen): in Bern «keines» als Annahme, ausserhalb Berns offen mit Hinweis (Korrektur S5). Flächen (OSM) zählen
- * nach ihrem Umriss (Korrektur S9). Schulweg bleibt Handeingabe.
+ * (Haltestellen inbegriffen): in Bern «keines» als Annahme, ausserhalb Berns offen mit Hinweis. Flächen (OSM) zählen
+ * nach ihrem Umriss. Schulweg bleibt Handeingabe.
  */
 function grundVorbelegen(x: AutoEingangC): void {
   const { st, geo, w, setze, feldHinweis } = x
@@ -308,7 +308,7 @@ function grundVorbelegen(x: AutoEingangC): void {
     const n0 = nah(os)[0]
     if (n0) funde.push({ art, text: `${wort} «${n0.o.name}», ${ganz(n0.d)} m (${GEOPORTAL_BERN})`, quelle: 'geoportal' })
   }
-  // Weitere Berner Dienste (Nutzerentscheid 01.11.2026): Kita als Kindergarten, Kinderangebot als Schule, Heim und Spital als Heim;
+  // Weitere Berner Dienste: Kita als Kindergarten, Kinderangebot als Schule, Heim und Spital als Heim;
   // je Art der nächste, wenn die Art nicht schon belegt ist
   if (bern?.weitere) for (const art of ['schule', 'kindergarten', 'heim'] as const) {
     const n0 = nah(bern.weitere.filter(o => o.art === art))[0]
@@ -332,7 +332,7 @@ function grundVorbelegen(x: AutoEingangC): void {
     const werte = ORDNUNG.filter(a => funde.some(f => f.art === a) || (a === 'haltestelle' && halt))
     // Quelle: eine Tatsache genügt für «Grund vorhanden» (die Regeln fragen nur danach); nur Annahmen: Annahme
     const fakten = [...funde.filter(f => f.quelle !== 'annahme').map(f => f.quelle), ...(halt ? [halt.quelle] : [])]
-    const quelle: Quelle = fakten.includes('geoportal') ? 'geoportal' : fakten[0] ?? 'annahme'
+    const quelle: Quelle = halt?.quelle === 'vorschlag' ? 'vorschlag' : fakten.includes('geoportal') ? 'geoportal' : fakten[0] ?? 'annahme'
     const teile = [...ORDNUNG.flatMap(a => funde.filter(f => f.art === a).map(f => f.text)),
       ...(halt ? [halt.text.replace(/: Haltestelle an der Querung als Grund für Vortritt$/, '')] : [])]
     setze('beduerfnis', werte, quelle, `${teile.join('; ')}: Grund für Vortritt`)
@@ -341,7 +341,7 @@ function grundVorbelegen(x: AutoEingangC): void {
   }
   if (halt) { if (hinweisText) feldHinweis('beduerfnis', hinweisText); return }
   if (hinweisText) { feldHinweis('beduerfnis', `${hinweisText}: besonderen Grund von Hand wählen`); return }
-  // Korrektur S5 (Nutzerentscheid): ausserhalb Berns kein «keines» aus OSM allein, nur Treffer
+  // Ausserhalb Berns kein «keines» aus OSM allein, nur Treffer
   if (!inBern) {
     if (osm && abgedeckt(pts, R, osm.bereich)) feldHinweis('beduerfnis', `nichts in OSM im Umkreis von ${R} m (keine Schule, kein ` +
       'Kindergarten, kein Heim); OSM ist unvollständig: besonderen Grund von Hand wählen')
@@ -358,10 +358,10 @@ function grundVorbelegen(x: AutoEingangC): void {
 }
 
 /**
- * Fusswegnetz aus dem Richtplan Fussverkehr (Nutzerentscheid 21.10.2026): Basisnetz-Linie quert die Fahrbahn bis 15 m vom Streifen:
+ * Fusswegnetz aus dem Richtplan Fussverkehr: Basisnetz-Linie quert die Fahrbahn bis 15 m vom Streifen:
  * Basisnetz; Streifen in einem publikumsattraktiven Bereich: publikumsintensiv (geht vor); beides Netzplanung (netzQualifiziert ja);
- * Nachfrage gebündelt (Annahme) nur beim Basisnetz-Treffer (Korrektur S4); kein Treffer: offen mit Hinweis (Feinverteiler nicht
- * kartiert). Gehlinie: Abstand zur Basisnetz-Linie bis 15 m (Annahme), bis 30 m nur Hinweis (Korrektur S8).
+ * Nachfrage gebündelt (Annahme) nur beim Basisnetz-Treffer; kein Treffer: offen mit Hinweis (Feinverteiler nicht
+ * kartiert). Gehlinie: Abstand zur Basisnetz-Linie bis 15 m (Annahme), bis 30 m nur Hinweis.
  */
 function netzVorbelegen(x: AutoEingangC): boolean {
   const { st, geo, setze, feldHinweis } = x
@@ -384,7 +384,7 @@ function netzVorbelegen(x: AutoEingangC): boolean {
     const basisText = basis ? `Basisnetz Fussweg bestehend: Linie quert die Fahrbahn ${wo(d!)}` : ''
     const kat = pub ? `publikumsattraktiver Bereich${pubF!.name ? ` «${pubF!.name}»` : ''}${basis ? `; zudem ${basisText}` : ''}` : basisText
     setze('netzQualifiziert', true, 'geoportal', `${kat} (${quelle})`)
-    // Korrektur S4 (Nutzerentscheid): gebündelt nur bei einem Basisnetz-Treffer; im publikumsattraktiven Bereich bleibt die Nachfrage
+    // Gebündelt nur bei einem Basisnetz-Treffer; im publikumsattraktiven Bereich bleibt die Nachfrage
     // offen (dort ist verteiltes Queren möglich)
     if (basis) setze('nachfrage', 'punktuell', 'annahme', 'Basisnetz-Linie quert die Fahrbahn an der Querung: gebündelte Nachfrage angenommen')
     else feldHinweis('nachfrage', 'publikumsattraktiver Bereich (Richtplan Fussverkehr): gebündelt oder verteilt von Hand wählen')
@@ -393,19 +393,18 @@ function netzVorbelegen(x: AutoEingangC): boolean {
     feldHinweis('netz', t)
     feldHinweis('netzQualifiziert', t)
   } else feldHinweis('netz', `Richtplan Fussverkehr teilweise nicht erreichbar${rp.hinweis ? ` (${rp.hinweis})` : ''}`)
-  // Korrektur S8: Gehlinie nur bis 15 m (Basisnetz-Treffer); darüber nur Hinweis
-  // Runde 5 (F6): die Basisnetz-Linie ist eine schematische Netzlinie; daraus nur ein Hinweis, kein Wert (kein Befund G3 aus einer Annahme)
+  // Gehlinie nur bis 15 m (Basisnetz-Treffer); darüber nur Hinweis
+  // Die Basisnetz-Linie ist eine schematische Netzlinie; daraus nur ein Hinweis, kein Wert (kein Befund G3 aus einer Annahme)
   if (d !== null) feldHinweis('wunschlinieM', `die schematische Basisnetz-Linie quert die Fahrbahn ${wo(d)} (${quelle}): Abstand zur Gehlinie ` +
     'vor Ort schätzen')
   return basis
 }
 
 /**
- * Fusswegnetz als besonderer Grund (Runde 5, Stelle 10; Masterplan Fussverkehr Bern, C2-B): quert eine Basisnetz-Linie die Fahrbahn
+ * Fusswegnetz als besonderer Grund (Masterplan Fussverkehr Bern, C2-B): quert eine Basisnetz-Linie die Fahrbahn
  * an der Querung (Geoportal; der publikumsattraktive Bereich allein genügt nicht), kommt «Fusswegnetz (Bern)» zum besonderen Grund hinzu
  * (ohne andere Funde: einziger Grund als Annahme, bestätigbar; ein «keines» aus der Vorbelegung wird ersetzt). Es zählt nur mit der
- * Ebene Bern (Kontext.bed). Eine Handeingabe geht vor.
- */
+ * Ebene Bern (Kontext.bed). Eine Handeingabe geht vor. */
 function fusswegnetzGrund(x: AutoEingangC): void {
   const { w, setze, feldHinweisWeg } = x
   const satz = `Basisnetz (Richtplan Fussverkehr, ${GEOPORTAL_BERN}): Bern: Zugehörigkeit zum Fusswegnetz gilt als Begründung`
@@ -420,7 +419,7 @@ function fusswegnetzGrund(x: AutoEingangC): void {
 }
 
 /**
- * Taktil-visuelle Markierungen (Nutzerentscheid 21.10.2026): Feld (Codes 1001–1005) bis 3 m von einem Streifenende: ja (Geoportal);
+ * Taktil-visuelle Markierungen: Feld (Codes 1001–1005) bis 3 m von einem Streifenende: ja (Geoportal);
  * Felder geladen, keines: nein (Annahme). Leitlinie auf dem Streifen (Code 1003) schneidet den Streifen: ja (Geoportal); Linien
  * geladen, keine: nein (Annahme). Das OSM-Tag tactile_paving bleibt ein Hinweis (automatik.ts).
  */
@@ -469,7 +468,7 @@ export function taktilTreffer(st: StreifenErgebnis[], t: TaktilDaten & { bereich
 }
 
 /**
- * Nutzungszonen (Nutzerentscheid 21.10.2026): Proben auf der Achse und hinter den Bordkanten; Industrie- und Gewerbezone (1004) bzw.
+ * Nutzungszonen: Proben auf der Achse und hinter den Bordkanten; Industrie- und Gewerbezone (1004) bzw.
  * Gewerbegebiet Matte (1018): Gewerbe ja, sonst nein (Geoportal, nur mit Zone an einer Probe); Bauzone: bebautes Gebiet (Annahme),
  * stützt innerorts (Text).
  */
@@ -494,17 +493,17 @@ function zonenVorbelegen(x: AutoEingangC): void {
     setze('q3.bebaut', true, 'annahme', `Bauzone am Streifen (${name(bau)}, ${quelle}): bebautes Gebiet angenommen`)
     const io = w.innerorts
     if (io?.wert === true && io.quelle === 'annahme') setze('innerorts', true, 'annahme', `${io.text}; Bauzone laut Nutzungszonenplan stützt das`)
-    // Runde 5 (F1): ohne Wert aus Tempo bzw. OSM (z. B. nur Abbieger): innerorts aus der Bauzone als Annahme
+    // Ohne Wert aus Tempo bzw. OSM (z. B. nur Abbieger): innerorts aus der Bauzone als Annahme
     else if (!io) setze('innerorts', true, 'annahme', `Bauzone am Streifen (${name(bau)}, Nutzungszonenplan): innerorts angenommen`)
   } else feldHinweis('q3.bebaut', `keine Bauzone am Streifen (${namen}; ${quelle}): von Hand wählen`)
 }
 
 /**
- * ÖV-Linien (Nutzerentscheid 21.10.2026): Bus- bzw. Trolleybuslinie längs der gequerten Strasse (Seitenstrasse an der Einmündung):
+ * ÖV-Linien: Bus- bzw. Trolleybuslinie längs der gequerten Strasse (Seitenstrasse an der Einmündung):
  * Linienbus ja, sonst nein (Geoportal). Haltestellen des Geoportals (ohne Bus/Tram): Halt bis 30 m mit Tramlinie bis 15 m am
  * Haltepunkt: Tramhaltestellenbereich ja; kein Halt bis 50 m mit Tramlinie: nein; sonst Hinweis.
  */
-function oevVorbelegen(x: AutoEingangC): void {
+export function oevVorbelegen(x: AutoEingangC): void {
   const { st, geo, setze, feldHinweis, feldHinweisWeg } = x
   const o = geo.oevLinien
   if (!o) return
@@ -525,7 +524,7 @@ function oevVorbelegen(x: AutoEingangC): void {
   const mit = halte.map(z => ({ ...z, l: tram.find(l => abstandLinie(z.y.p, l.teile) <= AUTO_C.tramAmHaltM + 1e-9) ?? null }))
   const nah = mit.find(z => z.l && z.d <= AUTO.tramHaltM + 1e-9)
   if (nah) {
-    // Korrektur S7: Tramhalt nur aus der Nähe einer Tramlinie zum Haltepunkt erschlossen (Haltestellen ohne Bus/Tram): Annahme
+    // Tramhalt nur aus der Nähe einer Tramlinie zum Haltepunkt erschlossen (Haltestellen ohne Bus/Tram): Annahme
     setze('tramHaltestellenbereich', true, 'annahme', `Haltestelle «${nah.y.name}», ${ganz(nah.d)} m, Tramlinie${nah.l!.nummer ? ` ${nah.l!.nummer}` : ''} ` +
       `höchstens ${AUTO_C.tramAmHaltM} m vom Haltepunkt (${GEOPORTAL_BERN}, Haltestellen und ÖV-Linien): Tramhalt angenommen`)
     feldHinweisWeg('tramHaltestellenbereich')

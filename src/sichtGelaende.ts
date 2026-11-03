@@ -1,4 +1,4 @@
-// ── Sicht auf die Wartefläche mit Gelände (Entscheid 30.10.2026; Höhenmodell swissALTI3D © swisstopo) ──
+// ── Sicht auf die Wartefläche mit Gelände (Höhenmodell swissALTI3D © swisstopo) ──
 //
 // Die Rechnung (rechner/pruefen.ts: sichtfeld, konflikteSuchen) prüft die Sicht von den Sichtpunkten auf die Wartefläche
 // (VSS 40 241 Z. 14, S. 6, mit Tab. 1) in 2D: Gebäude, Parkfelder, Bäume, Hindernisse. Kuppen und andere Geländeformen kennt sie nicht.
@@ -14,7 +14,7 @@
 //   ZIEL_HOEHE_WARTE_M über dem Boden, Toleranz GELAENDE_TOL_M wie bei der Erkennung.
 // - Abfragen je Zufahrt: eine je Sichtlinie (höchstens 11 bis 110 m, Reichweite der geladenen Daten), dazu VERFEINERN_GELAENDE
 //   halbierende zwischen der letzten freien und der ersten geschnittenen Linie (10 m → 2,5 m): höchstens 13 (SICHT_ABFRAGEN_MAX 14).
-// - Ergebnis: «Gelände frei» bzw. «Sicht durch das Gelände verdeckt ab x m» (grösste Distanz, bis zu der alle Linien frei sind,
+// - Ergebnis: «Gelände frei» bzw. «Verdeckung im Geländemodell» mit letzter freier/erster verdeckter Prüflage (Rechenwert aus letzter freier Lage,
 //   abgerundet). Liegt x unter der geprüften Länge, ist die Zufahrt nicht erfüllt: aus «frei» wird «verdeckt_gelaende» (ein 2D-Befund
 //   «verdeckt …» bleibt als Status, das Gelände steht dann in der Zeile «Gelände» und im Befund des Bedarfs), «frei bis» höchstens x; der
 //   Streifen zeigt den höchsten Status seiner Zufahrten (RANG_STATUS). Die 2D-Rechnung im Worker bleibt unverändert; ohne Antwort bleibt
@@ -26,9 +26,9 @@
 import { add, dist, sub, type P } from './geo'
 import type { Poly } from './rechner/poly'
 import { RANG_STATUS, type SichtGelaendeAnzeige, type StreifenErgebnis, type ZufahrtErgebnis } from './rechner/typen'
-import { GELAENDE_TOL_M, VERFEINERN_GELAENDE, gelaendeFrei, xKey, type GelaendeStand, type ProfilLader } from './erkennungGelaende'
+import { GELAENDE_TOL_M, VERFEINERN_GELAENDE, gelaendeFrei, xKey, pruefbereichText, type GelaendeErgebnis, type GelaendeStand, type ProfilLader } from './erkennungGelaende'
 
-/** Ziel über dem Boden der Wartefläche [m]: untere Grenze der Sichtfeldhöhe (Annahme, Entscheid 30.10.2026) */
+/** Ziel über dem Boden der Wartefläche [m]: untere Grenze der Sichtfeldhöhe (Annahme) */
 export const ZIEL_HOEHE_WARTE_M = 0.6
 /** ein Augpunkt alle so viele Meter entlang der Sichtpunkte */
 export const SICHT_LINIEN_ABSTAND_M = 10
@@ -129,7 +129,7 @@ export function sichtGelaendeSchluessel(z: Pick<ZufahrtErgebnis, 'fgsId' | 'zufa
  * bleibt dann 2D); fehlt ein Profil der Verfeinerung, gilt die letzte freie Lage. Ein Abbruch wird weitergereicht.
  */
 export async function sichtGelaendePruefen(g: SichtGeo, laden: ProfilLader, bruecke?: Bruecke):
-  Promise<{ abM: number | null; frei: Record<string, boolean>; abfragen: number }> {
+  Promise<GelaendeErgebnis> {
   const kand = sichtLinien(g, bruecke).filter(l => !l.bruecke)
   const pruefe = (p: Parameters<typeof gelaendeFrei>[0]) => gelaendeFrei(p, GELAENDE_TOL_M, ZIEL_HOEHE_WARTE_M)
   const res = await Promise.all(kand.map(l => laden(l.auge, l.ziel).then(p => {
@@ -143,6 +143,7 @@ export async function sichtGelaendePruefen(g: SichtGeo, laden: ProfilLader, brue
   const k = res.indexOf(false)
   if (k < 0) return { abM: null, frei, abfragen }
   let lo = k ? kand[k - 1].x : 0, hi = kand[k].x
+  let letzteFreiM: number | null = k ? lo : null
   for (let i = 0; i < VERFEINERN_GELAENDE && abfragen < SICHT_ABFRAGEN_MAX; i++) {
     const m = (lo + hi) / 2, q = linieBei(g, m, bruecke)
     if (q.bruecke) break
@@ -153,9 +154,9 @@ export async function sichtGelaendePruefen(g: SichtGeo, laden: ProfilLader, brue
       break
     }
     if (f === null) break
-    if (f) lo = m; else hi = m
+    if (f) { lo = m; letzteFreiM = m } else hi = m
   }
-  return { abM: Math.floor(lo + 1e-6), frei, abfragen }
+  return { abM: Math.floor(lo + 1e-6), frei, abfragen, pruefbereich: { letzteFreiM, ersteVerdecktM: hi } }
 }
 
 /** Anzeige der Geländeprüfung einer Zufahrt aus dem Stand (werte je sichtGelaendeSchluessel); undefined ohne prüfbare Geometrie */
@@ -167,6 +168,7 @@ export function sichtGelaendeAnzeige(z: Pick<ZufahrtErgebnis, 'fgsId' | 'zufahrt
   if (!st || st.stand !== 'ok') return { stand: st?.stand === 'laedt' ? 'laedt' : 'ohne', abM: null, bisM: g.bis, linien: [] }
   if (!st.abfragen) return { stand: 'bruecke', abM: null, bisM: g.bis, linien: [] }
   return { stand: 'mit', abM: st.abM !== null && st.abM < g.bis - 1e-6 ? st.abM : null, bisM: g.bis,
+    ...(st.pruefbereich ? { pruefbereich: st.pruefbereich } : {}),
     linien: sichtLinien(g, bruecke).map(l => ({ ...l, frei: l.bruecke ? null : st.frei[xKey(l.x)] ?? null })) }
 }
 
@@ -199,20 +201,19 @@ export function rechnungMitSichtGelaende<R extends { streifen: StreifenErgebnis[
   }) }
 }
 
-/** Zeile in Sichtprüfung und Bericht: «Gelände: frei», «Gelände: verdeckt ab 42 m (swissALTI3D)», «Gelände: lädt», «Gelände: nicht
- * geprüft» bzw. «Gelände: nicht prüfbar (Brücke)» */
-export function sichtGelaendeText(a: Pick<SichtGelaendeAnzeige, 'stand' | 'abM' | 'linien'>): string {
-  if (a.stand === 'laedt') return 'Gelände: lädt'
-  if (a.stand === 'ohne') return 'Gelände: nicht geprüft'
-  if (a.stand === 'bruecke') return 'Gelände: nicht prüfbar (Brücke)'
-  if (a.abM !== null) return `Gelände: verdeckt ab ${a.abM} m (swissALTI3D)`
-  return `Gelände: frei${a.linien.some(l => l.bruecke) ? ' (Sichtlinien auf der Brücke nicht geprüft)' : ''}`
+/** Gleicher Modellbefund für Sichtprüfung und Bericht; Prüflagen nie als genaue Sichtgrenze darstellen. */
+export function sichtGelaendeText(a: Pick<SichtGelaendeAnzeige, 'stand' | 'abM' | 'linien' | 'pruefbereich'>): string {
+  if (a.stand === 'laedt') return 'Geländemodell: lädt'
+  if (a.stand === 'ohne') return 'Geländemodell: nicht geprüft'
+  if (a.stand === 'bruecke') return 'Geländemodell: nicht prüfbar (Brücke)'
+  if (a.abM !== null) return `Geländemodell (swissALTI3D): Verdeckung; ${a.pruefbereich ? pruefbereichText(a.pruefbereich) : `abgerundeter Rechenwert ${a.abM} m, genaue Prüflagen nicht verfügbar`}`
+  return `Geländemodell: geprüfte Sichtlinien frei${a.linien.some(l => l.bruecke) ? ' (Sichtlinien auf der Brücke nicht geprüft)' : ''}`
 }
 /** Tooltip der Zeile */
-export const SICHT_GELAENDE_TITEL = 'Gelände (Kuppen, Senken, Böschungen) zwischen Fahrlinie und Wartefläche: nach der Rechnung entlang ' +
+export const SICHT_GELAENDE_TITEL = 'Geländemodell (Kuppen, Senken, Böschungen) zwischen Fahrlinie und Wartefläche: nach der Rechnung entlang ' +
   'einzelner Sichtlinien (alle 10 m bis zur nötigen Sicht) aus dem Höhenmodell swissALTI3D geprüft, Auge 1,0 m (VSS 40 241 Ziffer 14, S. 6) ' +
   'und Ziel 0,60 m über dem Boden (Annahme); verdeckt es die Sicht vor der nötigen Sicht, ist die Zufahrt verdeckt. Ohne Antwort gilt die Rechnung in 2D ' +
-  '(«Gelände: nicht geprüft»).'
+  '(«Geländemodell: nicht geprüft»). Die genannten Positionen sind Fahrzeugpositionen entlang der Fahrlinie, keine genaue Sichtgrenze.'
 /** Tooltip einer geländeverdeckten Sichtlinie auf der Karte */
 export const sichtGelaendeLinieText = (x: number): string =>
-  `Sichtlinie ${Math.round(x)} m vor dem Streifen auf die Wartefläche: durch das Gelände verdeckt (swissALTI3D)`
+  `Sichtlinie ${Math.round(x)} m vor dem Streifen auf die Wartefläche: im Geländemodell verdeckt (swissALTI3D)`

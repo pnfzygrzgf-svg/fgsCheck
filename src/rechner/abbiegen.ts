@@ -81,7 +81,7 @@ const LINKS_TANGENTIAL = true
 const LINKS_INNEN_MIN_M = 0.5
 const GEDECKT_NUR_MIT_GERADE = true
 const GEDECKT_BIS_KNOTEN = true
-// GEDECKT_RECHNEN an (Nutzerentscheid 13.10.2026, Rückmeldung «nicht systematisch alle Sichtweiten»): eine
+// GEDECKT_RECHNEN an (Rückmeldung «nicht systematisch alle Sichtweiten»): eine
 // Abbiegezufahrt, die ab dem Knoten von der geraden Zufahrt gedeckt ist (bis dahin Entfallen-Grund «gedeckt»), wird vollständig
 // gerechnet – Fahrlinie, Sichtfeld, Konflikte, Status – und zählt für den Streifenstatus; Kennzeichnung: Feld «deckung»
 // (bisheriger Entfallen-Text) und Hinweis «gedeckt». Sichtweite: die Kurvensichtweite aus dem Radius (bfu bzw. VSS Tab. 2,
@@ -89,7 +89,7 @@ const GEDECKT_BIS_KNOTEN = true
 // «bis Knoten»: die Strecke ab dem Knoten prüft die gerade Zufahrt; mit «bis Knoten» entstanden Statuswechsel nur aus
 // Sichtpunkten weit hinten im Arm bei Kurventempo (in der Prüfung waren 12 von 15 Statuswechseln solche Artefakte). Ein Radius von Hand
 // entscheidet die Deckung neu (gedeckt oder nicht). Die Radiuswahl an der AV-Ecke (gedecktBei) bleibt wie bisher.
-// False = wie bisher (entfällt, «gedeckt»). Nutzerentscheid 14.10.2026: aus – mit der Kurvensichtweite bringt die gedeckte
+// False = wie bisher (entfällt, «gedeckt»). Aus – mit der Kurvensichtweite bringt die gedeckte
 // Zufahrt keine neue Erkenntnis; in 42 Referenzstreifen und 180 Übergängen war keine verdeckt. Schalter und Code bleiben
 export const GEDECKT_RECHNEN = false
 let gedecktRechnen = GEDECKT_RECHNEN
@@ -896,12 +896,12 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
       }
     }
   }
-  // Ecke nach Plan-Fläche fast gerade gezeichnet (Nutzerentscheid 20.10.2026): liegt der Bordkantenbogen an einer Fläche (Plan)
+  // Ecke nach Plan-Fläche fast gerade gezeichnet: liegt der Bordkantenbogen an einer Fläche (Plan)
   // und ist sein Radius grösser als ECK_GROSS_M, gilt er als unplausibel (eine Abschrägung mit wenigen Punkten ist kein geplanter
   // Radius) -> Schätzung wie bei einer unplausiblen AV-Ecke, für alle Zufahrten an dieser Ecke gleich (unabhängig davon, ob die
   // Ecke die übrigen Prüfungen bestünde). AV-Ecken ohne Plan-Fläche wie bisher (dort nur «AV-Ecke prüfen»). Nicht für einen als
   // gezeichnet bzw. gerundet erkannten Plan-Bogen (planBogen): «Ecke runden» erlaubt Radien bis 30 m, die gelten wie geplant
-  // (Korrektur 20.10.2026, Prüfbefund M1)
+  //
   let planGross: string | null = null
   if (rBord !== null && rBord > ECK_GROSS_M && bordBogen && fahrbahn.plan.length && !planBogenErkannt()) {
     const pl = fahrbahn.planAnLinie(bordBogen)
@@ -976,7 +976,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     `Sicht nach bfu ${skHof} m`)
   const kuerzer = hatG && !geradeDeckt
   // Text zur Deckung bei Kurvensichtweite sk: Entfallen-Text (Grund «gedeckt») bzw. Feld «deckung». Wortlaut seit 14.10.2026
-  // ohne «gedeckt»/«deckt» (Nutzerentscheid; bis dahin «Knoten … m, Kurve … m, eigene Strasse … m»). Ohne deckende gerade
+  // ohne «gedeckt»/«deckt» (bis dahin «Knoten … m, Kurve … m, eigene Strasse … m»). Ohne deckende gerade
   // Zufahrt (nur mit GEDECKT_NUR_MIT_GERADE bzw. GEDECKT_BIS_KNOTEN aus erreichbar) steht Tab. 1 der eigenen Strasse da
   const deckungText = (sk: number): string => `Knoten ${f1(bisKnoten)} m vor dem Streifen; Kurvensichtweite des Abbiegers ${sk} m; ` +
     (!geradeDeckt ? `Tab. 1 eigene Strasse ${k.swEigen} m` : !k.geradeEntfaellt && k.swAlt < k.swEigen
@@ -1013,7 +1013,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   if (startAbst > STREIFEN_TOL_M) return wegGeometrie(`Fahrlinie beginnt ${f1(startAbst)} m neben dem Streifen`)
   if (schaetzung !== null && schaetzung[0] < SCHAETZUNG_AUF_FAHRBAHN)
     return wegGeometrie(`geschätzte Fahrlinie nur zu ${(100 * schaetzung[0]).toFixed(0)} % auf der Fahrbahn`)
-  // Querung ohne Vortritt (Nutzerentscheid 30.10.2026, Variante A; Herleitung in ohneVortritt.ts): Sicht höchstens bis zum Beginn
+  // Querung ohne Vortritt (Variante A, Herleitung in ohneVortritt.ts): Sicht höchstens bis zum Beginn
   // des Abbiegens. Beginn des Abbiegens = Bogenende auf dem Arm (geo.tb: Tangentenpunkt bzw. Ende der versetzten Bordkante der
   // Fahrlinie konzentrisch zur Ecke, beim Tangentenbogen dessen Ende; bei geschätztem Radius die geschätzte Fahrlinie gleich);
   // geo.sTb = Länge der Fahrlinie vom Streifen (Mitte) bis dorthin: Strecke bis zum Knoten, an dem das Fahrzeug abbiegt, und Bogen.
@@ -1120,7 +1120,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   let radiusText: string | null = null, radiusHand: number | null = null, lageHand = false
   // Bordkante der Ecke an einer Fläche (Plan) von Hand: Quelle «nach Plan-Fläche n» statt «AV-» (planflaechen.ts; ohne Plan-Flächen
   // unverändert)
-  // Scharfe Ecke (Radius 0, kein Bogen) an einer Plan-Fläche: «Ecke nach Plan-Fläche n (Art) von Hand 0,0 m + …» (Prüfbefund 20.10.)
+  // Scharfe Ecke (Radius 0, kein Bogen) an einer Plan-Fläche: «Ecke nach Plan-Fläche n (Art) von Hand 0,0 m + …»
   const plQ = radiusQuelleB.includes('AV-') ? planEcke() : null
   if (plQ) radiusQuelleB = radiusQuelleB.replace(/AV-(Bordkante|Ecke)/g, (_, w: string) => `${bordBogen ? w : 'Ecke'} nach ${plQ} von Hand`)
   if (spurH && spurH.art === 'B' && spurH.linie.length >= 2) {

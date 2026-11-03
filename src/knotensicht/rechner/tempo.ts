@@ -1,9 +1,11 @@
+import { regionalBei, regionalTempoTreffer } from '../daten/anbieter/gemeinsam/regionalZuordnung'
+import { zuerichBei } from '../daten/anbieter/gemeinsam/zuerichZuordnung'
 // ── Tempo aus OSM: maxspeed, Zonen, Mehrheit entlang der Spur (aus fgsCheck) ──
 //
 // Übernommen aus fgsCheck (rechner/tempo.ts): wegTempo, zonenTempo, tempoBei, tempoEntlang. Die Tabellen der VSS 40 241 sind
 // entfernt; die Stufen und Sichtweiten kommen aus der VSS 40 273 Tab. 1 (rechner/sichtweite.ts). Ohne Angabe 50 km/h
 // (TEMPO_ERSATZ, als Annahme ausgewiesen).
-// K0 (Nutzerentscheid 23.10.2026, wie fgsCheck seit 21.10.2026): amtliches Tempo als Eingabe der Rechnung (TempoAmtlichDaten; in der
+// K0 (wie fgsCheck seit 21.10.2026): amtliches Tempo als Eingabe der Rechnung (TempoAmtlichDaten; in der
 // Stadt Bern V_sig des Geoportals): je Punkt der Spur die nächste Linie bis AMTLICH_SUCH_M, die etwa parallel liegt (höchstens
 // AMTLICH_WINKEL); ist die nächste Linie ohne Wert bzw. liegt der Punkt ausserhalb des Bereichs, zählt der Punkt nicht. Mehrheit
 // entlang der Spur wie tempoEntlang; ohne Treffer gilt OSM. Eine Eingabe von Hand geht vor (rechnen.ts).
@@ -113,7 +115,15 @@ export const AMTLICH_KNOTEN_M = AMTLICH_SUCH_M
 
 /** nächste Linie bei p (bis AMTLICH_SUCH_M, höchstens AMTLICH_WINKEL zur Fahrtrichtung) mit ihrem Wert (v null = Linie ohne Wert);
  *  null ohne Linie, 'aussen' ausserhalb des geladenen Bereichs */
-export function amtlichNaechste(d: TempoAmtlichDaten): (p: P, richtung: P) => { v: number | null } | null | 'aussen' {
+export function amtlichNaechste(d: TempoAmtlichDaten): (p: P, richtung: P) => { v: number | null; quelle?:string } | null | 'aussen' {
+  if (d.regional) return (p, r) => {
+    const s = d.regional!
+    if (Math.max(Math.abs(p[0] - s.mitte[0]), Math.abs(p[1] - s.mitte[1])) > s.radiusM - 10) return 'aussen'
+    if (!regionalBei(s, p, r, d.zhStrassen ?? []).length) return null
+    const x = regionalTempoTreffer(s, p, r, d.zhStrassen ?? [])
+    return { v: x?.tempo ?? null, ...(x ? { quelle: x.quelle } : {}) }
+  }
+  if (d.zuerich) return (p, r) => { const x = zuerichBei(d.zuerich!, p, r, d.zhStrassen ?? []); return x.status === 'aussen' ? 'aussen' : !x.linien.length ? null : { v: x.tempo } }
   const cos = Math.cos(AMTLICH_WINKEL * Math.PI / 180)
   const b = d.bereich
   return (p, richtung) => {
@@ -148,7 +158,7 @@ export function amtlichBei(d: TempoAmtlichDaten): (p: P, richtung: P) => number 
  * gilt OSM. -> Tempo, Treffer, Punkte an einer Linie mit bzw. ohne Wert, Punkte im Bereich (ohne Knoten)
  */
 export function amtlichEntlang(netz: OsmNetz, weg: P[], tempo0: number, h: number, laenge: (tempo: number) => number, d: TempoAmtlichDaten):
-  { tempo: number; treffer: boolean; wert: number; leer: number; innen: number } {
+  { tempo: number; treffer: boolean; wert: number; leer: number; innen: number; quelle?:string } {
   const n = amtlichNaechste(d)
   const k0 = weg[0]
   const bei = (q: P, r: P) => (dist(q, k0) <= AMTLICH_KNOTEN_M + 1e-9 ? 'knoten' as const : n(q, r))
@@ -158,12 +168,13 @@ export function amtlichEntlang(netz: OsmNetz, weg: P[], tempo0: number, h: numbe
   })
   const abst: number[] = []
   for (let k = 0; k <= Math.floor(Math.max(laenge(t), laenge(tempo0)) / 2); k++) abst.push(h + k * 2)
+  const quellen = new Set<string>()
   let wert = 0, leer = 0, innen = 0
   for (const [q, r] of punkteAufSpur(weg, abst)) {
     const x = bei(q, r)
     if (x === 'knoten' || x === 'aussen') continue
     innen++
-    if (x) { if (x.v === null) leer++; else wert++ }
+    if (x) { if (x.v === null) leer++; else { wert++; if (x.quelle) quellen.add(x.quelle) } }
   }
-  return { tempo: t, treffer: treffer && wert > leer, wert, leer, innen }
+  return { tempo: t, treffer: treffer && wert > leer, wert, leer, innen, ...(quellen.size ? {quelle:[...quellen].join(' / ')} : {}) }
 }

@@ -1,0 +1,209 @@
+{
+  "roh": {
+    "results": [
+      {
+        "type": "Feature",
+        "featureId": 47165131,
+        "bbox": [
+          2681968.6,
+          1248736.9,
+          2682080.4,
+          1248805.8
+        ],
+        "layerBodId": "ch.swisstopo.swisstlm3d-strassen",
+        "layerName": "Strassen und Wege swissTLM3D",
+        "id": 47165131,
+        "geometry": {
+          "type": "MultiLineString",
+          "coordinates": [
+            [
+              [
+                2681968.6,
+                1248805.8
+              ],
+              [
+                2681999.1,
+                1248786.9
+              ],
+              [
+                2682047.8,
+                1248756.8
+              ],
+              [
+                2682080.4,
+                1248736.9
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "strassenname": "Neugasse",
+          "objektart": 9,
+          "belagsart": 100,
+          "verkehrsbedeutung": 999998,
+          "eigentuemer": 999997,
+          "verkehrsbeschraenkung": 100,
+          "label": 9
+        }
+      },
+      {
+        "type": "Feature",
+        "featureId": 48298617,
+        "bbox": [
+          2682073.1,
+          1248333.8,
+          2682164.7,
+          1248361.8
+        ],
+        "layerBodId": "ch.swisstopo.swisstlm3d-strassen",
+        "layerName": "Strassen und Wege swissTLM3D",
+        "id": 48298617,
+        "geometry": {
+          "type": "MultiLineString",
+          "coordinates": [
+            [
+              [
+                2682164.7,
+                1248333.8
+              ],
+              [
+                2682134.6,
+                1248354.7
+              ],
+              [
+                2682131.7,
+                1248356.6
+              ],
+              [
+                2682124.8,
+                1248360.8
+              ],
+              [
+                2682122.8,
+                1248361.6
+              ],
+              [
+                2682121,
+                1248361.8
+              ],
+              [
+                2682076.8,
+                1248356.6
+              ],
+              [
+                2682074.7,
+                1248356
+              ],
+              [
+                2682073.1,
+                1248354.7
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "strassenname": "Neufrankengasse",
+          "objektart": 10,
+          "belagsart": 100,
+          "verkehrsbedeutung": 999998,
+          "eigentuemer": 200,
+          "verkehrsbeschraenkung": 100,
+          "label": 10
+        }
+      },
+      {
+        "type": "Feature",
+        "featureId": 48298720,
+        "bbox": [
+          2682353.4,
+          1248462.6,
+          2682367.6,
+          1248467.6
+        ],
+        "layerBodId": "ch.swisstopo.swisstlm3d-strassen",
+        "layerName": "Strassen und Wege swissTLM3D",
+        "id": 48298720,
+        "geometry": {
+          "type": "MultiLineString",
+          "coordinates": [
+            [
+              [
+                2682367.6,
+                1248462.6
+              ],
+              [
+                2682353.4,
+                1248467.6
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "strassenname": "Zollstrasse",
+          "objektart": 9,
+          "belagsart": 100,
+          "verkehrsbedeutung": 999998,
+          "eigentuemer": 999997,
+          "verkehrsbeschraenkung": 100,
+          "label": 9
+        }
+      },
+      {
+        "type": "Feature",
+        "featureId": 46968124,
+        "bbox": [
+          2601322.9,
+          1197109.6,
+          2601445.5,
+          1197229.5
+        ],
+        "layerBodId": "ch.swisstopo.swisstlm3d-strassen",
+        "layerName": "Strassen und Wege swissTLM3D",
+        "id": 46968124,
+        "geometry": {
+          "type": "MultiLineString",
+          "coordinates": [
+            [
+              [
+                2601445.5,
+                1197109.6
+              ],
+              [
+                2601422.2,
+                1197132.6
+              ],
+              [
+                2601395.7,
+                1197157.9
+              ],
+              [
+                2601371.9,
+                1197181.4
+              ],
+              [
+                2601346,
+                1197206.8
+              ],
+              [
+                2601322.9,
+                1197229.5
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "strassenname": "Seftigenstrasse",
+          "objektart": 20,
+          "belagsart": 100,
+          "verkehrsbedeutung": 300,
+          "eigentuemer": 200,
+          "verkehrsbeschraenkung": 100,
+          "label": 20
+        }
+      }
+    ]
+  },
+  "meta": {
+    "legende": "\n<div class=\"legend-container\">\n<div class=\"legend-header\">\n  <p class='bod-title'><span>swissTLM3D Strassen und Wege</span> (Bundesamt für Landestopografie swisstopo)</p>\n  <p class='legend-abstract'>swissTLM3D Strassen und Wege enthält das Strassen- und Wegnetz der Schweiz und des Fürstentums Liechtenstein. Es ist Bestandteil des Datensatzes swissTLM3D. Mit seiner hohen Genauigkeit und dem Einbezug der dritten Dimension ist swissTLM3D der umfassendste 3D-Vektordatensatz der Schweiz. Im Geoportal des Bundes werden die Objekte der Ebene \"Strassen und Wege\" entsprechend der ausgewählten Zoomstufe schrittweise dargestellt.</p>\n</div>\n<div class=\"legend-footer\">\n  <br>\n  <span>Legende</span><br>\n  <a href=\"//api3.geo.admin.ch/static/images/legends/ch.swisstopo.swisstlm3d-strassen_de_big.pdf\" target=\"_blank\"><img src=\"//api3.geo.admin.ch/static/images/legends/ch.swisstopo.swisstlm3d-strassen_de.png\"></img></a><br>\n  <span>Informationen</span><br>\n  <table>\n    <tr><td>ID Geobasisdatensatz</td> <td>38.1</td></tr>\n    <tr><td>Gültiger Massstabsbereich</td> <td></td></tr>\n    <tr><td>Metadaten</td>\n      <td><a target=\"_blank\" href=\"https://www.geocat.ch/geonetwork/srv/ger/catalog.search#/metadata/be285f33-0373-4882-b911-de402bcdfeb4\">\n      Link zu geocat.ch</a></td>\n    </tr>\n    <tr>\n      <td>Detailbeschreibung</td>\n      <td><a href=\"https://www.swisstopo.admin.ch/de/landschaftsmodell-swisstlm3d\" target=\"new\">Link zur Detailbeschreibung</a></td>\n    </tr>\n    <tr>\n      <td>Datenbezug</td>\n      <td><a href=\"https://www.swisstopo.admin.ch/de/landschaftsmodell-swisstlm3d\" target=\"new\">Link für Datenbezug</a></td>\n    </tr>\n    <tr>\n      <td>Thematisches Geoportal</td>\n      <td><a href=\"https://map.geo.admin.ch/?topic=swisstopo&amp;lang=de&amp;bgLayer=voidLayer&amp;catalogNodes=1436,1396,1397&amp;layers=ch.swisstopo.swisstlm3d-karte-farbe&amp;X=192000.00&amp;Y=622250.00&amp;zoom=2\" target=\"new\">Link zum Fachportal</a></td>\n    </tr>\n    <tr>\n      <td>WMS Dienst</td>\n      <td><a href=\"https://wms.geo.admin.ch/?REQUEST=GetCapabilities&amp;SERVICE=WMS&amp;VERSION=1.3.0\" target=\"new\">Link zum WMS</a></td>\n    </tr>\n    <tr>\n      <td>Datenstand</td>\n      <td>24.02.2026</td>\n    </tr>\n  </table>\n</div>\n</div>\n"
+  }
+}

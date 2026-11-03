@@ -36,6 +36,7 @@ export function fahrzeugFarbe(f: Pick<FahrzeugForm, 'rolle' | 'phase'> & Partial
 export const WARTE_HINTER_RAND_M = 0.6
 
 export interface FahrzeugForm {
+  objekt?: string
   art: 'auto' | 'velo' | 'person'
   /** fb/fa: Knotensicht; zufahrt: Fahrzeug einer Zufahrt des Fussgängerstreifens; warte: wartende Person */
   rolle: 'fb' | 'fa' | 'zufahrt' | 'warte'
@@ -64,21 +65,29 @@ export function tueFahrzeuge(s: StreifenErgebnis): FahrzeugForm[] {
   const ks = s.knotensicht
   // ohne Einmündung bzw. über die durchgehende Strasse keine Fahrzeuge (sie stünden mitten auf der Hauptstrasse; 27.10.2026)
   if (!s.trottoirueberfahrt || !tueGezeichnet(ks) || (ks.streifenId && ks.streifenId !== s.fgsId)) return []
-  return (ks.karte.fahrzeuge ?? []).map(f => auto({ art: f.art, rolle: f.rolle, mitte: f.mitte, richtung: f.richtung, text: f.text,
+  return (ks.karte.fahrzeuge ?? []).map(f => auto({ art: f.art, rolle: f.rolle, mitte: f.mitte, richtung: f.richtung, text: f.text, objekt: f.objekt,
     ...(f.phase ? { phase: f.phase } : {}), ...(f.auge ? { auge: f.auge } : {}), ...(f.vonHand ? { vonHand: true } : {}),
     ...(f.ziehbar ? { ziehbar: true } : {}) }))
 }
 
 /** Punkt der Linie (ab dem Streifen) beim Abstand a (am Ende festgehalten), Richtung zum Streifen hin und der Abstand */
 function punktEntlang(l: P[], a: number): [P, P, number] {
-  let s = 0
-  for (let i = 1; i < l.length; i++) {
-    const d = dist(l[i - 1], l[i])
-    if (d > 0 && s + d >= a - 1e-9) return [add(l[i - 1], sub(l[i], l[i - 1]), (a - s) / d), einheit(sub(l[i - 1], l[i])), a]
-    s += d
+  const laengen = l.slice(1).map((p,i) => dist(l[i],p)), gesamt = laengen.reduce((s,d) => s+d,0)
+  const s = Math.max(0,Math.min(a,gesamt))
+  const bei = (t:number):P => {
+    let rest=t
+    for(let i=0;i<laengen.length;i++){
+      const d=laengen[i]
+      if(d<1e-9)continue
+      if(rest<=d)return add(l[i],sub(l[i+1],l[i]),rest/d)
+      rest-=d
+    }
+    return l[l.length-1]
   }
-  const n = l.length
-  return [l[n - 1], einheit(sub(l[n - 2], l[n - 1])), s]
+  const p=bei(s)
+  // Ein Meter Fahrweg, kein doppelter Stützpunkt und keine winzige seitliche Endkappe.
+  const u=s>1e-6?einheit(sub(bei(Math.max(0,s-1)),p)):einheit(sub(p,bei(Math.min(1,gesamt))))
+  return [p,u,s]
 }
 /** Fahrtrichtung zum Streifen beim Punkt p: Fahrlinie (spur beginnt am Streifen) vom nächsten Stützpunkt zum vorherigen */
 function richtungZumStreifen(z: ZufahrtErgebnis, p: P): P | null {

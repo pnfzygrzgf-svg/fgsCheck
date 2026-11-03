@@ -1,4 +1,4 @@
-// Tests «Ecke runden» für Flächen (Plan) und Plausibilität der Ecken nach Plan-Flächen (Nutzerentscheid 20.10.2026).
+// Tests «Ecke runden» für Flächen (Plan) und Plausibilität der Ecken nach Plan-Flächen.
 // Künstlicher Knoten wie planflaechen.test.ts: Hauptstrasse West–Ost (Fahrbahn 8 m, y −4 bis 4), Übergang bei x = 0, Querweg nach
 // Süden bei x = −40 (AV-Arm −43 bis −37); die gerade Zufahrt von Westen ist gestrichen, damit der Abbieger aus dem Querweg selbst
 // geprüft wird.

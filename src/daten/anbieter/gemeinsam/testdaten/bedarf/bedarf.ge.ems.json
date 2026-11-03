@@ -1,0 +1,54 @@
+{
+  "mitte": [
+    2499679.6132999994,
+    1118438.862399999
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 1,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2499679.6132999994,
+            1118438.862399999
+          ]
+        },
+        "properties": {
+          "OBJECTID": 1,
+          "NOM_EMS": "Résidence Amitié",
+          "NOM_COURT": "EMS AMITIE",
+          "ADRESSE": "Rue Baudit 1"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": 17,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2499772.6308000013,
+            1118617.1541999988
+          ]
+        },
+        "properties": {
+          "OBJECTID": 17,
+          "NOM_EMS": "Résidence Fort-Barreau",
+          "NOM_COURT": "EMS FORT-BARREAU",
+          "ADRESSE": "Rue  du Fort-Barreau 19"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

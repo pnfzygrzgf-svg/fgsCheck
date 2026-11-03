@@ -1,4 +1,4 @@
-// ── Bedarfsmodul: Regeln in der Oberfläche mit Kurztitel statt Nummer (Nutzerentscheid 20.10.2026) ──
+// ── Bedarfsmodul: Regeln in der Oberfläche mit Kurztitel statt Nummer ──
 //
 // Grundsatz: In Panel, Feldhilfen, Befundblatt, Empfehlung, offenen Gruppen, Masse, Grundprüfung und Bericht steht nie eine
 // Regelnummer allein, sondern der Kurztitel aus dem Katalog (KATALOG[id].titel) mit der Nummer als Verweis dahinter:
@@ -18,7 +18,7 @@ export const regelName = (id: string): string => (DEF[id] ? `${DEF[id].titel} ($
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')
 /** Regelnummern als ganze Wörter (längste zuerst, damit F2-K nicht als F2 gilt) */
 export const REGEL_ID_RE = new RegExp(`(?<![\\w.-])(${[...REGEL_IDS].sort((a, b) => b.length - a.length).map(esc).join('|')})(?![\\w-])`, 'g')
-/** Wörter vor einer Nummer, die keine Regel meint (Mittelinsel Standard E1, Etappen) */
+/** Wörter vor einer Nummer, die keine Regel meint (Mittelinsel Standard E1, Bauetappen) */
 const KEINE_REGEL = /(Standard|Etappe)\s$/
 
 /** Nummer an Stelle i steht schon als «Titel (Nummer» bzw. meint keine Regel */

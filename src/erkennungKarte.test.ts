@@ -26,15 +26,15 @@ describe('Erkennungsdistanz auf der Karte', () => {
     expect(nah(b.gruen[0], [0, 1]) && nah(b.gruen[b.gruen.length - 1], [0, 34])).toBe(true)
     expect(b.fehlt!.art).toBe('verdeckt')
     expect(nah(b.fehlt!.linie[0], [0, 34]) && nah(b.fehlt!.linie[b.fehlt!.linie.length - 1], [0, 49])).toBe(true)
-    expect(b.text).toBe('Erkennungsdistanz: Markierung ab 33 m sichtbar, Soll 48 m; verdeckt durch Auto-Parkfeld; Gelände nicht geprüft')
+    expect(b.text).toBe('Erkennungsdistanz: Bodenmarkierung im Modell ab 33 m sichtbar, Soll 48 m; verdeckt durch Auto-Parkfeld; Geländemodell nicht geprüft')
     expect(b.hindernisId).toBe('h1')
   })
   it('erfüllt: nur grün; Fahrlinie endet vorher: grau bis zum Soll', () => {
     const [ok] = erkennungBaender(s([z({ wert: 110, bis: 'frei' })]))
-    expect(ok.fehlt).toBeNull(); expect(ok.text).toBe('Erkennungsdistanz: Markierung ab 110 m sichtbar, Soll 48 m; Gelände nicht geprüft')
+    expect(ok.fehlt).toBeNull(); expect(ok.text).toBe('Erkennungsdistanz: Bodenmarkierung im Modell ab 110 m sichtbar, Soll 48 m; Geländemodell nicht geprüft')
     const [kurz] = erkennungBaender(s([z({ wert: 30, bis: 'fahrlinie_endet', ende: 'knoten' })]))
     expect(kurz.fehlt!.art).toBe('ungeprueft')
-    expect(kurz.text).toBe('Erkennungsdistanz: Markierung auf mindestens 30 m sichtbar, Soll 48 m; Fahrlinie endet, weiter zurück nicht geprüft; Gelände nicht geprüft')
+    expect(kurz.text).toBe('Erkennungsdistanz: Bodenmarkierung im Modell auf mindestens 30 m sichtbar, Soll 48 m; Fahrlinie endet, weiter zurück nicht geprüft; Geländemodell nicht geprüft')
   })
   it('nur gerechnet: ohne Erkennungsdistanz, Abbieger und Trottoirüberfahrt nichts', () => {
     expect(erkennungBaender(s([z(undefined), z({ wert: 10, bis: 'verdeckt' }, { art: 'abbiegend' })]))).toEqual([])
@@ -47,10 +47,10 @@ describe('Erkennungsdistanz auf der Karte', () => {
     const kurz = erkennungSichtlinien(z({ wert: 33, bis: 'verdeckt' }, { erkennungLinien: l }))
     expect(kurz.map(x => x.x)).toEqual([10, 20, 30, 40])
     expect(kurz.map(x => x.art)).toEqual(['frei', 'frei', 'frei', 'verdeckt'])
-    expect(kurz[0].text).toBe('Sichtlinie 10 m vor dem Streifen auf die Markierung: in den Daten frei, Gelände nicht geprüft')
-    expect(kurz[3].text).toBe('Sichtlinie 40 m vor dem Streifen auf die Markierung: verdeckt (Gebäude (AV))')
+    expect(kurz[0].text).toBe('Sichtlinie 10 m vor dem Streifen auf die Bodenmarkierung: in den Daten frei, Geländemodell nicht geprüft')
+    expect(kurz[3].text).toBe('Sichtlinie 40 m vor dem Streifen auf die Bodenmarkierung: verdeckt (Gebäude (AV))')
     expect(nah(kurz[1].auge, [0, 21]) && nah(kurz[1].ziel, [0, 0.5])).toBe(true)
-    // Erkennungsdistanz über dem Soll: trotzdem nur bis zum Soll (Nutzerentscheid 30.10.2026)
+    // Erkennungsdistanz über dem Soll: trotzdem nur bis zum Soll
     expect(erkennungSichtlinien(z({ wert: 62, bis: 'verdeckt' }, { erkennungLinien: l })).map(x => x.x)).toEqual([10, 20, 30, 40])
     // ohne Linien bzw. Abbieger nichts
     expect(erkennungSichtlinien(z({ wert: 33, bis: 'verdeckt' }))).toEqual([])
@@ -63,21 +63,21 @@ describe('Erkennungsdistanz auf der Karte', () => {
     expect(nah(b.gelb![0], [0, 26]) && nah(b.gelb![b.gelb!.length - 1], [0, 41])).toBe(true)
     expect(b.fehlt!.art).toBe('verdeckt')
     expect(nah(b.fehlt!.linie[0], [0, 41]) && nah(b.fehlt!.linie[b.fehlt!.linie.length - 1], [0, 49])).toBe(true)
-    expect(b.text).toBe('Erkennungsdistanz: Markierung ab 40 m sichtbar (in den Daten frei), ab 25 m nicht sicher (Bewuchs AV: Gartenanlage) – ' +
-      'vor Ort oder in Street View prüfen, Soll 48 m; verdeckt durch Gebäude; Gelände nicht geprüft')
+    expect(b.text).toBe('Erkennungsdistanz: Bodenmarkierung im Modell ab 40 m sichtbar (in den Daten frei), ab 25 m nicht sicher (Bewuchs AV: Gartenanlage) – ' +
+      'vor Ort oder in Street View prüfen, Soll 48 m; verdeckt durch Gebäude; Geländemodell nicht geprüft')
     // ohne Bewuchs kein gelbes Stück
     expect(erkennungBaender(s([z({ wert: 40, bis: 'verdeckt' })]))[0].gelb).toBeNull()
     const l: ErkennungLinie[] = [{ x: 30, auge: [0, 31], ziel: [0, 0.5], befund: 'bewuchs', grund: 'uebrige_bestockte' }]
     const [sl] = erkennungSichtlinien(z(e, { erkennungLinien: l }))
     expect(sl.art).toBe('bewuchs')
-    expect(sl.text).toBe('Sichtlinie 30 m vor dem Streifen auf die Markierung: nicht sicher (Bewuchs AV: übrige bestockte Fläche) – vor Ort ' +
-      'oder in Street View prüfen, Gelände nicht geprüft')
+    expect(sl.text).toBe('Sichtlinie 30 m vor dem Streifen auf die Bodenmarkierung: nicht sicher (Bewuchs AV: übrige bestockte Fläche) – vor Ort ' +
+      'oder in Street View prüfen, Geländemodell nicht geprüft')
   })
-  it('Band höchstens bis zum Soll (Nutzerentscheid 30.10.2026): Erkennungsdistanz 110 m bei Soll 48 m endet beim Soll, Text nennt 110 m', () => {
+  it('Band höchstens bis zum Soll: Erkennungsdistanz 110 m bei Soll 48 m endet beim Soll, Text nennt 110 m', () => {
     const [b] = erkennungBaender(s([z({ wert: 110, bis: 'frei' })]))
     expect(nah(b.gruen[0], [0, 1]) && nah(b.gruen[b.gruen.length - 1], [0, 49])).toBe(true)
     expect(b.gelb).toBeNull(); expect(b.fehlt).toBeNull()
-    expect(b.text).toBe('Erkennungsdistanz: Markierung ab 110 m sichtbar, Soll 48 m; Gelände nicht geprüft')
+    expect(b.text).toBe('Erkennungsdistanz: Bodenmarkierung im Modell ab 110 m sichtbar, Soll 48 m; Geländemodell nicht geprüft')
     // Bewuchs ab 60 m (über dem Soll): kein gelbes Stück; ab 30 m: gelb nur bis zum Soll
     expect(erkennungBaender(s([z({ wert: 110, bis: 'frei', bewuchsAb: 60, bewuchs: 'Gartenanlage' })]))[0].gelb).toBeNull()
     const [g] = erkennungBaender(s([z({ wert: 110, bis: 'frei', bewuchsAb: 30, bewuchs: 'Gartenanlage' })]))

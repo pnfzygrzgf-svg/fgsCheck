@@ -1,0 +1,56 @@
+{
+  "mitte": [
+    2497361.629999999,
+    1118669.1499999985
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 1,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2497361.629999999,
+            1118669.1499999985
+          ]
+        },
+        "properties": {
+          "OBJECTID": 1,
+          "NOM_ETABLISSEMENT": "La Châtelaine",
+          "TYPE_ETABLISSEMENT": "Privé/subventionné",
+          "FORMATION_NIVEAU": "Primaire",
+          "ADRESSE": "Route de Vernier 92"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": 38,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2497443.780000001,
+            1118712.8399999999
+          ]
+        },
+        "properties": {
+          "OBJECTID": 38,
+          "NOM_ETABLISSEMENT": "ECPS Pailly",
+          "TYPE_ETABLISSEMENT": "Ecole de pédagogie spécialisée",
+          "FORMATION_NIVEAU": "Secondaire",
+          "ADRESSE": "Avenue du Pailly 1"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

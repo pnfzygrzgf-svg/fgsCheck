@@ -1,4 +1,4 @@
-// ── Erkennungsdistanz aus dem Sichtrechner (Nutzerentscheid 23.10.2026) ──
+// ── Erkennungsdistanz aus dem Sichtrechner ──
 //
 // Ab welcher Distanz sehen Fahrende einer geraden Zufahrt die Markierung des Streifens auf der Fahrbahn? Zusätzliches Ausgabefeld
 // (ZufahrtErgebnis.erkennungM), ohne Einfluss auf Status, Soll, Sichtfeld, «frei bis» und Konflikte der Sichtprüfung.
@@ -12,7 +12,7 @@
 //   beidseits des ersten Sichtpunkts (innerhalb der Streifenenden). Sichtbar ist der Streifen, wenn die Sichtlinie zu
 //   mindestens einem Zielpunkt frei ist (nächster sichtbarer Teil der Balken).
 // - Hindernisse: Gebäude (AV), Hecken, Mauern und übrige sichtbehindernde Hindernisse, Bäume (Stamm) und Auto-Parkfelder
-//   (Nutzerentscheid 23.10.2026, wie in der Sichtprüfung: Augpunkt 1,0 m (AUGHOEHE_M), Auto rund 1,5 m hoch, die Markierung liegt am
+//   (wie in der Sichtprüfung: Augpunkt 1,0 m (AUGHOEHE_M), Auto rund 1,5 m hoch, die Markierung liegt am
 //   Boden).
 //   Wie in der Sichtprüfung zählen ein Gebäude, Hindernis bzw. Parkfeld, in dem der Augpunkt liegt, und ein Baum bis 1 m am
 //   Augpunkt nicht.
@@ -21,7 +21,7 @@
 // - Sichtlinien (30.10.2026, zusätzliches Ausgabefeld ZufahrtErgebnis.erkennungLinien, ohne Wirkung auf die Erkennungsdistanz): dünn,
 //   ein Augpunkt alle LINIEN_ABSTAND_M ab dem Streifenrand bis zum letzten Augpunkt (dazu dieser), zwischen zwei Augpunkten gerade
 //   eingeschoben, je mit dem genutzten Zielpunkt (dem ersten freien, sonst dem ersten) und dem Befund. Die Karte zeigt sie auf Klick.
-// - Bewuchs (30.10.2026, Nutzerentscheid): kreuzt jede freie Sichtlinie eines Augpunkts AV-Bodenbedeckung mit Bewuchs (BEWUCHS_ARTEN;
+// - Bewuchs: kreuzt jede freie Sichtlinie eines Augpunkts AV-Bodenbedeckung mit Bewuchs (BEWUCHS_ARTEN;
 //   eine Fläche, in der Augpunkt bzw. Ziel liegt, zählt nicht), ist die Sicht dort nicht sicher frei: bewuchsAb nennt die Distanz, ab
 //   der das gilt (wie die Erkennungsdistanz vom Streifen aus gesucht und halbierend verfeinert), solange sie unter der
 //   Erkennungsdistanz liegt. Das ist kein Befund «verdeckt»: wert bleibt; die Vorbelegung nimmt den sicher freien Teil.
@@ -48,8 +48,7 @@ const ZIEL_VERSATZ = [0, -0.5, 0.5, -1, 1].map(f => f * ZIEL_HALB_M)
 export const BEWUCHS_ARTEN = ['geschlossener_Wald', 'Wytweide_dicht', 'uebrige_bestockte', 'Gartenanlage']
 export const BEWUCHS_NAME: Record<string, string> = { geschlossener_Wald: 'geschlossener Wald', Wytweide_dicht: 'Wytweide dicht',
   uebrige_bestockte: 'übrige bestockte Fläche', Gartenanlage: 'Gartenanlage' }
-/** Augpunkt über der Fahrbahn [m] (Normwert (VSS 40 241 Ziffer 14, S. 6; VSS 40 273 Ziffer 10, S. 7: Personenwagen), Entscheid
- * 31.10.2026, vorher 1,1 m als Annahme; Geländeprüfung der Sichtlinien in erkennungGelaende.ts und sichtGelaende.ts) */
+/** Augpunkt über der Fahrbahn [m] (Normwert (VSS 40 241 Ziffer 14, S. 6; VSS 40 273 Ziffer 10, S. 7: Personenwagen), vorher 1,1 m als Annahme; Geländeprüfung der Sichtlinien in erkennungGelaende.ts und sichtGelaende.ts) */
 export const AUGHOEHE_M = 1.0
 /** Baum näher am Augpunkt zählt nicht (wie konflikteSuchen) */
 const BAUM_AUGE_M = 1.0
@@ -62,13 +61,18 @@ export type ErkennungBis = 'frei' | 'fahrlinie_endet' | 'verdeckt'
 export type ErkennungEnde = 'knoten' | 'wegende' | 'gebaeude' | 'kreisel'
 /** gelaende: nur in der Anzeige nach der Geländeprüfung (erkennungGelaende.ts), nie aus der Rechnung */
 export interface ErkennungHindernis { klasse: 'gebaeude' | 'baum' | 'hindernis' | 'auto' | 'gelaende'; name: string; id?: string }
+/** Tatsächlich geprüfte Fahrzeugpositionen entlang der Fahrlinie; kein Nachweis einer exakten Sichtgrenze.
+ * null: vor der ersten verdeckten Position wurde keine freie Position geprüft. Nur Anzeige. */
+export interface GelaendePruefbereich { letzteFreiM: number | null; ersteVerdecktM: number }
 /** Erkennungsdistanz einer geraden Zufahrt [m ab dem Streifenrand]. bis frei: bis zur Prüfgrenze (ERKENNUNG_MAX_M) frei; fahrlinie_endet: frei bis zum Ende der Fahrlinie (wert ist eine Untergrenze, ende nennt den Grund); verdeckt: ab wert
  * verdeckt hindernis die Sicht */
+
 export interface Erkennung {
   wert: number; bis: ErkennungBis; hindernis?: ErkennungHindernis; ende?: ErkennungEnde
   /** nur Anzeige (erkennungGelaende.erkennungAnzeige), nie aus der Rechnung: Gelände entlang der Sichtlinien geprüft (mit), Profile
    * laden noch (laedt) bzw. nicht geprüft (ohne) */
   gelaende?: 'mit' | 'laedt' | 'ohne'
+  gelaendePruefbereich?: GelaendePruefbereich
   /** Bewuchs: ab hier [m, kleiner als wert] sieht man die Markierung nur über AV-Bodenbedeckung mit Bewuchs (Art bewuchs), nicht
    * sicher frei */
   bewuchsAb?: number; bewuchs?: string
@@ -131,7 +135,7 @@ function kandidaten(bereich: Box, gebaeude: Gebaeude, hd: HindernisDaten | null)
       const box = boxVon(b.stamm.flatMap(poly => poly[0]))
       if (ueberlappt(box, bereich)) out.push({ box, geom: b.stamm, linie: null, info: { klasse: 'baum', name: b.name, id: b.id }, baum: b.xy })
     }
-    // Auto-Parkfelder (Nutzerentscheid 23.10.2026); Zweirad-Felder nicht
+    // Auto-Parkfelder; Zweirad-Felder nicht
     for (const f of hd.park.felder) if (ueberlappt(f.env, bereich)) out.push({ box: f.env, geom: [f.poly], linie: null,
       info: { klasse: 'auto', name: f.name, ...(f.id ? { id: f.id } : {}) } })
   }

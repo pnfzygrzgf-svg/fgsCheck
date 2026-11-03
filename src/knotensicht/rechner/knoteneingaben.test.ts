@@ -58,7 +58,7 @@ describe('Mündungsbereich der Zufahrt (Befund 17.10.2026)', () => {
     const [ux, uy] = e.fbRichtung
     expect(Math.abs(Math.atan2(ux, uy)) * 180 / Math.PI, `F_B-Richtung ${ux}, ${uy}`).toBeLessThan(2)
     // D hinter der Kante y = −3 um B = 3 m (Vortritt, innerorts): y ≈ −6; x wie am geraden T-Knoten (0,75: Mitte der rechten
-    // Fahrbahnhälfte 1,25 aus dem AV-Querschnitt, Fahrersitz 0,5 m links), der Versatz der OSM-Linie (0,9 m) spielt keine Rolle
+    // Fahrbahnhälfte 1,25 aus dem AV-Querschnitt, Fahrer*innensitz 0,5 m links), der Versatz der OSM-Linie (0,9 m) spielt keine Rolle
     const [dx, dy] = rel(e.D)
     expect(Math.abs(dy + 6), `D y ${dy}`).toBeLessThan(0.3)
     expect(Math.abs(dx - 0.75), `D x ${dx}`).toBeLessThan(0.3)
@@ -167,7 +167,7 @@ describe('E2b: D von Hand', () => {
     expect(e.Dlage.seitlich).toBeCloseTo(1.25, 6)
     expect(Math.abs(seite(e, 'links').vorhanden - 36.25)).toBeLessThan(0.01)
     expect(e.hinweise.join(' ')).toContain('weniger als 3,00 m (Ziffer 12')
-    expect(e.annahmen.some(a => a.includes('Das Auge des Lenkers'))).toBe(false)
+    expect(e.annahmen.some(a => a.includes('Das Fahrer*innenauge'))).toBe(false)
     // Sichtdreieck ab D
     nahe(seite(e, 'rechts').dreieck[0], 0, -5, 1e-9)
   })

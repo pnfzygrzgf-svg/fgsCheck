@@ -4,7 +4,7 @@
 // (nach dem signalisierten Tempo) und liefert «frei bis». Das Soll wählt erst die Anzeige bzw. das Befundblatt nach der Längsneigung
 // in Fahrtrichtung (talwärts negativ) aus dem Höhenprofil entlang der Fahrlinie (App, Schlüssel «fgsId|zufahrt»). Solange das Profil
 // lädt (keine Messung), vorerst 0 %; ist es geladen, aber ohne Neigung (Höhenmodell nicht verfügbar bzw. Profil zu kurz: i null), ist
-// die Neigung unbekannt und es gilt der strengste Wert der Tab. 3, Spalte ≤ −4 % (Entscheid 31.10.2026, wie im SichtweitenCheck).
+// die Neigung unbekannt und es gilt der strengste Wert der Tab. 3, Spalte ≤ −4 % (wie im SichtweitenCheck).
 
 import { veloSichtweite } from './knotensicht/rechner/velo'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
@@ -19,7 +19,7 @@ export interface VeloSoll {
   neigungText: string
   /** Neigung aus dem Höhenprofil gemessen (false: lädt bzw. unbekannt) */
   gemessen: boolean
-  /** Profil geladen, aber keine Neigung bestimmbar: strengster Wert (Entscheid 31.10.2026) */
+  /** Profil geladen, aber keine Neigung bestimmbar: strengster Wert */
   unbekannt: boolean
   /** Soll nach Tab. 3 und Herleitung */
   A: number; text: string

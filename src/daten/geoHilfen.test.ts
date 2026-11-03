@@ -1,4 +1,4 @@
-// Tests Geometrie-Hilfen für die Vorbelegung aus Geodaten (Automatik Paket C): Punkt in Fläche, Abstand Punkt–Linie, Schnitt mit
+// Tests Geometrie-Hilfen für die Vorbelegung aus Geodaten: Punkt in Fläche, Abstand Punkt–Linie, Schnitt mit
 // einer Achse, nächste Linie, Zuschneiden. Künstliche Geometrie in LV95 um einen festen Ursprung.
 import { describe, expect, it } from 'vitest'
 import type { P } from '../geo'

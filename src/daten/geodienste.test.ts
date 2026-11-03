@@ -1,4 +1,4 @@
-// Tests der weiteren Berner Dienste (Automatik Paket C): Abfrage, Einlesen, Zwischenspeicher, Teil-Ausfall und Zuständigkeit.
+// Tests der weiteren Berner Dienste: Abfrage, Einlesen, Zwischenspeicher, Teil-Ausfall und Zuständigkeit.
 // Künstliche Antworten im Aufbau der Probeabfragen vom 21.10.2026 (GeoJSON in LV95, Linien mit z, Feldnamen des Diensts), mit
 // erfundenen Namen. Keine Netzaufrufe (fetch ersetzt).
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -173,13 +173,13 @@ describe('Schulen, Kindergärten, Heime', () => {
       ['osm:way/3', 'heim', 'ohne Namen']])
     expect(rel(s[1].p).map(Math.round)).toEqual([20, 10])
     expect(schulenAusOsm(null)).toEqual([])
-    // Korrektur S9: Fläche mit Grenzen (out bb) → Umriss als Rechteck, Mittelpunkt daraus
+    // Fläche mit Grenzen (out bb) → Umriss als Rechteck, Mittelpunkt daraus
     const [la0, lo0] = wgs(O[0], O[1]), [la1, lo1] = wgs(O[0] + 40, O[1] + 20)
     const f = schulenAusOsm({ elements: [{ type: 'way', id: 7, bounds: { minlat: la0, minlon: lo0, maxlat: la1, maxlon: lo1 }, tags: { amenity: 'school' } }] })[0]
     expect(f.umriss!.length).toBe(4)
     expect(rel(f.p).map(Math.round)).toEqual([20, 10])
     expect(Math.max(...f.umriss!.map(p => rel(p)[0]))).toBeCloseTo(40, 0)
-    // Runde 4: Umriss aus den Grenzen ist als Grenzrechteck gekennzeichnet, eine Geometrie nicht
+    // Umriss aus den Grenzen ist als Grenzrechteck gekennzeichnet, eine Geometrie nicht
     expect(f.grenzrechteck).toBe(true)
     expect(s[0].grenzrechteck).toBeUndefined()
     const geo = schulenAusOsm({ elements: [{ type: 'way', id: 8, bounds: { minlat: la0, minlon: lo0, maxlat: la1, maxlon: lo1 },

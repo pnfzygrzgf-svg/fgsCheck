@@ -10,9 +10,11 @@
 // SichtweitenCheck (E0): dazu Vortrittssignale (highway=stop/give_way, nur als Hinweis) und die Knotensuche im Ausschnitt
 // (knotenAbfrage: Knoten mit drei und mehr Strassenarmen, serverseitig über way_link gezählt). E3b: dazu alle Radwege im Umkreis
 // (highway=cycleway bzw. Fuss- oder Radweg mit bicycle=designated) für die Veloachse; sie landen mit den Fusswegen in querungen.
+// Velobypass am Kreisel (01.11.2026): dazu Fuss- und Radwege mit bicycle=yes (Veloachse weiter nur mit designated, velo.ts istRadweg).
 
 import { holeText, istAbbruch, AbrufFehler, type Abruf } from './holen'
-import { lv95, dist, type P } from '../geo'
+import { osmDatenstand } from './anbieter/gemeinsam/qualitaet'
+import { lv95, wgs, dist, kreisAnpassen, type P } from '../geo'
 
 export interface OsmWeg { id: number; tags: Record<string, string>; knoten: number[]; geom: [number, number][] }
 export interface OsmKnoten { id: number; tags: Record<string, string>; lat: number; lon: number }
@@ -111,7 +113,7 @@ function umkreisAbfrage(um: string, vor = '', aus = ''): string {
     `)->.n;` +
     `rel(bw.w)["type"="restriction"]->.r;` +
     `(way(bn.n)["highway"~"^(footway|path|cycleway|steps|bridleway)$"];way(${um})["footway"="crossing"];` +
-    `way(${um})["highway"="cycleway"];way(${um})["highway"~"^(path|footway)$"]["bicycle"="designated"];)->.f;` +
+    `way(${um})["highway"="cycleway"];way(${um})["highway"~"^(path|footway)$"]["bicycle"~"^(designated|yes)$"];)->.f;` +
     `${aus}.w out body geom;.n out body;.r out body;.f out body geom;`
 }
 
@@ -306,7 +308,7 @@ async function overpassFetch(query: string, signal?: AbortSignal): Promise<Abruf
             break
           }
           if (overpassAbgebrochen(data)) { versuche.push({ host, fehler: `abgebrochen (${kurz(String(data.remark))})` }); break }
-          return { daten: data, ms: performance.now() - t0, bytes: text.length, quelle: host }
+          return { daten: data, ms: performance.now() - t0, bytes: text.length, quelle: host, datenstand: osmDatenstand(data) }
         }
         versuche.push({ host, fehler: `HTTP ${res.status}${seite ? ` (${kurz(seite)})` : ''}` })
         if (res.status === 429 || res.status >= 500) {
@@ -347,7 +349,7 @@ export function zebraTag(t: Record<string, string>): string {
 }
 
 /**
- * Einordnung eines OSM-Übergangs für Anzeige und Ergebnis (Nutzerentscheid 10.10.2026, Variante B: alle Übergänge bleiben
+ * Einordnung eines OSM-Übergangs für Anzeige und Ergebnis (Variante B: alle Übergänge bleiben
  * wählbar; crossing=no wird schon in istUebergang ausgeschlossen und nicht angeboten):
  *   lsa        – gesignalisierte Querung (crossing=traffic_signals bzw. crossing:signals=yes); wie bisher mit LSA-Hinweis
  *   markiert   – Zebra-Merkmal nach zebraTag (crossing:markings=zebra*, crossing=zebra, crossing_ref=zebra, crossing=marked,
@@ -357,8 +359,7 @@ export function zebraTag(t: Record<string, string>): string {
  *   unmarkiert – ausdrücklich ohne Markierung (crossing=unmarked, crossing:markings=no) oder andere Markierung als Zebra
  *                (z. B. crossing:markings=dots, surface)
  *   unbelegt   – keine Angabe zur Art (z. B. nur highway=crossing, crossing=yes/informal)
- * unmarkiert und unbelegt gelten als «kein Fussgängerstreifen»: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug.
- */
+ * unmarkiert und unbelegt gelten als «kein Fussgängerstreifen»: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug. */
 export type Markierung = 'lsa' | 'markiert' | 'vermutlich' | 'unmarkiert' | 'unbelegt'
 export const MARKIERUNGEN: Markierung[] = ['lsa', 'markiert', 'vermutlich', 'unmarkiert', 'unbelegt']
 export function markierung(t: Record<string, string>): Markierung {
@@ -399,19 +400,53 @@ export const HW_KNOTEN = ['motorway', 'motorway_link', 'trunk', 'trunk_link', 'p
  */
 export function knotenAbfrage(s: number, w: number, n: number, e: number): string {
   const b = [s, w, n, e].map(v => v.toFixed(6)).join(',')
-  // Korrektur 31.10.2026 (Punkt 16): Punkte an Kreiseln (junction=roundabout bzw. circular) gehören nicht dazu (Differenz der Mengen)
+  // Punkte an Kreiseln (junction=roundabout bzw. circular) gehören nicht dazu (Differenz der Mengen).
+  // K1: die Ringwege (mit den angrenzenden Ringwegen ausserhalb des Ausschnitts) kommen mit Punkten und Geometrie dazu: daraus der
+  // Kreisel als ein Punkt in der Mitte (kreiselMitten)
   return `[out:json][timeout:20];way(${b})["highway"~"^(${HW_KNOTEN.join('|')})$"]["access"!~"^(no|private)$"]` +
     `["motor_vehicle"!~"^(no|private)$"]->.w;way.w["junction"~"^(roundabout|circular)$"]->.r;` +
     `(node(way_link.w:3-)(${b}); - node(w.r););out skel qt;` +
+    `node(w.r)->.rn;(way(bn.rn)["junction"~"^(roundabout|circular)$"]["highway"~"^(${HW_KNOTEN.join('|')})$"];.r;);out skel geom qt;` +
     `way(${b})["highway"~"^(${HW_ALLE.join('|')})$"]["name"];out tags center;`
 }
 
-/** Knotensuche: Knoten (nur id und Lage) und Wegmitten der benannten Strassen (namen) im Ausschnitt, eine Abfrage */
+/** Tag der Kreisel-Punkte der Knotensuche (Karte: eigener Tooltip) */
+export const KREISEL_TAG = 'kreisel'
+/**
+ * K1: Kreisel der Knotensuche aus den Ringwegen (Antwort von knotenAbfrage: Wege mit Punkten und Geometrie, ohne Tags): Ringwege mit
+ * gemeinsamen Punkten bilden einen Kreisel; Kennung = kleinster Punkt des Rings (wie rechner/kreisel.ts), Lage = Mitte des
+ * Ausgleichskreises durch die Punkte (LV95). Tags { kreisel: 'ja' }
+ */
+export function kreiselMitten(roh: unknown): OsmKnoten[] {
+  const wege = ((roh as { elements?: RohElement[] } | null)?.elements ?? []).filter(e => e.type === 'way' && e.nodes?.length &&
+    e.geometry?.length === e.nodes.length && !e.tags)
+  const lage = new Map<number, P>()
+  for (const w of wege) w.nodes!.forEach((n, i) => { const g = w.geometry![i]; if (g) lage.set(n, lv95(g.lat, g.lon)) })
+  // Zusammenhang über gemeinsame Punkte (Union-Find über die Wege)
+  const eltern = wege.map((_, i) => i)
+  const wurzel = (i: number): number => (eltern[i] === i ? i : (eltern[i] = wurzel(eltern[i])))
+  const an = new Map<number, number>()
+  wege.forEach((w, i) => { for (const n of w.nodes!) { const j = an.get(n); if (j === undefined) an.set(n, i); else eltern[wurzel(i)] = wurzel(j) } })
+  const gruppen = new Map<number, Set<number>>()
+  wege.forEach((w, i) => { const r = wurzel(i); if (!gruppen.has(r)) gruppen.set(r, new Set()); for (const n of w.nodes!) gruppen.get(r)!.add(n) })
+  const aus: OsmKnoten[] = []
+  for (const nds of gruppen.values()) {
+    const pts = [...nds].map(n => lage.get(n)).filter((p): p is P => !!p)
+    const k = kreisAnpassen(pts)
+    const m: P = k?.m ?? [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length]
+    const [lat, lon] = wgs(m[0], m[1])
+    aus.push({ id: Math.min(...nds), tags: { [KREISEL_TAG]: 'ja' }, lat, lon })
+  }
+  return aus
+}
+
+/** Knotensuche: Knoten (nur id und Lage), Kreisel als Punkt in der Mitte (K1, kreiselMitten) und Wegmitten der benannten Strassen
+ *  (namen) im Ausschnitt, eine Abfrage */
 export async function ladeKnoten(s: number, w: number, n: number, e: number, signal?: AbortSignal):
   Promise<Abruf<OsmKnoten[]> & { namen: StrassenMitte[] }> {
   const r = await overpassFetch(knotenAbfrage(s, w, n, e), signal)
   const knoten: OsmKnoten[] = []
   for (const x of (r.daten as { elements?: RohElement[] }).elements ?? [])
     if (x.type === 'node' && x.lat != null && x.lon != null) knoten.push({ id: x.id, tags: x.tags ?? {}, lat: x.lat, lon: x.lon })
-  return { ...r, daten: knoten, namen: strassenMitten(r.daten) }
+  return { ...r, daten: [...knoten, ...kreiselMitten(r.daten)], namen: strassenMitten(r.daten) }
 }

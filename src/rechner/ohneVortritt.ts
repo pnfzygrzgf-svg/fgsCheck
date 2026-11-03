@@ -1,4 +1,4 @@
-// ── Sichtrechner: Querung ohne Vortritt (Bedarfsmodul E1, Entscheid 6) ──
+// ── Sichtrechner: Querung ohne Vortritt (Bedarfsmodul E1) ──
 //
 // Für einen Streifen, den der Fall als «Querung ohne Vortritt» führt (Furt bzw. Nase, Einengung, ohne bauliche Massnahme), gilt
 // statt Tab. 1 von VSS 40 241 die Sichtweite nach VSS 40 240 Z. 8.2: Soll = max(v [m/s] · L / 1,2 m/s; Anhaltesichtweite(v)) je
@@ -7,7 +7,7 @@
 // des Fussgängerstreifens; die Kurvenregeln (bfu, VSS 40 241 Tab. 2) gelten nur für Fussgängerstreifen und entfallen hier.
 // Formel und Tabelle aus src/bedarf (eine Quelle), Gehgeschwindigkeit aus dem Regelkatalog (E3).
 //
-// Reichweite (Korrektur E1, Prüfbefund 20.10.2026): Die Soll-Sichtweite ohne Vortritt kann weit über 75 m liegen (50 km/h, L 18 m:
+// Reichweite: Die Soll-Sichtweite ohne Vortritt kann weit über 75 m liegen (50 km/h, L 18 m:
 // 209 m). Geladen sind aber nur Daten für die Sichtweiten des Fussgängerstreifens: amtliche Parkfelder und Bäume bis
 // KATASTER_PARK_M (120 m) um den Umriss der Streifen (Herleitung in vorschlaege.ts), die AV ±150 m um den Ladeort, wobei ein
 // Streifen bis NACHLADEN_M (30 m) vom Ladeort liegen darf – also ebenfalls 120 m um den Umriss (abdeckung.ts). Um die Sichtpunkte
@@ -17,16 +17,16 @@
 // Wegende bzw. Knoten jenseits davon gilt nicht als Grenze (er kann an der Grenze der OSM-Daten liegen). Das Befundblatt führt
 // die Sicht dann als offen, nicht als erfüllt.
 //
-// Abbieger (Nutzerentscheid 30.10.2026, Variante A) – eigene Annahme der App, keine Normvorgabe: Z. 8.2 (S. 8) ergäbe v · L / 1,2 m/s
+// Abbieger (Variante A) – eigene Annahme der App, keine Normvorgabe: Z. 8.2 (S. 8) ergäbe v · L / 1,2 m/s
 // ohne Grenze. Die App nimmt an, dass ein Fahrzeug weiter hinten auf seiner Strasse für die Querung noch nicht als Einbieger erkennbar
 // ist und im Abbiegen langsam fährt. Für abbiegende Zufahrten gilt darum Soll = min(Z. 8.2 mit dem Tempo der Strasse des Arms; Länge
 // der Fahrlinie bis zum Beginn des Abbiegens), mindestens SPUR_MIN_M (abbiegen.ts): gemessen vom Streifen entlang der Fahrlinie bis
 // zum Bogenende auf dem Arm (Strecke bis zum Knoten, an dem das Fahrzeug abbiegt, und Bogen), nie entlang des Arms darüber hinaus und
-// nie über einen weiteren Knoten. Greift die Grenze, ist das Soll eine Annahme (Nutzerentscheid 30.10.2026): die Quelle nennt sie und
+// nie über einen weiteren Knoten. Greift die Grenze, ist das Soll eine Annahme: die Quelle nennt sie und
 // den ungekürzten Normwert («Annahme: bis Beginn des Abbiegens; nach VSS 40 240 Z. 8.2 wären es 89,1 m»), ZufahrtErgebnis.annahmeGrenze
 // trägt beides, das Befundblatt führt das Soll als Annahme. Das Tempo von Hand je Zufahrt bleibt wirksam. Gerade Zufahrten unverändert.
 //
-// Einmündung (Nutzerentscheid 30.10.2026) – ebenfalls eigene Annahme der App: mündet die gequerte Strasse unmittelbar an der Querung in
+// Einmündung – ebenfalls eigene Annahme der App: mündet die gequerte Strasse unmittelbar an der Querung in
 // eine andere (eine Zufahrt der Querung hat ihren nächsten Knoten höchstens EINMUENDUNG_NAH_M vom Streifenrand, dort setzt sich die
 // gequerte Strasse nicht fort, und es biegen Fahrzeuge ab), gilt für die Gegenseite – Fahrzeuge, die in der gequerten Strasse auf die
 // Querung zufahren – genau eine Zufahrt entlang der gequerten Strasse, höchstens bis zum nächsten Knoten: Soll = min(Normwert; Strecke
@@ -34,7 +34,7 @@
 // («mitgeprueft»). Greift die Grenze, nennt die Quelle die Annahme und den Normwert (annahmeGrenze wie bei den Abbiegern). Die Abbieger
 // an der Einmündung selbst bleiben wie oben; Querungen ohne Einmündung und Fussgängerstreifen unverändert.
 //
-// Begegnungszone (Nutzerentscheid 30.10.2026): liegt eine unmarkierte OSM-Querung ohne Wahl am Streifen in einer Begegnungszone
+// Begegnungszone: liegt eine unmarkierte OSM-Querung ohne Wahl am Streifen in einer Begegnungszone
 // (Strecke oder Zone wie im Bedarfsmodul, rechneFall), hat der Fussverkehr dort Vortritt. Nach Z. 8.2 (S. 8) gilt dann die
 // Anhaltesichtweite nach dem Tempo der Zufahrt (Tab. AHS_40240), nicht die Formel mit L; Typ «begegnungszone» derselben Rechnung
 // (keine Kurvenregeln, Abbieger höchstens bis zum Beginn des Abbiegens wie oben, Reichweite wie oben).

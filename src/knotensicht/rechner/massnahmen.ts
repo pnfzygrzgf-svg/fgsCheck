@@ -14,7 +14,7 @@
 // 5 Tempo senken: nächsttiefere Stufen der Tab. 1 (mit Anhaltesichtweite) bis es reicht. 6 Lichtsignalanlage: Vermerk.
 // 7 Spiegel: nur wenn 2 bis HALTELINIE_MIN_M nicht reicht; Bedingungen als Häkchen (die App zählt nur). 8 Aufhebung der Ausfahrt:
 // Vermerk bei Grundstückzufahrten.
-// E3b: der Velo-Teil zählt mit (Entscheid 1): eine Richtung ist «nicht erfüllt», wenn Auto oder Velo nicht erfüllt sind; jede
+// E3b: der Velo-Teil zählt mit: eine Richtung ist «nicht erfüllt», wenn Auto oder Velo nicht erfüllt sind; jede
 // Variante rechnet auch die Veloachse (ein tieferes Tempo gilt dort als zulässige Höchstgeschwindigkeit der Tab. 3), «reicht» heisst
 // Auto und Velo reichen. Der Trottoirverkehr (Tab. 2) ist nicht Teil der Liste. Block 5: der Überholfall (Ziffer 6, nur ausserorts)
 // zählt wie das Velo mit, sofern geprüft.
@@ -75,7 +75,7 @@ export interface Variante { D?: P; ohne?: string[]; tempo?: Partial<Record<Richt
 
 export interface MassnahmenEingang {
   richtungen: RichtungErgebnis[]
-  /** Korrektur 31.10.2026 (Punkt 13): LSA-Knoten (Lichtsignal in OSM am Knoten bzw. auf einem Arm): ohne Massnahme «Lichtsignalanlage» */
+  /** LSA-Knoten (Lichtsignal in OSM am Knoten bzw. auf einem Arm): ohne Massnahme «Lichtsignalanlage» */
   lsa?: boolean
   variante: (v: Variante) => VarianteRichtung[]
   /** D und Haltelinie, wenn D b Meter hinter dem Bezug (Kante bzw. Trottoirhinterkante) steht; null = D von Hand (nicht gerechnet) */
@@ -246,7 +246,7 @@ export function massnahmenRechnen(m: MassnahmenEingang): Massnahme[] | null {
   else out.push({ nr: 5, titel: 'Tempo senken', reicht: tempoReicht, zeilen: zeilen5, text: 'Nächsttiefere Stufen der Tab. 1, mit der ' +
     'Anhaltesichtweite bei der Längsneigung. Senkung der Höchstgeschwindigkeit nur mit Gutachten nach SSV.' })
 
-  // 6 Lichtsignalanlage (Korrektur 31.10.2026, Punkt 13: entfällt an einem LSA-Knoten, dort regelt schon ein Lichtsignal)
+  // 6 Lichtsignalanlage (entfällt an einem LSA-Knoten, dort regelt schon ein Lichtsignal)
   if (!m.lsa) out.push({ nr: 6, titel: 'Lichtsignalanlage im Dauerbetrieb', reicht: null, zeilen: [], text: 'Mögliche Massnahme an bestehenden Knoten (Ziffer 14, S. 9). ' +
     'Die App rechnet sie nicht.' })
 

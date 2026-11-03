@@ -1,0 +1,35 @@
+{
+  "type": "FeatureCollection",
+  "crs": { "type": "name", "properties": { "name": "EPSG:2056" } },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 81,
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [[2599171.8, 1198713.01, 0.0], [2599174.47, 1198710.96, 0.0], [2599210.26, 1198758.51, 0.0]],
+          [[2599174.47, 1198710.96, 0.0], [2599174.5, 1198710.94, 0.0]]
+        ]
+      },
+      "properties": { "Objectid": 81, "V_sig": 30, "Strassenname": "Lentulusstrasse" }
+    },
+    {
+      "type": "Feature",
+      "id": 83,
+      "geometry": { "type": "LineString", "coordinates": [[2599107.92, 1198876.42, 0.0], [2599114.71, 1198885.2, 0.0]] },
+      "properties": { "Objectid": 83, "V_sig": 20, "Strassenname": "Lentulusrain" }
+    },
+    {
+      "type": "Feature",
+      "id": 2640,
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[2599388.14, 1198793.1, 0.0], [2599388.14, 1198793.1, 0.0], [2599341.34, 1198758.18, 0.0],
+          [2599320.71, 1198744.4, 0.0], [2599299.2, 1198733.13, 0.0], [2599265.34, 1198714.07, 0.0],
+          [2599251.79, 1198703.95, 0.0], [2599241.2, 1198693.52, 0.0], [2599225.46, 1198671.72, 0.0]]
+      },
+      "properties": { "Objectid": 2640, "V_sig": null, "Strassenname": "Schwarzenburgstrasse" }
+    }
+  ]
+}

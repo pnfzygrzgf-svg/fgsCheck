@@ -1,0 +1,10 @@
+{
+"type": "FeatureCollection",
+"name": "ogd-0523_giszhpub_tba_verkehrstechnik_bsa_p",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::2056" } },
+"features": [
+{ "type": "Feature", "properties": { "id": 18993148.0, "guid": "7f246383-d189-4e13-8af2-1d985ce561fd", "typ": "", "typ_id": 1, "typ_bez": "Lichtsignalanlage", "status": "", "status_id": 1, "status_bez": "in Betrieb", "objektangaben": "LSA 0001 - Thurbrücke - Lichtsignalanlage", "anlagenummer": "LSA 0001", "bezeichnung": "Thurbrücke", "geodb_oid": 223 }, "geometry": { "type": "Point", "coordinates": [ 2693471.068300001323223, 1272559.797400001436472 ] } },
+{ "type": "Feature", "properties": { "id": 18993149.0, "guid": "5d583305-3724-4f98-b75a-97b5a13a6667", "typ": "", "typ_id": 1, "typ_bez": "Lichtsignalanlage", "status": "", "status_id": 1, "status_bez": "in Betrieb", "objektangaben": "LSA 0002 - Rheinbrücke - Lichtsignalanlage", "anlagenummer": "LSA 0002", "bezeichnung": "Rheinbrücke", "geodb_oid": 224 }, "geometry": { "type": "Point", "coordinates": [ 2689201.143399998545647, 1281979.683600001037121 ] } },
+{ "type": "Feature", "properties": { "id": 18993150.0, "guid": "078d59ee-bc7c-4dec-9bd4-55d2deb2dd00", "typ": "", "typ_id": 1, "typ_bez": "Lichtsignalanlage", "status": "", "status_id": 1, "status_bez": "in Betrieb", "objektangaben": "LSA 0003 - Neue Winterthurer-/Neugutstr. - Lichtsignalanlage", "anlagenummer": "LSA 0003", "bezeichnung": "Neue Winterthurer-/Neugutstr.", "geodb_oid": 225 }, "geometry": { "type": "Point", "coordinates": [ 2687698.917599998414516, 1251625.825500000268221 ] } }
+]
+}

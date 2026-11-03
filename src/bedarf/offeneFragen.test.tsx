@@ -63,7 +63,7 @@ describe('Block «Offene Fragen»: nur Grundprüfung, ohne Nummern, festes Zeich
     for (const f of fr) expect(b5.has(f.feld), f.feld).toBe(true)
     // keine Frage der erweiterten Prüfung (Strecke oder Zone gehört nicht zur Grundprüfung)
     expect(fr.map(f => f.ziel)).not.toContain('tempoRegime')
-    // feste Reihenfolge (Nutzerentscheid 23.10.2026), entscheidende nur mit Hinweis «davon hängt die Antwort ab»
+    // feste Reihenfolge, entscheidende nur mit Hinweis «davon hängt die Antwort ab»
     const reihe = ['T', '1', '2', '3', '4', '5'], pos = fr.map(f => reihe.indexOf(String(f.punkte[0])))
     expect(pos).toEqual([...pos].sort((a, b) => a - b))
     expect(new Set(fr.map(f => f.ziel)).size).toBe(fr.length)
@@ -94,7 +94,7 @@ describe('Block «Offene Fragen»: nur Grundprüfung, ohne Nummern, festes Zeich
     expect(bl).not.toContain('<ol')
     expect(bl.match(/<li>/g)!.length).toBe(fr.length)
     expect(text(bl)).toContain('Offene Fragen der Grundprüfung')
-    // Zusatz nur, wo die Antwort daran hängt; keine Fragen der ergänzenden bfu-Aspekte (Nutzerentscheid 23.10.2026)
+    // Zusatz nur, wo die Antwort daran hängt; keine Fragen der ergänzenden bfu-Aspekte
     expect((text(bl).match(/\(davon hängt die Antwort ab\)/g) ?? []).length).toBe(fr.filter(f => f.entscheidend).length)
     expect(text(bl)).not.toMatch(/fehlt für|Ergänzend|Weitere/)
     expect(fr.every(f => !f.punkte.includes('W'))).toBe(true)

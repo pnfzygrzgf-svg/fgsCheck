@@ -1,4 +1,4 @@
-// Tests Automatik Paket C (21.10.2026) und Korrekturen nach Prüfung: Vorbelegung aus Richtplan, Strassenhierarchie, V_sig, Schulen, taktilen Markierungen,
+// Tests Automatik: Vorbelegung aus Richtplan, Strassenhierarchie, V_sig, Schulen, taktilen Markierungen,
 // Nutzungszonen, ÖV-Linien (Geoportal Stadt Bern) und OSM (Heime, Schulen ausserhalb Berns, Vortrittszeichen). Künstliche Strasse wie
 // vorbelegungGeo.test.ts: Hauptstrasse West–Ost (y = 0), Fahrbahn 8 m, Tempo 50 (OSM), Übergang bei x = 0; je Regel beide Seiten der
 // Schwelle, Bern bzw. ausserhalb, Dienstausfall und Widersprüche.
@@ -76,7 +76,7 @@ const SH = (h: ShLinie[], t: StLinie[] = []): GeoVorbelegung['strassenhierarchie
 const VS = (v: (number | null)[], teile: P[][][] = v.map(() => LAENGS)): GeoVorbelegung['vsig'] =>
   ({ linien: v.map((x, i) => ({ id: `v${i}`, strasse: 'Hauptstrasse', vSig: x, teile: teile[i] })), bereich: BQ })
 
-describe('Tempo 20: Begegnungszone als Vorschlag (Nutzerentscheid 23.10.2026)', () => {
+describe('Tempo 20: Begegnungszone als Vorschlag', () => {
   const opt = (geo: GeoVorbelegung) => ({ vorgabe: { bern: true, kantonBE: true }, geo })
   it('20 km/h laut Geoportal: Begegnungszone vorgeschlagen, A2 verletzt (kein «Annahme bestätigen»), Empfehlung flächig, keine Grundprüfung', () => {
     const v = vor({ vsig: VS([20]) })
@@ -163,7 +163,7 @@ describe('Tempo 20: Nachtrag nach Prüfung (wirksames Tempo, Rohtempo, Strecke 2
   })
 })
 
-describe('Begegnungszone aus OSM gegen amtliches Tempo (Nutzerentscheid 23.10.2026)', () => {
+describe('Begegnungszone aus OSM gegen amtliches Tempo', () => {
   const LS = { ...HAUPT, highway: 'living_street', maxspeed: '20' }
   it('OSM living_street, V_sig 30 (wie Nr. 1088): Strecke/Zone offen mit Hinweis, A2 offen, Zulässigkeit offen, Empfehlung ausgesetzt', () => {
     const geo: GeoVorbelegung = { vsig: VS([30]), osmTags: new Map([[1, LS]]) }
@@ -345,7 +345,7 @@ describe('Paket C: besonderer Grund (Schulen, Kindergärten, Heime, Haltestelle)
   })
   it('«keines» nur mit ganz geladenem Umkreis und geklärten Haltestellen; Ausfall des Geoportals: offen mit Hinweis', () => {
     const k = (geo: GeoVorbelegung) => vor(geo).werte.beduerfnis
-    // Korrektur S5: ausserhalb Berns kein «keines» aus OSM allein, nur Hinweis
+    // Ausserhalb Berns kein «keines» aus OSM allein, nur Hinweis
     const aussen = vor({ schulen: schulenAussen([]), haltestellen: { ...hst([]), quelle: 'osm', herkunft: 'OSM' } })
     expect(aussen.werte.beduerfnis).toBeUndefined()
     expect(aussen.feldHinweise!.beduerfnis).toContain('nichts in OSM im Umkreis von 150 m')
@@ -377,12 +377,12 @@ describe('Paket C: Fusswegnetz (Richtplan Fussverkehr)', () => {
     expect(v.werte.netz).toMatchObject({ wert: 'basisnetz', quelle: 'geoportal' })
     expect(v.werte.netzQualifiziert).toMatchObject({ wert: true, quelle: 'geoportal' })
     expect(v.werte.nachfrage).toMatchObject({ wert: 'punktuell', quelle: 'annahme' })
-    // Runde 5 (F6): Gehlinie aus der schematischen Netzlinie nur als Hinweis
+    // Gehlinie aus der schematischen Netzlinie nur als Hinweis
     expect(v.werte.wunschlinieM).toBeUndefined()
     expect(v.feldHinweise!.wunschlinieM).toContain('schematische Basisnetz-Linie quert die Fahrbahn 15 m vom Streifen')
     const w = vor({ richtplan: RP([quer(15.3)]) })
     expect(w.werte.netz).toBeUndefined()
-    // Korrektur S8: Gehlinie über 15 m nur als Hinweis
+    // Gehlinie über 15 m nur als Hinweis
     expect(w.werte.wunschlinieM).toBeUndefined()
     expect(w.feldHinweise!.wunschlinieM).toContain('15 m vom Streifen')
     expect(w.feldHinweise!.netz).toBe('nicht im kartierten Basisnetz (Geoportal Stadt Bern); Feinverteiler nicht kartiert')
@@ -406,7 +406,7 @@ describe('Paket C: Fusswegnetz (Richtplan Fussverkehr)', () => {
     expect(v.werte.netz.text).toContain('zudem quert eine Basisnetz-Linie die Fahrbahn 5 m vom Streifen')
     expect(v.werte.netzQualifiziert.wert).toBe(true)
     expect(v.werte.nachfrage.wert).toBe('punktuell')
-    // Korrektur S4: nur publikumsattraktiver Bereich: Nachfrage offen mit Hinweis
+    // Nur publikumsattraktiver Bereich: Nachfrage offen mit Hinweis
     const pub = vor({ richtplan: RP([], [rechteck(-50, -50, 50, 50)]) })
     expect(pub.werte.netz.wert).toBe('publikumsintensiv')
     expect(pub.werte.nachfrage).toBeUndefined()
@@ -525,7 +525,7 @@ describe('Paket C: ÖV-Linien (Linienbus, Tramhalt)', () => {
   })
   it('Geoportal-Halt bis 30 m mit Tramlinie: Tramhaltestellenbereich ja (Hinweis entfällt); ohne Tramlinie: nein; Tramhalt 40 m: Hinweis', () => {
     const tram = vor({ haltestellen: hst([halt(25)]), oevLinien: OEV([{ typ: 'tram', teile: [[lv(-200, 3), lv(200, 3)]] }]) })
-    expect(tram.werte.tramHaltestellenbereich).toMatchObject({ wert: true, quelle: 'annahme' })               // Korrektur S7
+    expect(tram.werte.tramHaltestellenbereich).toMatchObject({ wert: true, quelle: 'annahme' })
     expect(tram.werte.tramHaltestellenbereich.text).toContain('Tramhalt angenommen')
     expect(tram.feldHinweise!.tramHaltestellenbereich).toBeUndefined()
     expect(tram.hinweise.join(' ')).not.toContain('ohne Angabe Bus oder Tram')
@@ -561,7 +561,7 @@ describe('Paket C: Vortrittsrolle an der Kreuzung (OSM-Vortrittszeichen)', () =>
     // Signal CH:3.02 als traffic_sign auf dem Querarm zählt wie give_way
     expect(auto(tKnoten(), [{ ...zeichen(30, xs, 12, 'schild'), zeichen: 'CH:3.02' }]).w.lage.wert).toBe('knoten_berechtigt')
     expect(auto(tKnoten(), [{ ...zeichen(30, xs, 12, 'schild'), zeichen: 'CH:4.08' }]).w.lage).toBeUndefined()
-    // Korrektur S2: frei stehendes Zeichen (kein Knoten eines Arms) zählt nicht
+    // Frei stehendes Zeichen (kein Knoten eines Arms) zählt nicht
     expect(auto(tKnoten(), [zeichen(99, xs + 1.5, 8, 'stop')]).w.lage).toBeUndefined()
   })
   it('Zeichen auf der gequerten Strasse: sie gewährt Vortritt (knoten_belastet)', () => {
@@ -599,7 +599,7 @@ describe('Paket C: Vortrittsrolle an der Kreuzung (OSM-Vortrittszeichen)', () =>
   })
 })
 
-describe('Kleinpunkte (Nutzerentscheide 21.10.2026)', () => {
+describe('Kleinpunkte', () => {
   it('mit Lichtsignal: kein Block LSA-Zeiten mehr (gestrichen 30.10.2026), keine I-Regel ausgewertet, kein «nicht geprüft»', () => {
     const b = beurteile(testfall({ fgsMitLsa: true }), { ebenen: { bern: true, kantonBE: true } })
     expect(b.nichtGeprueft).toEqual([])
@@ -666,7 +666,7 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
     expect(bgz('annahme').alle.find(y => y.id === 'A2')).toMatchObject({ zustand: 'offen', bestaetigen: true, fehlend: ['tempoRegime'] })
     expect(bgz('osm').ende).toBe('begegnungszone')
     expect(bgz('bestaetigt').ende).toBe('begegnungszone')
-    // Runde 4 (Kann): solange A2 offen ist, keine Empfehlung eines Typs (statt Fussgängerstreifen); Strecke als Tatsache: wie bisher
+    // solange A2 offen ist, keine Empfehlung eines Typs (statt Fussgängerstreifen); Strecke als Tatsache: wie bisher
     expect(bgz('annahme').empfehlung).toMatchObject({ typ: 'keiner', elemente: [], grundlage: [], vorlaeufig: true })
     expect(typText(bgz('annahme'), false)).toBe('Empfehlung folgt, sobald geklärt ist, ob die Querung in einer Begegnungszone liegt')
     expect(typText(bgz('annahme'))).toBe('Empfehlung folgt, sobald geklärt ist, ob die Querung in einer Begegnungszone liegt')
@@ -689,7 +689,7 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
     expect(html).toContain('Vorschlag bestätigen')
     // 23.10.2026: als Frage im Thema (statt «Annahme bestätigen für» unter den offenen Angaben), mit «Vorschlag bestätigen» und «ändern»
     expect(html).toContain('Bitte bestätigen: in einer Tempo-30-Zone (Zonentafel) (angenommen)?')
-    // Runde 4: der Knopf nur an den Feldern, deren Annahme das Verbot offen hält (nicht an jeder Annahme)
+    // Der Knopf nur an den Feldern, deren Annahme das Verbot offen hält (nicht an jeder Annahme)
     const knoepfe = [...html.matchAll(/<li id="feld-([^"]+)">(?:(?!<\/li>).)*?aria-label="[^"]+ Vorschlag bestätigen"/g)].map(x => x[1])
     expect(knoepfe.sort()).toEqual(['beduerfnis', 'tempoRegime'])
     expect(html.match(/Vorschlag bestätigen<\/button>/g)?.length).toBe(2)
@@ -700,7 +700,7 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
     expect([...b.gebildet.herkunft.values()].filter(h => h.zustand === 'vorbelegt' && (h.quelle === 'annahme' || h.quelle === 'schaetzung')).length)
       .toBeGreaterThan(2)
     expect(b.befund.alle.find(y => y.id === 'C2')?.detail).toBe('beruht auf einer Annahme der Vorbelegung: Vorschlag bestätigen bzw. von Hand ändern')
-    // Runde 4: Annahmen von Hand (kein Vorschlag): Detail ohne «Vorbelegung», kein Knopf
+    // Annahmen von Hand (kein Vorschlag): Detail ohne «Vorbelegung», kein Knopf
     const fh = fallMit()
     fh.bedarf = { felder: { tempoRegime: { wert: 't30_zone', quelle: 'annahme' }, beduerfnis: { wert: [], quelle: 'schaetzung' } } }
     const bh = befundblatt(g, fh, opt)
@@ -730,7 +730,7 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
     expect(t30.befund.alle.some(y => y.id === 'A2')).toBe(false)
     expect(t30.befund.ausgewertet).toContain('A2')
     expect(t30.befund.empfehlung.typ).toBe('Q1')
-    // Tempo 20 ohne Zonenangabe (OSM-Tags allein): Begegnungszone als Vorschlag (Nutzerentscheid 23.10.2026), gilt für die Beurteilung
+    // Tempo 20 ohne Zonenangabe (OSM-Tags allein): Begegnungszone als Vorschlag, gilt für die Beurteilung
     const t20 = mit({ maxspeed: '20' })
     expect(t20.gebildet.eingaben.tempoRegime).toEqual({ wert: 'begegnungszone', quelle: 'vorschlag' })
     expect(t20.befund.alle.find(y => y.id === 'A2')).toMatchObject({ zustand: 'verletzt' })
@@ -791,7 +791,7 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
     expect(v.werte.beduerfnis.text).toContain('120 m')
     expect(v.werte.beduerfnis.text).not.toContain('Grenzrechteck')
     expect(abstandOrt({ ...areal, umriss: undefined }, g.streifen)).toBeCloseTo(170, 0)
-    // Runde 4: Umriss nur aus den Grenzen (out bb) → im Text gekennzeichnet; innerhalb «im Areal»
+    // Umriss nur aus den Grenzen (out bb) → im Text gekennzeichnet; innerhalb «im Areal»
     const bb = vor({ schulen: schulenAussen([{ ...areal, grenzrechteck: true }]), haltestellen: { ...hst([]), quelle: 'osm', herkunft: 'OSM' } })
     expect(bb.werte.beduerfnis.text).toContain('120 m, Rand des Areals, Grenzrechteck (OSM; Annahme)')
     expect(ortAbstandText({ ...areal, grenzrechteck: true }, 0)).toBe('im Areal, Grenzrechteck')

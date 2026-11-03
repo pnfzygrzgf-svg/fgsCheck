@@ -15,7 +15,7 @@ import { neuerStreifen, zufahrtenStreifen, handGruppen, TEIL_ENDEN_LUECKE_M, TEI
 import { linieKreis } from './spurhand'
 import { gedecktRechnenSetzen } from './abbiegen'
 import { leererFall, fallLesen, fallSchreiben, zufahrtSchluessel, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
-  fallMerken, fallErinnern, fallVergessen, ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, ortOhneUebergangText, imGebiet, type Fall,
+  fallMerken, fallErinnern, fallVergessen, ohneUebergang, eingabenSchluessel, rechnungsSchluessel, ortMerkenEntscheid, ortOhneUebergangText, imGebiet, type Fall,
   type StreifenHand } from '../fall'
 import { markierung, markierungHinweis, planungHinweis, knotenLage } from '../daten/osm'
 import type { Konflikt } from './typen'
@@ -162,6 +162,56 @@ describe('Rechnung mit Eingaben von Hand (rechneFall)', () => {
     expect(s.zufahrten.some(z => z.kennung === ohne.kennung)).toBe(false)
     expect(s.entfallen.some(e => e.grund === 'hand')).toBe(true)
     expect(rechneFall(daten(), AV, [], 12, fallMit(x => { x.streifen[fid] = { keinFgs: true } }), null).streifen[0].status).toBe('kein_fgs')
+  })
+  it('D1: Signalisiertes Tempo gilt für die geprüfte Strasse, Querstrasse behält amtliches Tempo', () => {
+    try {
+      gedecktRechnenSetzen(true)
+      const f = fallMit(x => {
+        x.ort.markierung = 'markiert'
+        x.streifenHand = [{ id: 'hand-1', p0: lv(-35, -4), p1: lv(-35, 4), breite: 4 }]
+        x.bedarf = { felder: { vSig: { wert: 30, quelle: 'hand' } } }
+      })
+      const amtlich = Object.assign(() => 50, { quelle: 'Geoportal' })
+      const r = rechneFall(daten(), AV, [], 12, f, null, null, null, amtlich)
+      const zs = r.streifen[0].zufahrten
+      expect(zs.some(z => z.art === 'abbiegend')).toBe(true)
+      expect(zs.filter(z => z.art === 'gerade').every(z => z.tempo === 30 && z.tempoQuelle === 'Korrektur')).toBe(true)
+      expect(zs.filter(z => z.art === 'abbiegend').every(z => z.tempo === 50 && z.tempoQuelle === 'Geoportal')).toBe(true)
+      const ab = zs.find(z => z.art === 'abbiegend')!
+      f.zufahrten[zufahrtSchluessel(ab.fgsId, ab.kennung)] = { tempo: 40 }
+      expect(rechneFall(daten(), AV, [], 12, f, null, null, null, amtlich).streifen[0].zufahrten.find(z => z.kennung === ab.kennung)?.tempo).toBe(40)
+      expect(ost(r).sichtweite).toBe(25)
+      expect(zs.find(z => z.art === 'abbiegend')!.sichtweiteQuelle).toBe('bfu')
+      const vorher = rechnungsSchluessel(f)
+      f.bedarf!.felder.vSig.wert = 40
+      expect(rechnungsSchluessel(f)).not.toBe(vorher)
+      expect(ost(rechneFall(daten(), AV, [], 12, f, null, null, null, amtlich)).sichtweite).toBe(40)
+    } finally { gedecktRechnenSetzen(null) }
+  })
+  it('Korrektur je Zufahrt geht vor; Datei erhält beide Werte, Zurücksetzen stellt Vorgabe bzw. Daten wieder her', () => {
+    const amtlich = Object.assign(() => 50, { quelle: 'Geoportal' })
+    const rechnen = (f: Fall) => rechneFall(daten(), AV, [], 12, f, null, null, null, amtlich)
+    const f = fallMit(x => { x.bedarf = { felder: { vSig: { wert: 30, quelle: 'hand' } } } })
+    const z0 = ost(rechnen(f)), key = zufahrtSchluessel(z0.fgsId, z0.kennung)
+    f.zufahrten[key] = { tempo: 40 }
+    const [geladen, hinweise] = fallLesen(fallSchreiben(f))
+    expect(hinweise).toEqual([])
+    expect(ost(rechnen(geladen)).tempo).toBe(40)
+    expect(rechnen(geladen).streifen[0].zufahrten.filter(z => z.kennung !== z0.kennung && z.art === 'gerade').every(z => z.tempo === 30)).toBe(true)
+    delete geladen.zufahrten[key].tempo
+    expect(ost(rechnen(geladen)).tempo).toBe(30)
+    geladen.bedarf!.felder.vSig = { wert: null, quelle: 'hand' }
+    expect([ost(rechnen(geladen)).tempo, ost(rechnen(geladen)).tempoQuelle]).toEqual([50, 'Geoportal'])
+  })
+  it('bewusst gewählte Tempoquelle gilt samt Herkunft und Datenstand auch für die Sichtrechnung', () => {
+    const f = fallMit(x => { x.bedarf = { felder: { vSig: { wert: 30, quelle: 'bestaetigt',
+      datenquelle: { id: 'osm.tempo', text: 'Tempo 30 am Weg', datenstand: '02.11.2026' } } } } })
+    const z = ost(rechneFall(daten(), AV, [], 12, f, null, null, null, Object.assign(() => 50, { quelle: 'Geoportal' })))
+    expect([z.tempo, z.sichtweite]).toEqual([30, 25])
+    expect(z.tempoQuelle).toBe('OpenStreetMap (OSM) (gewählt); Datenstand 02.11.2026')
+    const vorher = rechnungsSchluessel(f)
+    f.bedarf!.felder.vSig.datenquelle!.datenstand = '03.11.2026'
+    expect(rechnungsSchluessel(f)).not.toBe(vorher)
   })
   it('Streifen von Hand ersetzt den aus OSM', () => {
     const r = rechneFall(daten(), AV, [], 12, fallMit(x => x.streifenHand.push({ id: 'hand-1', p0: lv(20, -4), p1: lv(20, 4), breite: 4 })), null)
@@ -948,7 +998,7 @@ describe('Sicht vom Velo mit gemessener Längsneigung (29.10.2026)', () => {
     const m = (i: number | null) => ({ [key]: { i, quelle: 'swissALTI3D', laenge: 50, punkte: 20, hinweis: null } })
     expect([veloSoll(z, m(-5))!.A, veloSoll(z, m(0))!.A, veloSoll(z, m(3))!.A, veloSoll(z, null)!.A]).toEqual([55, 50, 45, 50])
     expect(veloSoll(z, m(-3))!.neigungText).toBe('Längsneigung −3 % (swissALTI3D)')
-    // Profil geladen, aber ohne Neigung (Entscheid 31.10.2026): unbekannt, strengster Wert der Tab. 3 (Spalte ≤ −4 %); fehlt die Messung
+    // Profil geladen, aber ohne Neigung: unbekannt, strengster Wert der Tab. 3 (Spalte ≤ −4 %); fehlt die Messung
     // (lädt): vorerst 0 %
     expect(veloSoll(z, m(null))).toMatchObject({ A: 55, i: 0, gemessen: false, unbekannt: true, ebikeA: 35,
       neigungText: 'Längsneigung unbekannt (Höhenmodell nicht verfügbar): strengster Wert der Tab. 3 angenommen' })

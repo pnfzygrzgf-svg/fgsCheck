@@ -13,10 +13,9 @@ let zeilenCache: Set<string> | null = null
 const mitZeile = (): Set<string> => (zeilenCache ??= new Set([...regelnJeWerk()].filter(([w, n]) => w !== 'ENTSCHEID' && n > 0).map(([w]) => w)))
 
 /**
- * Zu einem Ziel im Panel springen (Runde 4; seit 23.10.2026 Quellen im Abschnitt «Grundlagen und Quellen», Begriffe im Abschnitt
+ * Zu einem Ziel im Panel springen (seit 23.10.2026 Quellen im Abschnitt «Grundlagen und Quellen», Begriffe im Abschnitt
  * «Begriffe»): übergeordnete Aufklapper öffnen, zeigen und kurz hervorheben. false, wenn es ihn nicht gibt (Bericht, Test): dann
- * folgt der Link seinem Anker
- */
+ * folgt der Link seinem Anker */
 export function hilfeZeigen(anker: string): boolean {
   if (typeof document === 'undefined') return false
   const el = document.getElementById(anker)
@@ -40,7 +39,7 @@ export function WerkVerweis({ w, anzeige, druck = false }: { w: WerkId; anzeige:
   if (druck) return <>{anzeige}</>
   // Werk ohne Zeile in den Quellen der Prüfungen (keine aktive Regel, z. B. nur gestrichene): nur der Name, kein toter Verweis
   if (w !== 'ENTSCHEID' && !mitZeile().has(w)) return <>{anzeige}</>
-  // Projektentscheid: kein externes Werk, Verweis auf den Begriff (Nutzerentscheid 23.10.2026)
+  // Projektentscheid: kein externes Werk, Verweis auf den Begriff
   if (w === 'ENTSCHEID') return <a href="#begriff-projektentscheid" className="werk-link" title={PROJEKT_BEGRIFF}
     onClick={e => { if (hilfeZeigen('begriff-projektentscheid')) e.preventDefault() }}>{anzeige}</a>
   return <a href={`#${werkAnker(w)}`} className="werk-link" title={werkTooltip(w)}

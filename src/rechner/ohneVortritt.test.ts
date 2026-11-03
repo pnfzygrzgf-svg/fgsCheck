@@ -204,7 +204,7 @@ describe('Reichweite der geladenen Daten (Korrektur E1): ohne Vortritt geprüft 
   })
 })
 
-describe('Abbieger ohne Vortritt: Sicht höchstens bis zum Beginn des Abbiegens (Nutzerentscheid 30.10.2026, Variante A)', () => {
+describe('Abbieger ohne Vortritt: Sicht höchstens bis zum Beginn des Abbiegens (Variante A)', () => {
   // Hauptstrasse West–Ost (y = 0, 50 km/h), Verbindungsstück Nord–Süd (x = 0, 30 km/h, Fahrbahn 5 m) bis zur Nebenstrasse (y = −44,
   // 50 km/h); Ecken als AV-Bögen mit Radius 6 m; Übergang auf dem Verbindungsstück 10 m südlich der Hauptstrasse
   const R = 6, YN = -44, B = 2.5

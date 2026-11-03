@@ -152,6 +152,11 @@ describe('Synthetischer Übergang in der OSM-Antwort', () => {
     expect(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI).toBeCloseTo(30, 1)
     expect(dist(a, b)).toBeCloseTo(16, 1)
     expect(osmMitLuftbildUebergang(r, k.id, h)).toBe(r)
+    // Sehr grosse Kennungen (amtliche Übergänge): die Knoten des Fusswegs bleiben sichere, verschiedene Ganzzahlen
+    const gross = osmMitLuftbildUebergang(roh(), -7000000123456789, h) as { elements: { type: string; nodes?: number[] }[] }
+    const knoten = gross.elements.find(e => e.type === 'way' && e.nodes?.includes(-7000000123456789))!.nodes!
+    expect(knoten.every(Number.isSafeInteger)).toBe(true)
+    expect(new Set(knoten).size).toBe(3)
     expect(osmParsen(osmMitLuftbildUebergang(roh(), k.id, { ...h, richtung: null }) as Parameters<typeof osmParsen>[0]).querungen).toEqual([])
     expect(kandidatKnoten(k.id, h).tags.source).toBe('luftbild_eth')
   })

@@ -1,11 +1,11 @@
 // ── Vorschläge für Hindernisse (E2): Parkierung aus OSM-Tags, Bäume aus einem Baumkataster; amtliche Parkfelder ──
 //
-// Vorschläge zählen erst, wenn der Nutzer sie bestätigt (Nutzerentscheid 10.10.2026: «aus OSM, prüfen»). Parkierung: je Seite
+// Vorschläge zählen erst, wenn der Nutzer sie bestätigt («aus OSM, prüfen»). Parkierung: je Seite
 // eines befahrbaren OSM-Wegs mit parking:<seite>=lane|half_on_kerb|street_side (bzw. älterem parking:lane:<seite>) ein Streifen
 // entlang der AV-Bordkante, im Umkreis PARK_UMKREIS_M um den Streifen; Annahmen: Breite längs 2,0 m, schräg 4,5 m, quer 5,0 m;
 // lane/half_on_kerb auf der Fahrbahn, street_side ausserhalb; nicht näher als 5 m am Streifen (VRV Art. 18 Abs. 2e) und nicht in
 // Knoten (± 10 m). Ob dort wirklich parkiert wird, zeigt nur das Luftbild bzw. der Ort.
-// Amtliche Parkfelder (Nutzerentscheid 11.10.2026) sind keine Vorschläge: sie zählen sofort, einzelne lassen sich verwerfen.
+// Amtliche Parkfelder sind keine Vorschläge: sie zählen sofort, einzelne lassen sich verwerfen.
 // Sie kommen hier als «Vorschlag» mit Quelle 'kataster' zurück (Anzeige und Verwerfen wie die Bäume aus dem Baumkataster).
 
 import { type P, add, dist, rechts } from '../geo'

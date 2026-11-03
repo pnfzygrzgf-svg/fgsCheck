@@ -8,7 +8,7 @@
 //     Portierung: Abweichungen nur dort, wo Bern Daten hat, die offen fehlen.
 //   B «App»:   wie in der App, Klick auf den nächsten OSM-Übergang, Streifen aus OSM + AV, OSM live (Cache).
 // Ergebnis: Zusammenfassung auf der Konsole; mit FGS_REFERENZ_SCHREIBEN=1 zusätzlich ../referenz_bern/vergleich.json.
-// Runde 5: liegt im Cache cache/vsig_<Nr>.json (V_sig des Geoportals Stadt Bern, ±200 m), rechnet Lauf B damit wie die App.
+// Liegt im Cache cache/vsig_<Nr>.json (V_sig des Geoportals Stadt Bern, ±200 m), rechnet Lauf B damit wie die App.
 
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -87,9 +87,9 @@ function vergleichen(lauf: string, s: RefS, se: StreifenErgebnis | null, voll = 
       // Regeländerungen 13.10.2026 (die Berner Referenz folgt später): Arme ab NEBENAST_GRAD Drehung sind Abbiegezufahrten;
       // gedeckte Abbiegezufahrten nur mit GEDECKT_RECHNEN gerechnet (seit 14.10.2026 standardmässig aus: sie entfallen wie in
       // Bern mit Grund «gedeckt»). Verglichen wird der Grund-Schlüssel, nicht der Text
-      if (ent?.grund === 'gedeckt' && a.deckung) ursache.push('Nutzerentscheid 13.10.2026: gedeckte Abbiegezufahrten gerechnet')
+      if (ent?.grund === 'gedeckt' && a.deckung) ursache.push('gedeckte Abbiegezufahrten gerechnet')
       if (ent?.grund === 'nebenast' && a.art === 'abbiegend')
-        ursache.push(`Nutzerentscheid 13.10.2026: Arme ab ${NEBENAST_GRAD}° Drehung als Abbiegezufahrt gerechnet`)
+        ursache.push(`Arme ab ${NEBENAST_GRAD}° Drehung als Abbiegezufahrt gerechnet`)
     } else if (r && a) {
       if (r.kennung && a.kennung !== r.kennung) befund.push(`kennung ${r.kennung} / ${a.kennung}`)
       if (gerade(r) && r.zufahrt_art !== a.art) {
@@ -257,7 +257,7 @@ describe.skipIf(!da)('Referenz Bern (nur lokal)', () => {
           if (lauf === 'B2' && (!lbMeta || !existsSync(lbPfad))) { fehler.push(`Nr. ${s.fgs_id}: Luftbild-Cache fehlt`); continue }
           try {
             const k = kontextBauen(osm, av, sosf, hind)
-            // Runde 5 (Nutzerentscheid 21.10.2026): V_sig des Geoportals als Tempo der Zufahrten wie in der App, wenn der Cache die Linien
+            // V_sig des Geoportals als Tempo der Zufahrten wie in der App, wenn der Cache die Linien
             // hat (cache/vsig_<Nr>.json, GeoJSON des Diensts im Rechteck ±200 m um die Streifenmitte); ohne Datei wie bisher OSM
             if (vsRoh) k.tempoAmtlich = vsigTempo({ linien: vsigAusGeoportal(vsRoh), bereich: { mitte: m, radiusM: 200, form: 'quadrat' } })
             // nächster Übergangsknoten (wie ein Klick) zur Streifenmitte

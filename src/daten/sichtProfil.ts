@@ -24,7 +24,12 @@ export function sichtProfilUrl(auge: P, ziel: P): string {
   return profilUrl([r(auge), r(ziel)], sichtProfilPunkte(dist(auge, ziel)))
 }
 
-const cache = new Map<string, { p: Promise<Abruf<ProfilPunkt[]>>; signal?: AbortSignal }>()
+const cache = new Map<string, { p: Promise<Abruf<ProfilPunkt[]>>; signal?: AbortSignal; antwort?: Abruf<ProfilPunkt[]>; abgerufen?: string }>()
+/** Bereits geladene Punkte für den erklärenden Höhenschnitt; löst keinen Abruf aus. */
+export function sichtProfilVorhanden(auge: P, ziel: P) {
+  const c = cache.get(sichtProfilUrl(auge, ziel))
+  return c?.antwort ? { ...c.antwort, abgerufen: c.abgerufen } : null
+}
 let laufend = 0
 const warten: (() => void)[] = []
 async function platz(): Promise<void> {
@@ -53,6 +58,6 @@ export function ladeSichtProfil(auge: P, ziel: P, signal?: AbortSignal): Promise
   cache.set(url, { p, signal })
   if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value!)
   // fertige Antworten gelten weiter (auch nach einem Abbruch späterer Abrufe), fehlgeschlagene fragt der nächste Versuch neu
-  p.then(() => { const c = cache.get(url); if (c?.p === p) c.signal = undefined }, () => { if (cache.get(url)?.p === p) cache.delete(url) })
+  p.then(r => { const c = cache.get(url); if (c?.p === p) { c.signal = undefined; c.antwort = r; c.abgerufen = new Date().toISOString() } }, () => { if (cache.get(url)?.p === p) cache.delete(url) })
   return p
 }

@@ -1,3 +1,7 @@
+import { bundBelegText } from '../daten/anbieter/gemeinsam/bundBelege'
+import { regionalEntlang } from '../daten/anbieter/gemeinsam/regionalZuordnung'
+import { signalText } from '../daten/anbieter/gemeinsam/regionalSignale'
+import { zuerichEntlang } from '../daten/anbieter/gemeinsam/zuerichZuordnung'
 // ── Rechnung E0 bis E3c: Knoten bzw. Grundstückzufahrt, Zufahrt, Beobachtungspunkt, Fahrstreifenachsen, Sicht je Richtung,
 //    Status, Annahmen, Massnahmen nach Ziffer 14 ──
 //
@@ -12,12 +16,12 @@
 // Annahmen kommen als Text zurück und stehen in der Seite.
 // E3a: Längsneigung je Richtung von Hand bzw. als Vorgabe aus dem Höhenmodell (fall.hoehen, geholt von der App entlang der
 // profilLinie je Richtung und des zufahrtProfil); Massnahmen nach Ziffer 14 (massnahmen.ts) als Varianten dieser Rechnung.
-// Neigung unbekannt (Entscheid 31.10.2026): weder von Hand noch messbar (kein Profil, zu kurz, Dienst-Fehler), Höhenmodell fertig
+// Neigung unbekannt: weder von Hand noch messbar (kein Profil, zu kurz, Dienst-Fehler), Höhenmodell fertig
 // geladen: je Tabelle der strengste Wert (Tab. 2 Spalte ≤ −6, Tab. 3 Spalte ≤ −4, Anhaltesichtweite bei −12 %); solange das
 // Höhenmodell lädt, vorerst 0 %.
 // E3b: je Richtung die Prüfung des Veloverkehrs auf der Veloachse (velo.ts, Tab. 3; Radstreifen verschiebt die Autoachse, ein Radweg
 // näher als 2,00 m den Nullpunkt von B), mit Trottoir an der Zufahrt die Prüfung des Trottoirverkehrs von D' aus (Tab. 2); der
-// Gesamtstatus je Richtung ist der schlechteste der Teile (Entscheid 1).
+// Gesamtstatus je Richtung ist der schlechteste der Teile.
 // E3c: bei Rechtsvortritt an einem Knoten Teil E (rechtsvortritt.ts): Arme links und rechts der Zufahrt statt der Vortrittsstrasse,
 // Nullpunkt am Rand des rechten Arms, B 5,00 m, Tempo 30 km/h fest; nach rechts die Sicht auf die Fahrstreifenachse des rechten Arms
 // mit dem Zustand nach Abb. 6 (Wahrnehmbarkeit als Eingabe), bei schmaler Zufahrt das Sichtfeld nach Abb. 5 (Konstruktion nach bfu
@@ -39,7 +43,11 @@
 //      der Gehlinie 0,50 m vor dem hinteren Rand der Überfahrt, Tab. 2), Phase Fahrbahn = ergebnis.richtungen (Auto Tab. 1, Velo
 //      Tab. 3, B ab der Bordkante).
 //
-// Block 5 (31.10.2026): Abb. 2 der VSS 40 090b nach der Ablesung des Auftraggebers (anhaltesicht.ts); ungünstige Verhältnisse mit
+// K1 bis K3 (01.11.2026): an einem Kreisel (Ringpunkt) statt der Rechnung der Kreisel als ein Knoten mit Armen, Vermessung, gewählter
+// Einfahrt (fall.zufahrt = Schlüssel des Kreiselarms: Achse, K, D) und Ablenkungswinkel (kreisel.ts, kreiselfahrt.ts, KnotenInfo.kreisel)
+// und die Meldung, dass die Sichtprüfung später folgt; Typ und Fahrbeziehungen von Hand über eingaben.kreiselTyp, kreiselBeziehungen.
+//
+// Block 5 (31.10.2026): Abb. 2 der VSS 40 090b nach fachlicher Ablesung (anhaltesicht.ts); ungünstige Verhältnisse mit
 // den Massen des Kantons Solothurn (strasseBestimmen, Annahme); beim Rechtsvortritt an schmalen Zufahrten das Sichtfeld nach bfu
 // BM.021 Abb. 4 statt der Paarmatrix (rechtsvortritt.ts); ausserorts der Überholfall (VSS 40 273 Ziffer 6, Abb. 1) als eigener Teil
 // je Richtung; Hinweise ohne Statuswirkung zu Einbiegewinkel, Rechtsvortritt (Ziffer 15), Reduktion der Anhaltesichtweite (VSS 40 090b
@@ -60,15 +68,17 @@ import { Fahrbahn, Gebaeude, Flaechen, SEHNE_HALB } from './flaechen'
 import { OsmAchsen, type SpurEnde } from './achsen'
 import { fahrstreifenmitte, lageOsm, LAGE_ERSATZ, randProfil, fahrstreifenLagen, profilBei, lageMuendung } from './fahrstreifen'
 import { punkteAufSpur, SEHNE_MIN_PUNKTE } from './spur'
-import { wegTempo, tempoEntlang, zonenTempo, amtlichEntlang, TEMPO_ERSATZ } from './tempo'
+import { wegTempo, tempoEntlang, zonenTempo, amtlichNaechste, amtlichEntlang, TEMPO_ERSATZ } from './tempo'
 import { tueBand, TUE_GEHLINIE_M, TUE_BREITE_ANNAHME_M, type TueBand } from './trottoirueberfahrt'
 import { sichtweiteA, zielLaenge, sichtStatus, istHvsHighway, TAB1, TAB1_MAX, ZIEL_FAKTOR, STRASSENTYP_TEXT, NEIGUNG_GROSS_PROZENT,
   NEIGUNG_EBEN_PROZENT, ZWISCHENWERT_TEXT, SCHWERVERKEHR_PROZENT, type Strassentyp, type Ungunst,
   HVS_HIGHWAY } from './sichtweite'
 import { ANHALTESICHT_I_MIN } from './anhaltesicht'
-import { knotenInfo, vortrittPaar, vortrittsSignale, signalAnArm, armText, nachNr, knotenArt, keineKnoten, istLsaKnoten, ampelPunkte,
+import { knotenInfo, vortrittPaar, vortrittsSignale, signalAnArm, armText, nachNr, knotenArt, keineZufahrt, keineKnoten, istLsaKnoten, ampelPunkte,
   knotenFinden, fahrbahnteilungText, GABELUNG_TEXT, KREISEL_TEXT, ZUSAMMENFUEHRUNG_TEXT } from './knoten'
-import { grundstueckGeometrie, type GrundstueckGeo } from './grundstueck'
+import { zufahrtWinkel, grundstueckGeometrie, type GrundstueckGeo } from './grundstueck'
+import { kreiselKnoten, KREISEL_EINFAHRT_TEXT } from './kreisel'
+import { kreiselSicht, kreiselDreiecke } from './kreiselsicht'
 import { parkStreifen, sondenRechts, parkStreifenText, KEIN_PARKSTREIFEN, PARK_SONDE_RADIUS_M, PARK_EIN_FELD_TREFFER,
   type ParkStreifen } from './hauptachsen'
 import { armMittellinieMitEnde, muendungGeglaettet, querschnitt, fahrstreifenAchse, versetzt, versetztVariabel, mitVerlaengerung, schnittBei, lot,
@@ -114,9 +124,9 @@ export function avNachladen(bedarf: number, geladen: number): number | null {
 const ARM_LAENGE_M = Math.ceil(ZIEL_FAKTOR * TAB1[TAB1_MAX][1]) + 60
 /** Zufahrt: Mittellinie und Querschnitt (fahrstreifenmitte) ab dem Rand der Vortrittsstrasse plus ZUF_VON_M bis plus ZUF_BIS_M */
 const ZUF_LAENGE_M = 80
-/** Hinweis beim Rechtsvortritt: Voraussetzungen nach VSS 40 273 Ziffer 15 prüft die App nicht (Wortlaut des Auftraggebers,
- *  Korrektur 31.10.2026; die Voraussetzungen stehen in der Regelübersicht) */
-/** Rechtsvortritt (Nutzer 31.10.2026, Korrektur Punkt 24): Tempo wie sonst aus OSM bzw. Geoportal oder von Hand; die Auto-Sicht
+/** Hinweis beim Rechtsvortritt: Voraussetzungen nach VSS 40 273 Ziffer 15 prüft die App nicht (festgelegter Wortlaut;
+ *  die Voraussetzungen stehen in der Regelübersicht) */
+/** Rechtsvortritt: Tempo wie sonst aus OSM bzw. Geoportal oder von Hand; die Auto-Sicht
  *  folgt Abb. 6, die auf 30 km/h beruht */
 export const RV_TEMPO_TEXT = `Die Norm geht beim Rechtsvortritt von ${RV_TEMPO} km/h aus (Ziffer 15, S. 10); ein tieferes Tempo ändert die nötige Sicht nicht.`
 export const RV_VORAUSSETZUNG_TEXT = 'Ob hier Rechtsvortritt korrekt ist, prüft die App nicht. Das muss vor Ort gemäss VSS 40 273 geprüft werden.'
@@ -145,7 +155,7 @@ const SIGNAL_ZUFAHRT_M = 4
 export const KEIN_VORTRITT_STATT_STOP = 'Kein Vortritt statt Stop möglich: Stop nur, wo die Sicht nicht reicht (SSV Art. 36 Abs. 7; Praxis ' +
   'TBA Bern Arbeitshilfe Vortritt Kap. 2.3, vif Luzern 653.105, Basel-Stadt AB-SSV Teil 1 Kap. 5.2).'
 
-/** Themen der Annahmen in der Reihenfolge der Rechnung (Korrektur 31.10.2026): je Thema ein Punkt in Alltagssprache; allgemeine Regeln
+/** Themen der Annahmen in der Reihenfolge der Rechnung: je Thema ein Punkt in Alltagssprache; allgemeine Regeln
  *  stehen in der Regelübersicht (regeln.ts), technische Einzelheiten in Ergebnis.herleitung */
 export const ANNAHME_THEMEN: readonly [AnnahmeThemaId, string][] = [
   ['vortritt', 'Vortritt'], ['wartend', 'Wartendes Fahrzeug'], ['verkehr', 'Verkehr mit Vortritt und nötige Sicht'],
@@ -159,10 +169,10 @@ const vonSatz = (r: { lage: Lage }) => (r.lage === 'gegenueber' ? 'beim Gegenver
 const armName = (a: ArmInfo) => a.name || armText(a)
 const gross = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
 
-/** Korrektur 31.10.2026 (Punkt 14): die Regelung gilt für die gewählte Zufahrt; Werte im Code und in der Fall-Datei bleiben */
+/** Die Regelung gilt für die gewählte Zufahrt; Werte im Code und in der Fall-Datei bleiben */
 export const REGELUNG_TEXT: Record<Regelung, string> = { vortritt: 'Kein Vortritt (Signal 3.02)', stop: 'Stop (Signal 3.01)',
   rechtsvortritt: 'Rechtsvortritt (ohne Signal)' }
-/** Korrektur 31.10.2026 (Punkt 13): Hinweis oben im Ergebnis und im Bericht an einem LSA-Knoten */
+/** Hinweis oben im Ergebnis und im Bericht an einem LSA-Knoten */
 export const LSA_TEXT = 'Lichtsignalanlage: Im Betrieb regelt das Lichtsignal, die VSS 40 273 betrifft Knoten ohne Lichtsignal. Gerechnet ' +
   'ist die Rückfallebene bei ausgeschalteter oder gelb blinkender Anlage (Signale Kein Vortritt bzw. Stop darunter).'
 export const TEMPO_ART_TEXT: Record<TempoArt, string> = {
@@ -191,7 +201,7 @@ export function kontextBauen(osm: OsmDaten, av: AvFlaeche[]): Kontext {
 
 const leer = (meldung: string, t0: number, knoten: Rechnung['knoten'] = null, netz: OsmNetz | null = null,
   ampeln: P[] = []): Rechnung => ({ knoten, ergebnis: null, meldungen: [meldung], ms: performance.now() - t0, ...(netz ? umkreis(netz, ampeln) : {}) })
-/** Korrektur 31.10.2026 (Punkte 12, 13, 16, 17): Gabelungen, Kreisel und Fahrbahnteilungen bzw. LSA-Knoten im geladenen Umkreis
+/** Gabelungen und Fahrbahnteilungen bzw. LSA-Knoten im geladenen Umkreis
  *  (Knotensuche, Karte) */
 const umkreis = (netz: OsmNetz, ampeln: P[]) => ({ keinKnoten: keineKnoten(netz),
   lsaKnoten: ampeln.length ? knotenFinden(netz).filter(n => istLsaKnoten(netz, n, ampeln)) : [] })
@@ -202,7 +212,8 @@ export function knotenEingabenAus(e: Partial<KnotenEingaben> | undefined): Requi
     tempo: { links: e?.tempo?.links ?? null, rechts: e?.tempo?.rechts ?? null }, velo: { links: e?.velo?.links ?? null,
       rechts: e?.velo?.rechts ?? null }, ebikeVerboten: e?.ebikeVerboten ?? false, wahrnehmbarkeit: e?.wahrnehmbarkeit ?? null,
     alleArme: e?.alleArme ?? false, markierungRv: e?.markierungRv ?? false, trottoirueberfahrt: e?.trottoirueberfahrt ?? null, Dtrottoir: e?.Dtrottoir ?? null,
-    ueberholen: e?.ueberholen ?? null }
+    ueberholen: e?.ueberholen ?? null, kreiselTyp: e?.kreiselTyp ?? null,
+    kreiselBeziehungen: e?.kreiselBeziehungen ?? null }
 }
 
 /** Rechnung für den gewählten Knoten und die Zufahrt (ohne Zufahrt: Vorschlag, sonst nur Knoten und Arme) bzw. für eine
@@ -213,7 +224,7 @@ export function rechneKnoten(osm: OsmDaten, av: AvFlaeche[], fall: KnotenFall, k
   const t0 = performance.now()
   const k = kx ?? kontextBauen(osm, av)
   const { netz } = k
-  const eg: SichtEingaben = fall.eingaben ? { typ: fall.eingaben.typ, fahrstreifen: fall.eingaben.fahrstreifen,
+  const eg: SichtEingaben = fall.eingaben ? { innerorts: fall.eingaben.innerorts, bundesbelege: fall.eingaben.bundesbelege, typ: fall.eingaben.typ, fahrstreifen: fall.eingaben.fahrstreifen,
     neigungGross: fall.eingaben.neigungGross, schwerverkehr: fall.eingaben.schwerverkehr,
     schwerverkehrAnteil: fall.eingaben.schwerverkehrAnteil ?? null, neigung: fall.eingaben.neigung } : KEINE_EINGABEN
   const ke = knotenEingabenAus(fall.eingaben ?? KEINE_KNOTEN_EINGABEN)
@@ -224,7 +235,7 @@ export function rechneKnoten(osm: OsmDaten, av: AvFlaeche[], fall: KnotenFall, k
     // Grundstückzufahrt: Knotenpunkt auf der Vortrittsstrasse, Arme ab dort
     const g = grundstueckGeometrie(netz, k.achsen, k.fahrbahn, fall.zufahrtspunkt)
     if (typeof g === 'string') return leer(g, t0)
-    // Korrektur 31.10.2026 (Punkt 16): an einem Kreisel keine Rechnung
+    // An einem Kreisel keine Rechnung
     if ([...g.arme, g.zArm].some(a => a.wid >= 0 && netz.W.has(a.wid) && netz.w(a.wid).ring)) return leer(`${KREISEL_TEXT}.`, t0)
     const info: KnotenInfo = { id: 0, p: g.kp, ll: wgs(g.kp[0], g.kp[1]), name: `Grundstückzufahrt, Vortrittsstrasse ${g.strasse}`,
       arme: [...g.arme, g.zArm], vortritt: [g.arme[0].key, g.arme[1].key], vortrittGrund: g.grund, vorschlag: g.zArm.key,
@@ -237,13 +248,32 @@ export function rechneKnoten(osm: OsmDaten, av: AvFlaeche[], fall: KnotenFall, k
   if (fall.knoten === null) return leer('Knoten bzw. Zufahrtspunkt wählen.', t0)
   if (!netz.P.has(fall.knoten)) return leer(`OSM-Knoten ${fall.knoten} nicht in den OSM-Daten.`, t0)
   const kp = netz.p(fall.knoten)
-  // Korrektur 31.10.2026 (Punkte 12, 16, 17): Gabelung, Kreisel und Fahrbahnteilung ohne Rechnung (auch aus der Adresse bzw. der Fall-Datei)
+  // Gabelung und Fahrbahnteilung ohne Rechnung (auch aus der Adresse bzw. der Fall-Datei)
   const art = knotenArt(netz, fall.knoten)
-  if (art === 'kreisel') return leer(`${KREISEL_TEXT}.`, t0, null, netz, ampeln)
+  // K1 bis K4: Kreisel als ein Knoten, vermessen, mit Fahrlinien und β; mit gewählter Einfahrt die Sicht (kreiselsicht.ts) mit denselben
+  // Hindernissen wie am Knoten
+  if (art === 'kreisel') {
+    const kn = kreiselKnoten(netz, k.fahrbahn, fall.knoten, ke.kreiselTyp, fall.zufahrt, ke.kreiselBeziehungen, osm.querungen ?? [])
+    const kr = kn?.kreisel
+    if (!kn || !kr) return leer(`OSM-Knoten ${fall.knoten}: kein Kreisel.`, t0, null, netz, ampeln)
+    if (!kr.zufahrt) return leer(kr.zufahrtFehler ?? KREISEL_EINFAHRT_TEXT, t0, kn, netz, ampeln)
+    if (!av.some(f => f.art === 'Strasse_Weg')) return leer(keineAv, t0, kn, netz, ampeln)
+    const zaehlend = zaehlendeHindernisse(hg)
+    const s = kreiselSicht(kr, [...k.gebaeude, ...hindernisVerdeckend(zaehlend)])
+    if (s) {
+      const weit = Math.max(0, ...[s.auto, s.velo, ...(s.az ? [s.az] : [])].flatMap(t => t.achse.map(p => dist(kn.p, p))))
+      kr.sicht = { ...s, hindernis: hindernisStand(k, hg, kn.p, weit + REICHWEITE_RESERVE_M, kreiselDreiecke(s), s.D, []) }
+    }
+    return { knoten: kn, ergebnis: null, meldungen: fall.tempoAmtlich?.zuerich ? ['Stadt Zürich: amtliches Strassentempo wird nicht als Kreiselfahrtempo übernommen. Im Kreisel gelten weiterhin Typ und Ablenkungswinkel.'] : fall.tempoAmtlich?.regional ? ['Amtliches Strassentempo wird nicht als Kreiselfahrtempo übernommen. Im Kreisel gelten weiterhin Typ und Ablenkungswinkel.'] : [], ms: performance.now() - t0, ...umkreis(netz, ampeln) }
+  }
   if (art === 'gabelung') return leer(`${GABELUNG_TEXT}.`, t0, null, netz, ampeln)
   if (art === 'fahrbahnteilung') return leer(`${fahrbahnteilungText(netz, fall.knoten)}.`, t0, null, netz, ampeln)
   if (art === 'zusammenfuehrung') return leer(`${ZUSAMMENFUEHRUNG_TEXT}.`, t0, null, netz, ampeln)
-  const info = knotenInfo(netz, fall.knoten, vortrittsSignale(osm, kp, lv95), istLsaKnoten(netz, fall.knoten, ampeln))
+  const bestaetigt = (fall.tempoAmtlich?.signalEntscheide ?? []).filter(e => e.knoten === fall.knoten)
+  const grundInfo = knotenInfo(netz, fall.knoten)
+  const amtSignale: VortrittsHinweis[] = bestaetigt.filter(e => e.art !== 'lsa' && grundInfo?.arme.some(a => a.key === e.zufahrt && !keineZufahrt(a))).map((e, i) => ({ id: -8000000000 - i, art: e.art as 'stop' | 'give_way', p: e.p, armKey: e.zufahrt, quelle: signalText(e) }))
+  const osmSignale = vortrittsSignale(osm, kp, lv95).filter(s => !amtSignale.some(a => grundInfo?.arme.some(arm => arm.key === a.armKey && signalAnArm(netz, arm, s))))
+  const info = knotenInfo(netz, fall.knoten, [...osmSignale, ...amtSignale], bestaetigt.some(e => e.art === 'lsa') || istLsaKnoten(netz, fall.knoten, ampeln))
   if (!info) return leer(`OSM-Knoten ${fall.knoten} hat weniger als drei Strassenarme (ohne service): kein Knoten nach E0.`, t0)
   const zKey = fall.zufahrt ?? info.vorschlag
   if (!zKey) return leer('Zufahrt wählen: welcher Arm ist vortrittsbelastet?', t0, info, netz, ampeln)
@@ -323,7 +353,7 @@ export function zaehlendeHindernisse(hg: HindernisEingaben): Hindernis[] {
 
 /** Tags der Vortrittsstrasse für die Vorgabe der Regelung: highway, Tags, Tempo (maxspeed bzw. Zone, km/h) */
 export interface VortrittsstrasseTags { hw: string; t: Record<string, string>; tempo: number | null }
-/** Vorgabe der Vortrittsregelung (Entscheid 17.10.2026): Signale an der Zufahrt gehen vor (highway=stop -> Stop, give_way ->
+/** Vorgabe der Vortrittsregelung: Signale an der Zufahrt gehen vor (highway=stop -> Stop, give_way ->
  *  Vortritt). Ohne Signal nach der Vortrittsstrasse: Hauptverkehrsstrasse (trunk/primary/secondary/tertiary inkl. _link,
  *  priority_road, maxspeed ab 50 km/h) -> Vortritt; Quartierstrasse (residential, living_street) mit Tempo 30 bzw. 20 oder
  *  unclassified in einer Tempo-30-Zone (zone:maxspeed, maxspeed:type) -> Rechtsvortritt (SVG Art. 36 Abs. 2, in Tempo-30-Zonen
@@ -332,8 +362,8 @@ export interface VortrittsstrasseTags { hw: string; t: Record<string, string>; t
  *  Ziffer 12.3). */
 export function regelungVorgabe(signaleZufahrt: VortrittsHinweis[], strasse: VortrittsstrasseTags[] = [], grundstueck = false,
   trottoirueberfahrt = false, lsa = false): [Regelung, string] {
-  if (signaleZufahrt.some(s => s.art === 'stop')) return ['stop', 'OSM highway=stop an der Zufahrt']
-  if (signaleZufahrt.some(s => s.art === 'give_way')) return ['vortritt', 'OSM highway=give_way («Kein Vortritt») an der Zufahrt']
+  if (signaleZufahrt.some(s => s.art === 'stop')) return ['stop', signaleZufahrt.find(s => s.art === 'stop')!.quelle ?? 'OSM highway=stop an der Zufahrt']
+  if (signaleZufahrt.some(s => s.art === 'give_way')) return ['vortritt', signaleZufahrt.find(s => s.art === 'give_way')!.quelle ?? 'OSM highway=give_way («Kein Vortritt») an der Zufahrt']
   if (grundstueck) return ['vortritt', 'ohne Signal in OSM; an einer Grundstückzufahrt gilt kein Rechtsvortritt']
   if (trottoirueberfahrt) return ['vortritt', 'ohne Signal in OSM; an einer Trottoirüberfahrt gilt kein Rechtsvortritt (VSS 40 242 Ziffer 12.3)']
   const hvs = strasse.find(x => HVS_HIGHWAY.includes(x.hw.replace(/_link$/, '')) || ['designated', 'yes'].includes(x.t.priority_road ?? '') ||
@@ -346,7 +376,7 @@ export function regelungVorgabe(signaleZufahrt: VortrittsHinweis[], strasse: Vor
   const zone = (x: VortrittsstrasseTags) => zonenTempo(x.t['zone:maxspeed']) ?? zonenTempo(x.t['maxspeed:type'])
   const quartier = strasse.length > 0 && strasse.every(x => (['residential', 'living_street'].includes(x.hw) && (x.tempo ?? 99) <= 30) ||
     (x.hw === 'unclassified' && (zone(x) ?? 99) <= 30))
-  // Korrektur 31.10.2026 (Punkt 13): an einem LSA-Knoten als Rückfallebene nie Rechtsvortritt (Annahme)
+  // An einem LSA-Knoten als Rückfallebene nie Rechtsvortritt (Annahme)
   if (quartier && lsa) return ['vortritt', 'ohne Signal in OSM; Lichtsignalanlage: als Rückfallebene ohne Rechtsvortritt (Annahme)']
   if (quartier) {
     const z = strasse.map(zone).find(v => v !== null && v <= 30)
@@ -356,8 +386,7 @@ export function regelungVorgabe(signaleZufahrt: VortrittsHinweis[], strasse: Vor
   return ['vortritt', 'ohne Signal in OSM']
 }
 
-/** Längsneigung einer Richtung: von Hand, sonst Vorgabe aus dem Höhenmodell (E3a), sonst unbekannt (strengster Wert, Entscheid
- *  31.10.2026) bzw. vorerst 0 %, solange das Höhenmodell lädt. i bleibt bei unbekannter Neigung 0 (kein Mass; die Rechnungen
+/** Längsneigung einer Richtung: von Hand, sonst Vorgabe aus dem Höhenmodell (E3a), sonst unbekannt (strengster Wert) bzw. vorerst 0 %, solange das Höhenmodell lädt. i bleibt bei unbekannter Neigung 0 (kein Mass; die Rechnungen
  *  nehmen mit «unbekannt» den strengsten Tabellenwert, die Vorgabe «grosse Längsneigung» bleibt aus) */
 interface NeigungStand { i: number; vorgabe: number; hand: boolean; quelle: string; vorgabeQuelle: string; gemessen: boolean
   unbekannt: boolean; vorgabeUnbekannt: boolean; hinweis: string | null }
@@ -385,9 +414,9 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   const { netz, achsen, fahrbahn } = k
   // K0: Trottoirüberfahrt über diese Einmündung (nicht in der Rechnung «alle Arme»)
   const tue = !!ke.trottoirueberfahrt && !nurRv
-  const amtlich = tempoAmtlich?.linien.length ? tempoAmtlich : null
+  const amtlich = tempoAmtlich && (tempoAmtlich.linien.length || tempoAmtlich.zuerich || tempoAmtlich.regional || tempoAmtlich.signalEntscheide?.length) ? tempoAmtlich : null
   const kp = info.p
-  // Annahmen je Thema (Korrektur 31.10.2026): Sätze in Alltagssprache, am Ende je Thema zu einem Punkt zusammengefasst
+  // Annahmen je Thema: Sätze in Alltagssprache, am Ende je Thema zu einem Punkt zusammengefasst
   const an: Record<AnnahmeThemaId, string[]> = { vortritt: [], wartend: [], verkehr: [], hindernisse: [], wahrnehmbarkeit: [], eng: [] }
   const hinweise: string[] = [], herleitung: string[] = []
   const zName = g ? (g.weg !== null ? `${zArm.name || 'Zufahrt'} (OSM-Weg ${g.weg}, service)` : 'Grundstückzufahrt') : zArm.name || zArm.hw
@@ -415,11 +444,52 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   const anZufahrt = (s: VortrittsHinweis) => istWeg(zArm.wid) ? signalAnArm(netz, zArm, s) :
     zMl.slice(0, -1).some((q, i) => dist(q, kp) <= 30 && abstandStrecke(s.p, q, zMl[i + 1]) <= SIGNAL_ZUFAHRT_M)
   const signaleZ = info.signale.filter(anZufahrt)
-  const strasseTags = paar.map(a => a.wid).filter(istWeg).map(wid => ({ hw: netz.w(wid).hw, t: netz.w(wid).t, tempo: wegTempo(netz, wid)?.[0] ?? null }))
-  const [rVorgabe, rQuelle] = regelungVorgabe(signaleZ, strasseTags, !!g, tue, !!info.lsa)
-  // Korrektur 31.10.2026 (Punkt 13): LSA-Knoten, Hinweis zuoberst
+  const regionaleRegelung = new Set<string>()
+  let zhRegelung = false, bernRegelung = false
+  const strasseTags = paar.filter(a => istWeg(a.wid)).map(a => {
+    const w = netz.w(a.wid), alt = { hw: w.hw, t: w.t, tempo: wegTempo(netz, a.wid)?.[0] ?? null }
+    if (amtlich?.regional) {
+      const ml = armMittellinieMitEnde(netz, achsen, a, 30).linie
+      const proben = punkteAufSpur(ml, [9,15,21]).map(([p,richtung]) => ({p,richtung}))
+      const xs = regionalEntlang(amtlich.regional, proben, amtlich.zhStrassen ?? []).filter(x => x.sicher && x.tempo !== null)
+      if (!xs.length || new Set(xs.map(x => x.tempo)).size !== 1) return alt
+      const x = xs[0], tags = {...w.t}
+      if (x.zone === 't30_zone' || x.zone === 'begegnungszone') {
+        delete tags['maxspeed:type']; tags['zone:maxspeed'] = x.zone === 't30_zone' ? 'CH:zone30' : 'CH:zone20'
+      }
+      regionaleRegelung.add(x.name)
+      return {...alt, t: tags, tempo: x.tempo}
+    }
+    if (!amtlich?.zuerich) {
+      if (!amtlich?.linien.length) return alt
+      const ml = armMittellinieMitEnde(netz, achsen, a, 30).linie
+      const bei = amtlichNaechste(amtlich)
+      const xs = punkteAufSpur(ml, [9, 15, 21]).map(([p, r]) => bei(p, r))
+      if (xs.length !== 3 || xs.some(x => !x || x === 'aussen' || x.v === null)) return alt
+      const vs = xs.map(x => (x as { v: number }).v)
+      if (new Set(vs).size !== 1) return alt
+      bernRegelung = true
+      // V_sig belegt das Tempo, aber weder eine Zone noch ein Vortrittssignal.
+      return { ...alt, tempo: vs[0] }
+    }
+    const ml = armMittellinieMitEnde(netz, achsen, a, 30).linie
+    const proben = punkteAufSpur(ml, [9, 15, 21]).map(([p, richtung]) => ({ p, richtung }))
+    const x = zuerichEntlang(amtlich.zuerich, proben, amtlich.zhStrassen ?? [])
+    if (x.status !== 'zugeordnet' || x.tempo === null) { hinweise.push(`Stadt Zürich: Vortrittsvorgabe für ${a.name || a.hw} aus OSM; ${x.grund}`); return alt }
+    zhRegelung = true
+    // Amtlicher Zonen-/Tempobezug ersetzt widersprechende OSM-Tempotags; Signale, Hauptstrassenklasse und Handwahl gehen weiter vor.
+    const tags = { ...w.t }; delete tags['zone:maxspeed']; delete tags['maxspeed:type']
+    if (x.zone === 't30_zone' || x.zone === 'begegnungszone') tags['zone:maxspeed'] = x.zone === 't30_zone' ? 'CH:zone30' : 'CH:zone20'
+    return { ...alt, t: tags, tempo: x.tempo }
+  })
+  const [rVorgabe, rQuelleOsm] = regelungVorgabe(signaleZ, strasseTags, !!g, tue, !!info.lsa)
+  let rQuelle = rQuelleOsm + (zhRegelung && !signaleZ.some(s => s.art === 'stop' || s.art === 'give_way')
+    ? '; Tempo-/Zonenbezug nach Stadt Zürich, passende amtliche IST-Abschnitte und Zonen' : '') + (regionaleRegelung.size && !signaleZ.some(s=>s.art==='stop'||s.art==='give_way') ? `; Tempobezug nach ${[...regionaleRegelung].join(', ')}, eindeutige amtliche Abschnitte; Zonen nur bei belegtem Regime` : '')
+  if (bernRegelung && !signaleZ.some(s => s.art === 'stop' || s.art === 'give_way')) rQuelle += '; Tempobezug nach Geoportal Stadt Bern (V_sig); kein Zonenbeleg'
+  // LSA-Knoten, Hinweis zuoberst
   if (info.lsa) hinweise.push(LSA_TEXT)
-  // Korrektur 31.10.2026 (Punkt 15): Arm mit Vortritt von Hand als Zufahrt gewählt
+  for (const e of amtlich?.signalEntscheide ?? []) if (e.knoten === info.id) hinweise.push(signalText(e))
+  // Arm mit Vortritt von Hand als Zufahrt gewählt
   if (info.mitVortritt?.includes(zArm.key)) hinweise.push(`Die gewählte Zufahrt ${armText(zArm)} hat nach OSM Vortritt (${info.vortrittSicher}): ` +
     'von Hand als Zufahrt gewählt; das Ergebnis gilt nur, wenn dieser Arm wirklich Vortritt gewähren muss.')
   // Trottoirüberfahrt: Rechtsvortritt gilt nicht (VSS 40 242 Ziffer 12.3, VRV Art. 15 Abs. 3), gerechnet wie Vortritt
@@ -427,15 +497,15 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   if (tue && ke.regelung === 'rechtsvortritt')
     hinweise.push('Rechtsvortritt an einer Trottoirüberfahrt: gilt nicht (wer über das Trottoir einfährt, ist vortrittsbelastet; VSS 40 242 ' +
       'Ziffer 12.3, VRV Art. 15 Abs. 3); gerechnet wie «Kein Vortritt».')
-  // Wortlaut nach dem Auftraggeber (Korrektur 31.10.2026, Punkt 3)
-  if (ke.regelung === null)
+  // Festgelegter Wortlaut
+  if (ke.regelung === null && !signaleZ.some(s => !!s.quelle))
     an.vortritt.push(`Vortrittsregelung «${REGELUNG_TEXT[regelung]}» angenommen (${saetze(rQuelle)}` +
       `${rVorgabe === 'rechtsvortritt' ? '. Ohne Signal gilt Rechtsvortritt nach SVG Art. 36 Abs. 2' : ''}). Vortrittsregelung kann angepasst werden.`)
   for (const s of info.signale) {
     const art = s.art === 'stop' ? 'Stop' : 'Kein Vortritt'
-    if (!signaleZ.includes(s)) hinweise.push(`OSM: Signal «${art}» (highway=${s.art}) an einem anderen Arm des Knotens: Vortrittsstrasse prüfen.`)
+    if (!signaleZ.includes(s)) hinweise.push(`Signal «${art}» (${s.quelle ?? `OSM highway=${s.art}`}) an einem anderen Arm des Knotens: Vortrittsstrasse prüfen.`)
     else if (ke.regelung !== null && ke.regelung !== rVorgabe)
-      hinweise.push(`OSM: Signal «${art}» (highway=${s.art}) an der Zufahrt; gewählt ist «${REGELUNG_TEXT[regelung]}».`)
+      hinweise.push(`Signal «${art}» (${s.quelle ?? `OSM highway=${s.art}`}) an der Zufahrt; gewählt ist «${REGELUNG_TEXT[regelung]}».`)
   }
   // Rechtsvortritt (E3c, Teil E): an einer Grundstückzufahrt gilt er nicht (wer über ein Trottoir bzw. aus einer Ausfahrt einfährt,
   // ist vortrittsbelastet); am Knoten die Arme links und rechts der Zufahrt
@@ -459,7 +529,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     an.vortritt.push(`Vortritt haben ${paar.map(armText).join(' und ')} (${grund}).`)
     if (vorgeschlagen) an.vortritt.push(`Die App schlägt ${armText(zArm)} als Zufahrt vor, weil nur dieser Arm nicht zur Vortrittsstrasse gehört.`)
   } else {
-    // Wortlaut nach dem Auftraggeber (Korrektur 31.10.2026, Punkt 4); dazu Tempo und Richtungen der Prüfung (Punkt 6 k, m)
+    // Festgelegter Wortlaut; dazu Tempo und Richtungen der Prüfung
     an.vortritt.push(rArm ? `Rechtsvortritt: Vortritt vor der Zufahrt hat der Arm rechts davon, ${armText(rArm)}. Als rechts gilt ein ` +
       `Arm mehr als ${RECHTS_MIN_GRAD}° rechts der Fahrtrichtung.` : `Rechtsvortritt: Kein Arm liegt mehr als ${RECHTS_MIN_GRAD}° rechts ` +
       'der Fahrtrichtung, darum hat kein Verkehr Vortritt vor dieser Zufahrt.')
@@ -474,7 +544,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     if (ke.haltelinie) hinweise.push('Rechtsvortritt mit Halte- oder Wartelinie: B ab ihrer Vorderkante gerechnet; an Knoten mit ' +
       'Rechtsvortritt gibt es in der Regel keine Halte- oder Wartelinie (Abb. 4).')
   }
-  // Wortlaut nach dem Auftraggeber (Korrektur 31.10.2026, Punkt 2)
+  // Festgelegter Wortlaut
   if (!zArm.zufluss) hinweise.push(zVeloGegen ? 'Die Zufahrt ist eine Einbahn vom Knoten weg. Vortrittsbelastet sind nur die Velos im ' +
     `Gegenverkehr (OSM ${zVeloGegen}).` : rv ? 'Die Zufahrt ist ' +
     'nach OSM eine Einbahn vom Knoten weg: kein vortrittsbelasteter Verkehr, keine Prüfung nach Teil E.' :
@@ -534,7 +604,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     return { arm: a, ml, qs, ende: ende ? armEnde(netz, ende) : null, teilungen, zl, seiteZ }
   })
   // nächstliegender Rand (Seite der Zufahrt) je Arm, zusammengesetzt durch den Knoten
-  // Entscheid 31.10.2026: Rand je Stelle aus der AV (h.qs.profil), am Knoten der Wert der ersten gültigen Stelle
+  // Rand je Stelle aus der AV (h.qs.profil), am Knoten der Wert der ersten gültigen Stelle
   const randTeile = haupt.map(h => {
     const { ml, qs } = h.seiteZ
     const versatz = (s: number) => (h.zl ? randLinksBei(qs, s) : -randRechtsBei(qs, s))
@@ -597,10 +667,10 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   }
 
   // Achse des Zufahrtsstreifens: AV-Querschnitte der Zufahrt (fahrstreifenmitte) ausserhalb der Vortrittsstrasse, sonst OSM.
-  // Entscheid 31.10.2026: die Lage je Querschnittstelle (randProfil, fahrstreifenLagen), nicht mehr als feste Verschiebung der
+  // Die Lage je Querschnittstelle (randProfil, fahrstreifenLagen), nicht mehr als feste Verschiebung der
   // OSM-Linie; zwischen den Stellen linear, zum Knoten hin und am Ende konstant. Ohne genügend AV-Querschnitte feste Lage zLage.
   // Hindernisse (E2a): zählende Hindernisse; Parkfelder aller Klassen und Längsparkierung auch für den Parkstreifen an den Achsen
-  // (Nutzer 31.10.2026, Korrektur Punkt 23: auch Velo- und Motorradfelder verschieben die Fahrlinie; ihre Sichtwirkung bleibt Hinweis)
+  // (Korrektur auch Velo- und Motorradfelder verschieben die Fahrlinie; ihre Sichtwirkung bleibt Hinweis)
   const zaehlend = zaehlendeHindernisse(hg)
   const park = new HindernisDaten(zaehlend).parkAlle
   let zLage: number, zQuelle: string
@@ -613,7 +683,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     // Grundstückzufahrt: Achse = Linie der Zufahrt (Mitte, einspurig angenommen), ohne Parkstreifen
     zLage = 0
     zQuelle = g.weg !== null ? `Achse der Zufahrt entlang des OSM-Wegs ${g.weg} (service), Mitte der Zufahrt, einspurig angenommen` :
-      `Achse der Grundstückzufahrt: Linie durch den Zufahrtspunkt, ${g.gezeichnet ? 'Richtung gezeichnet' : 'senkrecht zum Rand'}, ` +
+      `Achse der Grundstückzufahrt: Linie durch den Zufahrtspunkt, ${g.gezeichnet ? 'eigene Richtung' : 'senkrecht zum Rand'}, ` +
       'Mitte der Zufahrt, einspurig angenommen'
     an.wartend.push(`Die Grundstückzufahrt gilt als einspurig: das wartende Fahrzeug steht in ihrer Mitte (${g.weg !== null ?
       `entlang des OSM-Wegs ${g.weg}` : g.gezeichnet ? 'Richtung gezeichnet' : 'Richtung senkrecht zum Rand'}).`)
@@ -672,7 +742,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       zQuelle = `Achse des Zufahrtsstreifens aus dem AV-Querschnitt der Zufahrt (Fahrbahn ${f1(fs.breite)} m, ${mitteText}, ` +
         `${fs.nSehnen} Sehnen; ohne genügend AV-Querschnitte je Stelle: feste Lage ${seiteOsm(zLage)}` +
         `${pz.length ? `; ${pz.join('; ')}` : ''})`
-    // Wortlaut nach dem Auftraggeber (Korrektur 31.10.2026, Punkt 5; Seite und Zählung der Prüfpunkte stehen in der Herleitung)
+    // Festgelegter Wortlaut (Seite und Zählung der Prüfpunkte stehen in der Herleitung)
     if (pz.length) an.wartend.push(`Parkierung entlang Zufahrt. Von der verfügbaren Fahrbahnbreite werden ${pz.length > 1 ? '2 × ' : ''}` +
       `${f2(PARKSTREIFEN)} m für Parkfelder abgezogen. Achse des Zufahrtsstreifens, D und FB entsprechend verschoben.`)
   } else {
@@ -711,12 +781,12 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       zQuelle += '; Velogegenverkehr ohne AV-Querschnitt auf dieser Achse angenommen'
     }
     zufahrtVelo = { quelle: zVeloGegen, fuehrung, fuehrungQuelle: fQuelle, lageText }
-    // Korrektur 31.10.2026 (Punkt 6 d, 7): Velo gegen die Einbahn in den Annahmen nur hier, in einem Satz
+    // Velo gegen die Einbahn in den Annahmen nur hier, in einem Satz
     const lageSatz = !fs ? 'auf der Achse der Zufahrt (ohne Querschnitt der amtlichen Vermessung)' : fuehrung === 'misch' ?
       `${f2(D_VELO_M)} m vom für das Velo rechten Fahrbahnrand${fs.abzugParkR ? ' neben der Parkierung' : ''}` : fuehrung === 'radstreifen' ?
       `in der Mitte des Gegenverkehrsstreifens (${f2(RADSTREIFEN_M)} m breit angenommen)` : 'auf der Achse des Radwegs'
     an.wartend.push(`Auf dieser Zufahrt dürfen Velos gegen die Einbahn zum Knoten fahren (OSM ${zVeloGegen}). Die App prüft darum die ` +
-      `Sicht aus der Lage eines solchen Velos: ${lageSatz}, das Auge des Velofahrers über dieser Linie.`)
+      `Sicht aus der Lage eines solchen Velos: ${lageSatz}, das Auge der velofahrenden Person über dieser Linie.`)
     herleitung.push(`Velogegenverkehr auf der Zufahrt: ${VELOFUEHRUNG_TEXT[fuehrung]} (${fQuelle}), ${lageText}.`)
   }
   }
@@ -726,11 +796,13 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   const zLageBei = (s: number) => (zProf ? profilBei(zProf.s, zProf.lage, s) : zLage)
 
   // B und D
-  const ao = istAusserorts(netz, [aL.wid, aR.wid])
+  const ao = eg.innerorts == null ? istAusserorts(netz, [aL.wid, aR.wid]) : { ausserorts: !eg.innerorts, grund: eg.bundesbelege?.innerorts?.wert === eg.innerorts ? bundBelegText(eg.bundesbelege.innerorts) : 'eigener Prüfung der Ortslage' }
+  if (amtlich?.regional) hinweise.push('Regionale amtliche Quellen: nur eindeutige, namentlich passende Tempoabschnitte automatisch verwendet. Übrige räumliche Treffer in Kartenebenen prüfen und Tempo bei Bedarf von Hand bestätigen. Zonen alleine belegen weder Vortritt noch Inner-/Ausserorts.')
+  if (amtlich?.zuerich) hinweise.push('Stadt Zürich: Tempo und Verkehrszone belegen keine Ortstafel; Inner-/Ausserorts und Beobachtungsdistanz B weiterhin nach OSM bzw. eigener Eingabe prüfen.')
   const stop = regelung === 'stop'
   const B = rv ? RV_B_M : beobachtungsdistanz(ao.ausserorts, stop)
   // ohne Schnitt mit dem Rand: Rand im Abstand nah vom Knoten (Verlängerung plus halbe Fahrbahn auf der Zufahrtsachse)
-  // D am Fahrersitz links der Achse; ein Velo (E4, Velo gegen die Einbahn) auf der Achse
+  // D am Fahrer*innensitz links der Achse; ein Velo (E4, Velo gegen die Einbahn) auf der Achse
   const dSeitlich = zufahrtVelo ? 0 : FAHRERSITZ_M
   const beob = beobachtungspunkt(zAchse, rand, B, kp, VERLAENGERUNG_M + nah, dSeitlich)
   if (!beob.randGefunden) hinweise.push('Die Zufahrtsachse schneidet den Rand der Vortrittsstrasse nicht: Rand im Abstand der halben Fahrbahn angenommen.')
@@ -743,7 +815,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   // Teilung der Fahrbahn (seiteZ.geteilt): Linie der Seite der Zufahrt, Trottoir ab dem Rand je Stelle gesucht
   const lagenT = (trAt || tue) && !nurRv ? haupt.map(h => {
     const { zl } = h, { ml, qs, geteilt } = h.seiteZ
-    // Fahrbahnrand je Stelle (Entscheid 31.10.2026), für die Linien ab dem Fahrbahnrand (hinterer Rand, Gehlinie)
+    // Fahrbahnrand je Stelle, für die Linien ab dem Fahrbahnrand (hinterer Rand, Gehlinie)
     const randBei = (s: number) => (zl ? randLinksBei(qs, s) : randRechtsBei(qs, s))
     return { h, ml, geteilt, seite: (zl ? 1 : -1) as 1 | -1, rand: zl ? qs.links : qs.rechts, randBei,
       t: trottoirNeben(ml, zl ? 1 : -1, zl ? qs.links : qs.rechts, p => k.trottoir.art(p) !== null, geteilt ? randBei : null) }
@@ -755,7 +827,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     tueEingabe !== null && tueEingabe >= TUE_BREITE_MIN && tueEingabe <= TUE_BREITE_MAX ? tueEingabe : null, einbiegewinkel) : null
   // Hinterer Rand auf der Zufahrtsachse dort, wo ihn der hintere Rand der Arme (Fahrbahnrand des Arms plus Abstand, je Seite für sich,
   // ohne zusammengesetzte Linie) schneidet, der weitere der beiden; so liegt D' an jedem Arm mindestens 3,00 m hinter dem Rand und die
-  // Gehlinie (ab dem Fahrbahnrand des Arms, folgt der Strasse) nie auf der Fahrbahn (Korrektur nach Review, Strasse in einer Kurve).
+  // Gehlinie (ab dem Fahrbahnrand des Arms, folgt der Strasse) nie auf der Fahrbahn (Strasse in einer Kurve).
   // Gerade Arme: Länge = Abstand / sin α wie in tueBand. Schnitte ausserhalb der halben bis doppelten Länge zählen nicht (Arm fast
   // parallel zur Zufahrt, z. B. gegenüber); ohne Schnitt bleibt Abstand / sin α
   let tueB = tueB0
@@ -810,7 +882,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     trAt ? 'Bordkante (Trottoir ohne Hindernisse)' : 'Kante des Fahrstreifens mit Vortritt'
   const vorgabe = beobachtungAb(zAchse, sNull, B, dSeitlich)
   const ausserText = rv ? 'Rechtsvortritt, Abb. 4' : ao.ausserorts ? (stop ? 'ausserorts, Stop' : 'ausserorts') : 'innerorts'
-  // D von Hand (E2b): frei gesetzt; F_B folgt (Fahrzeugachse um den Fahrersitz nach rechts)
+  // D von Hand (E2b): frei gesetzt; F_B folgt (Fahrzeugachse um den Fahrer*innensitz nach rechts)
   let D = vorgabe.D, Dachse = vorgabe.Dachse, fbRichtung = neg(vorgabe.t)
   let Dlage = { laengs: B, seitlich: dSeitlich }
   if (ke.D) {
@@ -825,13 +897,13 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     if (dist(ke.D, vorgabe.nullpunkt) > D_HAND_WEIT_M)
       hinweise.push(`D von Hand liegt ${Math.round(dist(ke.D, vorgabe.nullpunkt))} m vom Nullpunkt entfernt: Lage prüfen.`)
   } else {
-    // Korrektur 31.10.2026 (Punkt 6 e): B nur einmal; D beim Velo im Satz zum Velogegenverkehr
+    // B nur einmal; D beim Velo im Satz zum Velogegenverkehr
     const wer = zufahrtVelo ? 'Velo' : 'Fahrzeug'
     const ab = rv && rArm && nullpunktText === 'Kante des Fahrstreifens mit Vortritt' ? `hinter dem Rand des Arms rechts, ${armName(rArm)},` :
       `hinter der ${nullpunktText}`
     an.wartend.push((rv ? `Das wartende ${wer} steht ${f2(B)} m ${ab} (Rechtsvortritt, VSS 40 273 Ziffer 16, S. 10; Abb. 4).` :
       `Das wartende ${wer} steht ${f2(B)} m ${ab} (Beobachtungsdistanz B ${ausserText}, Ortslage nach ${ao.grund}; VSS 40 273 ` +
-      'Ziffer 12, S. 7–8).') + (zufahrtVelo ? '' : ` Das Auge des Lenkers (D) liegt ${f2(FAHRERSITZ_M)} m links der Fahrlinie (Fahrersitz).`))
+      'Ziffer 12, S. 7–8).') + (zufahrtVelo ? '' : ` Das Fahrer*innenauge (D) liegt ${f2(FAHRERSITZ_M)} m links der Fahrlinie (Fahrer*innensitz).`))
   }
   if (trAt && !ke.trottoirFrei && !haltelinie && !ke.D && !tue)
     an.wartend.push(`Zwischen Zufahrt und Vortrittsstrasse liegt ein Trottoir (amtliche Vermessung, ${f1(trAt.breite)} m): das Fahrzeug ` +
@@ -855,6 +927,8 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   const ns: Record<Richtung, NeigungStand> = { links: neigungBestimmen(eg.neigung.links, hoehen?.links, !!hoehen),
     rechts: neigungBestimmen(eg.neigung.rechts, hoehen?.rechts, !!hoehen) }
   const strasse = strasseBestimmen(netz, [aL, aR], eg, { links: ns.links.i, rechts: ns.rechts.i })
+  if (eg.bundesbelege?.typ?.wert === eg.typ) herleitung.push(bundBelegText(eg.bundesbelege.typ))
+  if (eg.innerorts != null) herleitung.push(`Ortslage ${eg.innerorts ? 'innerorts' : 'ausserorts'} nach ${ao.grund}.`)
   if (!strasse.typGewaehlt && !rv) {
     an.verkehr.push(`Die Vortrittsstrasse gilt als ${STRASSENTYP_TEXT[strasse.typ]} (nach ${strasse.typQuelle}; im Panel änderbar): ` +
       `massgebend ist ${strasse.typ === 'es' ? 'der untere Wert der Tab. 1 (VSS 40 273, S. 8)' :
@@ -918,13 +992,13 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
           lg === 'gegenueber' ? `Gegenverkehr aus ${armText(a)}: kein Vortrittsverhältnis beim Geradeausfahren (Linksabbiegen nicht geprüft)` :
           `Verkehr von links (${armText(a)}) muss dieser Zufahrt den Vortritt lassen: nicht geprüft` },
       avZentrum, v, ke.ebikeVerboten))
-  // Neigung unbekannt (Entscheid 31.10.2026): je Richtung mit Verkehr ohne Neigung von Hand und ohne Messung
+  // Neigung unbekannt: je Richtung mit Verkehr ohne Neigung von Hand und ohne Messung
   const unbekannt = richtungen.filter(r => r.neigungUnbekannt)
   if (unbekannt.length) an.verkehr.splice(annahmeNeigung, 0, `Längsneigung ${unbekannt.map(r => lageKurz(r)).join(' und ')} unbekannt ` +
     `(kein Höhenprofil): strengster Wert der Tab. 3 (Spalte ≤ −4 %)${rv ? '' : ` bzw. Anhaltesichtweite (VSS 40 090b Abb. 2) bei ` +
     `${fi(ANHALTESICHT_I_MIN)} %`} angenommen; Neigung von Hand eingeben, um das zu verfeinern (Entscheid 31.10.2026).`)
   if (unbekannt.some(r => r.status !== 'keine_zufahrt') && !rv && eg.neigungGross === null && strasse.typ === 'hvs' && !strasse.ungunst.neigung)
-    hinweise.push('Längsneigung unbekannt: die Vorgabe «grosse Längsneigung» (ungünstige Verhältnisse) bleibt aus, weil kein Mass bekannt ' +
+    hinweise.push('Längsneigung unbekannt: die automatische Einstufung «grosse Längsneigung» (ungünstige Verhältnisse) bleibt aus, weil kein Mass bekannt ' +
       'ist; trifft sie zu, im Panel setzen (oberer Wert der Tab. 1).')
   // Block 5, Hinweis ohne Statuswirkung: VSS 40 090b Ziffer 6 erlaubt auf siedlungsorientierten Strassen eine Reduktion (nicht gerechnet)
   if (!rv && richtungen.some(r => r.status !== 'keine_zufahrt' && r.anhalteAngewendet && (r.tempo <= 30 || strasse.typ === 'es')))
@@ -938,7 +1012,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       'VP = Tempo der Tab. 1), Kurven bei 0 % auf den unteren Wert der Tab. 1 verschoben (Entscheid 15.10.2026); Untergrenze erst über ' +
       `±${NEIGUNG_EBEN_PROZENT} % (VSS 40 273 Ziffer 13.1); gestrichelte Kurvenenden gelten als nicht gezeichnet (Entscheid 31.10.2026).`)
   }
-  // Fahrlinie der Fahrzeuge mit Vortritt (Punkt 6 i): an den Anfang des Themas; Prüfpunktregel der Parkierung in der Regelübersicht
+  // Fahrlinie der Fahrzeuge mit Vortritt: an den Anfang des Themas; Prüfpunktregel der Parkierung in der Regelübersicht
   const autoR = richtungen.filter(r => r.status !== 'keine_zufahrt')
   if (autoR.length) an.verkehr.unshift(`Fahrzeuge mit Vortritt fahren mit der Wagenmitte ${f2(D_MFZ_M)} m vom rechten Fahrbahnrand ` +
     `(VSS 40 273 Ziffer 10, S. 7), wo parkiert wird ${f2(D_MFZ_M)} m neben den parkierten Autos` +
@@ -982,7 +1056,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       // Fahrbahnachse (Mitte der AV-Fahrbahn) eines schmalen Arms; auf einem breiten Arm (nur einer schmal) fährt das Fahrzeug auf
       // seinem Fahrstreifen: Achse des Zufahrtsstreifens bzw. Fahrstreifenachse des rechten Arms. Beide ab ihrem Schnittpunkt
       const eng = (b: number | null) => b !== null && b <= SCHMAL_M + 1e-6
-      // Fahrbahnmitte je Stelle (Entscheid 31.10.2026; ohne genügend AV-Querschnitte je Stelle aus dem Median)
+      // Fahrbahnmitte je Stelle (ohne genügend AV-Querschnitte je Stelle aus dem Median)
       const mitte = (ml: P[], q: Querschnitt) => mitVerlaengerung(versetztVariabel(ml, s => (randLinksBei(q, s) - randRechtsBei(q, s)) / 2))
       // Velo gegen die Einbahn auf der Zufahrt (E4): der Pfad liegt auf der Achse der Velos, nicht auf der Fahrbahnachse
       const a1 = eng(bZ) && !zufahrtVelo ? mitte(zMl, qsZ!) : zAchse, a2 = eng(bR) ? mitte(haupt[1].ml, haupt[1].qs) : mitVerlaengerung(rr.achse)
@@ -1019,7 +1093,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       ...(rArm && !rArm.zufluss && rArm.veloZufluss && (zArm.zufluss || zufahrtVelo) ? { nurVelo: rArm.veloZuflussQuelle } : {}) }
     rechtsvortritt = { wahrnehmbarkeit: wahr, wahrnehmbarkeitGewaehlt: ke.wahrnehmbarkeit !== null, markierung: ke.markierungRv, tempo: RV_TEMPO, B: RV_B_M, arm,
       alle: null, fahrbahnachsen: rvAchsen }
-    // Korrektur 31.10.2026 (Punkt 6 j, k, l): Wahrnehmbarkeit eigenes Thema; Sicht nach rechts im Thema «Verkehr mit Vortritt»; enge
+    // Wahrnehmbarkeit eigenes Thema; Sicht nach rechts im Thema «Verkehr mit Vortritt»; enge
     // Kreuzung nur, wenn eine Fahrbahn höchstens SCHMAL_M breit ist und das Sichtfeld gerechnet wird
     if (ke.wahrnehmbarkeit === null && rArm && !grundKeine)
       an.wahrnehmbarkeit.push(`Die Wahrnehmbarkeit des Knotens ist mit «${WAHRNEHMBARKEIT_TEXT[wahr]}» angenommen (VSS 40 273 Ziffer 18, ` +
@@ -1037,7 +1111,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       an.eng.push(`Enge Kreuzung: eine Fahrbahn ist höchstens ${f2(SCHMAL_M)} m breit (${engText(bZ, 'Zufahrt')}, ` +
         `${engText(bR, rArm ? armName(rArm) : 'rechter Arm')}). Zusätzlich prüft die App, ob sich zwei Fahrzeuge auf den letzten ` +
         `${ENG_LAENGE_M} m vor der Ecke sehen (VSS 40 273 Abb. 5, S. 11; Konstruktion nach bfu BM.021 Kap. 3.2.2, Abb. 4, S. 4).`)
-      herleitung.push(`Enge Kreuzung: Sichtlinien vom Beobachtungspunkt D (B ${f2(RV_B_M)} m; Annahme: Beobachter in D) zu Punkten alle ` +
+      herleitung.push(`Enge Kreuzung: Sichtlinien vom Beobachtungspunkt D (B ${f2(RV_B_M)} m; Annahme: beobachtende Person in D) zu Punkten alle ` +
         `${ENG_SCHRITT_M} m auf einem Pfad von ${ENG_LAENGE_M} m (doppelte Anhaltestrecke bei rund 25 km/h): ab D (Annahme: Pfadbeginn ` +
         'in D) entlang der Achse der Zufahrt bis zum Schnitt mit der Achse des rechten Arms, dann auf dieser (Fahrbahnmitte eines ' +
         'schmalen, Fahrstreifen eines breiten Arms); gezählt der Schnittpunkt und die Punkte dahinter; Gebäude und volle Hindernisse; ' +
@@ -1046,7 +1120,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   }
 
   // Veloverkehr (E3b)
-  // Korrektur 31.10.2026 (Punkt 6 n): nur die Führung dieses Falls; Lagen und Spaltenregeln der Tab. 3 in der Regelübersicht
+  // nur die Führung dieses Falls; Lagen und Spaltenregeln der Tab. 3 in der Regelübersicht
   const FUEHRUNG_SATZ: Record<Exclude<Velofuehrung, 'kein'>, string> = { misch: `im Mischverkehr, ${f2(D_VELO_M)} m vom rechten Fahrbahnrand`,
     radstreifen: `auf einem Radstreifen, in seiner Mitte (${f2(RADSTREIFEN_M)} m breit angenommen)`, radweg: 'auf einem Radweg, auf seiner Achse' }
   const mitVelo = richtungen.filter(r => r.velo && !r.veloGegen)
@@ -1071,7 +1145,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     // Trottoirhinterkante nach AV, Zielpunkte auf der Trottoirachse
     const sH = tueB ? tueB.sHinter : trAt!.sHinter
     let Dt = beobachtungAb(zAchse, sH, B_INNERORTS_M, dSeitlich)
-    // K0: D' von Hand (nur im Modus Trottoirüberfahrt): frei gesetzt, Achspunkt um den Fahrersitz versetzt wie bei D; das Band bleibt
+    // K0: D' von Hand (nur im Modus Trottoirüberfahrt): frei gesetzt, Achspunkt um den Fahrer*innensitz versetzt wie bei D; das Band bleibt
     let dtHinter: number | null = null
     if (tueB && ke.Dtrottoir) {
       const l = lageAnAchse(zAchse, ke.Dtrottoir)
@@ -1103,7 +1177,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     })
     const hvT = hvAlle.filter(v => !imPolygon(Dt.D, v.poly))
     const mT = hoehen?.trottoir
-    // Neigung des Trottoirs: gemessen; nach dem Laden ohne Messung unbekannt (Tab. 2 Spalte ≤ −6, Entscheid 31.10.2026); lädt: 0 %
+    // Neigung des Trottoirs: gemessen; nach dem Laden ohne Messung unbekannt (Tab. 2 Spalte ≤ −6); lädt: 0 %
     const gemessenT = mT !== undefined && mT.i !== null
     const unbekanntT = !gemessenT && !!hoehen
     const trRichtungen = (['links', 'rechts'] as Richtung[]).map((r, j): TrottoirRichtung => {
@@ -1122,16 +1196,16 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     const neigungT = gemessenT ? `aus dem Höhenmodell (Ausgleichsgerade über ${TROTTOIR_PROFIL_M} m beidseits)` : unbekanntT ?
       'unbekannt (kein Höhenprofil): strengster Wert der Tab. 2 (Spalte ≤ −6 %) angenommen (Entscheid 31.10.2026)' :
       '0 % (vorerst, das Höhenmodell lädt noch)'
-    // Korrektur 31.10.2026: D' beim wartenden Fahrzeug, die Fussgänger beim Verkehr mit Vortritt; Lage der Achsen in der Herleitung,
+    // D' beim wartenden Fahrzeug, die Zufussgehende beim Verkehr mit Vortritt; Lage der Achsen in der Herleitung,
     // Auslegung der Neigungsrichtung und Spaltenregel in der Regelübersicht
-    const sitz = zufahrtVelo ? 'beim Velofahrer' : 'am Fahrersitz'
+    const sitz = zufahrtVelo ? 'bei der velofahrenden Person' : 'am Fahrer*innensitz'
     an.wartend.push(tueB ? (dtHinter !== null ? `Für die Sicht aufs Trottoir liegt das Auge D' von Hand ${f2(dtHinter)} m hinter dem ` +
-      `hinteren Rand der Überfahrt (Vorgabe ${f2(B_INNERORTS_M)} m, VSS 40 273 Ziffer 13.2, S. 8).` : `Für die Sicht aufs Trottoir liegt ` +
+      `hinteren Rand der Überfahrt (berechnete Ausgangslage ${f2(B_INNERORTS_M)} m, VSS 40 273 Ziffer 13.2, S. 8).` : `Für die Sicht aufs Trottoir liegt ` +
       `das Auge D' ${f2(B_INNERORTS_M)} m hinter dem hinteren Rand der Überfahrt, ${sitz} (VSS 40 273 Ziffer 13.2, S. 8).`) :
       `Für die Sicht aufs Trottoir liegt das Auge D' ${f2(B_INNERORTS_M)} m hinter der Trottoirhinterkante, ${sitz} (VSS 40 273 ` +
       'Ziffer 13.2, S. 8).')
-    an.verkehr.push((tueB ? `Fussgänger gehen auf einer Linie ${f2(TUE_GEHLINIE_M)} m vor dem hinteren Rand der Überfahrt (VSS 40 242 ` +
-      'Ziffer 14.4, S. 13); die nötige Sicht auf sie richtet sich nach VSS 40 273 Tab. 2 (S. 8).' : 'Fussgänger gehen in der Mitte des ' +
+    an.verkehr.push((tueB ? `Zufussgehende gehen auf einer Linie ${f2(TUE_GEHLINIE_M)} m vor dem hinteren Rand der Überfahrt (VSS 40 242 ` +
+      'Ziffer 14.4, S. 13); die nötige Sicht auf sie richtet sich nach VSS 40 273 Tab. 2 (S. 8).' : 'Zufussgehende gehen in der Mitte des ' +
       'Trottoirs beidseits der Zufahrt; die nötige Sicht auf sie richtet sich nach VSS 40 273 Tab. 2 (S. 8).') +
       ` Längsneigung des Trottoirs in Gehrichtung auf die Zufahrt zu ${neigungT}.`)
     herleitung.push(`${tueB ? 'Gehlinie' : 'Trottoirachse'}: ${quellen.join('; ')}; ${TROTTOIR_NEIGUNG_AUSLEGUNG}.`)
@@ -1155,7 +1229,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
         `Überholen verboten (${v[1]})`) : haupt[j].arm.einbahn !== 0 && istWeg(haupt[j].arm.wid) ? 'Einbahn, kein Gegenfahrstreifen' : ''
       if (g0) { grund.push(`${lageKurz(r)}: ${g0}`); continue }
       const h = haupt[j]
-      // Achse des Gegenfahrstreifens: D_MFZ_M vom anderen Rand, Rand je Stelle (Entscheid 31.10.2026)
+      // Achse des Gegenfahrstreifens: D_MFZ_M vom anderen Rand, Rand je Stelle
       const au = mitVerlaengerung(versetztVariabel(h.ml, s => -(randRechtsBei(h.qs, s) - D_MFZ_M)))
       const xu = schnittBei(zAchse, au, kp)
       const achseU = abBogen(au, xu ? xu.sb : lot(au, kp).s)
@@ -1172,9 +1246,9 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     const erlaubtAlle = ke.ueberholen ?? vorgabe
     ueberholen = { ausserorts: ao.ausserorts, vorgabe, vorgabeQuelle, gewaehlt: ke.ueberholen !== null, erlaubt: erlaubtAlle,
       geprueft: geprueft.length > 0, grund: !ao.ausserorts ? 'innerorts' : grund.join('; ') }
-    // Korrektur 31.10.2026: innerorts gilt der Überholfall nicht, darum ohne Annahme
+    // Innerorts gilt der Überholfall nicht, darum ohne Annahme
     if (geprueft.length) {
-      an.verkehr.push(`Ausserorts ist hier Überholen erlaubt (${ke.ueberholen !== null ? 'von Hand' : `Vorgabe: ${vorgabeQuelle}`}): die App ` +
+      an.verkehr.push(`Ausserorts ist hier Überholen erlaubt (${ke.ueberholen !== null ? 'von Hand' : `aus Daten: ${vorgabeQuelle}`}): die App ` +
         `prüft ${geprueft.join(' und ')} zusätzlich die Sicht auf ein überholendes Fahrzeug auf dem Gegenfahrstreifen bis A (Sichtlinie S', ` +
         'VSS 40 273 Ziffer 6, S. 4; Abb. 1, S. 5).')
       herleitung.push(`Überholfall: Achse des Gegenfahrstreifens ${f2(D_MFZ_M)} m vom anderen Fahrbahnrand (ohne Abzug eines Parkstreifens, ` +
@@ -1184,7 +1258,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     if (mitAuto.length && ao.ausserorts && grund.length)
       an.verkehr.push(`Überholfall nicht geprüft (${grund.join('; ')}; VSS 40 273 Ziffer 6, S. 4).`)
   }
-  // Gesamtstatus je Richtung: schlechtester von Auto, Velo, Überholfall und Trottoir dieser Seite (Entscheid 1 vom 16.10.2026)
+  // Gesamtstatus je Richtung: schlechtester von Auto, Velo, Überholfall und Trottoir dieser Seite
   for (const r of richtungen) {
     const tr = trottoirPruefung?.richtungen.find(x => x.richtung === r.richtung) ?? null
     const teile: [string, RichtungStatus][] = [...(r.status !== 'keine_zufahrt' ? [['Auto', r.status]] as [string, RichtungStatus][] : []),
@@ -1207,7 +1281,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       `${tueB.vorlauf > 0.005 ? `(Trottoir nach AV ab ${f2(tueB.vorlauf)} m) ` : ''}` +
       `hinter dem Fahrbahnrand, auf der Zufahrtsachse ${f2(tueB.laenge)} m (Einbiegewinkel rund ${Math.round(einbiegewinkel)}°).`)
     // kurze Hinweise nur, wenn sie zutreffen (VSS 40 242 Ziffern 14.1, 14.2, 14.3.1, 14.3.4, 15.4.2)
-    if (ao.ausserorts) hinweise.push('Trottoirüberfahrt ausserorts (nach OSM): nach VSS 40 242 Ziffer 14.1 nur innerorts.')
+    if (ao.ausserorts) hinweise.push(`Trottoirüberfahrt ausserorts (nach ${eg.innerorts == null ? 'OSM' : 'eigener Prüfung der Ortslage'}): nach VSS 40 242 Ziffer 14.1 nur innerorts.`)
     if (durchgehend || gegenArm) hinweise.push('Die Zufahrt liegt auf der durchgehenden Strasse: nach VSS 40 242 Ziffer 14.2 Trottoirüberfahrt nur ' +
       'über die einmündende Strasse.')
     const vMax = Math.max(0, ...richtungen.filter(r => r.status !== 'keine_zufahrt' && (r.tempoArt === null || r.tempoArt === 'signalisiert'))
@@ -1241,7 +1315,8 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   const weitAv = Math.max(0, ...achsen2.flatMap(a => a.map(p => dist(avZentrum, p))))
   const avBedarf = Math.ceil(weitAv + AV_RESERVE_M)
   const hindernis: HindernisStand = nurRv ? { vorschlaege: [], amtlich: [], amtlichVerworfen: [], osmUeberdeckt: 0, inD, reichweite: 0 } :
-    hindernisStand(k, hg, kp, weit + REICHWEITE_RESERVE_M, richtungen, D, inD)
+    hindernisStand(k, hg, kp, weit + REICHWEITE_RESERVE_M, richtungen.filter(r => r.achse.length >= 2).map(r => sichtdreieck(D, r.achse, 0, r.sMax)),
+      D, inD)
   const bisD = Math.max(sNull - beob.sRand + B, ke.D ? sNull - beob.sRand + Dlage.laengs : 0)
   // Längsneigung der Zufahrt (E3a): Profil ab der Kante PROFIL_MIN_M vom Knoten weg; noch ohne Wirkung (Tab. 2 folgt in E3b)
   const zufahrtProfil = abschneiden(abBogen(zAchse, beob.sRand), PROFIL_MIN_M)
@@ -1328,14 +1403,18 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   herleitung.unshift(`${zufahrtLageQuelle}.`, ...(zufahrtNeigung?.i !== null && zufahrtNeigung?.i !== undefined ? [`Längsneigung der ` +
     `Zufahrt ${fi(zufahrtNeigung.i)} % in Fahrtrichtung von F_B (${zufahrtNeigung.quelle}; ohne Wirkung` +
     `${Math.abs(zufahrtNeigung.i) > ZUFAHRT_STEIL_PROZENT ? ', steile Zufahrt' : ''}).`] : []))
-  // je Thema ein Punkt (Korrektur 31.10.2026, Punkte 6 und 7)
+  // je Thema ein Punkt
   const annahmenThemen: AnnahmeThema[] = ANNAHME_THEMEN.filter(([id]) => an[id].length).map(([id, titel]) => ({ thema: id,
     titel: id === 'wartend' && zufahrtVelo ? 'Wartendes Velo' : titel, text: an[id].join(' ') }))
   const annahmen = annahmenThemen.map(t => `${t.titel}: ${t.text}`)
 
   return { knoten: g ? null : info.id, zufahrt: zArm.key, zufahrtName: g?.weg != null ? `${zArm.nr} ${zName}` : armText(zArm),
-    zufahrtspunkt: g ? { eingabe: g.eingabe, richtung: g.richtung, gezeichnet: g.gezeichnet, weg: g.weg, strasse: g.strasse } : null,
+    zufahrtspunkt: g ? { eingabe: g.eingabe, richtung: g.richtung, gezeichnet: g.gezeichnet, weg: g.weg, strasse: g.strasse, herkunft: g.herkunft, winkel: zufahrtWinkel(g.strassenRichtung, g.richtung) } : null,
     D, Dachse, Dvorgabe: vorgabe.D, Dhand: !!ke.D, Dlage, fbRichtung, rand: beob.rand, nullpunkt: vorgabe.nullpunkt, nullpunktText,
+    ...(!haltelinie && !abRadweg && (!trAt || ke.trottoirFrei || tue) && beob.randGefunden ? { bBezug: {
+      linie: abschneiden(abBogen(rand, Math.max(0, lot(rand, beob.rand).s - 6)), 12),
+      quelle: `Fahrstreifenkante für B, aus ${haupt.some(h => h.seiteZ.qs.annahme) ? 'angenommener Fahrbahnbreite' : 'AV-Querschnitten'} ` +
+        'abgeleitet und durch die Einmündung verlängert; keine erfasste Halte- oder Wartelinie.' } } : {}),
     regelung, regelungVorgabe: rVorgabe, regelungQuelle: rQuelle, regelungGewaehlt: ke.regelung !== null, haltelinie, trottoir, trottoirGrund, B,
     ausserorts: ao.ausserorts, zufahrtAchse: abschneiden(abBogen(zAchse, Math.max(0, beob.sRand - 2)), Math.max(B, bisD) + 12),
     zufahrtLageQuelle, vortritt: [aL.key, aR.key], einbiegewinkel,
@@ -1433,12 +1512,11 @@ function sichtTeil(D: P, achse: P[], sMax: number, flaechenAlle: Verdeckend[], A
  * ohne die von amtlichen Feldern abgedeckte; Bäume aus dem Baumkataster und amtliche Felder bis reichweite vom Knoten. Ohne
  * verworfene (amtliche: getrennt aufgeführt) und ohne bestätigte (Id schon unter den Hindernissen).
  */
-function hindernisStand(k: Kontext, hg: HindernisEingaben, kp: P, reichweite: number, richtungen: RichtungErgebnis[], D: P,
+function hindernisStand(k: Kontext, hg: HindernisEingaben, kp: P, reichweite: number, dreiecke: P[][], _D: P,
   inD: string[]): HindernisStand {
   const weg = new Set(hg.verworfen), da = new Set(hg.hindernisse.map(h => h.id))
   const offen = (id: string) => !weg.has(id) && !da.has(id)
   const felder = hg.park?.felder ?? []
-  const dreiecke = richtungen.filter(r => r.achse.length >= 2).map(r => sichtdreieck(D, r.achse, 0, r.sMax))
   const osmAlle = parkVorschlaege(k.netz, k.fahrbahn, kp).filter(v => offen(v.id))
   // nur Auto-Felder beschreiben dieselbe Parkierung wie ein OSM-Streifen (Zweirad-Felder sind nur Hinweis)
   const ueberdeckt = osmUeberdeckt(osmAlle, felder.filter(f => f.klasse === 'auto').map(f => f.ring))
@@ -1455,7 +1533,7 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
   ebikeVerboten: boolean): RichtungErgebnis {
   const { netz } = k
   const hinweise: string[] = []
-  // Rechtsvortritt (E3c; Korrektur Punkt 24, 31.10.2026): Tempo wie sonst (OSM, Geoportal, von Hand); es wirkt nur auf die Velos
+  // Rechtsvortritt (E3c, 31.10.2026): Tempo wie sonst (OSM, Geoportal, von Hand); es wirkt nur auf die Velos
   // (Tab. 3), die Auto-Sicht folgt Abb. 6
   const rvWahr = rvR && 'wahr' in rvR ? rvR.wahr : null
   const te: TempoEingabe | null = te0
@@ -1470,10 +1548,10 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
   const vorgabeAnnahme = !trefferA && !treffer && !w
   // Rechtsvortritt ohne Angabe: 30 km/h wie die Norm (Ziffer 15) statt der allgemeinen Annahme TEMPO_ERSATZ
   const tempoVorgabe = trefferA ? ta : vorgabeAnnahme && rvR ? RV_TEMPO : tempoOsm
-  const tempoVorgabeQuelle = vorgabeAnnahme && rvR ? `Annahme (ohne OSM-Angabe; beim Rechtsvortritt ${RV_TEMPO} km/h wie die Norm, Ziffer 15)` : trefferA ? `${amtlich!.quelle} (signalisierte Höchstgeschwindigkeit V_sig, Mehrheit entlang der Achse)` :
+  const tempoVorgabeQuelle = vorgabeAnnahme && rvR ? `Annahme (ohne OSM-Angabe; beim Rechtsvortritt ${RV_TEMPO} km/h wie die Norm, Ziffer 15)` : trefferA ? `${am?.quelle ?? amtlich!.quelle} (signalisierte Höchstgeschwindigkeit V_sig, Mehrheit entlang der Achse)` :
     vorgabeAnnahme ? `Annahme (ohne OSM-Angabe)` : w && tempoVorgabe === w[0] ? w[1] : 'OSM maxspeed (Mehrheit entlang der Achse)'
   if (trefferA && ta !== tempoOsm)
-    hinweise.push(`Tempo ${ta} km/h laut ${amtlich!.quelle} (signalisierte Höchstgeschwindigkeit), OSM ${!treffer && !w ? 'ohne Angabe' :
+    hinweise.push(`Tempo ${ta} km/h laut ${am?.quelle ?? amtlich!.quelle} (signalisierte Höchstgeschwindigkeit), OSM ${!treffer && !w ? 'ohne Angabe' :
       `${tempoOsm} km/h`}.`)
   else if (am && !trefferA && a.zufluss)
     hinweise.push(`${amtlich!.quelle}: ${!am.innen ? 'Richtung ausserhalb des geladenen Bereichs' : !am.wert && !am.leer ?

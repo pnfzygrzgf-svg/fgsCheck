@@ -1,4 +1,4 @@
-// ── Bedarfsmodul Runde 3: Zusammenfassung in drei Sätzen je Querung (reine Ableitung aus Befund, Grundprüfung und Fragen) ──
+// ── Zusammenfassung in drei Sätzen je Querung (reine Ableitung aus Befund, Grundprüfung und Fragen) ──
 //
 // Nach festen Vorlagen, ohne neue Wertung (Befunde, Stärken, Empfehlung bleiben unverändert):
 //   Satz 1 – Antwort: Ist ein Fussgängerstreifen zulässig, und welcher Querungstyp wird empfohlen? Nicht zulässig bzw. nur mit
@@ -12,7 +12,7 @@
 //            Prüfungen ohne Befund (Prüfübersicht), nie «erfüllt» ohne Grundlage.
 //   Satz 3 – was fehlt: offene Angaben als Fragen (feldhilfen.FRAGEN), zuerst was die Zulässigkeit bzw. Empfehlung offen lässt
 //            (vorbehaltFelder), dann Muss-Regeln der Grundprüfung und des Baums, dann der Rest; höchstens zwei ausgeschrieben.
-// Länge: vier Sätze, Ziel 70, höchstens 85 Wörter (Runde 5); zu lang → kürzen nach STUFEN (Satz 4 bleibt immer, kurz).
+// Länge: vier Sätze, Ziel 70, höchstens 85 Wörter; zu lang → kürzen nach STUFEN (Satz 4 bleibt immer, kurz).
 
 import { KATALOG } from './katalog'
 import type { Grundpruefung, GrundPunkt, GrundTeil } from './grundpruefung'
@@ -40,12 +40,12 @@ export interface ZfEingabe {
   /** Ebenen und Querungstyp der beurteilten Anlage (Prüfübersicht, Satz 1) */
   kontext?: UebersichtKontext
   ort?: ZfOrt
-  /** Runde 5: beurteilte Anlage geplant (true) bzw. Bestand (false) – Satz 1 bei Furt usw. */
+  /** Beurteilte Anlage geplant (true) bzw. Bestand (false) – Satz 1 bei Furt usw. */
   geplant?: boolean | null
-  /** Runde 5 (Muster 2): Annahmen, an denen Befunde hängen (kurz, mit Wert) und gefundene Gründe für Vortritt (Satz 4) */
+  /** Annahmen, an denen Befunde hängen (kurz, mit Wert) und gefundene Gründe für Vortritt (Satz 4) */
   annahmen?: readonly string[]
   gefunden?: readonly string[]
-  /** Runde 5 (Stelle 10): Frage je Feld statt der Standardfrage (z. B. «Bitte bestätigen: Tempo-30-Zone (angenommen)?») */
+  /** Frage je Feld statt der Standardfrage (z. B. «Bitte bestätigen: Tempo-30-Zone (angenommen)?») */
   fragen?: Readonly<Record<string, string>>
   /** 23.10.2026: Felder, deren Fragen im Block «Offene Fragen» darunter stehen (Panel, nur Grundprüfung); Satz 3 nennt sie nicht
    * ausgeschrieben, sondern zählt sie */
@@ -59,11 +59,11 @@ export interface Zusammenfassung {
   antwort: string
   /** Satz 2: Grundprüfung und wichtigste Befunde (ein bis zwei Sätze; leer, wenn nichts zu sagen ist) */
   wichtig: string
-  /** Satz 3: fehlende Angaben; null, wenn keine fehlt. Runde 5 (Muster 9): zuerst die entscheidenden Angaben, nachsatz zählt den Rest */
+  /** Satz 3: fehlende Angaben; null, wenn keine fehlt. zuerst die entscheidenden Angaben, nachsatz zählt den Rest */
   fehlt: { einleitung: string; felder: string[]; weitere: number; nachsatz?: string; gesamt: number
     /** Verweis auf den Block «Offene Fragen» (Panel): «2 Fragen der Grundprüfung stehen unten.» */
     block?: string } | null
-  /** Satz 4 (Runde 5): Annahmen und gefundene Gründe; leer ohne */
+  /** Satz 4: Annahmen und gefundene Gründe; leer ohne */
   hinweis: string
   /** Regeln, die Satz 1 als Grund nennt */
   grundIds: string[]
@@ -117,7 +117,7 @@ function listeLesbar(t: string, id: string, aufrunden = false, grenzeRoh?: numbe
   const zahl = (s: string): string => {
     if (!sicht) return s
     const v = Number(s.replace(',', '.'))
-    // Korrektur Schlussrunde: das Ist kommt schon gerundet (eine Nachkommastelle bzw. ganze Meter); liegt es auf bzw. höchstens 0,05 m
+    // Das Ist kommt schon gerundet (eine Nachkommastelle bzw. ganze Meter); liegt es auf bzw. höchstens 0,05 m
     // über der Mindestsicht eines verletzten Befunds, war der Rohwert darunter (54,96 → «55,0»): «knapp unter 55 m»
     // Grenze mit einer Nachkommastelle wie das Soll («knapp unter 77,8 m», nicht «77,80»)
     if (grenze !== undefined && Number.isFinite(v) && v >= grenze - 1e-9 && v <= grenze + 0.05 + 1e-9) return `knapp unter ${zahl1(grenze)}`
@@ -218,11 +218,11 @@ const MUSS: readonly Staerke[] = ['hart', 'hart_bericht']
 /** beurteilte Anlage, die kein Fussgängerstreifen ist (Satz 1 nennt sie) */
 const ANLAGE: Partial<Record<Querungstyp, [string, string]>> = { furt: ['die', 'Fussgängerfurt'], ohne_vortritt: ['die', 'Querung ohne Vortritt'],
   mehrzweck: ['der', 'Mehrzweckstreifen'] }
-/** Regeln, die gegen einen Streifen sprechen (Muster 8): keine Massnahme zum Verbessern */
+/** Regeln, die gegen einen Streifen sprechen: keine Massnahme zum Verbessern */
 const GEGEN = ['C3', 'C4']
 
 /**
- * Satz 1 für eine gewählte Anlage ohne Vortritt (Runde 5, Fall 6): «Beurteilt wird die geplante Fussgängerfurt …», dann ihr Befund
+ * Satz 1 für eine gewählte Anlage ohne Vortritt (Fall 6): «Beurteilt wird die geplante Fussgängerfurt …», dann ihr Befund
  * (Muss-Befunde der Typ-Regeln E, Furt ohne Insel) und die Alternative Fussgängerstreifen nach der Zulässigkeit
  */
 function antwortAnlage(b: Befund, grundIds: string[], typ: Querungstyp, geplant: boolean | null | undefined): string {
@@ -267,7 +267,7 @@ function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefi
   if (b.ende === 'begegnungszone') {
     grundIds.push('A2')
     return `In der ${zoneVorschlag ? 'vorgeschlagenen Begegnungszone (Tempo 20)' : 'Begegnungszone'} ist kein Fussgängerstreifen zulässig; ` +
-      'dort queren Fussgänger überall mit Vortritt.'
+      'dort queren Zufussgehende überall mit Vortritt.'
   }
   if (b.ende === 'flaechig') {
     grundIds.push('B1')
@@ -306,10 +306,10 @@ function antwort(b: Befund, grundIds: string[], typ: Querungstyp | null | undefi
       return `Ein Fussgängerstreifen ist hier nicht zulässig${g.length ? `: ${aufzaehlen(g)}` : ''}; ${vorl ? 'vorläufig ' : ''}empfohlen wird ${typPhrase(e)}${st}.`
     }
     case 'offen': {
-      // Runde 5 (Muster 1): Satz 1 nennt den möglichen Typ und die entscheidende Frage
+      // Satz 1 nennt den möglichen Typ und die entscheidende Frage
       if (b.alle.some(x => x.id === 'A2' && x.zustand === 'offen'))
         return 'Offen ist, ob die Querung in einer Begegnungszone liegt (erste Frage unten): dort braucht es keinen Fussgängerstreifen, ' +
-          'Fussgänger haben überall Vortritt; sonst kommt ein Fussgängerstreifen in Frage.'
+          'Zufussgehende haben überall Vortritt; sonst kommt ein Fussgängerstreifen in Frage.'
       const p = typPhrase(e)
       return `Noch offen ist, ob hier ein Fussgängerstreifen zulässig ist (das entscheidet die erste Frage unten)${p ? `; falls ja, passt ${p}` : ''}.`
     }
@@ -391,14 +391,14 @@ function befundSatz(liste: readonly Nennung[], max: number, x: ZfEingabe, grundI
     const m = liste.filter(n => n.muss), s = liste.filter(n => !n.muss && !n.gegen), g = liste.filter(n => n.gegen)
     const km = Math.min(max, m.length), ks = Math.min(max - km, s.length), kg = Math.min(Math.max(1, max - km - ks), g.length)
     const wo = x.ort === 'bericht' ? 'siehe erweiterte Prüfung' : 'siehe unten'
-    // Runde 5 (Stelle 11): der Rest als Zahl mit Verweis, nie «ein weiterer Befund» ohne Inhalt
+    // Der Rest als Zahl mit Verweis, nie «ein weiterer Befund» ohne Inhalt
     const teil = (xs: readonly Nennung[], k: number): string => {
       const namen = xs.slice(0, k).map(n => n.text), rest = xs.length - k
       const t = aufzaehlen(namen)
       if (!rest) return t
       return k ? `${t} (${rest} ${rest === 1 ? 'weiterer' : 'weitere'}, ${wo})` : `${rest} ${rest === 1 ? 'Befund' : 'Befunde'} (${wo})`
     }
-    // Muster 8: was gegen einen Streifen spricht, heisst so (keine Massnahme «zu verbessern»)
+    // was gegen einen Streifen spricht, heisst so (keine Massnahme «zu verbessern»)
     const saetze = [m.length ? `Zu beheben: ${teil(m, km)}` : '', s.length ? `${m.length ? 'zu' : 'Zu'} verbessern: ${teil(s, ks)}` : ''].filter(Boolean)
     const gegen = g.length ? `Spricht eher gegen einen Streifen: ${teil(g, kg)}.` : ''
     return { text: [saetze.length ? `${saetze.join('; ')}.` : '', gegen].filter(Boolean).join(' '),
@@ -422,7 +422,7 @@ function befundSatz(liste: readonly Nennung[], max: number, x: ZfEingabe, grundI
 const sichtOhneFeld = (t: GrundTeil): string[] =>
   (t.zustand === 'offen' && !t.fehlend?.length && (t.id === 'B5-1' || t.id === 'B5-1b') && t.detail?.includes('Kurvenradius') ? ['kurve.radius'] : [])
 
-/** Felder, die über die Antwort (Satz 1) entscheiden: Ortslage, Zulässigkeit, Vorbehalt der Empfehlung (Runde 5, Muster 9) */
+/** Felder, die über die Antwort (Satz 1) entscheiden: Ortslage, Zulässigkeit, Vorbehalt der Empfehlung */
 export function entscheidendeFelder(x: Pick<ZfEingabe, 'befund' | 'alternative'>): string[] {
   const b = x.befund
   const aus: string[] = []
@@ -486,7 +486,7 @@ function fehltSatz(felder: readonly string[], entscheidend: readonly string[], m
   if (!n) return null
   const wo = ort === 'bericht' ? 'siehe erweiterte Prüfung' : 'siehe unten'
   const ent = felder.filter(f => entscheidend.includes(f)), rest = n - ent.length
-  // Runde 5 (Muster 9): entscheidende Angaben getrennt von denen, die die Prüfung nur vervollständigen
+  // entscheidende Angaben getrennt von denen, die die Prüfung nur vervollständigen
   if (ent.length) {
     const k = Math.min(Math.max(max, 1), ent.length)
     const nachsatz = rest ? `Für die vollständige Prüfung ${rest === 1 ? 'fehlt noch 1 weitere Angabe' : `fehlen noch ${rest} weitere Angaben`} (${wo}).` : undefined
@@ -518,7 +518,7 @@ export function zusammenfassungText(z: Pick<Zusammenfassung, 'antwort' | 'wichti
   return [z.antwort, z.wichtig, s3, z.hinweis ?? ''].filter(Boolean).join(' ')
 }
 
-/** Satz 4 (Runde 5, Muster 2): «Angenommen, bitte prüfen: Tempo-30-Zone, innerorts. Gefunden: Kindergarten «Florastrasse», 63 m.» */
+/** Satz 4: «Angenommen, bitte prüfen: Tempo-30-Zone, innerorts. Gefunden: Kindergarten «Florastrasse», 63 m.» */
 function hinweisSatz(x: ZfEingabe, kurz: boolean): string {
   const a = (x.annahmen ?? []).slice(0, kurz ? 2 : 3), g = (x.gefunden ?? []).slice(0, kurz ? 1 : 2)
   return [a.length ? `Angenommen, bitte prüfen: ${aufzaehlen(a)}.` : '', g.length ? `Als Grund für Vortritt gefunden: ${aufzaehlen(g)}.` : '']
@@ -527,12 +527,12 @@ function hinweisSatz(x: ZfEingabe, kurz: boolean): string {
 
 /** Wörter eines Texts (Zeichenfolgen mit Buchstabe oder Ziffer) */
 export const woerter = (t: string): number => t.split(/\s+/).filter(w => /[\p{L}\d]/u.test(w)).length
-/** harte Grenze; Ziel im Normalfall ZIEL_WOERTER (Korrektur nach Prüfung Runde 5) */
+/** harte Grenze; Ziel im Normalfall ZIEL_WOERTER */
 export const MAX_WOERTER = 85
 export const ZIEL_WOERTER = 70
 
 /**
- * Stufen der Kürzung (Korrektur nach Prüfung Runde 5): zuerst «Sonst keine Befunde.», dann der Nachsatz zu den übrigen Angaben, dann der
+ * Stufen der Kürzung: zuerst «Sonst keine Befunde.», dann der Nachsatz zu den übrigen Angaben, dann der
  * Verweis «(das entscheidet die erste Frage unten)» (doppelt zu «Für die Antwort entscheidend»), dann weniger Befunde und Fragen und die
  * kurze Grundprüfung. Satz 4 (Annahmen, gefundene Gründe) fällt nie ganz weg, nur auf die kurze Form. Gewählt wird die erste Stufe bis
  * ZIEL_WOERTER, die noch einen Befund nennt, sonst die erste bis MAX_WOERTER, sonst die letzte.
@@ -585,7 +585,7 @@ export function zusammenfassung(x: ZfEingabe): Zusammenfassung {
 export const zusammenfassungBlatt = (b: BefundBlatt, ort: ZfOrt = 'panel'): Zusammenfassung =>
   zusammenfassung(zfEingabeBlatt(b, ort))
 
-/** Eingabe der Zusammenfassung aus einem Befundblatt: Annahmen, Funde und Fragen zum Bestätigen aus der Herkunft der Felder (Runde 5) */
+/** Eingabe der Zusammenfassung aus einem Befundblatt: Annahmen, Funde und Fragen zum Bestätigen aus der Herkunft der Felder */
 export function zfEingabeBlatt(b: BefundBlatt, ort: ZfOrt = 'panel'): ZfEingabe & { fragen: Record<string, string> } {
   const h = b.gebildet.herkunft, e = b.gebildet.eingaben
   const annahme = (f: string) => { const x = h.get(f); return x?.zustand === 'vorbelegt' && !!x.quelle && QUELLEN_ANNAHME.includes(x.quelle) }
@@ -606,7 +606,7 @@ export function zfEingabeBlatt(b: BefundBlatt, ort: ZfOrt = 'panel'): ZfEingabe 
         gefunden.push(teil.replace(/ \((Geoportal Stadt Bern|OSM[^)]*)\)/g, '').replace(/ \(Geoportal Stadt Bern[^)]*\)/g, ''))
     if (w.includes('fusswegnetz')) gefunden.push('Basisnetz des Fusswegnetzes (Bern)')
   }
-  // Fragen zum Bestätigen (Stelle 10): vorbelegte Annahme, die eine offene Regel trägt
+  // Fragen zum Bestätigen: vorbelegte Annahme, die eine offene Regel trägt
   const fragen: Record<string, string> = {}
   const bestaetigbar = (f: string) => { const x = h.get(f); return x?.zustand === 'vorbelegt' && !!x.quelle && QUELLEN_BESTAETIGBAR.includes(x.quelle) }
   for (const o of b.offen) if (o.bestaetigen && bestaetigbar(o.feld)) {
@@ -637,7 +637,7 @@ const ANNAHME_KURZ: Record<(typeof ANNAHME_KURZ_REIHE)[number], (w: unknown) => 
 export interface OffeneFrage { feld: string; ziel: string; art: 'eingabe' | 'bestaetigen'; punkte: (GrundPunkt['nr'] | 'W')[]; entscheidend: boolean }
 
 /**
- * Fragen für den Block «Offene Fragen» (Nutzerentscheid 23.10.2026): alle Felder, die eine Regel der Grundprüfung (Tempo und die fünf
+ * Fragen für den Block «Offene Fragen»: alle Felder, die eine Regel der Grundprüfung (Tempo und die fünf
  * Punkte, ohne die ergänzenden bfu-Aspekte) offen lässt, höchstens rund sechs. Feste Reihenfolge nach Punkt (Tempo, ① bis ⑤), im
  * Punkt Muss vor Soll vor Hinweis; Felder, die die Antwort entscheiden, tragen nur den Hinweis. Je Feld der Maske einmal (unter mehreren Punkten mit allen
  * Zeichen; Zählung bzw. Schätzklasse der Querenden als eine Frage); beantwortbar sind offene Felder (auch bewusst offen gesetzte
@@ -660,13 +660,13 @@ export function offeneFragenAus(g: Grundpruefung, entscheidend: readonly string[
   const roh: { feld: string; punkt: GrundPunkt['nr'] | 'W' }[] = []
   const gruppen: [GrundPunkt['nr'] | 'W', readonly GrundTeil[]][] = [...g.punkte.map(p => [p.nr, p.teile] as [GrundPunkt['nr'], GrundTeil[]]), ['W', g.weitere]]
   for (const [punkt, teile] of gruppen) {
-    // nur Tempo und die fünf Punkte (Nutzerentscheid 23.10.2026): die ergänzenden bfu-Aspekte bleiben bei ihren Feldern
+    // nur Tempo und die fünf Punkte: die ergänzenden bfu-Aspekte bleiben bei ihren Feldern
     if (punkt === 'W') continue
     const offen = teile.filter(t => t.zustand === 'offen')
       .sort((x, y) => (RANG_ST[DEF[x.id]?.staerke ?? 'hinweis'] ?? 2) - (RANG_ST[DEF[y.id]?.staerke ?? 'hinweis'] ?? 2))
     for (const t of offen) for (const f of [...(t.fehlend ?? []), ...sichtOhneFeld(t)]) roh.push({ feld: f, punkt })
   }
-  // feste Reihenfolge Tempo, ① bis ⑤, Weitere (Nutzerentscheid 23.10.2026: Stabilität); entscheidende nur mit Hinweis
+  // feste Reihenfolge Tempo, ① bis ⑤, Weitere (Stabilität); entscheidende nur mit Hinweis
   const fragen: OffeneFrage[] = []
   for (const { feld: f0, punkt } of roh) {
     if (f0 === 'Zufahrten') continue

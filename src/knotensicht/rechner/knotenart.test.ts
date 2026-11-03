@@ -1,4 +1,4 @@
-// Tests Korrektur 31.10.2026, Punkte 11 bis 16 (synthetische Netze): Arme ohne Zufahrt, Gabelungen, LSA-Knoten, Beschriftung der Regelung,
+// Tests (synthetische Netze): Arme ohne Zufahrt, Gabelungen, LSA-Knoten, Beschriftung der Regelung,
 // Arme mit Vortritt, Kreisel. T-Knoten 12: Hauptstrasse West–Ost (Weg 1, von West nach Ost digitalisiert), Nebenstrasse nach Süden (Weg 2,
 // vom Knoten weg digitalisiert); Arme '1:1:-1' West, '1:1:1' Ost, '2:0:1' Süd.
 
@@ -11,6 +11,7 @@ import { OsmNetz } from './netz'
 import { knotenArt, knotenFinden, keineKnoten, knotenInfo, keineZufahrt, istLsaKnoten, ampelPunkte, vortrittsSignale, GABELUNG_TEXT,
   KREISEL_TEXT } from './knoten'
 import { rechneKnoten, REGELUNG_TEXT, LSA_TEXT } from './rechnen'
+import { KREISEL_EINFAHRT_TEXT } from './kreisel'
 import { lv95 } from '../geo'
 
 const O: P = [2600000, 1200000]
@@ -66,16 +67,22 @@ describe('Punkt 12: Gabelung (höchstens ein Arm führt zum Knoten)', () => {
   })
 })
 
-describe('Punkt 16: Kreisel', () => {
-  it('Weg mit junction=roundabout bzw. circular am Punkt: kein Knoten, Meldung, keine Rechnung, kein Hinweis «nur zur Orientierung»', () => {
+describe('Punkt 16: Kreisel (seit K1 als ein Knoten, kreisel.test.ts)', () => {
+  it('Weg mit junction=roundabout bzw. circular am Punkt: kein gewöhnlicher Knoten, keine Rechnung, Kreisel-Block mit Meldung', () => {
     for (const j of ['roundabout', 'circular']) {
       const o = osm({ junction: j })
       const netz = new OsmNetz(o)
       expect(knotenArt(netz, 12)).toBe('kreisel')
+      expect(knotenArt(netz, 10)).toBe('kreisel')   // auch ein Ringpunkt ohne weiteren Arm
       expect(knotenFinden(netz)).not.toContain(12)
-      const r = rechneKnoten(o, [fahrbahn], { knoten: 12, zufahrt: NEBEN })
-      expect([r.ergebnis, r.meldungen]).toEqual([null, ['Kreisverkehr: nicht Gegenstand der App (VSS 40 273 Ziffer 1, S. 4; siehe VSS 40 263).']])
+      expect(keineKnoten(netz)).not.toContain(12)
+      const r = rechneKnoten(o, [fahrbahn], { knoten: 12, zufahrt: null })
+      expect([r.ergebnis, r.meldungen]).toEqual([null, [KREISEL_EINFAHRT_TEXT]])
+      // mit Einfahrt: Sicht am Kreisel (K4), keine Meldung
+      expect(rechneKnoten(o, [fahrbahn], { knoten: 12, zufahrt: NEBEN }).meldungen).toEqual([])
+      expect(r.knoten?.kreisel?.arme.map(a => a.name)).toEqual(['Nebenstrasse'])
     }
+    // nur noch an einer Grundstückzufahrt am Ring
     expect(KREISEL_TEXT).toBe('Kreisverkehr: nicht Gegenstand der App (VSS 40 273 Ziffer 1, S. 4; siehe VSS 40 263)')
   })
   it('Knotensuche: Punkte an Kreiseln werden in der Abfrage abgezogen', () => {

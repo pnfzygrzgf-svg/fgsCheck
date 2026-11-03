@@ -1,4 +1,4 @@
-// Tests Regelprüfung nach Quelle, Block 2 (Nutzerentscheide 30.10.2026 nach dem Vergleich mit VSS 40 240, 40 241 und 40 242): Stärke Hinweis,
+// Tests Regelprüfung nach Quelle, Block 2 (nach dem Vergleich mit VSS 40 240, 40 241 und 40 242): Stärke Hinweis,
 // gestrichene Regeln und Felder (alte Fall-Dateien still), Bedingungen Q3-M2 und D4c, Fundstellen, Sichtweite 20 km/h als Annahme,
 // Informationszeile zum Verkehr an der Trottoirüberfahrt, Verweis auf KnotenCheck mit Link. Block 3 (30.10.2026): Block I (LSA-Zeiten),
 // G7, G7b (Halteverbotslinie), F1a, F1b, F1c, F1-K (Streifenbreite, Abstand der Balken) gestrichen, F7d Hinweis, Fundstellen G3 und H1-V.
@@ -52,7 +52,7 @@ describe('Gestrichene Regeln und Felder (B)', () => {
       const d = D(id)
       expect([d.art, d.ebene, d.staerke, d.eingaben, d.bedingung], id).toEqual(['gestrichen', null, null, [], '–'])
       expect(d.pruefsatz, id).toMatch(/^Gestrichen: /)
-      expect(d.bemerkung, id).toMatch(/^Nutzerentscheid 30\.10\.2026: /)
+      expect(d.bemerkung, id).toBeTruthy()
       expect(d.quellen.length, id).toBeGreaterThan(0)
       expect(Object.keys(REGELN), id).not.toContain(id)
     }
@@ -139,14 +139,14 @@ describe('Verweis auf KnotenCheck bei der Wartezeit (G)', () => {
   })
 })
 
-describe('Block 3 (Nutzerentscheide 30.10.2026)', () => {
+describe('Block 3', () => {
   const I = ['I1', 'I2', 'I3a', 'I3b', 'I4', 'I5', 'I6', 'I6-B', 'I7-B1', 'I7-B2', 'I7-B3', 'I7-B4', 'I8']
   it('Block I, G7, G7b, F1a, F1b, F1c, F1-K gestrichen wie das Vorbild (Quellen bleiben), ohne Auswertung', () => {
     for (const id of [...I, 'G7', 'G7b', 'F1a', 'F1b', 'F1c', 'F1-K']) {
       const d = D(id)
       expect([d.art, d.ebene, d.staerke, d.eingaben, d.bedingung], id).toEqual(['gestrichen', null, null, [], '–'])
       expect(d.pruefsatz, id).toMatch(/^Gestrichen: /)
-      expect(d.bemerkung, id).toMatch(/^Nutzerentscheid 30\.10\.2026: /)
+      expect(d.bemerkung, id).toBeTruthy()
       expect(d.quellen.length, id).toBeGreaterThan(0)
       expect(Object.keys(REGELN), id).not.toContain(id)
     }
@@ -166,7 +166,7 @@ describe('Block 3 (Nutzerentscheide 30.10.2026)', () => {
   it('F7d: Hinweis (Ausrüstung)', () => {
     expect(D('F7d').staerke).toBe('hinweis')
     expect(D('F7d').pruefsatz).toMatch(/\? Hinweis: /)
-    expect(D('F7d').bemerkung).toContain('Nutzerentscheid 30.10.2026: Hinweis (Ausrüstung)')
+    expect(D('F7d').bemerkung).toContain('Hinweis (Ausrüstung)')
     expect(beurteile(fall({ absenkung: 0, taktil: false })).alle.find(x => x.id === 'F7d')).toMatchObject({ zustand: 'verletzt', staerke: 'hinweis' })
   })
   it('Fundstellen: G3 ohne SN 640 070 (Werk aus dem Verzeichnis), H1-V mit Ziffer und Seite', () => {

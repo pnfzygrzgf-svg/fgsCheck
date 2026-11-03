@@ -1,0 +1,38 @@
+{
+  "mitte": [
+    2551925,
+    1186294
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 1,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2551925,
+            1186294
+          ]
+        },
+        "properties": {
+          "OBJECTID": 1,
+          "BATIMENT_NOM": "Ecole de Châbles",
+          "ETABLISSEMENT_NOM": "Cheyres - Châbles",
+          "CYCLE": "Primaire",
+          "ADRESSE": "Rue de la Chapelle 23, 1474 Châbles FR"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

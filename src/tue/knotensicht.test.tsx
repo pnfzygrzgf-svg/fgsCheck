@@ -58,6 +58,14 @@ const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, 
 
 describe('Knotensicht: Knoten und Zufahrt aus dem Streifen', () => {
   const d = ksDatenAusRoh(OSM_ROH, avRoh(), { ...REST, hindernisse: [], verworfen: [] })
+  it('benennt den Kreisel im FGS-Adapter ausdrücklich, statt eine allgemeine Fehlermeldung zu zeigen', () => {
+    const punkte: [number,number,number][] = Array.from({length:36},(_,i)=>[1000+i,15*Math.cos(i*Math.PI/18),15*Math.sin(i*Math.PI/18)])
+    const roh={elements:[weg(10,[...punkte,punkte[0]],{highway:'residential',junction:'roundabout'}),
+      weg(20,[punkte[0],[2000,100,0]],{highway:'residential'}),weg(21,[punkte[18],[2100,-100,0]],{highway:'residential'})]}
+    const d=ksDatenAusRoh(roh,avRoh(),{...REST,hindernisse:[],verworfen:[]})
+    const a=knotensichtTue(d,{p0:lv(20,-4),p1:lv(20,4),rand:[lv(20,-3),lv(20,3)],breite:null},{knoten:1000,zufahrt:'20:0:1'})
+    expect(a).toMatchObject({fehler:expect.stringMatching(/^Kreisverkehr: nicht Gegenstand/)} )
+  })
   it('Zufahrt ist der Arm des gequerten Wegs (Querweg vom Knoten weg), Knoten bis 20 m', () => {
     expect(zufahrtFinden(d.kx!, { p0: lv(-44, -8), p1: lv(-36, -8), rand: [lv(-43, -8), lv(-37, -8)] })).toMatchObject({ knoten: 11, zufahrt: '2:0:1' })
   })
@@ -213,7 +221,7 @@ describe('Knotensicht: Korrekturen nach Review (S1–S3, K3, K4, K7)', () => {
     const ok = { ...uneben, i: 0, hinweis: null }
     const k = ks(rechnen(fallTue(), { hoehen: { '11|2:0:1|3,00': { links: uneben, rechts: ok, zufahrt: ok, trottoir: ok } } }).streifen[0].knotensicht)
     expect(k.ok).toBeNull(); expect(k.unklar[0]).toContain('Höhenprofil uneben')
-    // nicht verfügbar (Entscheid 31.10.2026): Höhenmodell geladen, Profil ohne Neigung → unbekannt, der Kern nimmt den strengsten Wert
+    // nicht verfügbar: Höhenmodell geladen, Profil ohne Neigung → unbekannt, der Kern nimmt den strengsten Wert
     const weg = neigungMessung(new Error('x'))
     const g = ks(rechnen(fallTue(), { hoehen: { '11|2:0:1|3,00': { links: weg, rechts: ok, zufahrt: ok, trottoir: weg } } }).streifen[0].knotensicht)
     expect([g.ok, g.neigungGemessen, g.neigungUnbekannt]).toEqual([true, false, true])
@@ -339,7 +347,7 @@ describe('Knotensicht: Geometrie der Überfahrt wie im SichtweitenCheck (K1)', (
     for (const alpha of [90, 60]) {
       const k = schief(alpha, 3)
       const D = k.karte.Dtrottoir!, gl = k.karte.dreiecke.filter(d => d.art === 'trottoir').map(d => d.frei.slice(1))
-      // Lot von D' auf die Gehlinie (parallel zur Hauptstrasse) = (3,00 + 0,50 / sin α) · sin α, D' am Fahrersitz 0,50 m neben der
+      // Lot von D' auf die Gehlinie (parallel zur Hauptstrasse) = (3,00 + 0,50 / sin α) · sin α, D' am Fahrer*innensitz 0,50 m neben der
       // Zufahrtsachse (± 0,50 · cos α)
       const sa = Math.sin(k.einbiegewinkel * Math.PI / 180), ca = Math.abs(Math.cos(k.einbiegewinkel * Math.PI / 180))
       const ab = gl.map(pts => abstand(D, pts[0], pts[pts.length - 1]))
@@ -370,7 +378,7 @@ describe('Knotensicht: zweite Review (Einbahn, Veloachse, Handwerte)', () => {
   it('Einbahn mit Velo gegen die Einbahn: Sicht der Velofahrenden, Annahme richtig benannt', () => {
     const k = rechnenOsm(mitQuerweg({ oneway: 'yes', 'oneway:bicycle': 'no' }), fallTue())
     expect(k.hinweise).toContain(KS_EINBAHN_VELO); expect(k.unklar).not.toContain(KS_EINBAHN)
-    expect(k.annahmen.join(' ')).toContain('Auge der Velofahrenden'); expect(k.annahmen.join(' ')).not.toContain('Fahrersitz')
+    expect(k.annahmen.join(' ')).toContain('Auge der Velofahrenden'); expect(k.annahmen.join(' ')).not.toContain('Fahrer*innensitz')
   })
   it('Strasse in einer Kurve: kurzer Hinweis mit beiden Längen, ohne Ziffer', () => {
     expect(kurzHinweis('Trottoirüberfahrt: Strasse in einer Kurve, hinterer Rand auf der Zufahrtsachse nach dem Rand der Arme (3,10 m statt 2,40 m hinter der Bordkante).')?.text)
@@ -475,7 +483,7 @@ describe('Knotensicht: Auge von Hand und Planungstempo (27.10.2026)', () => {
       phase="trottoir" setzePhase={() => {}} />)
     expect(text(html)).toContain('Sicht zeigen: beide Fahrbahn Trottoir')
     expect(html).toMatch(/aria-pressed="true" class="aktiv klein">Trottoir</)
-    expect(html.match(/aria-pressed="true"/g)).toHaveLength(1)
+    expect(html.match(/aria-pressed="true" class="aktiv klein"/g)).toHaveLength(1)
   })
   it('Planung: Tempo der Hauptstrasse im Block wählen → Bedarf von Hand → Knotensicht mit diesem Tempo', () => {
     let gesetzt: number | null = -1

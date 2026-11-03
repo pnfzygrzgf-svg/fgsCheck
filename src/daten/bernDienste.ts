@@ -1,4 +1,4 @@
-// ── Weitere Dienste des Geoportals Stadt Bern für die Vorbelegung (Automatik Paket C, 21.10.2026): Liste für App und Quellen ──
+// ── Weitere Dienste des Geoportals Stadt Bern für die Vorbelegung: Liste für App und Quellen ──
 //
 // Je Dienst: Name in «Geladene Quellen», Quellenangabe (Fusszeile, Fall-Datei quellen.<Schlüssel>), Zeile im Bericht, Laden
 // (Rechteck ±radiusM um den Ladeort), Kurztext der geladenen Objekte und was ohne den Dienst gilt. Geladen wie Haltestellen und

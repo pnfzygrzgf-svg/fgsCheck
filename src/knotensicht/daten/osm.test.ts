@@ -151,7 +151,10 @@ describe('Strassennamen vor dem Klick (Wegmitten aus der Knotensuche)', () => {
     expect(q).toContain('|living_street|road)$"]["access"!~"^(no|private)$"]')
     expect(q).not.toContain('service|road)$"]["access"')
     expect(q).toMatch(/way\(46\.900000,7\.400000,46\.910000,7\.420000\)\["highway"~"\^\(motorway\|.*\|busway\)\$"\]\["name"\];out tags center;$/)
-    expect(q).not.toContain('geom')
+    // K1: Geometrie nur für die Ringwege der Kreisel (kreiselMitten)
+    expect(q.match(/geom/g)).toHaveLength(1)
+    expect(q).toContain('["junction"~"^(roundabout|circular)$"]["highway"~"^(motorway|')
+    expect(q).toContain('.r;);out skel geom qt;')
   })
   it('Wegmitten aus der Antwort: nur benannte Wege der Klassen HW_ALLE mit Mittelpunkt, ohne Doppel; Übergänge unverändert', () => {
     const roh = { elements: [

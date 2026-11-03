@@ -284,8 +284,8 @@ describe('Fall-Datei: Version 2 nur mit Flächen (Plan) (Korrektur S2)', () => {
     // die Plan-Fläche gelöscht: wieder Version 1
     const [g] = fallLesen(t); delete g.flaechenPlan
     expect(JSON.parse(fallSchreiben(g)).version).toBe(1)
-    // eine höhere Version als FALL_VERSION (seit 30.10.2026: 5, fallBedarf.test.ts) wird abgelehnt
-    expect(() => fallLesen(JSON.stringify({ ...JSON.parse(t), version: 6 }))).toThrow('Fall-Datei Version 6 wird nicht unterstützt (aus einer ' +
+    // eine höhere Version als FALL_VERSION (seit E1a: 6, fallBedarf.test.ts) wird abgelehnt
+    expect(() => fallLesen(JSON.stringify({ ...JSON.parse(t), version: 12 }))).toThrow('Fall-Datei Version 12 wird nicht unterstützt (aus einer ' +
       'neueren fgsCheck-Version: Seite neu laden)')
   })
 })

@@ -52,7 +52,7 @@ describe('Fall-Datei mit Bedarf (Version 1, 2, 3)', () => {
       'insel.breite': { wert: 1.8, quelle: 'hand' }, beduerfnis: { wert: [], quelle: 'hand' } }, ebenen: { bern: true } }
   })
   it('Version 1 ohne alles, 2 mit Flächen (Plan), 3 mit Bedarf bzw. Querung ohne Vortritt; leerer Block wird nicht geschrieben', () => {
-    expect(FALL_VERSION).toBe(5)
+    expect(FALL_VERSION).toBe(11)
     expect(JSON.parse(fallSchreiben(fallMit())).version).toBe(1)
     expect(JSON.parse(fallSchreiben(fallMit(x => { x.flaechenPlan = [NASE] }))).version).toBe(2)
     expect(JSON.parse(fallSchreiben(mitBedarf)).version).toBe(3)
@@ -62,7 +62,7 @@ describe('Fall-Datei mit Bedarf (Version 1, 2, 3)', () => {
     const t = JSON.parse(fallSchreiben(leer))
     expect(t.version).toBe(1); expect(t.bedarf).toBeUndefined()
   })
-  it('Version 3 speichern und laden ergibt denselben Fall; Version 1 und 2 bleiben lesbar; Version 6 abgelehnt', () => {
+  it('Version 3 speichern und laden ergibt denselben Fall; Version 1 und 2 bleiben lesbar; neuere Version abgelehnt', () => {
     const [g, h] = fallLesen(fallSchreiben(mitBedarf))
     expect(h).toEqual([])
     expect({ ...g, gespeichert: undefined }).toEqual({ ...mitBedarf, gespeichert: undefined })
@@ -70,7 +70,7 @@ describe('Fall-Datei mit Bedarf (Version 1, 2, 3)', () => {
     expect(fallLesen(JSON.stringify(v1))[0].streifen).toEqual({ '1': { lsa: 'nein' } })
     const v2 = JSON.parse(fallSchreiben(fallMit(x => { x.flaechenPlan = [NASE] })))
     expect(fallLesen(JSON.stringify(v2))[0].flaechenPlan).toEqual([NASE])
-    expect(() => fallLesen(JSON.stringify({ ...v1, version: 6 }))).toThrow('Fall-Datei Version 6 wird nicht unterstützt')
+    expect(() => fallLesen(JSON.stringify({ ...v1, version: 12 }))).toThrow('Fall-Datei Version 12 wird nicht unterstützt')
   })
   it('tief geprüft: ungültige Werte, Unterfelder, Quellen, unbekannte Pfade und Ebenen werden gemeldet und übergangen', () => {
     const roh = JSON.parse(fallSchreiben(mitBedarf))
@@ -232,7 +232,7 @@ describe('Eingaben bilden: Vorbelegung, Hand, Objekte', () => {
 describe('Durchfahrt neben der Insel (F3, F3-B) und Untergrenze der Inseltiefe im Werkzeug', () => {
   it('Bänder nach F3: zu schmal, knapp, Konfliktband, Idealbereich', () => {
     expect([3.44, 3.45, 3.49, 3.5, 3.6, 3.75, 3.76, 4.24, 4.25, 4.5].map(f3Klasse)).toEqual(['schmal', 'schmal', 'schmal', 'knapp', null, null, 'band', 'band', 'knapp', null])
-    // zu schmal unter 3,50 m wie die Arbeitshilfe (Nutzerentscheid 23.10.2026); 3,49 zu schmal, 3,50 nur unter dem Idealmass
+    // zu schmal unter 3,50 m wie die Arbeitshilfe; 3,49 zu schmal, 3,50 nur unter dem Idealmass
     expect(durchfahrtHinweise([3.49, 3.6])[0]).toBe('Durchfahrt neben der Insel 3,49 m (Seite Ende A): unter 3,50 m, zu schmal (F3, Arbeitshilfe Kanton BE).')
     expect(durchfahrtHinweise([3.44, 3.6])[0]).toBe('Durchfahrt neben der Insel 3,44 m (Seite Ende A): unter 3,50 m, zu schmal (F3, Arbeitshilfe Kanton BE).')
     expect(durchfahrtHinweise([3.6, 4.6])).toEqual([])

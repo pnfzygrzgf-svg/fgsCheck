@@ -32,8 +32,7 @@ const DURCHBLICK_MAX = 30.0
 export const GABEL_MAX = 60.0
 const WENDEN_AB = 120.0
 const WENDEN_OHNE_NAME = true
-// Nutzerentscheid 13.10.2026 (Rückmeldung «nicht systematisch alle Sichtweiten»: ein Arm mit Drehung 25° wurde als «nebenast»
-// weggelassen, obwohl sein Knoten innerhalb der Sichtweite liegt): ein
+// Ein Arm mit Drehung 25° darf nicht als «nebenast» wegfallen, wenn sein Knoten innerhalb der Sichtweite liegt: ein
 // Arm ab NEBENAST_GRAD Drehung ist eine Abbiegezufahrt mit allen Regeln, darunter «nebenast» (nur Hinweis). Bis 13.10.2026: 30
 export const NEBENAST_GRAD = 10.0
 // «Fast geradeaus» für die Fortsetzung (klasseVorName) und die turn:lanes an Gabeln (fahrstreifen.ts: left/right gegen

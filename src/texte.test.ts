@@ -1,6 +1,6 @@
 // Tests 23.10.2026: hier nicht geprüfte Richtungen und Zufahrtszeile in Alltagssprache (Nutzertest Zieglerstrasse)
 import { describe, expect, it } from 'vitest'
-import { ART, ENTFALLEN_TITEL, GRUND, entfallenGrund, sichtQuelleKurz, tempoHerkunft } from './texte'
+import { ART, ENTFALLEN_TITEL, GRUND, entfallenGrund, sichtQuelleKurz, tempoHerkunft, erkennungEmpfehlungText } from './texte'
 import { entfallen } from './rechner/zufahrten'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 
@@ -8,6 +8,32 @@ import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 const GRUENDE = ['hofzufahrt', 'einbahn_osm', 'richtungsfahrbahn', 'insel', 'teilstreifen', 'insel_einbahn', 'einspurig', 'einmuendung', 'gerade_verboten',
   'gedeckt', 'kein_zufluss', 'verbot', 'kreisel', 'wenden', 'nebenast', 'zu_steil', 'arm_schmal', 'arm_ohne_fahrbahn', 'geometrie',
   'wegende', 'einbahn_widerspruch', 'hand', 'mitgeprueft']
+
+describe('Erkennungsempfehlung direkt in der Sichttabelle', () => {
+  it('Laubeggstrasse: 57 m erfüllt die Mindestdistanz 55 m, unterschreitet aber die empfohlenen 110 m', () => {
+    expect(erkennungEmpfehlungText({ wert: 57, bis: 'verdeckt' }, 55)).toBe(
+      'Empfohlene Erkennungsdistanz: 110 m (2 × 55 m) – mit 57 m nicht erreicht. Mindestdistanz 55 m erreicht.')
+  })
+  it('unter der Sichtweite fehlt zusätzlich die Mindestdistanz; an der Grenze ist sie erreicht', () => {
+    expect(erkennungEmpfehlungText({ wert: 54, bis: 'verdeckt' }, 55)).toContain('Mindestdistanz 55 m ebenfalls nicht erreicht')
+    expect(erkennungEmpfehlungText({ wert: 55, bis: 'verdeckt' }, 55)).toContain('Mindestdistanz 55 m erreicht')
+    expect(erkennungEmpfehlungText({ wert: 110, bis: 'frei' }, 55)).toBe('')
+  })
+  it('eine zu kurze Fahrlinie bzw. Prüfgrenze gilt als fehlender Nachweis und nicht als nachgewiesene Verletzung', () => {
+    for (const bis of ['fahrlinie_endet', 'frei'] as const) {
+      const t = erkennungEmpfehlungText({ wert: 30, bis }, 55)
+      expect(t).toContain('noch nicht nachgewiesen (nur bis 30 m geprüft)')
+      expect(t).not.toContain('nicht erreicht')
+    }
+  })
+  it('Bewuchs macht den Nachweis unsicher; nur betroffene Entfernungen gelten als ungesichert', () => {
+    expect(erkennungEmpfehlungText({ wert: 110, bis: 'frei', bewuchsAb: 40 }, 55)).toContain('Mindestdistanz 55 m nicht gesichert')
+    const t = erkennungEmpfehlungText({ wert: 110, bis: 'frei', bewuchsAb: 70 }, 55)
+    expect(t).toContain('wegen Bewuchs nicht gesichert')
+    expect(t).toContain('Mindestdistanz 55 m erreicht')
+    expect(erkennungEmpfehlungText({ wert: 110, bis: 'frei' }, NaN)).toBe('')
+  })
+})
 const z = (zufahrt: string, richtung: number, osmWeg: string | null, art = 'beide', osmKnoten: string | null = null) =>
   ({ zufahrt, richtung, osmWeg, art, osmKnoten }) as ZufahrtErgebnis
 const st = (fgsId: string, zufahrten: ZufahrtErgebnis[]) => ({ fgsId, zufahrten }) as Pick<StreifenErgebnis, 'fgsId' | 'zufahrten'>
@@ -29,7 +55,7 @@ describe('Hier nicht geprüfte Richtungen: Alltagssprache', () => {
     expect(g).toEqual({ text: 'fährt auf der anderen Seite der Insel vorbei und kreuzt diesen Teil des Streifens nicht – geprüft beim anderen Teil (Teilstreifen 2)' })
     // nicht eindeutig: allgemein
     expect(entfallenGrund(e, a, [a], fid => fid, () => '').text).toMatch(/geprüft beim anderen Teil des Streifens$/)
-    // Nachtrag nach Prüfung: der andere Teil ist eine Trottoirüberfahrt (Zufahrten nur für die Vorbelegung): kein «geprüft beim anderen Teil»
+    // Der andere Teil ist eine Trottoirüberfahrt (Zufahrten nur für die Vorbelegung): kein «geprüft beim anderen Teil»
     const t = { fgsId: '2', zufahrten: [], trottoirueberfahrt: true as const, nurVorbelegung: { zufahrten: [z('270', 270, '77', 'insel')], entfallen: [] } }
     expect(entfallenGrund(e, a, [a, t], fid => `Teilstreifen ${fid}`, () => '').text)
       .toBe('fährt auf der anderen Seite der Insel vorbei und kreuzt diesen Teil des Streifens nicht – der andere Teil (Teilstreifen 2) ist eine Trottoirüberfahrt, dort wird die Sicht nicht geprüft')
@@ -45,7 +71,9 @@ describe('Hier nicht geprüfte Richtungen: Alltagssprache', () => {
   })
   it('Zufahrtszeile: Art, Tempo und nötige Sicht in Worten (Fundstelle nur im Tooltip)', () => {
     expect(ART).toEqual({ beide: 'geradeaus', einbahn: 'geradeaus, Einbahn', insel: 'geradeaus (Teil vor der Insel)', abbiegend: 'biegt ein' })
-    expect(tempoHerkunft('Geoportal')).toBe('Geoportal')
+    expect(tempoHerkunft('Geoportal')).toBe('Geoportal Stadt Bern')
+    expect(tempoHerkunft('Stadt Zürich')).toBe('Stadt Zürich')
+    expect(tempoHerkunft('OpenStreetMap (OSM) (gewählt); Datenstand unbekannt')).toBe('OpenStreetMap (OSM) (gewählt); Datenstand unbekannt')
     expect(tempoHerkunft('Ersatz')).toBe('Annahme')
     expect(sichtQuelleKurz('VSS Tab. 1')).toBe('nach Tempo')
     expect(sichtQuelleKurz('VSS Tab. 2')).toBe('nach Kurvenradius')

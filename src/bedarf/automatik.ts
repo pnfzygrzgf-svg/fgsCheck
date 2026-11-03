@@ -1,18 +1,19 @@
-// ── Bedarfsmodul: Automatik Paket A + B (21.10.2026) ──
+// ── Bedarfsmodul: Automatik (21.10.2026) ──
 //
 // Vorbelegung weiterer Felder aus Daten, die die App schon geladen hat: Rechnung (Sichtrechner), OSM-Antwort (Wege mit Tags,
 // Übergänge, Ampeln, Tramgleise), AV-Bodenbedeckung, Haltestellen. Aufgerufen am Schluss von vorbelegung.vorbelegen (die dort
 // gesetzten Werte, z. B. Tempo, DTV, Fahrbahnbreite, sind dann bekannt). Jeder Wert trägt Quelle und Herkunft als Text; Annahmen
 // tragen die Quelle «annahme» und erscheinen damit im Befund unter «Annahmen». «Erfüllt» entsteht nie ohne Grundlage: fehlen die
 // Daten bzw. ist der Fall unklar, bleibt das Feld offen (mit Hinweis, wo er weiterhilft). Eine Handeingabe überschreibt jeden Wert.
-// Schwellen in AUTO (Nutzerentscheide 21.10.2026, Abschnitt 22 der Regeln).
-// Paket C (Abschnitt 24): Vortrittszeichen (OSM) entscheiden an einer Kreuzung die Vortrittsrolle; der Strassentyp aus dem Geoportal
+// Schwellen in AUTO (Abschnitt 22 der Regeln).
+// Abschnitt 24: Vortrittszeichen (OSM) entscheiden an einer Kreuzung die Vortrittsrolle; der Strassentyp aus dem Geoportal
 // (geo.strassentyp, gebildet in vorbelegung.ts) hat Vorrang vor der OSM-Annahme, auch wenn er offen bleibt (Hinweis). Die übrigen
 // Regeln des Pakets C stehen in automatikC.ts.
 
+import { signalText, type SignalEntscheid } from '../daten/anbieter/gemeinsam/regionalSignale'
 import { ohneLuftbildUebergang, LUFTBILD_UEBERGANG_TEXT } from '../daten/luftbildFgs'
 import { tag } from './lesetext'
-import { TEMPO_QUELLE_AMTLICH } from '../rechner/tempo'
+import { tempoQuelleArt, tempoQuellenName } from './tempoQuelle'
 import { type P, add, sub, dot, dist, einheit, rechts, links, lv95, imPolygon, abstandStrecke, segSchnitt } from '../geo'
 import type { StreifenErgebnis, ZufahrtErgebnis } from '../rechner/typen'
 import { handGeplant, type Fall, type PlanSeitenraum } from '../fall'
@@ -82,14 +83,14 @@ export interface AutoGeo {
   osmRadiusM?: number
   /** Strassentyp aus einer amtlichen Quelle (Geoportal Bern, vorbelegung.ts): hat Vorrang vor OSM; wert null mit Text: offen mit Hinweis */
   strassentyp?: { wert: 'verkehrsorientiert' | 'siedlungsorientiert' | null; quelle: Quelle; text: string } | null
-  /** Vortrittszeichen (give_way, stop) und Verkehrsschilder nach OSM mit abgedecktem Bereich (überall; Paket C) */
+  /** Vortrittszeichen (give_way, stop) und Verkehrsschilder nach OSM mit abgedecktem Bereich (überall) */
   vortritt?: { zeichen: VortrittZeichen[]; bereich: Bereich } | null
   /** Kurvenregel (29.10.2026): Längsneigung aus dem Höhenmodell entlang der Fahrlinie der Zufahrt mit der Kurve, je
    * kurvenregel.kurveProfilSchluessel; fehlt der Eintrag: lädt noch bzw. nicht verfügbar */
   kurveNeigung?: Readonly<Record<string, NeigungMessung>> | null
 }
 
-/** ganzeStrasse: Wert ist die Länge der ganzen Strasse (Runde 4, Abstände bei beidseitigem Strassenende) */
+/** ganzeStrasse: Wert ist die Länge der ganzen Strasse (Abstände bei beidseitigem Strassenende) */
 type Setze = (pfad: string, wert: unknown, quelle: Quelle, text: string, ganzeStrasse?: true) => void
 type FeldHinweis = (pfad: string, text: string) => void
 
@@ -332,9 +333,9 @@ export function automatik(x: AutoEingang): void {
         setze('q3.ueber', 'einmuendend', 'annahme', 'Querung über die einmündende Strasse (Lage Einmündung)')
         setze('q3.kreisel', false, 'osm', `kein Kreisel innerhalb ${AUTO.knotenM} m (OSM)`)
       } else {
-        // Paket C: Vortrittszeichen (OSM) auf einem Arm bis 20 m vom Knoten entscheiden die Rolle; ohne Zeichen bleibt sie offen
-        const rolle = vortrittRolle(k, strasse, geo.vortritt ?? null)
-        if (rolle?.lage) setze('lage', rolle.lage, 'osm', rolle.text)
+        // Vortrittszeichen (OSM) auf einem Arm bis 20 m vom Knoten entscheiden die Rolle; ohne Zeichen bleibt sie offen
+        const rolle = vortrittRolle(k, strasse, geo.vortritt ?? null, fall.signalEntscheide)
+        if (rolle?.lage) setze('lage', rolle.lage, rolle.quelle ?? 'osm', rolle.text)
         // Trottoirüberfahrt an einer Kreuzung über die Zufahrt ohne Vortritt (27.10.2026): Überfahrt über die einmündende Strasse; mit
         // einem Arm gegenüber zusätzlich «gegenüberliegende Einmündung» (VSS 40 242 Tab. 2)
         if (rolle?.lage === 'knoten_belastet' && st.some(s => s.trottoirueberfahrt)) {
@@ -373,7 +374,7 @@ export function automatik(x: AutoEingang): void {
       const lsa = [...osm.ampeln, ...osm.uebergaenge.filter(u => istLsaUebergang(u.tags))]
         .filter(u => u.id !== eigenId && abstandQuerung(ll2p(u), st) > AUTO.eigenLsaM)
       const naechst = (ks: OsmKnoten[]) => ks.map(k => ab.get(k.id)).filter((v): v is number => v !== undefined).sort((a, b) => a - b)[0] ?? null
-      // Runde 4 (S6): endet die Strasse an einem Knoten ohne Fortsetzung, zählt ohne Fund entlang der Strasse ein Lichtsignal bis
+      // endet die Strasse an einem Knoten ohne Fortsetzung, zählt ohne Fund entlang der Strasse ein Lichtsignal bis
       // 30 m von diesem Knoten als Lichtsignal am Knoten (Ampel highway=traffic_signals wie knotenLsa, keine Fussgänger-LSA einer
       // anderen Querung); bis 50 m ist es unklar, die Suche endet dort
       const ampeln = osm.ampeln.filter(a => !(a.id === eigenId || (a.tags.crossing && abstandQuerung(ll2p(a), st) <= AUTO.eigenFgsM)))
@@ -383,11 +384,11 @@ export function automatik(x: AutoEingang): void {
       const dF = naechst(fgs), dL0 = naechst(lsa)
       // nur ohne Fund entlang der Strasse (ein gefundenes Lichtsignal bleibt wie bisher)
       const dL = dL0 ?? lsaEnde
-      // Korrektur S6: ohne Fund «mindestens» nur die tatsächlich durchsuchte Länge (gleichnamige Wege bis zum Namenswechsel, höchstens
-      // die Reichweite der Daten) als Annahme, und nur, wenn sie die Schwelle von G1 bzw. G2 erreicht; sonst offen. Runde 4: endet die
+      // Ohne Fund «mindestens» nur die tatsächlich durchsuchte Länge (gleichnamige Wege bis zum Namenswechsel, höchstens
+      // die Reichweite der Daten) als Annahme, und nur, wenn sie die Schwelle von G1 bzw. G2 erreicht; sonst offen. Endet die
       // Strasse in einer Richtung ohne Fortsetzung (Querstrasse, Sackgasse), ist diese Richtung ganz durchsucht und begrenzt nicht
       const name = [...new Set([...gequert].map(id => n.wege.get(id)?.w.tags.name?.trim()).filter(Boolean))].join(' bzw. ')
-      // Runde 5 (Stelle 38): Lichtsignal am nahen Knoten (wie knotenLsa) für den Hinweis ohne Fund
+      // Lichtsignal am nahen Knoten (wie knotenLsa) für den Hinweis ohne Fund
       const knotenAmpelM = knoten ? (() => { const d = ampeln.map(a => dist(ll2p(a), knoten!.p)).sort((a, b) => a - b)[0] ?? Infinity
         return d <= AUTO.knotenLsaJaM + 1e-9 ? d : null })() : null
       const ohneFund = (pfad: string, was: string, schwelle: number, weiter: string, endeUnklar?: (k: number) => boolean) => {
@@ -395,7 +396,7 @@ export function automatik(x: AutoEingang): void {
         const su = sucheAuswerten(ab, max, endeUnklar)
         const enden = su.seiten.filter(x => x.art === 'ende').map(x => x.laenge).sort((a, b) => a - b).map(ganz)
         // beide Richtungen enden ohne Fortsetzung: die ganze Strasse ist durchsucht; Wert = ihre Länge mit Kennzeichen ganzeStrasse
-        // (G1/G2 dann Hinweis «nicht anwendbar», kein Befund), als Annahme wie der Fall «mindestens» (Abwesenheit in OSM; Runde 4)
+        // (G1/G2 dann Hinweis «nicht anwendbar», kein Befund), als Annahme wie der Fall «mindestens» (Abwesenheit in OSM)
         if (su.grenze === 'ende') {
           const L = Math.round(su.durchsucht)
           setze(pfad, L, 'annahme', `ganze ${name || 'Strasse'} durchsucht, ${ganz(L)} m (endet in beiden Richtungen ohne Fortsetzung, ` +
@@ -568,17 +569,18 @@ export function automatik(x: AutoEingang): void {
   // A9 Halteverbotslinie nach Sichtbedarf gestrichen 30.10.2026 (G7, G7b)
 
   // ── A8 Annahmen mit Schwellen ──
-  const dtv = w.dtv?.wert as number | undefined, nR = w.nRichtung?.wert as number[] | undefined
+  const dtvHand = w.dtv?.bestaetigungNoetig ? fall.bedarf?.felder.dtv : undefined
+  const dtv = (w.dtv?.bestaetigungNoetig ? dtvHand?.wert : w.dtv?.wert) as number | undefined, nR = w.nRichtung?.wert as number[] | undefined
   const fb = w.fahrbahnB, L = w.querdistanzL?.wert as number[] | undefined
-  if (dtv !== undefined || nR) {
+  if (dtv != null || nR) {
     const nMax = nR ? Math.max(...nR) : 0
     if ((dtv ?? 0) >= AUTO.dtvStark || nMax >= AUTO.nStark)
-      setze('starkBelastet', true, 'annahme', [dtv !== undefined && dtv >= AUTO.dtvStark ? `DTV ${ganz(dtv)} ab ${ganz(AUTO.dtvStark)}` : '',
+      setze('starkBelastet', true, 'annahme', [dtv != null && dtv >= AUTO.dtvStark ? `DTV ${ganz(dtv)} ab ${ganz(AUTO.dtvStark)}` : '',
         nMax >= AUTO.nStark ? `${nMax} Fahrstreifen je Richtung` : ''].filter(Boolean).join(', ') + ': stark befahren angenommen')
-    else if (dtv !== undefined) setze('starkBelastet', false, 'annahme', `DTV ${ganz(dtv)} unter ${ganz(AUTO.dtvStark)} und 1 Fahrstreifen je Richtung: ` +
+    else if (dtv != null) setze('starkBelastet', false, 'annahme', `DTV ${ganz(dtv)} unter ${ganz(AUTO.dtvStark)} und 1 Fahrstreifen je Richtung: ` +
       'nicht stark befahren angenommen')
   }
-  if (dtv !== undefined) {
+  if (dtv != null) {
     const kl = dtv < AUTO.mivMittel ? 'tief' : dtv <= AUTO.mivHoch ? 'mittel' : 'hoch'
     setze('mivKlasse', kl, 'annahme', `DTV ${ganz(dtv)}: ${kl === 'tief' ? 'wenig' : kl === 'mittel' ? 'mittel' : 'viel'} Autoverkehr angenommen ` +
       `(unter ${ganz(AUTO.mivMittel)} wenig, bis ${ganz(AUTO.mivHoch)} mittel)`)
@@ -593,7 +595,7 @@ export function automatik(x: AutoEingang): void {
   let einengung = null as boolean | null
   if (fb && st.length === 1 && breiten.length && breiten.length === gerade.length) {
     const zb = Math.min(...breiten), B0 = fb.wert as number
-    // Runde 5 (F7): aus dem Breitenvergleich nur «keine Einengung» als Annahme; eine schmalere Stelle ist nur ein Hinweis (kein Wert, kein
+    // Aus dem Breitenvergleich nur «keine Einengung» als Annahme; eine schmalere Stelle ist nur ein Hinweis (kein Wert, kein
     // Befund F4 aus einer geometrischen Annahme)
     const schmaler = B0 <= zb - AUTO.einengungM + 1e-9
     if (!schmaler) {
@@ -639,7 +641,7 @@ export function automatik(x: AutoEingang): void {
     setze('q3.ueber', 'haupt', 'osm', `Überfahrt quer über die ${ueberHaupt.ueberHauptstrasse.haupt} (OSM, Knotensicht)`)
 
   // ── A4 Kopien ── (Kopien in die LSA-Zeiten gestrichen 30.10.2026 mit Block I)
-  // Runde 5 (F3): Werte der gequerten Strasse sind nur dann die der Seitenstrasse, wenn die Querung über die einmündende Strasse führt
+  // Werte der gequerten Strasse sind nur dann die der Seitenstrasse, wenn die Querung über die einmündende Strasse führt
   // (Lage Einmündung); die Hauptstrasse ist dann die Querstrasse der abbiegenden Zufahrten (Tempo des Sichtrechners)
   const ueberSeite = w['q3.ueber']?.wert === 'einmuendend'
   const vs = w.vSig
@@ -647,9 +649,9 @@ export function automatik(x: AutoEingang): void {
   const abb = zuf.filter(z => z.art === 'abbiegend' && z.tempoQuelle !== 'Ersatz')
   if (ueberSeite && abb.length) {
     const vH = Math.max(...abb.map(z => z.tempo))
-    const q: Quelle = abb.some(z => z.tempoQuelle === 'Korrektur') ? 'hand' : abb.every(z => z.tempoQuelle === TEMPO_QUELLE_AMTLICH) ? 'geoportal' : 'osm'
+    const q: Quelle = tempoQuelleArt(abb.map(z=>z.tempoQuelle))
     const namen = [...new Set(abb.map(z => z.strasse).filter(Boolean))].join(', ')
-    setze('q3.vSigHaupt', vH, q, `Tempo der Hauptstrasse${namen ? ` (${namen})` : ''} ${vH} km/h (Sichtrechner, ${q === 'geoportal' ? 'Geoportal' : q === 'hand' ? 'von Hand' : 'OSM'})`)
+    setze('q3.vSigHaupt', vH, q, `Tempo der Hauptstrasse${namen ? ` (${namen})` : ''} ${vH} km/h (Sichtrechner, ${tempoQuellenName(abb.map(z=>z.tempoQuelle))})`)
   }
   // Trottoirüberfahrt mit Knotensicht (27.10.2026): Fahrstreifen der Seiten- und der Hauptstrasse aus OSM am Knoten (die des Streifens
   // gehören zur gequerten Strasse und passen nur, wenn er über die Seitenstrasse führt); sonst wie bisher
@@ -661,9 +663,9 @@ export function automatik(x: AutoEingang): void {
     setze('q3.nEinm', ksFs.seite.n, q(ksFs.seite), fs(ksFs.seite, 'Seitenstrasse'))
     if (ksFs.haupt) setze('q3.nHaupt', ksFs.haupt.n, q(ksFs.haupt), fs(ksFs.haupt, 'Hauptstrasse'))
   } else if (nR && ueberSeite) setze('q3.nEinm', Math.max(...nR), w.nRichtung!.quelle, `wie Fahrstreifen je Richtung (${w.nRichtung!.text})`)
-  if (dtv !== undefined && ueberSeite) {
+  if (dtv != null && ueberSeite) {
     // «viel Verkehr in der Seitenstrasse» (Q3-M10) gestrichen 30.10.2026
-    setze('q3.dtvEinm', dtv, w.dtv!.quelle, `wie DTV (${w.dtv!.text})`)
+    setze('q3.dtvEinm', dtv, dtvHand?.quelle ?? w.dtv!.quelle, dtvHand ? `wie eigener bzw. bestätigter DTV ${dtv}` : `wie DTV (${w.dtv!.text})`)
   }
   const tr = w.tempoRegime
   if (tr && ueberSeite) {
@@ -682,15 +684,19 @@ function vortrittArt(z: VortrittZeichen): 'give_way' | 'stop' | null {
 }
 
 /**
- * Vortrittsrolle an einer Kreuzung aus den Vortrittszeichen nach OSM (Paket C, Nutzerentscheid 21.10.2026): Zeichen «Kein Vortritt»
+ * Vortrittsrolle an einer Kreuzung aus den Vortrittszeichen nach OSM: Zeichen «Kein Vortritt»
  * bzw. «Stop» (highway=give_way|stop, traffic_sign CH:3.02 bzw. CH:3.01) bis AUTO.knotenM vom Knoten. Es zählt nur, wenn es ein Knoten
- * eines Wegs ist, der ein Arm des Knotens ist (Korrektur S2: Zeichen an Ausfahrten, Rad- und Fusswegen bzw. frei stehende Zeichen
+ * eines Wegs ist, der ein Arm des Knotens ist (Zeichen an Ausfahrten, Rad- und Fusswegen bzw. frei stehende Zeichen
  * zählen nicht). Steht es auf einem Arm der gequerten Strasse, muss diese Vortritt gewähren:
  * knoten_belastet (über die Zufahrt ohne Vortritt); steht es auf der Querstrasse, hat die gequerte Strasse Vortritt:
- * knoten_berechtigt. Zeichen auf beiden: nur Hinweis; ohne Zeichen bzw. ohne Abdeckung: null.
- */
+ * knoten_berechtigt. Zeichen auf beiden: nur Hinweis; ohne Zeichen bzw. ohne Abdeckung: null. */
 export function vortrittRolle(k: { id: number; p: P; d: number; arme: Arm[] }, strasse: ReadonlySet<number>,
-  v: { zeichen: VortrittZeichen[]; bereich: Bereich } | null): { lage?: 'knoten_belastet' | 'knoten_berechtigt'; text: string } | null {
+  v: { zeichen: VortrittZeichen[]; bereich: Bereich } | null, bestaetigt: SignalEntscheid[] = []): { lage?: 'knoten_belastet' | 'knoten_berechtigt'; text: string; quelle?: Quelle } | null {
+  const xs = bestaetigt.filter(e => e.knoten === k.id && e.art !== 'lsa' && k.arme.some(a => a.wid === Number(e.zufahrt.split(':')[0])))
+  if (xs.length) {
+    const rollen = new Set(xs.map(e => strasse.has(Number(e.zufahrt.split(':')[0])) ? 'knoten_belastet' as const : 'knoten_berechtigt' as const))
+    return { ...(rollen.size === 1 ? { lage: [...rollen][0] } : {}), quelle: 'bestaetigt', text: rollen.size === 1 ? xs.map(signalText).join('; ') : 'Bestätigte Vortrittssignale auf beiden Strassen; Rolle von Hand wählen' }
+  }
   if (!v || !imBereich(k.p, AUTO.knotenM, v.bereich)) return null
   const zeichen = v.zeichen.filter(z => vortrittArt(z) && z.id !== k.id && dist(z.p, k.p) <= AUTO.knotenM + 1e-9)
   const rollen = new Map<'belastet' | 'berechtigt', VortrittZeichen[]>()
@@ -721,7 +727,7 @@ export function busTag(t: Record<string, string>): string {
   return ''
 }
 
-/** Art des Endes einer Suchrichtung entlang der Strasse (Runde 4, S6) */
+/** Art des Endes einer Suchrichtung entlang der Strasse (S6) */
 export type SuchEnde = 'reichweite' | 'wechsel' | 'ende' | 'ende_unklar'
 export interface SuchSeite {
   /** durchsuchte Länge dieser Richtung (m) */
@@ -739,7 +745,7 @@ interface SuchRoh {
 }
 
 /**
- * Fortsetzung am Ende der gleichnamigen Wege (Runde 4, S6): ein Arm einer anderen Strasse (ARM_HW), der höchstens um diesen Winkel
+ * Fortsetzung am Ende der gleichnamigen Wege (S6): ein Arm einer anderen Strasse (ARM_HW), der höchstens um diesen Winkel
  * von der Richtung der Strasse abweicht, setzt sie fort (Namenswechsel); sonst endet sie dort (Querstrasse quer dazu, Sackgasse).
  * Richtung je über rund 10 m gemessen. 45° wie «längs» in automatikC (im Zweifel Fortsetzung: die Suche bleibt dann begrenzt).
  */
@@ -784,7 +790,7 @@ function strassenAbstaende(n: Netz, strasse: Set<number>, A: P, B: P, mitte: P, 
     if (dk > max) { amEnde[sk] = true; continue }
     for (const [m, l] of kanten.get(k) ?? []) {
       const neu = dk + l
-      // Reichweite nur, wenn der Nachbar nicht schon näher erreicht ist (der Rückweg über eine Kante zählt nicht; Runde 4)
+      // Reichweite nur, wenn der Nachbar nicht schon näher erreicht ist (der Rückweg über eine Kante zählt nicht)
       if (neu > max) { if ((d.get(m) ?? Infinity) > max) amEnde[sk] = true; continue }
       if (neu < (d.get(m) ?? Infinity)) { d.set(m, neu); seite.set(m, sk); vor.set(m, k); if (!offen.includes(m)) offen.push(m) }
     }
@@ -820,7 +826,7 @@ function strassenAbstaende(n: Netz, strasse: Set<number>, A: P, B: P, mitte: P, 
 }
 
 /**
- * Durchsuchte Länge aus der Suche (Runde 4, S6): je Richtung Reichweite, Namenswechsel (Länge bis zum nächsten Ende mit
+ * Durchsuchte Länge aus der Suche (S6): je Richtung Reichweite, Namenswechsel (Länge bis zum nächsten Ende mit
  * Fortsetzung) bzw. echtes Strassenende (ganz durchsucht, begrenzt nicht). endeUnklar: Ende, an dem ein Fund unklar ist
  * (begrenzt dort). durchsucht: die kürzere der nicht abgeschlossenen Richtungen; enden beide, die Länge der ganzen Strasse ab der
  * Querung (grenze «ende»).
@@ -830,21 +836,21 @@ function sucheAuswerten(roh: SuchRoh, max: number, endeUnklar: (k: number) => bo
   const seiten = roh.seiten.map((x): SuchSeite => {
     if (x.amEnde) return { laenge: max, art: 'reichweite' }
     // Namenswechsel: die kleinste Länge bis zu einem fortgesetzten Ende (ein Ast mit Namenswechsel begrenzt, auch wenn ein anderer
-    // weiter reicht; Runde 4)
+    // weiter reicht)
     const fort = x.enden.filter(e => e.fortgesetzt).map(e => e.d)
     if (fort.length) return { laenge: Math.min(...fort), art: 'wechsel' }
     const unklar = x.enden.filter(e => endeUnklar(e.k)).map(e => e.d)
     return unklar.length ? { laenge: Math.min(...unklar), art: 'ende_unklar' } : { laenge: x.weit, art: 'ende' }
   }) as [SuchSeite, SuchSeite]
   const offenS = seiten.filter(x => x.art !== 'ende')
-  // beide Richtungen enden: die ganze Strasse ist durchsucht (Länge beider Richtungen ab der Querung; Runde 4)
+  // beide Richtungen enden: die ganze Strasse ist durchsucht (Länge beider Richtungen ab der Querung)
   if (!offenS.length) return { durchsucht: seiten[0].laenge + seiten[1].laenge, grenze: 'ende', seiten }
   const kurz = offenS.reduce((a, c) => (c.laenge < a.laenge ? c : a))
   return { durchsucht: kurz.laenge, grenze: kurz.laenge >= max - 1e-9 ? 'reichweite' : kurz.art, seiten }
 }
 
 /** Haltestelle: angrenzend, Art (Busbucht bzw. Fahrbahn), Lage in Fahrtrichtung, verdeckt; Tramhaltestellenbereich */
-function haltestelle(x: AutoEingang, n: Netz | null, mitte: P, ax: P): void {
+function haltestelle(x: Pick<AutoEingang, 'st' | 'geo' | 'w' | 'setze' | 'feldHinweis'>, n: Netz | null, mitte: P, ax: P): void {
   const { st, geo, setze, feldHinweis, w } = x
   const h = geo.haltestellen
   if (!h || 'fehler' in h) return
@@ -852,22 +858,32 @@ function haltestelle(x: AutoEingang, n: Netz | null, mitte: P, ax: P): void {
   const mitD = h.halte.map(y => ({ y, d: abstandQuerung(y.p, st) })).sort((a, b) => a.d - b.d)
   const abgedeckt = st.flatMap(eckenVon).every(p => imBereich(p, AUTO.haltUmkreisM, h.bereich))
   const nah = mitD[0]
+  if (h.quelle === 'bav') {
+    if (nah && nah.d <= AUTO.haltAngrenzendM + 1e-9)
+      setze('haltestelleAngrenzend', true, 'vorschlag', `BAV-Haltestellenpunkt «${nah.y.name}», ${ganz(nah.d)} m: ` +
+        'angrenzende Haltestelle vorgeschlagen; Haltekante und Strassenzuordnung bestätigen')
+    const tram = mitD.find(z => z.y.art === 'tram' || z.y.art === 'bus_tram')
+    if (tram && tram.d <= AUTO.tramHaltM + 1e-9)
+      setze('tramHaltestellenbereich', true, 'vorschlag', `BAV-Tramhaltestellenpunkt «${tram.y.name}», ${ganz(tram.d)} m: ` +
+        'Tram-Haltestellenbereich vorgeschlagen; Zuordnung zur Querung bestätigen')
+    return
+  }
   // A5 angrenzend
   if (nah && nah.d <= AUTO.haltAngrenzendM + 1e-9)
     setze('haltestelleAngrenzend', true, h.quelle, `${HALT_TEXT[nah.y.art]} «${nah.y.name}», ${ganz(nah.d)} m (${h.herkunft}${zusatz})`)
-  else if ((!nah || nah.d > AUTO.haltUmkreisM) && abgedeckt)
+  else if ((!nah || nah.d > AUTO.haltUmkreisM) && abgedeckt && h.vollstaendig !== false)
     setze('haltestelleAngrenzend', false, h.quelle, `keine Haltestelle im Umkreis von ${AUTO.haltUmkreisM} m (${h.herkunft}${zusatz})`)
   // A5 Tramhaltestellenbereich
   const tramArt = (y: OevHalt) => y.art === 'tram' || y.art === 'bus_tram'
   if (h.quelle === 'osm') {
     const tram = mitD.find(z => tramArt(z.y))
     if (tram && tram.d <= AUTO.tramHaltM + 1e-9) setze('tramHaltestellenbereich', true, 'osm', `Tramhaltestelle «${tram.y.name}», ${ganz(tram.d)} m (OSM)`)
-    else if ((!tram || tram.d > AUTO.haltUmkreisM) && abgedeckt)
+    else if ((!tram || tram.d > AUTO.haltUmkreisM) && abgedeckt && h.vollstaendig !== false)
       setze('tramHaltestellenbereich', false, 'osm', `keine Tramhaltestelle im Umkreis von ${AUTO.haltUmkreisM} m (OSM${zusatz})`)
     else if (tram) feldHinweis('tramHaltestellenbereich', `Tramhaltestelle «${tram.y.name}», ${ganz(tram.d)} m (OSM): von Hand wählen`)
   } else if (nah && nah.d <= AUTO.haltUmkreisM) {
     feldHinweis('tramHaltestellenbereich', `Haltestelle «${nah.y.name}», ${ganz(nah.d)} m (${h.herkunft}, ohne Angabe Bus oder Tram): bei Tramhalt «ja» wählen`)
-  } else if (abgedeckt) setze('tramHaltestellenbereich', false, h.quelle, `keine Haltestelle im Umkreis von ${AUTO.haltUmkreisM} m (${h.herkunft}${zusatz})`)
+  } else if (abgedeckt && h.vollstaendig !== false) setze('tramHaltestellenbereich', false, h.quelle, `keine Haltestelle im Umkreis von ${AUTO.haltUmkreisM} m (${h.herkunft}${zusatz})`)
 
   // B4 nächste Bushaltestelle bis 50 m (Geoportal ohne Modus zählt als möglicher Bushalt)
   const bus = mitD.find(z => z.d <= AUTO.haltUmkreisM && (z.y.art === 'bus' || z.y.art === 'bus_tram' || z.y.art === 'oev'))
@@ -908,7 +924,17 @@ function haltestelle(x: AutoEingang, n: Netz | null, mitte: P, ax: P): void {
   const gegen = seiten.find(x => Math.sign(x.q) !== Math.sign(quer || 1))
   if (gegen) setze('haltestelle.beidseits', true, 'annahme', `Haltestellen auf beiden Strassenseiten: «${bus.y.name}» und «${gegen.z.y.name}» ` +
     `(${h.herkunft}, Umkreis ${AUTO.haltUmkreisM} m): Busse halten in beiden Richtungen`)
-  else setze('haltestelle.beidseits', false, 'annahme', `Haltestelle nur auf einer Strassenseite (${h.herkunft}, Umkreis ${AUTO.haltUmkreisM} m)`)
+  else if (h.vollstaendig !== false) setze('haltestelle.beidseits', false, 'annahme', `Haltestelle nur auf einer Strassenseite (${h.herkunft}, Umkreis ${AUTO.haltUmkreisM} m)`)
+}
+
+/** Dieselben Ableitungen separat je Haltestellenquelle, ohne die übrige Automatik nochmals auszuführen. */
+export function haltestellenFelder(st: StreifenErgebnis[], geo: AutoGeo, w: Vorbelegung, setze: Setze, feldHinweis: FeldHinweis): void {
+  if (!st.length) return
+  const s0 = st[0], ax = einheit(sub(s0.p1, s0.p0))
+  const ts = st.flatMap(s => [s.p0, s.p1, ...s.rand]).map(p => dot(sub(p, s0.p0), ax))
+  const mitte = add(s0.p0, ax, (Math.min(...ts) + Math.max(...ts)) / 2)
+  const n = geo.haltestellen && !('fehler' in geo.haltestellen) && geo.haltestellen.quelle === 'osm' && geo.osm ? netzBauen(geo.osm) : null
+  haltestelle({ st, geo, w, setze, feldHinweis }, n, mitte, ax)
 }
 
 /** Länge der Einengung (AV): Fahrbahn quer zur Strasse schmaler als grenze, ab der Streifenmitte in beide Richtungen; null ohne AV */

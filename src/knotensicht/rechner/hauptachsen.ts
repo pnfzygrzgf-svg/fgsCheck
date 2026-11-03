@@ -2,7 +2,7 @@
 //
 // Mittellinie eines Arms: OSM-Weg vom Knoten weg, an Wegenden weiter auf dem Weg mit der kleinsten Richtungsänderung bis 45°,
 // sonst gerade verlängert (OsmAchsen.spur aus fgsCheck). Querschnitt: AV-Fahrbahn quer zur Mittellinie (Fahrbahn.sehne), Median
-// über einen Abschnitt ausserhalb der Einmündung; dazu (Entscheid 31.10.2026) die Ränder je Stelle bis zum Ende der Mittellinie
+// über einen Abschnitt ausserhalb der Einmündung; dazu die Ränder je Stelle bis zum Ende der Mittellinie
 // (fahrstreifen.randProfil), damit die Achsen der AV-Fahrbahn folgen, auch wenn die OSM-Linie schräg zu ihr liegt (versetztVariabel).
 // Konvention: u = Richtung der Mittellinie vom Knoten weg; seitliche Lage positiv nach links von u. Der Verkehr, der auf einem
 // Arm zum Knoten fährt, fährt in Richtung −u; sein rechter Fahrbahnrand liegt darum links von u (Rechtsverkehr).
@@ -12,7 +12,7 @@
 // Parkstreifen (Folgeauftrag E2a, Regel aus fgsCheck fahrstreifenmitte): liegen Parkfelder auf der Fahrbahn am rechten
 // Rand, läuft die Achse d neben dem Parkstreifen statt neben dem AV-Rand (Abzug PARKSTREIFEN 1,90 m, durchgehend, auch in
 // Lücken). Prüfpunkte PARK_SONDE_M innerhalb des Rands, je QUER_SCHRITT_M; ein Prüfpunkt trifft, wenn ein Feld höchstens
-// PARK_SONDE_RADIUS_M entfernt ist (ParkRaster.trifft). Seit 31.10.2026 (Punkt 23) zählen Parkfelder aller Klassen. Abweichend von fgsCheck (mindestens 2 Treffer) braucht es Treffer an
+// PARK_SONDE_RADIUS_M entfernt ist (ParkRaster.trifft). Seit 31.10.2026 zählen Parkfelder aller Klassen. Abweichend von fgsCheck (mindestens 2 Treffer) braucht es Treffer an
 // mindestens 2 Feldern bzw. PARK_EIN_FELD_TREFFER an einem Feld (Längsparkierung, Streifen aus OSM, Feld für zwei Fahrzeuge):
 // ein einzelnes Feld von 5 m trifft bei 2 m Abstand schon 2 bis 3 Prüfpunkte und soll die Achse nicht verschieben.
 // Kreuzungspunkt K (Ziffer 4): Schnitt der Achse des Zufahrtsstreifens mit der Fahrstreifenachse; beide Achsen sind dafür über
@@ -93,7 +93,7 @@ export function versetzt(linie: P[], versatz: number, schritt = 1): P[] {
   return versetztVariabel(linie, () => versatz, schritt)
 }
 
-/** wie versetzt, aber mit seitlicher Lage je Bogenlänge s der Linie (Entscheid 31.10.2026: Achse folgt der AV-Fahrbahn) */
+/** wie versetzt, aber mit seitlicher Lage je Bogenlänge s der Linie (Achse folgt der AV-Fahrbahn) */
 export function versetztVariabel(linie: P[], versatz: (s: number) => number, schritt = 1): P[] {
   const L = streckeLaenge(linie)
   const ab: number[] = []
@@ -193,7 +193,7 @@ export interface Querschnitt {
   rechts: number          // Abstand Mittellinie – Fahrbahnrand rechts von u [m]
   quelle: string
   annahme: boolean
-  /** Ränder je Stelle (Entscheid 31.10.2026; Sehne nach links von u: profil.rechts = Rand links von u, profil.links = Rand rechts
+  /** Ränder je Stelle (Sehne nach links von u: profil.rechts = Rand links von u, profil.links = Rand rechts
    *  von u), ab QUER_VON_M bis zum Ende der Mittellinie; fehlt ohne genügend AV-Querschnitte (dann gilt der Median) */
   profil?: RandProfil
 }
@@ -210,7 +210,7 @@ export function randRechtsBei(qs: Querschnitt, s: number): number {
 /**
  * Querschnitt eines Arms aus der AV: Median der Sehnen quer zur Mittellinie von von bis bis (ab dem Knoten). Sehnen, die an die
  * Suchlänge stossen (Einmündung, Platz), zählen nicht. Ohne AV: Breite aus OSM (width, lanes), sonst BREITE_ANNAHME_M.
- * Dazu (Entscheid 31.10.2026) die Ränder je Stelle von von bis zum Ende der Mittellinie (randProfil, Bezugsbreite = Median), damit
+ * Dazu die Ränder je Stelle von von bis zum Ende der Mittellinie (randProfil, Bezugsbreite = Median), damit
  * Fahrstreifen-, Velo- und Überholachse sowie der Rand der AV-Fahrbahn folgen, wenn die OSM-Linie schräg zu ihr liegt.
  * abschnitte (Befund 31.10.2026, Knoten 282773328; ArmLinie.abschnitte): ab jeder dieser Stellen ist die Fahrbahn eine andere (Teilung
  * in zwei Einbahnen, Zusammenführung): dort beginnt ein eigenes Randprofil mit eigener Bezugsbreite, sonst verwürfe es die schmalere
@@ -274,7 +274,7 @@ export const PARK_EIN_FELD_TREFFER = 4
 
 export interface ParkStreifen {
   abzug: number               // 0 bzw. PARKSTREIFEN [m]
-  treffer: number             // Prüfpunkte auf einem Parkfeld (alle Klassen, Korrektur Punkt 23)
+  treffer: number             // Prüfpunkte auf einem Parkfeld (alle Klassen)
   punkte: number              // Prüfpunkte gesamt
   felder: number              // verschiedene getroffene Felder
 }

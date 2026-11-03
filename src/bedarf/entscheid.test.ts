@@ -1,5 +1,5 @@
 // Tests Bedarfsmodul E0: Abläufe über den ganzen Entscheidbaum mit typischen Berner Fällen (Ebene Bern an), Ebenenschaltung und
-// Zustand «offen» (Entscheid E0-2).
+// Zustand «offen».
 import { describe, expect, it } from 'vitest'
 import { beurteile } from './entscheid'
 import { eingabenAus, leereEingaben } from './eingaben'
@@ -173,7 +173,7 @@ describe('Ebenen und offene Eingaben', () => {
   it('C3 verletzt: zulässig nur mit Begründung, Querung ohne Vortritt als Zusatz', () => {
     const b = beurteile(fall({ fg5h: 60, netz: 'keins' }))
     expect(b.zulaessigkeit).toBe('mit_begruendung')
-    // Runde 5 (F8): nur die verletzte Regel als Grund (DTV 8000: C4 nicht verletzt)
+    // Nur die verletzte Regel als Grund (DTV 8000: C4 nicht verletzt)
     expect(b.empfehlung.zusatz).toContain('Querung ohne Vortritt prüfen (C3)')
   })
   it('wenige Eingaben: offene Einträge nach fehlendem Feld gruppiert', () => {

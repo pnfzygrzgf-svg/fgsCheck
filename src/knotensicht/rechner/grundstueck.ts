@@ -18,7 +18,7 @@ import type { Fahrbahn } from './flaechen'
 import { punkteAufSpur } from './spur'
 import { armInfo, himmelsrichtung, strassenArme, vortrittPaar, nummerieren, NR_GRUNDSTUECK, teilungsFortsetzung } from './knoten'
 import { armMittellinieMitEnde, armLinieAus, type ArmLinie } from './hauptachsen'
-import type { ArmInfo, ZufahrtspunktEingabe } from './typen'
+import type { ArmInfo, ZufahrtspunktEingabe, ZufahrtHerkunft } from './typen'
 
 /** Vortrittsstrasse: nächster Strassenweg bis zu diesem Abstand vom Zufahrtspunkt */
 export const GRUND_SUCH_M = 25
@@ -29,7 +29,24 @@ export const SERVICE_EINMUENDUNG_M = 12
 /** Zufahrtspunkt näher an der Strassenachse: kein Rand erkennbar */
 export const GRUND_ACHSE_MIN_M = 0.5
 /** gezeichnete Richtung höchstens so flach zum Rand (Winkel zur Achse der Vortrittsstrasse mindestens 20°) */
-const FLACH_MIN = Math.sin(20 * Math.PI / 180)
+export const ZUFAHRT_WINKEL_MIN = 20
+export const ZUFAHRT_WINKEL_MAX = 180 - ZUFAHRT_WINKEL_MIN
+const FLACH_MIN = Math.sin(ZUFAHRT_WINKEL_MIN * Math.PI / 180)
+/** Lokale Strassenachse: positiv nach Osten, bei exakt Nord–Süd nach Norden; unabhängig von OSM-Wegrichtung. */
+export const strassenRichtung = (t: P): P => t[0] < -1e-9 || (Math.abs(t[0]) <= 1e-9 && t[1] < 0) ? neg(t) : t
+export function zufahrtWinkel(t: P, r: P): number {
+  const a = strassenRichtung(einheit(t)), b = einheit(r)
+  return Math.acos(Math.max(-1, Math.min(1, dot(a, b)))) * 180 / Math.PI
+}
+/** 90° = senkrecht; 0/180° folgen der markierten Strassenachse, stets auf der gewählten Grundstückseite. */
+export function zufahrtRichtung(t: P, normal: P, grad: number): P | null {
+  if (!Number.isFinite(grad) || grad < ZUFAHRT_WINKEL_MIN || grad > ZUFAHRT_WINKEL_MAX) return null
+  const a = strassenRichtung(einheit(t)), rad = grad * Math.PI / 180
+  return add([a[0] * Math.cos(rad), a[1] * Math.cos(rad)], normal, Math.sin(rad))
+}
+export const ZUFAHRT_HERKUNFT: Record<ZufahrtHerkunft, string> = {
+  gezeichnet: 'eigene Richtung (Karte)', winkel: 'eigene Richtung (Winkelangabe)', senkrecht: 'senkrechte Vorgabe', osm: 'erkannte OSM-Zufahrt',
+}
 /** Rand der Strasse: AV-Sehnen am Lotfusspunkt und so weit daneben entlang des Wegs */
 const RAND_VERSATZ_M = [0, -3, 3, -6, 6]
 /** Richtung eines Arms: Sehne über diese Länge */
@@ -58,6 +75,8 @@ export interface GrundstueckGeo {
   zArm: ArmInfo                           // Zufahrt (Arm des Wegs service bzw. Pseudo-Arm ohne OSM-Weg, wid −1)
   zMl: (laenge: number) => P[]            // Mittellinie der Zufahrt ab kp (Achse des Zufahrtsstreifens, ohne Versatz)
   richtung: P
+  strassenRichtung: P
+  herkunft: ZufahrtHerkunft
   gezeichnet: boolean
   weg: number | null                      // OSM-Weg service
   strasse: string
@@ -94,9 +113,10 @@ function sehnenRichtung(linie: P[]): P {
 /** Grundstückzufahrt -> Geometrie bzw. Meldung (warum nicht rechenbar) */
 export function grundstueckGeometrie(netz: OsmNetz, achsen: OsmAchsen, fahrbahn: Fahrbahn, z: ZufahrtspunktEingabe): GrundstueckGeo | string {
   const hinweise: string[] = []
-  if (!z.richtung) {
+  if (!z.richtung && z.herkunft !== 'senkrecht') {
     const s = serviceZufahrt(netz, achsen, z.p, hinweise)
     if (s) return s
+    if (z.herkunft === 'osm') return 'Keine passende OSM-Zufahrt an diesem Punkt erkannt. Eigene Richtung oder senkrechte Vorgabe wählen.'
   }
   // Vortrittsstrasse: Strassenweg (MFZ_HW ohne service), dessen AV-Rand dem Punkt am nächsten liegt
   let best: { wid: number; pts: P[]; k: number; t: number; q: P; d: number; wert: number } | null = null
@@ -120,12 +140,12 @@ export function grundstueckGeometrie(netz: OsmNetz, achsen: OsmAchsen, fahrbahn:
   const normal: P = dot(links(tang0), sub(z.p, best.q)) >= 0 ? links(tang0) : neg(links(tang0))
   let r = normal, gezeichnet = false
   if (z.richtung) {
+    if (!Number.isFinite(z.richtung[0]) || !Number.isFinite(z.richtung[1]) || Math.hypot(...z.richtung) < 1e-6) return 'Richtung ungültig: eine Zufahrtsrichtung im Grundstück wählen.'
     r = einheit(z.richtung)
-    gezeichnet = true
+    gezeichnet = z.herkunft !== 'senkrecht'
     if (dot(r, normal) < 0) { r = neg(r); hinweise.push('Gezeichnete Richtung umgekehrt: die Zufahrt führt vom Rand weg in das Grundstück.') }
-    if (dot(r, normal) < FLACH_MIN) {
-      r = normal; gezeichnet = false
-      hinweise.push('Gezeichnete Richtung zu flach zum Rand (unter 20°): senkrecht zum Rand gerechnet.')
+    if (dot(r, normal) < FLACH_MIN - 1e-6) {
+      return 'Zufahrtswinkel zu flach: unterstützt werden 20° bis 160° zur lokalen Strassenachse. Richtung anpassen; keine Rücksetzung auf 90°.'
     }
   }
   // Knotenpunkt: wo die Gerade der Zufahrt die Achse der Vortrittsstrasse trifft (nächster Schnitt). Ist der Weg am Knoten
@@ -163,7 +183,7 @@ export function grundstueckGeometrie(netz: OsmNetz, achsen: OsmAchsen, fahrbahn:
     himmel: himmelsrichtung(r), zufluss: true, einbahn: 0, veloZufluss: true, veloZuflussQuelle: '' }
   const strasse = wk.name || wk.hw
   return {
-    eingabe: z.p, kp, arme: [vor, zur], grund: `OSM-Weg ${best.wid} am Zufahrtspunkt`, zArm, richtung: r, gezeichnet, weg: null, strasse, hinweise,
+    eingabe: z.p, kp, arme: [vor, zur], grund: `OSM-Weg ${best.wid} am Zufahrtspunkt`, zArm, richtung: r, strassenRichtung: tang0, herkunft: z.herkunft ?? (gezeichnet ? 'gezeichnet' : 'senkrecht'), gezeichnet, weg: null, strasse, hinweise,
     mittellinie: (a, laenge, seite = 'zu') => li >= 0 ? armLinieAus(netz, achsen.spurMitEnde(start, a.sd > 0 ? tang : neg(tang), laenge,
       teilungsFortsetzung(netz, seite))) : { linie: [kp, add(kp, a.richtung, laenge)], ende: null, teilungen: [], abschnitte: [] },
     zMl: laenge => [kp, add(kp, r, laenge)],
@@ -205,7 +225,7 @@ function serviceZufahrt(netz: OsmNetz, achsen: OsmAchsen, p: P, hinweise: string
   const kp = netz.p(n)
   const strasse = [...new Set(vp[0].map(a => a.name || a.hw))].join(' / ')
   return {
-    eingabe: p, kp, arme: nummerieren(vp[0]) as [ArmInfo, ArmInfo], grund: vp[1], zArm, richtung: zArm.richtung, gezeichnet: false, weg: best.wid, strasse, hinweise,
+    eingabe: p, kp, arme: nummerieren(vp[0]) as [ArmInfo, ArmInfo], grund: vp[1], zArm, richtung: zArm.richtung, strassenRichtung: vp[0][0].richtung, herkunft: 'osm', gezeichnet: false, weg: best.wid, strasse, hinweise,
     mittellinie: (a, laenge, seite = 'zu') => armMittellinieMitEnde(netz, achsen, a, laenge, seite),
     zMl: laenge => bisLaenge(netz.armLinie([best!.wid, idx, sd], laenge), laenge),
   }

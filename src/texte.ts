@@ -4,7 +4,7 @@ import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 import type { Entfallen } from './rechner/zufahrten'
 import type { Hindernis } from './rechner/hindernisse'
 import { NEBENAST_GRAD } from './rechner/netz'
-import { BEWUCHS_NAME, type Erkennung } from './rechner/erkennung'
+import { BEWUCHS_NAME, ERKENNUNG_FAKTOR, type Erkennung } from './rechner/erkennung'
 
 export const f1 = (x: number) => x.toFixed(1).replace('.', ',')
 export const f2 = (x: number) => x.toFixed(2).replace('.', ',')
@@ -63,7 +63,7 @@ export function entfallenGrund(e: Entfallen, s: Pick<StreifenErgebnis, 'fgsId' |
     const andere = alle.filter(x => x.fgsId !== s.fgsId && zuf(x).some(z => z.osmWeg === e.osmWeg && z.osmWeg !== null && z.osmWeg !== '' &&
       winkelAbstand(z.richtung, e.richtung) < 45))
     const uebrige = alle.filter(x => x.fgsId !== s.fgsId)
-    // Nachtrag nach Prüfung: ist der andere Teil eine Trottoirüberfahrt, wird die Sicht dort nicht geprüft (kein «geprüft beim anderen Teil»)
+    // Ist der andere Teil eine Trottoirüberfahrt, wird die Sicht dort nicht geprüft (kein «geprüft beim anderen Teil»)
     const tue = andere.length ? andere.every(x => x.trottoirueberfahrt) : uebrige.length > 0 && uebrige.every(x => x.trottoirueberfahrt)
     if (tue) roh = roh.replace(' – geprüft {anderer}', ' – der andere Teil{anderer} ist eine Trottoirüberfahrt, dort wird die Sicht nicht geprüft')
     anderer = tue ? (andere.length === 1 ? ` (${titel(andere[0].fgsId)})` : '')
@@ -94,7 +94,7 @@ const winkelAbstand = (a: number, b: number): number => { const d = Math.abs(a -
 /** Art einer Zufahrt in Worten (Nutzertest 23.10.2026) */
 export const ART: Record<string, string> = { beide: 'geradeaus', einbahn: 'geradeaus, Einbahn', insel: 'geradeaus (Teil vor der Insel)', abbiegend: 'biegt ein' }
 /** Herkunft des Tempos kurz */
-export const tempoHerkunft = (q: string): string => (q === 'Ersatz' ? 'Annahme' : q === 'Korrektur' ? 'von Hand' : q === 'Geoportal' ? 'Geoportal' : 'OSM')
+export const tempoHerkunft = (q: string): string => (q === 'Ersatz' ? 'Annahme' : q === 'Korrektur' ? 'von Hand' : q === 'Geoportal' ? 'Geoportal Stadt Bern' : q.startsWith('OSM') ? 'OSM' : q)
 /** Herleitung der nötigen Sichtweite in Worten (die Fundstelle steht im Tooltip), z. B. «nach Tempo» statt «VSS Tab. 1» */
 export function sichtQuelleKurz(q: string): string {
   // Annahme der App unter dem Normwert (30.10.2026): Annahme und ungekürzter Normwert sichtbar, ohne L
@@ -110,11 +110,11 @@ export function sichtQuelleKurz(q: string): string {
 }
 export const STATUS: Record<string, string> = {
   frei: 'frei', verdeckt: 'verdeckt (Auto-Parkfeld)', verdeckt_gebaeude: 'verdeckt (Gebäude)', verdeckt_hindernis: 'verdeckt (Hecke, Mauer bzw. übriges Hindernis)',
-  verdeckt_baum: 'verdeckt (Baum)', verdeckt_zweirad: 'verdeckt (Zweirad-Feld)', verdeckt_gelaende: 'verdeckt (Gelände, swissALTI3D)', kein_fgs: 'kein FGS (von Hand)', ohne_zufahrt: 'keine Zufahrt',
+  verdeckt_baum: 'verdeckt (Baum)', verdeckt_zweirad: 'verdeckt (Zweirad-Feld)', verdeckt_gelaende: 'verdeckt (Geländemodell, swissALTI3D)', kein_fgs: 'kein FGS (von Hand)', ohne_zufahrt: 'keine Zufahrt',
 }
 /** Status einer Zufahrt im Tooltip des Sichtfelds auf der Karte: «verdeckt gebaeude» wie bisher, das Gelände (sichtGelaende.ts) als
  * «verdeckt (Gelände)» */
-export const statusKurzKarte = (status: string): string => (status === 'verdeckt_gelaende' ? 'verdeckt (Gelände)' : status.replace('_', ' '))
+export const statusKurzKarte = (status: string): string => (status === 'verdeckt_gelaende' ? 'verdeckt (Geländemodell)' : status.replace('_', ' '))
 /** Status eines Streifens als Text; Trottoirüberfahrt (Wahl am Streifen) statt «kein FGS (von Hand)» */
 export const streifenStatus = (s: Pick<StreifenErgebnis, 'status' | 'trottoirueberfahrt'>): string =>
   s.trottoirueberfahrt ? 'Trottoirüberfahrt' : STATUS[s.status] ?? s.status
@@ -127,7 +127,7 @@ export const TUE_NUR_EINMUENDUNG = 'nur an Einmündungen'
 const ENDE_TEXT: Record<string, string> = { knoten: 'Fahrlinie endet am Knoten, weiter zurück nicht geprüft',
   wegende: 'Fahrlinie endet am Wegende, weiter zurück nicht geprüft', kreisel: 'Fahrlinie endet im Kreisel, weiter zurück nicht geprüft',
   gebaeude: 'weiter zurück nicht prüfbar' }
-const HINDERNIS_TEXT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld', gelaende: 'Gelände (swissALTI3D)' }
+const HINDERNIS_TEXT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld', gelaende: 'Geländemodell (swissALTI3D)' }
 /** Wert der Erkennungsdistanz: «64 m» bzw. «mindestens 30 m» (Fahrlinie endet vorher) */
 export const erkennungWert = (e: Erkennung): string => `${e.bis === 'fahrlinie_endet' ? 'mindestens ' : ''}${e.wert} m`
 /** «erkennbar ab 64 m» bzw. «erkennbar auf mindestens 30 m» (Untergrenze, weiter zurück nicht geprüft) */
@@ -138,16 +138,34 @@ export const erkennungZusatz = (e: Erkennung): string => (e.bis === 'fahrlinie_e
 /** Bewuchs (30.10.2026): «ab 35 m nicht sicher (Bewuchs AV: Gartenanlage) – vor Ort oder in Street View prüfen»; leer ohne Bewuchs */
 export const erkennungBewuchs = (e: Erkennung): string => (e.bewuchsAb === undefined ? ''
   : `ab ${e.bewuchsAb} m nicht sicher (Bewuchs AV: ${BEWUCHS_NAME[e.bewuchs ?? ''] ?? e.bewuchs ?? 'Bewuchs'}) – vor Ort oder in Street View prüfen`)
-/** Zeile im Sicht-Reiter und Bericht: «Streifen erkennbar ab 64 m (weiter entfernt verdeckt: Gebäude)»; mit Bewuchs «Streifen in den
- * Daten frei bis 64 m, ab 35 m nicht sicher (Bewuchs AV: Gartenanlage) – vor Ort oder in Street View prüfen (…)» */
-export const erkennungText = (e: Erkennung): string => (e.bewuchsAb === undefined ? `Streifen ${erkennungSatz(e)} (${erkennungZusatz(e)})`
-  : `Streifen in den Daten frei bis ${erkennungWert(e)}, ${erkennungBewuchs(e)} (${erkennungZusatz(e)})`)
+/** Panel, Bericht und Feldherkunft: berechnete Bodenmarkierung, getrennt von der Sicht auf die Wartefläche.
+ * Bewuchs und nicht geprüfte Positionen sind kein freier örtlicher Sichtnachweis. */
+export const erkennungText = (e: Erkennung): string => (e.gelaendePruefbereich?.letzteFreiM === null
+  ? 'Bodenmarkierung: keine frei geprüfte Position im Geländemodell'
+  : e.bewuchsAb === undefined ? `Bodenmarkierung im Modell ${erkennungSatz(e)} (${e.hindernis?.klasse === 'gelaende' ? 'abgerundeter Rechenwert; ' : ''}${erkennungZusatz(e)})`
+  : `Bodenmarkierung in den Daten frei bis ${erkennungWert(e)}, ${erkennungBewuchs(e)} (${erkennungZusatz(e)})`)
+
+/** Empfehlung direkt bei der betreffenden Zufahrt erklären. Ein zu kurzer geprüfter Ausschnitt
+ * oder Bewuchs ist kein Nachweis einer Verletzung. Bestehende Rechenwerte/Regeln bleiben gleich. */
+export function erkennungEmpfehlungText(e: Erkennung, sichtweite: number): string {
+  if (!Number.isFinite(sichtweite) || sichtweite <= 0 || !Number.isFinite(e.wert)) return ''
+  const soll = ERKENNUNG_FAKTOR * sichtweite, bewuchs = e.bewuchsAb
+  const bewuchsUnsicher = bewuchs !== undefined && bewuchs < soll - 1e-6
+  if (e.wert >= soll - 1e-6 && !bewuchsUnsicher) return ''
+  const kopf = `Empfohlene Erkennungsdistanz: ${mText(soll)} m (${ERKENNUNG_FAKTOR} × ${mText(sichtweite)} m)`
+  const befund = e.bis === 'verdeckt' && e.wert < soll - 1e-6 ? `mit ${mText(e.wert)} m nicht erreicht`
+    : bewuchsUnsicher ? `wegen Bewuchs nicht gesichert` : `noch nicht nachgewiesen (nur bis ${mText(e.wert)} m geprüft)`
+  const min = e.bis === 'verdeckt' && e.wert < sichtweite - 1e-6 ? 'ebenfalls nicht erreicht'
+    : bewuchs !== undefined && bewuchs < sichtweite - 1e-6 ? 'nicht gesichert'
+    : e.wert < sichtweite - 1e-6 ? 'noch nicht nachgewiesen' : 'erreicht'
+  return `${kopf} – ${befund}. Mindestdistanz ${mText(sichtweite)} m ${min}.`
+}
 /** Tooltip zur Erkennungsdistanz */
 export const ERKENNUNG_TITEL = 'Erkennungsdistanz aus dem Sichtrechner: Sicht von der Fahrlinie auf die Markierung im eigenen Fahrstreifen, ' +
   'geprüft bis 110 m. Hindernisse: Gebäude, Hecken, Mauern, Bäume und Auto-Parkfelder; über Bewuchs der AV (Wald, bestockte Fläche, ' +
   'Gartenanlage) nicht sicher frei. Gelände (Kuppen, Senken, Böschungen): danach ' +
   'entlang einzelner Sichtlinien (alle 10 m) aus dem Höhenmodell swissALTI3D, Auge 1,0 m über dem Boden (VSS 40 241 Ziffer 14, S. 6); ohne Antwort 2D («Gelände ' +
-  'nicht geprüft»). Annahme; nur die Markierung, die blaue Tafel (Signal 4.11) nicht.'
+  'nicht geprüft»). Modellprüfung der Bodenmarkierung; kein örtlicher Nachweis der Erkennungsdistanz der gesamten Anlage. Signale werden hier nicht zusätzlich bewertet.'
 
 /** Status einer Zufahrt; bei «verdeckt_hindernis» mit den Arten der verdeckenden Hindernisse (Hecke, Mauer, übriges Hindernis) */
 export function statusText(z: ZufahrtErgebnis, hindernisse: Hindernis[]): string {

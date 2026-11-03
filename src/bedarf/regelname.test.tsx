@@ -1,4 +1,4 @@
-// Tests Kurztitel der Regeln (Nutzerentscheid 20.10.2026): jede Regel hat einen Titel (kurz, eindeutig je Gruppe), und in der
+// Tests Kurztitel der Regeln: jede Regel hat einen Titel (kurz, eindeutig je Gruppe), und in der
 // Oberfläche (Panel, Feldhilfen, Befundblatt, Grundprüfung, Bericht) steht nie eine Regelnummer allein, sondern «Titel (Nummer)».
 // Wächter über gerenderte Texte (renderToStaticMarkup) aller Testfälle mit Varianten.
 import { describe, expect, it } from 'vitest'
@@ -143,7 +143,7 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
     const html = renderToStaticMarkup(<GrundpruefungAnzeige g={b.grund} />)
     const tabelle = text(html).replace(/ :/g, ':').replace(/ ,/g, ',')
     expect(tabelle).toContain('Grundprüfung bfu (Big Five)')
-    // Lesetext ohne Kennung und Bestellnummer (Nutzerwunsch 23.10.2026); die stehen im Quellenverzeichnis
+    // Lesetext ohne Kennung und Bestellnummer; die stehen im Quellenverzeichnis
     expect(tabelle).toContain('Nach bfu-Fachdokumentation «Fussgängerstreifen», Ziffer 2.1–2.3')
     expect(tabelle).not.toMatch(/MS\.013|2\.457/)
     // 23.10.2026: Zusatz kurz (gezählt), Details je Punkt zugeklappt hinter ▸

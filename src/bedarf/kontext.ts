@@ -1,6 +1,6 @@
 // ── Bedarfsmodul: Auswertungskontext (E0) ──
 //
-// Zugriff der Regeln auf die Eingaben. Fehlt ein nötiger Wert, wirft der Zugriff Offen (Entscheid E0-2); entscheid.ts fängt das
+// Zugriff der Regeln auf die Eingaben. Fehlt ein nötiger Wert, wirft der Zugriff Offen; entscheid.ts fängt das
 // und meldet die Regel als «offen» mit den fehlenden Feldern. Einziger Ersatzwert: v85e() nimmt ohne V85 das signalisierte Tempo
 // und vermerkt die Annahme.
 
@@ -22,13 +22,13 @@ export interface Ergebnis {
   detail?: string
   /** fallbezogener Normhinweis (ergänzt bzw. ersetzt den des Katalogs) */
   normHinweis?: string
-  /** Masse-Zeile: Wert unterschreitet das Soll, die Regel lässt das hier zu (Runde 5: «an der Verzweigung zulässig») */
+  /** Masse-Zeile: Wert unterschreitet das Soll, die Regel lässt das hier zu («an der Verzweigung zulässig») */
   ausnahme?: string
-  /** Masse-Zeile: Ist beruht auf einer Annahme (z. B. V85 = signalisiertes Tempo; Runde 5) */
+  /** Masse-Zeile: Ist beruht auf einer Annahme (z. B. V85 = signalisiertes Tempo) */
   annahme?: true
-  /** fallbezogener Ergebnistext statt dem des Katalogs (Runde 4: G1/G2 bei ganzer Strasse) */
+  /** fallbezogener Ergebnistext statt dem des Katalogs (G1/G2 bei ganzer Strasse) */
   text?: string
-  /** Masse-Zeile nicht als verletzt werten (Hinweis statt Befund; Runde 4) */
+  /** Masse-Zeile nicht als verletzt werten (Hinweis statt Befund) */
   ohneMassBefund?: true
   /** erfüllt-Grund (30.10.2026): warum die Regel hier ohne Befund bleibt, z. B. «Querung im Fusswegnetz (Geoportal Stadt Bern)»; nur
    * bei verletzt false, reine Anzeige (Zeile «ohne Befund – …» im Thema und im Bericht), ohne Wirkung auf den Befund */
@@ -71,7 +71,7 @@ export class Kontext {
     return v as NonNullable<NonNullable<Werte[K]>[U]>
   }
 
-  /** V85, ersatzweise das signalisierte Tempo (Annahme, Entscheid E0-2) */
+  /** V85, ersatzweise das signalisierte Tempo (Annahme) */
   v85e(): number {
     const v = this.o('v85')
     if (v !== null) return v
@@ -91,7 +91,7 @@ export class Kontext {
     const i = this.w('insel')
     return i.vorhanden && this.s('insel', 'art') === 'markiert'
   }
-  /** Abstand ist die Länge der ganzen Strasse (Vorbelegung, Runde 4) */
+  /** Abstand ist die Länge der ganzen Strasse (Vorbelegung) */
   ganzeStrasse(f: 'abstandFgsM' | 'abstandLsaM'): boolean { return this.e[f]?.ganzeStrasse === true && this.e[f].wert !== null }
   /** besonderes Vortrittsbedürfnis (Schule, Kindergarten, Heim, Haltestelle, Schulweg; Fusswegnetz nur mit der Ebene Bern, C2-B) */
   bed(): boolean { return this.w('beduerfnis').filter(b => b !== 'fusswegnetz' || this.an('Bern')).length > 0 }

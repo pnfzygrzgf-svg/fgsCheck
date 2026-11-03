@@ -1,0 +1,441 @@
+{
+  "roh": {
+    "total_count": 12,
+    "results": [
+      {
+        "geo_point_2d": {
+          "lon": 9.37475242389,
+          "lat": 47.4149351487
+        },
+        "geo_shape": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              9.374752423891964,
+              47.41493514871728
+            ],
+            "type": "Point"
+          },
+          "properties": {}
+        },
+        "typ": "Kandelaberleuchte"
+      },
+      {
+        "geo_point_2d": {
+          "lon": 9.37356986576,
+          "lat": 47.4144783667
+        },
+        "geo_shape": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              9.373569865758752,
+              47.414478366736965
+            ],
+            "type": "Point"
+          },
+          "properties": {}
+        },
+        "typ": "Kandelaberleuchte"
+      },
+      {
+        "geo_point_2d": {
+          "lon": 9.37233194195,
+          "lat": 47.4140793507
+        },
+        "geo_shape": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              9.372331941951034,
+              47.41407935065936
+            ],
+            "type": "Point"
+          },
+          "properties": {}
+        },
+        "typ": "Kandelaberleuchte"
+      },
+      {
+        "geo_point_2d": {
+          "lon": 9.37515892421,
+          "lat": 47.4150927724
+        },
+        "geo_shape": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              9.375158924208442,
+              47.415092772351294
+            ],
+            "type": "Point"
+          },
+          "properties": {}
+        },
+        "typ": "Kandelaberleuchte"
+      },
+      {
+        "geo_point_2d": {
+          "lon": 9.37395659367,
+          "lat": 47.4146275357
+        },
+        "geo_shape": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              9.373956593669803,
+              47.41462753573354
+            ],
+            "type": "Point"
+          },
+          "properties": {}
+        },
+        "typ": "Kandelaberleuchte"
+      },
+      {
+        "geo_point_2d": {
+          "lon": 9.3755669192,
+          "lat": 47.4152491553
+        },
+        "geo_shape": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              9.375566919201068,
+              47.415249155332596
+            ],
+            "type": "Point"
+          },
+          "properties": {}
+        },
+        "typ": "Kandelaberleuchte"
+      },
+      {
+        "geo_point_2d": {
+          "lon": 9.37648919946,
+          "lat": 47.4156028508
+        },
+        "geo_shape": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              9.376489199461098,
+              47.4156028508398
+            ],
+            "type": "Point"
+          },
+          "properties": {}
+        },
+        "typ": "Kandelaberleuchte"
+      },
+      {
+        "geo_point_2d": {
+          "lon": 9.37696388536,
+          "lat": 47.4157879169
+        },
+        "geo_shape": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              9.376963885364018,
+              47.41578791694443
+            ],
+            "type": "Point"
+          },
+          "properties": {}
+        },
+        "typ": "Kandelaberleuchte"
+      },
+      {
+        "geo_point_2d": {
+          "lon": 9.37600844416,
+          "lat": 47.4154191623
+        },
+        "geo_shape": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              9.37600844415684,
+              47.41541916229543
+            ],
+            "type": "Point"
+          },
+          "properties": {}
+        },
+        "typ": "Kandelaberleuchte"
+      },
+      {
+        "geo_point_2d": {
+          "lon": 9.37436388892,
+          "lat": 47.4147852749
+        },
+        "geo_shape": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              9.374363888922442,
+              47.41478527489139
+            ],
+            "type": "Point"
+          },
+          "properties": {}
+        },
+        "typ": "Kandelaberleuchte"
+      },
+      {
+        "geo_point_2d": {
+          "lon": 9.37275416546,
+          "lat": 47.4141995085
+        },
+        "geo_shape": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              9.37275416546057,
+              47.41419950848058
+            ],
+            "type": "Point"
+          },
+          "properties": {}
+        },
+        "typ": "Kandelaberleuchte"
+      },
+      {
+        "geo_point_2d": {
+          "lon": 9.37317021635,
+          "lat": 47.4143255441
+        },
+        "geo_shape": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              9.373170216348718,
+              47.414325544133014
+            ],
+            "type": "Point"
+          },
+          "properties": {}
+        },
+        "typ": "Kandelaberleuchte"
+      }
+    ]
+  },
+  "meta": {
+    "visibility": "domain",
+    "fields": [
+      {
+        "name": "geo_point_2d",
+        "description": null,
+        "annotations": {},
+        "label": "Geo Point",
+        "type": "geo_point_2d",
+        "label_de": "Geo Point",
+        "label_en": "Geo Point",
+        "label_it": "Geo Point",
+        "description_de": null,
+        "description_en": null,
+        "description_it": null
+      },
+      {
+        "name": "geo_shape",
+        "description": null,
+        "annotations": {},
+        "label": "Geo Shape",
+        "type": "geo_shape",
+        "label_de": "Geo Shape",
+        "label_en": "Geo Shape",
+        "label_it": "Geo Shape",
+        "description_de": null,
+        "description_en": null,
+        "description_it": null
+      },
+      {
+        "name": "typ",
+        "description": null,
+        "annotations": {
+          "facet": true
+        },
+        "label": "TYP",
+        "type": "text",
+        "label_de": "TYP",
+        "label_en": "TYP",
+        "label_it": "TYP",
+        "description_de": null,
+        "description_en": null,
+        "description_it": null
+      }
+    ],
+    "dataset_id": "offentliche-beleuchtung-stadt-stgallen",
+    "dataset_uid": "da_fwh0gs",
+    "has_records": true,
+    "features": [
+      "geo",
+      "analyze"
+    ],
+    "attachments": [],
+    "alternative_exports": [],
+    "data_visible": true,
+    "metas": {
+      "default": {
+        "title": "Öffentliche Beleuchtung Stadt St.Gallen",
+        "title_de": "Öffentliche Beleuchtung Stadt St.Gallen",
+        "title_en": "Öffentliche Beleuchtung Stadt St.Gallen",
+        "title_it": "Öffentliche Beleuchtung Stadt St.Gallen",
+        "description": "<p>Der Datensatz zeigt die verschiedenen Typen der öffentliche Beleuchtung der Stadt St.Gallen</p>",
+        "description_de": "<p>Der Datensatz zeigt die verschiedenen Typen der öffentliche Beleuchtung der Stadt St.Gallen</p>",
+        "description_en": "<p>Der Datensatz zeigt die verschiedenen Typen der öffentliche Beleuchtung der Stadt St.Gallen</p>",
+        "description_it": "<p>Der Datensatz zeigt die verschiedenen Typen der öffentliche Beleuchtung der Stadt St.Gallen</p>",
+        "theme": [
+          "Energie",
+          "Mobilität und Verkehr"
+        ],
+        "theme_de": [
+          "Energie",
+          "Mobilität und Verkehr"
+        ],
+        "theme_en": [
+          "Energy",
+          "Mobility and Transport"
+        ],
+        "theme_it": [
+          "Energy",
+          "Mobility and Transport"
+        ],
+        "keyword": [
+          "Strassen",
+          "Licht",
+          "Beleuchtung",
+          "Laternen",
+          "Leuchten"
+        ],
+        "keyword_de": [
+          "Strassen",
+          "Licht",
+          "Beleuchtung",
+          "Laternen",
+          "Leuchten"
+        ],
+        "keyword_en": [
+          "Strassen",
+          "Licht",
+          "Beleuchtung",
+          "Laternen",
+          "Leuchten"
+        ],
+        "keyword_it": [
+          "Strassen",
+          "Licht",
+          "Beleuchtung",
+          "Laternen",
+          "Leuchten"
+        ],
+        "license": "CC BY",
+        "license_de": "CC BY",
+        "license_en": "CC BY",
+        "license_it": "CC BY",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "license_url_de": "https://creativecommons.org/licenses/by/4.0/",
+        "license_url_en": "https://creativecommons.org/licenses/by/4.0/",
+        "license_url_it": "https://creativecommons.org/licenses/by/4.0/",
+        "language": "de",
+        "modified": "2021-10-29T07:25:22.831000+00:00",
+        "publisher": "St.Galler Stadtwerke (sgsw)",
+        "publisher_de": "St.Galler Stadtwerke (sgsw)",
+        "publisher_en": "St.Galler Stadtwerke (sgsw)",
+        "publisher_it": "St.Galler Stadtwerke (sgsw)",
+        "references": "https://www.sgsw.ch/home/stoerungen.html",
+        "attributions": null,
+        "update_frequency": null,
+        "bbox": {
+          "type": "Feature",
+          "geometry": {
+            "coordinates": [
+              [
+                [
+                  9.486776646226645,
+                  47.4737561121583
+                ],
+                [
+                  9.291724730283022,
+                  47.4737561121583
+                ],
+                [
+                  9.291724730283022,
+                  47.396798129193485
+                ],
+                [
+                  9.486776646226645,
+                  47.396798129193485
+                ],
+                [
+                  9.486776646226645,
+                  47.4737561121583
+                ]
+              ]
+            ],
+            "type": "Polygon"
+          },
+          "properties": {}
+        },
+        "data_processed": "2021-10-29T07:25:22.831000+00:00",
+        "federated": false,
+        "geographic_reference": [
+          "ch_40_15",
+          "ch_40_17"
+        ],
+        "geographic_reference_auto": true,
+        "geometry_types": [
+          "Point"
+        ],
+        "metadata_languages": [
+          "de"
+        ],
+        "metadata_processed": "2026-02-19T15:04:16.202000+00:00",
+        "modified_updates_on_data_change": true,
+        "modified_updates_on_metadata_change": false,
+        "parent_domain": "stgallen",
+        "records_count": 8673,
+        "shared_catalog": null,
+        "source_dataset": null,
+        "source_domain": null,
+        "source_domain_address": null,
+        "source_domain_title": null,
+        "territory": [
+          "Appenzell Ausserrhoden",
+          "St. Gallen"
+        ],
+        "timezone": "Europe/Zurich"
+      },
+      "dcat": {
+        "created": "2021-10-29",
+        "issued": "2021-10-29",
+        "creator": "St.Galler Stadtwerke (sgsw)",
+        "contributor": null,
+        "contact_name": "OGD-Koordinationsstelle St.Gallen",
+        "contact_email": "opendata@stadt.sg.ch",
+        "accrualperiodicity": "keine Aktualisierung vorgesehen",
+        "spatial": null,
+        "temporal": null,
+        "granularity": null,
+        "dataquality": null,
+        "publisher_type": null,
+        "conforms_to": null,
+        "temporal_coverage_start": null,
+        "temporal_coverage_end": null,
+        "accessRights": null,
+        "relation": null
+      },
+      "custom": {
+        "jahre": null,
+        "tags": [
+          "opendata.swiss"
+        ]
+      },
+      "dcat_ap_ch": {
+        "domain": "stadt-st-gallen",
+        "license": "terms_by",
+        "rights": "NonCommercialAllowed-CommercialAllowed-ReferenceRequired"
+      }
+    }
+  }
+}

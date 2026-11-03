@@ -1,5 +1,5 @@
-// Tests Runde 5 (Lesetest 21.10.2026): Sichtrechner mit amtlichem Tempo (V_sig), innerorts und Seitenstrasse (F1, F3), Teilstreifen
-// (F5), Fusswegnetz als Grund (Stelle 10), Texte ohne Codes und Tags (Muster 4), Satz 1 und 4 der Zusammenfassung (Muster 1, 2), Bericht.
+// Tests Sichtrechner mit amtlichem Tempo (V_sig), innerorts und Seitenstrasse (F1, F3), Teilstreifen
+// (F5), Fusswegnetz als Grund, Texte ohne Codes und Tags, Satz 1 und 4 der Zusammenfassung, Bericht.
 // Künstliche Strasse wie die übrigen Tests: Hauptstrasse West–Ost (y = 0), Fahrbahn 8 m, Tempo 50 (OSM), Übergang bei x = 0.
 
 import { describe, expect, it } from 'vitest'
@@ -38,7 +38,7 @@ const vsig = (v: number, teile: P[][] = [[lv(-300, 0), lv(300, 0)]]): VsigLinie[
 const rechteckRing = (): P[] => [lv(-50, -50), lv(50, -50), lv(50, 50), lv(-50, 50)]
 const vw = (wert: unknown, quelle: VorWert['quelle'] = 'osm', text = 'Test'): VorWert => ({ wert, quelle, text })
 
-describe('Runde 5, Teil C: Sichtrechner mit amtlichem Tempo (V_sig, Nutzerentscheid 21.10.2026)', () => {
+describe('Runde 5, Teil C: Sichtrechner mit amtlichem Tempo (V_sig)', () => {
   it('V_sig der Achse gilt als Tempo der Zufahrt (Quelle «Geoportal»), Soll nach Tab. 1; Annahme nennt OSM', () => {
     const r = rechneFall(OSM, AV, [], 12, fallMit(), null, null, null, vsigTempo({ linien: vsig(30), bereich: BQ }))
     const zs = r.streifen.flatMap(s => s.zufahrten)
@@ -127,7 +127,7 @@ describe('Runde 5, F5: unplausibel lange Teilstreifen', () => {
   })
 })
 
-describe('Lücke zwischen Balken und Trottoirkante (Nutzerentscheid 23.10.2026; Feld gestrichen 30.10.2026)', () => {
+describe('Lücke zwischen Balken und Trottoirkante (Feld gestrichen)', () => {
   it('weder Lücke noch Streifenbreite vorbelegt, auch nicht aus dem Luftbild (F1a bis F1c gestrichen)', () => {
     const r = rechneFall(OSM, AV, [], 12, fallMit(), null)
     const s = r.streifen[0]
@@ -153,7 +153,7 @@ describe('Runde 5: Fusswegnetz als besonderer Grund (Bern, Stelle 10)', () => {
     const RP = { basisnetz: [{ id: 'b', layer: 'Basisnetz', teile: [[lv(0, -40), lv(0, 40)]] }], publikum: [], bereich: BQ }
     const v = vorbelegen(g, fallMit(), [], { richtplan: RP })
     expect(v.werte.beduerfnis).toMatchObject({ wert: ['fusswegnetz'], quelle: 'annahme' })
-    // publikumsattraktiver Bereich allein: kein Grund (Korrektur nach Prüfung)
+    // publikumsattraktiver Bereich allein: kein Grund
     const pub = vorbelegen(g, fallMit(), [], { richtplan: { basisnetz: [], publikum: [{ id: 'p', layer: 'publikum', name: null, ringe: [rechteckRing()] }], bereich: BQ } })
     expect(pub.werte.netz?.wert).toBe('publikumsintensiv')
     expect((pub.werte.beduerfnis?.wert as string[] | undefined) ?? []).not.toContain('fusswegnetz')

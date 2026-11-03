@@ -19,7 +19,7 @@ export type RegelFn = (k: Kontext) => Ergebnis | null
 
 const K = KATALOG
 const ja = (verletzt: boolean, x: Omit<Ergebnis, 'verletzt'> = {}): Ergebnis => ({ verletzt, ...x })
-/** Runde 4: die Strasse endet beidseits ohne Fortsetzung, der Abstand ist ihre ganze Länge: Hinweis statt Befund, Abstand nicht
+/** Die Strasse endet beidseits ohne Fortsetzung, der Abstand ist ihre ganze Länge: Hinweis statt Befund, Abstand nicht
  * anwendbar (Masse-Zeile mit «ganze Strasse», ohne Soll) */
 const ganzeStrasse = (d: number, text: string): Ergebnis => ({ verletzt: true, staerke: 'hinweis', ohneMassBefund: true,
   ist: `${fmt(d, 0)} (ganze Strasse)`, text: `${text} (sie endet beidseits ohne Fortsetzung): Abstand nicht anwendbar` })
@@ -32,7 +32,7 @@ const tabIst = (v: number, dtv: number, t: Bern3a): string => `Tempo ${v} km/h, 
 
 // ── Hilfen über mehrere Regeln ──
 
-/** Fussverkehr unter der Schwelle (Zählung vor Schätzklasse, Entscheid 5; Klasse <100 gilt als darunter) */
+/** Fussverkehr unter der Schwelle (Zählung vor Schätzklasse; Klasse <100 gilt als darunter) */
 function fgUnter(k: Kontext, schwelle: number): boolean {
   const fg = k.o('fg5h')
   if (fg !== null) return fg < schwelle
@@ -56,7 +56,7 @@ function ausnahmeGrund(k: Kontext, netz: boolean): string {
   return `besonderer Grund für Vortritt: ${wertText(d, werte)}${herkunft(b?.quelle)}`
 }
 
-/** Sicht für die Querung ohne Vortritt (E3/E3a): bei markierter Insel L = ganze Fahrbahn (Entscheid 6) */
+/** Sicht für die Querung ohne Vortritt (E3/E3a): bei markierter Insel L = ganze Fahrbahn */
 function e3(k: Kontext): { r: SichtOhneVortritt; v: number; L: number[] } {
   const v = k.v85e()
   const L = k.inselMarkiert() ? [k.w('fahrbahnB')] : k.w('querdistanzL')
@@ -65,7 +65,7 @@ function e3(k: Kontext): { r: SichtOhneVortritt; v: number; L: number[] } {
 /** Ausnahme Z. 8.2: wenig Querende und wenig Verkehr */
 const e3Ausnahme = (k: Kontext): boolean => fgUnter(k, K.E3a.werte.fgMax) && k.w('dtv') < K.E3a.werte.dtvMax
 
-/** Normhinweis, wenn bei Radius 20 m der bfu-Wert statt Tab. 2 gilt (Nutzerentscheid 20.10.2026) */
+/** Normhinweis, wenn bei Radius 20 m der bfu-Wert statt Tab. 2 gilt */
 const hinweisTab2 = (t: { sicht: number; norm: number }): string | undefined =>
   t.sicht !== t.norm ? `Norm: VSS 40 241:2019 Tab. 2 nennt ${t.norm} m; verwendet ist wie in der Sichtprüfung der bfu-Wert ${t.sicht} m` : undefined
 
@@ -112,7 +112,7 @@ const lsaBekannt = (k: Kontext): boolean => k.o('typ') === 'lsa' || k.o('fgsMitL
 export const REGELN: Record<BefundId, RegelFn> = {
   // ── A ──
   A1: k => ja(!k.w('innerorts')),
-  // Runde 4: eine Begegnungszone hat Tempo 20; Strecke bzw. Tempo-30-Zone oder ein bekanntes Tempo ab 30 ohne Zonenangabe: nicht
+  // Eine Begegnungszone hat Tempo 20; Strecke bzw. Tempo-30-Zone oder ein bekanntes Tempo ab 30 ohne Zonenangabe: nicht
   // anwendbar (nicht offen); offen nur bei Tempo 20 bzw. unbekanntem Tempo ohne Zonenangabe
   A2: k => {
     const t = k.o('tempoRegime')
@@ -136,7 +136,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
   // ── B ──
   B1: k => ja(k.w('nachfrage') === 'flaechig'),
   B3: k => ja(k.w('lage') === 'einmuendung'),
-  // B4 gestrichen (Nutzerentscheid 30.10.2026): Querungen an den anderen Kreuzungsarmen sind Netzplanung, keine Prüfung dieser Querung
+  // B4 gestrichen: Querungen an den anderen Kreuzungsarmen sind Netzplanung, keine Prüfung dieser Querung
 
   // ── C ──
   C1: k => {
@@ -147,8 +147,8 @@ export const REGELN: Record<BefundId, RegelFn> = {
     return ja(v > max, { ist: gemessen ? `V85 ${v} km/h` : `${v} km/h signalisiert, V85 nicht gemessen`, soll: `≤ ${max}`,
       ...(gemessen ? {} : { annahme: true as const }) })
   },
-  // C2c gestrichen (Nutzerentscheid 20.10.2026): eine Hauptstrasse ausserhalb der Zone ist im Tempo-Regime eine Strecke
-  // Runde 5 (Korrektur nach Prüfung): mit bekanntem besonderem Grund ist C2 auch bei offener Zone nicht verletzbar (C2b statt C2);
+  // C2c gestrichen: eine Hauptstrasse ausserhalb der Zone ist im Tempo-Regime eine Strecke
+  // Mit bekanntem besonderem Grund ist C2 auch bei offener Zone nicht verletzbar (C2b statt C2);
   // offen ist C2 nur nach den Feldern, die wirklich fehlen (Zone und/oder Grund)
   C2: k => {
     const tr = k.o('tempoRegime'), bd = k.o('beduerfnis')
@@ -170,7 +170,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (!fgUnter(k, s)) return ja(false, { ist: fgIst(k), soll: `≥ ${s}`, grund: fgGenug(k, s) })
     const netz = k.w('netzQualifiziert')
     const v = !netz && !k.bed()
-    // 30.10.2026 (Nutzerentscheid): unter der Schwelle, aber Ausnahme nach VSS 40 241 Z. 16 → Masse-Zeile «zulässig (Ausnahme: …)»
+    // 30.10.2026: unter der Schwelle, aber Ausnahme nach VSS 40 241 Z. 16 → Masse-Zeile «zulässig (Ausnahme: …)»
     // statt «erfüllt»; der Befund bleibt ohne Eintrag
     return ja(v, { ist: fgIst(k), soll: `≥ ${s}`, ...(v ? {} : { grund: ausnahmeGrund(k, netz), ausnahme: `zulässig (Ausnahme: ${netz ? 'Querung im Fusswegnetz' : 'besonderer Grund für Vortritt'})` }) })
   },
@@ -180,7 +180,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const v = k.w('netzQualifiziert') || k.bed()
     return ja(v, { ist: fgIst(k), ...(v ? {} : { grund: 'weder Fusswegnetz noch besonderer Grund für Vortritt (siehe «Wenig Querende»)' }) })
   },
-  // Runde 2 (Korrektur A4): ohne Zählung und ohne Schätzklasse offen, nicht «ohne Befund»
+  // Ohne Zählung und ohne Schätzklasse offen, nicht «ohne Befund»
   C3c: k => {
     if (k.o('fg5h') === null && k.o('fgKlasse') === null) throw new Offen(['fg5h', 'fgKlasse'])
     return ja(k.o('fgQuelle') === 'schaetzung' || k.o('fg5h') === null)
@@ -214,13 +214,13 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (k.w('fahrbahnB') < W.bMin || k.insBaulich()) return ja(false)
     return ja(k.w('dtv') < W.dtvMin)
   },
-  // Korrektur 23.10.2026: nach D3a ausgewertet, damit «nicht verlangt» nicht neben «Insel nötig» (Tram auf eigenem Gleis) steht
+  // Nach D3a ausgewertet, damit «nicht verlangt» nicht neben «Insel nötig» (Tram auf eigenem Gleis) steht
   D2c: k => ja(!k.insBaulich() && !k.hat('D1') && !k.hat('D2') && !k.hat('D2a') && !k.hat('D3a')),
   D3a: k => (lsaBekannt(k) || k.w('tram') !== 'eigentrassee' ? null : ja(!k.insBaulich() && !k.mitLsa())),
   D3b: k => (k.w('tram') !== 'eigentrassee' ? null : ja(k.w('balkenAufGleis'))),
   D4a: k => ja(k.w('haltestelle').lage === 'im_bereich'),
   D4b: k => (k.w('haltestelle').art !== 'fahrbahn' ? null : ja(k.s('haltestelle', 'verdeckt') && !k.insBaulich())),
-  // Nutzerentscheid 30.10.2026: Haltestelle auf beiden Strassenseiten (Busse in beiden Richtungen): hinter dem Haltebereich geht nur für
+  // Haltestelle auf beiden Strassenseiten (Busse in beiden Richtungen): hinter dem Haltebereich geht nur für
   // eine Richtung, die Regel ist dann nicht anwendbar (Grund im Katalog, Bemerkung)
   D4c: k => {
     if (k.w('haltestelle').lage !== 'fgs_vor_halt') return ja(false)
@@ -243,7 +243,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     }
     return ja(true, { soll: `${a} m`, detail: `Richtwert ${a} m Abstand zur Haltestelle` })
   },
-  // Korrektur 23.10.2026: D5-1, D5-4, D5-5, D5-6 wie D5-2/D5-3 nicht anwendbar, wenn die Querung schon ein Lichtsignal hat; das
+  // D5-1, D5-4, D5-5, D5-6 wie D5-2/D5-3 nicht anwendbar, wenn die Querung schon ein Lichtsignal hat; das
   // Lichtsignal wird erst gelesen, wenn die Regel sonst greifen würde (kein «offen» nur wegen des Lichtsignals)
   'D5-1': k => {
     if (lsaBekannt(k) || k.w('strassentyp') !== 'verkehrsorientiert') return null
@@ -253,7 +253,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
   // D5-2 (30.10.2026): Querung an einer Kreuzung ohne Lichtsignal → Hinweis, ohne Bedingung «Lichtsignal am Knoten»
   'D5-2': k => (lsaBekannt(k) || !istKnoten(k.w('lage')) || k.mitLsa() ? null : ja(true)),
   'D5-3': k => (k.mitLsa() ? null : ja(k.nMax() >= K['D5-3'].werte.nAb && !k.insBaulich())),
-  // Runde 2 (Korrektur A2): nicht anwendbar, wenn weder H1 noch E3 ausgewertet ist; offen, solange eine davon offen ist
+  // Nicht anwendbar, wenn weder H1 noch E3 ausgewertet ist; offen, solange eine davon offen ist
   'D5-4': k => {
     const h = k.ergebnisse.get('H1'), e = k.ergebnisse.get('E3')
     if (lsaBekannt(k) || (!h && !e)) return null
@@ -407,13 +407,13 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const u = k.s('insel', 'kopfUeberstand'), W = K.F2f.werte
     return ja(Math.min(...u) < W.min, { ist: fmtListe(u), soll: `≥ ${fmt(W.min)}` })
   },
-  // Korrektur 23.10.2026: auch ein Durchgang unter der Skizzenbreite 1,20 m ist ein Hinweis
+  // Auch ein Durchgang unter der Skizzenbreite 1,20 m ist ein Hinweis
   'F2-B': k => {
     if (!k.w('insel').vorhanden) return null
     const f = k.s('insel', 'furt'), W = K['F2-B'].werte
     return ja(!(f > 0) || f < W.furt - EPS, f > 0 ? { ist: fmt(f) } : {})
   },
-  // Nutzerentscheid 23.10.2026: nur, wenn Velos queren und auf der Insel warten (nicht mehr bei Radstreifen entlang der Strasse), nur
+  // Nur, wenn Velos queren und auf der Insel warten (nicht mehr bei Radstreifen entlang der Strasse), nur
   // an einer gebauten Insel; ohne Insel, mit markierter Insel bzw. ohne querende Velos nicht anwendbar, auch wenn das andere Feld offen ist
   'F2-K': k => {
     const i = k.o('insel')
@@ -508,7 +508,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const m = k.w('mzsBreiteM'), W = K.F6b.werte
     return ja(m >= W.min && m < W.regel, { ist: fmt(m), soll: `${fmt(W.regel)} (Regel)` })
   },
-  // Korrektur 23.10.2026: zweistufig, über 30 bis 40 km/h Hinweis, über 40 km/h Soll verletzt
+  // Zweistufig, über 30 bis 40 km/h Hinweis, über 40 km/h Soll verletzt
   F6c: k => {
     if (k.o('typ') !== 'mehrzweck') return null
     const v = k.v85e(), W = K.F6c.werte
@@ -542,7 +542,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (k.ganzeStrasse('abstandFgsM')) return ganzeStrasse(d, 'Kein weiterer Fussgängerstreifen auf dieser Strasse möglich')
     const x = { ist: fmt(d, 0), soll: `≥ ${W.min}` }
     if (d >= W.min) return ja(false, x)
-    // Runde 5 (Stelle 31): die Ausnahme steht beim Wert (Masse: «zulässig», nicht «erfüllt»)
+    // Die Ausnahme steht beim Wert (Masse: «zulässig», nicht «erfüllt»)
     if (k.w('verzweigung')) return ja(false, { ...x, ausnahme: 'an der Verzweigung zulässig' })
     if (k.w('haltestelleAngrenzend')) return ja(false, { ...x, ausnahme: 'bei der Haltestelle zulässig' })
     return ja(true, x)
@@ -559,7 +559,7 @@ export const REGELN: Record<BefundId, RegelFn> = {
     const d = k.w('wunschlinieM'), W = K.G3.werte
     return ja(d > W.max, { ist: fmt(d, 1), soll: `≤ ${W.max}` })
   },
-  // Korrektur S8: nur verlangen, was nötig ist; mündet der Weg nicht direkt und verdeckt, sind Versatz und Schranke ohne Belang
+  // Nur verlangen, was nötig ist; mündet der Weg nicht direkt und verdeckt, sind Versatz und Schranke ohne Belang
   G3b: k => {
     const f = k.o('fusswegAchse')
     if (f === null) throw new Offen(['fusswegAchse.rechtwinkligUneinsehbar'])

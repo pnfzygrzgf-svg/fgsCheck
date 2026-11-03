@@ -1,4 +1,4 @@
-# fgsCheck (Prototyp v0.6)
+# fgsCheck (Prototyp)
 
 Sichtprüfung an bestehenden und geplanten Fussgängerstreifen im Browser; dazu Bedarf und Querungstyp nach bfu, VSS 40 240,
 40 241 und 40 242, Stadt und Kanton Bern, und die Trottoirüberfahrt mit Knotensicht.
@@ -106,7 +106,8 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
    Zufahrt entfielen («durch die gerade Zufahrt mitgeprüft»), werden nach dem Streichen der geraden Zufahrt selbst geprüft,
    bis zum Knoten mit Tab. 1 der eigenen Strasse. Eingaben, zu denen die Rechnung keine Zufahrt mehr findet, meldet das Panel.
 8. «Fall speichern» schreibt alle Eingaben als JSON-Datei (Version, Ort, Quellenstand); «Fall laden» stellt sie wieder her.
-   Zusätzlich merkt sich der Browser die Eingaben je Übergang (localStorage, falls verfügbar).
+   Zusätzlich merkt sich der Browser die Eingaben, Entscheide und Quellenwahl je Übergang (localStorage, falls verfügbar); Quelldaten
+   lädt die App beim Öffnen neu, und schlägt das Merken fehl, erscheint ein Hinweis mit Verweis auf «Fall speichern».
    Ein geplanter Fall ohne Übergang liegt im Browser nur als letzter geplanter Fall («Letzten geplanten Fall
    wiederherstellen»); bevor ein ungesicherter geplanter Fall ersetzt oder die Seite verlassen wird und bevor ein anderer
    geplanter Fall im Browser-Eintrag ersetzt würde, fragt die App nach.
@@ -166,8 +167,7 @@ npm run build    # Typprüfung und Build nach dist/ (Basis / für die eigene Dom
 - **Streifen** (`rechner/streifen.ts`): Achse durch den Übergangsknoten, entlang des OSM-Fusswegs über die Fahrbahn
   (`footway=crossing`) bzw. senkrecht zum gequerten Weg; Enden 0,3 m vor der AV-Bordkante, bei sehr breiter Fahrbahn aus
   dem Fussweg bzw. der Breite des OSM-Wegs; Breite 4 m angenommen; Teilstreifen über AV-Verkehrsinseln.
-- **Insel nach OSM** (`rechner/streifen.ts`, Schalter `INSEL_AUS_OSM`; seit 30.10.2026 aus, Nutzerentscheid «nicht gebaut ist
-  nicht gebaut»: eine Insel, die nur OSM und das Luftbild zeigen, teilt den Streifen nicht; es bleibt der Hinweis «OSM meldet eine
+- **Insel nach OSM** (`rechner/streifen.ts`, Schalter `INSEL_AUS_OSM`; seit 30.10.2026 aus; eine Insel, die nur OSM und das Luftbild zeigen, teilt den Streifen nicht; es bleibt der Hinweis «OSM meldet eine
   Mittelinsel …, nicht als gebaut angenommen; ist sie gebaut, Insel von Hand setzen». Mit Schalter an gilt das Folgende): Trägt der Übergangsknoten
   `crossing:island=yes` und liegt auf der Achse keine AV-Verkehrsinsel (die Insel ist in der AV Teil der Fahrbahn bzw. fehlt),
   teilt die App den Streifen nur mit Beleg im Luftbild («erkannt» bzw. «unsicher» mit Balken): zwei Balkengruppen mit einer
@@ -251,10 +251,10 @@ Beide Berner Dienste werden in LV95 abgefragt (BBOX und Ausgabe EPSG:2056): nach
 Datumsübergang um (Lage rund 150 m daneben).
 
 Abrufe: Zeitgrenze bis zur vollständigen Antwort, Overpass mit Ausweichservern (höchstens 60 s gesamt), ein neuer Klick
-bricht laufende Abrufe ab; Fehler stehen je Quelle unter «Geladene Quellen». Die Rechnung im Worker hat eine Zeitgrenze
-von 30 s. Unter dem Kopf des Reiters «Bedarf und Querungstyp» und in «Geladene Quellen» steht die Datenlage am Ort (z. B.
+bricht laufende Abrufe ab; Fehler stehen je Quelle unter «Datenquellen und Ladezustand». Die Rechnung im Worker hat eine Zeitgrenze
+von 30 s. Unter dem Kopf des Reiters «Bedarf und Querungstyp» und in «Datenquellen und Ladezustand» steht die Datenlage am Ort (z. B.
 «Datenlage hier: Vermessung, Luftbild, OSM; dazu Stadt Bern: Parkfelder, Bäume, …»; ohne freie amtliche Vermessung «keine
-Rechnung»); «Details» zeigt je Thema Quelle, Anbieter, Stand und Lizenz, «Geladene Quellen» dazu den Zustand je Quelle
+Rechnung»); «Details» zeigt je Thema Quelle, Anbieter, Stand und Lizenz, «Datenquellen und Ladezustand» dazu den Zustand je Quelle
 (geladen, lädt, Fehler), der Bericht nennt die genutzten Quellen in einer Tabelle. Tempo: `maxspeed`, sonst `zone:maxspeed` bzw. `maxspeed:type` (z. B. `CH:zone30`), sonst 50 km/h (Annahme).
 
 Automatische Übergangssuche (`src/App.tsx`, `src/ausschnitt.ts`): 800 ms nach dem letzten Verschieben bzw. Zoomen, ab Zoom 16;
@@ -310,10 +310,10 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   auch angenommen an einer unmarkierten OSM-Querung, bzw. «kein FGS»), heisst «Querung <Nr.>», die Trottoirüberfahrt «Trottoirüberfahrt <Nr.>»
 - `src/referenz.test.ts` – Vergleich mit einer Referenz-Datei ausserhalb des Repos (nur lokal; ohne Datei übersprungen;
   Ergebnisdatei nur mit `FGS_REFERENZ_SCHREIBEN=1`)
-- `src/bedarf/` – Bedarfsmodul, Etappe E0 (noch ohne Oberfläche): Regelkatalog mit Ziffer, Ausgabe, Stärke und Ebene je Regel
+- `src/bedarf/` – Bedarfsmodul: Regelkatalog mit Ziffer, Ausgabe, Stärke und Ebene je Regel
   (`katalog.ts`, nur eigene Kurztexte), Eingaben mit Quelle je Feld (`eingaben.ts`) und Entscheidbaum als reine Funktion
-  `beurteile(eingaben, optionen)` → Befund (`entscheid.ts`; Ebenen Bern, Kanton BE und Richtlinie schaltbar). Seit Etappe E1
-  mit Oberfläche: Abschnitt «Bedarf und Querungstyp» im Panel (`src/BedarfPanel.tsx`; Eingaben nach Blöcken mit Quelle,
+  `beurteile(eingaben, optionen)` → Befund (`entscheid.ts`; Ebenen Bern, Kanton BE und Richtlinie schaltbar). Oberfläche:
+  Abschnitt «Bedarf und Querungstyp» im Panel (`src/BedarfPanel.tsx`; Eingaben nach Blöcken mit Quelle,
   vorbelegt aus der Rechnung in `vorbelegung.ts`, Befundblatt aus `befundblatt.ts` auch im Bericht), Querung ohne Vortritt je
   Streifen mit der Sichtweite nach VSS 40 240 Z. 8.2 im Sichtrechner (`src/rechner/ohneVortritt.ts`; abbiegende Zufahrten höchstens
   bis zum Beginn des Abbiegens, d. h. Strecke bis zum Knoten, an dem sie abbiegen, und Bogen, nie weiter entlang ihrer Strasse oder
@@ -434,7 +434,7 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   Nicht geprüfte Themen stehen im Panel als graue Zeile mit Grund («Sicht – nicht geprüft: Begegnungszone, flächiges Queren»).
   Bleibt eine Regel dank einer Angabe ohne Befund, nennt die Zeile im Thema den Grund (`erfuelltGrund`), z. B. «Wenig Querende:
   ohne Befund – Querung im Fusswegnetz (Geoportal Stadt Bern)». **Geladene Quellen auf der Karte** (seit 01.11.2026, wie im
-  VeloroutenCheck; `src/quellenEbenen.ts`, Fenster in `Karte.tsx`): Der Knopf «Geladene Quellen» unten links öffnet ein an der Kopfzeile
+  VeloroutenCheck; `src/quellenEbenen.ts`, Fenster in `Karte.tsx`): Der Knopf «Datenquellen und Ladezustand» unten links öffnet ein an der Kopfzeile
   verschiebbares Fenster (Lage und Wahl in localStorage `fgs.quellenPos`, `fgs.quellen`) mit je einem Kästchen pro Quelle der Vorbelegung,
   nur Quellen mit Daten (`ebenenSichtbar`), die übrigen in einer Zeile «Ohne Daten im Ausschnitt»: Tempo (Geoportal V_sig; gestrichelt OSM
   maxspeed, wo keine amtliche Linie gelesen ist), Verkehrsmenge (DTV), ÖV-Haltestellen (Tram, Bus), ÖV-Linien, Strassenhierarchie,
@@ -525,8 +525,10 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   `richtplanFussverkehr.ts` liest aus dem Richtplan Fussverkehr das Basisnetz (Linien) und die publikumsattraktiven Bereiche (Flächen);
   `strassenhierarchie.ts` liest die Strassenhierarchie (Typ_id: Quartier-, Quartierverbindungsstrasse, Basisnetz …) und die
   Strassentypen (Strgatt_id: SS_30, SS_50, VS_50_60, HVS_50_60, HVS_80) als Linien;
-  `vsig.ts` liest die signalisierte Höchstgeschwindigkeit (V_sig) je Strassenabschnitt;
-  `schulen.ts` liest Volksschulen und Kindergärten (Geoportal) sowie seit 01.11.2026 (Nutzerentscheid) Kindertagesstätten (als Kindergarten),
+  `vsig.ts` stellt die signalisierte Höchstgeschwindigkeit (V_sig) je Strassenabschnitt bereit; URL-Bau, Abruf und Umwandlung laufen über
+  `daten/anbieter/index.ts` und den Adapter `daten/anbieter/bernTempo.ts`, die gemeinsamen Tempo-Datenformen stehen in `daten/anbieter/typen.ts`.
+  Der Datenstand stammt dynamisch aus der Berner Produktaktualisierung, die Vollständigkeit bleibt unbekannt;
+  `schulen.ts` liest Volksschulen und Kindergärten (Geoportal) sowie seit 01.11.2026 Kindertagesstätten (als Kindergarten),
   Kinderangebote (als Schule), Heime und Spitäler (als Heim; Dienst `stadtplan`, Layer 620/624) nach `WEITERE_BERN`, je Art der nächste,
   wenn die Art nicht schon von Volksschule bzw. Kindergarten belegt ist; Berufs-, Mittel- und Hochschulen zählen nicht; fallen diese
   Dienste aus, gibt es kein «keines», und überall aus OSM Schulen, Kindergärten
@@ -607,11 +609,160 @@ Treffer wird entfernt und nur als Text angezeigt. Zoom nach Art: Adresse 19, Str
   (`lesetext.ts`). Neue Regel E1c (Furt ohne Insel). Besonderer Grund «Fusswegnetz (Bern)», zählt nur mit der Ebene Bern. Teilstreifen
   an einer Insel über 12 m (`TEIL_MAX_M`) belegen keine Masse vor. Der Bericht zeigt den Bedarfsteil, sobald eine Beurteilung vorliegt.
 
+## Schweizweite und regionale Datenquellen
+
+Ausserhalb der Stadt Bern belegt die App Felder aus Bundes-, Kantons- und Stadtquellen vor. Reihenfolge je Feld: amtlich
+lokal → Bund → OSM → Annahme → Eingabe von Hand; modellierte oder abgeleitete Werte sind Vorschläge und wirken erst nach
+Bestätigung. Ein leerer oder unvollständiger Ausschnitt ergibt nie ein «keines» oder «Nein».
+
+### Gebiet und Haltestellen (Bund)
+
+- BAV-Haltestellen schweizweit im Rechteck ±200 m: aktive Bus- und Tramhaltestellen, ohne Haltekanten und Fahrtrichtungen.
+  Berner Haltekanten haben Vorrang. Aussagen zur Nähe bzw. zum Tram-Haltestellenbereich sind Vorschläge und wirken erst nach
+  Bestätigung oder eigener Eingabe. BAV liefert weder Bucht/Fahrbahn noch Richtung oder Beidseitigkeit.
+- Gebiet (Gemeinde und Kanton am Ladepunkt, Gemeinden im Ausschnitt) aus `ch.swisstopo.swissboundaries3d-gemeinde-flaeche.fill`,
+  unabhängig von der AV, nur der aktuelle Jahresstand; mehrere Treffer an einer Grenze bleiben mehrdeutig. Ohne die nötige
+  AV-Geometrie bleibt die Rechnung gesperrt.
+- Datenstände: «Datenquellen und Ladezustand» nennt je Quelle geladene Objekte, Fehler, Datenstand, Vollständigkeit und
+  Abrufzeit; «Kartenebenen» zeigt die Objekte. Produktaktualisierung (Bern über
+  `map.bern.ch/geoportal/rest/api/GeoDataSet/read_produkt.php`), kantonaler AV-Publikationsstand
+  (`www.geodienste.ch/info/services.csv?base_topics=av&language=de`), OSM-Replikationsnummer, Flugjahr und Snapshot-Erzeugung sind
+  getrennt bezeichnet; die Werte stammen aus den geladenen Daten bzw. den offiziellen Metadaten, fehlende Stände bleiben unbekannt.
+  Die BAV-Legende liefert den Stand der Ebene, nicht das Änderungsdatum des einzelnen Halts. Metadatenfehler blockieren die
+  Geodaten nicht; es gehen nur öffentliche Produktnamen hinaus. Die Berner Ebenen Richtplan und taktile Markierungen erscheinen im
+  Quellenfenster nur mit geladenen Objekten; zum Laden ohne Fall stehen sie in der Ebenenauswahl der Karte.
+- Fälle: Beim Wiederöffnen werden alle benötigten Quellen neu geladen, auch BAV und Gebiet; eigene und bestätigte Eingaben
+  bleiben vorrangig. Die Ausschnitte mit Herkunft, Datenstand und Abrufzeit sind im Fall gespeichert und werden beim Laden
+  ersetzt; neue Stände erscheinen beim nächsten Laden, ohne laufende Überwachung. Fall-Version 6; ältere Fälle bleiben lesbar.
+
+### Verkehrsmenge aus dem NPVM und Quellenwahl am Feld
+
+- ARE, NPVM 2023: im Rechteck ±200 m, unabhängig von den Berner Quellen; nur `dtv_fzg` aus
+  `ch.are.belastung-personenverkehr-strasse` (kein DWV, keine Teilfahrzeugzahl). Modelljahr und Datenstand stammen bei jedem Abruf
+  aus der offiziellen Legende. Der Wert ist die Summe beider Richtungen derselben Modellstrecke, inklusive Motorräder (an 64
+  Strecken mit dem NPVM-Originalexport 2023 abgeglichen); verschiedene Modellstrecken oder getrennte Fahrbahnen werden nicht
+  addiert. Testdaten: `src/daten/anbieter/testdaten/npvm/README.md`.
+- Ein Vorschlag braucht einen eindeutigen Schnitt der Querungsachse (mindestens 60°) und passenden Strassenverlauf beidseits
+  (12 m, höchstens 6 m Abstand zum Modell und zu den gerechneten Spuren). Mehrdeutige Abschnitte, Brücken, Tunnel, andere
+  Höhenlagen, fehlende Werte oder Abdeckung bleiben offen. Ein fehlender Modellnetzeintrag ist kein DTV 0. Die geprüfte
+  Bedeutung gilt für Modelljahr 2023; eine neue Modellfassung bleibt bis zur Prüfung als Vorschlag gesperrt, ihre Geometrie
+  sichtbar. Unbestätigte Modellwerte wirken nicht auf abgeleitete Verkehrsannahmen.
+- Quellenwahl am Feld: DTV (Geoportal Stadt Bern / ARE NPVM), signalisiertes Tempo (Geoportal / OSM) sowie Haltestelle als
+  Querungsgrund, angrenzende Haltestelle und Tramhaltestellenbereich (lokale Quelle / BAV) stehen mit Wert als Chips neben dem
+  Feld; ein Klick übernimmt und bestätigt den Feldwert samt Herkunft. Nicht eindeutig ableitbare Werte sind deaktiviert. Die
+  Tempoauswahl betrifft das Bedarfsfeld, die Sichtrechnung bleibt je Zufahrt. Andere Querungsgründe bleiben beim Ergänzen einer
+  Haltestelle erhalten.
+- Karte: NPVM als gestrichelte Ebene; Baumkataster unter «Bäume» (alle geladenen Objekte; als Hindernis zählen nur Bäume im
+  Rechenbereich). Kartenebenen sind alphabetisch sortiert, «Datenquellen und Ladezustand» nach Thema. Quellenbeschriftungen
+  liegen in einem eigenen Pane über Linien und Sichtflächen, unter den Griffen; überlappende Zahlen werden mit Verbindungslinie
+  versetzt, bei dichter Belegung bleibt der Wert im Tooltip.
+- Fälle: NPVM-Ausschnitt und bestätigter Zuordnungsbeleg (Modellstrecke, Achse, Wert, Modelljahr, Datenstand, Abruf, URL) werden
+  gespeichert (Fall-Version 7). Bestätigte Eingaben behalten beim Wiederöffnen ihre ursprüngliche Herkunft.
+
+### Tempo und Verkehrszonen der Stadt Zürich
+
+- Signalisierte Geschwindigkeiten (IST) und bestehende Verkehrszonen der Stadt Zürich (WFS, ±200 m) mit Katalogstand,
+  Umsetzungs- und Rechtskraftdatum je Objekt und Prüfung der Übertragungsgrenze; nur der heutige Zustand. Module
+  `daten/anbieter/gemeinsam/zuerich*`, Testantworten `gemeinsam/testdaten/zuerich/`. Fall-Version 8.
+- Zuordnung: gleiche Strasse wie OSM, Längsrichtung bis 20°, höchstens 4 m zur amtlichen Linie, übereinstimmende Proben und
+  Zonen. Brücken, Tunnel, andere Höhenlagen und Zonenränder bis 2 m bleiben offen; widersprechen sich Linien und Zonen, wird kein
+  Wert behauptet. OSM und eigene Eingaben bleiben wählbar. Ein fehlender Zonentreffer ergibt «Strecke» nur zur Bestätigung.
+  Fahrverbot ist kein Tempo 0; Fussgängerzonen sind Prüfhinweise ohne automatische Strassenprüfung. Das Temporegime belegt keine
+  Innerortslage.
+- Angeschlossen: Bedarfsfeld, Sichtrechnung je Zufahrt, unmarkierte Querung in einer belegten Begegnungszone, Kartenebenen,
+  Quellenhilfe und Bericht.
+
+### Tempo, Zonen, Streifen- und Signalinventare weiterer Kantone und Städte
+
+- Tempo und Zonen: Kanton Zürich, Basel-Stadt, Genf, Uri, Solothurn, Schwyz, Freiburg, Jura sowie Stadtzonen Luzern,
+  St. Gallen und Lausanne. Inventare der Kantonsstrassen sind keine Vollabdeckung; verfügte Zonen sind kein Umsetzungsnachweis;
+  Tag- und Nachtwerte werden nicht vermischt. Nur eindeutige, namensgleiche Linien bis 3 m / 10° werden automatisch verwendet,
+  sonst Vorschlag; eigene Angaben gehen vor. Amtliches Tempo wirkt auch in der Vortrittsvorgabe, belegt aber keine Ortstafel und
+  kein Kreiselfahrtempo.
+- Streifen- und Signalinventare: Genf, Luzern (Kanton und Stadt), Zürich (Kanton und Stadt), Schwyz, Basel-Stadt, St. Gallen und
+  Zug, je als eigene Kartenebene. «Amtliche Signale zuordnen» verlangt die Bestätigung von Knoten/Zufahrt und Betriebszustand;
+  Stop, Kein Vortritt und LSA wirken erst danach in der Rechnung. Signal 4.11 allein ist keine Querungsgeometrie; das Attribut
+  SICHERHEIT (Luzern) ist keine geprüfte Verkehrssicherheit. Amtliche Streifen ohne OSM-Gegenstück erscheinen als blaue
+  F-Kandidaten; erst die Auswahl beginnt eine Prüfung, die Geometrie ist zu prüfen.
+- Module `src/daten/anbieter/gemeinsam/regional*`, Originalproben `testdaten/regional/`. Begrenzte Ausschnitte,
+  Trefferzahlvergleich und Paginierung, strenge LV95-Prüfung; GML über fast-xml-parser (MIT). Rohantwort, Herkunft, Stand und
+  Abrufzeit werden gespeichert (Fall-Version 9) und beim Wiederöffnen neu geladen; bestätigte Werte bleiben erhalten.
+
+### Bundesquellen swissTLM3D, Bauzonen und ASTRA-Unfälle
+
+- Tramgleise und Verkehrsbedeutung der Strassen aus swissTLM3D, ARE-Bauzonen und ASTRA-Unfälle werden im geladenen Ausschnitt
+  gezeigt; sie laden unabhängig vom Gemeinde- und AV-Abruf. Dichte GeoAdmin-Antworten werden vor dem fachlichen Filtern
+  aufgeteilt; unvollständige Antworten bleiben offen. Datenstand aus Ebenenlegende bzw. Objekt-/Exportdatum, Abrufzeit getrennt.
+  Originaldaten werden im Fall gespeichert und beim Lesen neu normalisiert; eigene und bestätigte Angaben bleiben erhalten.
+- Grenzen: Tramgeometrie belegt keinen Haltestellenbereich. Die TLM-Verkehrsbedeutung ist keine Normklasse (999998 ist kein
+  Wert). Bauzonen sind ein Indiz, keine Ortstafel und kein Innerorts-Nachweis. Keine dieser Ableitungen wirkt ohne Bestätigung.
+  ASTRA: getrennte Ebenen für alle Unfälle mit Personenschaden, mit Fussgänger- und mit Velobeteiligung, alle angebotenen Jahre,
+  anonymisierte Lage, ohne Wirkung auf die Regeln.
+- Vorschläge stehen direkt an Strassentyp, Tram, Haltestellenbezug, Innerortslage, Bebauung/Gewerbe und Bedarfsgrund. GWR
+  (Gebäudeklassen 1263/1264/1130, nur bestehende Gebäude) und Basiskarten-POI liefern Hinweise auf Einrichtungen bis 200 m;
+  Volksschule, Kindergarten, Heim bzw. Spital und der Bezug zur Querung müssen bestätigt werden. Hochschulen stecken im GWR-Code
+  1263, darum wird POI «college» nicht als Volksschule vorgeschlagen. Wohnungsattribute werden nicht gespeichert. Fall-Version 10.
+- Module: `bundGeoAdmin.ts`, `bundPoi.ts`, `bundHinweise.ts`, `bundBelege.ts`, `regionalLegende.ts` (gemeinsam, Übernahme per
+  Skript). POI-Dekodierung mit `@mapbox/vector-tile` 3.0.0 und `pbf` 5.1.2 (BSD-3-Clause). Originalantworten und eine MVT-Kachel
+  unter `testdaten/bund/`.
+
+### Örtliche Einrichtungsinventare (Bedarf ausserhalb der Stadt Bern)
+
+- 25 Dienste: Kanton Bern (Volksschulstandorte, Kita-Gutscheinsystem, Spitäler/Kliniken, Altersangebote, Angebote für Menschen
+  mit Behinderung); Stadt Zürich (Volksschulen, Kindergärten, Horte, Sonderschulen, Kitas, Spital-POI, Gesundheitszentren);
+  Winterthur (OGC-API-POI); Genf (Primar-, Sek-I- und Sonderschulen, EMS, Kliniken/Spitäler, Einrichtungen für Menschen mit
+  Behinderung); Freiburg (Primar-/Sek-I-Standorte, Betreuung); Jura (Schulstandorte, kommunale Kinder- und Gesundheits-POI).
+- Regeln: Nur eindeutig bezeichnete Einrichtungen bis 150 m zählen automatisch als Bedarfsgrund. Berufs-, Mittel- und Hochschulen,
+  Tageselternvereinsbüros, reine Tagesangebote/Werkstätten und ambulante Angebote zählen nicht. Unscharfe Schulstufen, Zürcher
+  Spitalabteilungen und aus Namen abgeleitete POI-Typen bleiben Vorschläge. Abbildung: Kita/Vorschulbetreuung → Kindergarten,
+  Hort/Schulkinderangebot → Schule, Heim/Spital → Heim. Ein leeres Inventar erzeugt kein «keines»; Abdeckung und Vollständigkeit
+  sind je Datensatz begrenzt bzw. unbekannt. Stadt- und Kantonsinventare gehen Bundes- und OSM-Hinweisen vor; eigene und
+  bestätigte Angaben bleiben vorrangig.
+- Datenstand aus gelieferten Metadaten bzw. Objektfeldern (Zürich: Objektfeld `datum` und Katalogaktualisierung getrennt), sonst
+  unbekannt. Rohdaten werden im Fall gespeichert (Fall-Version 11) und beim Wiederöffnen neu geladen. SichtweitenCheck und
+  VeloroutenCheck laden diese Dienste nicht.
+- Die Liste «Ohne Daten» enthält keine gebietsfremden, nie angefragten Anbieter. Einrichtungs- und Kartenkontextdaten lösen keine
+  zusätzlichen Sichtrechnungen aus; Tempo- und Signaldaten bleiben gesonderte Recheneingaben. Velosymbole werden über den letzten
+  Meter der Fahrlinie ausgerichtet, nicht über einen doppelten Endpunkt (Regressionstest Route de Bellegarde, OSM 4696050094).
+
+### Zuständigkeit
+
+Gemeinde und Kanton kommen aus swissBOUNDARIES3D, abgefragt für das laufende Jahr und, wenn dafür noch kein gültiger Stand vorliegt,
+einmal für das Vorjahr; das verwendete Jahr wird angezeigt. Am Prüfpunkt gilt die Gemeinde der AV-Fläche (`zustaendigkeitAmOrt` in
+`gemeinsam/gebiet.ts`). Fällt die Gebietsabfrage aus, zählen Gemeinde und Kanton der AV, sichtbar unter «Örtliche Zuständigkeit».
+Rechenwirksame Quellen (Tempo, Zonen, Signale, LSA) richten sich nach dem Prüfpunkt, Kartenkontext nach dem geladenen Ausschnitt.
+In der Stadt Bern bleiben die Berner Dienste massgebend: Die kantonalen Einrichtungsinventare sind dort ausgenommen, auch aus
+gespeicherten Rohdaten, und Bundes- oder Kontextdaten ändern weder Vorbelegung noch Bestätigungspflichten.
+
+### Kartenkontext
+
+Beleuchtung (Stadt Zürich, Staatsstrassen Kanton Zürich, Stadt St. Gallen), taktile Rillen an VBZ-Haltestellen und das Fuss- und
+Velowegnetz der Stadt Zürich (`gemeinsam/e6.ts`). Die Ebenen sind zunächst aus; Bericht und Datenlage führen sie als «nur
+Kartenkontext». Sie wirken weder auf Vorbelegung noch Rechnung. Ein Leuchtenstandort belegt keine Beleuchtung, ein Rillenpunkt keine
+hindernisfreie Querung, ein fehlendes Objekt keine Abwesenheit.
+
+### Ladezustand und Abfragegrenzen
+
+«Kartenebenen» unterscheidet «lädt», «Fehler beim Laden» und «Ohne Daten im Ausschnitt». Alle Bundesabfragen eines Ladevorgangs teilen
+sich ein Budget (`gemeinsam/bundesBudget.ts`): 120 Abrufe, höchstens 3 gleichzeitig, 30 Sekunden; dazu höchstens 85 Teilabfragen je
+Quelle. Eine Überschreitung erscheint als Fehler der Quelle, nie als leerer Bestand. Reine Statusmeldungen lösen keine neue Vorbelegung aus.
+
+### Gemeinsame Datenmodule
+
+`src/daten/anbieter/gemeinsam/` ist die führende Fassung für fgsCheck und SichtweitenCheck. Übernahme aus diesem App-Ordner:
+
+```bash
+node scripts/anbieter_uebernehmen.mjs ../../SichtweitenCheck/SichtweitenCheckWeb   # Pfad zum SichtweitenCheck-App-Ordner; ohne Argument gilt genau dieser
+```
+
+Das Skript schreibt dort `src/daten/anbieter/herkunft.json` mit Basis-Commit und SHA-256 je übernommener Datei;
+`herkunft.test.ts` prüft Datei-Inventar und Prüfsummen. Oberflächen und Regeln bleiben projektspezifisch.
+
 ## Datenschutz
 
 Keine Anmeldung, kein eigener Server; gerechnet wird im Browser. Eingaben bleiben im Browser bzw. in der Fall-Datei, die man
 selbst speichert; an keinen Dienst gehen Eingaben oder Ergebnisse. Im Browser (localStorage) liegt je Übergang mit Eingaben ein
-Eintrag `fgsCheck.fall.<Übergang>` (Eingaben, Bezeichnung, Koordinaten); Übergänge ohne Eingaben werden nicht gespeichert
+Eintrag `fgsCheck.fall.<Übergang>` (Eingaben, Entscheide, Quellenwahl, Bezeichnung, Koordinaten; keine geladenen Quelldaten); Übergänge ohne Eingaben werden nicht gespeichert
 (`fallMerken` in `src/fall.ts`), «Eingaben verwerfen» bzw. das Löschen aller Eingaben entfernt den Eintrag. Alle Einträge
 löscht man über die Website-Daten der Seite im Browser. Die zuletzt gesehene Kartenansicht (Mitte und Zoom) liegt unter
 `fgsCheck.karteAnsicht`; nach einem Neuladen öffnet die Karte dort. Der Browser fragt direkt an (die Dienste sehen technisch die
@@ -628,6 +779,9 @@ IP-Adresse):
 | map.bern.ch (nur Stadt Bern) | Rechteck ±150 m (amtliche Parkfelder, Baumkataster, Haltestellen, Verkehrsdaten) |
 | map.bern.ch, Richtplan Fussverkehr (nur Stadt Bern, nur mit eingeschalteter Ebene, ab Zoomstufe 15) | Rechteck des sichtbaren Ausschnitts mit Rand (LV95), je Layer eine Abfrage (2 Layer) |
 | map.bern.ch, Taktil-visuelle Markierungen (nur Stadt Bern, nur mit eingeschalteter Ebene, ab Zoomstufe 15) | Rechteck des sichtbaren Ausschnitts mit Rand (LV95), je Layer eine Abfrage (2 Layer) |
+| api3.geo.admin.ch, vectortiles.geo.admin.ch (Bund) | Gebiet, BAV, NPVM, swissTLM3D, Bauzonen, Gebäude, ASTRA: Punkt bzw. Rechteck ±200 m; POI-Kacheln des Ausschnitts |
+| data.geo.admin.ch (swisstopo) | nur mit eingeschalteten Höhenkurven: Kacheln von swissALTI3D im sichtbaren Ausschnitt |
+| Kantonale und städtische Dienste (u. a. ogd.stadt-zuerich.ch, data.stadt-zuerich.ch, maps.zh.ch, daten.stadt.sg.ch; je nach Ort) | Rechteck ±200 m bzw. öffentliche Dienstmetadaten; die App nennt Empfänger und Lizenz je Quelle unter «Hilfe» |
 | GoatCounter | Seitenaufruf ohne Cookies: Seitenpfad, Referrer, Bildschirmbreite, Browser und Betriebssystem, Sprache, Land (aus der IP-Adresse, die nicht gespeichert wird); zählt nicht auf localhost |
 
 Beim Planen ohne OSM-Übergang gelten die Ausschnitte um den Ladeort an den gezeichneten Streifen statt um den Übergang.
@@ -702,6 +856,10 @@ wählen und als Custom domain `fgscheck.ch` eintragen. Der Referenzvergleich (`s
   Begegnungszone, Einmündung), «Querung» statt «Streifen» für Querungen ohne Fussgängerstreifen; Annäherungsbereich von Hand;
   Richtlinie Hindernisfreie Architektur im Bedarfsmodul; Quellenregister und «Datenlage hier»; Regelprüfung nach Quelle mit
   Blöcken 4 und 5 (Seiten der Normen geprüft, Augenhöhe 1,0 m nach VSS 40 241); Knotensicht mit dem Kern des SichtweitenCheck 0.7.0.
+- v0.8 (04.11.2026): schweizweite und regionale Quellen (Gebiet, BAV, NPVM, swissTLM3D, Bauzonen, ASTRA, Tempo, Zonen, Signale,
+  Einrichtungsinventare, Kartenkontext), Quellenwahl am Feld, Zuständigkeit nach Prüfpunkt, Höhenkurven und Geländeschnitte, kompakte
+  Browser-Erinnerung; «Signalisiertes Tempo» gilt nur für die geprüfte Strasse, Querstrassen behalten ihr Tempo; Knotensicht mit dem Kern
+  des SichtweitenCheck 0.8.0, dort wirkt V_sig in Bern auch auf die Regelungsannahme.
 
 ## Lizenz
 

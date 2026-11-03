@@ -1,0 +1,172 @@
+{
+  "roh": {
+    "results": [
+      {
+        "type": "Feature",
+        "featureId": 680825,
+        "bbox": [
+          2600087.2,
+          1199600.5,
+          2600211.5,
+          1199643
+        ],
+        "layerBodId": "ch.swisstopo.swisstlm3d-eisenbahnnetz",
+        "layerName": "Eisenbahn swissTLM3D",
+        "id": 680825,
+        "geometry": {
+          "type": "MultiLineString",
+          "coordinates": [
+            [
+              [
+                2600087.2,
+                1199600.5
+              ],
+              [
+                2600133.8,
+                1199616.6
+              ],
+              [
+                2600183.3,
+                1199633.8
+              ],
+              [
+                2600211.5,
+                1199643
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "objectid": 680825,
+          "objektart": 2,
+          "verkehrsmittel": 200,
+          "standseilbahn": 1,
+          "zahnradbahn": 1,
+          "ausser_betrieb": 1,
+          "label": 2
+        }
+      },
+      {
+        "type": "Feature",
+        "featureId": 680826,
+        "bbox": [
+          2600080.5,
+          1199595.2,
+          2600178.3,
+          1199627.8
+        ],
+        "layerBodId": "ch.swisstopo.swisstlm3d-eisenbahnnetz",
+        "layerName": "Eisenbahn swissTLM3D",
+        "id": 680826,
+        "geometry": {
+          "type": "MultiLineString",
+          "coordinates": [
+            [
+              [
+                2600080.5,
+                1199595.2
+              ],
+              [
+                2600092,
+                1199598.3
+              ],
+              [
+                2600105.7,
+                1199602.6
+              ],
+              [
+                2600134.5,
+                1199612.6
+              ],
+              [
+                2600178.3,
+                1199627.8
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "objectid": 680826,
+          "objektart": 2,
+          "verkehrsmittel": 200,
+          "standseilbahn": 1,
+          "zahnradbahn": 1,
+          "ausser_betrieb": 1,
+          "label": 2
+        }
+      },
+      {
+        "type": "Feature",
+        "featureId": 680827,
+        "bbox": [
+          2600087.2,
+          1199600.5,
+          2600211.5,
+          1199643
+        ],
+        "layerBodId": "ch.swisstopo.swisstlm3d-eisenbahnnetz",
+        "layerName": "Eisenbahn swissTLM3D",
+        "id": 680827,
+        "geometry": {
+          "type": "MultiLineString",
+          "coordinates": [
+            [
+              [
+                2600087.2,
+                1199600.5
+              ],
+              [
+                2600093.9,
+                1199603.1
+              ],
+              [
+                2600099.2,
+                1199605.9
+              ],
+              [
+                2600103.3,
+                1199608.7
+              ],
+              [
+                2600112.7,
+                1199616.3
+              ],
+              [
+                2600117.6,
+                1199619.2
+              ],
+              [
+                2600145.2,
+                1199629.2
+              ],
+              [
+                2600157,
+                1199632.4
+              ],
+              [
+                2600195.9,
+                1199638.9
+              ],
+              [
+                2600211.5,
+                1199643
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "objectid": 680827,
+          "objektart": 2,
+          "verkehrsmittel": 200,
+          "standseilbahn": 1,
+          "zahnradbahn": 1,
+          "ausser_betrieb": 1,
+          "label": 2
+        }
+      }
+    ]
+  },
+  "meta": {
+    "legende": "\n<div class=\"legend-container\">\n<div class=\"legend-header\">\n  <p class='bod-title'><span>swissTLM3D Eisenbahn</span> (Bundesamt für Landestopografie swisstopo)</p>\n  <p class='legend-abstract'>swissTLM3D Eisenbahn enthält die Gleisachsen der Normal- und Schmalspurbahnen sowie der Kleinbahnen. Bei mehrspurigen Anlagen oder in Bahnhofszonen sind immer sämtliche Gleise erfasst. swissTLM3D Eisenbahn ist Bestandteil des Datensatzes swissTLM3D. Mit seiner hohen Genauigkeit und dem Einbezug der dritten Dimension ist swissTLM3D der umfassendste 3D-Vektordatensatz der Schweiz.</p>\n</div>\n<div class=\"legend-footer\">\n  <br>\n  <span>Legende</span><br>\n  <a href=\"//api3.geo.admin.ch/static/images/legends/ch.swisstopo.swisstlm3d-eisenbahnnetz_de_big.pdf\" target=\"_blank\"><img src=\"//api3.geo.admin.ch/static/images/legends/ch.swisstopo.swisstlm3d-eisenbahnnetz_de.png\"></img></a><br>\n  <span>Informationen</span><br>\n  <table>\n    <tr><td>ID Geobasisdatensatz</td> <td>38.1</td></tr>\n    <tr><td>Gültiger Massstabsbereich</td> <td></td></tr>\n    <tr><td>Metadaten</td>\n      <td><a target=\"_blank\" href=\"https://www.geocat.ch/geonetwork/srv/ger/catalog.search#/metadata/b93d607a-9024-41c6-81c3-cbd311d00a44\">\n      Link zu geocat.ch</a></td>\n    </tr>\n    <tr>\n      <td>Detailbeschreibung</td>\n      <td><a href=\"https://www.swisstopo.admin.ch/de/landschaftsmodell-swisstlm3d\" target=\"new\">Link zur Detailbeschreibung</a></td>\n    </tr>\n    <tr>\n      <td>Datenbezug</td>\n      <td><a href=\"https://www.swisstopo.admin.ch/de/landschaftsmodell-swisstlm3d\" target=\"new\">Link für Datenbezug</a></td>\n    </tr>\n    <tr>\n      <td>Thematisches Geoportal</td>\n      <td><a href=\"https://map.geo.admin.ch/?topic=swisstopo&amp;lang=de&amp;bgLayer=voidLayer&amp;catalogNodes=1436,1396,1397&amp;layers=ch.swisstopo.swisstlm3d-karte-farbe&amp;X=192000.00&amp;Y=622250.00&amp;zoom=2\" target=\"new\">Link zum Fachportal</a></td>\n    </tr>\n    <tr>\n      <td>WMS Dienst</td>\n      <td><a href=\"https://wms.geo.admin.ch/?REQUEST=GetCapabilities&amp;SERVICE=WMS&amp;VERSION=1.3.0\" target=\"new\">Link zum WMS</a></td>\n    </tr>\n    <tr>\n      <td>Datenstand</td>\n      <td>24.02.2026</td>\n    </tr>\n  </table>\n</div>\n</div>\n"
+  }
+}

@@ -1,4 +1,4 @@
-// ── Mittelinsel (Standard): Schutzinsel mit Rollstuhlfurt als Standardelement der Flächen (Plan) (Nutzerwunsch 20.10.2026) ──
+// ── Mittelinsel (Standard): Schutzinsel mit Rollstuhlfurt als Standardelement der Flächen (Plan) ──
 //
 // Vorlage: Masterplan Fussverkehr Stadt Bern, Standards, E1 «Schutzinsel» (Abbildung «Neues Prinzip: Mittelinsel mit
 // Rollstuhlfurt»). Gelesene Masse: Fussgängerstreifen (Breite entlang der Fahrbahn) mindestens 4,00 m; Insel zwischen den
@@ -22,7 +22,7 @@
 // - Signalmast: Punkt im Kopf der Furt-Seite (0,45 · K vor der Streifenkante, auf der Achse), nur Hinweis auf Karte und im
 //   Bericht, kein Hindernis in der Rechnung.
 //
-// Teilung (Entscheid 20.10.2026): die Rechnung teilt einen Streifen nur entlang seiner Achse. Liegt die Mitte der Insel auf der
+// Teilung: die Rechnung teilt einen Streifen nur entlang seiner Achse. Liegt die Mitte der Insel auf der
 // Achse und ist die Furt höchstens B/2 − FURT_ACHSE_RAND_M breit, quert die Achse immer die erhöhte Fläche, nie die Furt: aus OSM +
 // AV entstehen genau zwei Teilstreifen (die Lücke der Furt neben der Insel liegt nicht auf der Achse und ergibt keinen dritten
 // Teil). Die Furt gilt damit als Teil der Querung: keine Bordkante (die Ränder kommen aus der Inselkante auf der Achse), der
@@ -103,7 +103,7 @@ export function inselMasse(tiefe: number, breite: number, furt: number, kopf: nu
   return { tiefe, breite, furt, kopf: kopf ?? tiefe / 2, seite }
 }
 
-/** Harte Untergrenze der Inseltiefe [m] (Regel F2 des Bedarfsmoduls, VSS 40 241 Z. 24): darunter keine Insel (Korrektur E1) */
+/** Harte Untergrenze der Inseltiefe [m] (Regel F2 des Bedarfsmoduls, VSS 40 241 Z. 24): darunter keine Insel */
 export const INSEL_TIEFE_MIN_M = KATALOG.F2.werte.min
 
 /** Unzulässige Masse (die Insel wird nicht gebildet) -> Grund, sonst null */
@@ -252,9 +252,7 @@ export function streifenTeilen(p0: P, p1: P, lage: InselLage, x: InselMasse): { 
 /**
  * Teil (1: Seite von Ende A, 2: Seite von Ende B), an den die Eingaben einer Zufahrt des geteilten Streifens gehen: dort, wo ihr
  * erster Sichtpunkt liegt (am Streifenrand auf der Fahrlinie), entlang der Achse vor bzw. hinter der Inselmitte; ohne Sichtpunkt der
- * erste Punkt der Fahrlinie; ohne passende Zufahrt Teil 1. Nicht der erste Punkt der Fahrlinie zuerst (Prüfbefund 20.10.2026,
- * Könizstrasse): bei Streifen von Hand liegt er fast auf der Streifenmitte, die Eingabe landete beim falschen Teil und verwaiste
- */
+ * erste Punkt der Fahrlinie; ohne passende Zufahrt Teil 1. Nicht der erste Punkt der Fahrlinie zuerst (* Könizstrasse): bei Streifen von Hand liegt er fast auf der Streifenmitte, die Eingabe landete beim falschen Teil und verwaiste */
 export function zufahrtTeil(zufahrten: { kennung: string; sichtpunkte: P[]; spur: P[] }[], lage: InselLage): (kennung: string) => 1 | 2 {
   return kennung => {
     const z = zufahrten.find(x => x.kennung === kennung)
@@ -301,7 +299,7 @@ export function inselPruefen(lage: InselLage, x: InselMasse, av: AvFlaeche[], se
   const sh = sehne(lage.m, lage.achse)
   const h = g.tiefeAchse / 2
   const restM: [number, number] | null = sh ? [(sh[1] - h) * sin, (sh[0] - h) * sin] : null
-  // Durchfahrt neben der Insel nach F3 bzw. F3-B (Werte aus dem Katalog des Bedarfsmoduls; Korrektur E1, statt «unter 2,0 m»)
+  // Durchfahrt neben der Insel nach F3 bzw. F3-B (Werte aus dem Katalog des Bedarfsmoduls, statt «unter 2, 0 m»)
   if (restM) hinweise.push(...durchfahrtHinweise(restM.map(r => Math.max(0, r)), opt))
   return { furtFahrbahn, ausserhalbM2, restM, hinweise }
 }
@@ -333,7 +331,7 @@ export function furtQuert(plan: FlaechePlan[] | undefined, p0: P, p1: P): { grup
   return null
 }
 
-// ---------------------------------------------------------------- Verschieben per Drag-and-drop (Nutzerwunsch 20.10.2026)
+// ---------------------------------------------------------------- Verschieben per Drag-and-drop
 // Eine eingefügte Mittelinsel (alle Teile einer Gruppe in der Standardform, standardAngepasst falsch) lässt sich auf der Karte am
 // Griff in der Inselmitte ziehen. Standard: die Mitte gleitet entlang der Achse (Projektion auf die Gerade durch die bisherige Mitte
 // in Richtung standard.achse); frei (Schalter «frei verschieben» bzw. Umschalttaste während des Ziehens): die Mitte folgt dem
@@ -362,7 +360,7 @@ export interface InselTeilstreifen { a: { id: string; ende: 'p0' | 'p1' } | null
 export function teilstreifenAnInsel(streifen: StreifenHand[], st: PlanStandard): InselTeilstreifen {
   const g = standardGeometrie(st)
   const ziel = [add(g.kanten[0], st.achse, -TEIL_ABSTAND_M), add(g.kanten[1], st.achse, TEIL_ABSTAND_M)]
-  // Korrektur 20.10.2026 (Prüfbefund): nach einem freien Zug liegt die Inselmitte seitlich neben der Achse der Teilstreifen. Darum
+  // Nach einem freien Zug liegt die Inselmitte seitlich neben der Achse der Teilstreifen. Darum
   // zählt die Lage entlang der Achse: Zielpunkt auf die eigene Achse des Teilstreifens projiziert (ENDE_TOL_M), die Inselmitte
   // höchstens eine halbe Streifenbreite seitlich der Achse (sonst ein anderer, paralleler Streifen); bei mehreren der nächste
   const suche = (k: 0 | 1) => {

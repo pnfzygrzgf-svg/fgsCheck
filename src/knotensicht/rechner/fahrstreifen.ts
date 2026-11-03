@@ -7,7 +7,7 @@
 // fahrstreifen_tags, busstreifen_rechts, bus_ueberspringen, fahrstreifen_osm, fahrstreifen_arm, fahrstreifen_lage,
 // fahrstreifen_uebernehmen, fs_hinweis, osm_breite, lage_osm, fahrbahn_osm, wege_abschnitte, weg_bei, hoch_bei,
 // querschnitt_am_knoten wie in Python.
-// Lage je Querschnitt (Entscheid 31.10.2026, nicht in Python): randProfil, fahrstreifenLagen, profilBei.
+// Lage je Querschnitt (nicht in Python): randProfil, fahrstreifenLagen, profilBei.
 
 import { type P, add, dist, dot, einheit, neg, sub, median, drehung } from '../geo'
 import { type OsmNetz, type Gequert, type Suche, type Knotenbereich, type ArmInfo, einbahnTag, RASTER, FAST_GERADE_GRAD } from './netz'
@@ -393,7 +393,7 @@ export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Fahrba
   return out
 }
 
-// ---------------------------------------------------------------- Lage je Querschnitt (Entscheid 31.10.2026)
+// ---------------------------------------------------------------- Lage je Querschnitt
 // Statt einer festen seitlichen Verschiebung der OSM-Linie (Median der Sehnen) folgt die Achse der AV-Fahrbahn: je Querschnittstelle
 // die Ränder, Ausreisser (Breite stark abweichend: Einmündungstrichter, Parkbucht, Kreuzungsfläche, Lücke im Polygon) verworfen, die
 // Ränder über benachbarte Stellen geglättet; zwischen den Stellen linear, vor der ersten und nach der letzten Stelle konstant.
@@ -527,7 +527,7 @@ export function fahrstreifenLagen(rp: RandProfil, fs: Fs, art: string): number[]
 export const MUENDUNG_LAGE_M_PRO_M = PROFIL_SPRUNG_M_PRO_M
 
 /**
- * Lage der Zufahrtsachse in der Mündung (Auftrag 31.10.2026): zwischen dem Knoten und der ersten stetigen Stelle sStrecke folgt die
+ * Lage der Zufahrtsachse in der Mündung: zwischen dem Knoten und der ersten stetigen Stelle sStrecke folgt die
  * Achse dem rechten AV-Rand mit dem Abstand, den sie an sStrecke zu ihm hat (statt einer festen Lage zur OSM-Linie); je Meter ab sStrecke
  * zum Knoten hin, Stellen ohne rechten Rand (rechtsBei null) linear überbrückt, Änderung höchstens MUENDUNG_LAGE_M_PRO_M je Meter
  * (die Eckausrundung zieht die Achse sonst in den Arm daneben). prof.s wie rp.s; ab sStrecke bleibt prof.

@@ -8,13 +8,13 @@
 // Wirkung der Flächen (E2a, Entscheide vom 16.10.2026):
 // - voll (Gebäude, Parkfeld Auto, Längsparkierung, Hecke/Mauer/übriges «sichtbehindernd», Zaun dicht): verdeckt wie oben.
 // - Palisade (Bäume, Ziffer 11 und Abb. 3): die Zielpunkte werden fein (FEIN_M) geprüft; die vorhandene Sichtweite endet erst
-//   vor einer zusammenhängend verdeckten Strecke, die innerhalb von A mindestens PALISADE_MIN_M misst (eine Fahrzeuglänge,
-//   Entscheid 2; Strecken jenseits von A und der Teil einer Strecke jenseits von A zählen nicht), sonst nur Hinweis mit dem
+//   vor einer zusammenhängend verdeckten Strecke, die innerhalb von A mindestens PALISADE_MIN_M misst (eine Fahrzeuglänge;
+//   Strecken jenseits von A und der Teil einer Strecke jenseits von A zählen nicht), sonst nur Hinweis mit dem
 //   verdeckten Anteil bis A und der längsten verdeckten Strecke bis A. Länge einer Strecke: Anzahl verdeckter Zielpunkte ×
 //   FEIN_M (±FEIN_M); Lücken unter FEIN_M zwischen zwei Schatten werden nicht gesehen (Strecke eher zu lang).
 // Abtastung: Status und vorhandene Sichtweite der vollen Verdecker je SCHRITT_M (wie E0), die Liste je FEIN_M; eine sehr
 // schmale Fläche (Schatten unter 1 m auf der Achse) kann darum in der Liste stehen, ohne die Sichtweite zu kürzen.
-// - Hinweis (Zweirad-Parkfelder, Entscheid 1; Zaun sichtdurchlässig): keine Wirkung, nur in der Liste.
+// - Hinweis (Zweirad-Parkfelder; Zaun sichtdurchlässig): keine Wirkung, nur in der Liste.
 // Je Richtung die Liste aller Flächen, die eine Sichtlinie bis A schneiden (erster verdeckter Meter, verdeckte Strecke; fein).
 // Sichtdreieck für die Anzeige: Polygon aus D und den Achsenpunkten von K bis A.
 
@@ -28,7 +28,7 @@ export const SCHRITT_M = 1.0
 export const GENAU_M = 0.001
 /** feine Abtastung für Palisade und Liste der Verdecker */
 export const FEIN_M = 0.1
-/** Palisade: zusammenhängend verdeckte Strecke, ab der Bäume als Verdeckung zählen (eine Fahrzeuglänge, Entscheid 2) */
+/** Palisade: zusammenhängend verdeckte Strecke, ab der Bäume als Verdeckung zählen (eine Fahrzeuglänge) */
 export const PALISADE_MIN_M = 5.0
 
 export type Wirkung = 'voll' | 'palisade' | 'hinweis'

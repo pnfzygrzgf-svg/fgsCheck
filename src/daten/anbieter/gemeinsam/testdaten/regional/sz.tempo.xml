@@ -1,0 +1,34 @@
+<?xml version='1.0' encoding="UTF-8" ?>
+<wfs:FeatureCollection
+   xmlns:ms="http://mapserver.gis.umn.edu/mapserver"
+   xmlns:gml="http://www.opengis.net/gml/3.2"
+   xmlns:wfs="http://www.opengis.net/wfs/2.0"
+   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+   xsi:schemaLocation="http://mapserver.gis.umn.edu/mapserver https://map.geo.sz.ch/mapserv_proxy?ogcserver=source%20for%20image%2Fpng&amp;SERVICE=WFS&amp;VERSION=2.0.0&amp;REQUEST=DescribeFeatureType&amp;TYPENAME=ms:ch.sz.a115a.geschwindigkeitsbereich&amp;OUTPUTFORMAT=application%2Fgml%2Bxml%3B%20version%3D3.2 http://www.opengis.net/wfs/2.0 http://schemas.opengis.net/wfs/2.0/wfs.xsd http://www.opengis.net/gml/3.2 http://schemas.opengis.net/gml/3.2.1/gml.xsd"
+   timeStamp="2026-11-02T10:17:17" numberMatched="unknown" numberReturned="1"
+   next="https://map.geo.sz.ch/mapserv_proxy?ogcserver=source%20for%20image%2Fpng&amp;SERVICE=WFS&amp;VERSION=2.0.0&amp;REQUEST=GetFeature&amp;TYPENAMES=ms%3Ach.sz.a115a.geschwindigkeitsbereich&amp;SRSNAME=EPSG%3A2056&amp;COUNT=1&amp;role_ids=58&amp;user_id=-1&amp;STARTINDEX=1">
+      <wfs:boundedBy>
+      	<gml:Envelope srsName="urn:ogc:def:crs:EPSG::2056">
+      		<gml:lowerCorner>2683347.284000 1212070.063000</gml:lowerCorner>
+      		<gml:upperCorner>2683370.481000 1212129.709000</gml:upperCorner>
+      	</gml:Envelope>
+      </wfs:boundedBy>
+    <wfs:member>
+      <ms:ch.sz.a115a.geschwindigkeitsbereich gml:id="ch.sz.a115a.geschwindigkeitsbereich.1">
+        <gml:boundedBy>
+        	<gml:Envelope srsName="urn:ogc:def:crs:EPSG::2056">
+        		<gml:lowerCorner>2683347.284000 1212070.063000</gml:lowerCorner>
+        		<gml:upperCorner>2683370.481000 1212129.709000</gml:upperCorner>
+        	</gml:Envelope>
+        </gml:boundedBy>
+        <ms:geom>
+          <gml:LineString gml:id="ch.sz.a115a.geschwindigkeitsbereich.1.1" srsName="urn:ogc:def:crs:EPSG::2056">
+            <gml:posList srsDimension="2">2683347.543000 1212129.709000 2683347.284000 1212124.491000 2683353.145000 1212110.703000 2683359.651000 1212090.024000 2683362.420000 1212079.717000 2683364.804000 1212073.597000 2683370.481000 1212070.063000 </gml:posList>
+          </gml:LineString>
+        </ms:geom>
+        <ms:kennung>1001</ms:kennung>
+        <ms:geschwindigkeit_ui>50</ms:geschwindigkeit_ui>
+      </ms:ch.sz.a115a.geschwindigkeitsbereich>
+    </wfs:member>
+</wfs:FeatureCollection>
+

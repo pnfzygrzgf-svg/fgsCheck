@@ -183,10 +183,9 @@ export function hindernisRing(h: Hindernis): P[] {
 
 /**
  * Wirkung in der Sichtrechnung (Entscheide vom 16.10.2026): Parkfeld Auto und Längsparkierung voll (Parkfeld gilt als belegt);
- * Parkfeld Velo bzw. Motorrad nur Hinweis (Entscheid 1); Baum als Palisade (Entscheid 2, rechner/sicht.ts); Hecke, Mauer und
- * übriges voll, wenn «sichtbehindernd» (Entscheid 3), sonst keine; Zaun dicht voll, sichtdurchlässig nur Hinweis.
- * null = zählt nicht (auch nicht als Hinweis).
- */
+ * Parkfeld Velo bzw. Motorrad nur Hinweis; Baum als Palisade (rechner/sicht.ts); Hecke, Mauer und
+ * übriges voll, wenn «sichtbehindernd», sonst keine; Zaun dicht voll, sichtdurchlässig nur Hinweis.
+ * null = zählt nicht (auch nicht als Hinweis). */
 export function wirkung(h: Hindernis): 'voll' | 'palisade' | 'hinweis' | null {
   switch (h.art) {
     case 'parkfeld': return h.klasse === 'auto' ? 'voll' : 'hinweis'

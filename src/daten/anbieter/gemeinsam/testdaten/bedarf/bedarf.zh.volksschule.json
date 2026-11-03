@@ -1,0 +1,164 @@
+{
+  "mitte": [
+    2685183.4,
+    1251016.296
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "bbox": [
+      8.564485,
+      47.40263,
+      8.56986,
+      47.406279
+    ],
+    "crs": {
+      "properties": {
+        "name": "urn:ogc:def:crs:EPSG::2056"
+      },
+      "type": "name"
+    },
+    "features": [
+      {
+        "geometry": {
+          "coordinates": [
+            2685304.435,
+            1251075.515
+          ],
+          "type": "Point"
+        },
+        "id": "poi_volksschule_view.104",
+        "properties": {
+          "adr_inter": null,
+          "adresse": "Friedrichstrasse 21",
+          "adrzus_int": null,
+          "behindertenparkplatz": null,
+          "bemerkung": null,
+          "ccmail": null,
+          "da": "Schulamt",
+          "datum": "202610051142",
+          "datum_cms": null,
+          "dep": "Schul- und Sportdepartement (SSD)",
+          "editor": "ssdbn7qj",
+          "einheit": "Ahorn - Friedrich",
+          "erforderlichedokumente": null,
+          "fax": "+41 44 413 09 01",
+          "geometrie_gdo": null,
+          "hausnummer": "21",
+          "hindernisfreiheit": null,
+          "infrastruktur": null,
+          "isbetriebsferien_gebaeude": null,
+          "isbetriebsferien_schalter": null,
+          "kategorie": "Volksschule",
+          "mail": null,
+          "name": "Friedrichstrasse",
+          "namenzus": null,
+          "objectid": 104,
+          "oeffnungszeiten_gebaeude_di": null,
+          "oeffnungszeiten_gebaeude_do": null,
+          "oeffnungszeiten_gebaeude_fr": null,
+          "oeffnungszeiten_gebaeude_mi": null,
+          "oeffnungszeiten_gebaeude_mo": null,
+          "oeffnungszeiten_gebaeude_sa": null,
+          "oeffnungszeiten_gebaeude_so": null,
+          "oeffnungszeiten_schalter_di": null,
+          "oeffnungszeiten_schalter_do": null,
+          "oeffnungszeiten_schalter_fr": null,
+          "oeffnungszeiten_schalter_mi": null,
+          "oeffnungszeiten_schalter_mo": null,
+          "oeffnungszeiten_schalter_sa": null,
+          "oeffnungszeiten_schalter_so": null,
+          "ort": "Zürich",
+          "plz": "8051",
+          "poi_id": "vo230",
+          "postadresse": null,
+          "publish_internet": "1",
+          "schulkreis": "Schwamendingen",
+          "strasse": "Friedrichstrasse",
+          "suchen": "Volksschulen, Schule, Schulen, Lernen, Schulhaus",
+          "tel": "+41 44 413 09 00",
+          "tel2": null,
+          "www": "https://www.stadt-zuerich.ch/schulen/de/friedrichstrasse.html",
+          "zahlungsmittel_internet": null,
+          "zahlungsmittel_schalter": null,
+          "zahlungsmittel_telefon": null,
+          "zvv_label": "Zürich, Tulpenstrasse",
+          "zvv_link": "https://www.zvv.ch/zvv/de/fahrplan/fp.html?tolat=47.38455740408523&tolon=8.539273849160114&toname=Zürich%2C+Friedrichstrasse+21"
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            2685183.4,
+            1251016.296
+          ],
+          "type": "Point"
+        },
+        "id": "poi_volksschule_view.1",
+        "properties": {
+          "adr_inter": null,
+          "adresse": "Ahornstrasse 12",
+          "adrzus_int": null,
+          "behindertenparkplatz": null,
+          "bemerkung": null,
+          "ccmail": null,
+          "da": "Schulamt",
+          "datum": "202605131056",
+          "datum_cms": null,
+          "dep": "Schul- und Sportdepartement (SSD)",
+          "editor": "ssdbn7qj",
+          "einheit": "Ahorn - Friedrich",
+          "erforderlichedokumente": null,
+          "fax": null,
+          "geometrie_gdo": null,
+          "hausnummer": "12",
+          "hindernisfreiheit": null,
+          "infrastruktur": null,
+          "isbetriebsferien_gebaeude": null,
+          "isbetriebsferien_schalter": null,
+          "kategorie": "Volksschule",
+          "mail": null,
+          "name": "Ahorn",
+          "namenzus": null,
+          "objectid": 1,
+          "oeffnungszeiten_gebaeude_di": null,
+          "oeffnungszeiten_gebaeude_do": null,
+          "oeffnungszeiten_gebaeude_fr": null,
+          "oeffnungszeiten_gebaeude_mi": null,
+          "oeffnungszeiten_gebaeude_mo": null,
+          "oeffnungszeiten_gebaeude_sa": null,
+          "oeffnungszeiten_gebaeude_so": null,
+          "oeffnungszeiten_schalter_di": null,
+          "oeffnungszeiten_schalter_do": null,
+          "oeffnungszeiten_schalter_fr": null,
+          "oeffnungszeiten_schalter_mi": null,
+          "oeffnungszeiten_schalter_mo": null,
+          "oeffnungszeiten_schalter_sa": null,
+          "oeffnungszeiten_schalter_so": null,
+          "ort": "Zürich",
+          "plz": "8051",
+          "poi_id": "vo203",
+          "postadresse": null,
+          "publish_internet": "1",
+          "schulkreis": "Schwamendingen",
+          "strasse": "Ahornstrasse",
+          "suchen": "Volksschulen, Schule, Schulen, Lernen, Schulhaus",
+          "tel": "+41 44 413 30 50",
+          "tel2": null,
+          "www": "https://www.stadt-zuerich.ch/schulen/de/ahorn.html",
+          "zahlungsmittel_internet": null,
+          "zahlungsmittel_schalter": null,
+          "zahlungsmittel_telefon": null,
+          "zvv_label": "Zürich, Friedrichstrasse",
+          "zvv_link": "https://www.zvv.ch/zvv/de/fahrplan/fp.html?tolat=47.38455740408523&tolon=8.539273849160114&toname=Zürich%2C+Ahornstrasse+12"
+        },
+        "type": "Feature"
+      }
+    ]
+  },
+  "meta": {
+    "result": {
+      "dateLastUpdated": "02.11.2026"
+    }
+  }
+}

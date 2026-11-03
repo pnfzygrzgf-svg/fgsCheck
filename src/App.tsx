@@ -1,3 +1,21 @@
+import { regionaleQuellenAngabe, regionaleQuelleMitStand } from './regionaleQuellenTexte'
+import { beginneBundesAbrufe } from './daten/anbieter/gemeinsam/bundesBudget'
+import { quellenStaende } from './quellenStaende'
+import { zustaendigkeitAmOrt, istZuerichAmOrt, gemeindeText } from './daten/anbieter/gemeinsam/gebiet'
+import { RechenWorker } from './RechenWorker'
+import { useHoehenkurvenQuelle } from './hoehenkurven/stand'
+import { SichtfelderWahl, SichtTaste, fgsSichtId } from './Sichtfelder'
+import { ZufahrtTempo } from './ZufahrtTempo'
+import { amtlicheSignalZiele } from './amtlicheSignalZiele'
+import { amtlicheKandidaten, amtlicherText, type AmtlicherUebergang } from './daten/amtlicheUebergaenge'
+import { AmtlicheSignale } from './AmtlicheSignale'
+import { useRegionalQuellen } from './regionalQuellen'
+import { useZuerichQuellen } from './zuerichQuellen'
+import { ZH_QUELLE, zhStandText } from './daten/anbieter/gemeinsam/zuerich'
+import { zhStrassen } from './daten/anbieter/gemeinsam/zuerichZuordnung'
+import { useNpvmQuelle } from './npvmQuelle'
+import { NPVM_QUELLENANGABE, npvmStandText } from './daten/anbieter/npvm'
+import { quellenSortiert, quellenThema } from './daten/anbieter/gemeinsam/sortierung'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, ERKENNUNG_UNGEPRUEFT, ERKENNUNG_BEWUCHS, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
@@ -14,14 +32,17 @@ import { dateienImAusschnitt, ladeLuftbildFgs, kandidatenAnzeigen, herkunftAus, 
 import { AvVorschau } from './avVorschau'
 import { baumQuelleFuer, type BaumQuelle, type KatasterBaum } from './daten/baumkataster'
 import { parkQuelleFuer, istParkId, type ParkQuelle, type KatasterFeld } from './daten/parkkataster'
-import { bernZustaendig, bernErgebnis, GEODATEN_BERN, GEOPORTAL_BERN, type BernLaden } from './daten/geoportal'
+import { bernZustaendig, bernErgebnis, geoCacheLeeren, GEODATEN_BERN, GEOPORTAL_BERN, type BernLaden } from './daten/geoportal'
 import { BERN_C_KEYS, BERN_DIENSTE_C, bernDienstName, bernDienstBericht, type BernDienstKey, type BernDatenC, type BernDienst } from './daten/bernDienste'
 import { schulenStand } from './daten/schulen'
-import { ladeHaltestellenBern, haltestellenStand, type BernHalte, type Bereich } from './daten/haltestellen'
-import type { VsigLinie } from './daten/vsig'
+import { ladeHaltestellenBern, haltestellenMitBav, type BernHalte, type Bereich } from './daten/haltestellen'
+import { useAmtlicheOrtQuellen } from './amtlicheOrtQuellen'
+import { QuellenMetadaten } from './daten/anbieter/gemeinsam/metadaten'
+import { quellenQualitaetText, type QuellenQualitaet } from './daten/anbieter/gemeinsam/qualitaet'
+import { BAV_QUELLENANGABE, bavDatenstandText } from './daten/anbieter/gemeinsam/bav'
 import { ladeVerkehrsdatenBern, type VdLinie } from './daten/verkehrsdaten'
 import { datenlage, gemeindeAmOrt, quelle as registerQuelle, type Datenlage } from './daten/quellenregister'
-import { DatenlageZeile, QUELLE_JE_SCHLUESSEL, genutzteQuellen, quelleInfo, zustandJeQuelle } from './Datenlage'
+import { DatenlageZeile, QUELLE_JE_SCHLUESSEL, genutzteQuellen, quelleInfo, zustandJeQuelle, qualitaetJeQuelle } from './Datenlage'
 import type { GeoVorbelegung } from './bedarf/vorbelegung'
 import { lv95, wgs, dist, sub, add, dot, links, einheit as einheitP, imPolygon, type P } from './geo'
 import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, aufnehmen, vereinigen, vereinigenNamen } from './ausschnitt'
@@ -32,15 +53,16 @@ import { KATASTER_PARK_M } from './rechner/vorschlaege'
 import { abzugTeile } from './rechner/fahrstreifen'
 import { type Hindernis, BAUM_STAMM_M, LAENGS_BREITE_M } from './rechner/hindernisse'
 import { linieKreis, RADIUS_HAND_M } from './rechner/spurhand'
-import { ART, ENTFALLEN_ERKLAERUNG, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, tempoHerkunft, f1, f2, mText, streifenStatus, TUE_OPTION,
-  TUE_NUR_EINMUENDUNG, erkennungText, ERKENNUNG_TITEL } from './texte'
+import { ART, ENTFALLEN_ERKLAERUNG, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, f1, f2, mText, streifenStatus, TUE_OPTION,
+  TUE_NUR_EINMUENDUNG, erkennungText, erkennungEmpfehlungText, ERKENNUNG_TITEL } from './texte'
 import { KnotensichtBlock } from './tue/KnotensichtBlock'
 import { tueBreiteHand } from './tue/texte'
 import type { Knotensicht } from './tue/knotensicht'
 import { ladeNeigung } from './knotensicht/daten/hoehen'
 import { hoehenNichtVerfuegbar } from './tue/knotensicht'
 import { kurveProfilLinie, kurveProfilSchluessel, strassenKurve } from './bedarf/kurvenregel'
-import { ebenenAusGeo, type ProfilAnzeige } from './quellenEbenen'
+import { ebenenBeschriften, ebenenAusGeo, type ProfilAnzeige } from './quellenEbenen'
+import { gelaendeProfile } from './gelaendeKarte'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { veloSoll } from './veloSicht'
 import { erkennungAnzeige, gelaendePruefen, gelaendeSchluessel, gelaendeText, type GelaendeStand } from './erkennungGelaende'
@@ -100,12 +122,12 @@ import { OsmNetz, fahrbahnRichtung } from './rechner/netz'
 import { fangen, fangRadiusM, FANG_PX, fixpunktVorschlaege, fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT, VORSCHLAG_M,
   type FixVorschlag } from './fixpunkt'
 
-interface QuellenStand { name: string; objekte?: string; ms?: number; bytes?: number; server?: string; fehler?: string }
+interface QuellenStand extends QuellenQualitaet { kantone?: string[]; zeit?: string; name: string; objekte?: string; ms?: number; bytes?: number; server?: string; fehler?: string }
 /** Geoportal Stadt Bern für die Vorbelegung des Bedarfsmoduls (Haltestellen, Verkehrsdaten); nr = Ladevorgang (wie ParkStand) */
 /** V_sig-Linien für den Sichtrechner (Worker) */
-type VsigRechnung = { linien: VsigLinie[]; bereich: Bereich }
+type VsigRechnung = import('./daten/vsig').VsigEingang & { bereich: Bereich }
 interface BernGeo { nr: number; halte: BernHalte; vd: { laedt: true } | { linien: VdLinie[] } | { fehler: string }
-  /** weitere Dienste (Automatik Paket C, daten/bernDienste.ts) */
+  /** weitere Dienste (daten/bernDienste.ts) */
   c: { [K in BernDienstKey]?: BernLaden<BernDatenC[K]> } }
 const HALT_QUELLE = `${GEODATEN_BERN}, Haltestellen`, VD_QUELLE = `${GEODATEN_BERN}, Flächendeckende Verkehrsdaten`
 interface ParkStand { quelle: ParkQuelle; nr: number; lat: number; lon: number; felder: KatasterFeld[] | null; laedt?: boolean; fehler?: string }
@@ -196,7 +218,7 @@ function SeitenraumZeile({ fp, st, aendere, zurueck }: { fp: FlaechePlan; st: Pl
 }
 
 let zaehler = 0
-// stabile leere Listen für die Karte (Prüfbefund 20.10.2026): ein neues [] je Render liess die Karten-Effekte bei jeder Mausbewegung
+// stabile leere Listen für die Karte: ein neues [] je Render liess die Karten-Effekte bei jeder Mausbewegung
 // im Zug der Mittelinsel alles neu zeichnen
 const LEER_FIX: Fixpunkt[] = [], LEER_PLAN: FlaechePlan[] = [], LEER_HIND: Hindernis[] = [], LEER_HAND: StreifenHand[] = []
 /** Zwei Ringe gleich (Koordinaten; Fall-Kopien haben neue Arrays) */
@@ -215,7 +237,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // Breite des rechten Bereichs (Trenner, gespeichert in localStorage; CSS-Variable --panel-breite)
   const [panelBreite, setPanelBreite] = useState(() => ladeBreite(window.innerWidth))
   const trennerFertig = useCallback(() => { requestAnimationFrame(() => kartenRef.current?.invalidateSize()) }, [])
-  const workerRef = useRef<Worker | null>(null)
+  const workerRef = useRef<RechenWorker<FallRechnung> | null>(null)
   const abbruchRef = useRef<AbortController | null>(null)
   const auftrag = useRef(0)
   const [uebergaenge, setUebergaenge] = useState<OsmKnoten[]>([])
@@ -260,6 +282,13 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   ladeHinweisRef.current = ladeHinweis
   const [auswahl, setAuswahl] = useState<string | null>(null)
   const [quellen, setQuellen] = useState<Record<string, QuellenStand>>({})
+  const hkQuellen = useHoehenkurvenQuelle()
+  const quellenMitSnapshots = useMemo<Record<string, QuellenStand>>(() => ({ ...quellen, ...hkQuellen, ...Object.fromEntries(lbSnaps.map(sn => {
+    const stadt = sn.datei.match(/luftbild_fgs_(\w+)\.json$/)?.[1]
+    return [`eth.fgs.${stadt}`, { name: `Streifen aus dem Luftbild (ETH-Modell), ${stadt}`, server: 'eigene Datei',
+      objekte: `${sn.kandidaten.length} Kandidaten im Stadtsnapshot`,
+      datenstand: `${sn.erzeugt ? sn.erzeugt.split('-').reverse().join('.') : 'unbekannt'} (Snapshot-Erzeugung); Flugjahre ${sn.flugjahre.join(', ') || 'unbekannt'}` }]
+  })) }), [quellen, lbSnaps, hkQuellen])
   const [werkzeug, setWerkzeug] = useState<Werkzeug>(null)
   // Trottoirüberfahrt: Alternative Fussgängerstreifen mit Fragen prüfen (nur in der Sitzung, nicht im Fall; 27.10.2026)
   const [alternative, setAlternative] = useState(false)
@@ -341,7 +370,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const ladeNr = useRef(0)
   const [parkKat, setParkKat] = useState<ParkStand | null>(null)
   const [bernGeo, setBernGeo] = useState<BernGeo | null>(null)
-  // Sicht auf die Wartefläche mit Gelände (Entscheid 30.10.2026; sichtGelaende.ts): Stand je sichtGelaendeSchluessel (Effekt unten);
+  // Sicht auf die Wartefläche mit Gelände (sichtGelaende.ts): Stand je sichtGelaendeSchluessel (Effekt unten);
   // gezeigt wird die Rechnung mit diesem Ergebnis (Status, «frei bis», Zeile «Gelände»), die Rechnung selbst bleibt 2D. Brücken
   // (AV-Einzelobjekte) wie in der Rechnung: Sichtlinien darauf prüft die App nicht
   const [sichtGel, setSichtGel] = useState<{ nr: number; werte: Record<string, GelaendeStand> } | null>(null)
@@ -349,7 +378,18 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const sosfRoh = daten?.sosf ?? null
   const bruecke = useMemo(() => (sosfRoh ? brueckenumriss(avParsen(sosfRoh)) : null), [sosfRoh])
   const rechnung = useMemo(() => rechnungMitSichtGelaende(rechnungRoh, sichtWerte, bruecke), [rechnungRoh, sichtWerte, bruecke])
-  const setzeQuelle = (k: string, s: QuellenStand) => setQuellen(q => ({ ...q, [k]: s }))
+  const quellenMetadaten = useRef(new QuellenMetadaten())
+  const setzeQuelle = useCallback((k: string, s: QuellenStand) => {
+    const x = s.ms !== undefined ? { ...s, zeit: new Date().toISOString() } : s
+    setQuellen(q => ({ ...q, [k]: x }))
+    if (s.ms !== undefined && !s.fehler) void quellenMetadaten.current.laden(k, s.kantone).then(m => {
+      if (m) setQuellen(q => q[k] === x ? { ...q, [k]: { ...x, ...m } } : q)
+    })
+  }, [])
+  const bund = useAmtlicheOrtQuellen(setFall, setzeQuelle)
+  const npvm = useNpvmQuelle(setFall, setzeQuelle)
+  const zh = useZuerichQuellen(setFall, setzeQuelle)
+  const regional = useRegionalQuellen(setFall, setzeQuelle)
   // Eingabe der Rechnung: nur die geladenen Felder und die Quellenangabe. Der Ladezustand (laedt, fehler) löst keine Rechnung
   // aus; nach erfolgreichem Laden ändern sich felder (und im selben Schritt fall.quellen) -> genau eine neue Rechnung.
   const parkFelder = parkKat?.felder ?? null, parkAngabe = parkKat?.quelle.quellenangabe ?? ''
@@ -366,50 +406,26 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const ungesichert = !!fall && fall.ort.uebergang === null && hatEingaben(fall) && !gesichert
 
   // ---------------------------------------------------------------- Worker
-  // aktiv: App angezeigt (false nach dem Wechsel zur Startseite); laufend: Abbruch der offenen Rechnungen (beim Verlassen)
-  const aktiv = useRef(true)
-  const laufend = useRef(new Set<() => void>())
-  const neuerWorker = () => {
-    workerRef.current?.terminate()
-    workerRef.current = aktiv.current ? new Worker(new URL('./rechner/worker.ts', import.meta.url), { type: 'module' }) : null
-    return workerRef.current
-  }
-  // Verlassen der Prüfung (Startseite): offene Rechnung beenden (keine Antwort wird mehr übernommen, ein später Timeout erzeugt
-  // keinen neuen Worker), laufende Abrufe abbrechen
   useEffect(() => {
-    aktiv.current = true
-    neuerWorker()
-    const offen = laufend.current
+    const worker = new RechenWorker<FallRechnung>(() => new Worker(new URL('./rechner/worker.ts', import.meta.url), { type: 'module' }), WORKER_MS)
+    workerRef.current = worker
     return () => {
-      aktiv.current = false
       auftrag.current++
-      for (const f of [...offen]) f()
       abbruchRef.current?.abort()
-      workerRef.current?.terminate(); workerRef.current = null
+      worker.beenden()
+      if (workerRef.current === worker) workerRef.current = null
     }
   }, [])
 
   const rechnen = useCallback(async (d: Daten, f: Fall, kat: typeof kataster, pk: typeof parkDaten, vs: VsigRechnung | null,
     hs: Record<string, HoehenVorgabe> | null) => {
     const nr = ++auftrag.current
-    const w = workerRef.current ?? neuerWorker()
+    const w = workerRef.current
     if (!w) return
     setRechnet(true)
-    const antwort = await new Promise<{ ok: boolean; rechnung?: FallRechnung; fehler?: string }>(res => {
-      const fertig = (x: { ok: boolean; rechnung?: FallRechnung; fehler?: string }) => {
-        clearTimeout(t); w.removeEventListener('message', h); w.removeEventListener('error', fe); laufend.current.delete(abbrechen); res(x)
-      }
-      const abbrechen = () => fertig({ ok: false, fehler: 'abgebrochen' })
-      laufend.current.add(abbrechen)
-      const h = (ev: MessageEvent) => { if (ev.data.id === nr) fertig(ev.data) }
-      const fe = (ev: ErrorEvent) => { neuerWorker(); fertig({ ok: false, fehler: `Worker-Fehler: ${ev.message || 'unbekannt'}` }) }
-      const t = setTimeout(() => { neuerWorker(); fertig({ ok: false, fehler: `keine Antwort innert ${WORKER_MS / 1000} s` }) }, WORKER_MS)
-      w.addEventListener('message', h)
-      w.addEventListener('error', fe)
-      w.postMessage({ id: nr, osm: d.osm, av: d.av, sosf: d.sosf, nid: d.nid, fall: f, luftbild: d.luftbild,
-        kataster: kat && kat.baeume && f.baumkataster ? { baeume: kat.baeume, quellenangabe: kat.quelle.quellenangabe } : null,
-        park: pk && f.parkkataster !== false ? pk : null, vsig: vs, avZentrum: d.ort, hoehen: hs })
-    })
+    const antwort = await w.rechnen({ osm: d.osm, av: d.av, sosf: d.sosf, nid: d.nid, fall: f, luftbild: d.luftbild,
+      kataster: kat && kat.baeume && f.baumkataster ? { baeume: kat.baeume, quellenangabe: kat.quelle.quellenangabe } : null,
+      park: pk && f.parkkataster !== false ? pk : null, vsig: vs, avZentrum: d.ort, hoehen: hs })
     if (nr !== auftrag.current) return
     setRechnet(false)
     if (!antwort.ok) { setMeldung(`Fehler in der Rechnung: ${antwort.fehler}`); return }
@@ -422,8 +438,11 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   }, [])
 
   /** Fall im Browser merken; ohne Übergang gehört ihm danach der Eintrag «ort», der Eintrag eines verlassenen Übergangs geht weg */
+  const [speicherHinweis, setSpeicherHinweis] = useState<string | null>(null)
   const merken = (f: Fall) => {
-    fallMerken(f)
+    const fehler = fallMerken(f)
+    setSpeicherHinweis(fehler)
+    if (fehler) return
     if (f.ort.uebergang !== null) return
     ortEigen.current = true
     if (ortVergessen.current !== null) { fallVergessen(ortVergessen.current); ortVergessen.current = null }
@@ -466,13 +485,25 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     if (rechenRef.current?.k !== k) rechenRef.current = { k, f: fall }
     return rechenRef.current.f
   }, [fall])
-  // Tempo der Zufahrten in Bern aus V_sig (Geoportal Stadt Bern; Nutzerentscheid 21.10.2026): sobald die Linien geladen sind und der
+  // Tempo der Zufahrten in Bern aus V_sig (Geoportal Stadt Bern): sobald die Linien geladen sind und der
   // Streifen auf einer AV-Fläche der Stadt Bern liegt (wie die übrige Vorbelegung), rechnet der Sichtrechner neu; OSM bleibt Rückfall
   const vsigStand = bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.c.vsig : null
   const vsigBern = useMemo(() => bernZustaendig(rechnung?.streifen[0]?.m ?? daten?.ort, av ?? []), [rechnung, daten, av])
-  const vsigRechnung = useMemo<VsigRechnung | null>(() => (daten && vsigBern && vsigStand && 'daten' in vsigStand
+  const pruefPunkt = rechnung?.streifen[0]?.m ?? daten?.ort
+  const pruefGebiet = useMemo(() => {
+    const p = pruefPunkt
+    const g = 'daten' in bund.stand.gebiet ? bund.stand.gebiet.daten : null
+    return p ? zustaendigkeitAmOrt(p, g, av ?? []) : { amOrt: [], imAusschnitt: [], hinweis: null }
+  }, [pruefPunkt?.[0], pruefPunkt?.[1], av, bund.stand.gebiet])
+  const zhAmOrt = istZuerichAmOrt(pruefGebiet.amOrt)
+  const vsigRechnung = useMemo<VsigRechnung | null>(() => (daten && zhAmOrt && zh.daten
+    ? { linien: [], bereich: { mitte: zh.daten.mitte, radiusM: zh.daten.radiusM, form: 'quadrat' }, zuerich: zh.daten, signalEntscheide: fall?.signalEntscheide,
+        zhStrassen: zhStrassen(osmParsen(daten.osm as Parameters<typeof osmParsen>[0]).wege) }
+    : daten && regional.rechnen
+    ? { linien: [], bereich: { mitte: regional.rechnen.mitte, radiusM: regional.rechnen.radiusM, form: 'quadrat' }, regional: regional.rechnen, signalEntscheide: fall?.signalEntscheide, zhStrassen: zhStrassen(osmParsen(daten.osm as Parameters<typeof osmParsen>[0]).wege) }
+    : daten && vsigBern && vsigStand && 'daten' in vsigStand
     ? { linien: vsigStand.daten.linien, bereich: { mitte: daten.ort, radiusM: BERN_DIENSTE_C.vsig.radiusM ?? PARK_RADIUS_M, form: 'quadrat' } }
-    : null), [daten, vsigBern, vsigStand])
+    : fall?.signalEntscheide?.length ? { linien: [], bereich: { mitte: lv95(fall.ort.lat, fall.ort.lon), radiusM: 200, form: 'quadrat' }, signalEntscheide: fall.signalEntscheide } : null), [daten, vsigBern, vsigStand, zh.daten, zhAmOrt, regional.rechnen, fall?.signalEntscheide])
   // Trottoirüberfahrt (K3): Längsneigung der Knotensicht aus dem Höhenmodell (swisstopo, swissALTI3D), je «Knoten|Zufahrt»; nach dem
   // Eintreffen rechnet der Worker die Knotensicht neu (Effekt «Längsneigung der Knotensicht» unten)
   const [ksHoehen, setKsHoehen] = useState<{ nr: number; werte: Record<string, HoehenVorgabe> } | null>(null)
@@ -506,7 +537,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           ...(fehler.length ? { fehler: `${fehler.length} Profil(e) nicht verfügbar (Längsneigung unbekannt, strengster Wert)` } : {}) })
       }, err => {
         if (ctrl.signal.aborted || istAbbruch(err) || ladeNr.current !== nr) return
-        // Dienst-Fehler (Entscheid 31.10.2026): jedes Profil «nicht verfügbar» (wie ein fehlerhaftes Einzelprofil), damit der Kern die
+        // Dienst-Fehler: jedes Profil «nicht verfügbar» (wie ein fehlerhaftes Einzelprofil), damit der Kern die
         // Neigung als unbekannt rechnet (strengster Wert) und nicht dauerhaft «vorerst 0 %» bleibt
         setKsHoehen(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [k.hoehenSchluessel]: hoehenNichtVerfuegbar(linien.map(([n]) => n), err) } }))
         setzeQuelle('hoehen', { name: HOEHEN_NAME, fehler: `${(err as Error).message} (Längsneigung unbekannt, strengster Wert)` })
@@ -572,10 +603,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     }
   }, [rechnungRoh])
 
-  // Sicht auf die Wartefläche mit Gelände (Entscheid 30.10.2026; sichtGelaende.ts): nach jeder Rechnung je Zufahrt (gerade und
+  // Sicht auf die Wartefläche mit Gelände (sichtGelaende.ts): nach jeder Rechnung je Zufahrt (gerade und
   // abbiegend; ohne Trottoirüberfahrt und «kein FGS») die Höhenprofile der Sichtlinien bis zur nötigen Sicht (höchstens 14 je Zufahrt,
   // daten/sichtProfil.ts mit Cache), je Zufahrt und Lage der Linien einmal je Ladevorgang; ein neuer Ort bricht ab. Ohne Antwort bleibt
-  // die Sichtprüfung 2D («Gelände: nicht geprüft»). «Geladene Quellen»: Summe der Abfragen dieses Ladevorgangs
+  // die Sichtprüfung 2D («Gelände: nicht geprüft»). «Datenquellen und Ladezustand»: Summe der Abfragen dieses Ladevorgangs
   const sichtLaeuft = useRef(new Set<string>())
   const sichtAbfragen = useRef<{ nr: number; n: number; zufahrten: number; ms: number; bytes: number }>({ nr: -1, n: 0, zufahrten: 0, ms: 0, bytes: 0 })
   useEffect(() => {
@@ -686,7 +717,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       setSuchBoxen(st.cache.map(c => c.box))
       setNamenAusschnitt(vereinigenNamen(st.cache))
       setzeQuelle('suche', { name: SUCHE_NAME, objekte: `${r.daten.length} Übergänge und ${r.namen.length} benannte Strassenstücke im ` +
-        `Ausschnitt, ${alle.length} Übergänge angezeigt (letzte ${st.cache.length} Ausschnitte)`, ms: r.ms, bytes: r.bytes, server: r.quelle })
+        `Ausschnitt, ${alle.length} Übergänge angezeigt (letzte ${st.cache.length} Ausschnitte)`, ms: r.ms, bytes: r.bytes, server: r.quelle, datenstand: r.datenstand })
       suchHinweisNach(r.daten.length ? null : { text: 'Keine OSM-Übergänge im Ausschnitt' })
     } catch (e) {
       if (ctrl.signal.aborted || istAbbruch(e)) return
@@ -728,10 +759,16 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const laden = useCallback(async (lat: number, lon: number, nid: number | null, fallNeu: Fall | null, avVorab: Abruf<GeoJson> | null = null,
     herkunft: LuftbildHerkunft | null = null) => {
     abbruchRef.current?.abort()
+    quellenMetadaten.current.neu()
+    geoCacheLeeren()
     const ctrl = new AbortController()
+    beginneBundesAbrufe(ctrl.signal)
     abbruchRef.current = ctrl
     auftrag.current++
+    workerRef.current?.beenden()
+    setRechnet(false)
     setRechnung(null); setAuswahl(null); setAv(null); setDaten(null); setWerkzeug(null); setZeichnung([]); setBearbeiten(null)
+    bund.zurueck(); npvm.zurueck()
     setAlternative(false); setKsPhase('beide'); setKataster(null); setParkKat(null); setBernGeo(null); setWechsel(null); setLadeFehler(false)
     const nr = ++ladeNr.current
     const erinnert = !fallNeu && nid !== null ? fallErinnern(nid) : null
@@ -744,13 +781,17 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     // Rechnung den Übergang nicht (Meldung «nicht in den OSM-Daten»)
     const lbHerkunft = nid !== null && nid < 0 ? herkunft ?? start.ort.herkunft ?? null : null
     setFall(lbHerkunft && !start.ort.herkunft ? { ...start, ort: { ...start.ort, herkunft: lbHerkunft } } : start)
+    zh.zurueck()
+    regional.zurueck()
     setLadeHinweis(erinnert && eingabenZahl(erinnert) ? { text: `Eingaben zu diesem Übergang aus dem Browser übernommen ` +
       `(${eingabenZahl(erinnert)} Einträge, Stand ${erinnert.gespeichert?.slice(0, 10) ?? 'unbekannt'}).`, verwerfen: true } : null)
     setMeldung('AV und OSM werden geladen …')
     const [e, n] = lv95(lat, lon)
     ladeOrtRef.current = [e, n]
     const AV_NAME = `Amtliche Vermessung (WFS, ±${AV_RADIUS_M} m)`, OSM_NAME = `OpenStreetMap (Overpass, ${OSM_RADIUS_M} m)`
-    setQuellen(q => ({ suche: q.suche, av: { name: AV_NAME }, osm: { name: OSM_NAME } }))
+    setQuellen(q => ({ ...(q.suche ? { suche: q.suche } : {}), av: { name: AV_NAME }, osm: { name: OSM_NAME } }))
+    bund.starten(lat, lon, ctrl.signal)
+    npvm.starten(lat, lon, ctrl.signal)
     const quelleFehler = (key: string, name: string) => (err: unknown) => {
       if (!istAbbruch(err)) setzeQuelle(key, { name, fehler: (err as Error).message })
       throw err
@@ -759,8 +800,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       const [ra, ro, rs] = await Promise.all([
         // Vorschau der AV am selben Ort (Planen ohne Ort): keine zweite Abfrage
         (avVorab ? Promise.resolve(avVorab) : ladeAvRoh(e, n, AV_RADIUS_M, ctrl.signal)).then(r => { setzeQuelle('av', { name: AV_NAME,
-          objekte: `${r.daten.features?.length ?? 0} Flächen`, ms: r.ms, bytes: r.bytes, server: r.quelle }); return r }, quelleFehler('av', AV_NAME)),
-        ladeOsmRoh(lat, lon, OSM_RADIUS_M, ctrl.signal).then(r => { setzeQuelle('osm', { name: OSM_NAME, ms: r.ms, bytes: r.bytes,
+          objekte: `${r.daten.features?.length ?? 0} Flächen`, kantone: [...new Set((r.daten.features ?? []).map(f => String(f.properties?.Kanton ?? '')).filter(k => /^[A-Z]{2}$/.test(k)))], ms: r.ms, bytes: r.bytes, server: r.quelle }); return r }, quelleFehler('av', AV_NAME)),
+        ladeOsmRoh(lat, lon, OSM_RADIUS_M, ctrl.signal).then(r => { setzeQuelle('osm', { name: OSM_NAME, datenstand: r.datenstand, ms: r.ms, bytes: r.bytes,
           server: r.quelle }); return r }, quelleFehler('osm', OSM_NAME)),
         ladeSosfRoh(e, n, AV_RADIUS_M, ctrl.signal).then(r => r, err => {
           if (!istAbbruch(err)) setzeQuelle('sosf', { name: 'AV-Einzelobjekte (Brücken)', fehler: (err as Error).message })
@@ -780,15 +821,15 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       if (bq) setKataster({ quelle: bq, baeume: null, lat, lon })
       const pq = parkQuelleFuer(bfs)
       if (pq) setParkKat({ quelle: pq, nr, lat, lon, felder: null })
-      // Berner Dienste nur, wenn die AV-Fläche am Ladeort in der Stadt Bern liegt (Korrektur M4; nicht jede Gemeinde im Ausschnitt)
+      // Berner Dienste nur, wenn die AV-Fläche am Ladeort in der Stadt Bern liegt (nicht jede Gemeinde im Ausschnitt)
       const bernHier = bernZustaendig([e, n], avF)
       if (bernHier) setBernGeo({ nr, halte: { laedt: true }, vd: { laedt: true }, c: Object.fromEntries(BERN_C_KEYS.map(k => [k, { laedt: true }])) })
       setMeldung('Rechnung läuft …')
       // das Luftbild zieht der Effekt «Luftbild nachladen» nach (nur am OSM-Übergang und wenn die Suche nicht abgeschaltet ist)
       // Übergang aus dem Luftbild: als Knoten (mit Fussweg für die Richtung) in die OSM-Antwort, dann rechnet alles wie an einem OSM-Übergang
-      const osmRoh = lbHerkunft && nid !== null ? osmMitLuftbildUebergang(ro.daten, nid, lbHerkunft) : ro.daten
+      const osmRoh = start.ort.amtlich && nid !== null ? osmMitLuftbildUebergang(ro.daten, nid, { p: start.ort.amtlich.p, richtung: null }, { highway: 'crossing', crossing: 'uncontrolled', 'crossing:markings': 'zebra', source: `amtlich:${start.ort.amtlich.quelleId}` }) : lbHerkunft && nid !== null ? osmMitLuftbildUebergang(ro.daten, nid, lbHerkunft) : ro.daten
       setDaten({ osm: osmRoh, av: ra.daten, sosf: rs ? rs.daten : null, nid, bfs, luftbild: null, flugjahr: '', ort: [e, n] })
-      setFall(f => f ? { ...f, quellen: { osm: ro.quelle, av: `${ra.quelle}, Kanton ${[...new Set(avF.map(x => x.kanton))].join(', ')}`,
+      setFall(f => f ? { ...f, quellen: { ...f.quellen, osm: ro.quelle, av: `${ra.quelle}, Kanton ${[...new Set(avF.map(x => x.kanton))].join(', ')}`,
         geladen: new Date().toISOString().slice(0, 10) } } : f)
       // Bedarfsmodul (Vorbelegung): Haltestellen und Verkehrsdaten aus dem Geoportal der Stadt Bern, nicht blockierend (ohne sie
       // bleiben die Felder offen bzw. die Haltestellen kommen aus OSM)
@@ -816,7 +857,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           setBernGeo(g => (g && g.nr === nr ? { ...g, vd: { fehler: (err as Error).message } } : g))
           setzeQuelle('verkehrsdaten', { name: VN, fehler: `${(err as Error).message} (DTV bleibt offen)` })
         })
-        // weitere Dienste (Automatik Paket C): je Dienst getrennt, Fehler nur in «Geladene Quellen»
+        // weitere Dienste: je Dienst getrennt, Fehler nur in «Datenquellen und Ladezustand»
         const dienstLaden = <K extends BernDienstKey>(k: K) => {
           const d: BernDienst<BernDatenC[K]> = BERN_DIENSTE_C[k]
           const rad = d.radiusM ?? PARK_RADIUS_M
@@ -839,7 +880,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       }
     } catch (err) {
       if (ctrl.signal.aborted || istAbbruch(err)) return
-      setMeldung(`Laden fehlgeschlagen: ${(err as Error).message} (Details unter «Geladene Quellen»)`)
+      setMeldung(`Laden fehlgeschlagen: ${(err as Error).message} (Details unter «Datenquellen und Ladezustand»)`)
       setLadeFehler(true)
     }
   }, [])
@@ -872,6 +913,17 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       laden(kn.lat, kn.lon, k.id, null, null, h)
     })
   }
+
+  const pruefenAmtlich = (k: AmtlicherUebergang) => {
+    if (werkzeug) return
+    wechseln('Amtlichen Übergang prüfen: der bisherige Fall wird ersetzt.', 'Übergang laden', () => {
+      const [lat, lon] = wgs(...k.p), neu = leererFall(lat, lon, k.id)
+      neu.ort.amtlich = k
+      setGewaehlt({ id: k.id, lat, lon, tags: { highway: 'crossing', source: `amtlich:${k.quelleId}` } }); setGespeichert(null); neuerFallImOrt(); reiterNeu()
+      laden(lat, lon, k.id, neu)
+    })
+  }
+  const amtKandidaten = useMemo(() => amtlicheKandidaten(regional.daten, uebergaenge), [regional.daten, uebergaenge])
 
   // Baumkataster auf Wunsch laden (um den Ladeort)
   useEffect(() => {
@@ -938,7 +990,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     setzeQuelle('luftbild', { name: LUFTBILD_NAME })
     Promise.all([ladeLuftbild(e, n, ctrl?.signal), ladeFlugjahr(e, n, ctrl?.signal)]).then(([rl, fj]) => {
       if (!hier()) return
-      setzeQuelle('luftbild', { name: LUFTBILD_NAME, ms: rl.ms, bytes: rl.bytes, server: rl.quelle })
+      setzeQuelle('luftbild', { name: LUFTBILD_NAME, datenstand: fj ? `${fj} (Flugjahr)` : undefined, ms: rl.ms, bytes: rl.bytes, server: rl.quelle })
       setDaten(d => (d && d.nid === nid ? { ...d, luftbild: rl.daten, flugjahr: fj } : d))
       setFall(f => (f && f.luftbild !== false ? { ...f, quellen: { ...f.quellen, luftbild: `${LUFTBILD_QUELLE}${fj ? `, Flugjahr ${fj}` : ''}` } } : f))
     }, err => {
@@ -1744,7 +1796,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     setGewaehlt(f.ort.uebergang !== null ? { id: f.ort.uebergang, lat: f0.ort.lat, lon: f0.ort.lon, tags: {} } : null)
     setGespeichert(datei ? eingabenSchluessel(f) : null)
     neuerFallImOrt(); reiterNeu()
-    laden(f.ort.lat, f.ort.lon, f.ort.uebergang, f)
+    laden(f.ort.lat, f.ort.lon, f.ort.uebergang, f, null, null)
     // nach dem Start von laden (setzt den Hinweis zurück); ein späterer Hinweis (Übergang ausserhalb) wird angehängt
     setLadeHinweis({ text: `${titel} (${eingabenZahl(f)} Eingaben)` +
       (hinweise.length ? `; ${hinweise.length} ungültige Einträge übergangen (${[...new Set(hinweise)].join('; ')}).` : '.') +
@@ -1787,8 +1839,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   }, [lbSnaps, suchBoxen, uebergaenge, lbHerkunft, lbId])
   const verwaist = useMemo(() => (fall && rechnung && rechnungFall === rechenFall ? eingabenVerwaist(fall, rechnung.streifen) : []),
     [fall, rechnung, rechnungFall, rechenFall])
-  // «Geladene Quellen» eingeklappt; hat eine Quelle einen Fehler, klappt der Abschnitt auf (und die Überschrift nennt ihn)
-  const quellenFehler = Object.values(quellen).some(q => q.fehler)
+  // «Datenquellen und Ladezustand» eingeklappt; hat eine Quelle einen Fehler, klappt der Abschnitt auf (und die Überschrift nennt ihn)
+  const quellenFehler = Object.values({...quellen,...hkQuellen}).some(q => q.fehler)
   const [quellenOffen, setQuellenOffen] = useState(false)
   useEffect(() => { if (quellenFehler) setQuellenOffen(true) }, [quellenFehler])
   const kantone = useMemo(() => [...new Set((av ?? []).map(f => f.kanton).filter(Boolean))].sort(), [av])
@@ -1833,34 +1885,39 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     return f ? ebenenVorgabe([f.bfs], f.kanton ? [f.kanton] : []) : ebenenVorgabe(daten?.bfs ?? [], kantone)
   }, [rechnung, av, daten, kantone])
   // Geodaten für die Vorbelegung (Haltestellen, Verkehrsdaten, OSM-Tags der Wege, Strassenlampen) um den Ladeort
-  // Berner Daten nur, wenn der Streifen auf einer AV-Fläche der Stadt Bern liegt (Korrektur M4, wie die Ebenen-Vorgabe)
+  // Berner Daten nur, wenn der Streifen auf einer AV-Fläche der Stadt Bern liegt (wie die Ebenen-Vorgabe)
   const streifenBern = useMemo(() => bernZustaendig(rechnung?.streifen[0]?.m ?? daten?.ort, av ?? []), [rechnung, daten, av])
   // «Datenlage hier» (Quellenregister): erst nach dem AV-Abruf (ohne AV-Fläche am Ort gilt die AV als nicht frei: keine Rechnung);
   // Ort wie die Berner Zuständigkeit (Streifen bzw. Ladeort), Kanton sonst aus einer geladenen AV-Fläche
   const ortLage = useMemo<Datenlage | null>(() => {
-    if (!av || !fall) return null
+    if (!fall) return null
     const p = rechnung?.streifen[0]?.m ?? daten?.ort ?? lv95(fall.ort.lat, fall.ort.lon)
-    const g = gemeindeAmOrt(p, av), [lat, lon] = wgs(p[0], p[1])
-    const kanton = g?.kanton ?? av.find(f => f.kanton)?.kanton
+    const gebiet = 'daten' in bund.stand.gebiet && dist(p, bund.stand.gebiet.daten.mitte) < 1 && bund.stand.gebiet.daten.amOrt.length === 1
+      ? bund.stand.gebiet.daten.amOrt[0] : null
+    const g = gemeindeAmOrt(p, av ?? []) ?? gebiet, [lat, lon] = wgs(p[0], p[1])
+    const kanton = g?.kanton ?? av?.find(f => f.kanton)?.kanton
     return datenlage({ lat, lon, bfs: g?.bfs ?? null, ...(kanton ? { kanton } : {}) })
-  }, [av, fall, rechnung, daten])
+  }, [av, fall, rechnung, daten, bund.stand.gebiet])
   const quellZustand = useMemo(() => zustandJeQuelle(quellen), [quellen])
   const geoVor = useMemo<GeoVorbelegung>(() => {
-    if (!daten) return {}
+    const bav = 'daten' in bund.stand.bav ? bund.stand.bav.daten : null
+    const modell = 'daten' in npvm.stand ? npvm.stand.daten : null
+    if (!daten) return { bav, npvm: modell, regional: regional.daten, zuerich: zhAmOrt ? zh.daten : null }
     const halte = streifenBern && bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.halte : null
     const vd = streifenBern && bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.vd : null
     const c = streifenBern && bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.c : null
     const bq = { mitte: daten.ort, radiusM: PARK_RADIUS_M, form: 'quadrat' as const }
     return {
-      haltestellen: haltestellenStand(halte, daten.osm, daten.ort, PARK_RADIUS_M),
+      bav, npvm: modell, regional: regional.daten, zuerich: zhAmOrt ? zh.daten : null, signalEntscheide: fall?.signalEntscheide,
+      haltestellen: haltestellenMitBav(halte, bund.stand.bav, daten.osm, daten.ort, PARK_RADIUS_M),
       verkehrsdaten: vd && 'linien' in vd ? { linien: vd.linien, bereich: { mitte: daten.ort, radiusM: PARK_RADIUS_M, form: 'quadrat' } }
         : vd && 'fehler' in vd ? { fehler: vd.fehler } : null,
       osmTags: wegTags(daten.osm),
       lampen: { punkte: strassenlampen(daten.osm), bereich: { mitte: daten.ort, radiusM: LAMPEN_RADIUS_M, form: 'kreis' } },
-      // Automatik Paket A + B (bedarf/automatik.ts): geparstes OSM-Netz, AV, Ladeort und Umkreis der OSM-Abfrage
+      // Automatik (bedarf/automatik.ts): geparstes OSM-Netz, AV, Ladeort und Umkreis der OSM-Abfrage
       osm: daten.osm ? osmParsen(daten.osm as Parameters<typeof osmParsen>[0]) : null,
       av: av ?? null, ladeort: daten.ort, osmRadiusM: OSM_RADIUS_M,
-      // Automatik Paket C: weitere Berner Dienste (nur am Berner Streifen) und OSM-Erweiterungen (überall); nur Daten, Regeln in vorbelegung.ts
+      // Weitere Berner Dienste (nur am Berner Streifen) und OSM-Erweiterungen (überall); nur Daten, Regeln in vorbelegung.ts
       richtplan: c ? bernErgebnis(c.richtplan, bq) : null,
       strassenhierarchie: c ? bernErgebnis(c.strassenhierarchie, bq) : null,
       vsig: c ? bernErgebnis(c.vsig, bq) : null,
@@ -1872,11 +1929,23 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       kurveNeigung: kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null,
       erkennungGelaende: erkGelaende && erkGelaende.nr === ladeNr.current ? erkGelaende.werte : null,
     }
-  }, [daten, bernGeo, streifenBern, av, kurveNeigung, erkGelaende])
-  // «Geladene Quellen» auf der Karte (quellenEbenen.ts, seit 01.11.2026): die gelesenen Objekte der Vorbelegung je Quelle, dazu die
+  }, [daten, bernGeo, streifenBern, av, kurveNeigung, erkGelaende, bund.stand.bav, npvm.stand, zh.daten, zhAmOrt, regional.daten, fall?.signalEntscheide])
+  const standVor = useRef<NonNullable<GeoVorbelegung['quellenMetadaten']>>({})
+  standVor.current = quellenStaende(quellen, standVor.current)
+  const geoMitStaenden = useMemo(() => ({ ...geoVor, quellenMetadaten: standVor.current }), [geoVor, standVor.current])
+  useEffect(() => {
+    const g = 'daten' in bund.stand.gebiet ? bund.stand.gebiet.daten : null
+    const p = daten?.ort ?? g?.mitte, ctrl = abbruchRef.current
+    if (p && ctrl && !ctrl.signal.aborted && zhAmOrt)
+      zh.starten(p, ladeNr.current, ctrl.signal)
+    if (p && ctrl && !ctrl.signal.aborted) regional.starten(p, pruefGebiet.imAusschnitt, ladeNr.current, ctrl.signal, pruefGebiet.amOrt)
+    if (p) setzeQuelle('gebietZuordnung', { name: 'Örtliche Zuständigkeit',
+      ...(pruefGebiet.hinweis && !pruefGebiet.amOrt.length ? { fehler: pruefGebiet.hinweis } :
+        { objekte: `${pruefGebiet.amOrt.map(gemeindeText).join(' / ')}${pruefGebiet.hinweis ? `; ${pruefGebiet.hinweis}` : ''}` }) })
+  }, [bund.stand.gebiet, daten, av, zh.starten, regional.starten, pruefGebiet, zhAmOrt, setzeQuelle])
+  // «Datenquellen und Ladezustand» auf der Karte (quellenEbenen.ts, seit 01.11.2026): die gelesenen Objekte der Vorbelegung je Quelle, dazu die
   // Profile der Längsneigung (Fahrlinien) und die Brücken aus den AV-Einzelobjekten
-  const quellenEbenen = useMemo(() => {
-    if (!daten) return {}
+  const ebenenGeometrie = useMemo(() => {
     const werte = kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : {}
     const kz = rechnungRoh ? strassenKurve(rechnungRoh.streifen)?.z : undefined
     const zs = rechnungRoh ? [...(kz ? [kz] : []), ...rechnungRoh.streifen.flatMap(s => s.zufahrten.filter(z => z.velo))] : []
@@ -1888,8 +1957,19 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       return [{ key, linie: kurveProfilLinie(z), i: m.i, laenge: m.laenge, zufahrt: 'Fahrlinie zum Streifen' }]
     })
     const bruecken = sosfRoh ? avParsen(sosfRoh).filter(f => f.art === 'Bruecke_Passerelle').map(f => f.ringe[0]).filter(Boolean) : []
-    return ebenenAusGeo(geoVor, geoVor.osm?.wege ?? [], profile, bruecken)
-  }, [daten, geoVor, kurveNeigung, rechnungRoh, sosfRoh])
+    const d = ebenenAusGeo(geoVor, geoVor.osm?.wege ?? [], profile, bruecken, kataster?.baeume ?? [], avKarte ?? [])
+    if (erkWerte || sichtWerte) d.gelaende = gelaendeProfile(rechnung?.streifen ?? [], erkWerte, undefined, z => zufahrtText(zNamen.get(z.fgsId), z.zufahrt), bruecke)
+    return d
+  }, [geoVor, kurveNeigung, rechnungRoh, rechnung, erkWerte, sichtWerte, sosfRoh, kataster, avKarte, zNamen, bruecke])
+  const quellenEbenen = useMemo(() => {
+    const d = { ...ebenenGeometrie }
+    d.qualitaet = { av: quellen.av, ...Object.fromEntries((regional.daten?.teile ?? []).map(t => [`regional.${t.id}`, { datenstand: t.datenstand }])), zhTempo: quellen.zhTempo, zhZonen: quellen.zhZonen, npvm: quellen.npvm, baeume: quellen.kataster, tempo: d.tempo?.some(o => !o.gestrichelt) ? quellen.vsig : quellen.osm, strassentyp: d.strassentyp?.some(o => !o.gestrichelt) ? { datenstand: quellen.strassenhierarchie?.datenstaende?.Strassentypen } : quellen.osm, schulen: quellen.schulen, dtv: quellen.verkehrsdaten, oev: quellen.oevLinien, hierarchie: {},
+      nutzungszonen: quellen.nutzungszonen, steigung: quellen.hoehen, gelaende: quellen.hoehenSicht ?? quellen.hoehen, bruecken: quellen.sosf ?? quellen.av,
+      vortritt: quellen.osm, beleuchtung: quellen.osm,
+      haltestellen: geoVor.haltestellen && !('fehler' in geoVor.haltestellen) && geoVor.haltestellen.quelle === 'osm' ? quellen.osm : quellen.haltestellen }
+    d.metadaten = { ...quellen, strassentypMetadaten: { datenstand: quellen.strassenhierarchie?.datenstaende?.Strassentypen } }
+    return ebenenBeschriften(d)
+  }, [ebenenGeometrie, geoVor.haltestellen, regional.daten, quellen])
   // Ebene «Richtplan Fussverkehr (Geoportal Bern)» (30.10.2026): Stand für die Legende; die Richtplan-Daten der Vorbelegung (nur
   // Stadt Bern) nutzt sie mit, und die dort genutzte Basisnetz-Linie zeichnet sie kräftiger
   const [rpStand, setRpStand] = useState<RichtplanStand>({ an: false })
@@ -1911,8 +1991,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   }, [geoVor])
   const taktilGen = useMemo(() => taktilGenutzt(geoVor.taktil, querungen(rechnung?.streifen ?? []).map(g => g.streifen)), [geoVor, rechnung])
   const blaetter = useMemo(() => (fall && rechnung && rechnung.streifen.length ? befundblaetter(rechnung, fall, { vorgabe: bedarfVorgabe,
-    titel, zufahrt: (fid, z) => zufahrtText(zNamen.get(fid), z), geo: geoVor, ...(alternative ? { alternative } : {}) }) : []),
-  [fall, rechnung, bedarfVorgabe, titel, zNamen, geoVor, alternative])
+    titel, zufahrt: (fid, z) => zufahrtText(zNamen.get(fid), z), geo: geoMitStaenden, ...(alternative ? { alternative } : {}) }) : []),
+  [fall, rechnung, bedarfVorgabe, titel, zNamen, geoMitStaenden, alternative])
   // Reiter: Vorgabe nach dem Fall (bestehender Übergang mit Streifen → Sichtprüfung, Planung → Bedarf), sobald Bedarfsblätter da
   // sind; die Vorgabe der ersten Rechnung gilt im Fall weiter (kein Springen, wenn später ein Streifen von Hand dazukommt)
   const mitReitern = !!fall && blaetter.length > 0
@@ -2015,12 +2095,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <label> Inseltiefe <ZahlFeld wert={inselEin.tiefe} bereich={INSEL_BEREICH.tiefe} setze={inselSetze('tiefe')}
           titel={`Tiefe der Insel quer zur Fahrbahn in m (E1: mindestens ${f2(E1_TIEFE_M)} m; unter ${f2(INSEL_TIEFE_MIN_M)} m keine Insel)`} /> m</label>
         <label> Streifenbreite <ZahlFeld wert={inselEin.breite} bereich={INSEL_BEREICH.breite} setze={inselSetze('breite')}
-          titel={`Breite des Fussgängerstreifens entlang der Fahrbahn in m (Vorgabe: Breite des gewählten Streifens bzw. ${f2(E1_BREITE_M)} m)`} /> m</label>
+          titel={`Breite des Fussgängerstreifens entlang der Fahrbahn in m (ohne eigenen Eintrag: Breite des gewählten Streifens bzw. ${f2(E1_BREITE_M)} m)`} /> m</label>
         <label> Furt <ZahlFeld wert={inselEin.furt} bereich={INSEL_BEREICH.furt} setze={inselSetze('furt')}
           titel={`Rollstuhlfurt auf Fahrbahnniveau in m (E1: ${f2(E1_FURT_M)} m; 0 = ohne Furt)`} /> m</label>
         <label> Kopflänge <ZahlFeld wert={inselEin.kopf ?? inselEin.tiefe / 2} bereich={INSEL_BEREICH.kopf}
           setze={x => setInselEin(e => ({ ...e, kopf: Math.abs(x - e.tiefe / 2) < 1e-9 ? null : x }))}
-          titel="Länge der Inselköpfe vor und nach dem Streifen in m (Vorgabe: halbe Tiefe, halbrund; 0 = ohne Kopf)" /> m</label>
+          titel="Länge der Inselköpfe vor und nach dem Streifen in m (ohne eigenen Eintrag: halbe Tiefe, halbrund; 0 = ohne Kopf)" /> m</label>
         {inselEin.kopf !== null && <button className="zweit klein" onClick={() => setInselEin(e => ({ ...e, kopf: null }))}
           title="Kopflänge = halbe Tiefe">halbrund</button>}
       </div>
@@ -2116,7 +2196,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   return (
     <div className="app" style={{ '--panel-breite': `${panelBreite}px` } as CSSProperties}>
       <Karte quellenEbenen={quellenEbenen} osmTags={geoVor.osmTags ?? null} mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
-        luftbildKandidaten={lbKandidaten} onLuftbildKandidat={pruefenLuftbild}
+        amtlicheKandidaten={amtKandidaten} onAmtlicherKandidat={pruefenAmtlich} luftbildKandidaten={lbKandidaten} onLuftbildKandidat={pruefenLuftbild}
         fusswegnetz={fusswegnetz} richtplanVorhanden={richtplanVorhanden} onRichtplan={setRpStand}
         taktilGenutzt={taktilGen} taktilVorhanden={taktilVorhanden} onTaktil={setTkStand}
         rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? LEER_HIND} streifenHand={fall?.streifenHand ?? LEER_HAND}
@@ -2168,6 +2248,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         </div>
         <label className="klein"><input type="checkbox" checked={nurMarkiert} onChange={e => setNurMarkiert(e.target.checked)} />
           {' '}nur markierte Übergänge zeigen (Fussgängerstreifen, vermutliche und Lichtsignal)</label>
+        {speicherHinweis && <p className="hinweis" role="alert">{speicherHinweis}</p>}
         {meldung && <p className="klein">{meldung}{ladeFehler && fall && !daten && <>{' '}
           <button className="zweit klein" onClick={() => laden(fall.ort.lat, fall.ort.lon, fall.ort.uebergang, fall)}>erneut laden</button></>}</p>}
         {hilfeWo === 'oben' && werkzeugHilfe}
@@ -2216,6 +2297,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
               return f
             })}>entfernen</button></p>
         )}
+        {fall?.ort.amtlich && <p className="hinweisbox klein">{amtlicherText(fall.ort.amtlich)}. Auswahl bestätigt; Geometrie aus dem amtlichen Suchpunkt und dem Strassennetz, bitte Lage und Breite prüfen.</p>}
         {rechnung?.hinweis && <p className={rechnung.markierung && istFgs(rechnung.markierung) ? 'pruefen' :
           rechnung.streifenQuelle === 'hand' && fall?.streifenHand.some(h => handGeplant(fall, h)) ? 'hinweisbox' : 'keinfgs'}>{rechnung.hinweis}{fall?.ort.herkunft && rechnung.luftbildUebergang
           ? ` (${herkunftText(fall.ort.herkunft)})` : ''}</p>}
@@ -2379,7 +2461,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             )}
             </>} />}
           bedarf={fall && blaetter.length > 0 && <BedarfAbschnitt fall={fall} blaetter={blaetter} vorgabe={bedarfVorgabe} aendern={aendern}
-            datenlage={ortLage && <DatenlageZeile lage={ortLage} />}
+            datenlage={ortLage && <DatenlageZeile lage={ortLage} qualitaet={qualitaetJeQuelle(quellenMitSnapshots)} />}
             zeigen={zeigeBedarf} alternative={alternative} setAlternative={setAlternative} sichtLinks={fgsIds => (rechnung?.streifen ?? []).filter(x => fgsIds.includes(x.fgsId)).flatMap(x =>
               nachNr(x.zufahrten, zNamen.get(x.fgsId)).flatMap(z => {
                 const u = zufahrtStreetView(z, x), nr = zufahrtNr(zNamen.get(x.fgsId), z.zufahrt)
@@ -2529,19 +2611,24 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         {rechnung && <p className="klein">Rechenzeit {Math.round(rechnung.ms)} ms (Web Worker).</p>}
           </>} />
 
+        <AmtlicheSignale daten={regional.daten} wahl={fall?.signalEntscheide} setzen={xs => aendern(f => { f.signalEntscheide = xs; return f })}
+          ziele={amtlicheSignalZiele(daten?.osm, rechnung?.streifen ?? [])} />
         <details className="abschnitt" open={quellenOffen} onToggle={e => setQuellenOffen(e.currentTarget.open)}>
-        <summary><h2>Geladene Quellen{quellenFehler && <span className="fehler"> (Fehler)</span>}</h2></summary>
-        {ortLage && <DatenlageZeile lage={ortLage} zustand={quellZustand} />}
+        <summary><h2>Datenquellen und Ladezustand{quellenFehler && <span className="fehler"> (Fehler)</span>}</h2></summary>
+        {ortLage && <DatenlageZeile lage={ortLage} zustand={quellZustand} qualitaet={qualitaetJeQuelle(quellenMitSnapshots)} />}
+        <p className="klein">Beim Wiederöffnen werden die Datenquellen neu geladen. Angezeigt wird der jeweils verwendete
+          Datenstand; bestätigte Eingaben bleiben erhalten. Das Abrufdatum ist kein Datenstand.</p>
         <table>
           <tbody>
-            {Object.entries(quellen).map(([k, q]) => (
-              <tr key={k}><td>{q.name}{q.server && <div className="klein">{q.server}</div>}
+            {quellenSortiert(quellenMitSnapshots).map(([k, q]) => (
+              <tr key={k}><td><b>{quellenThema(k, q.name)}</b><br />{q.name}{q.server && <div className="klein">{q.server}</div>}
+                <div className="klein quelle-info">{quellenQualitaetText(q)}{q.zeit && <><br />Abgerufen {new Date(q.zeit).toLocaleString('de-CH')}</>}</div>
                 {registerQuelle(QUELLE_JE_SCHLUESSEL[k] ?? '') && <div className="klein quelle-info">{quelleInfo(registerQuelle(QUELLE_JE_SCHLUESSEL[k])!)}</div>}</td>
                 {q.fehler ? <td className="fehler">{q.fehler}{k === 'parkkataster' && parkKat?.fehler && <>{' '}
                   <button className="zweit klein" onClick={() => setParkKat(x => (x ? { ...x, felder: null, fehler: undefined, laedt: false } : x))}>
                     erneut laden</button></>}</td> :
                   <td className="klein">{[q.objekte, q.ms != null ? `${Math.round(q.ms)} ms` : '', q.bytes != null ? `${Math.round(q.bytes / 1024)} kB` : '']
-                    .filter(Boolean).join(', ')}</td>}
+                    .filter(Boolean).join(', ') || 'lädt …'}</td>}
               </tr>
             ))}
           </tbody>
@@ -2555,6 +2642,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             <span className="farbe rund gestrichelt" style={{ background: UEBERGANG_FARBE.vermutlich, borderColor: '#a16207', opacity: 0.6 }} />vermutlich
             (crossing=uncontrolled ohne Markierungs-Tag), <span className="farbe rund" style={{ background: UEBERGANG_FARBE.lsa }} />mit Lichtsignal,
             <span className="farbe rund" style={{ background: UEBERGANG_FARBE.unmarkiert }} />unmarkiert bzw. ohne Angabe (kein FGS)</li>
+          <li><b style={{ color: '#2563eb' }}>F</b> Amtlicher Streifen oder Fussgängermarkierung ohne OSM-Gegenstück: Kandidat; Klick zum Prüfen, Geometrie kontrollieren. Signal 4.11 allein ist nur ein Signalstandort.</li>
           <li><span className="farbe lbfgs-marke" />Streifen aus dem Luftbild (ETH-Modell), nicht in OSM: Kandidat zum Prüfen (Klick: wie ein
             OSM-Übergang prüfen)</li>
           <li><span className="farbe" style={{ background: '#fde047' }} />Streifen, <span className="farbe gestrichelt" style={{ background: '#e2e8f0',
@@ -2628,7 +2716,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <h3>Daten</h3>
         <p className="klein">
           Luftbild und Streifen-Erkennung {LUFTBILD_QUELLE}{daten?.flugjahr ? ` (Flugjahr ${daten.flugjahr})` : ''} · Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '…'}, geodienste.ch ·
-          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}{hoehenWerte || kurveNeigung || erkWerte || sichtWerte ? ' · Höhenmodell swissALTI3D © swisstopo' : ''}.
+          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.bav ? ` · ${BAV_QUELLENANGABE}` : ''}{fall?.quellen.npvm ? ` · ${NPVM_QUELLENANGABE}` : ''}{fall?.zuerich ? ` · ${ZH_QUELLE}` : ''}{(fall?.regional?.teile ?? []).map(t => ` · ${regionaleQuellenAngabe(t.id)}`).join('')}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}{hoehenWerte || kurveNeigung || erkWerte || sichtWerte ? ' · Höhenmodell swissALTI3D © swisstopo' : ''}.
         </p>
         <p className="klein">
           Streifen aus dem Luftbild, die in OSM fehlen: {ETH_MODELL_QUELLE} (<a href={ETH_MODELL_URL} target="_blank" rel="noopener noreferrer">Artikel ↗</a>,{' '}
@@ -2654,21 +2742,30 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <Fusszeile />
       </aside>
       {bericht && fall && rechnung && (
-        <Bericht fall={fall} rechnung={rechnung} gelaende={erkWerte} rechnungZeit={rechnungZeit} kantone={kantone} flugjahr={daten?.flugjahr ?? ''}
+        <Bericht neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null} fall={fall} rechnung={rechnung} gelaende={erkWerte} rechnungZeit={rechnungZeit} kantone={kantone} flugjahr={daten?.flugjahr ?? ''}
           luftbildStand={daten?.luftbild ? 'da' : fall.luftbild !== false && quellen.luftbild && !quellen.luftbild.fehler ? 'laedt' : 'fehlt'}
-          zusatzQuellen={[...(fall.baumkataster && kataster?.baeume ? [`Baumkataster: ${kataster.quelle.quellenangabe} (WFS map.bern.ch)`] : []),
+          zusatzQuellen={[...Object.values(hkQuellen).map(q => `${q.name} (nur Kartenkontext): ${q.datenstand}; Vollständigkeit unbekannt; abgerufen ${q.zeit ?? 'unbekannt'}`), ...(fall.baumkataster && kataster?.baeume ? [`Baumkataster: ${kataster.quelle.quellenangabe} (WFS map.bern.ch)`] : []),
             ...(parkAn && parkKat?.felder ? [`Amtliche Parkfelder: ${parkKat.quelle.quellenangabe} (WFS map.bern.ch)`] : []),
             ...(fall.quellen.haltestellen ? [`Haltestellen (Vorbelegung Bedarf): ${HALT_QUELLE} (${GEOPORTAL_BERN}, ArcGIS REST map.bern.ch)`] : []),
+            ...(fall.signalEntscheide ?? []).map(x => `Bestätigte amtliche Signalzuordnung: ${x.name}; ${x.art}; Knoten ${x.knoten}, Zufahrt ${x.zufahrt}; Datenstand ${x.datenstand}; abgerufen ${x.abgerufen}; ${x.objektId}`),
+            ...(fall.regional?.teile ?? []).map(regionaleQuelleMitStand),
+            ...(['tempo', 'zonen'] as const).flatMap(k => { const z = fall.zuerich?.[k]; return z ? [`${ZH_QUELLE}; ${k === 'tempo' ? 'Tempo' : 'Verkehrszonen'}: ${z.objekte.length} Objekte, Datenstand ${zhStandText(z)}, abgerufen ${z.abgerufen}`] : [] }),
+            ...(fall.npvm ? [`${NPVM_QUELLENANGABE}; ${fall.npvm.linien.length} Modellstrecken, Bezugsjahr ${fall.npvm.bezugsjahr ?? 'unbekannt'}, ` +
+              `Datenstand ${npvmStandText(fall.npvm)} (Ebene), abgerufen ${fall.npvm.abgerufen}; modelliert, keine Zählung; Zuordnung und Übernahme bestätigen`] : []),
+            ...(fall.amtlicheQuellen?.bav ? [`${BAV_QUELLENANGABE}; ${fall.amtlicheQuellen.bav.halte.length} Haltestellenpunkte, ` +
+              `abgerufen ${fall.amtlicheQuellen.bav.abgerufen}; Datenstand ${bavDatenstandText(fall.amtlicheQuellen.bav)} (Ebene); Vollständigkeit unbekannt; Zuordnung zur Querung als Vorschlag`] : []),
+            ...(fall.quellen.gebiet ? [fall.quellen.gebiet] : []),
             ...(fall.quellen.verkehrsdaten ? [`Verkehrsmenge DTV (Vorbelegung Bedarf): ${VD_QUELLE}, DTV = 16·Nt + 8·Nn (${GEOPORTAL_BERN}, ` +
               'ArcGIS REST map.bern.ch)'] : []),
             ...BERN_C_KEYS.filter(k => fall.quellen[k]).map(bernDienstBericht),
+            ...(fall.ort.amtlich ? [amtlicherText(fall.ort.amtlich)] : []),
             ...(fall.ort.herkunft ? [`Übergang aus dem Luftbild (nicht in OSM): ${ETH_MODELL_QUELLE}`] : []),
             ...(hoehenWerte ? ['Längsneigung der Knotensicht: Höhenmodell swissALTI3D © swisstopo (Profile, api3.geo.admin.ch)'] : []),
             ...(kurveNeigung ? ['Längsgefälle der Kurvenregel: Höhenmodell swissALTI3D © swisstopo (Profil entlang der Fahrlinie, api3.geo.admin.ch)'] : []),
             ...(erkWerte ? ['Gelände der Erkennungsdistanz: Höhenmodell swissALTI3D © swisstopo (Profile entlang der Sichtlinien, api3.geo.admin.ch)'] : []),
             ...(sichtWerte ? ['Gelände der Sicht auf die Wartefläche: Höhenmodell swissALTI3D © swisstopo (Profile entlang der Sichtlinien, api3.geo.admin.ch)'] : [])]}
-          ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} datenlage={ortLage}
-          quellenIds={genutzteQuellen(fall.quellen, { herkunftP: fall.ort.herkunft?.p ?? null, hoehen: !!(hoehenWerte || kurveNeigung || erkWerte || sichtWerte) })} />
+          ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} datenlage={ortLage} quellenQualitaet={qualitaetJeQuelle(quellenMitSnapshots)}
+          quellenIds={genutzteQuellen({ ...fall.quellen, ...hkQuellen, ...Object.fromEntries((fall.regional?.teile ?? []).map(t => [`regional.${t.id}`, true])), ...(fall.ort.amtlich ? { [`regional.${fall.ort.amtlich.quelleId}`]: true } : {}), ...(fall.bedarf?.felder.dtv?.npvmBeleg ? { npvm: NPVM_QUELLENANGABE } : {}) }, { herkunftP: fall.ort.herkunft?.p ?? null, hoehen: !!(hoehenWerte || kurveNeigung || erkWerte || sichtWerte) })} />
       )}
     </div>
   )
@@ -2839,6 +2936,9 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
         {streifenKopf(streifenTitel(s.fgsId, fall.streifenHand, streifenArt(s)), s.strasse)}{s.trottoirueberfahrt ? null : <>: {streifenStatus(s)}</>}
         {s.querung && <span className="klein"> ({s.querung.typ === 'begegnungszone' ? 'Begegnungszone' : 'ohne Vortritt'})</span>}
       </h2>
+      <SichtfelderWahl arten={(['auto', 'velo', 'trottoir'] as const).filter(art =>
+        (art === 'auto' && s.zufahrten.length > 0) || (art === 'velo' && s.zufahrten.some(z => z.velo)) ||
+        (s.knotensicht && !('fehler' in s.knotensicht) && s.knotensicht.karte.dreiecke.some(d => d.art === art)))} />
       <div className="klein zeile">
         {s.trottoirueberfahrt ? <LsaEinmuendung fall={fall} blatt={blatt} aendern={aendern} /> : <>
         Lichtsignal: <select value={se.lsa ?? ''} onChange={e => setzeS({ lsa: (e.target.value || undefined) as 'ja' | 'nein' | undefined })}>
@@ -2903,6 +3003,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
       {s.luftbildUebergang && <p className="pruefen klein">{s.luftbildUebergang}</p>}
       {s.lsa === 'ja' && <p className="klein">Mit Lichtsignal gilt die <VerweisText text="Arbeitshilfe Fussgängerstreifen Kanton Bern" /> nicht; die Rechnung wird trotzdem gezeigt.</p>}
       {s.annahmen.length > 0 && <ul className="annahmen">{s.annahmen.map(a => <li key={a}>{a}</li>)}</ul>}
+      {s.status !== 'kein_fgs' && <p className="klein">Tempo direkt je Zufahrt ändern. Ein im Feld «Signalisiertes Tempo» gewählter oder eingegebener Wert gilt auch hier; eine Korrektur für diese Zufahrt geht vor.</p>}
       {s.status !== 'kein_fgs' && (
         <table className="zufahrten">
           <thead><tr><th>Zufahrt</th><th>Tempo</th><th title="Sichtweite, die frei sein muss (nach Tempo bzw. Kurvenradius)">nötige Sicht</th>
@@ -2918,17 +3019,18 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
                   {z.art === 'abbiegend' && z.ueberStrasse ? `, weiter auf ${z.ueberStrasse}` : ''}</div>
                   {z.lageQuelle === 'Hand' && <div className="klein">Fahrlinie von Hand</div>}
                   <StreetViewZufahrt url={zufahrtStreetView(z, s)} nr={zufahrtNr(namen, z.zufahrt) || z.zufahrt} /></td>
-                <td>{z.tempo} km/h<div className={z.tempoQuelle === 'Ersatz' ? 'klein warnung' : 'klein'}>({tempoHerkunft(z.tempoQuelle)})</div></td>
+                <td><ZufahrtTempo z={z} name={zufahrtLang(namen, z.zufahrt)} fall={fall} aendern={aendern} /></td>
                 <td title={`Herleitung: ${z.sichtweiteQuelle}${z.kurvenradiusM != null ? `, Kurvenradius ${f1(z.kurvenradiusM)} m` : ''}`}>{mText(z.sichtweite)} m
                   <div className="klein">({sichtQuelleKurz(z.sichtweiteQuelle)})</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
-                <td><span className="farbe" style={{ background: STATUS_FARBE[z.status] }} />{statusText(z, fall.hindernisse)}
+                <td><SichtTaste art="auto" id={fgsSichtId(z)}><span className="farbe" style={{ background: STATUS_FARBE[z.status] }} />Wartefläche: {statusText(z, fall.hindernisse)}</SichtTaste>
                   {z.unter5m && <div className="klein warnung">Parkfeld unter 5 m</div>}
                   {z.sichtGelaende && <div className={z.sichtGelaende.abM !== null ? 'klein warnung' : 'klein'} title={SICHT_GELAENDE_TITEL}>
                     {sichtGelaendeText(z.sichtGelaende)}</div>}
                   {z.erkennungM && (() => {
                     const a = erkennungAnzeige(z, gelaende)!.e
-                    return <div className="klein" title={ERKENNUNG_TITEL}>{erkennungText(a)}; {gelaendeText(a)}</div>
+                    return <><div className="klein" title={ERKENNUNG_TITEL}>{erkennungText(a)}; {gelaendeText(a)}</div>
+                      {erkennungEmpfehlungText(a, z.sichtweite) && <div className="klein"><strong>{erkennungEmpfehlungText(a, z.sichtweite)}</strong></div>}</>
                   })()}</td>
               </tr>
               {/* Sicht vom Velo (29.10.2026): zweite Prüfung von der Veloachse, nur mit Radstreifen bzw. Radweg */}
@@ -2939,8 +3041,8 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
                   <td />
                   <td title={`Herleitung: VSS 40 273 ${vs.text}; ${vs.neigungText}`}>{vs.A} m<div className="klein">(VSS 40 273 Tab. 3)</div>
                     <div className="klein">{vs.neigungText}</div></td>
-                  <td><span className="farbe" style={{ background: STATUS_FARBE[vs.frei ? 'frei' : 'verdeckt'] }} />
-                    Velo: {vs.frei ? 'frei' : `verdeckt, frei bis ${z.velo.freiBisM} m`}, Soll {vs.A} m
+                  <td><SichtTaste art="velo" id={fgsSichtId(z)}><span className="farbe" style={{ background: STATUS_FARBE[vs.frei ? 'frei' : 'verdeckt'] }} />
+                    Velo: {vs.frei ? 'frei' : `verdeckt, frei bis ${z.velo.freiBisM} m`}, Soll {vs.A} m</SichtTaste>
                     {vs.nurBis !== undefined && <div className="klein warnung">geprüft bis {vs.nurBis} m, darüber nicht geprüft</div>}
                     {vs.ebikeA !== null && <div className="klein" title="VSS 40 273 Tab. 3">mit Verbot für schnelle E-Bikes gälte {vs.ebikeA} m</div>}</td>
                 </tr>
@@ -2993,15 +3095,12 @@ function ZufahrtDetail({ z, name, nr, fall, aendern, spurZeichnen, gelaende = nu
     <div className="detail">
       <h3><NrMarke nr={nr} gewaehlt />{name} <span className="klein">(Fahrtrichtung {z.richtung}°, Kennung {z.kennung})</span></h3>
       <table className="zahlen"><tbody>
-        <tr><td>Tempo</td><td>
-          <select value={zh.tempo ?? ''} onChange={e => setze({ tempo: e.target.value ? Number(e.target.value) : undefined })}>
-            <option value="">{zh.tempo ? 'aus den Daten' : `${z.tempo} km/h (${z.tempoQuelle === 'Ersatz' ? 'Annahme' : z.tempoQuelle === 'Geoportal' ? 'Geoportal' : 'aus OSM'})`}</option>
-            {[20, 30, 40, 50, 60, 80].map(t => <option key={t} value={t}>{t} km/h (von Hand)</option>)}
-          </select></td></tr>
+        <tr><td>Tempo</td><td><ZufahrtTempo z={z} name={name} fall={fall} aendern={aendern} /></td></tr>
         <tr><td>Sichtweite</td><td>{mText(z.sichtweite)} m ({z.sichtweiteQuelle}){z.geprueftBisM != null &&
           <span className="warnung">; geprüft bis {z.geprueftBisM} m (Reichweite der geladenen Daten), darüber nicht geprüft</span>}</td></tr>
         {z.kurvenradiusM != null && <tr><td>Radius</td><td>{f1(z.kurvenradiusM)} m ({z.radiusQuelle})</td></tr>}
-        {erk && <tr><td>Erkennbar</td><td title={ERKENNUNG_TITEL}>{erkennungText(erk)}; Sichtrechner, {gelaendeText(erk)} (Annahme)</td></tr>}
+        {erk && <tr><td>Bodenmarkierung</td><td title={ERKENNUNG_TITEL}>{erkennungText(erk)}; Sichtrechner, {gelaendeText(erk)} (Annahme)
+          {erkennungEmpfehlungText(erk, z.sichtweite) && <div><strong>{erkennungEmpfehlungText(erk, z.sichtweite)}</strong></div>}</td></tr>}
         {z.knotenM != null && <tr><td>Knoten</td><td>{f1(z.knotenM)} m vor dem Streifen</td></tr>}
         {z.deckung && <tr><td>Mitgeprüft</td><td title={GEDECKT_TITEL}>ab dem Knoten durch die gerade Zufahrt ({z.deckung}); zählt trotzdem</td></tr>}
         <tr><td>Fahrbahn</td><td>{z.fahrbahnM != null ? `${f2(z.fahrbahnM)} m` : '–'}, Fahrstreifen

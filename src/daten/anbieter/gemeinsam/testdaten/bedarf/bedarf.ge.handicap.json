@@ -1,0 +1,56 @@
+{
+  "mitte": [
+    2499534.736249998,
+    1117215.1309375018
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 2,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2499534.736249998,
+            1117215.1309375018
+          ]
+        },
+        "properties": {
+          "OBJECTID": 2,
+          "NOM": "Foyer des Bains",
+          "ORGANISME": "Hôpital Universitaire Genève",
+          "TYPE_ETABL": "H",
+          "ADRESSE": "Rue des Bains 35 1205 Genève"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": 71,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2499697.155000001,
+            1117191.2550000027
+          ]
+        },
+        "properties": {
+          "OBJECTID": 71,
+          "NOM": "Restaurant La Plaine Lune",
+          "ORGANISME": "Association Trajets",
+          "TYPE_ETABL": "A",
+          "ADRESSE": "Avenue du Mail 14bis 1205 Genève"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

@@ -1,0 +1,154 @@
+[
+  {
+    "nr": 844258,
+    "api": 829,
+    "richtungen": [
+      {
+        "von": 460836,
+        "nach": 460865,
+        "dtv": 0.0,
+        "motorrad": 0.0
+      },
+      {
+        "von": 460865,
+        "nach": 460836,
+        "dtv": 829.0,
+        "motorrad": 18.0
+      }
+    ],
+    "gleich": true
+  },
+  {
+    "nr": 1049942,
+    "api": 1728,
+    "richtungen": [
+      {
+        "von": 460094,
+        "nach": 460317,
+        "dtv": 307.0,
+        "motorrad": 7.0
+      },
+      {
+        "von": 460317,
+        "nach": 460094,
+        "dtv": 1421.0,
+        "motorrad": 33.0
+      }
+    ],
+    "gleich": true
+  },
+  {
+    "nr": 1049956,
+    "api": 6232,
+    "richtungen": [
+      {
+        "von": 459466,
+        "nach": 459641,
+        "dtv": 5157.0,
+        "motorrad": 113.0
+      },
+      {
+        "von": 459641,
+        "nach": 459466,
+        "dtv": 1075.0,
+        "motorrad": 24.0
+      }
+    ],
+    "gleich": true
+  },
+  {
+    "nr": 1059186,
+    "api": 166,
+    "richtungen": [
+      {
+        "von": 461226,
+        "nach": 461305,
+        "dtv": 166.0,
+        "motorrad": 4.0
+      },
+      {
+        "von": 461305,
+        "nach": 461226,
+        "dtv": 0.0,
+        "motorrad": 0.0
+      }
+    ],
+    "gleich": true
+  },
+  {
+    "nr": 1115050,
+    "api": 1058,
+    "richtungen": [
+      {
+        "von": 460292,
+        "nach": 460485,
+        "dtv": 0.0,
+        "motorrad": 0.0
+      },
+      {
+        "von": 460485,
+        "nach": 460292,
+        "dtv": 1058.0,
+        "motorrad": 22.0
+      }
+    ],
+    "gleich": true
+  },
+  {
+    "nr": 1224848,
+    "api": 401,
+    "richtungen": [
+      {
+        "von": 461221,
+        "nach": 461429,
+        "dtv": 401.0,
+        "motorrad": 9.0
+      },
+      {
+        "von": 461429,
+        "nach": 461221,
+        "dtv": 0.0,
+        "motorrad": 0.0
+      }
+    ],
+    "gleich": true
+  },
+  {
+    "nr": 1338390,
+    "api": 14419,
+    "richtungen": [
+      {
+        "von": 459980,
+        "nach": 460014,
+        "dtv": 14419.0,
+        "motorrad": 319.0
+      },
+      {
+        "von": 460014,
+        "nach": 459980,
+        "dtv": 0.0,
+        "motorrad": 0.0
+      }
+    ],
+    "gleich": true
+  },
+  {
+    "nr": 1342512,
+    "api": 8654,
+    "richtungen": [
+      {
+        "von": 459916,
+        "nach": 459980,
+        "dtv": 8654.0,
+        "motorrad": 190.0
+      },
+      {
+        "von": 459980,
+        "nach": 459916,
+        "dtv": 0.0,
+        "motorrad": 0.0
+      }
+    ],
+    "gleich": true
+  }
+]

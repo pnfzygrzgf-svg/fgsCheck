@@ -8,11 +8,12 @@
 // Abbiegeverbote (type=restriction, Rollen from/via/to), Übergangsknoten (fgs_netz.ist_uebergang), Tramgleise; dazu
 // Ampeln (highway=traffic_signals) für die LSA-Einordnung (fgs_sicht_pruefen.Lichtsignale).
 // Für die Vorbelegung des Bedarfsmoduls zusätzlich (eigene Mengen, ohne Fusswege nach sich zu ziehen; die Rechnung übergeht sie):
-// Haltestellen und Strassenlampen, seit Automatik Paket C (21.10.2026) Schulen, Kindergärten und Heime (Umkreis
+// Haltestellen und Strassenlampen, seit Automatik (21.10.2026) Schulen, Kindergärten und Heime (Umkreis
 // SCHULEN_OSM_RADIUS_M, Flächen nur mit Mittelpunkt) sowie Vortrittszeichen (highway=give_way|stop) und Verkehrsschilder
 // (traffic_sign) im ganzen Umkreis. Gemessen 21.10.2026 an der Mühlemattstrasse (300 m): 271 kB ohne, 277 kB mit beidem.
 
 import { holeText, istAbbruch, AbrufFehler, type Abruf } from './holen'
+import { osmDatenstand } from './anbieter/gemeinsam/qualitaet'
 import { lv95, dist, type P } from '../geo'
 
 export interface OsmWeg { id: number; tags: Record<string, string>; knoten: number[]; geom: [number, number][] }
@@ -116,7 +117,7 @@ export function overpassAbfrage(lat: number, lon: number, radius: number): strin
     `node(${ul})["highway"="street_lamp"];)->.h;` +
     // Schulen, Kindergärten, Heime (Knoten, Wege, Relationen) und Vortrittszeichen bzw. Schilder: eigene Mengen .s und .v, nach
     // den Wegen ausgegeben (ein Weg, der zugleich Strasse ist, kommt so zuerst mit Geometrie); Flächen mit ihren Grenzen (bb: Abstand
-    // zum Rand statt zum Mittelpunkt, Korrektur S9; wenige Zahlen je Fläche statt der ganzen Geometrie)
+    // zum Rand statt zum Mittelpunkt; wenige Zahlen je Fläche statt der ganzen Geometrie)
     `(nwr(${us})["amenity"~"^(school|kindergarten|social_facility|nursing_home)$"];` +
     `nwr(${us})["social_facility"~"^(nursing_home|group_home)$"];)->.s;` +
     `(node(${um})["highway"~"^(give_way|stop)$"];node(${um})["traffic_sign"];)->.v;` +
@@ -281,7 +282,7 @@ async function overpassFetch(query: string, signal?: AbortSignal): Promise<Abruf
         let data: { remark?: unknown }
         try { data = JSON.parse(text) } catch { letzter = new URL(url).host + ': kein JSON'; continue }
         if (overpassAbgebrochen(data)) { letzter = new URL(url).host + ': abgebrochen'; continue }
-        return { daten: data, ms: performance.now() - t0, bytes: text.length, quelle: new URL(url).host }
+        return { daten: data, ms: performance.now() - t0, bytes: text.length, quelle: new URL(url).host, datenstand: osmDatenstand(data) }
       }
       letzter = `${new URL(url).host}: HTTP ${res.status}`
       if (res.status === 429 || res.status >= 500) {
@@ -354,7 +355,7 @@ export function zebraTag(t: Record<string, string>): string {
 }
 
 /**
- * Einordnung eines OSM-Übergangs für Anzeige und Ergebnis (Nutzerentscheid 10.10.2026, Variante B: alle Übergänge bleiben
+ * Einordnung eines OSM-Übergangs für Anzeige und Ergebnis (Variante B: alle Übergänge bleiben
  * wählbar; crossing=no wird schon in istUebergang ausgeschlossen und nicht angeboten):
  *   lsa        – gesignalisierte Querung (crossing=traffic_signals bzw. crossing:signals=yes); wie bisher mit LSA-Hinweis
  *   markiert   – Zebra-Merkmal nach zebraTag (crossing:markings=zebra*, crossing=zebra, crossing_ref=zebra, crossing=marked,
@@ -364,8 +365,7 @@ export function zebraTag(t: Record<string, string>): string {
  *   unmarkiert – ausdrücklich ohne Markierung (crossing=unmarked, crossing:markings=no) oder andere Markierung als Zebra
  *                (z. B. crossing:markings=dots, surface)
  *   unbelegt   – keine Angabe zur Art (z. B. nur highway=crossing, crossing=yes/informal)
- * unmarkiert und unbelegt gelten als «kein Fussgängerstreifen»: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug.
- */
+ * unmarkiert und unbelegt gelten als «kein Fussgängerstreifen»: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug. */
 export type Markierung = 'lsa' | 'markiert' | 'vermutlich' | 'unmarkiert' | 'unbelegt'
 export const MARKIERUNGEN: Markierung[] = ['lsa', 'markiert', 'vermutlich', 'unmarkiert', 'unbelegt']
 export function markierung(t: Record<string, string>): Markierung {
@@ -398,9 +398,9 @@ export function querungAnnahmeHinweis(m: Markierung, t: Record<string, string>, 
   return `Unmarkierte Querung (OSM: ${osm}): als Querung ohne Vortritt angenommen (${furt ? 'Furt' : 'ohne bauliche Massnahme'}), ` +
     'Sichtweite nach VSS 40 240 Z. 8.2; für einen geplanten Fussgängerstreifen unter «Querung» Fussgängerstreifen wählen.'
 }
-/** Kurztext der Annahme in der Begegnungszone (Bedarf, Hinweis zum Querungstyp; Nutzerentscheid 30.10.2026) */
+/** Kurztext der Annahme in der Begegnungszone (Bedarf, Hinweis zum Querungstyp) */
 export const QUERUNG_BGZ_TEXT = 'unmarkierte Querung (OSM) in der Begegnungszone: Vortritt Fussverkehr, flächiges Queren (kein eigener Querungstyp)'
-/** Hinweis am Streifen einer unmarkierten OSM-Querung in einer Begegnungszone (Nutzerentscheid 30.10.2026): der Fussverkehr hat dort
+/** Hinweis am Streifen einer unmarkierten OSM-Querung in einer Begegnungszone: der Fussverkehr hat dort
  * Vortritt, Sichtweite = Anhaltesichtweite (VSS 40 240 Z. 8.2); zone: Herkunft der Zone (Lesetext) */
 export function querungBgzHinweis(m: Markierung, t: Record<string, string>, zone: string): string {
   const osm = m === 'unmarkiert' ? (t.crossing === 'unmarked' ? 'crossing=unmarked' : `crossing:markings=${t['crossing:markings']}`)

@@ -133,7 +133,7 @@ describe('Streifen im Bild', () => {
   })
 })
 
-describe('Insel nach OSM aus den Balken (INSEL_AUS_OSM; nur zwei Balkengruppen, Nutzerentscheid 14.10.2026; Schalter seit 30.10.2026 aus, hier an)', () => {
+describe('Insel nach OSM aus den Balken (INSEL_AUS_OSM; nur zwei Balkengruppen; Schalter seit 30.10.2026 aus, hier an)', () => {
   beforeEach(() => inselAusOsmSetzen(true))
   afterEach(() => inselAusOsmSetzen(null))
   // Teil mit Achse nach Norden ab O, Balken parallel zu x (4 m), ohne Schräge; balkenS: Balkenmitten ab p0

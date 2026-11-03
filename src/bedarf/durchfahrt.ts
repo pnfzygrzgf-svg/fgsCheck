@@ -1,7 +1,7 @@
 // ── Bedarfsmodul: Durchfahrt neben einer Insel (Regeln F3, F3-B; Werte aus dem Katalog) ──
 //
 // Eine Quelle für den Entscheidbaum (regeln.ts F3) und das Werkzeug «Mittelinsel (Standard)» (rechner/standardinsel.inselPruefen,
-// Korrektur E1: statt des Hinweises «weniger als 2,0 m Fahrbahn»). F3 nach der Arbeitshilfe des Kantons Bern (Bänder schmal bzw.
+// Statt des Hinweises «weniger als 2,0 m Fahrbahn»). F3 nach der Arbeitshilfe des Kantons Bern (Bänder schmal bzw.
 // breit, dazwischen Überholkonflikt Lastwagen–Velo), F3-B nach den Berner Standards Veloinfrastruktur bei durchgehendem
 // Radstreifen. Keine VSS-Norm nennt Durchfahrtsmasse (Normhinweis des Katalogs).
 
@@ -14,7 +14,7 @@ export type F3Klasse = 'schmal' | 'band' | 'knapp' | null
 /** Klasse einer Durchfahrt d [m] nach F3 */
 export function f3Klasse(d: number): F3Klasse {
   const W = KATALOG.F3.werte
-  // zu schmal unter 3,50 m wie die Arbeitshilfe (Nutzerentscheid 23.10.2026; die Toleranz ab 3,45 m gilt nur in der Grundprüfung bfu)
+  // zu schmal unter 3,50 m wie die Arbeitshilfe (die Toleranz ab 3, 45 m gilt nur in der Grundprüfung bfu)
   if (d < W.min - 1e-9) return 'schmal'
   if (d > W.schmalMax && d < W.breitMin) return 'band'
   if (d < W.ideal || (d >= W.breitMin && d < W.breitIdeal)) return 'knapp'
@@ -64,7 +64,7 @@ export function durchfahrtHinweise(d: number[], opt: { radstreifen?: boolean | n
 }
 
 /**
- * Hinweis zur Durchfahrt für die Anzeige (Runde 2): statt «(F3, Arbeitshilfe Kanton BE)» die Fundstelle der Regel, damit der Satz
+ * Hinweis zur Durchfahrt für die Anzeige: statt «(F3, Arbeitshilfe Kanton BE)» die Fundstelle der Regel, damit der Satz
  * nicht den Regeltitel wiederholt («Durchfahrt neben der Insel … (Durchfahrt neben der Insel (F3) …)»). Der Wortlaut von
  * durchfahrtHinweise bleibt (geprüft in rechner/standardinsel.test.ts).
  */

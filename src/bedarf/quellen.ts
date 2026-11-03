@@ -1,7 +1,7 @@
-// ── Bedarfsmodul Runde 4: Quellenverzeichnis (Hilfe, Bericht, Verweise in den Details) ──
+// ── Quellenverzeichnis (Hilfe, Bericht, Verweise in den Details) ──
 //
 // Je Werk des Werkverzeichnisses (katalog.WERKE) eine Beschreibung in Alltagssprache: was es ist, wer es herausgibt, wofür es gilt,
-// und (ausser bei Normen, Nutzerentscheid 23.10.2026) wie verbindlich es ist. Die Verbindlichkeit folgt nur aus der Ebene (Recht, Norm, Standard bzw. Arbeitshilfe
+// und (ausser bei Normen) wie verbindlich es ist. Die Verbindlichkeit folgt nur aus der Ebene (Recht, Norm, Standard bzw. Arbeitshilfe
 // einer Verwaltung, Richtlinie bzw. Empfehlung einer Fachstelle oder eines Verbands, Projektentscheid), nicht aus eigener Auslegung.
 // Eigene Formulierungen, kein Text aus den Werken. Der Typ (Record über WerkId) verlangt für jedes Werk einen Text.
 // Anzeige: Hilfe (Tabelle Werk · Ausgabe · Ebene · Beschreibung · Regeln), Bericht (nur Werke, die im Fall vorkommen), Details je
@@ -26,7 +26,7 @@ export interface WerkInfo {
   gilt: string
 }
 
-/** Normen: kein zweiter Satz (Nutzerentscheid 23.10.2026: der Satz zur Verbindlichkeit von Normen ist gestrichen) */
+/** Normen: kein zweiter Satz (der Satz zur Verbindlichkeit von Normen ist gestrichen) */
 const NORM = ''
 const BUND = 'Bundesrecht, verbindlich.'
 const STADT = 'Für die eigenen Projekte der Stadt Bern verbindlich, für andere Strassen eine Orientierung.'
@@ -43,7 +43,7 @@ export const WERK_INFO: Readonly<Record<WerkId, WerkInfo>> = {
   '40242': { ebene: 'Norm', was: 'VSS 40 242 ist die Norm des VSS für Trottoirüberfahrten, bei denen das Trottoir ohne Unterbruch über ' +
     'eine einmündende Strasse weiterführt.', gilt: NORM },
   '40837': { ebene: 'Norm', was: 'VSS 40 837 ist die Norm des VSS für die Zeiten an Lichtsignalanlagen, etwa wie lange Grün und Gelb ' +
-    'für Fussgänger mindestens dauern.', gilt: NORM },
+    'für Zufussgehende mindestens dauern.', gilt: NORM },
   '40273': { ebene: 'Norm', was: 'VSS 40 273 ist die Norm des VSS für die Sicht an Knoten; fgsCheck nutzt daraus die Sichtweiten ' +
     'für den Veloverkehr.', gilt: NORM },
   '40213': { ebene: 'Norm', was: 'VSS 40 213 ist die Norm des VSS für bauliche Elemente, die den Verkehr verlangsamen, etwa ' +
@@ -114,7 +114,7 @@ export function werkeImFall(blaetter: readonly BefundBlatt[]): WerkId[] {
     if (b.grund.gilt) for (const t of [...b.grund.punkte.flatMap(p => [...p.teile, ...p.notizen]), ...b.grund.weitere]) ids.add(t.id)
   }
   const w = new Set([...ids].flatMap(werkeVon))
-  // nur externe Werke (Nutzerentscheid 23.10.2026): Projektentscheide erklärt die Begriffsliste
+  // nur externe Werke: Projektentscheide erklärt die Begriffsliste
   return WERK_IDS.filter(x => w.has(x) && x !== 'ENTSCHEID')
 }
 

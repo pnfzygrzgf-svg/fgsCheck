@@ -5,6 +5,7 @@
 // was unter der Beobachtungsdistanz B von 3,00 m liegt (Ziffer 12: B nicht kleiner als Lenker bis Fahrzeugfront).
 
 import { type P, add, einheit, links, sub } from '../geo'
+import { abschneiden, streckeLaenge } from './netz'
 
 export const PW_LAENGE_M = 4.5
 export const PW_BREITE_M = 1.8
@@ -93,4 +94,12 @@ export const VELO_FAHRER_HINTER_MITTE_M = 0.2
 export function fbVeloLage(Dachse: P, voraus: P): [P, P] {
   const u = einheit(sub(voraus, Dachse))
   return [add(Dachse, u, VELO_FAHRER_HINTER_MITTE_M), u]
+}
+
+/** Fahrzeug am Ende einer Sichtlinie (Kreisel): Front bzw. Vorderrad bei s, auf den Anfang der Linie zu fahrend (wie faLage, veloLage);
+ *  null, wenn die Linie kürzer ist */
+export function kreiselFahrzeug(achse: P[], s: number, lage: (pkte: P[], i: number) => [P, P] | null): [P, P] | null {
+  if (achse.length < 2 || streckeLaenge(achse) < s - 1e-6 || s < 1) return null
+  const ende = (x: number) => { const q = abschneiden(achse, x); return q[q.length - 1] }
+  return lage([ende(s - 1), ende(s)], 1)
 }

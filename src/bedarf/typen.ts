@@ -8,7 +8,7 @@ export type Ebene = 'Recht' | 'Norm' | 'Bern' | 'Kanton BE' | 'Richtlinie'
 export const EBENEN: readonly Ebene[] = ['Recht', 'Norm', 'Bern', 'Kanton BE', 'Richtlinie']
 
 /**
- * Stärke eines Befunds (Entscheid E0-1, Wortlaut der Quelle): hart = Pflichtverletzung (rot); hart_bericht = rot, Abweichung nur
+ * Stärke eines Befunds (Wortlaut der Quelle): hart = Pflichtverletzung (rot); hart_bericht = rot, Abweichung nur
  * mit verkehrstechnischem Bericht; weich = Empfehlung (gelb); hinweis = Information ohne Wertung.
  */
 export type Staerke = 'hart' | 'hart_bericht' | 'weich' | 'hinweis'
@@ -17,7 +17,7 @@ export const STAERKEN: readonly Staerke[] = ['hart', 'hart_bericht', 'weich', 'h
 /**
  * Art eines Katalogeintrags: befund = Regel mit eigenem Befund; weiche = Verzweigungsknoten des Baums, meldet einen Hinweis;
  * aggregat = Zusammenfassung ohne eigenen Befund (C-E, D-E, E-E); verweis = Verweis auf eine andere Regel; gestrichen = bewusst
- * ohne Befund (D2b, Entscheid E0-5).
+ * ohne Befund (D2b).
  */
 export type RegelArt = 'befund' | 'weiche' | 'aggregat' | 'verweis' | 'gestrichen'
 
@@ -25,7 +25,7 @@ export type RegelArt = 'befund' | 'weiche' | 'aggregat' | 'verweis' | 'gestriche
 export type Gruppe = 'A' | 'B' | 'C' | 'D' | 'E' | 'Q3' | 'F' | 'G' | 'H' | 'I' | 'B5'
 
 /**
- * Thema einer Regel in Alltagssprache (Runde 2, Nutzerentscheid 20.10.2026): ordnet Befundblatt und Prüfübersicht. Namen,
+ * Thema einer Regel in Alltagssprache: ordnet Befundblatt und Prüfübersicht. Namen,
  * Umfang und Anzeigereihenfolge in themen.ts (THEMEN); die Themen der Grundprüfung (Sicht, Insel, Fahrstreifen und Verkehr,
  * Beleuchtung, Nachfrage) heissen dort gleich.
  */
@@ -45,10 +45,10 @@ export interface RegelDef {
   /** Thema (Pflicht): genau eines je Regel, Anzeige nach Thema */
   thema: Thema
   /**
-   * Prüfsatz (Pflicht, Nutzerentscheid 23.10.2026): eine Frage bzw. ein Bedingungssatz in Alltagssprache, was gemessen bzw. abgefragt
+   * Prüfsatz (Pflicht): eine Frage bzw. ein Bedingungssatz in Alltagssprache, was gemessen bzw. abgefragt
    * wird (mit Grenzwert und Einheit aus werte) und was daraus folgt, Ton nach Stärke; eigene Formulierung, kein Normtext. Ablauf
    * (Weichen, Zusammenfassungen, Verweise) beginnt mit «Ablauf:», gestrichene Regeln mit «Gestrichen:». Anzeige: Regelübersicht «Prüft:».
-   */
+ */
   pruefsatz: string
   art: RegelArt
   /** null nur bei aggregat, verweis, gestrichen */
@@ -64,10 +64,10 @@ export interface RegelDef {
   /** Ergebnis: eigener Kurztext, kein Normtext */
   ergebnis: string
   /**
-   * Kurzform für die Zusammenfassung (Runde 3, zusammenfassung.ts): Stichwort in Alltagssprache, das sich in eine Aufzählung fügt
+   * Kurzform für die Zusammenfassung (zusammenfassung.ts): Stichwort in Alltagssprache, das sich in eine Aufzählung fügt
    * («Streifen zu schmal (2,80 m statt mindestens 3,00 m)»); Platzhalter {ist}, {soll} (mit Einheit, «≥» als «mindestens») und
    * {w:Schlüssel} (Schwelle aus werte). Fehlt sie, bildet die Zusammenfassung Kurztitel mit Ist und Soll.
-   */
+ */
   kurzsatz?: string
   quellen: readonly QuelleRef[]
   bemerkung?: string
@@ -78,13 +78,13 @@ export interface RegelDef {
   /** Grösse für die Tabelle Masse Soll/Ist (Regeln mit gleicher Grösse bilden eine Zeile) */
   groesse?: string
   /** hartes Verbot (Recht) gilt nur mit Tatsachen bzw. bestätigten Werten: beruht es auf einer Annahme bzw. Schätzung, bleibt die Regel
-   * offen («Annahme bestätigen»; Korrektur M2, Nutzerentscheid 21.10.2026). true: alle Eingaben zählen; Liste: nur diese Felder (A2:
-   * Strecke/Zone, das Tempo grenzt nur die Anwendbarkeit ein; Runde 4) */
+   * offen («Annahme bestätigen»). true: alle Eingaben zählen; Liste: nur diese Felder (A2:
+   * Strecke/Zone, das Tempo grenzt nur die Anwendbarkeit ein) */
   nurMitBestaetigung?: true | readonly string[]
   einheit?: string
 }
 
-/** Zustand eines Eintrags im Befund: verletzt (Bedingung trifft zu) oder offen (Eingabe fehlt; Entscheid E0-2) */
+/** Zustand eines Eintrags im Befund: verletzt (Bedingung trifft zu) oder offen (Eingabe fehlt) */
 export type Zustand = 'verletzt' | 'offen'
 
 /** Ein Eintrag im Befund */
@@ -104,7 +104,7 @@ export interface Eintrag {
   detail?: string
   /** bei offen: fehlende Eingaben */
   fehlend?: string[]
-  /** offen, weil das Verbot nur auf Annahmen beruht (Korrektur M2): fehlend sind dann die zu bestätigenden Felder */
+  /** offen, weil das Verbot nur auf Annahmen beruht: fehlend sind dann die zu bestätigenden Felder */
   bestaetigen?: boolean
   normHinweis?: string
 }
@@ -128,8 +128,8 @@ export interface MassZeile {
   einheit: string
   soll: string
   ist: string
-  /** nicht_anwendbar: Wert ohne Soll, die Regel greift nicht (Runde 4: Abstand bei ganzer Strasse); nie «erfüllt» ohne Soll.
-   * Runde 5: ausnahme = unter dem Soll, die Regel lässt es hier zu (Text in ausnahme); annahme = erfüllt nur nach einer Annahme;
+  /** nicht_anwendbar: Wert ohne Soll, die Regel greift nicht (Abstand bei ganzer Strasse); nie «erfüllt» ohne Soll.
+   * Ausnahme = unter dem Soll, die Regel lässt es hier zu (Text in ausnahme); annahme = erfüllt nur nach einer Annahme;
    * vorbehalt = erfüllt unter Vorbehalt einer offenen Frage (vorbehalt: Text) */
   zustand: 'erfuellt' | 'verletzt' | 'offen' | 'nicht_anwendbar' | 'ausnahme' | 'annahme' | 'vorbehalt'
   /** Text zu ausnahme bzw. vorbehalt */
@@ -189,13 +189,13 @@ export interface Befund {
   /**
    * angewendete Regeln ohne Eintrag: Bedingung geprüft und nicht verletzt (Prüfübersicht «in Ordnung»). Nicht darin: Regeln, die
    * hier nicht anwendbar sind (Ergebnis null), und Regeln, die nur still für die Empfehlung ausgewertet wurden
-   */
+ */
   erfuellt: string[]
   /** erfüllt-Grund je Regel aus erfuellt, sofern die Regel einen liefert (Ergebnis.grund; 30.10.2026): reine Anzeige */
   erfuelltGrund: Record<string, string>
   /** Regeln ausgeschalteter Ebenen, die mit eingeschalteter Ebene anwendbar wären (Prüfübersicht «nicht geprüft (Ebene ausgeschaltet)») */
   ebeneAus: string[]
-  /** fehlende Felder je offener Regel, auch still ausgewerteter (für die Fragen hinter «vorläufig»; Korrektur M3) */
+  /** fehlende Felder je offener Regel, auch still ausgewerteter (für die Fragen hinter «vorläufig») */
   offenFelder: Record<string, string[]>
   /** offene Einträge nach fehlendem Feld gruppiert (häufigstes Feld zuerst) */
   offenGruppen: { feld: string; regeln: string[] }[]

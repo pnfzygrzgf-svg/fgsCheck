@@ -5,6 +5,7 @@
 // kurztexte.ts); Annahmen eingeklappt.
 
 import type { ReactNode } from 'react'
+import { SichtTaste, tueSichtId, type SichtArt } from '../Sichtfelder'
 import type { KnotensichtAntwort, KsTeil, Knotensicht } from './knotensicht'
 import { KS_BREITE, KS_LAGE, KS_STATUS, KS_TITEL, istOk, phasenSatz, teilText } from './texte'
 import { TUE_NUR_EINMUENDUNG } from '../texte'
@@ -16,22 +17,23 @@ import { KS_NEIGUNG_LAEDT, KS_NEIGUNG_UNBEKANNT } from './kurztexte'
 const FARBE = (ok: boolean | null) => (ok === true ? '#10b981' : ok === false ? '#dc2626' : '#64748b')
 const f2 = (x: number) => x.toFixed(2).replace('.', ',')
 
-function Teil({ name, t }: { name?: string; t: KsTeil }) {
+function Teil({ name, t, id, art }: { name?: string; t: KsTeil; id?: string; art?: SichtArt }) {
   const ok = istOk(t.status)
+  if (id && art) return <SichtTaste art={art} id={id}><span className="farbe" style={{ background: FARBE(ok) }} />{name ? `${name}: ` : ''}{teilText(t)}</SichtTaste>
   return <div title={`${KS_STATUS[t.status]}${t.verdecker ? `; verdeckt durch ${t.verdecker}` : ''}`}>
     <span className="farbe" style={{ background: FARBE(ok) }} />{name ? `${name}: ` : ''}{teilText(t)}</div>
 }
 
-const HERKUNFT: Record<string, string> = { hand: 'von Hand', geoportal: 'Geoportal', osm: 'OSM', annahme: 'angenommen' }
+const HERKUNFT: Record<string, string> = { hand: 'von Hand', geoportal: 'Geoportal Stadt Bern', amtlich: 'amtliche Quelle', osm: 'OSM', annahme: 'angenommen' }
 
 /** Tabelle je Richtung (Panel und Bericht) */
-export function KnotensichtTabelle({ k, klasse }: { k: Knotensicht; klasse: string }) {
+export function KnotensichtTabelle({ k, klasse, schaltbar = false }: { k: Knotensicht; klasse: string; schaltbar?: boolean }) {
   return <table className={klasse}>
     <thead><tr><th /><th title="vom hinteren Rand der Überfahrt aus">aufs Trottoir</th><th title="vom vorderen Rand der Überfahrt aus">auf die Fahrbahn</th></tr></thead>
     <tbody>{k.richtungen.map(r => <tr key={r.richtung}>
       <td title={r.tempoQuelle}>{KS_LAGE[r.lage] ?? r.lage}<div className="klein">{r.strasse}{r.auto || r.velo ? `, ${r.tempo} km/h ${HERKUNFT[r.tempoHerkunft]}` : ''}</div></td>
-      <td>{r.trottoir ? <Teil t={r.trottoir} /> : '–'}</td>
-      <td>{r.auto && <Teil name="Auto" t={r.auto} />}{r.velo && <Teil name="Velo" t={r.velo} />}
+      <td>{r.trottoir ? <Teil t={r.trottoir} art="trottoir" id={schaltbar ? tueSichtId(k.streifenId, r.lage) : undefined} /> : '–'}</td>
+      <td>{r.auto && <Teil name="Auto" t={r.auto} art="auto" id={schaltbar ? tueSichtId(k.streifenId, r.lage) : undefined} />}{r.velo && <Teil name="Velo" t={r.velo} art="velo" id={schaltbar ? tueSichtId(k.streifenId, r.lage) : undefined} />}
         {!r.auto && !r.velo && 'kein Verkehr von dieser Seite'}</td>
     </tr>)}</tbody>
   </table>
@@ -73,7 +75,7 @@ export function KnotensichtBlock({ ks, fgsId, titel, lage, breiteHand, setzeBrei
     const hw = alleHinweise(ks)
     inhalt = <>
       <p>Ausfahrt aus {ks.zufahrtName}</p>
-      <KnotensichtTabelle k={ks} klasse="zufahrten" />
+      <KnotensichtTabelle k={ks} klasse="zufahrten" schaltbar />
       <p>{breiteSatz(ks)} ·{' '}
         <label>Wie breit ist die Überfahrt? <input type="number" step="0.1" min={TUE_BREITE_MIN} max={TUE_BREITE_MAX} style={{ width: '4.5em' }}
           value={breiteHand ?? ''} placeholder={f2(ks.breite)} aria-label="Breite der Überfahrt von Hand in Metern"

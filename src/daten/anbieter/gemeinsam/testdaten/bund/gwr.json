@@ -1,0 +1,249 @@
+{
+  "roh": {
+    "results": [
+      {
+        "type": "Feature",
+        "featureId": "302004355_0",
+        "bbox": [
+          2682713.4,
+          1248557.1,
+          2682713.4,
+          1248557.1
+        ],
+        "layerBodId": "ch.bfs.gebaeude_wohnungs_register",
+        "layerName": "GWR: Gebäudestatus",
+        "id": "302004355_0",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2682713.4,
+            1248557.1
+          ]
+        },
+        "properties": {
+          "egid": "302004355",
+          "strname_deinr": "Limmatstrasse 85",
+          "gexpdat": "31.10.2026",
+          "gbez": "",
+          "gkode": 2682713.532,
+          "gkodn": 1248556.91,
+          "gstat": 1004,
+          "gklas": 1263
+        }
+      },
+      {
+        "type": "Feature",
+        "featureId": "2365850_2",
+        "bbox": [
+          2682656.3,
+          1248522.7,
+          2682656.3,
+          1248522.7
+        ],
+        "layerBodId": "ch.bfs.gebaeude_wohnungs_register",
+        "layerName": "GWR: Gebäudestatus",
+        "id": "2365850_2",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2682656.3,
+            1248522.7
+          ]
+        },
+        "properties": {
+          "egid": "2365850",
+          "strname_deinr": "Konradstrasse 78",
+          "gexpdat": "31.10.2026",
+          "gbez": "",
+          "gkode": 2682686.542,
+          "gkodn": 1248557.781,
+          "gstat": 1004,
+          "gklas": 1263
+        }
+      },
+      {
+        "type": "Feature",
+        "featureId": "2365850_1",
+        "bbox": [
+          2682697.3,
+          1248573,
+          2682697.3,
+          1248573
+        ],
+        "layerBodId": "ch.bfs.gebaeude_wohnungs_register",
+        "layerName": "GWR: Gebäudestatus",
+        "id": "2365850_1",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2682697.3,
+            1248573
+          ]
+        },
+        "properties": {
+          "egid": "2365850",
+          "strname_deinr": "Limmatstrasse 87",
+          "gexpdat": "31.10.2026",
+          "gbez": "",
+          "gkode": 2682686.542,
+          "gkodn": 1248557.781,
+          "gstat": 1004,
+          "gklas": 1263
+        }
+      },
+      {
+        "type": "Feature",
+        "featureId": "150494_0",
+        "bbox": [
+          2682584.2,
+          1248540.8,
+          2682584.2,
+          1248540.8
+        ],
+        "layerBodId": "ch.bfs.gebaeude_wohnungs_register",
+        "layerName": "GWR: Gebäudestatus",
+        "id": "150494_0",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2682584.2,
+            1248540.8
+          ]
+        },
+        "properties": {
+          "egid": "150494",
+          "strname_deinr": "Ackerstrasse 30",
+          "gexpdat": "31.10.2026",
+          "gbez": "",
+          "gkode": 2682588.732,
+          "gkodn": 1248536.091,
+          "gstat": 1004,
+          "gklas": 1263
+        }
+      },
+      {
+        "type": "Feature",
+        "featureId": "2365850_0",
+        "bbox": [
+          2682697.1,
+          1248543.5,
+          2682697.1,
+          1248543.5
+        ],
+        "layerBodId": "ch.bfs.gebaeude_wohnungs_register",
+        "layerName": "GWR: Gebäudestatus",
+        "id": "2365850_0",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2682697.1,
+            1248543.5
+          ]
+        },
+        "properties": {
+          "egid": "2365850",
+          "strname_deinr": "Reishauerstrasse 2",
+          "gexpdat": "31.10.2026",
+          "gbez": "",
+          "gkode": 2682686.542,
+          "gkodn": 1248557.781,
+          "gstat": 1004,
+          "gklas": 1263
+        }
+      },
+      {
+        "type": "Feature",
+        "featureId": "150485_0",
+        "bbox": [
+          2682634,
+          1248509.5,
+          2682634,
+          1248509.5
+        ],
+        "layerBodId": "ch.bfs.gebaeude_wohnungs_register",
+        "layerName": "GWR: Gebäudestatus",
+        "id": "150485_0",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2682634,
+            1248509.5
+          ]
+        },
+        "properties": {
+          "egid": "150485",
+          "strname_deinr": "Konradstrasse 79",
+          "gexpdat": "31.10.2026",
+          "gbez": "",
+          "gkode": 2682631.762,
+          "gkodn": 1248507.131,
+          "gstat": 1004,
+          "gklas": 1264
+        }
+      },
+      {
+        "type": "Feature",
+        "featureId": "150408_1",
+        "bbox": [
+          2682702.7,
+          1248618,
+          2682702.7,
+          1248618
+        ],
+        "layerBodId": "ch.bfs.gebaeude_wohnungs_register",
+        "layerName": "GWR: Gebäudestatus",
+        "id": "150408_1",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2682702.7,
+            1248618
+          ]
+        },
+        "properties": {
+          "egid": "150408",
+          "strname_deinr": "Limmatstrasse 90",
+          "gexpdat": "31.10.2026",
+          "gbez": "Schule Limmat A/B/C",
+          "gkode": 2682721.31,
+          "gkodn": 1248633.84,
+          "gstat": 1004,
+          "gklas": 1263
+        }
+      },
+      {
+        "type": "Feature",
+        "featureId": "302020164_0",
+        "bbox": [
+          2682790.3,
+          1248723.2,
+          2682790.3,
+          1248723.2
+        ],
+        "layerBodId": "ch.bfs.gebaeude_wohnungs_register",
+        "layerName": "GWR: Gebäudestatus",
+        "id": "302020164_0",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2682790.3,
+            1248723.2
+          ]
+        },
+        "properties": {
+          "egid": "302020164",
+          "strname_deinr": "Sihlquai 101",
+          "gexpdat": "31.10.2026",
+          "gbez": "",
+          "gkode": 2682793.543,
+          "gkodn": 1248713.271,
+          "gstat": 1004,
+          "gklas": 1263
+        }
+      }
+    ]
+  },
+  "meta": {
+    "legende": "\n<div class=\"legend-container\">\n<div class=\"legend-header\">\n  <p class='bod-title'><span>Eidg. Gebäude- und Wohnungsregister: Gebäudestatus</span> (Bundesamt für Statistik BFS)</p>\n  <p class='legend-abstract'>Das eidgenössische Gebäude- und Wohnungsregister (GWR) wurde anhand von Daten der Volkszählung 2000 zu statistischen Zwecken erstellt.Das GWR hat sich nicht zuletzt dank der am 1. Juli 2017 in Kraft getretenen Totalrevision der Verordnung (VGWR) als massgebendes nationales Informationssystem für Gebäude etabliert. Das GWR enthält Informationen zu Bauprojekten, Gebäuden, Wohnungen, Gebäudeeingängen und Strassen. Daten der Stufe A sind öffentlich und können ohne Einschränkung verwendet werden. Die Datenebene \"GWR: Gebäudestatus\" veranschaulicht grafisch den Status von Gebäuden und deren Eingangsnummer(n).</p>\n</div>\n<div class=\"legend-footer\">\n  <br>\n  <span>Legende</span><br>\n  <div class=\"img-container\">\n    <img src=//api3.geo.admin.ch/static/images/legends/ch.bfs.gebaeude_wohnungs_register_de.png alt=\"layer legend img\"/>\n  </div>\n  <br><br>\n  <span>Informationen</span><br>\n  <table>\n    <tr><td>ID Geobasisdatensatz</td> <td>9.1</td></tr>\n    <tr><td>Gültiger Massstabsbereich</td> <td>Min 1:5&#39;000 - Max 1:1&#39;000&#39;001</td></tr>\n    <tr><td>Metadaten</td>\n      <td><a target=\"_blank\" href=\"https://www.geocat.ch/geonetwork/srv/ger/catalog.search#/metadata/56553efe-4a2c-449d-93ba-cf7edd518d56\">\n      Link zu geocat.ch</a></td>\n    </tr>\n    <tr>\n      <td>Detailbeschreibung</td>\n      <td><a href=\"https://www.bfs.admin.ch/bfs/de/home/register/gebaeude-wohnungsregister.html\" target=\"new\">Link zur Detailbeschreibung</a></td>\n    </tr>\n    <tr>\n      <td>Datenbezug</td>\n      <td><a href=\"https://www.housing-stat.ch/__publicdata\" target=\"new\">Link für Datenbezug</a></td>\n    </tr>\n    <tr>\n      <td>Thematisches Geoportal</td>\n      <td>-</td>\n    </tr>\n    <tr>\n      <td>WMS Dienst</td>\n      <td><a href=\"https://wms.geo.admin.ch/?REQUEST=GetCapabilities&amp;SERVICE=WMS&amp;VERSION=1.3.0\" target=\"new\">Link zum WMS</a></td>\n    </tr>\n    <tr>\n      <td>Datenstand</td>\n      <td>01.11.2026</td>\n    </tr>\n  </table>\n</div>\n</div>\n"
+  }
+}

@@ -1,6 +1,6 @@
 // ── Bedarfsmodul: Sichtweite für Querungen ohne Vortritt (E3/E3a, VSS 40 240:2025-07 Z. 8.1, 8.2, Abb. 1) ──
 //
-// Soll = max(v [m/s] · L / Gehgeschwindigkeit; Anhaltesichtweite(v)) je Teilquerung (Korrektur K5, Entscheid 6). Ausnahme bei
+// Soll = max(v [m/s] · L / Gehgeschwindigkeit; Anhaltesichtweite(v)) je Teilquerung. Ausnahme bei
 // wenig Querenden und wenig Verkehr: nur die Anhaltesichtweite. Später nutzt der Sichtrechner (E1) dieselbe Funktion.
 
 import { ahs } from './tabellen'

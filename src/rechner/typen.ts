@@ -4,7 +4,7 @@ import type { P } from '../geo'
 import type { Multi, Poly } from './poly'
 import type { Entfallen } from './zufahrten'
 import type { Vermassung } from './vermassung'
-import type { Erkennung, ErkennungLinie } from './erkennung'
+import type { Erkennung, ErkennungLinie, GelaendePruefbereich } from './erkennung'
 import type { KnotensichtAntwort } from '../tue/knotensicht'
 
 export interface Konflikt {
@@ -68,11 +68,11 @@ export interface ZufahrtErgebnis {
   annahmeGrenze?: { grenze: string; normM: number }
   fahrstreifenOsmN?: number | null  // Fahrstreifen dieser Richtung nach OSM (lanes, Busstreifen nach Regel), nur gerade Zufahrten mit
                                   // OSM-Weg (seit E1 Bedarfsmodul: Vorbelegung «Fahrstreifen je Richtung»; die Rechnung nutzt ihn nicht)
-  /** Sichtfeld frei bis hier [m ab dem Streifenrand, entlang der Sichtpunkte, abgerundet] (Automatik Paket B, 21.10.2026; nur gerade
+  /** Sichtfeld frei bis hier [m ab dem Streifenrand, entlang der Sichtpunkte, abgerundet] (Automatik, 21.10.2026; nur gerade
    * Zufahrten, zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll): frei = geprüfte Länge (Soll bzw. geprueftBisM), verdeckt =
    * Länge bis zum ersten Sichtpunkt, dessen Sichtfeld einen der gemeldeten Konflikte trifft. Darüber hinaus nicht gerechnet */
   freiBisM?: number
-  /** Erkennungsdistanz (Nutzerentscheid 23.10.2026; erkennung.ts): ab wie vielen Metern vor dem Streifen Fahrende die Markierung im
+  /** Erkennungsdistanz (erkennung.ts): ab wie vielen Metern vor dem Streifen Fahrende die Markierung im
    * eigenen Fahrstreifen sehen, geprüft bis zum Doppelten der Sichtweite nach Tempo (höchstens 110 m) bzw. bis zum Ende der Fahrlinie.
    * Nur gerade Zufahrten von Fussgängerstreifen; 2D ohne Gelände (Annahme; das Gelände prüft die App danach entlang der Sichtlinien,
    * erkennungGelaende.ts). Zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll */
@@ -83,7 +83,7 @@ export interface ZufahrtErgebnis {
   /** Sicht des Veloverkehrs (29.10.2026; VSS 40 241 Z. 14 mit VSS 40 273 Tab. 3): zweite Prüfung von der Veloachse, nur gerade Zufahrten
    * eines Fussgängerstreifens mit Radstreifen bzw. Radweg nach OSM. Zusätzliches Ausgabefeld ohne Einfluss auf Status und Soll */
   velo?: VeloSicht
-  /** Sicht auf die Wartefläche mit Gelände (Entscheid 30.10.2026; sichtGelaende.ts): nur Anzeige in der App nach der Geländeprüfung,
+  /** Sicht auf die Wartefläche mit Gelände (sichtGelaende.ts): nur Anzeige in der App nach der Geländeprüfung,
    * nie aus der Rechnung (Worker) und nicht in der Fall-Datei */
   sichtGelaende?: SichtGelaendeAnzeige
   deckung?: string                // Abbiegezufahrt, die ab dem Knoten von der geraden Zufahrt gedeckt ist (nur mit GEDECKT_RECHNEN,
@@ -96,13 +96,14 @@ export const RANG_STATUS: Record<string, number> = { frei: 0, verdeckt_zweirad: 
   verdeckt_gebaeude: 3, verdeckt_gelaende: 3.5, verdeckt: 4 }
 
 /** Geländeprüfung der Sicht auf die Wartefläche einer Zufahrt (ZufahrtErgebnis.sichtGelaende): Stand (mit: geprüft, laedt: Profile
- * laden, ohne: nicht geprüft, bruecke: alle Sichtlinien auf einer Brücke, nicht prüfbar), abM (Sicht durch das Gelände verdeckt ab
- * hier [m ab dem Streifenrand]; null: Gelände frei), bisM (so weit geprüft) und die Sichtlinien (frei: true, false verdeckt, null nicht
+ * laden, ohne: nicht geprüft, bruecke: alle Sichtlinien auf einer Brücke, nicht prüfbar), abM (abgerundeter Rechenwert der letzten freien Lage
+ * [m ab dem Streifenrand]; null: keine Verdeckung gefunden), bisM (so weit geprüft) und die Sichtlinien (frei: true, false verdeckt, null nicht
  * geprüft) */
 export interface SichtGelaendeAnzeige {
   stand: 'mit' | 'laedt' | 'ohne' | 'bruecke'
   abM: number | null
   bisM: number
+  pruefbereich?: GelaendePruefbereich
   linien: { x: number; auge: P; ziel: P; frei: boolean | null; bruecke?: true }[]
 }
 

@@ -4,7 +4,7 @@
 // rechner/tempo.ts und werden nicht kopiert. Neu hier: Anhaltesichtweiten nach VSS 40 240 Z. 8.2 (für Querungen ohne Vortritt,
 // getrennt von Tab. 1, Befund P18), Tab. 2 von VSS 40 241 vollständig (tempo.ts führt bis 20 m die bfu-Werte für Knoten) und die
 // Berner Tabellen Tempo × DTV nach Masterplan Fussverkehr (Skizze Abschnitt 3a). Bei Kurvenradius 20 m gilt wie in der
-// Sichtprüfung der bfu-Wert 24 m statt 30 m nach Tab. 2 (Nutzerentscheid 20.10.2026); der Befund nennt den Normwert.
+// Sichtprüfung der bfu-Wert 24 m statt 30 m nach Tab. 2; der Befund nennt den Normwert.
 
 import { QUELLE_TAB1_20, QUELLE_TAB1_UEBER60, SICHTWEITE, sichtweiteKurve, sichtweiteTab1, tempoStufe } from '../rechner/tempo'
 
@@ -23,7 +23,7 @@ export const TAB2_40241: Readonly<Record<number, number>> = { 20: 30, 25: 35, 30
 
 /**
  * Sichtweite nach Kurve wie die Sichtprüfung (tempo.sichtweiteKurve): Radius bis 20 m bfu-Wert 24 m, 25 bis 40 m Tab. 2
- * (Nutzerentscheid 20.10.2026); Radius zwischen den Stufen auf die nächsthöhere Stufe. norm: Wert nach Tab. 2 für den Hinweis.
+ *; Radius zwischen den Stufen auf die nächsthöhere Stufe. norm: Wert nach Tab. 2 für den Hinweis.
  * Ausserhalb 20 bis 40 m null.
  */
 export function sichtKurveTab2(radius: number): { sicht: number; norm: number } | null {

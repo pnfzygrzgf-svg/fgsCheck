@@ -1,3 +1,5 @@
+import chancyVelo from './testdaten/chancy-velo.json'
+import type { StreifenErgebnis } from './rechner/typen'
 // Fahrzeuge und wartende Personen auf der Karte (27.10.2026, fahrzeuge.ts): Trottoirüberfahrt mit den Fahrzeugen der Knotensicht,
 // Fussgängerstreifen mit einem Fahrzeug je gerade Zufahrt und einer Person je Streifenende. Künstliche Strassen wie tue/knotensicht.test.tsx.
 import { describe, expect, it } from 'vitest'
@@ -141,4 +143,16 @@ describe('Farben nach Rolle (27.10.2026)', () => {
     expect(fahrzeugFarbe({ rolle: 'zufahrt' }, true)).toBe(FARBE_HERAN_BLASS)
     expect(FARBE_WARTEND).not.toBe(FARBE_HERAN)
   })
+})
+
+
+it('Route de Bellegarde 4696050094: Velo folgt der Fahrbahn trotz doppeltem bzw. 7-mm-Quersegment am Linienende',()=>{
+ const s=chancyVelo as unknown as StreifenErgebnis,fs=fgsFahrzeuge(s),velos=fs.filter(f=>f.art==='velo')
+ expect(velos).toHaveLength(2)
+ for(const v of velos){
+  const a=fs.find(f=>f.art==='auto'&&f.zufahrt===v.zufahrt)!
+  expect(v.richtung[0]*a.richtung[0]+v.richtung[1]*a.richtung[1]).toBeGreaterThan(0.98)
+  const z=s.zufahrten.find(z=>`${z.fgsId}|${z.zufahrt}`===v.zufahrt)!
+  expect(dist(v.mitte,z.velo!.sichtpunkte[z.velo!.sichtpunkte.length-1])).toBeLessThan(0.01)
+ }
 })

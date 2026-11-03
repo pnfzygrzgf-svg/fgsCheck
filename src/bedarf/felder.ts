@@ -32,7 +32,7 @@ export interface FeldDef {
   gruppe: GruppeId
   name: string
   art: FeldArt
-  /** Vorgabe für die Quelle einer Handeingabe (fgKlasse: Schätzung, Entscheid 5) */
+  /** Vorgabe für die Quelle einer Handeingabe (fgKlasse: Schätzung) */
   quelle?: 'schaetzung'
 }
 
@@ -144,7 +144,7 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'veloQuerung', gruppe: 'insel', name: 'Velos queren mit und warten auf der Insel', art: B },
 
   // ── Ausrüstung ──
-  { pfad: 'fgsMitLsa', gruppe: 'ausruestung', name: 'Mit Lichtsignal für Fussgänger', art: B },
+  { pfad: 'fgsMitLsa', gruppe: 'ausruestung', name: 'Mit Lichtsignal für Zufussgehende', art: B },
   { pfad: 'achsWinkel', gruppe: 'ausruestung', name: 'Winkel zur Fahrbahn (90 = rechtwinklig)', art: { art: 'zahl', einheit: '°', min: 0, max: 90 } },
   { pfad: 'signal411', gruppe: 'ausruestung', name: 'Blaue Tafel Fussgängerstreifen (Signal 4.11)', art: B },
   { pfad: 'signal411Insel', gruppe: 'ausruestung', name: 'Blaue Tafel auch auf der Insel', art: B },
@@ -250,8 +250,8 @@ export function gruppeVon(pfad: string): GruppeId | null {
 export function feldName(pfad: string): string {
   const d = FELD_DEF.get(pfad)
   if (d) return d.name
-  if (pfad === 'fgQuelle') return 'Herkunft der Fussgängerzahl'
-  if (pfad === 'fg5h') return 'Fussgänger in den 5 Spitzenstunden'
+  if (pfad === 'fgQuelle') return 'Herkunft der Zufussgehendenzahl'
+  if (pfad === 'fg5h') return 'Zufussgehende in den 5 Spitzenstunden'
   const o = pfad.split('.')[0]
   if (istObjektFeld(o)) return { insel: 'Insel', haltestelle: 'Bushaltestelle', fusswegAchse: 'Fussweg in der Achse',
     randabschluss: 'Randabschluss', kurve: 'Kurve vor dem Streifen', q3: 'Trottoirüberfahrt' }[o]

@@ -70,7 +70,7 @@ const f1 = (x: number) => x.toFixed(1).replace('.', ',')
 export const neigungRunden = (i: number): number => Math.round(i * 10) / 10 || 0
 
 /** Messung aus einem geladenen Profil bzw. einem Fehler des Dienstes (dann i = null: Neigung unbekannt, die Rechnung nimmt den
- *  strengsten Tabellenwert, Entscheid 31.10.2026; mit Hinweis) */
+ *  strengsten Tabellenwert; mit Hinweis) */
 export function neigungMessung(profil: ProfilPunkt[] | Error): NeigungMessung {
   if (profil instanceof Error) return { i: null, quelle: `${HOEHEN_QUELLE} nicht verfügbar`, laenge: 0, punkte: 0,
     hinweis: `Höhenmodell nicht verfügbar (${profil.message}): Längsneigung unbekannt, strengster Wert angenommen; von Hand eingeben.` }

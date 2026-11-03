@@ -1,3 +1,9 @@
+import { regionalLesen, regionalUrl, type RegionalSnapshot, type RegionalTeil, type RegionalObjekt } from '../daten/anbieter/gemeinsam/regional'
+import { regionalDienst } from '../daten/anbieter/gemeinsam/regionalDienste'
+import { zhUrl, zhMetadatenUrl, type ZuerichSnapshot } from '../daten/anbieter/gemeinsam/zuerich'
+import { zhStrassen } from '../daten/anbieter/gemeinsam/zuerichZuordnung'
+import { vsigTempo } from '../daten/vsig'
+import { npvmUrl, NPVM_METADATEN_URL, type NpvmSnapshot } from '../daten/anbieter/npvm'
 // Tests Vorbelegung aus Geodaten (Abschnitt 18 der Regeln): Bushaltestelle (Umkreis 50 m), besonderer Grund «Haltestelle»,
 // Strecke oder Zone (OSM-Tags), DTV (Geoportal Stadt Bern, Annahme 500), Beleuchtung (Hinweis ohne Wert), Fall-Datei.
 // Künstliche Strasse wie befundblatt.test.ts: Hauptstrasse West–Ost, Fahrbahn 8 m, Tempo 50, Übergang bei x = 0.
@@ -11,7 +17,7 @@ import { rechneFall } from '../rechner/index'
 import { leererFall, fallLesen, fallSchreiben, type Fall } from '../fall'
 import { befundblatt } from './befundblatt'
 import { querungen, vorbelegen, zoneAusTags, zoneAusOsm, abstandZumStreifen, DTV_ANNAHME, type GeoVorbelegung } from './vorbelegung'
-import { bedarfLesen, eingabenBilden } from './fallBedarf'
+import { bedarfLesen, eingabenBilden, quellenWahlSetzen } from './fallBedarf'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number): [number, number] => wgs(O[0] + x, O[1] + y)
@@ -39,6 +45,33 @@ const halt = (d: number, name = 'Beispielplatz, Kante A'): OevHalt => ({ id: `h$
 const hst = (halte: OevHalt[], zusatz?: string): HaltestellenErgebnis =>
   ({ quelle: 'geoportal', herkunft: 'Geoportal Stadt Bern', halte, bereich: BEREICH, ...(zusatz ? { zusatz } : {}) })
 const vor = (geo: GeoVorbelegung, f = fallMit()) => vorbelegen(g, f, [], geo)
+
+describe('E1a: BAV-Zuordnung erst nach Bestätigung', () => {
+  const bav = (mitHalt = true): HaltestellenErgebnis => ({ quelle: 'bav', herkunft: 'BAV, Haltestellen des öV',
+    halte: mitHalt ? [{ ...halt(10), art: 'bus_tram' }] : [], bereich: BEREICH, vollstaendig: false })
+  it('erzeugt Vorschläge, aber keine Regel-Eingaben vor Bestätigung; eigene Werte bleiben vorrangig', () => {
+    const v = vor({ haltestellen: bav() })
+    for (const pfad of ['beduerfnis', 'haltestelleAngrenzend', 'tramHaltestellenbereich'])
+      expect(v.werte[pfad]).toMatchObject({ quelle: 'vorschlag', bestaetigungNoetig: true })
+    const offen = eingabenBilden(v.werte, undefined)
+    expect(offen.eingaben.beduerfnis.wert).toBeNull()
+    expect(offen.eingaben.haltestelleAngrenzend.wert).toBeNull()
+    expect(offen.eingaben.tramHaltestellenbereich.wert).toBeNull()
+    const hand = eingabenBilden(v.werte, { felder: { beduerfnis: { wert: ['haltestelle'], quelle: 'bestaetigt' },
+      haltestelleAngrenzend: { wert: false, quelle: 'hand' } } })
+    expect(hand.eingaben.beduerfnis).toMatchObject({ wert: ['haltestelle'], quelle: 'bestaetigt' })
+    expect(hand.eingaben.haltestelleAngrenzend).toMatchObject({ wert: false, quelle: 'hand' })
+    expect(v.werte['haltestelle.lage']).toBeUndefined()
+    expect(v.werte['haltestelle.beidseits']).toBeUndefined()
+  })
+  it('aus einem leeren Inventarausschnitt entsteht weder «keine Haltestelle» noch «kein Tramhalt»', () => {
+    const v = vor({ haltestellen: bav(false) })
+    expect(v.werte['haltestelle.art']).toBeUndefined()
+    expect(v.werte.haltestelleAngrenzend).toBeUndefined()
+    expect(v.werte.tramHaltestellenbereich).toBeUndefined()
+    expect(v.feldHinweise?.['haltestelle.art']).toContain('Vollständigkeit unbekannt')
+  })
+})
 
 describe('Vorbelegung: Bushaltestelle (Umkreis 50 m um den Streifen)', () => {
   it('Abstand zum Umriss des Streifens, nicht zum Ladeort', () => {
@@ -128,7 +161,7 @@ describe('Vorbelegung: Strecke oder Zone (OSM-Tags der Zufahrten)', () => {
     const t30 = vor({ osmTags: new Map([[1, { ...TAGS, maxspeed: '30' }]]) })
     expect(t30.werte.tempoRegime).toBeUndefined()
     expect(t30.feldHinweise!.tempoRegime).toContain('ohne Zonenangabe')
-    // Automatik Paket A: ohne Zonenangabe gilt ab 40 km/h die Strecke (Tempo aus der Rechnung, OSM maxspeed)
+    // Ohne Zonenangabe gilt ab 40 km/h die Strecke (Tempo aus der Rechnung, OSM maxspeed)
     expect(vor({ osmTags: new Map() }).werte.tempoRegime).toEqual({ wert: 'strecke', quelle: 'osm',
       text: 'Tempo 50 km/h: Strecke (eine Zone hat höchstens 30 km/h)' })
     expect(vor({}).werte.tempoRegime).toMatchObject({ wert: 'strecke', quelle: 'osm' })
@@ -141,7 +174,7 @@ describe('Vorbelegung: DTV (Geoportal Stadt Bern)', () => {
   const vd = (linien: VdLinie[]): GeoVorbelegung => ({ verkehrsdaten: { linien, bereich: BEREICH } })
   it('Linie auf der Strassenachse: DTV mit Quelle und Stand', () => {
     const v = vor(vd([linie('a', 0, 1461)]))
-    expect(v.werte.dtv).toEqual({ wert: 1461, quelle: 'geoportal',
+    expect(v.werte.dtv).toMatchObject({ wert: 1461, quelle: 'geoportal',
       text: 'DTV 1 461 Hauptstrasse (Geoportal Stadt Bern, 16·Nt + 8·Nn, Stand 21.11.2025)' })
   })
   it('Grenze zweier Abschnitte: höherer Wert; zwei Richtungsfahrbahnen: Summe', () => {
@@ -167,7 +200,7 @@ describe('Vorbelegung: DTV (Geoportal Stadt Bern)', () => {
   })
   it('kein Eintrag: Annahme 500 (in den Annahmen des Befunds); Linie daneben bzw. ohne Nt/Nn: offen mit Hinweis', () => {
     const v = vor(vd([linie('q', 60, 9000)]))
-    expect(v.werte.dtv).toEqual({ wert: DTV_ANNAHME, quelle: 'annahme',
+    expect(v.werte.dtv).toMatchObject({ wert: DTV_ANNAHME, quelle: 'annahme',
       text: 'DTV 500 angenommen: keine Verkehrsdaten im Geoportal Stadt Bern (nur Strassen über 2000 Fz/Tag erfasst)' })
     const b = befundblatt(g, fallMit(), { vorgabe: { bern: true, kantonBE: true }, geo: vd([]) })
     expect(b.annahmen.join(' ')).toContain('DTV 500 angenommen')
@@ -237,4 +270,241 @@ describe('Fall-Datei: neue Quellen', () => {
     expect(b).toBeNull()
     expect(h.join(' ')).toContain('Quelle "geoportal" ungültig')
   })
+})
+
+
+describe('E1b: Modell-DTV erst nach Bestätigung', () => {
+  const modell = (dtv = 1234): NpvmSnapshot => ({ version: 1, quelleId: 'are.npvm', bezugsjahr: 2023, datenstand: '2023-06-30',
+    datenstandQuelle: NPVM_METADATEN_URL, abgerufen: '2026-11-01T20:00:00.000Z', mitte: O, radiusM: 200,
+    url: npvmUrl(...ll(0, 0)), vollstaendigkeit: 'unbekannt', linien: [{ id: 'npvm:1', nr: 1, dtv, teile: [[lv(-100, 0), lv(100, 0)]] }] })
+  it('unbestätigte Modellwerte erzeugen weder Regel-DTV noch abhängige Verkehrsannahmen', () => {
+    const v = vor({ npvm: modell(), osm: OSM })
+    expect(v.werte.dtv).toMatchObject({ wert: 1234, quelle: 'vorschlag', bestaetigungNoetig: true })
+    expect(v.werte.dtv.npvmBeleg?.nr).toBe(1)
+    expect(eingabenBilden(v.werte, undefined).eingaben.dtv.wert).toBeNull()
+    expect(v.werte.mivKlasse).toBeUndefined()
+    expect(v.werte.starkBelastet).toBeUndefined()
+    expect(v.werte['q3.dtvEinm']).toBeUndefined()
+  })
+  it('Bestätigung übernimmt den Modellwert; eigene bzw. bestätigte Werte bleiben auch nach neuem Abruf erhalten', () => {
+    const f = fallMit(x => { x.bedarf = { felder: { dtv: { wert: 2400, quelle: 'bestaetigt' } } } })
+    const v = vor({ npvm: modell(12000), osm: OSM }, f)
+    expect(eingabenBilden(v.werte, f.bedarf).eingaben.dtv.wert).toBe(2400)
+    expect(v.feldHinweise?.dtv).toContain('bleibt erhalten')
+    expect(v.werte.mivKlasse?.wert).toBe('tief')
+    expect(v.werte.mivKlasse?.text.replace(/\s/g, '')).toContain('2400')
+    expect(v.werte.starkBelastet?.wert).toBe(false)
+  })
+  it('passende Berner Verkehrsdaten haben Vorrang; aus fehlendem Modellnetz entsteht kein DTV Null', () => {
+    const v = vor({ npvm: modell(), osm: OSM, verkehrsdaten: { linien: [{ id: 'bern:1', strasse: 'Hauptstrasse', dtv: 5000,
+      stand: null, teile: [[lv(-100, 0), lv(100, 0)]] }], bereich: BEREICH } })
+    expect(v.werte.dtv).toMatchObject({ wert: 5000, quelle: 'geoportal' })
+    expect(v.werte.dtv.bestaetigungNoetig).toBeUndefined()
+    expect(v.werte.dtv.quellenOptionen?.map(o => [o.id, o.wert])).toEqual([['bern.dtv', 5000], ['are.npvm', 1234]])
+    const option = v.werte.dtv.quellenOptionen!.find(o => o.id === 'are.npvm')!
+    const block = quellenWahlSetzen(undefined, 'dtv', option)!
+    expect(block.felder.dtv).toMatchObject({ wert: 1234, quelle: 'bestaetigt', datenquelle: { id: 'are.npvm' }, npvmBeleg: { nr: 1 } })
+    const f = fallMit(x => { x.bedarf = block })
+    const neu = vor({ npvm: modell(9999), osm: OSM }, f)
+    expect(eingabenBilden(neu.werte, block).eingaben.dtv.wert).toBe(1234)
+    const geladen = fallLesen(fallSchreiben(f))
+    expect(geladen[0].bedarf?.felder.dtv).toEqual(block.felder.dtv)
+    const lokal = quellenWahlSetzen(block, 'dtv', v.werte.dtv.quellenOptionen![0])!
+    expect(lokal.felder.dtv.wert).toBe(5000)
+    expect(lokal.felder.dtv.npvmBeleg).toBeUndefined()
+    expect(v.feldHinweise?.dtv).toContain('hat Vorrang')
+    const leer = modell(); leer.linien = []
+    expect(vor({ npvm: leer, osm: OSM }).werte.dtv).toBeUndefined()
+  })
+})
+
+
+describe('Quellenauswahl je Feld', () => {
+  it('Tempo aus Bern und OSM separat, Auswahl ändert die Regel-Eingabe und bleibt gespeichert', () => {
+    const v = vor({ osm: OSM, vsig: { bereich: BEREICH, linien: [{ id: 'v1', strasse: 'Hauptstrasse', vSig: 30, vAfu: null,
+      teile: [[lv(-100, 0), lv(100, 0)]] }] } })
+    const optionen = v.werte.vSig.quellenOptionen!
+    expect(optionen.map(q => [q.id, q.wert])).toEqual([['bern.vsig', 30], ['osm.tempo', 50]])
+    expect(eingabenBilden(v.werte, undefined).eingaben.vSig.wert).toBe(30)
+    const b = quellenWahlSetzen(undefined, 'vSig', optionen[1])!
+    const f = fallMit(x => { x.bedarf = b })
+    const geladen = fallLesen(fallSchreiben(f))[0]
+    expect(geladen.bedarf?.felder.vSig.datenquelle?.id).toBe('osm.tempo')
+    expect(eingabenBilden(v.werte, geladen.bedarf).eingaben.vSig.wert).toBe(50)
+    expect(eingabenBilden(v.werte, geladen.bedarf).herkunft.get('vSig')?.text).toContain('OpenStreetMap')
+  })
+  it('Haltestellen aus Bern und BAV werden unabhängig ausgewertet; keine BAV-Busbucht oder negative Inventaraussage', () => {
+    const bav: NonNullable<GeoVorbelegung['bav']> = { version: 1, quelleId: 'bav.halt', abgerufen: '2026-11-01T20:00:00.000Z',
+      datenstand: '2026-11-01', mitte: O, radiusM: 200, url: 'https://example.invalid', vollstaendigkeit: 'unbekannt',
+      halte: [{ id: 'b1', nummer: '8500001', name: 'BAV Beispielplatz', p: halt(10).p, art: 'bus_tram' }] }
+    const v = vor({ haltestellen: hst([]), bav })
+    const angrenzend = v.werte.haltestelleAngrenzend.quellenOptionen!
+    expect(angrenzend.map(q => [q.id, q.wert])).toEqual([['bern.halt', false], ['bav.halt', true]])
+    expect(eingabenBilden(v.werte, undefined).eingaben.haltestelleAngrenzend.wert).toBe(false)
+    const b = quellenWahlSetzen(undefined, 'haltestelleAngrenzend', angrenzend[1])!
+    expect(eingabenBilden(v.werte, b).eingaben.haltestelleAngrenzend.wert).toBe(true)
+    expect(fallLesen(fallSchreiben(fallMit(f => { f.bedarf = b })))[0].bedarf?.felder.haltestelleAngrenzend.datenquelle?.id).toBe('bav.halt')
+    expect(v.werte['haltestelle.art'].quellenOptionen).toBeUndefined()
+    const leer = vor({ haltestellen: hst([]), bav: { ...bav, halte: [] } })
+    expect(leer.werte.haltestelleAngrenzend.quellenOptionen?.find(q => q.id === 'bav.halt')?.wert).toBeNull()
+    expect(quellenWahlSetzen(b, 'haltestelleAngrenzend', leer.werte.haltestelleAngrenzend.quellenOptionen![1])).toBe(b)
+  })
+  it('liest nur zum Feld passende bestätigte Quellen; fehlerhafte Herkunft verwirft keine eigene Eingabe', () => {
+    const [b, h] = bedarfLesen({ felder: { vSig: { wert: 30, quelle: 'bestaetigt', datenquelle: { id: 'are.npvm', text: 'falsch' } } } })
+    expect(b?.felder.vSig).toEqual({ wert: 30, quelle: 'bestaetigt' })
+    expect(h.join()).toContain('Datenquelle ungültig')
+  })
+})
+
+
+describe('E2: Zürich durchgängig in Bedarf, Sicht und Fall-Datei', () => {
+  const zh = (tempo = 30, art: 't30_zone' | 'begegnungszone' = 't30_zone'): ZuerichSnapshot => ({ version: 1, mitte: O, radiusM: 200,
+    tempo: { objekte: [{ id: 'view_geoserver_tempo_ist.1', name: 'Hauptstrasse', regime: `T${tempo}`, code: `T${tempo}`, umgesetzt: null,
+      rechtskraeftig: null, teile: [[lv(-180, 0), lv(180, 0)]], tempo, verbot: false, ausnahmen: '', signal: '' }], datenstand: '2026-11-02',
+      url: zhUrl('tempo', O), metadaten: zhMetadatenUrl('tempo'), abgerufen: '2026-11-02T07:00:00.000Z' },
+    zonen: { objekte: [{ id: 'view_geoserver_zonen_ist.1', name: 'Beispielzone', regime: art === 't30_zone' ? 'T30-Zone' : 'Begegnungszone',
+      code: art === 't30_zone' ? 'T30' : 'T20', art, umgesetzt: null, rechtskraeftig: null, polygone: [[rechteck(-180, -30, 180, 30).concat([lv(-180, -30)])]] }],
+      datenstand: '2026-11-02', url: zhUrl('zonen', O), metadaten: zhMetadatenUrl('zonen'), abgerufen: '2026-11-02T07:00:00.000Z' } })
+  it('amtliche, passende Quellen haben Vorrang vor OSM; Innerortslage wird nicht aus dem Zahlenwert belegt', () => {
+    const z = zh(), v = vor({ osm: OSM, osmTags: new Map([[1, TAGS]]), zuerich: z })
+    expect(v.werte.vSig).toMatchObject({ wert: 30, quelle: 'amtlich' })
+    expect(v.werte.tempoRegime).toMatchObject({ wert: 't30_zone', quelle: 'amtlich' })
+    expect(v.werte.innerorts).toBeUndefined()
+    expect(v.werte.vSig.quellenOptionen?.map(q => q.id)).toEqual(['zh.tempo', 'osm.tempo'])
+    const am = vsigTempo({ linien: [], zuerich: z, zhStrassen: zhStrassen(OSM.wege) })
+    const rr = rechneFall(OSM, AV, [], 12, fallMit(), null, null, null, am, null, z)
+    expect(rr.streifen[0].zufahrten.every(x => x.tempo === 30 && x.tempoQuelle === 'Stadt Zürich')).toBe(true)
+    const f = fallMit(x => { x.zuerich = z; x.bedarf = quellenWahlSetzen(undefined, 'vSig', v.werte.vSig.quellenOptionen![0]) })
+    expect(JSON.parse(fallSchreiben(f)).version).toBe(9)
+    expect(fallLesen(fallSchreiben(f))[0].zuerich).toEqual(z)
+    expect(fallLesen(fallSchreiben(f))[0].bedarf?.felder.vSig.datenquelle?.id).toBe('zh.tempo')
+  })
+  it('amtliche Linien-/Zonenkonflikte bleiben offen; eine ausdrückliche OSM-Auswahl zählt, eigene Werte bleiben erhalten', () => {
+    const v = vor({ osm: OSM, osmTags: new Map([[1, TAGS]]), zuerich: zh(50) })
+    expect(v.werte.vSig.wert).toBeNull(); expect(v.werte.tempoRegime.wert).toBeNull()
+    const h = quellenWahlSetzen(undefined, 'vSig', v.werte.vSig.quellenOptionen![1])!
+    expect(eingabenBilden(v.werte, h).eingaben.vSig.wert).toBe(50)
+    expect(eingabenBilden(v.werte, { felder: { vSig: { wert: 40, quelle: 'hand' } } }).eingaben.vSig.wert).toBe(40)
+    const ohneZone = zh(); ohneZone.zonen!.objekte = []
+    const leer = vor({ osm: OSM, zuerich: ohneZone })
+    expect(leer.werte.tempoRegime).toMatchObject({ wert: 'strecke', bestaetigungNoetig: true })
+    expect(eingabenBilden(leer.werte, null).eingaben.tempoRegime.wert).toBeNull()
+  })
+  it('unmarkierte Querung in amtlicher Begegnungszone rechnet mit Vortritt und Anhaltesicht; Handwahl bleibt vorrangig', () => {
+    const z = zh(20, 'begegnungszone'), o = structuredClone(OSM); o.uebergaenge[0].tags = { highway: 'crossing', crossing: 'unmarked' }
+    const am = vsigTempo({ linien: [], zuerich: z, zhStrassen: zhStrassen(o.wege) })
+    const r = rechneFall(o, AV, [], 12, fallMit(), null, null, null, am, null, z)
+    expect(r.streifen[0].querung?.typ).toBe('begegnungszone')
+    expect(r.streifen[0].zufahrten.every(x => x.tempo === 20 && x.sichtweite === 15)).toBe(true)
+    const f = fallMit(x => { x.bedarf = { felder: { tempoRegime: { wert: 'strecke', quelle: 'hand' } } } })
+    expect(rechneFall(o, AV, [], 12, f, null, null, null, am, null, z).streifen[0].querung?.typ).not.toBe('begegnungszone')
+  })
+})
+
+
+describe('Review Paket 2: Bern bleibt trotz zusätzlicher Quellen unverändert', () => {
+  const punktRoh = (properties: Record<string,unknown>) => ({ type:'FeatureCollection',crs:{properties:{name:'EPSG:2056'}},features:[{type:'Feature',id:'test',properties,geometry:{type:'Point',coordinates:O}}] })
+  const teil = (id:string, objekte:RegionalObjekt[], roh:unknown={}):RegionalTeil => ({id,objekte,roh,url:regionalUrl(regionalDienst(id)!,O),abgerufen:'2026-11-03T12:00:00Z',datenstand:'03.11.2026'})
+  const bedarf = [
+    ['bedarf.be.schule',{STONAME:'Testschule'}],
+    ['bedarf.be.kita',{NAME:'Testkita',ART_CODE:'kita'}],
+    ['bedarf.be.spital',{BEZ_FIRMA:'Testspital',AKUT:1}],
+    ['bedarf.be.heim',{INAME:'Testheim',ALTERSHEIM:1}],
+    ['bedarf.be.behinderung',{INAME:'Testwohnheim',WHEIMEMB:1}],
+  ].map(([id,p]) => { const roh=punktRoh(p as Record<string,unknown>);return teil(id as string,regionalLesen(regionalDienst(id as string)!,roh),roh) })
+  const objekt = (id:string, x:Partial<RegionalObjekt>):RegionalObjekt => ({id,name:'Test',tempo:null,zone:null,bestaetigen:false,stand:null,hinweis:'Testquelle',...x})
+  const bund = [
+    teil('bund.bauzone',[objekt('bauzone',{bund:{typ:'bauzone'},polygone:[[rechteck(-100,-100,100,100)]]})]),
+    teil('bund.unfaelle',[objekt('unfall',{bund:{typ:'unfall'},punkte:[O]})]),
+  ]
+  const kontext = [teil('e6.zh.licht',[objekt('leuchte',{kontext:'lampe',punkte:[O]})])]
+  const snapshot = (teile:RegionalTeil[]):RegionalSnapshot => ({version:1,mitte:O,radiusM:200,teile})
+  const basis:GeoVorbelegung = {av:AV,osm:OSM,osmTags:new Map([[1,TAGS]]),schulen:{
+    bern:{volksschulen:[],kindergaerten:[],weitere:[],bereich:BEREICH},osm:{orte:[],bereich:{...BEREICH,radiusM:300}},
+  }}
+  const wirksam = (v:ReturnType<typeof vorbelegen>,f:Fall) => {
+    const e=eingabenBilden(v.werte,f.bedarf).eingaben
+    return {beduerfnis:e.beduerfnis,innerorts:e.innerorts,bestaetigung:Object.fromEntries(['beduerfnis','innerorts'].map(p => [p,!!v.werte[p]?.bestaetigungNoetig]))}
+  }
+  it.each([['Bundesquellen',bund],['BE-Inventare',bedarf],['nur E6',kontext],['alle zusammen',[...bund,...bedarf,...kontext]]] as const)('%s ändern weder wirksame Werte noch Bestätigungspflichten', (_name,teile) => {
+    const f=fallMit(),ohne=vor(basis,f),mit=vor({...basis,regional:snapshot([...teile])},f)
+    expect(wirksam(ohne,f).innerorts).toMatchObject({wert:true,quelle:'annahme'})
+    expect(wirksam(mit,f)).toEqual(wirksam(ohne,f))
+    expect(mit.werte.beduerfnis?.quellenOptionen?.some(q=>q.id.startsWith('regional.bedarf.be.'))??false).toBe(false)
+    if(teile.some(t=>t.id==='bund.bauzone'))expect(mit.werte.innerorts.quellenOptionen?.some(q=>String(q.id)==='regional.bund.bauzone')).toBe(true)
+  })
+  it.each(['hand','bestaetigt'] as const)('zusätzliche Quellen überschreiben keine %s-Eingabe',quelle=>{
+    const f=fallMit(x=>{x.bedarf={felder:{innerorts:{wert:false,quelle},beduerfnis:{wert:['haltestelle'],quelle}}}})
+    const mit=vor({...basis,regional:snapshot([...bund,...bedarf,...kontext])},f)
+    expect(wirksam(mit,f).innerorts).toEqual({wert:false,quelle})
+    expect(wirksam(mit,f).beduerfnis).toEqual({wert:['haltestelle'],quelle})
+  })
+  it('gespeicherte BE-Rohdaten dürfen beim Wiederlesen in Bern keinen zusätzlichen Bedarf belegen',()=>{
+    const f=fallMit(x=>{x.regional=snapshot(bedarf)})
+    const [geladen,hinweise]=fallLesen(fallSchreiben(f))
+    expect(hinweise).toEqual([]);expect(geladen.regional!.teile).toHaveLength(5)
+    expect(geladen.regional!.teile.every(t=>t.objekte.some(o=>o.bedarf))).toBe(true)
+    expect(wirksam(vor({...basis,regional:geladen.regional},geladen),geladen)).toEqual(wirksam(vor(basis,geladen),geladen))
+  })
+  it('ohne verlässliche Ortsangabe wird die ausgeschlossene Quelle nicht automatisch wirksam; in Köniz bleiben positive Treffer nutzbar',()=>{
+    const s=snapshot(bedarf),f=fallMit()
+    const unbekannt=vor({osm:OSM,regional:s},f)
+    expect(eingabenBilden(unbekannt.werte,f.bedarf).eingaben.beduerfnis.wert).toBeNull()
+    const avKoeniz=AV.map(a=>({...a,bfs:355}))
+    const koeniz=vor({...basis,av:avKoeniz,schulen:null,regional:s},f)
+    expect(new Set(eingabenBilden(koeniz.werte,f.bedarf).eingaben.beduerfnis.wert ?? [])).toEqual(new Set(['schule','kindergarten','heim']))
+  })
+  it('ARE bleibt neben einer bisherigen Innerortsannahme eine Option; A3 und die Kurvenvoraussetzung ändern sich nicht',()=>{
+    const mitKurve=structuredClone(g),z=mitKurve.streifen[0].zufahrten[0]
+    const spur:P[]=[]
+    for(let x=0;x<=8;x++)spur.push(lv(-x,0))
+    for(let grad=1;grad<=75;grad++){const a=(90+grad)*Math.PI/180;spur.push(lv(-8+20*Math.cos(a),-20+20*Math.sin(a)))}
+    z.spur=spur;z.sichtpunkte=[spur[0],spur[10]];z.sichtweite=80;z.geprueftBisM=80;z.tempo=50;z.tempoQuelle='OSM'
+    const f=fallMit(x=>{x.bedarf={felder:{v85:{wert:60,quelle:'hand'}}}})
+    const a=befundblatt(mitKurve,f,{vorgabe:{bern:true,kantonBE:true},geo:basis})
+    const b=befundblatt(mitKurve,f,{vorgabe:{bern:true,kantonBE:true},geo:{...basis,regional:snapshot(bund)}})
+    expect(a.vorbelegt.werte['kurve.b1Innerorts50']).toMatchObject({wert:true})
+    expect(b.vorbelegt.werte['kurve.b1Innerorts50']).toEqual(a.vorbelegt.werte['kurve.b1Innerorts50'])
+    expect(b.gebildet.eingaben.innerorts).toEqual(a.gebildet.eingaben.innerorts)
+    const regeln=(x:typeof a)=>x.befund.alle.filter(e=>e.id==='A3')
+    expect(regeln(a)).toHaveLength(1);expect(regeln(b)).toEqual(regeln(a))
+    expect(b.vorbelegt.werte.innerorts.bestaetigungNoetig).toBeUndefined()
+    expect(b.vorbelegt.werte.innerorts.quellenOptionen?.some(q=>String(q.id)==='regional.bund.bauzone')).toBe(true)
+  })
+  it('ein regionales Tempoinventar ohne Treffer am geprüften Ort sperrt die bisherige Ableitung nicht',()=>{
+    const t=teil('ge.tempo',[objekt('tempo',{name:'Hauptstrasse',tempo:30,teile:[[lv(-100,80),lv(100,80)]]})])
+    expect(vor({...basis,regional:snapshot([t])}).werte.innerorts).toEqual(vor(basis).werte.innerorts)
+  })
+  it('ein Zürcher Ausschnitt ausserhalb des Prüforts sperrt die bisherige Ableitung nicht',()=>{
+    const zuerich:ZuerichSnapshot={version:1,mitte:lv(1000,1000),radiusM:200}
+    expect(vor({...basis,zuerich}).werte.innerorts).toEqual(vor(basis).werte.innerorts)
+  })
+  it('tatsächlich zugeordnetes regionales Tempo bleibt kein Innerortsbeleg; Hinweis nennt den tatsächlichen Anbieter',()=>{
+    const t=teil('ge.tempo',[objekt('tempo',{name:'Hauptstrasse',tempo:30,teile:[[lv(-100,0),lv(100,0)]]})])
+    const v=vor({...basis,regional:snapshot([t])})
+    expect(v.werte.vSig).toMatchObject({wert:30,quelle:'amtlich'})
+    expect(v.werte.innerorts).toBeUndefined()
+    expect(v.feldHinweise?.innerorts).toContain('SITG, Canton de Genève')
+    expect(v.feldHinweise?.innerorts).not.toContain('Zürcher')
+  })
+})
+
+
+it('Review Paket 2: der Innerortshinweis nennt auch die amtliche Quelle aus dem Sichtrechner',()=>{
+  const gruppe=structuredClone(g)
+  for(const st of gruppe.streifen)for(const z of st.zufahrten)z.tempoQuelle='Geodaten Basel-Stadt'
+  const v=vorbelegen(gruppe,fallMit(),[],{osm:OSM,osmTags:new Map([[1,TAGS]])})
+  expect(v.werte.vSig.quelle).toBe('amtlich')
+  expect(v.werte.innerorts).toBeUndefined()
+  expect(v.feldHinweise?.innerorts).toContain('Geodaten Basel-Stadt')
+})
+
+it('Review Paket 2: ein Zürcher Ausschnitt ohne Tempo-Treffer am Ort sperrt keine bisherige Innerortsableitung',()=>{
+  const f=fallMit(),geo:GeoVorbelegung={osm:OSM,osmTags:new Map([[1,TAGS]])}
+  const zuerich:ZuerichSnapshot={version:1,mitte:O,radiusM:200,tempo:{objekte:[],datenstand:'03.11.2026',url:zhUrl('tempo',O),metadaten:zhMetadatenUrl('tempo'),abgerufen:'2026-11-03T12:00:00Z'}}
+  const ohne=vor(geo,f),mit=vor({...geo,zuerich},f)
+  expect(mit.werte.innerorts).toEqual(ohne.werte.innerorts)
+  // Die bestehende offene Tempozuordnung wird dadurch nicht zu einem erfolgreich geladenen Tempowert umgedeutet.
+  expect(mit.werte.vSig.wert).toBeNull()
+  expect(mit.feldHinweise?.vSig).toContain('kein passender amtlicher Tempoabschnitt')
 })

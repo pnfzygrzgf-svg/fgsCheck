@@ -1,4 +1,4 @@
-// ── Reiter im Panel: «Sichtprüfung» und «Bedarf und Querungstyp» (Nutzerentscheid 22.10.2026) ──
+// ── Reiter im Panel: «Sichtprüfung» und «Bedarf und Querungstyp» ──
 //
 // Reine Logik ohne React: Vorgabe-Reiter nach dem Fall (die Wahl gilt nur in der Sitzung, im State; ein neuer Fall beginnt mit der
 // Vorgabe), Pfeiltasten der Reiterleiste, Zustand für die Reiter-Schaltfläche und die Teaserzeile im Reiter Sichtprüfung.

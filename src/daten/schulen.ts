@@ -1,11 +1,11 @@
-// ── Schulen, Kindergärten und Heime im Umkreis für die Vorbelegung (besonderer Grund; Automatik Paket C, 21.10.2026) ──
+// ── Schulen, Kindergärten und Heime im Umkreis für die Vorbelegung (besonderer Grund, 21.10.2026) ──
 //
 // Stadt Bern (Geoportal): Services «Volksschulen» und «Kindergaerten», je Layer 0 (Punkte; Punktname, Rubrik_Desc = «Volksschule»
 // bzw. «Kindergarten»; geprüft 21.10.2026: 58 Volksschulen, 130 Kindergärten im ganzen Dienst). Adressen, Telefon und E-Mail werden
 // nicht abgefragt.
-// Seit 01.11.2026 (Nutzerentscheid F7a; vorher Kindertagesstätten bewusst nicht) dazu WEITERE_BERN: Kindertagesstätten (als
+// Seit 01.11.2026 (vorher Kindertagesstätten bewusst nicht) dazu WEITERE_BERN: Kindertagesstätten (als
 // Kindergarten), Kinderangebote (als Schule), Heime und Spitäler (als Heim; Dienst «stadtplan», Layer 620 bzw. 624, ganzer Kanton,
-// darum nur im Rechteck). Berufs-, Mittel- und Hochschulen zählen nicht (Nutzerentscheid). Felder des Diensts ungeprüft: der Name kommt
+// darum nur im Rechteck). Berufs-, Mittel- und Hochschulen zählen nicht. Felder des Diensts ungeprüft: der Name kommt
 // aus Punktname bzw. punktname (stadtplan klein geschrieben, geprüft 01.11.2026).
 // Überall aus OSM (gleiche Overpass-Abfrage wie das Strassennetz, eigene Menge im Umkreis SCHULEN_OSM_RADIUS_M):
 // amenity=school|kindergarten|social_facility|nursing_home und social_facility=nursing_home|group_home; Flächen (Wege,
@@ -26,7 +26,7 @@ export interface SchulOrt {
   tag?: string
   /** OSM-Fläche (Weg, Relation): Umriss als Rechteck ihrer Grenzen (out bb) bzw. ihre Geometrie; Abstand zum Rand statt zum Mittelpunkt */
   umriss?: P[]
-  /** Umriss ist nur das Rechteck der Grenzen (out bb), nicht die Fläche selbst: Abstand zum Rand dieses Rechtecks (Runde 4) */
+  /** Umriss ist nur das Rechteck der Grenzen (out bb), nicht die Fläche selbst: Abstand zum Rand dieses Rechtecks */
   grenzrechteck?: true
   /** Geoportal, WEITERE_BERN: Bezeichnung der Art im Text (z. B. «Kindertagesstätte», «Spital») */
   wort?: string
@@ -34,7 +34,7 @@ export interface SchulOrt {
 /** Volksschulen und Kindergärten der Stadt Bern; weitere: Kitas, Kinderangebote, Heime, Spitäler (seit 01.11.2026); null: Layer nicht erreichbar */
 export interface SchulenBernDaten { volksschulen: SchulOrt[] | null; kindergaerten: SchulOrt[] | null; weitere?: SchulOrt[] | null }
 
-/** Weitere Berner Dienste (Nutzerentscheid 01.11.2026, F7a): Dienst (Ordner Geoportal bzw. stadtplan), Layer, Art und Bezeichnung */
+/** Weitere Berner Dienste: Dienst (Ordner Geoportal bzw. stadtplan), Layer, Art und Bezeichnung */
 export const WEITERE_BERN: readonly { dienst: string; ordner: 'Geoportal' | 'stadtplan'; layer: number; art: SchulArt; wort: string; kurz: string }[] = [
   { dienst: 'Kindertagesstaetten', ordner: 'Geoportal', layer: 0, art: 'kindergarten', wort: 'Kindertagesstätte', kurz: 'kita' },
   { dienst: 'Kinderangebote', ordner: 'Geoportal', layer: 0, art: 'schule', wort: 'Kinderangebot', kurz: 'kinder' },

@@ -2,7 +2,7 @@
 //
 // Band der Überfahrt auf der Zufahrtsachse: vorderer Rand = Bordkante (Fahrbahnrand der Vortrittsstrasse), hinterer Rand beidseits
 // gleich weit hinter dem Fahrbahnrand (Breite), auf der Zufahrtsachse also Länge = Breite / sin α (α Einbiegewinkel). Breite
-// (Korrektur nach Review 23.10.2026, Ziffer 16):
+// (Ziffer 16):
 //   1. Breite von Hand (geht der AV vor);
 //   2. AV-Fläche Trottoir quer über die Zufahrt (bestehende Überfahrt; gemessene Länge, Breite = Länge · sin α);
 //   3. das schmalere angrenzende AV-Trottoir links bzw. rechts der Zufahrt (velo.trottoirNeben), begrenzt auf 2,00 bis 3,50 m –
@@ -10,7 +10,7 @@
 //   4. Annahme TUE_BREITE_ANNAHME_M (2,00 m).
 // Liegt das angrenzende AV-Trottoir hinter einem Radweg bzw. Grünstreifen, beginnt die Überfahrt (für die Phase Trottoir) dort: hinterer
 // Rand = Fahrbahnrand + Vorlauf (Abstand Fahrbahnrand – vorderer Trottoirrand nach AV, kleinster der Seiten) + Breite.
-// Gehlinie (Korrektur 23.10.2026, Review fgsCheck): beidseits TUE_GEHLINIE_M (0,50 m) vor dem hinteren Rand der Überfahrt (VSS 40 242
+// Gehlinie: beidseits TUE_GEHLINIE_M (0,50 m) vor dem hinteren Rand der Überfahrt (VSS 40 242
 // Ziffer 14.4); die Überfahrt bestimmt den Rand, nicht das breitere angrenzende Trottoir. D' liegt 3,00 m hinter demselben Rand
 // (rechnen.ts), der Abstand D' – Gehlinie ist also 3,50 m (rechtwinklig). An einer Strasse in einer Kurve legt rechnen.ts den hinteren
 // Rand auf der Achse an den weiteren Schnitt mit dem Rand der Arme (D' dann mindestens 3,50 m hinter beiden Gehlinien). Nur Geometrie, keine Regeln der Sicht (rechnen.ts).

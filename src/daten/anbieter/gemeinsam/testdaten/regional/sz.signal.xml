@@ -1,0 +1,77 @@
+<?xml version='1.0' encoding="UTF-8" ?>
+<wfs:FeatureCollection
+   xmlns:ms="http://mapserver.gis.umn.edu/mapserver"
+   xmlns:gml="http://www.opengis.net/gml/3.2"
+   xmlns:wfs="http://www.opengis.net/wfs/2.0"
+   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+   xsi:schemaLocation="http://mapserver.gis.umn.edu/mapserver https://map.geo.sz.ch/mapserv_proxy?ogcserver=source%20for%20image%2Fpng&amp;SERVICE=WFS&amp;VERSION=2.0.0&amp;REQUEST=DescribeFeatureType&amp;TYPENAME=ms:ch.sz.a245a.strassensignale.vortrittsignale&amp;OUTPUTFORMAT=application%2Fgml%2Bxml%3B%20version%3D3.2 http://www.opengis.net/wfs/2.0 http://schemas.opengis.net/wfs/2.0/wfs.xsd http://www.opengis.net/gml/3.2 http://schemas.opengis.net/gml/3.2.1/gml.xsd"
+   timeStamp="2026-11-02T11:43:26" numberMatched="unknown" numberReturned="3"
+   next="https://map.geo.sz.ch/mapserv_proxy?ogcserver=source%20for%20image%2Fpng&amp;SERVICE=WFS&amp;VERSION=2.0.0&amp;REQUEST=GetFeature&amp;TYPENAME=ms%3Ach.sz.a245a.strassensignale.vortrittsignale&amp;SRSNAME=EPSG%3A2056&amp;MAXFEATURES=3&amp;role_ids=58&amp;user_id=-1&amp;STARTINDEX=3">
+      <wfs:boundedBy>
+      	<gml:Envelope srsName="urn:ogc:def:crs:EPSG::2056">
+      		<gml:lowerCorner>2687851.076600 1206147.468500</gml:lowerCorner>
+      		<gml:upperCorner>2699830.801100 1226080.848100</gml:upperCorner>
+      	</gml:Envelope>
+      </wfs:boundedBy>
+    <wfs:member>
+      <ms:ch.sz.a245a.strassensignale.vortrittsignale gml:id="ch.sz.a245a.strassensignale.vortrittsignale.17863">
+        <gml:boundedBy>
+        	<gml:Envelope srsName="urn:ogc:def:crs:EPSG::2056">
+        		<gml:lowerCorner>2687851.076600 1206147.468500</gml:lowerCorner>
+        		<gml:upperCorner>2687851.076600 1206147.468500</gml:upperCorner>
+        	</gml:Envelope>
+        </gml:boundedBy>
+        <ms:geom>
+          <gml:Point gml:id="ch.sz.a245a.strassensignale.vortrittsignale.17863.1" srsName="urn:ogc:def:crs:EPSG::2056">
+            <gml:pos>2687851.076600 1206147.468500</gml:pos>
+          </gml:Point>
+        </ms:geom>
+        <ms:id>17863</ms:id>
+        <ms:ssv_typ_cd>3.02</ms:ssv_typ_cd>
+        <ms:ssv_typ_tx>Kein Vortritt </ms:ssv_typ_tx>
+        <ms:beschreibung>- - -</ms:beschreibung>
+        <ms:typ_jpg>- - -</ms:typ_jpg>
+      </ms:ch.sz.a245a.strassensignale.vortrittsignale>
+    </wfs:member>
+    <wfs:member>
+      <ms:ch.sz.a245a.strassensignale.vortrittsignale gml:id="ch.sz.a245a.strassensignale.vortrittsignale.9992">
+        <gml:boundedBy>
+        	<gml:Envelope srsName="urn:ogc:def:crs:EPSG::2056">
+        		<gml:lowerCorner>2696128.704100 1226080.848100</gml:lowerCorner>
+        		<gml:upperCorner>2696128.704100 1226080.848100</gml:upperCorner>
+        	</gml:Envelope>
+        </gml:boundedBy>
+        <ms:geom>
+          <gml:Point gml:id="ch.sz.a245a.strassensignale.vortrittsignale.9992.1" srsName="urn:ogc:def:crs:EPSG::2056">
+            <gml:pos>2696128.704100 1226080.848100</gml:pos>
+          </gml:Point>
+        </ms:geom>
+        <ms:id>9992</ms:id>
+        <ms:ssv_typ_cd>3.02</ms:ssv_typ_cd>
+        <ms:ssv_typ_tx>Kein Vortritt </ms:ssv_typ_tx>
+        <ms:beschreibung>- - -</ms:beschreibung>
+        <ms:typ_jpg>- - -</ms:typ_jpg>
+      </ms:ch.sz.a245a.strassensignale.vortrittsignale>
+    </wfs:member>
+    <wfs:member>
+      <ms:ch.sz.a245a.strassensignale.vortrittsignale gml:id="ch.sz.a245a.strassensignale.vortrittsignale.10915">
+        <gml:boundedBy>
+        	<gml:Envelope srsName="urn:ogc:def:crs:EPSG::2056">
+        		<gml:lowerCorner>2699830.801100 1220586.889400</gml:lowerCorner>
+        		<gml:upperCorner>2699830.801100 1220586.889400</gml:upperCorner>
+        	</gml:Envelope>
+        </gml:boundedBy>
+        <ms:geom>
+          <gml:Point gml:id="ch.sz.a245a.strassensignale.vortrittsignale.10915.1" srsName="urn:ogc:def:crs:EPSG::2056">
+            <gml:pos>2699830.801100 1220586.889400</gml:pos>
+          </gml:Point>
+        </ms:geom>
+        <ms:id>10915</ms:id>
+        <ms:ssv_typ_cd>3.02</ms:ssv_typ_cd>
+        <ms:ssv_typ_tx>Kein Vortritt </ms:ssv_typ_tx>
+        <ms:beschreibung>- - -</ms:beschreibung>
+        <ms:typ_jpg>- - -</ms:typ_jpg>
+      </ms:ch.sz.a245a.strassensignale.vortrittsignale>
+    </wfs:member>
+</wfs:FeatureCollection>
+

@@ -1,3 +1,6 @@
+import type { NeigungMessung } from './knotensicht/rechner/typen'
+import { fgsSichtMasse, massBildPunkte } from './sichtMasse'
+import { MassBild, useSichtWahl, sichtZeigen, sichtMassZeigen, fgsSichtId, tueSichtId, sichtBildText, type SichtArt } from './Sichtfelder'
 // ── Bericht (E4): Druckansicht eines Falls, als PDF über den Druckdialog des Browsers ──
 //
 // Eigene Ansicht über der App (die Karte bleibt darunter bestehen), A4 hoch per @media print (index.css); als Portal direkt im body. Das Kartenbild ist
@@ -6,7 +9,7 @@
 // festen Ausschnitt und darüber eine SVG-Zeichnung der Geometrie. Weil Bild und Rechnung beide in LV95 (ebene Koordinaten)
 // sind, ist die Zuordnung eine reine Verschiebung und Skalierung, ohne Projektion. «Drucken» wird erst frei, wenn das Bild
 // geladen ist (bzw. nicht geladen werden konnte oder nach BILD_ZEITGRENZE_MS nicht da ist: dann ohne Hintergrund, mit Hinweis).
-// Nach der Zeitgrenze lädt das Bild weiter (Element bleibt, unsichtbar) und erscheint, sobald es eintrifft (Korrektur 16.10.2026:
+// Nach der Zeitgrenze lädt das Bild weiter (Element bleibt, unsichtbar) und erscheint, sobald es eintrifft (
 // bis dahin blieb «ohne Luftbild» stehen, auch wenn das Bild später kam); «erneut versuchen» fragt die URL neu an.
 
 import { useEffect, useMemo, useState } from 'react'
@@ -24,10 +27,10 @@ import { lv95, dist, type P } from './geo'
 import { wmsBildUrl, LUFTBILD_QUELLE } from './daten/luftbild'
 import { STATUS_FARBE, STRICH_GEDECKT, UEBERGANG_TEXT, INSEL_FARBE, STRICH_INSEL, hindernisFarbe, hindernisText, INSEL_TEXT, AV_FARBEN, TUE_RAND,
   STRICH_TUE } from './Karte'
-import { tueFlaeche } from './tue/karte'
+import { tueGezeichnet, tueFlaeche } from './tue/karte'
 import { LESENAME } from './bedarf/quellen'
 import { ART, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, tempoHerkunft, f1, f2, mText, streifenStatus,
-  erkennungText } from './texte'
+  erkennungText, erkennungEmpfehlungText } from './texte'
 import { erkennungAnzeige, gelaendeText, type GelaendeStand } from './erkennungGelaende'
 import { sichtGelaendeText } from './sichtGelaende'
 import { KnotensichtBericht } from './tue/KnotensichtBlock'
@@ -40,12 +43,14 @@ import { streifenTitel, streifenKopf, streifenArt, titelImFall, zufahrtLang, zuf
 /** Zufahrt-Namen je Streifen (benennung.zufahrtNamen, in der App gerechnet) */
 type Namen = Map<string, ZufahrtNamen>
 import { ausserhalbText, nichtAbgedecktText, type Ausserhalb } from './abdeckung'
+import { amtlicherText } from './daten/amtlicheUebergaenge'
 import { LUFTBILD_UEBERGANG_TEXT, KEIN_STREIFEN_TEXT, NICHT_GEPRUEFT_TEXT, herkunftText } from './daten/luftbildFgs'
 import { BefundblattAnzeige, GrundpruefungAnzeige, VerzeichnisBericht, ZusammenfassungAnzeige, annahmeInTabelle, eingabenTabelle, querungTitel } from './BedarfPanel'
 import type { BefundBlatt } from './bedarf/befundblatt'
 import { AHS_40240 } from './bedarf/tabellen'
 import { BerichtQuellenTabelle } from './Datenlage'
 import type { Datenlage } from './daten/quellenregister'
+import type { QuellenQualitaet } from './daten/anbieter/gemeinsam/qualitaet'
 
 const APP_URL = 'https://fgscheck.ch/'
 const RAND_M = 4                       // Rand um Streifen und Sichtfelder im Kartenbild
@@ -100,12 +105,21 @@ function masslinien(r: FallRechnung, fixpunkte: Fixpunkt[]): { von: P; bis: P; m
   })
 }
 
-function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, plan = [] }: {
+function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, plan = [], neigung = null }: {
+  neigung?: Readonly<Record<string, NeigungMessung>> | null
   r: FallRechnung; hindernisse: Hindernis[]; fixpunkte: Fixpunkt[]; ort: P; onBereit: (s: 'laedt' | 'ok' | 'fehler') => void
   namen: Namen; hand: StreifenHand[]
   plan?: FlaechePlan[]           // Flächen (Plan) von Hand: schraffiert unter Sichtfeldern und Streifen
 }) {
-  const box = useMemo(() => ausschnitt(r, ort, fixpunkte.map(f => f.p)), [r, ort, fixpunkte])
+  const [sicht] = useSichtWahl()
+  const masse = useMemo(() => fgsSichtMasse(r, neigung), [r, neigung])
+  const box = useMemo(() => {
+    const fix = fixpunkte.map(f => f.p)
+    let box = ausschnitt(r, ort, fix)
+    if (sicht.masse) for (let i = 0; i < 3; i++) box = ausschnitt(r, ort, [...fix,
+      ...massBildPunkte(masse.filter(m => sichtMassZeigen(sicht, m)), box[2] - box[0])])
+    return box
+  }, [r, ort, fixpunkte, masse, sicht])
   const [e0, n0, e1, n1] = box
   const wM = e1 - e0, hM = n1 - n0
   // Breite in Pixeln: 0,1 m/px, begrenzt auf BILD_PX_MIN..BILD_PX_MAX; Höhe aus derselben m/px (gleiches Seitenverhältnis)
@@ -190,10 +204,18 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
             const [x, y] = xy(m).split(',').map(Number)
             return <circle key={'mast' + i} cx={x} cy={y} r={6} fill="#000000" stroke="#ffffff" strokeWidth={2} />
           })}
-          {r.streifen.flatMap(st => st.zufahrten).map(z => (
+          {r.streifen.flatMap(st => st.zufahrten).filter(z => sichtZeigen(sicht, 'auto', fgsSichtId(z))).map(z => (
             <path key={'f' + z.fgsId + z.zufahrt} d={multi(z.feld)} fillRule="evenodd" fill={STATUS_FARBE[z.status] ?? '#10b981'} fillOpacity={0.14}
               stroke={STATUS_FARBE[z.status] ?? '#10b981'} strokeWidth={2.5} strokeDasharray={strich(z.status)} />
           ))}
+          {r.streifen.flatMap(st => st.zufahrten).map(z => sichtZeigen(sicht, 'velo', fgsSichtId(z)) && z.velo && <g key={'vf' + z.fgsId + z.zufahrt}>
+            <path d={multi(z.velo.feld)} fillRule="evenodd" fill="#0f766e" fillOpacity={0.1} stroke="#0f766e" strokeWidth={2} strokeDasharray="6 4" />
+            <polyline points={z.velo.sichtpunkte.map(xy).join(' ')} fill="none" stroke="#0f766e" strokeWidth={1.5} strokeDasharray="3 4" />
+          </g>)}
+          {r.streifen.map(st => tueGezeichnet(st.knotensicht) && st.knotensicht.karte.dreiecke.filter(d => sichtZeigen(sicht, d.art, tueSichtId(st.fgsId, d.lage))).map((d, i) =>
+            <g key={'ks' + st.fgsId + i}>{[[d.frei, d.art === 'velo' ? '#0f766e' : '#16a34a'], [d.verdeckt, '#dc2626']].map(([ring, farbe], k) =>
+              <path key={k} d={pfad([ring as P[]])} fill={farbe as string} fillOpacity={0.15} stroke={farbe as string} strokeWidth={2}
+                strokeDasharray={d.art === 'velo' ? '6 4' : d.art === 'trottoir' ? '2 4' : undefined} />)}</g>))}
           {hindernisse.map(h => {
             const { ringe, linie } = hindernisRinge(h)
             const farbe = hindernisFarbe(h)
@@ -206,7 +228,7 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
             <path key={'i' + i} d={pfad([z.ring])} fill={INSEL_FARBE} fillOpacity={0.15} stroke={INSEL_FARBE} strokeWidth={2.5}
               strokeDasharray={STRICH_INSEL.split(' ').map(x => Number(x) * 2).join(' ')} />
           ))}
-          {r.streifen.flatMap(st => st.zufahrten).flatMap(z => z.konflikte.map((k, i) => (
+          {r.streifen.flatMap(st => st.zufahrten).filter(z => sichtZeigen(sicht, 'auto', fgsSichtId(z))).flatMap(z => z.konflikte.map((k, i) => (
             <path key={'k' + z.fgsId + z.zufahrt + i} d={multi(k.geom)} fillRule="evenodd" fill="url(#schraffur)" stroke="#000000" strokeWidth={1.5} />
           )))}
           {r.streifen.map(st => (
@@ -222,7 +244,7 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
                 : <path d={pfad([st.umriss])} fill="#fde047" fillOpacity={0.7} stroke="#000000" strokeWidth={2} />}
             </g>
           ))}
-          {r.streifen.flatMap(st => st.zufahrten).map(z => (
+          {r.streifen.flatMap(st => st.zufahrten).filter(z => sichtZeigen(sicht, 'auto', fgsSichtId(z))).map(z => (
             <g key={'p' + z.fgsId + z.zufahrt}>
               <polyline points={z.spur.map(xy).join(' ')} fill="none" stroke="#ffffff" strokeWidth={1.5} strokeDasharray={z.deckung ? STRICH_GEDECKT : '5 5'} />
               {z.sichtpunkte.map((p, i) => {
@@ -266,9 +288,14 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
             <text x={0} y={24} fontSize={18} fontWeight={700} textAnchor="middle" {...halo}>N</text>
           </g>
           <text x={VB - 8} y={vh - 8} fontSize={13} textAnchor="end" {...halo} strokeWidth={4}>© swisstopo · Geometrie: fgsCheck (AV, OSM, Eingaben)</text>
+          <MassBild masse={masse} wahl={sicht} xy={xy} />
         </svg>
       </div>
       <figcaption className="klein">
+        {sichtBildText(sicht, (['auto', 'velo', 'trottoir'] as SichtArt[]).filter(a => r.streifen.some(st =>
+          (a === 'auto' && st.zufahrten.length > 0) || (a === 'velo' && st.zufahrten.some(z => z.velo)) ||
+          (tueGezeichnet(st.knotensicht) && st.knotensicht.karte.dreiecke.some(d => d.art === a)))))}{' '}
+
         {status === 'laedt' && <span className="nicht-drucken">Luftbild wird geladen … </span>}
         {(status === 'fehler' || status === 'zeit') && <span className="warnung">Luftbild nicht geladen: Kartenbild ohne Hintergrund. </span>}
         {(status === 'fehler' || status === 'zeit') && <span className="nicht-drucken">
@@ -462,11 +489,12 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
                 <td>{z.tempo} km/h<div className="klein">({z.tempoQuelle === 'Ersatz' ? 'Annahme, ohne Angabe' : z.tempoQuelle === 'Geoportal' ? 'Geoportal Stadt Bern' : tempoHerkunft(z.tempoQuelle)})</div></td>
                 <td>{mText(z.sichtweite)} m<div className="klein">({sichtQuelleKurz(z.sichtweiteQuelle)}{z.kurvenradiusM != null ? `, Kurvenradius ${f1(z.kurvenradiusM)} m` : ''})</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
-                <td><b>{statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}
-                  {z.sichtGelaende && <div className="klein">Sicht auf die Wartefläche, {sichtGelaendeText(z.sichtGelaende)}</div>}
+                <td><b>Wartefläche: {statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}
+                  {z.sichtGelaende && <div className="klein">{sichtGelaendeText(z.sichtGelaende)}</div>}
                   {z.erkennungM && (() => {
                     const a = erkennungAnzeige(z, gelaende)!.e
-                    return <div className="klein">{erkennungText(a)}; {gelaendeText(a)}</div>
+                    return <><div className="klein">{erkennungText(a)}; {gelaendeText(a)}</div>
+                      {erkennungEmpfehlungText(a, z.sichtweite) && <div className="klein"><strong>{erkennungEmpfehlungText(a, z.sichtweite)}</strong></div>}</>
                   })()}</td>
                 <td className="klein">{hindernisseText(z)}</td>
               </tr>
@@ -487,13 +515,14 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
 }
 
 export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjahr, luftbildStand, zusatzQuellen, ausserhalb = [], aendern,
-  schliessen, namen = new Map(), blaetter = [], quellenIds = [], datenlage = null, gelaende = null }: {
+  schliessen, namen = new Map(), blaetter = [], quellenIds = [], datenlage = null, quellenQualitaet = {}, gelaende = null, neigung = null }: {
+  neigung?: Readonly<Record<string, NeigungMessung>> | null
   /** Geländeprüfung der Erkennungsdistanz je erkennungGelaende.gelaendeSchluessel */
   gelaende?: Readonly<Record<string, GelaendeStand>> | null
   /** genutzte Quellen (Kennungen im Quellenregister) und Datenlage am Ort für die Tabelle unter «Quellen» */
-  quellenIds?: readonly string[]; datenlage?: Datenlage | null
+  quellenIds?: readonly string[]; datenlage?: Datenlage | null; quellenQualitaet?: Readonly<Record<string, QuellenQualitaet>>
   namen?: Namen                  // Zufahrten nach Strasse und Herkunft (benennung.ts), je Streifen
-  blaetter?: BefundBlatt[]       // Bedarfsmodul: Befundblatt je Querung (gezeigt, sobald eine Beurteilung vorliegt; Runde 5)
+  blaetter?: BefundBlatt[]       // Bedarfsmodul: Befundblatt je Querung (gezeigt, sobald eine Beurteilung vorliegt)
   fall: Fall; rechnung: FallRechnung; rechnungZeit: Date | null; kantone: string[]; flugjahr: string; luftbildStand: LuftbildStand
   zusatzQuellen: string[]
   ausserhalb?: Ausserhalb[]      // Streifen von Hand ausserhalb der geladenen Daten (abdeckung.ts)
@@ -509,7 +538,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
   const strassen = [...new Set(rechnung.streifen.map(s => s.strasse).filter(Boolean))]
   const mk = rechnung.markierung ?? fall.ort.markierung
   const eingaben = eingabenListe(fall, rechnung, namen)
-  // Runde 5 (Lesetest Stelle 1): der Bedarfsteil steht im Bericht, sobald eine Beurteilung vorliegt (die Vorbelegung genügt)
+  // der Bedarfsteil steht im Bericht, sobald eine Beurteilung vorliegt (die Vorbelegung genügt)
   const mitBedarf = blaetter.length > 0
   const hinweise = hinweisListe(rechnung, fall, luftbildStand, ausserhalb, namen)
   // Bezeichnung: lokal tippen, erst beim Verlassen des Felds (bzw. Enter, Escape) in den Fall übernehmen – sonst lösten
@@ -550,7 +579,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
         <button className="zweit" onClick={schliessen}>Zurück zur Karte</button>
       </div>
       <article className="bericht-seite">
-        {/* Druckrand als Rahmen (wie VeloroutenCheck, Nutzerwunsch 16.10.2026): Kopf und Fuss der Tabelle wiederholen sich auf
+        {/* Druckrand als Rahmen (wie VeloroutenCheck): Kopf und Fuss der Tabelle wiederholen sich auf
             jeder gedruckten Seite. So kommt der Bericht ohne Seitenrand aus (@page margin 0), und der Browser setzt keine eigene
             Kopf- und Fusszeile (Titel, Adresse, Seitenzahl, Datum) dazu. Zwei Zeilen: Seite 1 Ort und Kartenbild, ab Seite 2 das
             Ergebnis (Seitenumbruch zwischen den Zeilen; innerhalb einer Zelle greift er nicht in allen Browsern). */}
@@ -574,28 +603,28 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
             </td></tr>
             {strassen.length > 0 && <tr><td>Strasse (OSM)</td><td>{strassen.join(', ')}</td></tr>}
             <tr><td>Koordinaten</td><td>LV95 E {tausender(e)}, N {tausender(n)} · WGS84 {fall.ort.lat.toFixed(6)}, {fall.ort.lon.toFixed(6)}</td></tr>
-            {fall.ort.herkunft && fall.ort.uebergang !== null && fall.ort.uebergang < 0
+            {fall.ort.amtlich ? <tr><td>Amtlicher Übergang</td><td>{amtlicherText(fall.ort.amtlich)}; Auswahl bestätigt, Lage aus Strassennetz und AV prüfen.</td></tr> : fall.ort.herkunft && fall.ort.uebergang !== null && fall.ort.uebergang < 0
               ? <tr><td>Übergang</td><td>{LUFTBILD_UEBERGANG_TEXT} ({herkunftText(fall.ort.herkunft)}){!rechnung.luftbildUebergang ||
                 rechnung.streifenQuelle === 'hand' ? '' : rechnung.luftbildUebergang.bestaetigt ? '; im Luftbild Streifen erkannt'
                 : `; ${rechnung.luftbild ? KEIN_STREIFEN_TEXT : NICHT_GEPRUEFT_TEXT}`}</td></tr>
               : <tr><td>OSM-Übergang</td><td>{fall.ort.uebergang !== null ? <>Knoten {fall.ort.uebergang}{mk ? ` (${UEBERGANG_TEXT[mk] ?? mk})` : ''}</> :
               ortOhneUebergangText(fall)}</td></tr>}
             <tr><td>Streifen aus</td><td>{rechnung.streifenQuelle === 'hand' ? (fall.streifenHand.every(h => h.bestand)
-              ? 'bestehende Querung, Lage von Hand angepasst' : 'Eingabe von Hand') : rechnung.streifenQuelle === 'luftbild' ? 'Luftbild (erkannt, prüfen)' : 'OSM und AV'}</td></tr>
+              ? 'bestehende Querung, Lage von Hand angepasst' : 'Eingabe von Hand') : rechnung.streifenQuelle === 'luftbild' ? 'Luftbild (erkannt, prüfen)' : fall.ort.amtlich ? 'amtlicher Suchpunkt, Strassennetz und AV (Geometrie prüfen)' : 'OSM und AV'}</td></tr>
             {(fall.flaechenPlan?.length ?? 0) > 0 && <tr><td>Bodenbedeckung</td><td>Rechnung mit geplanter Bodenbedeckung (von Hand):
               AV mit {fall.flaechenPlan!.length} Fläche(n) (Plan), siehe «Eingaben von Hand»</td></tr>}
             <tr><td>Daten geladen</td><td>{fall.quellen.geladen ?? '–'}; Rechnung {rechnungZeit ? `${datum(rechnungZeit)} ${zeit(rechnungZeit)}` : '–'}</td></tr>
           </tbody></table>
         </section>
 
-        {rechnung.streifen.length > 0 && <BerichtKarte r={rechnung} ort={ort} onBereit={setBild} fixpunkte={fall.fixpunkte ?? []}
+        {rechnung.streifen.length > 0 && <BerichtKarte neigung={neigung} r={rechnung} ort={ort} onBereit={setBild} fixpunkte={fall.fixpunkte ?? []}
           namen={namen} hand={fall.streifenHand} plan={fall.flaechenPlan ?? []}
           hindernisse={[...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)]} />}
 
         </td></tr>
         <tr className={rechnung.streifen.length > 0 ? 'bericht-neue-seite' : undefined}><td>
         {/* Seite 1: Ort und Kartenbild; das Ergebnis beginnt im Druck oben auf Seite 2 (ohne Kartenbild ohne Umbruch). Liegt eine
-            Beurteilung zu Bedarf und Querungstyp vor (Runde 5: auch nur aus der Vorbelegung), steht sie davor (Skizze: oberhalb des Sichtbefunds) */}
+            Beurteilung zu Bedarf und Querungstyp vor (auch nur aus der Vorbelegung), steht sie davor (Skizze: oberhalb des Sichtbefunds) */}
         {mitBedarf && <section className="bericht-block">
           <h2>Bedarf und Querungstyp</h2>
           {blaetter.map(b => <ZusammenfassungAnzeige key={`zf-${b.gruppe}`} b={b} druck titel={blaetter.length > 1 ? querungTitel(b) : undefined} />)}
@@ -606,7 +635,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
             feldHinweise={b.vorbelegt.feldHinweise} ohneAnnahme={a => annahmeInTabelle(blaetter[0], a)} />)}
           {blaetter.map(b => <BefundblattAnzeige key={b.gruppe} b={b} mehrere={blaetter.length > 1} druck />)}
           <h3>Eingaben und Quellen{blaetter.length > 1 ? ` (vorbelegt nach ${blaetter[0].titel})` : ''}</h3>
-          {/* Runde 5 (Stelle 50): Tabelle Feld · Wert · Quelle · Annahme; eine Begründung nur bei Annahmen */}
+          {/* Tabelle Feld · Wert · Quelle · Annahme; eine Begründung nur bei Annahmen */}
           <table className="bericht-tabelle klein"><thead><tr><th>Angabe</th><th>Wert</th><th>Quelle</th><th>Annahme</th></tr></thead>
             <tbody>{eingabenTabelle(blaetter[0]).map(z => <tr key={z.feld}><td>{z.feld}</td><td>{z.wert}</td><td>{z.quelle}</td>
               <td>{z.annahme ? <>ja{z.grund ? `: ${z.grund}` : ''}</> : 'nein'}</td></tr>)}</tbody></table>
@@ -646,7 +675,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
 
         <section className="bericht-block">
           <h2>Quellen</h2>
-          <BerichtQuellenTabelle ids={quellenIds} lage={datenlage} />
+          <BerichtQuellenTabelle ids={quellenIds} lage={datenlage} qualitaet={quellenQualitaet} />
           <ul className="klein">
             <li>Luftbild: {LUFTBILD_QUELLE}{flugjahr ? `, Flugjahr ${flugjahr}` : ''} (wms.geo.admin.ch; Karte: WMTS geo.admin.ch)</li>
             <li>Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '–'}, über geodienste.ch

@@ -41,14 +41,14 @@ describe('Bericht: nur die genutzten Quellen', () => {
       { herkunftP: lv95(46.95, 7.44), hoehen: true })
     expect(ids).toEqual(['osm', 'av', 'swissimage', 'bern.vsig', 'bern.halt', 'eth.fgs.bern', 'swissalti'])
     const t = text(renderToStaticMarkup(<BerichtQuellenTabelle ids={ids} lage={BERN} />))
-    expect(t).toContain('OpenStreetMap (Overpass) Strassennetz, Übergänge OpenStreetMap Abruf beim Laden ODbL')
+    expect(t).toContain('OpenStreetMap (Overpass) Strassennetz, Übergänge OpenStreetMap Abruf beim Laden Datenstand unbekannt; Vollständigkeit unbekannt ODbL')
     expect(t).not.toContain('Baumkataster')
     expect(t).toContain('Signalisierte Höchstgeschwindigkeit Tempo-Signalisation')
     expect(renderToStaticMarkup(<BerichtQuellenTabelle ids={[]} />)).toBe('')
   })
   it('Bericht.tsx zeigt die Tabelle unter «Quellen»', () => {
     const src = readFileSync(resolve(__dirname, 'Bericht.tsx'), 'utf-8')
-    expect(src).toMatch(/<h2>Quellen<\/h2>\s*<BerichtQuellenTabelle ids=\{quellenIds\} lage=\{datenlage\} \/>/)
+    expect(src).toMatch(/<h2>Quellen<\/h2>\s*<BerichtQuellenTabelle ids=\{quellenIds\} lage=\{datenlage\} qualitaet=\{quellenQualitaet\} \/>/)
   })
 })
 
@@ -61,10 +61,11 @@ describe('Hilfe', () => {
     expect(t).toContain('Street View')
     expect(t).toContain('GoatCounter')
   })
-  it('Abschnitt «Quellen je Ort»: Register, neue Stadt, CORS', () => {
+  it('Grundanleitung verweist auf Feldhilfen; Anbieter- und Technikdetails stehen nicht darin', () => {
     const t = text(renderToStaticMarkup(<Anleitung />))
-    expect(t).toContain('Quellen je Ort')
-    expect(t).toMatch(/Eine weitere Stadt kommt dazu mit ihren Einträgen im Register, der Zuordnung der Felder ihres Diensts und einer Probe/)
-    expect(t).toContain('(CORS)')
+    expect(t).toContain('Fragezeichen')
+    expect(t).toContain('Grundlagen und Quellen')
+    expect(t).not.toContain('Quellen je Ort')
+    expect(t).not.toContain('CORS')
   })
 })

@@ -1,0 +1,9 @@
+{"type": "FeatureCollection",
+ "bbox": [ 8.469244, 47.327491, 8.598275, 47.429438],
+ "crs": {"properties":{"name":"urn:ogc:def:crs:EPSG::2056"},"type":"name"},
+ "features": [
+  {"geometry":{"coordinates":[2681565.923,1247707.198],"type":"Point"},"id":"tbl_knoten_p.1","properties":{"betriebszeit":"D","geometrie_gdo":null,"knotenbezeichnung":"Badener-/Seebahnstr","knotennr":2,"objectid":1},"type":"Feature"}
+ ,{"geometry":{"coordinates":[2681650.612,1247538.82],"type":"Point"},"id":"tbl_knoten_p.2","properties":{"betriebszeit":"D","geometrie_gdo":null,"knotenbezeichnung":"Kalkbreite-/Seebahnstr","knotennr":3,"objectid":2},"type":"Feature"}
+ ,{"geometry":{"coordinates":[2681483.328,1247412.399],"type":"Point"},"id":"tbl_knoten_p.3","properties":{"betriebszeit":"Abendausschaltung\nDreifarbenbetrieb\nMo - Fr 0600 - 2100 Uhr\nSa 0730 - 2100 Uhr\nSo 0900 - 2100 Uhr","geometrie_gdo":null,"knotenbezeichnung":"Kalkbreite-/Sihlfeld-/Zurlindenstr","knotennr":5,"objectid":3},"type":"Feature"}
+ ]
+}

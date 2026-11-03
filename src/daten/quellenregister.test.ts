@@ -49,7 +49,7 @@ describe('Quellenregister: Vollständigkeit', () => {
     for (const [k, stand] of Object.entries(ETH_STAND)) {
       const roh = JSON.parse(readFileSync(resolve(SRC, '..', 'public', `luftbild_fgs_${k}.json`), 'utf-8')) as { erzeugt: string }
       expect(roh.erzeugt.split('-').reverse().join('.'), k).toBe(stand)
-      expect(quelle(`eth.fgs.${k}`)?.stand).toContain(stand)
+      expect(quelle(`eth.fgs.${k}`)?.stand).toContain('Snapshot-Erzeugung und Flugjahre je geladener Datei')
     }
   })
   it('AV: 19 Kantone ganz, Wallis, Liechtenstein; die sechs ohne freie AV fehlen; heute alle Dienste mit CORS', () => {
@@ -93,17 +93,21 @@ describe('quellenFuer und datenlage', () => {
     expect(d.vermessung?.id).toBe('av')
     expect(THEMEN.every(t => d[t] !== null)).toBe(true)
   })
-  it('Zürich: nur schweizweite Quellen und der Zürcher Snapshot', () => {
+  it('Zürich: schweizweite Quellen, amtliches Tempo und LSA sowie ETH-Snapshot', () => {
     const qs = quellenFuer(ZUERICH)
-    expect(qs.filter(q => q.gebiet.art !== 'schweiz' && q.gebiet.art !== 'kantone').map(q => q.id)).toEqual(['eth.fgs.zurich'])
+    expect(qs.filter(q => !q.id.startsWith('regional.bedarf.') && q.gebiet.art !== 'schweiz' && q.gebiet.art !== 'kantone').map(q => q.id)).toEqual(['regional.e6.zh.licht', 'regional.e6.zh.taktil', 'regional.e6.zh.netz', 'regional.stadtzh.lsa', 'zh.tempo', 'zh.zone', 'eth.fgs.zurich'])
     const d = datenlage(ZUERICH)
     expect(d.vermessung?.id).toBe('av')
-    expect(d.tempo?.id).toBe('osm')
-    expect([d.parkfelder, d.baeume, d.dtv, d.fusswegnetz, d.taktil, d.zonen, d.oevLinien]).toEqual(Array(7).fill(null))
+    expect(d.tempo?.id).toBe('zh.tempo')
+    expect(d.dtv?.id).toBe('are.npvm')
+    expect([d.parkfelder, d.baeume, d.fusswegnetz, d.taktil, d.oevLinien]).toEqual(Array(5).fill(null))
+    expect(d.zonen?.id).toBe('regional.bund.bauzone')
+    expect(d.strassentyp?.id).toBe('regional.bund.strasse')
+    expect(d.schulen?.id).toBe('regional.bedarf.zh.volksschule')
   })
-  it('Lausanne: AV nicht frei (VD), keine örtliche Quelle', () => {
+  it('Lausanne: AV nicht frei (VD), Verkehrszone als Kontext verfügbar', () => {
     expect(quellenFuer(LAUSANNE).map(q => q.id)).not.toContain('av')
-    expect(quellenFuer(LAUSANNE).every(q => q.gebiet.art === 'schweiz')).toBe(true)
+    expect(quellenFuer(LAUSANNE).map(q => q.id)).toContain('regional.lausanne.zone')
     expect(datenlage(LAUSANNE).vermessung).toBeNull()
     // ohne Kanton (keine AV-Fläche geladen) ebenso
     expect(datenlage({ lat: LAUSANNE.lat, lon: LAUSANNE.lon }).vermessung).toBeNull()
@@ -117,18 +121,15 @@ describe('Satz «Datenlage hier»', () => {
       'ÖV-Linien.')
   })
   it('Zürich', () => {
-    expect(datenlageSatz(datenlage(ZUERICH))).toBe('Datenlage hier: Vermessung, Luftbild, OSM, Luftbild-Streifen (ETH). Aus OSM: ' +
-      'Haltestellen, Strassentyp, Tempo, Schulen; keine Quelle für Parkfelder, Bäume, Verkehrsmengen, Fusswegnetz, taktile Markierungen, ' +
-      'Bauzonen (Nutzungszonenplan), ÖV-Linien: Angaben von Hand.')
+    expect(datenlageSatz(datenlage(ZUERICH))).toBe('Datenlage hier: Vermessung, Luftbild, OSM, Luftbild-Streifen (ETH); dazu Stadt Zürich: Tempo-Signalisation, Schulen. Aus Bundesamt für Verkehr (BAV): Haltestellen; Aus Bundesamt für Raumentwicklung (ARE): Verkehrsmengen (modelliert); Aus © swisstopo: Strassentyp (Hinweise, bestätigen); Aus © ARE und Kantone: Bauzonen (Nutzungszonenplan) (Hinweise, bestätigen); keine Quelle für Parkfelder, Bäume, Fusswegnetz, taktile Markierungen, ÖV-Linien: Angaben von Hand.')
   })
   it('Lausanne (AV nicht frei)', () => {
     expect(datenlageSatz(datenlage(LAUSANNE))).toBe('Datenlage hier: Luftbild, OSM. Amtliche Vermessung hier nicht frei verfügbar: ' +
       'keine Rechnung.')
   })
-  it('Ort mit freier AV ohne örtliche Quelle (z. B. Freiburg)', () => {
+  it('Freiburg: amtliche Tempoquelle nur auf Kantonsstrassen', () => {
     expect(datenlageSatz(datenlage({ lat: 46.8065, lon: 7.1619, bfs: 2196, kanton: 'FR' }))).toBe('Datenlage hier: Vermessung, Luftbild, ' +
-      'OSM. Aus OSM: Haltestellen, Strassentyp, Tempo, Schulen; keine Quelle für Parkfelder, Bäume, Verkehrsmengen, Fusswegnetz, taktile ' +
-      'Markierungen, Bauzonen (Nutzungszonenplan), ÖV-Linien: Angaben von Hand.')
+      'OSM. Aus Bundesamt für Verkehr (BAV): Haltestellen; Aus Bundesamt für Raumentwicklung (ARE): Verkehrsmengen (modelliert); Aus © swisstopo: Strassentyp (Hinweise, bestätigen); Aus Etat de Fribourg: Tempo-Signalisation, Schulen; Aus © ARE und Kantone: Bauzonen (Nutzungszonenplan) (Hinweise, bestätigen); keine Quelle für Parkfelder, Bäume, Fusswegnetz, taktile Markierungen, ÖV-Linien: Angaben von Hand.')
   })
 })
 
@@ -136,9 +137,9 @@ describe('Datenschutz aus dem Register', () => {
   it('je Empfänger eine Zeile im bisherigen Wortlaut', () => {
     const { gruppen, eigen } = datenschutzGruppen()
     expect(gruppen.map(g => g.name)).toEqual(['swisstopo (geo.admin.ch)', 'geodienste.ch (Amtliche Vermessung)', 'Overpass (OpenStreetMap)',
-      'map.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern'])
+      'Regionale Geoportale der Kantone und Städte (nur im jeweiligen Gebiet)', 'ogd.stadt-zuerich.ch und data.stadt-zuerich.ch (Stadt Zürich)', 'map.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern'])
     const t = Object.fromEntries(gruppen.map(g => [g.name.split(' ')[0], g.text]))
-    expect(t['swisstopo']).toMatch(/^Kartenkacheln \(Luftbild bzw\. Landeskarte\) des sichtbaren Ausschnitts \(wmts\.geo\.admin\.ch\); Luftbild-Ausschnitt ±30 m/)
+    expect(t['swisstopo']).toMatch(/Kartenkacheln \(Luftbild bzw\. Landeskarte\) des sichtbaren Ausschnitts \(wmts\.geo\.admin\.ch\); Luftbild-Ausschnitt ±30 m/)
     expect(t['swisstopo']).toContain('bei der Ortssuche der eingegebene Suchbegriff (api3.geo.admin.ch)')
     expect(t['geodienste.ch']).toBe('Rechteck ±150 m um den Übergang bzw. die geplanten Streifen.')
     expect(t['Overpass']).toContain('Server overpass.osm.ch (Swiss OpenStreetMap Association), bei Störung ersatzweise overpass-api.de')

@@ -1,4 +1,4 @@
-// ── Verkehrsdaten der Stadt Bern (DTV) für die Vorbelegung des Bedarfsmoduls (Nutzerentscheid 20.10.2026) ──
+// ── Verkehrsdaten der Stadt Bern (DTV) für die Vorbelegung des Bedarfsmoduls ──
 //
 // Geoportal, Service «Flaechendeckende_Verkehrsdaten», Layer 0 «Verkehr_Strasse» (wie VeloroutenCheck src/bern.ts): je
 // Strassenabschnitt eine Linie auf der Strassenachse mit Strassenname, Nt (Motorfahrzeuge pro Stunde am Tag, 06–22 Uhr) und Nn

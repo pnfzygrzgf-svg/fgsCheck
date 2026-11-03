@@ -172,7 +172,7 @@ export const istLuftbildUebergang = (t: Record<string, string> | undefined): boo
  * Tags des eigenen Übergangs, Arme mit Querung im Bedarfsmodul). Ohne solche Elemente dasselbe Objekt.
  */
 export function ohneLuftbildUebergang(osm: OsmDaten): OsmDaten {
-  const u = osm.uebergaenge.filter(x => !istLuftbildUebergang(x.tags)), q = osm.querungen.filter(w => w.tags.source !== LUFTBILD_FGS_QUELLE)
+  const u = osm.uebergaenge.filter(x => !istLuftbildUebergang(x.tags) && !x.tags.source?.startsWith('amtlich:')), q = osm.querungen.filter(w => w.tags.source !== LUFTBILD_FGS_QUELLE && !w.tags.source?.startsWith('amtlich:'))
   return u.length === osm.uebergaenge.length && q.length === osm.querungen.length ? osm : { ...osm, uebergaenge: u, querungen: q }
 }
 
@@ -210,7 +210,7 @@ const STRASSEN = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link', 'p
  * Streifenachse: die Rechnung nimmt die Gehrichtung als Achse, wenn sie höchstens 45° von der Senkrechten zum Weg abweicht
  * (rechner/streifen.streifenAusUebergang), sonst senkrecht zum Weg. Ist der Knoten schon da, bleibt die Antwort unverändert.
  */
-export function osmMitLuftbildUebergang(roh: unknown, id: number, h: LuftbildHerkunft): unknown {
+export function osmMitLuftbildUebergang(roh: unknown, id: number, h: Pick<LuftbildHerkunft, 'p' | 'richtung'>, tags: Readonly<Record<string, string>> = KANDIDAT_TAGS): unknown {
   const r = (roh ?? {}) as { elements?: RohElement[] }
   const el = r.elements ?? []
   if (el.some(e => e.type === 'node' && e.id === id)) return roh
@@ -233,13 +233,15 @@ export function osmMitLuftbildUebergang(roh: unknown, id: number, h: LuftbildHer
     c = [c[0] + (best.q[0] - c[0]) * f, c[1] + (best.q[1] - c[1]) * f]
   }
   const [lat, lon] = wgs(c[0], c[1])
-  const neu: RohElement[] = [{ type: 'node', id, lat, lon, tags: { ...KANDIDAT_TAGS } }]
+  const neu: RohElement[] = [{ type: 'node', id, lat, lon, tags: { ...tags } }]
   if (h.richtung !== null) {
     const a = h.richtung * Math.PI / 180, d: P = [Math.sin(a), Math.cos(a)]
     const ende = (s: number) => { const [la, lo] = wgs(c[0] + d[0] * s, c[1] + d[1] * s); return { lat: la, lon: lo } }
     const g = [ende(-FUSSWEG_HALB_M), { lat, lon }, ende(FUSSWEG_HALB_M)]
-    // Knoten des Fusswegs: eigene negative Kennungen neben dem Übergang (kommen nur im Weg vor)
-    neu.push({ type: 'way', id, nodes: [id * 10 - 1, id, id * 10 - 2], geometry: g, tags: { highway: 'footway', source: LUFTBILD_FGS_QUELLE } })
+    // Knoten des Fusswegs: eigene negative Kennungen neben dem Übergang (kommen nur im Weg vor). Sehr grosse Kennungen
+    // (amtliche Übergänge) mal zehn wären keine sicheren Ganzzahlen mehr: dort ein Abstand grösser als ihr Hash-Bereich
+    const knoten = (n: number) => Number.isSafeInteger(id * 10 - n) ? id * 10 - n : id - n * 2 ** 33
+    neu.push({ type: 'way', id, nodes: [knoten(1), id, knoten(2)], geometry: g, tags: { highway: 'footway', source: tags.source } })
   }
   return { ...r, elements: [...el, ...neu] }
 }

@@ -1,0 +1,96 @@
+{
+  "mitte": [
+    2680727.125,
+    1250074.346
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "bbox": [
+      8.505287,
+      47.394722,
+      8.510657,
+      47.398368
+    ],
+    "crs": {
+      "properties": {
+        "name": "urn:ogc:def:crs:EPSG::2056"
+      },
+      "type": "name"
+    },
+    "features": [
+      {
+        "geometry": {
+          "coordinates": [
+            2680727.125,
+            1250074.346
+          ],
+          "type": "Point"
+        },
+        "id": "poi_kindergarten_view.1",
+        "properties": {
+          "adr_inter": null,
+          "adresse": "Ackersteinstrasse 85",
+          "adrzus_int": null,
+          "behindertenparkplatz": null,
+          "bemerkung": null,
+          "ccmail": null,
+          "da": "Schulamt",
+          "datum": "202607141140",
+          "datum_cms": null,
+          "dep": "Schul- und Sportdepartement (SSD)",
+          "editor": "ssdbn7qj",
+          "einheit": "Am Wasser",
+          "erforderlichedokumente": null,
+          "fax": null,
+          "geometrie_gdo": null,
+          "hausnummer": "85",
+          "hindernisfreiheit": null,
+          "infrastruktur": null,
+          "isbetriebsferien_gebaeude": null,
+          "isbetriebsferien_schalter": null,
+          "kategorie": "Kindergarten",
+          "mail": null,
+          "name": "Ackersteinstrasse",
+          "namenzus": null,
+          "objectid": 1,
+          "oeffnungszeiten_gebaeude_di": null,
+          "oeffnungszeiten_gebaeude_do": null,
+          "oeffnungszeiten_gebaeude_fr": null,
+          "oeffnungszeiten_gebaeude_mi": null,
+          "oeffnungszeiten_gebaeude_mo": null,
+          "oeffnungszeiten_gebaeude_sa": null,
+          "oeffnungszeiten_gebaeude_so": null,
+          "oeffnungszeiten_schalter_di": null,
+          "oeffnungszeiten_schalter_do": null,
+          "oeffnungszeiten_schalter_fr": null,
+          "oeffnungszeiten_schalter_mi": null,
+          "oeffnungszeiten_schalter_mo": null,
+          "oeffnungszeiten_schalter_sa": null,
+          "oeffnungszeiten_schalter_so": null,
+          "ort": "Zürich",
+          "plz": "8049",
+          "poi_id": "ki222",
+          "postadresse": null,
+          "publish_internet": "1",
+          "schulkreis": "Waidberg",
+          "strasse": "Ackersteinstrasse",
+          "suchen": "Kindergarten, Kindergärten, Kinder",
+          "tel": "+41 44 342 07 02",
+          "tel2": null,
+          "www": "https://www.stadt-zuerich.ch/schulen/de/amwasser/ueberuns/standorte/kindergaerten.html",
+          "zahlungsmittel_internet": null,
+          "zahlungsmittel_schalter": null,
+          "zahlungsmittel_telefon": null,
+          "zvv_label": "Zürich, Alte Trotte",
+          "zvv_link": "https://www.zvv.ch/zvv/de/fahrplan/fp.html?tolat=47.38455740408523&tolon=8.539273849160114&toname=Zürich%2C+Ackersteinstrasse+85"
+        },
+        "type": "Feature"
+      }
+    ]
+  },
+  "meta": {
+    "result": {
+      "dateLastUpdated": "02.11.2026"
+    }
+  }
+}

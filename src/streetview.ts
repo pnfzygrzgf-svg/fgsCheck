@@ -1,4 +1,4 @@
-// ── Google Street View als Link (Nutzerwunsch 23.10.2026, Vorbild VeloroutenCheck) ──
+// ── Google Street View als Link (Vorbild VeloroutenCheck) ──
 //
 // Nur ein Link auf Google Maps (Maps URLs, map_action=pano: Google sucht das nächste Panorama), keine Einbettung, kein API-Schlüssel.
 // Die Koordinaten gehen erst beim Klick an Google. Je Zufahrt der Blick der Fahrenden: vom fernsten Sichtpunkt (Soll-Distanz) zur

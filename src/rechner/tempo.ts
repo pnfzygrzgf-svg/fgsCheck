@@ -18,13 +18,13 @@ export const SICHTWEITE: Record<number, number> = { 20: 25, 30: 25, 40: 40, 50: 
 export const KURVE_SICHTWEITE: [number, number, string][] = [[5, 10, 'bfu'], [10, 15, 'bfu'], [15, 20, 'bfu'], [20, 24, 'bfu'],
   [25, 35, 'VSS Tab. 2'], [30, 40, 'VSS Tab. 2'], [35, 45, 'VSS Tab. 2'], [40, 50, 'VSS Tab. 2']]
 export const TEMPO_ERSATZ = 50
-/** Quelle eines amtlichen Tempos (Eingabe der Rechnung, z. B. V_sig des Geoportals Stadt Bern; Nutzerentscheid 21.10.2026) */
+/** Quelle eines amtlichen Tempos (Eingabe der Rechnung, z. B. V_sig des Geoportals Stadt Bern) */
 export const TEMPO_QUELLE_AMTLICH = 'Geoportal'
 /**
  * Amtliches Tempo bei einem Punkt der Spur (km/h, Fahrtrichtung richtung) bzw. null ohne Angabe. Die Rechnung bekommt es nur als
  * Eingabe (die Ableitung, z. B. aus den V_sig-Linien, steht in daten/vsig.ts); es geht OSM vor, eine Eingabe von Hand geht ihm vor.
  */
-export type TempoAmtlich = (p: P, richtung: P) => number | null
+export type TempoAmtlich = ((p: P, richtung: P) => number | null) & { quelle?: string; quelleBei?: (p:P,r:P)=>string|null }
 const TEMPO_SUCHRADIUS = 5.0
 const ACHSE_MAX_WINKEL = 35 * Math.PI / 180
 const TEMPO_PENDEL_GROSSE_SW = true
@@ -35,7 +35,7 @@ export function sichtweiteTab1(tempo: number, ausserorts = false): number {
   return SICHTWEITE[tempo] ?? (tempo > 60 ? SICHTWEITE[60] : SICHTWEITE[50])
 }
 
-// Herkunft der Sichtweite nach Tempo (Nutzerentscheid 30.10.2026): VSS 40 241 Tab. 1 hat Zeilen von 30 bis 60 km/h, bei 60 km/h getrennt
+// Herkunft der Sichtweite nach Tempo: VSS 40 241 Tab. 1 hat Zeilen von 30 bis 60 km/h, bei 60 km/h getrennt
 // nach innerorts (75 m) und ausserorts (100 m). 20 km/h und über 60 km/h sind Annahmen der App (Wert wie die nächste Zeile).
 /** VSS 40 241 Tab. 1, 60 km/h ausserorts [m] */
 export const SICHTWEITE_AUSSERORTS_60 = 100
@@ -171,6 +171,7 @@ export function tempoEntlang(netz: OsmNetz | null, weg: P[], tempoStart0: number
  */
 export function amtlichEntlang(amtlich: TempoAmtlich | null | undefined, weg: P[], tempo0: number, h: number): [number, string] | null {
   if (!amtlich) return null
-  const [t, treffer] = tempoEntlang(null, weg, tempo0, h, (q, r) => { const v = amtlich(q, r); return v ? tempoStufe(v) : null })
-  return treffer ? [t, TEMPO_QUELLE_AMTLICH] : null
+  const quellen = new Set<string>()
+  const [t, treffer] = tempoEntlang(null, weg, tempo0, h, (q, r) => { const v = amtlich(q, r); const quelle=v ? amtlich.quelleBei?.(q,r) : null; if (quelle) quellen.add(quelle); return v ? tempoStufe(v) : null })
+  return treffer ? [t, quellen.size ? [...quellen].join(' / ') : amtlich.quelle ?? TEMPO_QUELLE_AMTLICH] : null
 }

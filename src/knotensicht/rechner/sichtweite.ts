@@ -4,15 +4,15 @@
 // Stufe der Tabelle aufgerundet; über 80 km/h gilt die Stufe 80 mit Hinweis (die Tabelle endet dort).
 // Wert nach Strassentyp (E1): Erschliessungs-, Sammel- und Verbindungsstrassen (ES) der untere Wert; Hauptverkehrsstrassen und
 // wichtige Verbindungsstrassen (HVS) der Zwischenwert = Mittel von unterem und oberem Wert, auf ganze Meter aufgerundet
-// (Entscheid 1 vom 15.10.2026, Praxis Kanton Zug); HVS mit ungünstigen Verhältnissen der obere Wert. Bei ES heben die ungünstigen
+// (Praxis Kanton Zug); HVS mit ungünstigen Verhältnissen der obere Wert. Bei ES heben die ungünstigen
 // Verhältnisse nicht an (nur Hinweis). Die Ziffer 13.1 nennt für die ungünstigen Verhältnisse keine Masse; die App nimmt sie nach der
-// Praxis des Kantons Solothurn (AVT, Richtlinien Strassenverkehrsanlagen 12/2024, S. 3; Entscheid 31.10.2026, Annahme): mehr als ein
+// Praxis des Kantons Solothurn (AVT, Richtlinien Strassenverkehrsanlagen 12/2024, S. 3, Annahme): mehr als ein
 // Fahrstreifen je Richtung, Gefälle über NEIGUNG_GROSS_PROZENT in einer Richtung, Schwerverkehrsanteil über SCHWERVERKEHR_PROZENT.
 // Anhaltesichtweite (VSS 40 090b Abb. 2, anhaltesicht.ts): immer gerechnet, als Untergrenze nur bei |i| > 2 % angewendet
-// (Entscheid 2; die unteren Werte der Tab. 1 gelten für i ≤ ±2 %, VSS 40 273 Ziffer 13.1): massgebend = max(Wert nach
+// (die unteren Werte der Tab. 1 gelten für i ≤ ±2 %, VSS 40 273 Ziffer 13.1): massgebend = max(Wert nach
 // Strassentyp, Anhaltesichtweite bei i). Die Kurven der Abb. 2 sind bei i = 0 auf den unteren Wert der Tab. 1 verschoben
-// (Entscheid 15.10.2026), aus Abb. 2 zählt nur die Wirkung der Neigung.
-// Neigung unbekannt (kein Höhenprofil, nicht von Hand; Entscheid 31.10.2026): die Anhaltesichtweite gilt als angewendet, mit dem
+//, aus Abb. 2 zählt nur die Wirkung der Neigung.
+// Neigung unbekannt (kein Höhenprofil, nicht von Hand): die Anhaltesichtweite gilt als angewendet, mit dem
 // strengsten Wert der Abb. 2 (bei i = ANHALTESICHT_I_MIN, −12 %); die Vorgabe «grosse Längsneigung» setzt die Rechnung dann nicht.
 
 import { anhaltesichtweite, ANHALTESICHT_STUFEN, ANHALTESICHT_I_MIN, type Anhaltesicht } from './anhaltesicht'
@@ -72,9 +72,9 @@ export const NEIGUNG_EBEN_PROZENT = 2
 export type TypStufe = 'unten' | 'zwischen' | 'oben'
 const STUFE_TEXT: Record<TypStufe, string> = { unten: 'unterer Wert', zwischen: 'Zwischenwert', oben: 'oberer Wert' }
 
-/** Zwischenwert für Hauptverkehrsstrassen: Mittel von unterem und oberem Wert, auf ganze Meter aufgerundet (Entscheid 1) */
+/** Zwischenwert für Hauptverkehrsstrassen: Mittel von unterem und oberem Wert, auf ganze Meter aufgerundet */
 export const zwischenwert = (unten: number, oben: number): number => Math.ceil((unten + oben) / 2)
-/** Herkunft des Zwischenwerts (Entscheid 1 vom 15.10.2026; die Norm nennt für Hauptverkehrsstrassen nur einen Bereich) */
+/** Herkunft des Zwischenwerts (die Norm nennt für Hauptverkehrsstrassen nur einen Bereich) */
 export const ZWISCHENWERT_TEXT = 'Mittel von unterem und oberem Wert, aufgerundet; Entscheid 15.10.2026 – die Norm nennt nur einen Bereich'
 
 export interface Sichtweite {
@@ -102,7 +102,7 @@ const fi = (x: number) => (x > 0 ? '+' : x < 0 ? '−' : '') + String(Math.round
 
 /** Knotensichtweite A nach VSS 40 273 Tab. 1 für das Zufahrtstempo (km/h), den Strassentyp, die ungünstigen Verhältnisse und
  *  die Längsneigung i [%] (in Fahrtrichtung, talwärts negativ); ohne Angaben: ES, eben (unterer Wert, wie E0). neigungUnbekannt:
- *  keine Neigung bekannt (Entscheid 31.10.2026), Anhaltesichtweite angewendet mit dem Wert bei i = ANHALTESICHT_I_MIN */
+ *  keine Neigung bekannt, Anhaltesichtweite angewendet mit dem Wert bei i = ANHALTESICHT_I_MIN */
 export function sichtweiteA(tempo: number, typ: Strassentyp = 'es', ungunst: Ungunst = KEINE_UNGUNST, neigung = 0,
   neigungUnbekannt = false): Sichtweite {
   const ueber = tempo > TAB1_MAX
@@ -117,7 +117,7 @@ export function sichtweiteA(tempo: number, typ: Strassentyp = 'es', ungunst: Ung
   const i = Number.isFinite(neigung) ? neigung : 0
   const hinweise: string[] = []
   // Abb. 2 hat keine Kurve unter 30 km/h: dort keine Anhaltesichtweite (die Kurve 30 km/h läge weit über Tab. 1); Neigung
-  // unbekannt: strengster Wert der Abb. 2 (Entscheid 31.10.2026)
+  // unbekannt: strengster Wert der Abb. 2
   const anhalte = stufe >= ANHALTESICHT_STUFEN[0] ? anhaltesichtweite(tempo, neigungUnbekannt ? ANHALTESICHT_I_MIN : i) : null
   const steil = neigungUnbekannt || Math.abs(i) > NEIGUNG_EBEN_PROZENT + 1e-9
   if (!anhalte && steil) hinweise.push(`Tempo unter ${ANHALTESICHT_STUFEN[0]} km/h: Abb. 2 der VSS 40 090b ohne Kurve, Anhaltesichtweite nicht angewendet.`)

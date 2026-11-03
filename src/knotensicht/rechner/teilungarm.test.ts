@@ -1,7 +1,7 @@
 // Tests Befund 31.10.2026 (Knoten 282773328, synthetisch nachgebaut): ein Arm der Vortrittsstrasse teilt sich nach 30 m in zwei
 // Einbahnen. Die Fahrlinie des Verkehrs zum Knoten folgt der zuführenden Einbahn, nicht dem Weg mit der kleinsten Richtungsänderung.
 // Knoten 12: Hauptstrasse West–Ost (Weg 1, beide Richtungen, bis zum Punkt 13 bei x = 30), Nebenstrasse (Weg 5) nach Süden als Zufahrt.
-// Am Punkt 13: Weg 2 = Einbahn vom Knoten weg, Weg 3 = Einbahn zum Knoten. Rechtsverkehr: die Einbahn zum Knoten (westwärts) liegt
+// Am Weg 2 = Einbahn vom Knoten weg, Weg 3 = Einbahn zum Knoten. Rechtsverkehr: die Einbahn zum Knoten (westwärts) liegt
 // nördlich (y = 9), die wegführende südlich (y = −6, kleinere Richtungsänderung); spiegelverkehrt umgekehrt.
 
 import { describe, expect, it } from 'vitest'

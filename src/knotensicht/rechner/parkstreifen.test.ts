@@ -124,7 +124,7 @@ describe('Parkstreifen auf der Zufahrt: Achse, D und FB nach links', () => {
     const d = rel(e.D)
     expect(d[0]).toBeCloseTo(-0.675, 2); expect(d[1]).toBeCloseTo(-6, 2)
     expect(e.zufahrtLageQuelle).toContain('Abzug 1,90 m für Parkstreifen rechts')
-    // Wortlaut des Auftraggebers (Korrektur 31.10.2026, Punkt 5)
+    // festgelegter Wortlaut
     expect(e.annahmen.join(' | ')).toContain('Parkierung entlang Zufahrt. Von der verfügbaren Fahrbahnbreite werden 1,90 m für Parkfelder ' +
       'abgezogen. Achse des Zufahrtsstreifens, D und FB entsprechend verschoben.')
     expect(e.hindernis.inD).toEqual([])                // D liegt nicht in einem Feld

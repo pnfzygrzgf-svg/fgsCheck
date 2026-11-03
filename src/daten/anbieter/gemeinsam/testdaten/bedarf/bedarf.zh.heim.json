@@ -1,0 +1,160 @@
+{
+  "mitte": [
+    2681539,
+    1250078
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "bbox": [
+      8.51604,
+      47.394654,
+      8.521411,
+      47.398301
+    ],
+    "crs": {
+      "properties": {
+        "name": "urn:ogc:def:crs:EPSG::2056"
+      },
+      "type": "name"
+    },
+    "features": [
+      {
+        "geometry": {
+          "coordinates": [
+            2681467,
+            1249953
+          ],
+          "type": "Point"
+        },
+        "id": "poi_gesundheitszentrum_view.29",
+        "properties": {
+          "adr_inter": null,
+          "adresse": "Hönggerstrasse 119",
+          "adrzus_int": null,
+          "behindertenparkplatz": null,
+          "bemerkung": "Betriebsleitung: Douglas Smith",
+          "ccmail": null,
+          "da": "Gesundheitszentren für das Alter",
+          "datum": "202412161145",
+          "datum_cms": null,
+          "dep": "Gesundheits- und Umweltdepartement (GUD)",
+          "editor": "gfabr25n",
+          "erforderlichedokumente": null,
+          "fax": null,
+          "geometrie_gdo": null,
+          "hausnummer": "119",
+          "hindernisfreiheit": "0__",
+          "infrastruktur": ";NULL",
+          "isbetriebsferien_gebaeude": "1",
+          "isbetriebsferien_schalter": "0",
+          "kategorie": "Gesundheitszentrum",
+          "mail": "gfa-sydefaedeli@zuerich.ch",
+          "name": "Gesundheitszentrum für das Alter Sydefädeli",
+          "namenzus": null,
+          "objectid": 29,
+          "oeffnungszeiten_gebaeude_di": "n.a.",
+          "oeffnungszeiten_gebaeude_do": "n.a.",
+          "oeffnungszeiten_gebaeude_fr": "n.a.",
+          "oeffnungszeiten_gebaeude_mi": "n.a.",
+          "oeffnungszeiten_gebaeude_mo": "n.a.",
+          "oeffnungszeiten_gebaeude_sa": "n.a.",
+          "oeffnungszeiten_gebaeude_so": "n.a.",
+          "oeffnungszeiten_schalter_di": "n.a.",
+          "oeffnungszeiten_schalter_do": "n.a.",
+          "oeffnungszeiten_schalter_fr": "n.a.",
+          "oeffnungszeiten_schalter_mi": "n.a.",
+          "oeffnungszeiten_schalter_mo": "n.a.",
+          "oeffnungszeiten_schalter_sa": "n.a.",
+          "oeffnungszeiten_schalter_so": "n.a.",
+          "ort": "Zürich",
+          "plz": "8037",
+          "poi_id": "gsz017",
+          "postadresse": null,
+          "publish_internet": "1",
+          "strasse": "Hönggerstrasse",
+          "suchen": "Alterszentrum, Altersheime, Gesundheitszentrum, Gesundheitszentrum für das Alter, Gesundheitszentren, Gesundheitszentren für das Alter, GZA ",
+          "tel": "+41 44 414 07 07",
+          "tel2": null,
+          "www": "http://stadt-zuerich.ch/gfa-sydefaedeli",
+          "zahlungsmittel_internet": "NULL;NULL;",
+          "zahlungsmittel_schalter": "NULL;NULL;",
+          "zahlungsmittel_telefon": "NULL;NULL;",
+          "zvv_label": "Hönggerstrasse 119",
+          "zvv_link": "https://www.zvv.ch/de/fahrplan-und-informationen/fahrplan.html?toname=Zürich, Hönggerstrasse 119"
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            2681539,
+            1250078
+          ],
+          "type": "Point"
+        },
+        "id": "poi_gesundheitszentrum_view.1",
+        "properties": {
+          "adr_inter": "",
+          "adresse": "Nordstrasse 349",
+          "adrzus_int": "",
+          "behindertenparkplatz": "0",
+          "bemerkung": "Betriebsleitung: Mirjana Busljeta",
+          "ccmail": null,
+          "da": "Gesundheitszentren für das Alter",
+          "datum": "202510271121",
+          "datum_cms": null,
+          "dep": "Gesundheits- und Umweltdepartement (GUD)",
+          "editor": "imorap",
+          "erforderlichedokumente": null,
+          "fax": "+41 44 414 20 01",
+          "geometrie_gdo": null,
+          "hausnummer": "349",
+          "hindernisfreiheit": "0__https://www.ginto.guide/entries/b76e2638-17ac-4b3e-b1e9-046b75e3003d",
+          "infrastruktur": ";NULL",
+          "isbetriebsferien_gebaeude": "0",
+          "isbetriebsferien_schalter": "1",
+          "kategorie": "Gesundheitszentrum",
+          "mail": "gfa-trotte@zuerich.ch",
+          "name": "Gesundheitszentrum für das Alter Trotte",
+          "namenzus": null,
+          "objectid": 1,
+          "oeffnungszeiten_gebaeude_di": "n.a.",
+          "oeffnungszeiten_gebaeude_do": "n.a.",
+          "oeffnungszeiten_gebaeude_fr": "n.a.",
+          "oeffnungszeiten_gebaeude_mi": "n.a.",
+          "oeffnungszeiten_gebaeude_mo": "n.a.",
+          "oeffnungszeiten_gebaeude_sa": "n.a.",
+          "oeffnungszeiten_gebaeude_so": "n.a.",
+          "oeffnungszeiten_schalter_di": "n.a.",
+          "oeffnungszeiten_schalter_do": "n.a.",
+          "oeffnungszeiten_schalter_fr": "n.a.",
+          "oeffnungszeiten_schalter_mi": "n.a.",
+          "oeffnungszeiten_schalter_mo": "n.a.",
+          "oeffnungszeiten_schalter_sa": "n.a.",
+          "oeffnungszeiten_schalter_so": "n.a.",
+          "ort": "Zürich",
+          "plz": "8037",
+          "poi_id": "gsz020",
+          "postadresse": "",
+          "publish_internet": "1",
+          "strasse": "Nordstrasse",
+          "suchen": "Alterszentrum, Altersheime, Gesundheitszentrum, Gesundheitszentrum für das Alter, Gesundheitszentren, Gesundheitszentren für das Alter, GZA ",
+          "tel": "+41 44 414 20 00",
+          "tel2": null,
+          "www": "http://stadt-zuerich.ch/gfa-trotte",
+          "zahlungsmittel_internet": "NULL;NULL;",
+          "zahlungsmittel_schalter": "NULL;NULL;",
+          "zahlungsmittel_telefon": "NULL;NULL;",
+          "zvv_label": "Nordstrasse 349",
+          "zvv_link": "https://www.zvv.ch/de/fahrplan-und-informationen/fahrplan.html?tolat=47.3964743828293&tolon=8.51872446389696&toname=Zürich, Nordstrasse 349"
+        },
+        "type": "Feature"
+      }
+    ]
+  },
+  "meta": {
+    "result": {
+      "dateLastUpdated": "24.05.2016"
+    }
+  }
+}

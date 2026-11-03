@@ -5,7 +5,7 @@
 // (Abb. 4) auf der Achse des Zufahrtsstreifens, Zielpunkte auf der Fahrstreifenachse des rechten Arms (rechnen.ts). Die vorhandene
 // Sichtweite ergibt mit der Wahrnehmbarkeit (Eingabe, Ziffer 18) den Zustand nach Abb. 6.
 // Schmale Zufahrten (b ≤ 3,50 m nach dem AV-Querschnitt eines der beiden Arme, Abb. 5): zusätzlich das Sichtfeld der schmalen
-// Zufahrt (Block 5, Entscheid 31.10.2026, ersetzt die Paarmatrix). Die Norm zeigt in Abb. 5 (S. 11) nur eine Grafik; die Konstruktion
+// Zufahrt (Block 5, ersetzt die Paarmatrix). Die Norm zeigt in Abb. 5 (S. 11) nur eine Grafik; die Konstruktion
 // beschreibt die bfu BM.021 (2022), Kap. 3.2.2 und Abb. 4 (S. 4): ein Pfad von ENG_LAENGE_M (doppelte Anhaltestrecke bei rund
 // 25 km/h und 1 s Reaktionszeit) mit Punkten alle ENG_SCHRITT_M, vom wartenden Fahrzeug je eine Sichtlinie. Umsetzung: Beobachter =
 // D des Rechtsvortritts (B 5,00 m, Fahrersitz; Annahme), Pfad ab D (Lotfusspunkt auf der Achse der Zufahrt; Annahme: Pfadbeginn in D)

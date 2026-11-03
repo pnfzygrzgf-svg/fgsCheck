@@ -1,4 +1,4 @@
-// Tests Automatik Paket A + B (21.10.2026): Vorbelegung aus vorhandenen Daten, Wert im Feld, Zustand «rechner», Handangabe «offen».
+// Tests Automatik (21.10.2026): Vorbelegung aus vorhandenen Daten, Wert im Feld, Zustand «rechner», Handangabe «offen».
 // Künstliche Strassen wie befundblatt.test.ts (keine echten Daten): Hauptstrasse West–Ost, Fahrbahn 8 m, Tempo 50, Übergang bei
 // x = 0; je Ableitung beide Seiten der Schwelle.
 import { describe, expect, it } from 'vitest'
@@ -104,7 +104,7 @@ describe('Paket A: Anzeige (renderToStaticMarkup)', () => {
   it('vorbelegter Wert im Feld (Klasse vorbelegt) mit Quellen-Chip und Herkunft als Tooltip', () => {
     expect(html).toMatch(/<input[^>]*class="zahl bedarf-zahl vorbelegt"[^>]*value="50"/)
     expect(html).toMatch(/<select[^>]*class="vorbelegt"/)
-    expect(html).toContain('class="quelle-chip q-osm" title="Signalisiertes Tempo: Tempo der geraden Zufahrten (OSM)">OSM</span>')
+    expect(html).toContain('class="quelle-chip q-osm" title="Signalisiertes Tempo: Tempo der geraden Zufahrten (OSM)">OpenStreetMap (OSM)</span>')
     expect(html).toContain('quelle-chip q-annahme')
     expect(html).toContain('offen (Vorbelegung verwerfen)')
   })
@@ -159,7 +159,7 @@ describe('Paket A: Tempo-Regime, innerorts (A3)', () => {
     }
     expect(regime('40')).toMatchObject({ wert: 'strecke', quelle: 'osm' })
     expect(regime('30')).toBeUndefined()
-    // ohne OSM-Tags ist das Rohtempo unbekannt (der Sichtrechner rundet 5 bzw. 10 km/h auf die Stufe 20): kein Vorschlag (Nachtrag nach Prüfung)
+    // ohne OSM-Tags ist das Rohtempo unbekannt (der Sichtrechner rundet 5 bzw. 10 km/h auf die Stufe 20): kein Vorschlag
     expect(regime('20')).toBeUndefined()
   })
 })
@@ -170,7 +170,7 @@ describe('Paket A: Kopien und Annahmen mit Schwellen (A4, A8)', () => {
       'insel.breite': vw(2, 'av'), vSig: vw(30), nRichtung: vw([1, 2]), dtv: vw(4000, 'geoportal'), tempoRegime: vw('t30_zone'),
       'q3.ueber': vw('einmuendend', 'annahme') })
     expect(Object.keys(w).filter(p => p.startsWith('lsaZeiten.'))).toEqual([])
-    // Runde 5 (F3): Werte der gequerten Strasse nur bei einer Querung über die Seitenstrasse in die Trottoirüberfahrt
+    // Werte der gequerten Strasse nur bei einer Querung über die Seitenstrasse in die Trottoirüberfahrt
     const ohne = auto({}, { vSig: vw(30), dtv: vw(4000, 'geoportal'), tempoRegime: vw('t30_zone') }).w
     expect([ohne['q3.vSigEinm'], ohne['q3.dtvEinm'], ohne['q3.zoneEinm']]).toEqual([undefined, undefined, undefined])
     expect([w['q3.vSigEinm'].wert, w['q3.nEinm'].wert, w['q3.dtvEinm'].wert, w['q3.zoneEinm'].wert]).toEqual([30, 2, 4000, 't30'])
@@ -198,7 +198,7 @@ describe('Paket A: Kopien und Annahmen mit Schwellen (A4, A8)', () => {
     const a = (zb: number, typ = 'fgs') => auto({}, { fahrbahnB: fb, typ: vw(typ, 'hand'), 'insel.vorhanden': vw(false, 'rechnung') },
       mitZufahrten(() => ({ fahrbahnM: zb })))
     const e = (zb: number, typ = 'fgs') => a(zb, typ).w
-    // Runde 5 (F7): eine schmalere Stelle ist nur ein Hinweis (kein Wert, keine Restbreite); «keine Einengung» bleibt Annahme
+    // Eine schmalere Stelle ist nur ein Hinweis (kein Wert, keine Restbreite); «keine Einengung» bleibt Annahme
     expect(e(9).einengung).toBeUndefined()
     expect(a(9).fh.einengung).toContain('vielleicht eine Nase bzw. Einengung')
     expect(e(9).restbreiteM).toBeUndefined()
@@ -349,7 +349,7 @@ describe('Paket A/B: Lage, Verzweigung, Knoten, Abstände (A7, B1, B2)', () => {
     const leer = auto(GEO(OSM)).w
     expect(leer.abstandFgsM).toMatchObject({ wert: Math.floor(300 - Math.hypot(s0.m[0] - O[0], s0.m[1] - O[1]) - 5), quelle: 'annahme' })
     expect(leer.abstandFgsM.text).toMatch(/^entlang der Hauptstrasse bis zur Reichweite der Daten in \d+ m kein markierter Übergang gefunden \(OSM\): mindestens/)
-    // Korrektur S6: die Strasse endet (Namenswechsel) nach 80 m bzw. 40 m: «mindestens» nur mit der durchsuchten Länge ab der Schwelle
+    // Die Strasse endet (Namenswechsel) nach 80 m bzw. 40 m: «mindestens» nur mit der durchsuchten Länge ab der Schwelle
     const kurz = (x: number) => auto(GEO({ ...OSM, wege: [weg(1, [[10, -x, 0], [12, 0, 0], [13, x, 0]], HAUPT),
       weg(5, [[13, x, 0], [14, 300, 0]], { ...HAUPT, name: 'Andere Strasse' }), weg(6, [[16, -300, 0], [10, -x, 0]], { ...HAUPT, name: 'Andere Strasse' })] }))
     const k80 = kurz(80)
@@ -368,7 +368,7 @@ describe('Paket A/B: Lage, Verzweigung, Knoten, Abstände (A7, B1, B2)', () => {
     const netz = (west: 'quer' | 'sackgasse', ostX = 300, weitere: OsmWeg[] = [], ampeln: OsmKnoten[] = []): OsmDaten => ({ ...OSM, ampeln,
       wege: [weg(1, [[10, -30, 0], [12, 0, 0], [13, ostX, 0]], HAUPT),
         ...(west === 'quer' ? [weg(7, [[70, -30, -100], [10, -30, 0], [71, -30, 100]], QUER)] : []), ...weitere] })
-    // Querstrasse im Westen nach 30 m, nach Osten bis zur Reichweite: Annahme mit der Reichweite (Runde 3: offen, weniger als 50 m)
+    // Querstrasse im Westen nach 30 m, nach Osten bis zur Reichweite: Annahme mit der Reichweite (offen, weniger als 50 m)
     const t = auto(GEO(netz('quer')))
     expect(t.w.abstandFgsM).toMatchObject({ wert: reich, quelle: 'annahme' })
     expect(t.w.abstandFgsM.text).toContain('bis zur Reichweite der Daten')
@@ -384,7 +384,7 @@ describe('Paket A/B: Lage, Verzweigung, Knoten, Abstände (A7, B1, B2)', () => {
     expect(auto(GEO(netz('sackgasse', 300, [weg(8, [[10, -30, 0], [72, -30 - 50, -87]], { ...HAUPT, name: 'Andere Strasse' })]))).w.abstandFgsM)
       .toMatchObject({ wert: reich, quelle: 'annahme' })
     // beide Richtungen enden (Querstrassen bei -30 und +40): ganze Strasse durchsucht, Wert = echte Länge 70 m als Annahme mit
-    // Kennzeichen ganzeStrasse (G1/G2 dann Hinweis, nicht anwendbar; Runde 4)
+    // Kennzeichen ganzeStrasse (G1/G2 dann Hinweis, nicht anwendbar)
     const beide = auto(GEO(netz('quer', 40, [weg(9, [[73, 40, -100], [13, 40, 0], [74, 40, 100]], { ...QUER, name: 'Ostweg' })])))
     expect(beide.w.abstandFgsM).toEqual({ wert: 70, quelle: 'annahme', ganzeStrasse: true, text: 'ganze Hauptstrasse durchsucht, 70 m (endet ' +
       'in beiden Richtungen ohne Fortsetzung, nach 30 bzw. 40 m): kein markierter Übergang auf ihr (OSM), kein weiterer Fussgängerstreifen möglich' })

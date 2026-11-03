@@ -6,7 +6,7 @@
 // und mehr), −6, −4, −2, > 0 (Steigung); Zwischenwerte zur strengeren Klasse (z. B. −5 % wie −6 %, −7 % wie ≥ −8 %; −2 < i ≤ 0 wie −2).
 // Tab. 2: Veloanlage (Radstreifen, Radweg, gemeinsamer Rad- und Fussweg), in der Spalte ≥ −8 als Mindestwert angegeben.
 // Tab. 3: Trottoir, getrennt nach Fussgängern, fäG und Kindern auf dem Velo bzw. nach zugelassenen Velos (SSV Art. 65 Abs. 8).
-// Neigung unbekannt: strengste Spalte (wie in der Rechnung, Entscheid 31.10.2026).
+// Neigung unbekannt: strengste Spalte (wie in der Rechnung).
 
 /** Spalten der bfu-Tabellen [%] */
 export const BFU_SPALTEN = ['≥ −8', '−6', '−4', '−2', '> 0']

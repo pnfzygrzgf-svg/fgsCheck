@@ -3,7 +3,7 @@
 // Ersetzt die WMS-Ebene (Rückmeldung 30.10.2026: Hover soll zeigen, was eine Linie bzw. Fläche ist; Flächen waren den AV-Flächen zu
 // ähnlich). Gleicher Dienst wie die Vorbelegung (richtplanFussverkehr.ts): ArcGIS REST «Richtplan_Fussverkehr», je Layer eine Abfrage
 // im Rechteck um den sichtbaren Ausschnitt (LV95, GeoJSON). Geladen: Layer 4 Basisnetz Fussweg bestehend (Linie) und 7 Hinweis (Fläche,
-// nur publikumsattraktive Bereiche); die Massnahmen (1, 2, 3, 6) und Wanderwege (5) bleiben weg (Nutzerentscheid 30.10.2026).
+// nur publikumsattraktive Bereiche); die Massnahmen (1, 2, 3, 6) und Wanderwege (5) bleiben weg.
 // Eigene Darstellung in Magenta, abseits der AV-Farben (grau, beige,
 // grün) und der Sichtfelder (grün, rot, orange, ocker). Die Ebene steht nur in der Ebenenwahl, solange die Karte die Stadt Bern zeigt,
 // ist anfangs aus und lädt erst eingeschaltet und ab RP_KARTE_ZOOM: erst dann geht der Ausschnitt an map.bern.ch.
@@ -33,7 +33,7 @@ export const rpVerfuegbar = (b: { s: number; w: number; n: number; e: number }):
 export type RpArt = 'basisnetz' | 'publikum'
 export interface RpLayer { layer: number; art: RpArt; flaeche: boolean }
 /** geladene REST-Layer, in der Reihenfolge der Abfragen */
-// 30.10.2026 (Nutzerentscheid): nur Basisnetz und publikumsattraktive Bereiche; die Massnahmen (Layer 1, 2, 3, 6) bleiben weg
+// 30.10.2026: nur Basisnetz und publikumsattraktive Bereiche; die Massnahmen (Layer 1, 2, 3, 6) bleiben weg
 export const RP_KARTE_LAYER: readonly RpLayer[] = [
   { layer: 4, art: 'basisnetz', flaeche: false }, { layer: 7, art: 'publikum', flaeche: true },
 ]

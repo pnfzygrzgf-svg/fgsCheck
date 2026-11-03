@@ -1,0 +1,38 @@
+{
+  "mitte": [
+    2574106,
+    1161399
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 136,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2574106,
+            1161399
+          ]
+        },
+        "properties": {
+          "OBJECTID": 136,
+          "Type_structure": "Crèche / Kindertagesstätte",
+          "Nom_structure": "Crèche A Petits Pas",
+          "Type_code": 1,
+          "Adresse": "Place du Parc 6, 1636 Broc"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

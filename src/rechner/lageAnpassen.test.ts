@@ -1,4 +1,4 @@
-// Tests «Lage der Querung anpassen» (Nutzerentscheid 30.10.2026): die Lage einer bestehenden Querung lässt sich als Streifen von Hand
+// Tests «Lage der Querung anpassen»: die Lage einer bestehenden Querung lässt sich als Streifen von Hand
 // verschieben, ohne dass Querungsart, Bestand, Lichtsignal und Name sich ändern (StreifenHand.bestand). Wer einen geplanten
 // Fussgängerstreifen will, wählt ihn unter «Querung». Künstliche Strassen (keine echten Daten).
 import { describe, expect, it } from 'vitest'

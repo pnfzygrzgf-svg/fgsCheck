@@ -1,3 +1,4 @@
+import type { BundBeleg } from '../daten/anbieter/gemeinsam/bundBelege'
 // ── Ein- und Ausgabe der Rechnung (E0 bis E3c): Knoten bzw. Grundstückzufahrt, Zufahrt, Eingaben zur erforderlichen
 //    Sichtweite, Eingaben zum Knoten (Vortrittsregelung, Haltelinie, D, Trottoir, Tempo, Veloführung, Wahrnehmbarkeit), Hindernisse,
 //    Längsneigung aus dem Höhenmodell (E3a), Ergebnis je Richtung mit Velo (E3b), Trottoir (E3b), Massnahmen nach Ziffer 14 (E3a),
@@ -18,6 +19,8 @@ import type { Wahrnehmbarkeit, Zustand, SichtfeldEng } from './rechtsvortritt'
 
 /** Eingaben zur erforderlichen Sichtweite (E1, von Hand im Panel); null = Vorgabe aus OSM bzw. aus der Neigung */
 export interface SichtEingaben {
+  innerorts?: boolean | null
+  bundesbelege?: Partial<Record<'typ' | 'innerorts', BundBeleg>>
   typ: Strassentyp | null
   fahrstreifen: boolean | null      // mehr als ein Fahrstreifen je Richtung (Vorgabe: OSM lanes, lanes:forward/backward)
   neigungGross: boolean | null      // grosse Längsneigung (Vorgabe: |i| > 5 % in einer Richtung)
@@ -70,6 +73,9 @@ export interface KnotenEingaben {
   Dtrottoir?: P | null              // K0: Beobachtungspunkt D' der Phase Trottoir von Hand (nur mit Trottoirüberfahrt; auf der Karte gezogen)
   // Block 5, fehlt in älteren Fällen (= Vorgabe)
   ueberholen?: boolean | null       // Überholen im Knotenbereich erlaubt (VSS 40 273 Ziffer 6; Vorgabe aus OSM overtaking*), nur ausserorts
+  // K1, fehlt in älteren Fällen (= Vorgabe nach dem Aussendurchmesser)
+  kreiselTyp?: KreiselTyp | null    // Kreisel: Klein- bzw. Minikreisel von Hand
+  kreiselBeziehungen?: Record<string, boolean> | null   // K3: Fahrbeziehungen für β von Hand an (true) bzw. ab (false), Schlüssel «von>nach»
 }
 /** Trottoirüberfahrt über die Einmündung der Zufahrt (K0): gesetzt = Modus an. breite: Breite der Überfahrt von Hand [m]; geht der
  *  AV vor (Reihenfolge: Eingabe, AV-Trottoir quer über die Zufahrt, schmaleres angrenzendes AV-Trottoir, Annahme; trottoirueberfahrt.ts) */
@@ -86,7 +92,8 @@ export const KEINE_ALLE_EINGABEN: Eingaben = { ...KEINE_EINGABEN, ...KEINE_KNOTE
 
 /** Grundstückzufahrt (E2b): geklickter Punkt am Fahrbahnrand der Vortrittsstrasse (bzw. auf einem OSM-Weg service nahe der
  *  Einmündung), Richtung der Zufahrt vom Rand weg in das Grundstück (null = senkrecht zum Rand) */
-export interface ZufahrtspunktEingabe { p: P; richtung: P | null }
+export type ZufahrtHerkunft = 'gezeichnet' | 'winkel' | 'senkrecht' | 'osm'
+export interface ZufahrtspunktEingabe { p: P; richtung: P | null; herkunft?: ZufahrtHerkunft }
 
 /** Hindernisse für die Rechnung (E2a): Eingaben von Hand bzw. bestätigte Vorschläge, verworfene Vorschläge und amtliche
  *  Parkfelder (Ids), geladene amtliche Parkfelder und Bäume aus dem Baumkataster (null = nicht geladen bzw. abgeschaltet) */
@@ -112,7 +119,7 @@ export interface KnotenFall {
 export interface TempoAmtlichLinie { id: string; strasse: string; vSig: number | null; teile: P[][] }
 /** Amtliches Tempo für die Rechnung (K0): Linien, abgedeckter Bereich (Quadrat ±radiusM um mitte; ausserhalb gilt OSM) und
  *  Herkunft für die Texte (z. B. «Geoportal Stadt Bern»). Die Zuständigkeit (Gemeinde) prüft der Aufrufer. */
-export interface TempoAmtlichDaten { linien: TempoAmtlichLinie[]; bereich: { mitte: P; radiusM: number } | null; quelle: string }
+export interface TempoAmtlichDaten { linien: TempoAmtlichLinie[]; bereich: { mitte: P; radiusM: number } | null; quelle: string; signalEntscheide?: import('../daten/anbieter/gemeinsam/regionalSignale').SignalEntscheid[]; regional?: import('../daten/anbieter/gemeinsam/regional').RegionalSnapshot; zuerich?: import('../daten/anbieter/gemeinsam/zuerich').ZuerichSnapshot; zhStrassen?: import('../daten/anbieter/gemeinsam/zuerichZuordnung').ZhStrasse[] }
 
 /** Strassentyp und ungünstige Verhältnisse der vortrittsberechtigten Strasse, wie gerechnet, mit den Vorgaben */
 export interface StrasseErgebnis {
@@ -143,7 +150,7 @@ export interface ArmInfo {
   veloZuflussQuelle: string   // das Tag des Velos gegen die Einbahn, z. B. «cycleway=opposite_lane» ('' ohne Einbahn vom Knoten weg)
 }
 
-export interface VortrittsHinweis { id: number; art: 'stop' | 'give_way'; p: P }
+export interface VortrittsHinweis { quelle?: string; armKey?: string; id: number; art: 'stop' | 'give_way'; p: P }
 
 export interface KnotenInfo {
   id: number
@@ -154,11 +161,141 @@ export interface KnotenInfo {
   vortritt: [string, string] | null   // Arme der vortrittsberechtigten Strasse (ohne Rücksicht auf die Zufahrt)
   vortrittGrund: string
   vorschlag: string | null    // Zufahrt, wenn eindeutig (einziger Arm ausserhalb der Vortrittsstrasse)
-  signale: VortrittsHinweis[] // OSM highway=stop/give_way in der Nähe; ohne Signale auf Einbahnen vom Knoten weg (Punkt 17, knotenSignale)
+  signale: VortrittsHinweis[] // OSM highway=stop/give_way in der Nähe; ohne Signale auf Einbahnen vom Knoten weg (knotenSignale)
   grundstueck?: boolean       // Grundstückzufahrt (E2b): Knotenpunkt auf der Vortrittsstrasse, Arme ab dort, keine Wahl der Zufahrt
-  vortrittSicher?: string     // Korrektur 31.10.2026 (Punkt 15): Vortrittsstrasse sicher bekannt (Signal an einem Arm, priority_road): Grund
+  vortrittSicher?: string     // Vortrittsstrasse sicher bekannt (Signal an einem Arm, priority_road): Grund
   mitVortritt?: string[]      // Arme dieser Vortrittsstrasse: als Zufahrt nur über den Schalter «auch Arme mit Vortritt wählen»
-  lsa?: boolean               // Korrektur 31.10.2026 (Punkt 13): Lichtsignal (OSM traffic_signals) am Knoten bzw. auf einem Arm bis 30 m
+  lsa?: boolean               // Lichtsignal (OSM traffic_signals) am Knoten bzw. auf einem Arm bis 30 m
+  kreisel?: KreiselInfo       // K1: Kreisel als ein Knoten (id = kleinster OSM-Punkt des Rings, p = vermessene Mitte, arme leer)
+}
+
+/** K1: Klein- bzw. Minikreisel (VSS 40 263 Ziffern 3 und 4, S. 4) */
+export type KreiselTyp = 'klein' | 'mini'
+/** K1: Arm eines Kreisels: Einfahrt und Ausfahrt derselben Strasse zusammengefasst; die Felder von ArmInfo gelten für den
+ *  massgebenden OSM-Arm (Einfahrt, sonst Ausfahrt), richtung von der Kreiselmitte nach aussen */
+export interface KreiselArm extends ArmInfo {
+  ein: string | null          // Schlüssel des OSM-Arms der Einfahrt (Verkehr zum Ring); null ohne Einfahrt
+  aus: string | null          // Schlüssel des OSM-Arms der Ausfahrt; null ohne Ausfahrt
+  getrennt: boolean           // Ein- und Ausfahrt auf getrennten OSM-Wegen (Leitinsel)
+  anschluss: P[]              // Ringpunkte der Ein- und Ausfahrt
+  linien: P[][]               // OSM-Linien der Ein- und Ausfahrt ab dem Ring (Karte), ohne Bypass
+  bypass: KreiselBypass[]     // E10: zweite Einfahrt kurz vor der Ausfahrt des nächsten Arms
+  velobypass: KreiselVelobypass[]   // Velobypass ab diesem Arm (01.11.2026)
+}
+/** Velobypass (Nutzerbefund 01.11.2026): Rad- bzw. Fuss- und Radweg, der den Ring nicht berührt und zwei Arme verbindet; kein Arm */
+export interface KreiselVelobypass { wege: number[]; linien: P[][]; zu: string; einbahn: boolean }
+/** E10 (01.11.2026): zweite Einfahrt eines Arms, die kurz vor der Ausfahrt des nächsten Arms in den Ring mündet: keine Kreiselzufahrt */
+export interface KreiselBypass { key: string; wid: number; linie: P[]; abstand: number; vor: string }
+/** Masse des Kreisels (K1, E9): Form je Richtung als Polarprofil um mitte, 360 Werte je Grad (Index = mathematischer Winkel: 0 = Ost,
+ *  gegen den Uhrzeigersinn) aus der AV (Fahrbahn) bzw. ohne brauchbare AV aus der OSM-Linie des Rings geschätzt */
+export interface KreiselVermessung {
+  quelle: 'av' | 'osm'
+  mitte: P                    // Mitte (Schwerpunkt des Aussenrands, LV95)
+  aussen: number[]            // Aussenrand je Richtung [m]
+  insel: number[]             // Rand der Mittelinsel je Richtung [m]; 0 = keine Insel ohne Fahrbahn
+  innenring: (number | null)[] // Vorschlag Innenring je Richtung: aussen − 5,50 m, null wo die Fahrbahn nicht breiter ist
+  fahrlinie: number[]         // E2: Fahrlinie mit Vortritt in der Mitte zwischen Aussenrand und Innenring bzw. Insel
+  aussenR: number             // mittlerer Radius des Aussenrands [m]
+  inselR: number              // mittlerer Radius der Insel [m]; 0 = keine Insel
+  breite: number              // mittlere Breite der Kreiselfahrbahn [m]
+  durchmesser: number         // mittlerer Aussendurchmesser [m] (für den Typ)
+  dMin: number; dMax: number  // kleinster und grösster Aussendurchmesser [m]
+  innenringR: number | null   // mittlerer Radius des Innenring-Rands, wo es einen gibt; null ohne Innenring
+  innenringAnteil: number     // Anteil der Richtungen mit Innenring (0 bis 1)
+  inselErgaenzt: number       // Richtungen [°], in denen der Inselrand über eine Lücke ergänzt ist (z. B. Tramtrassee)
+  strahlen: number            // Strahlen, die den Aussenrand trafen (quelle av), sonst 0
+}
+/** K2: gewählte Einfahrt: Achse des Einfahrtsfahrstreifens, Rand der Kreiselfahrbahn (Wartelinie), K, D */
+export interface KreiselZufahrt {
+  arm: string                 // Schlüssel des Kreiselarms
+  ein: string                 // Schlüssel des OSM-Arms der Einfahrt
+  achse: P[]                  // Achse des Einfahrtsfahrstreifens in Fahrtrichtung, über den Ring hinaus verlängert
+  lageQuelle: string          // Lage der Achse (AV-Querschnitt bzw. Annahme)
+  rand: P                     // Schnitt der Achse mit dem Aussenrand (Wartelinie)
+  K: P                        // Schnitt der Achse mit der Fahrlinie mit Vortritt
+  D: P; Dachse: P; B: number  // Beobachtungspunkt am Fahrersitz, auf der Achse, Beobachtungsdistanz
+  bGrund: string
+  vortrittLinie: P[]          // Fahrlinie mit Vortritt im Gegenuhrzeigersinn, halber Ring bis K (Verkehr von links)
+}
+/** K3: Fahrbeziehung für den Ablenkungswinkel β (VSS 40 263 Ziffer 17, S. 12): Einfahrt von → Ausfahrt nach */
+export interface KreiselBeziehung {
+  key: string                 // «von>nach» (Schlüssel der Kreiselarme)
+  von: string; nach: string
+  vorgabe: boolean            // nach der Regel (gegenüberliegende Arme; bei drei Armen über 180 gon)
+  aktiv: boolean              // in der Rechnung (von Hand an- bzw. abgewählt, sonst Vorgabe)
+  gueltig: boolean            // Konstruktion möglich
+  grund: string               // ohne gültige Konstruktion: warum
+  startEin: P | null; tangEin: P | null; hilfEin: P[] | null   // Startpunkt auf der Hilfslinie, Berührpunkt, Hilfslinie
+  startAus: P | null; tangAus: P | null; hilfAus: P[] | null
+  startHand: boolean          // K5: Startpunkt von Hand (noch nicht eingebaut)
+  re2Ein: number | null; re2Aus: number | null   // Ausrundung Re2 aus der AV (Kreis durch den rechten Rand), null: Gerade, Wartelinie
+  fall: 1 | 2 | null          // Tangente am Inselrand (1) bzw. am Innenring (2)
+  betaGrad: number | null; betaGon: number | null
+}
+/** K4: Sicht auf einer Linie gegen die Fahrtrichtung (Auto, Velo) bzw. entlang des Ringrands zur Zufahrt links (Az) */
+export interface KreiselSichtTeil {
+  A: number                   // nötig: massgebender Wert (Az: Regelfall)
+  oben: number                // erfüllt ab hier (Auto: oberer Wert; Velo: A; Az: Regelfall)
+  minimal: number | null      // Az: Minimalwert (LU Tab. 2), sonst null
+  begrenzt: { A: number; oben: number; grund: string } | null   // nötige Länge auf eine Runde begrenzt (Annahme): ungekürzte Werte, Grund
+  text: string                // Herkunft des Werts
+  achse: P[]                  // Linie ab K bis sMax (Az: über das K der Zufahrt links in deren Einfahrtsfahrstreifen hinaus)
+  sMax: number
+  vorhanden: number
+  bisEnde: boolean
+  status: Status              // Auto: erfüllt / massgebend / nicht erfüllt; Velo: erfüllt / nicht erfüllt; Az: Regelfall / nur Minimal / nicht
+  verdecker: Verdecker | null
+  verdeckerListe: VerdeckerEintrag[]
+  dreieckFrei: P[]; dreieckVerdeckt: P[]
+  hinweise: string[]
+}
+/** K4: Sicht aus der gewählten Einfahrt (VSS 40 263 Ziffer 13.2, S. 8–9) mit Sichtberme (E4) und Az (K4b, Vergleichswert) */
+export interface KreiselSicht {
+  arm: string                 // Schlüssel des Kreiselarms der Einfahrt
+  D: P
+  tempo: number               // km/h auf der Kreiselfahrbahn (K3)
+  typ: Strassentyp            // E3: Hauptverkehrsstrasse, sobald ein Arm eine ist
+  typQuelle: string
+  auto: KreiselSichtTeil
+  velo: KreiselSichtTeil
+  az: KreiselSichtTeil | null // K4b; null: entfällt (azGrund)
+  azGrund: string | null
+  azLinks: string | null      // Zufahrt links (Anzeigename)
+  berme: { flaechen: P[][]; tiefe: number; innenring: boolean; ganz: boolean; hindernisse: string[]; ids: string[]; status: 'erfuellt' | 'nicht_erfuellt' }
+  durchsicht: P[][]           // Rest der Insel ausserhalb des Sichtfelds: Durchsicht verhindern (Hindernis dort erwünscht)
+  gesamt: Status              // schlechtester von Auto, Velo und Sichtberme (Az zählt nicht: Vergleichswert)
+  annahmen: string[]
+  hinweise: string[]
+  hindernis: HindernisStand   // Vorschläge und amtliche Felder (wie am Knoten)
+}
+/** K3: Ablenkungswinkel und Tempo auf der Kreiselfahrbahn (Ziffer 13.2, S. 8–9) */
+export interface KreiselBeta {
+  beziehungen: KreiselBeziehung[]
+  massgebend: string | null   // Schlüssel der Fahrbeziehung mit dem kleinsten β
+  betaGon: number | null      // kleinstes β der aktiven, gültigen Fahrbeziehungen
+  tempo: 30 | 35 | 40         // km/h auf der Kreiselfahrbahn
+  tempoGrund: string
+  annahme: boolean            // Tempo aus einer Annahme (Minikreisel, ohne gültige Konstruktion, 35 km/h interpoliert folgt in K4)
+}
+export interface KreiselInfo {
+  ringKnoten: number[]        // OSM-Punkte des Rings
+  ringWege: number[]          // OSM-Wege des Rings (junction=roundabout bzw. circular)
+  ring: P[]                   // OSM-Linie des Rings in Fahrtrichtung (geschlossen)
+  osmMitte: P; osmR: number   // Kreis durch die OSM-Linie des Rings
+  arme: KreiselArm[]          // nummeriert im Uhrzeigersinn ab Norden
+  vermessung: KreiselVermessung
+  typ: KreiselTyp             // in der Anzeige verwendet: von Hand, sonst Vorgabe
+  typVorgabe: KreiselTyp      // nach dem mittleren Aussendurchmesser
+  typGewaehlt: boolean
+  ausserhalb: string | null   // Aussendurchmesser ausserhalb 14 bis 40 m: Hinweis
+  zufahrt: KreiselZufahrt | null   // K2: gewählte Einfahrt
+  zufahrtFehler: string | null     // K2: Einfahrt gewählt, aber nicht konstruierbar
+  einfahrtK: Record<string, P>     // K4b: K jeder Einfahrt (Schlüssel des Kreiselarms; ohne Bypässe), für Az
+  einfahrtAchse: Record<string, P[]>   // K4b: Fahrlinie jeder Einfahrt in Fahrtrichtung bis K (Az)
+  beta: KreiselBeta                // K3
+  sicht: KreiselSicht | null       // K4: Sicht aus der gewählten Einfahrt (null ohne Einfahrt bzw. ohne AV)
+  annahmen: string[]
+  hinweise: string[]
 }
 
 export type Richtung = 'links' | 'rechts'
@@ -208,7 +345,7 @@ export interface VeloErgebnis extends SichtTeil {
   tempo: number               // zulässige Höchstgeschwindigkeit (Zeile der Tab. 3)
   tempoQuelle: string
   neigung: number
-  neigungUnbekannt: boolean   // Neigung unbekannt: Spalte ≤ −4 (strengster Wert, Entscheid 31.10.2026)
+  neigungUnbekannt: boolean   // Neigung unbekannt: Spalte ≤ −4 (strengster Wert)
   text: string                // z. B. «Tab. 3, bis 30 km/h, Spalte 0 %»
   ebike: boolean              // Wert «schnelle E-Bikes verboten» angewendet
 }
@@ -224,7 +361,7 @@ export interface TrottoirRichtung extends SichtTeil {
   richtung: Richtung
   lage: Lage                  // wie die Richtung der Vortrittsstrasse auf derselben Seite
   neigung: number             // Längsneigung des Trottoirs in Gehrichtung auf die Zufahrt zu [%]
-  neigungUnbekannt: boolean   // kein Profil des Trottoirs nach dem Laden: Spalte ≤ −6 (strengster Wert, Entscheid 31.10.2026)
+  neigungUnbekannt: boolean   // kein Profil des Trottoirs nach dem Laden: Spalte ≤ −6 (strengster Wert)
   neigungQuelle: string
   text: string                // z. B. «Tab. 2, Spalte ≥ 0 %»
 }
@@ -288,7 +425,7 @@ export interface RichtungErgebnis {
   neigung: number             // Längsneigung in Fahrtrichtung [%], wie gerechnet
   neigungVorgabe: number      // Vorgabe: aus dem Höhenmodell (E3a), sonst 0 % (unbekannt bzw. lädt)
   neigungHand: boolean        // Längsneigung von Hand (sonst Vorgabe)
-  neigungUnbekannt: boolean   // weder von Hand noch gemessen, Höhenmodell geladen: strengster Wert (Entscheid 31.10.2026)
+  neigungUnbekannt: boolean   // weder von Hand noch gemessen, Höhenmodell geladen: strengster Wert
   neigungVorgabeUnbekannt: boolean  // Vorgabe unbekannt (auch bei Eingabe von Hand)
   neigungQuelle: string       // «von Hand», «swissALTI3D (swisstopo), Profil …» bzw. warum unbekannt bzw. vorerst 0 %
   neigungVorgabeQuelle: string  // Quelle der Vorgabe (auch bei Eingabe von Hand): Profil, Fehler, lädt bzw. ohne Profil
@@ -322,7 +459,7 @@ export interface RichtungErgebnis {
   veloGewaehlt: boolean
   velo: VeloErgebnis | null   // null: kein Veloverkehr bzw. kein Verkehr von dieser Seite
   ueberholfall?: UeberholTeil | null   // Block 5: Überholfall (Ziffer 6), nur ausserorts mit erlaubtem Überholen (sonst fehlt bzw. null)
-  gesamt: RichtungStatus      // schlechtester von Auto, Velo, Überholfall und Trottoir dieser Seite (Entscheid 1)
+  gesamt: RichtungStatus      // schlechtester von Auto, Velo, Überholfall und Trottoir dieser Seite
   gesamtFehlt: string[]       // Teile, die nicht erfüllt sind: «Auto», «Velo», «Überholfall», «Trottoir»
   keinGrund?: string          // status keine_zufahrt: warum (Vorgabe «kein Verkehr von dieser Seite»; E3c: Rechtsvortritt, von links)
   rv?: boolean                // E3c: Auto nach Teil E (Rechtsvortritt, Abb. 6) statt Tab. 1
@@ -370,6 +507,9 @@ export interface HaltelinieErgebnis { p: P; quer: [P, P]; abstand: number; vorve
 export interface TrottoirErgebnis { breite: number; hinterkante: P; frei: boolean }
 /** Grundstückzufahrt (E2b): geklickter Punkt (Schlüssel), Richtung, OSM-Weg service (falls über ihn gesetzt), Strasse */
 export interface ZufahrtspunktErgebnis {
+  herkunft?: ZufahrtHerkunft
+  winkel?: number             // aus derselben Achse abgeleitet, keine zweite Eingabe
+
   eingabe: P                  // geklickter Punkt (Schlüssel des Falls, ?zufahrt=E,N)
   richtung: P                 // Richtung der Zufahrt vom Rand weg in das Grundstück
   gezeichnet: boolean         // Richtung mit zweitem Klick gezeichnet (sonst senkrecht zum Rand bzw. entlang des OSM-Wegs)
@@ -405,6 +545,8 @@ export interface Ergebnis {
   rand: P                     // Schnitt der Zufahrtsachse mit der zugewandten Kante des Fahrstreifens mit Vortritt
   nullpunkt: P                // Punkt auf der Zufahrtsachse, ab dem B gemessen wird (Kante, Haltelinie bzw. Trottoirhinterkante)
   nullpunktText: string
+  /** Nur Darstellung: tatsächlich verwendete, durch die Einmündung verlängerte Fahrstreifenkante um den B-Nullpunkt. */
+  bBezug?: { linie: P[]; quelle: string }
   regelung: Regelung          // in der Rechnung verwendete Vortrittsregelung (E2b)
   regelungVorgabe: Regelung
   regelungQuelle: string      // z. B. «OSM highway=stop an der Zufahrt»
@@ -422,9 +564,9 @@ export interface Ergebnis {
   strasse: StrasseErgebnis    // Strassentyp und ungünstige Verhältnisse (E1)
   avRadius: number            // Halbseite des geladenen AV-Ausschnitts um den Knoten [m]
   avBedarf: number            // nötiger AV-Ausschnitt: weitester Zielpunkt ab Knoten plus Reserve [m]
-  annahmen: string[]          // in der Seite als Annahme ausgewiesen: je Thema ein Punkt «Titel: Text» (Korrektur 31.10.2026)
+  annahmen: string[]          // in der Seite als Annahme ausgewiesen: je Thema ein Punkt «Titel: Text»
   hinweise: string[]
-  annahmenThemen?: AnnahmeThema[]   // dieselben Annahmen nach Thema, in der Reihenfolge der Rechnung (Korrektur 31.10.2026)
+  annahmenThemen?: AnnahmeThema[]   // dieselben Annahmen nach Thema, in der Reihenfolge der Rechnung
   herleitung?: string[]       // technische Herleitung (Achsen, Querschnitte, Prüfpunkte): Panel ausklappbar, Bericht im Anhang
   hindernis: HindernisStand
   zufahrtProfil: P[]          // Achse der Zufahrt ab dem Nullpunkt 20 m vom Knoten weg: Linie des Höhenprofils (E3a)
@@ -438,9 +580,9 @@ export interface Ergebnis {
   zufahrtVelo: ZufahrtVelo | null   // E4: Zufahrt mit Einbahn vom Knoten weg und Velo gegen die Einbahn: F_B ist ein Velo, D auf seiner Achse
   trottoirueberfahrt?: TueErgebnis  // K0: nur im Modus Trottoirüberfahrt (sonst fehlt das Feld)
   ueberholen?: UeberholStand | null // Block 5: Überholfall (Ziffer 6); null beim Rechtsvortritt
-  lsa?: boolean               // Korrektur 31.10.2026 (Punkt 13): LSA-Knoten, gerechnet ist die Rückfallebene bei ausgeschalteter Anlage
+  lsa?: boolean               // LSA-Knoten, gerechnet ist die Rückfallebene bei ausgeschalteter Anlage
 }
-/** Themen der Annahmen (Korrektur 31.10.2026): je Thema ein Punkt in Alltagssprache, in der Reihenfolge der Rechnung; «eng» nur bei
+/** Themen der Annahmen: je Thema ein Punkt in Alltagssprache, in der Reihenfolge der Rechnung; «eng» nur bei
  *  einer engen Kreuzung (Rechtsvortritt, eine Fahrbahn höchstens 3,50 m), «wahrnehmbarkeit» nur beim Rechtsvortritt */
 export type AnnahmeThemaId = 'vortritt' | 'wartend' | 'verkehr' | 'hindernisse' | 'wahrnehmbarkeit' | 'eng'
 export interface AnnahmeThema { thema: AnnahmeThemaId; titel: string; text: string }
@@ -462,7 +604,7 @@ export interface Rechnung {
   ergebnis: Ergebnis | null
   meldungen: string[]
   ms: number
-  /** Korrektur 31.10.2026 (Punkte 12, 13, 16, 17): im geladenen OSM-Umkreis Punkte mit drei und mehr Strassenarmen, die keine Knoten der
+  /** im geladenen OSM-Umkreis Punkte mit drei und mehr Strassenarmen, die keine Knoten der
    *  App sind (Gabelungen, Kreisel, Fahrbahnteilungen; die Knotensuche blendet sie aus), und LSA-Knoten (Kennzeichnung auf der Karte) */
   keinKnoten?: number[]
   lsaKnoten?: number[]

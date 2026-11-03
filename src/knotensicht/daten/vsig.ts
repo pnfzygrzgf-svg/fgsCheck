@@ -1,6 +1,6 @@
-// ── Signalisierte Höchstgeschwindigkeit der Stadt Bern (Geoportal) als amtliches Tempo (K0, Nutzerentscheid 23.10.2026) ──
+// ── Signalisierte Höchstgeschwindigkeit der Stadt Bern (Geoportal) als amtliches Tempo (K0) ──
 //
-// Wie fgsCheck (src/daten/vsig.ts, Automatik Paket C vom 21.10.2026): ArcGIS REST des Geoportals, Service
+// Wie fgsCheck (src/daten/vsig.ts, Automatik vom 21.10.2026): ArcGIS REST des Geoportals, Service
 // «Signalisierte_Hoechstgeschwindigkeit», Layer 0 (Linien auf der Strassenachse), Felder V_sig (km/h; im Dienst 20, 30, 40, 50, 60,
 // 80 und leer) und Strassenname. Abfrage und Antwort in LV95 (inSR/outSR 2056); Antworten ohne EPSG:2056, mit ArcGIS-Fehler oder
 // gekappt (Übertragungsgrenze) werden abgelehnt. Der Dienst erlaubt den Zugriff aus dem Browser (CORS, geprüft in fgsCheck

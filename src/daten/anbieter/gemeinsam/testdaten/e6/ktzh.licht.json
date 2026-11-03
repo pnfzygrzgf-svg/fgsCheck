@@ -1,0 +1,339 @@
+{
+  "roh": {
+    "type": "FeatureCollection",
+    "numberMatched": 19,
+    "name": "ogd-0124_giszhpub_tba_str_beleuchtung_p",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "urn:ogc:def:crs:EPSG::2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "504",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 1
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675772.662700001,
+            1244749.1548999995
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "505",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 28
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675817.9750999995,
+            1244720.5995000005
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "506",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 54
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675847.8680999987,
+            1244701.9376999997
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "507",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 76
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675874.508299999,
+            1244683.817400001
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "508",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 87
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675900.0130999982,
+            1244660.5980000012
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "509",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 804
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675928.407400001,
+            1244629.4497000016
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "510",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 875
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675946.9332000017,
+            1244608.7756999992
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "981",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 9669
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675601.012600001,
+            1244882.5942000002
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "982",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 9673
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675604.7762,
+            1244880.493999999
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "978",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 14003
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675578.0483999997,
+            1244895.1959999986
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "979",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 14006
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675581.9409000017,
+            1244877.8354999982
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "980",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 14772
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675582.2815999985,
+            1244878.3049000017
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "498",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 15897
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675605.0643999986,
+            1244880.3332000002
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "499",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 15907
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675638.6944000013,
+            1244858.114
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "500",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 19035
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675667.7236,
+            1244832.328499999
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "501",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 19056
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675690.3161999993,
+            1244809.7972999997
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "939",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 19334
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675576.468199998,
+            1244896.3040999994
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "502",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 20067
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675715.7217999995,
+            1244786.4310000017
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "nummer": "503",
+          "ausgeschaltet_txt": "nicht definiert",
+          "beleuchtungstyp_txt": "EKZ Import",
+          "bauart_txt": "nicht definiert",
+          "geodb_oid": 20088
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2675744.1761999987,
+            1244767.2912999988
+          ]
+        }
+      }
+    ]
+  },
+  "meta": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<gmd:MD_Metadata xmlns:gmd=\"http://www.isotc211.org/2005/gmd\" xmlns:gco=\"http://www.isotc211.org/2005/gco\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.isotc211.org/2005/gmd http://www.isotc211.org/2005/gmd/gmd.xsd\">\n  <gmd:fileIdentifier>\n    <gco:CharacterString>ogd-0124_giszhpub_tba_str_beleuchtung_p</gco:CharacterString>\n  </gmd:fileIdentifier>\n  <gmd:language>\n    <gco:CharacterString>en-US</gco:CharacterString>\n  </gmd:language>\n  <gmd:hierarchyLevel>\n    <gmd:MD_ScopeCode codeSpace=\"ISOTC211/19115\" codeList=\"http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_ScopeCode\" codeListValue=\"dataset\">dataset</gmd:MD_ScopeCode>\n  </gmd:hierarchyLevel>\n  <gmd:contact>\n    <gmd:CI_ResponsibleParty id=\"contact\">\n      <gmd:individualName>\n        <gco:CharacterString>gis@bd.zh.ch</gco:CharacterString>\n      </gmd:individualName>\n      <gmd:organisationName>\n        <gco:CharacterString>Geoinformation Kanton Zürich</gco:CharacterString>\n      </gmd:organisationName>\n      <gmd:positionName>\n        <gco:CharacterString>Helpdesk</gco:CharacterString>\n      </gmd:positionName>\n      <gmd:contactInfo>\n        <gmd:CI_Contact>\n          <gmd:phone>\n            <gmd:CI_Telephone/>\n          </gmd:phone>\n          <gmd:address>\n            <gmd:CI_Address>\n              <gmd:deliveryPoint>\n                <gco:CharacterString>Stampfenbachstrasse 12</gco:CharacterString>\n              </gmd:deliveryPoint>\n              <gmd:city>\n                <gco:CharacterString>Zürich</gco:CharacterString>\n              </gmd:city>\n              <gmd:administrativeArea>\n                <gco:CharacterString>ZH</gco:CharacterString>\n              </gmd:administrativeArea>\n              <gmd:postalCode>\n                <gco:CharacterString>8001</gco:CharacterString>\n              </gmd:postalCode>\n              <gmd:country>\n                <gco:CharacterString>Schweiz</gco:CharacterString>\n              </gmd:country>\n              <gmd:electronicMailAddress>\n                <gco:CharacterString>gis@bd.zh.ch</gco:CharacterString>\n              </gmd:electronicMailAddress>\n            </gmd:CI_Address>\n          </gmd:address>\n          <gmd:onlineResource>\n            <gmd:CI_OnlineResource>\n              <gmd:linkage>\n                <gmd:URL>https://maps.zh.ch/wfs/OGDZHWFS</gmd:URL>\n              </gmd:linkage>\n            </gmd:CI_OnlineResource>\n          </gmd:onlineResource>\n        </gmd:CI_Contact>\n      </gmd:contactInfo>\n      <gmd:role>\n        <gmd:CI_RoleCode codeSpace=\"ISOTC211/19115\" codeList=\"http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#CI_RoleCode\" codeListValue=\"pointOfContact\">pointOfContact</gmd:CI_RoleCode>\n      </gmd:role>\n    </gmd:CI_ResponsibleParty>\n  </gmd:contact>\n  <gmd:dateStamp gco:nilReason=\"missing\"/>\n  <gmd:metadataStandardName>\n    <gco:CharacterString>ISO 19115:2003 - Geographic information - Metadata</gco:CharacterString>\n  </gmd:metadataStandardName>\n  <gmd:metadataStandardVersion>\n    <gco:CharacterString>ISO 19115:2003</gco:CharacterString>\n  </gmd:metadataStandardVersion>\n  <gmd:spatialRepresentationInfo>\n    <gmd:MD_VectorSpatialRepresentation>\n      <gmd:topologyLevel>\n        <gmd:MD_TopologyLevelCode codeSpace=\"ISOTC211/19115\" codeList=\"http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_TopologyLevelCode\" codeListValue=\"geometryOnly\">geometryOnly</gmd:MD_TopologyLevelCode>\n      </gmd:topologyLevel>\n      <gmd:geometricObjects>\n        <gmd:MD_GeometricObjects>\n          <gmd:geometricObjectType>\n            <gmd:MD_GeometricObjectTypeCode codeSpace=\"ISOTC211/19115\" codeList=\"http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_GeometricObjectTypeCode\" codeListValue=\"point\">point</gmd:MD_GeometricObjectTypeCode>\n          </gmd:geometricObjectType>\n        </gmd:MD_GeometricObjects>\n      </gmd:geometricObjects>\n    </gmd:MD_VectorSpatialRepresentation>\n  </gmd:spatialRepresentationInfo>\n  <gmd:referenceSystemInfo>\n    <gmd:MD_ReferenceSystem>\n      <gmd:referenceSystemIdentifier>\n        <gmd:RS_Identifier>\n          <gmd:code>\n            <gco:CharacterString>EPSG:2056</gco:CharacterString>\n          </gmd:code>\n          <gmd:codeSpace>\n            <gco:CharacterString>http://www.epsg-registry.org</gco:CharacterString>\n          </gmd:codeSpace>\n          <gmd:version>\n            <gco:CharacterString>6.14</gco:CharacterString>\n          </gmd:version>\n        </gmd:RS_Identifier>\n      </gmd:referenceSystemIdentifier>\n    </gmd:MD_ReferenceSystem>\n  </gmd:referenceSystemInfo>\n  <gmd:identificationInfo>\n    <gmd:MD_DataIdentification id=\"ogd-0124_giszhpub_tba_str_beleuchtung_p\">\n      <gmd:citation>\n        <gmd:CI_Citation>\n          <gmd:title>\n            <gco:CharacterString>Oeffentilche Beleuchtung (OGD) (124.3)</gco:CharacterString>\n          </gmd:title>\n          <gmd:date gco:nilReason=\"missing\"/>\n        </gmd:CI_Citation>\n      </gmd:citation>\n      <gmd:abstract>\n        <gco:CharacterString>OGD Datensatz für die öffentliche Beleuchtung</gco:CharacterString>\n      </gmd:abstract>\n      <gmd:language>\n        <gco:CharacterString>en-US</gco:CharacterString>\n      </gmd:language>\n      <gmd:extent>\n        <gmd:EX_Extent>\n          <gmd:geographicElement>\n            <gmd:EX_GeographicBoundingBox>\n              <gmd:westBoundLongitude>\n                <gco:Decimal>8.362906</gco:Decimal>\n              </gmd:westBoundLongitude>\n              <gmd:eastBoundLongitude>\n                <gco:Decimal>8.953949</gco:Decimal>\n              </gmd:eastBoundLongitude>\n              <gmd:southBoundLatitude>\n                <gco:Decimal>47.169729</gco:Decimal>\n              </gmd:southBoundLatitude>\n              <gmd:northBoundLatitude>\n                <gco:Decimal>47.696748</gco:Decimal>\n              </gmd:northBoundLatitude>\n            </gmd:EX_GeographicBoundingBox>\n          </gmd:geographicElement>\n        </gmd:EX_Extent>\n      </gmd:extent>\n    </gmd:MD_DataIdentification>\n  </gmd:identificationInfo>\n  <gmd:distributionInfo>\n    <gmd:MD_Distribution>\n      <gmd:distributor>\n        <gmd:MD_Distributor>\n          <gmd:distributorContact>\n            <gmd:CI_ResponsibleParty id=\"distributorContact\">\n              <gmd:individualName>\n                <gco:CharacterString>gis@bd.zh.ch</gco:CharacterString>\n              </gmd:individualName>\n              <gmd:organisationName>\n                <gco:CharacterString>Geoinformation Kanton Zürich</gco:CharacterString>\n              </gmd:organisationName>\n              <gmd:positionName>\n                <gco:CharacterString>Helpdesk</gco:CharacterString>\n              </gmd:positionName>\n              <gmd:contactInfo>\n                <gmd:CI_Contact>\n                  <gmd:phone>\n                    <gmd:CI_Telephone/>\n                  </gmd:phone>\n                  <gmd:address>\n                    <gmd:CI_Address>\n                      <gmd:deliveryPoint>\n                        <gco:CharacterString>Stampfenbachstrasse 12</gco:CharacterString>\n                      </gmd:deliveryPoint>\n                      <gmd:city>\n                        <gco:CharacterString>Zürich</gco:CharacterString>\n                      </gmd:city>\n                      <gmd:administrativeArea>\n                        <gco:CharacterString>ZH</gco:CharacterString>\n                      </gmd:administrativeArea>\n                      <gmd:postalCode>\n                        <gco:CharacterString>8001</gco:CharacterString>\n                      </gmd:postalCode>\n                      <gmd:country>\n                        <gco:CharacterString>Schweiz</gco:CharacterString>\n                      </gmd:country>\n                      <gmd:electronicMailAddress>\n                        <gco:CharacterString>gis@bd.zh.ch</gco:CharacterString>\n                      </gmd:electronicMailAddress>\n                    </gmd:CI_Address>\n                  </gmd:address>\n                  <gmd:onlineResource>\n                    <gmd:CI_OnlineResource>\n                      <gmd:linkage>\n                        <gmd:URL>https://maps.zh.ch/wfs/OGDZHWFS</gmd:URL>\n                      </gmd:linkage>\n                    </gmd:CI_OnlineResource>\n                  </gmd:onlineResource>\n                </gmd:CI_Contact>\n              </gmd:contactInfo>\n              <gmd:role>\n                <gmd:CI_RoleCode codeSpace=\"ISOTC211/19115\" codeList=\"http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#CI_RoleCode\" codeListValue=\"pointOfContact\">pointOfContact</gmd:CI_RoleCode>\n              </gmd:role>\n            </gmd:CI_ResponsibleParty>\n          </gmd:distributorContact>\n        </gmd:MD_Distributor>\n      </gmd:distributor>\n      <gmd:transferOptions>\n        <gmd:MD_DigitalTransferOptions>\n          <gmd:unitsOfDistribution>\n            <gco:CharacterString>KB</gco:CharacterString>\n          </gmd:unitsOfDistribution>\n          <gmd:onLine>\n            <gmd:CI_OnlineResource>\n              <gmd:linkage>\n                <gmd:URL>https://maps.zh.ch/wfs/OGDZHWFS?service=WMS&amp;version=1.3.0&amp;request=GetMap&amp;width=500&amp;height=300&amp;styles=&amp;layers=ogd-0124_giszhpub_tba_str_beleuchtung_p&amp;format=image/png&amp;crs=EPSG:2056&amp;bbox=1225394.829500,2670065.385300,1283320.080600,2713759.777500</gmd:URL>\n              </gmd:linkage>\n              <gmd:protocol>\n                <gco:CharacterString>WWW:DOWNLOAD-1.0-http-get-map</gco:CharacterString>\n              </gmd:protocol>\n              <gmd:name>\n                <gco:CharacterString>ogd-0124_giszhpub_tba_str_beleuchtung_p</gco:CharacterString>\n              </gmd:name>\n              <gmd:description>\n                <gco:CharacterString>PNG Format</gco:CharacterString>\n              </gmd:description>\n            </gmd:CI_OnlineResource>\n          </gmd:onLine>\n          <gmd:onLine>\n            <gmd:CI_OnlineResource>\n              <gmd:linkage>\n                <gmd:URL>https://maps.zh.ch/wfs/OGDZHWFS?service=WMS&amp;version=1.3.0&amp;request=GetMap&amp;width=500&amp;height=300&amp;styles=&amp;layers=ogd-0124_giszhpub_tba_str_beleuchtung_p&amp;format=image/jpeg&amp;crs=EPSG:2056&amp;bbox=1225394.829500,2670065.385300,1283320.080600,2713759.777500</gmd:URL>\n              </gmd:linkage>\n              <gmd:protocol>\n                <gco:CharacterString>WWW:DOWNLOAD-1.0-http-get-map</gco:CharacterString>\n              </gmd:protocol>\n              <gmd:name>\n                <gco:CharacterString>ogd-0124_giszhpub_tba_str_beleuchtung_p</gco:CharacterString>\n              </gmd:name>\n              <gmd:description>\n                <gco:CharacterString>JPEG Format</gco:CharacterString>\n              </gmd:description>\n            </gmd:CI_OnlineResource>\n          </gmd:onLine>\n          <gmd:onLine>\n            <gmd:CI_OnlineResource>\n              <gmd:linkage>\n                <gmd:URL>https://maps.zh.ch/wfs/OGDZHWFS?service=WFS&amp;version=1.1.0&amp;request=GetFeature&amp;typename=ogd-0124_giszhpub_tba_str_beleuchtung_p&amp;outputformat=GML2</gmd:URL>\n              </gmd:linkage>\n              <gmd:protocol>\n                <gco:CharacterString>WWW:DOWNLOAD-1.0-http--download</gco:CharacterString>\n              </gmd:protocol>\n              <gmd:name>\n                <gco:CharacterString>ogd-0124_giszhpub_tba_str_beleuchtung_p</gco:CharacterString>\n              </gmd:name>\n              <gmd:description>\n                <gco:CharacterString>GML2 Format</gco:CharacterString>\n              </gmd:description>\n            </gmd:CI_OnlineResource>\n          </gmd:onLine>\n          <gmd:onLine>\n            <gmd:CI_OnlineResource>\n              <gmd:linkage>\n                <gmd:URL>https://maps.zh.ch/wfs/OGDZHWFS?service=WFS&amp;version=1.1.0&amp;request=GetFeature&amp;typename=ogd-0124_giszhpub_tba_str_beleuchtung_p&amp;outputformat=GML3</gmd:URL>\n              </gmd:linkage>\n              <gmd:protocol>\n                <gco:CharacterString>WWW:DOWNLOAD-1.0-http--download</gco:CharacterString>\n              </gmd:protocol>\n              <gmd:name>\n                <gco:CharacterString>ogd-0124_giszhpub_tba_str_beleuchtung_p</gco:CharacterString>\n              </gmd:name>\n              <gmd:description>\n                <gco:CharacterString>GML3 Format</gco:CharacterString>\n              </gmd:description>\n            </gmd:CI_OnlineResource>\n          </gmd:onLine>\n        </gmd:MD_DigitalTransferOptions>\n      </gmd:transferOptions>\n    </gmd:MD_Distribution>\n  </gmd:distributionInfo>\n</gmd:MD_Metadata>\n"
+}

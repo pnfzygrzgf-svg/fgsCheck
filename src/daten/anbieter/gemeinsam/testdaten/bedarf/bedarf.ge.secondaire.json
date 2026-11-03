@@ -1,0 +1,38 @@
+{
+  "mitte": [
+    2502004.6022000015,
+    1116402.2195999995
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 1,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2502004.6022000015,
+            1116402.2195999995
+          ]
+        },
+        "properties": {
+          "OBJECTID": 1,
+          "NOM_ETABLISSEMENT": "CO FLORENCE",
+          "TYPE_ETABLISSEMENT": "Cycle d'Orientation",
+          "FORMATION_NIVEAU": "Secondaire",
+          "ADRESSE": "Chemin du Velours 16"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

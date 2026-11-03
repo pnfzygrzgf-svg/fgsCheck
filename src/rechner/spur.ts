@@ -422,7 +422,7 @@ export function stetigDrehend(pts: P[], mitte: P, w0: number, sgn: number, bis: 
   return out.reverse()
 }
 
-// ---------------------------------------------------------------- Umriss und Beginn der Sichtpunkte (Auftrag 2)
+// ---------------------------------------------------------------- Umriss und Beginn der Sichtpunkte
 export const STREIFEN_ENDE_M = 0.25
 export const ENTLANG_MIN = 0.2
 export const H_RAND_TOL_M = 0.05

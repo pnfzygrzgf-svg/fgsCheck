@@ -1,4 +1,4 @@
-// ── Bedarfsmodul Runde 4: Begriffsliste (Hilfe, Bericht, Verweise in Feldhilfen und Details) ──
+// ── Begriffsliste (Hilfe, Bericht, Verweise in Feldhilfen und Details) ──
 //
 // Je Begriff ein Name und eine eigene Erklärung in Alltagssprache (ein bis zwei Sätze), kein Text aus Normen. muster: Wortformen, an
 // denen die Anzeige den Begriff in einem Text erkennt (reguläre Ausdrücke ohne Flags, ganze Wörter; Gross- und Kleinschreibung wie
@@ -28,11 +28,11 @@ export const BEGRIFFE: readonly Begriff[] = [
   { id: 'dtv', name: 'DTV (Fahrzeuge pro Tag)', muster: ['DTV', 'Fahrzeuge pro Tag', 'Fz/Tag'],
     text: 'Durchschnittlicher täglicher Verkehr: wie viele Motorfahrzeuge an einem mittleren Tag vorbeifahren, beide Richtungen zusammen.' },
   { id: 'lsa', name: 'Lichtsignalanlage (LSA)', muster: ['LSA', 'Lichtsignal(?:anlagen?|e|s)?'],
-    text: 'Ampel: regelt mit Rot, Gelb und Grün, wer fahren bzw. gehen darf; an einer Querung mit eigenem Signal für Fussgänger.' },
+    text: 'Ampel: regelt mit Rot, Gelb und Grün, wer fahren bzw. gehen darf; an einer Querung mit eigenem Signal für Zufussgehende.' },
   { id: 'warteflaeche', name: 'Wartefläche (Annäherungsbereich)', muster: ['Wartefläche[n]?', 'Annäherungsbereich(?:e|s)?'],
     text: 'Die Fläche am Trottoirrand vor dem Streifen, auf der Querende warten. Fahrende sollen sie früh genug sehen; sie entspricht ungefähr dem Annäherungsbereich der Fachsprache.' },
   { id: 'erkennung', name: 'Erkennungsdistanz', muster: ['Erkennungsdistanz'],
-    text: 'Ab welcher Entfernung Fahrende merken, dass ein Fussgängerstreifen kommt, an den Balken oder an der blauen Tafel.' },
+    text: 'Entfernung, aus der Fahrende eine Fussgängerstreifenanlage erkennen. Die App berechnet dafür die Sicht auf die Bodenmarkierung; Signale werden hier nicht zusätzlich bewertet.' },
   { id: 'sichtweite', name: 'Sichtweite', muster: ['Sichtweiten?'],
     text: 'Wie weit Fahrende vor der Querung die Wartefläche frei sehen. Wie viel nötig ist, hängt vom Tempo ab.' },
   { id: 'anhalte', name: 'Anhaltesichtweite', muster: ['Anhaltesichtweiten?'],
@@ -56,20 +56,20 @@ export const BEGRIFFE: readonly Begriff[] = [
   { id: 'basisnetz', name: 'Basisnetz (Richtplan Fussverkehr)', muster: ['Basisnetz(?:es)?', 'Richtplan Fussverkehr', 'Fusswegnetz(?:es|planung)?'],
     text: 'Der Richtplan Fussverkehr der Stadt Bern legt die wichtigen Fusswege fest; das Basisnetz verbindet Wohngebiete, Schulen, Haltestellen und Zentren. Feinverteiler sind die übrigen Wege dazwischen.' },
   { id: 'publikum', name: 'publikumsintensiv', muster: ['publikumsintensiv\\p{L}*', 'publikumsattraktiv\\p{L}*'],
-    text: 'Orte und Achsen mit sehr vielen Fussgängern, etwa Altstadt, Bahnhof oder Einkaufsstrassen; im Richtplan Fussverkehr eigens bezeichnet.' },
+    text: 'Orte und Achsen mit sehr vielen Menschen zu Fuss, etwa Altstadt, Bahnhof oder Einkaufsstrassen; im Richtplan Fussverkehr eigens bezeichnet.' },
   { id: 'strassentyp', name: 'verkehrsorientiert und siedlungsorientiert', muster: ['verkehrsorientiert\\p{L}*', 'siedlungsorientiert\\p{L}*',
     'Durchgangsstrassen?', 'Quartierstrassen?'],
     text: 'Verkehrsorientierte Strassen dienen vor allem dem Durchgangsverkehr (Haupt- und Verbindungsstrassen), siedlungsorientierte vor allem dem Quartier (Quartier- und Sammelstrassen): Anwohnende, Aufenthalt, Zufahrt.' },
   { id: 'zone', name: 'Tempo-30-Zone und Strecke', muster: ['Tempo-30-Zonen?', 'Tempo-Regime'],
     text: 'Eine Tempo-30-Zone ist ein ganzes Gebiet mit Zonentafel am Eingang, mit eigenen Regeln. Eine Strasse mit Tempo 30 ohne Zonentafel ist eine Strecke.' },
   { id: 'begegnungszone', name: 'Begegnungszone', muster: ['[Bb]egegnungszonen?'],
-    text: 'Zone mit Tempo 20 und Zonentafel, in der Fussgänger die ganze Fläche benützen und Vortritt haben.' },
+    text: 'Zone mit Tempo 20 und Zonentafel, in der Zufussgehenden die ganze Fläche benützen und Vortritt haben.' },
   { id: 'grund', name: 'besonderer Grund für Vortritt', muster: ['Vortrittsbedürfnis(?:se)?', '[Bb]esondere[nrs]? Grund'],
     text: 'Ein Anlass, der in einer Tempo-30-Zone dennoch einen Fussgängerstreifen begründen kann, etwa eine Schule, ein Kindergarten, ein Heim oder eine Haltestelle in der Nähe.' },
   { id: 'hvl', name: 'Halteverbotslinie', muster: ['Halteverbotslinien?'],
-    text: 'Gelbe Markierung am Fahrbahnrand vor dem Streifen, die das Halten verbietet, damit wartende Fussgänger sichtbar bleiben.' },
+    text: 'Gelbe Markierung am Fahrbahnrand vor dem Streifen, die das Halten verbietet, damit wartende Zufussgehende sichtbar bleiben.' },
   { id: 'signal411', name: 'Signal 4.11 (blaue Tafel)', muster: ['Signal 4\\.11', '[Bb]laue Tafel'],
-    text: 'Die blaue Tafel mit dem Fussgänger auf Balken; sie zeigt den Fussgängerstreifen an. 4.11 ist ihre Nummer in der Signalisationsverordnung.' },
+    text: 'Die blaue Tafel mit dem Fussgängersymbol auf Balken; sie zeigt den Fussgängerstreifen an. 4.11 ist ihre Nummer in der Signalisationsverordnung.' },
   { id: 'taktil', name: 'Taktil-visuelle Markierung und Leitlinie', muster: ['[Tt]aktil\\p{L}*', '[Ee]rtastbare[nrs]?', 'Leitlinien?', 'Aufmerksamkeitsfeld(?:er)?'],
     text: 'Weisse Linien und Felder mit Rillen, die Blinde mit dem Stock ertasten und Sehbehinderte am Kontrast erkennen; die Leitlinie führt über die Querung, das Aufmerksamkeitsfeld zeigt ihren Anfang an.' },
   { id: 'absenkung', name: 'Absenkung und Anrampung', muster: ['Absenkung(?:en)?', 'abgesenkt', 'Anrampung', 'Rampe'],
@@ -94,7 +94,7 @@ export const BEGRIFFE: readonly Begriff[] = [
     text: 'Die Stunden mit den meisten Querenden; gezählt werden die fünf stärksten eines Tages, auch wenn sie nicht aufeinander folgen.' },
   { id: 'knoten', name: 'Knoten (Kreuzung, Einmündung)', muster: ['Knoten', 'Kreuzung(?:en)?', 'Einmündung(?:en)?'],
     text: 'Ort, an dem sich Strassen treffen: an einer Kreuzung geht es in mehrere Richtungen weiter, an einer Einmündung endet eine Strasse an einer anderen.' },
-  // Runde 5 (Muster 5): Abkürzungen und Quellen, die gedruckt werden
+  // Abkürzungen und Quellen, die gedruckt werden
   { id: 'osm', name: 'OSM (OpenStreetMap)', muster: ['OSM', 'OpenStreetMap'],
     text: 'Freie Weltkarte, von Freiwilligen erfasst. fgsCheck liest daraus Strassen, Übergänge und Tempoangaben; sie kann lückenhaft sein.' },
   { id: 'av', name: 'AV (amtliche Vermessung)', muster: ['AV', 'AV-\\p{L}+'],
@@ -104,7 +104,7 @@ export const BEGRIFFE: readonly Begriff[] = [
   { id: 'geoportal', name: 'Geoportal Stadt Bern', muster: ['Geoportals?'],
     text: 'Kartendienst der Stadt Bern; fgsCheck liest daraus u. a. Tempo, Verkehrsmengen, Schulen und das Fusswegnetz.' },
   { id: 'fgs', name: 'FGS (Fussgängerstreifen)', muster: ['FGS'],
-    text: 'Abkürzung für Fussgängerstreifen: gelb markierte Querung, auf der Fussgänger Vortritt haben.' },
+    text: 'Abkürzung für Fussgängerstreifen: gelb markierte Querung, auf der Zufussgehenden Vortritt haben.' },
   { id: 'miv', name: 'MIV (Autoverkehr)', muster: ['MIV'],
     text: 'Motorisierter Individualverkehr: Autos und Motorräder, ohne Bus und Tram.' },
   { id: 'slg', name: 'SLG 202 (Beleuchtung)', muster: ['SLG(?: 202)?'],
@@ -134,7 +134,7 @@ export const begriffeAlphabetisch = (): Begriff[] =>
 
 /** Texte eines Befundblatts, wie Bericht und Panel sie zeigen (Zusammenfassung, Grundprüfung, Einträge, Empfehlung, Annahmen) */
 export function blattTexte(b: BefundBlatt): string[] {
-  // Runde 5 (Stelle 51): auch Masse, Eingaben, Annahmen und Hinweise, wie der Bericht sie druckt
+  // Auch Masse, Eingaben, Annahmen und Hinweise, wie der Bericht sie druckt
   const t: string[] = [zusammenfassungText(zusammenfassungBlatt(b, 'bericht')), b.typText, b.begruendung, ...b.befund.empfehlung.zusatz,
     ...b.annahmen, ...b.grund.annahmen, ...b.hinweise, ...b.befund.masse.flatMap(m => [m.groesse, m.ist, m.soll, m.zusatz ?? '']),
     ...[...b.gebildet.herkunft].flatMap(([p, h]) => (h.zustand === 'offen' ? [] : [feldName(p), lesetext(h.text)]))]

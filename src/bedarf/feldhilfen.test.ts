@@ -1,4 +1,4 @@
-// Tests Feldhilfen (Nutzerentscheid 20.10.2026): Wächter für Erklärung, Herkunft und Sichtbarkeit je Feld der Maske.
+// Tests Feldhilfen: Wächter für Erklärung, Herkunft und Sichtbarkeit je Feld der Maske.
 //   1. Jedes Feld hat eine Erklärung und mindestens eine Regel (bzw. ist als Ablauf markiert); jede Katalog-Eingabe hat ein Feld.
 //   2. Die Eingabelisten des Katalogs (mit UNTERFELDER) decken alles, was die Regeln lesen (Messung an allen Testfällen und
 //      Varianten); was der Ablauf (entscheid.ts) ausserhalb der Regeln liest, hat einen Ablauf-Text.
@@ -405,13 +405,13 @@ describe('Feldhilfen: ausgeblendete Unterfelder lösen keinen Block aus', () => 
   })
 })
 
-describe('Gestrichene Regel B4 und Feld «knotenArmeOhneQuerung» (Nutzerentscheid 30.10.2026)', () => {
+describe('Gestrichene Regel B4 und Feld «knotenArmeOhneQuerung»', () => {
   it('nicht mehr in Eingaben, Maske, Geltung und Auswertung; B4 gestrichen mit Quellen', () => {
     expect(Object.keys(FELDER)).not.toContain('knotenArmeOhneQuerung')
     expect(FELD_DEF.has('knotenArmeOhneQuerung')).toBe(false)
     for (const [id, d] of defs) expect(d.eingaben, id).not.toContain('knotenArmeOhneQuerung')
     expect(KATALOG.B4.art).toBe('gestrichen')
-    expect(KATALOG.B4.bemerkung).toContain('Nutzerentscheid 30.10.2026')
+    expect(KATALOG.B4.bemerkung).toContain('gestrichen')
     expect(KATALOG.B4.quellen.map(q => q.werk)).toEqual(['40240', 'MP'])
     expect(Object.keys(REGELN)).not.toContain('B4')
   })
@@ -423,7 +423,7 @@ describe('Gestrichene Regel B4 und Feld «knotenArmeOhneQuerung» (Nutzerentsche
   })
 })
 
-describe('Block 3 (Nutzerentscheide 30.10.2026): LSA-Zeiten, Halteverbotslinie, Streifenbreite, Lücke Balken–Trottoirkante, Kantonsstrasse', () => {
+describe('Block 3: LSA-Zeiten, Halteverbotslinie, Streifenbreite, Lücke Balken–Trottoirkante, Kantonsstrasse', () => {
   const WEG = ['lsaZeiten', 'hvl', 'hvlBedarfM', 'haltenSichtrelevantUeber5m', 'haltenSonstVerboten', 'streifenBreite', 'randAbstand', 'kantonsstrasse']
   it('nicht mehr in Eingaben, Maske, Feldhilfen, Fragen, Geltung und Katalog; keine Gruppe LSA-Zeiten', () => {
     for (const f of WEG) {
@@ -452,13 +452,13 @@ describe('Block 3 (Nutzerentscheide 30.10.2026): LSA-Zeiten, Halteverbotslinie, 
   })
 })
 
-describe('Gestrichenes Feld «zoneVerkehrsorientiert» (Nutzerentscheid 20.10.2026)', () => {
+describe('Gestrichenes Feld «zoneVerkehrsorientiert»', () => {
   it('nicht mehr in Eingaben, Maske und Katalog; C2c gestrichen, C2/C2b ohne Zonenbedingung', () => {
     expect(Object.keys(FELDER)).not.toContain('zoneVerkehrsorientiert')
     expect(FELD_DEF.has('zoneVerkehrsorientiert')).toBe(false)
     for (const [id, d] of defs) expect(d.eingaben, id).not.toContain('zoneVerkehrsorientiert')
     expect(KATALOG.C2c.art).toBe('gestrichen')
-    expect(KATALOG.C2c.bemerkung).toContain('Nutzerentscheid 20.10.2026')
+    expect(KATALOG.C2c.bemerkung).toContain('gestrichen')
     expect(Object.keys(REGELN)).not.toContain('C2c')
     expect(FELD_DEF.get('tempoRegime')!.art).toMatchObject({ optionen: [['strecke', 'Strecke (auch Tempo 20/30 auf einer Strecke)'],
       ['t30_zone', 'in einer Tempo-30-Zone (Zonentafel)'], ['begegnungszone', 'in einer Begegnungszone']] })

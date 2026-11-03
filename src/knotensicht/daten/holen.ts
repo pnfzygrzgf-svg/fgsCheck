@@ -1,6 +1,8 @@
 // ── Abrufe mit Zeitgrenze (Kopf und Inhalt), Abbruch von aussen und Messung (Ladezeit, Grösse) ──
 
 export interface Abruf<T> {
+  datenstand?: string   // Stand aus der Antwort, niemals das Abrufdatum
+  vollstaendigkeit?: string
   daten: T
   ms: number           // Ladezeit bis zum vollständigen Text
   bytes: number        // Länge der Antwort (Zeichen ≈ Bytes)

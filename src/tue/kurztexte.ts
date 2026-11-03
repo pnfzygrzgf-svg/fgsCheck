@@ -1,4 +1,4 @@
-// ── Kurze fgsCheck-Texte zu den Hinweisen des Kerns (Korrektur nach Review 23.10.2026, S4) ──
+// ── Kurze fgsCheck-Texte zu den Hinweisen des Kerns (S4) ──
 //
 // Der Kern des SichtweitenCheck schreibt seine Hinweise für das eigene Panel (Eingaben, die es in fgsCheck nicht gibt, Ziffern ohne
 // Normname, Armnummern). Hier wird jeder bekannte Hinweis auf einen kurzen, für fgsCheck richtigen Satz abgebildet; unbekannte bzw. hier
@@ -32,7 +32,7 @@ const REGELN: Regel[] = [
   [/durchgehenden Strasse/, () => ({ text: KS_DURCHGEHEND, unklar: true })],
   [/^Zielpunkte reichen über den AV-Ausschnitt/, () => ({ text: KS_AV_KNAPP, unklar: true })],
   [/Höhenprofil uneben/, () => ({ text: KS_UNEBEN, unklar: true })],
-  // Neigung unbekannt (Kern, Entscheid 31.10.2026): strengster Tabellenwert; ohne «von Hand eingeben»
+  // Neigung unbekannt (Kern): strengster Tabellenwert; ohne «von Hand eingeben»
   [/^Höhenmodell nicht verfügbar/, () => KS_PROFIL_FEHLT],
   [/^Höhenprofil mit \d+ Punkten/, () => KS_PROFIL_KURZ],
   [/^Höhenprofil: (\d+) Punkte? weit neben/, m => `Höhenprofil: ${m[1]} Punkt${m[1] === '1' ? '' : 'e'} weit neben der Ausgleichsgeraden nicht gerechnet.`],

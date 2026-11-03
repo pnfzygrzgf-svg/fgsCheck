@@ -11,10 +11,13 @@
 // einen eigenen Zwischenserver (cors: 'proxy'), den die App nicht hat.
 // Hier nur Daten und reine Funktionen (getestet, ohne Abruf).
 
+import { REGIONAL_DIENSTE } from './anbieter/gemeinsam/regionalDienste'
 import { imPolygon, type P } from '../geo'
 import type { AvFlaeche } from './av'
 import { OVERPASS_ENDPOINTS } from './osm'
 import { LUFTBILD_FGS_STAEDTE } from './luftbildFgs'
+import { NPVM_QUELLE } from './anbieter/npvm'
+import { BAV_QUELLE } from './anbieter/gemeinsam/bav'
 
 /** Bedarf der App, den eine Quelle deckt */
 export type Thema = 'vermessung' | 'luftbild' | 'hoehen' | 'strassennetz' | 'uebergaenge' | 'parkfelder' | 'baeume' | 'haltestellen' |
@@ -27,7 +30,7 @@ export type Gebiet =
   | { art: 'bbox'; s: number; w: number; n: number; e: number; name: string }
 
 /** Empfänger der Anfragen (Gruppe der Datenschutz-Liste) */
-export type Empfaenger = 'swisstopo' | 'geodienste' | 'overpass' | 'bern' | 'eigen'
+export type Empfaenger = 'swisstopo' | 'geodienste' | 'overpass' | 'bern' | 'zuerich' | 'regional' | 'eigen'
 
 export interface Quelle {
   id: string
@@ -78,6 +81,18 @@ export const ETH_STAND: Record<string, string> = { bern: '29.10.2026', zurich: '
 const ETH_BILD: Record<string, string> = { bern: 'SWISSIMAGE und Orthofoto Stadt Bern 2026', zurich: 'SWISSIMAGE', basel: 'SWISSIMAGE' }
 
 export const QUELLEN: readonly Quelle[] = [
+  ...REGIONAL_DIENSTE.map((d): Quelle => ({ id: `regional.${d.id}`, themen: ['beleuchtung', 'taktil', 'netz'].includes(d.art) ? [] : d.art === 'tempo' || d.art === 'zone' ? ['tempo'] : d.art==='strasse'?['strassentyp']:d.art==='bauzone'?['zonen']:d.art==='bedarf'?['schulen']:d.art==='tram'||d.art==='unfall'?[]:['uebergaenge'], name: d.name, anbieter: d.anbieter,
+    gebiet: d.kanton==='CH'?{art:'schweiz'}:d.bfs ? { art: 'gemeinden', bfs: [d.bfs], name: d.id.startsWith('bedarf.zh.') ? 'Stadt Zürich' : d.id === 'bedarf.winterthur' ? 'Stadt Winterthur' : d.name } : { art: 'kantone', kantone: [d.kanton] },
+    dienst: d.format === 'arcgis' ? 'arcgis' : d.format === 'wfs' || d.format === 'gml' ? 'wfs' : 'api',
+    lizenz: d.lizenz, stand: 'Objekt-/Dienststand bei jedem Laden neu bezogen; unbekannt, falls nicht geliefert', cors: true,
+    empfaenger: d.kanton === 'CH' ? 'swisstopo' : 'regional', datenschutz: `${new URL(d.url).host}: ${d.format === 'poi' ? 'Basiskarten-Vektorkacheln um den geladenen Ort für Schul-/Einrichtungshinweise' : `Rechteck ±200 m für ${d.name}, bei dichten Bundesdaten in Teilrechtecken`}; öffentliche Dienstmetadaten${d.meta ? ` (${new URL(d.meta).host})` : ''}`,
+    module: ['daten/anbieter/gemeinsam/regional.ts'], hinweis: d.hinweis })),
+  ...(['tempo', 'zonen'] as const).map((thema): Quelle => ({ id: thema === 'tempo' ? 'zh.tempo' : 'zh.zone', themen: ['tempo'],
+    name: thema === 'tempo' ? 'Signalisierte Geschwindigkeiten' : 'Verkehrszonen', anbieter: 'Stadt Zürich, Dienstabteilung Verkehr',
+    gebiet: { art: 'gemeinden', bfs: [261], name: 'Stadt Zürich' }, dienst: 'wfs', lizenz: 'CC0, Stadt Zürich',
+    stand: 'Katalogaktualisierung dynamisch; Umsetzung je Objekt getrennt', cors: true, empfaenger: 'zuerich',
+    datenschutz: 'Rechteck ±200 m um den Ladeort für heutigen Tempo-/Zonenbestand und Trefferzahl; öffentliche Katalogmetadaten',
+    module: ['daten/anbieter/gemeinsam/zuerich.ts'], hinweis: 'Fahrverbot ist kein Tempo 0; Zuordnung mit Strasse, Richtung und Zone prüfen.' })),
   { id: 'av', themen: ['vermessung'], name: 'Amtliche Vermessung (Bodenbedeckung, Einzelobjekte)', anbieter: 'Kantone über geodienste.ch',
     gebiet: { art: 'kantone', kantone: AV_KANTONE }, dienst: 'wfs', lizenz: 'frei mit Quellenangabe (Bedingungen je Kanton)', stand: LIVE,
     cors: true, datenschutz: 'Rechteck ±150 m um den Übergang bzw. die geplanten Streifen', empfaenger: 'geodienste',
@@ -94,6 +109,10 @@ export const QUELLEN: readonly Quelle[] = [
   { id: 'swisstopo.suche', themen: [], name: 'Ortssuche', anbieter: 'swisstopo', gebiet: { art: 'schweiz' }, dienst: 'api', lizenz: SWISSTOPO_LIZENZ,
     cors: true, datenschutz: 'bei der Ortssuche der eingegebene Suchbegriff (api3.geo.admin.ch)', empfaenger: 'swisstopo',
     module: ['daten/ortssuche.ts'] },
+  { id: 'hoehenkurven', themen: [], name: 'Höhenkurven aus swissALTI3D', anbieter: 'swisstopo', gebiet: { art: 'schweiz' }, dienst: 'api',
+    lizenz: SWISSTOPO_LIZENZ, stand: 'Ausgabe und Bereitstellung je verwendeter Kachel', cors: true, empfaenger: 'swisstopo',
+    datenschutz: 'nur bei eingeschalteten Höhenkurven ab Zoom 18: sichtbarer Ausschnitt für die Kachelsuche und begrenzte Teilabrufe aus Höhenrastern (data.geo.admin.ch); höchstens vier Kacheln',
+    module: ['hoehenkurven/holen.ts'] },
   { id: 'swissalti', themen: ['hoehen'], name: 'Höhenmodell swissALTI3D (Profile)', anbieter: 'swisstopo', gebiet: { art: 'schweiz' }, dienst: 'api',
     lizenz: SWISSTOPO_LIZENZ, stand: LIVE, cors: true,
     datenschutz: 'an einer Trottoirüberfahrt bis vier Linien der Knotensicht (Koordinaten) für Höhenprofile (api3.geo.admin.ch); mit einer ' +
@@ -101,6 +120,12 @@ export const QUELLEN: readonly Quelle[] = [
       '(Kurvenregel, Sicht vom Velo; api3.geo.admin.ch); am Fussgängerstreifen je gerade Zufahrt bis 14 Sichtlinien (Augpunkt und ' +
       'Markierung, Koordinaten) für das Gelände der Erkennungsdistanz (api3.geo.admin.ch)', empfaenger: 'swisstopo',
     module: ['knotensicht/daten/hoehen.ts', 'daten/sichtProfil.ts'] },
+  BAV_QUELLE,
+  NPVM_QUELLE,
+  { id: 'swisstopo.gebiet', themen: [], name: 'Gebietsbestimmung (Gemeindegrenzen)', anbieter: 'swisstopo',
+    gebiet: { art: 'schweiz' }, dienst: 'api', lizenz: SWISSTOPO_LIZENZ, stand: 'Aktueller Jahresstand; Abrufzeit je Fall', cors: true,
+    datenschutz: 'Ladepunkt und Rechteck ±200 m für die Gebietsbestimmung ohne AV (api3.geo.admin.ch)', empfaenger: 'swisstopo',
+    module: ['daten/anbieter/gemeinsam/gebiet.ts'] },
   { id: 'osm', themen: ['strassennetz', 'uebergaenge', 'haltestellen', 'strassentyp', 'tempo', 'schulen'], name: 'OpenStreetMap (Overpass)',
     anbieter: 'OpenStreetMap', gebiet: { art: 'schweiz' }, dienst: 'overpass', lizenz: 'ODbL, © OpenStreetMap-Mitwirkende', stand: LIVE, cors: true,
     datenschutz: 'Kartenausschnitt (Übergänge und Strassennamen) mit etwas Rand bei der Suche (automatisch beim Start und nach dem ' +
@@ -118,7 +143,8 @@ export const QUELLEN: readonly Quelle[] = [
   bernDienst('bern.richtplan', ['fusswegnetz'], 'Richtplan Fussverkehr', 'Richtplan Fussverkehr', 'daten/richtplanFussverkehr.ts'),
   bernDienst('bern.strassen', ['strassentyp'], 'Strassenhierarchie und Strassentypen', 'Strassenhierarchie und Strassentypen',
     'daten/strassenhierarchie.ts'),
-  bernDienst('bern.vsig', ['tempo'], 'Signalisierte Höchstgeschwindigkeit', 'signalisierte Höchstgeschwindigkeit', 'daten/vsig.ts'),
+  { ...bernDienst('bern.vsig', ['tempo'], 'Signalisierte Höchstgeschwindigkeit', 'signalisierte Höchstgeschwindigkeit', 'daten/vsig.ts'),
+    module: ['daten/vsig.ts', 'daten/anbieter/bernTempo.ts'] },
   bernDienst('bern.schulen', ['schulen'], 'Volksschulen, Kindergärten, Kitas, Kinderangebote, Heime, Spitäler', 'Volksschulen, Kindergärten, Kitas (als Kindergarten), Kinderangebote (als Schule), Heime und Spitäler (als Heim) (±200 m)', 'daten/schulen.ts'),
   bernDienst('bern.taktil', ['taktil'], 'Taktil-visuelle Markierungen', 'taktil-visuelle Markierungen', 'daten/taktil.ts'),
   bernDienst('bern.zonen', ['zonen'], 'Nutzungszonenplan', 'Nutzungszonen', 'daten/nutzungszonen.ts'),
@@ -137,7 +163,7 @@ export const QUELLEN: readonly Quelle[] = [
     return { id: `eth.fgs.${k}`, themen: ['fgsLuftbild'], name: `Streifen aus dem Luftbild, ${stadt} (ETH-Modell)`,
       anbieter: 'ETH Zürich / eigene Läufe', gebiet: { art: 'bbox', w: bbox[0], s: bbox[1], e: bbox[2], n: bbox[3], name: stadt },
       dienst: 'datei', lizenz: `Modell MIT-Lizenz; Luftbild ${k === 'bern' ? '© swisstopo bzw. © Geodaten Stadt Bern' : '© swisstopo'}; ` +
-        'Abgleich ODbL', stand: `Snapshot ${ETH_STAND[k] ?? '–'} (${ETH_BILD[k] ?? 'SWISSIMAGE'})`, cors: true,
+        'Abgleich ODbL', stand: `Snapshot-Erzeugung und Flugjahre je geladener Datei (${ETH_BILD[k] ?? 'SWISSIMAGE'})`, cors: true,
       datenschutz: 'Die Streifen aus dem Luftbild (ETH-Modell) liegen als Datei je Stadt auf dieser Seite: dafür geht keine Anfrage an ' +
         'einen anderen Dienst.', empfaenger: 'eigen', module: ['daten/luftbildFgs.ts'], hinweis: 'nur Hinweis zum Prüfen' }
   }),
@@ -212,16 +238,19 @@ export function datenlageSatz(d: Datenlage): string {
   if (!d.vermessung) return `${kopf}. Amtliche Vermessung hier nicht frei verfügbar: keine Rechnung.`
   // örtliche Quellen nach Gebiet (z. B. «Stadt Bern»), OSM als Ersatz, ohne Quelle
   const ort = new Map<string, Thema[]>()
+  const weitere = new Map<string, Thema[]>()
   const osm: Thema[] = [], ohne: Thema[] = []
   for (const t of ORTS_THEMEN) {
     const q = d[t]
     if (!q) ohne.push(t)
     else if (q.gebiet.art === 'gemeinden' || q.gebiet.art === 'bbox') ort.set(gebietName(q.gebiet), [...(ort.get(gebietName(q.gebiet)) ?? []), t])
-    else osm.push(t)
+    else if (q.id === 'osm') osm.push(t)
+    else weitere.set(q.anbieter, [...(weitere.get(q.anbieter) ?? []), t])
   }
-  const teile = [...ort].map(([n, ts]) => `dazu ${n}: ${ts.map(t => THEMA_NAME[t]).join(', ')}`)
+  const teile = [...ort].map(([n, ts]) => `dazu ${n}: ${ts.map(t => THEMA_NAME[t] + (d[t]?.id === 'are.npvm' ? ' (modelliert)' : d[t]?.id.startsWith('regional.bund.') ? ' (Hinweise, bestätigen)' : '')).join(', ')}`)
   let s = teile.length ? `${kopf}; ${teile.join('; ')}.` : `${kopf}.`
   const rest: string[] = []
+  for (const [anbieter, ts] of weitere) rest.push(`Aus ${anbieter}: ${ts.map(t => THEMA_NAME[t] + (d[t]?.id === 'are.npvm' ? ' (modelliert)' : d[t]?.id.startsWith('regional.bund.') ? ' (Hinweise, bestätigen)' : '')).join(', ')}`)
   if (osm.length) rest.push(`Aus OSM: ${osm.map(t => THEMA_OSM[t] ?? THEMA_NAME[t]).join(', ')}`)
   if (ohne.length) rest.push(`${rest.length ? 'keine' : 'Keine'} Quelle für ${ohne.map(t => THEMA_NAME[t]).join(', ')}: Angaben von Hand`)
   if (rest.length) s += ` ${rest.join('; ')}.`
@@ -236,6 +265,8 @@ export const datenlageZeilen = (d: Datenlage): { thema: Thema; quelle: Quelle | 
 
 export const EMPFAENGER_NAME: Record<Exclude<Empfaenger, 'eigen'>, string> = {
   swisstopo: 'swisstopo (geo.admin.ch)', geodienste: 'geodienste.ch (Amtliche Vermessung)', overpass: 'Overpass (OpenStreetMap)',
+  regional: 'Regionale Geoportale der Kantone und Städte (nur im jeweiligen Gebiet)',
+  zuerich: 'ogd.stadt-zuerich.ch und data.stadt-zuerich.ch (Stadt Zürich)',
   bern: 'map.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern',
 }
 const und = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} und ${xs[xs.length - 1]}` : xs[0] ?? '')

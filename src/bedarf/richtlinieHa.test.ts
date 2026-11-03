@@ -1,7 +1,7 @@
 // Tests Richtlinie Hindernisfreie Architektur «Strassen – Wege – Plätze» 2025 (30.10.2026): Lage an gerader Trottoirkante (G11) nach
 // Kap. 4.1, Inseltiefe als Soll (F2c) nach Kap. 4.2, Abstand zum Kreisel (G12) nach Kap. 4.4. Ebene Richtlinie, Stärke Soll; nur beim
 // Fussgängerstreifen; Vorbelegung aus der AV (Trottoirkante) bzw. OSM (Kreiselring). Die Ausrichtung des Streifens (Kap. 4.1) prüft
-// die Normregel F1d mit derselben Schwelle; die Richtlinie ist dort weitere Quelle (Nutzerentscheid 30.10.2026, statt F1d-R).
+// die Normregel F1d mit derselben Schwelle; die Richtlinie ist dort weitere Quelle (statt F1d-R).
 // Künstliche Strassen wie vorbelegungGeo.test.ts (keine echten Daten): Hauptstrasse West–Ost, Fahrbahn 8 m, Übergang bei x = 0.
 import { describe, expect, it } from 'vitest'
 import { wgs, type P } from '../geo'

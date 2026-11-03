@@ -1,4 +1,4 @@
-// ── Bedarfsmodul: Feldhilfen der Eingabemaske (Nutzerentscheid 20.10.2026) ──
+// ── Bedarfsmodul: Feldhilfen der Eingabemaske ──
 //
 // Je Feld der Maske (felder.ts) drei Teile, im Panel hinter dem Knopf «?»:
 //   «Was ist gemeint»: eigene Erklärung in Alltagssprache (FELD_HILFEN.was), wo nötig mit Beispiel.
@@ -10,7 +10,7 @@
 //           vorbelegten Feldern, woher der Vorschlag kommt (FELD_HILFEN.vorschlag; die Herkunft im Fall zeigt die Maske).
 // Sichtbarkeit (SICHTBAR): Bedingungen als Daten, wann ein Feld im aktuellen Fall überhaupt wirken kann; sonst blendet die Maske
 // es aus (Werte bleiben im Fall). Der Wächter prüft an allen Testfällen, dass ausgeblendete Felder das Ergebnis nicht ändern.
-// «Wozu» gekürzt (Nutzerentscheid 20.10.2026): GELTUNG je Regel (Bedingung als Daten, offene Eingaben zählen als möglich) lässt nur
+// «Wozu» gekürzt: GELTUNG je Regel (Bedingung als Daten, offene Eingaben zählen als möglich) lässt nur
 // Regeln zu, die im Fall greifen können; Felder, die eine Regel nur als Geltungsbedingung liest (Schalter, z. B. Querungstyp,
 // Lichtsignal, Insel vorhanden), zeigen die Regel nicht, sondern ihren Ablauf-Satz mit der Zahl der geschalteten Prüfungen.
 // Reihenfolge: Grundprüfung zuerst, dann nach Stärke; im Panel höchstens 5, der Rest aufklappbar.
@@ -94,13 +94,13 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   },
   vSig: {
     was: 'Die erlaubte Höchstgeschwindigkeit an der Querung laut Tafel bzw. generell innerorts, z. B. 50 oder 30 km/h.',
-    vorschlag: 'in der Stadt Bern aus der signalisierten Höchstgeschwindigkeit des Geoportals (Vorrang vor OSM; der Sichtrechner rechnet mit demselben Tempo); sonst aus OSM (Tempo der geraden Zufahrten), ohne Angabe 50 km/h als Annahme.',
+    vorschlag: 'aus amtlichen Quellen und OSM. Gewählte oder eigene Werte gelten nur für die geprüfte Strasse; Querstrassen behalten ihr Tempo. Eine Korrektur je Zufahrt in der Sichttabelle geht vor. Ohne eigenen Eintrag gelten die Daten je Zufahrt; fehlen sie, gelten 50 km/h als Annahme. Ungeklärte Quellenangaben bleiben offen.',
   },
   tempoRegime: {
     was: 'Strecke: gewöhnliche Strasse ohne Zonentafel. Zone: die Querung liegt in einer signalisierten Tempo-30-Zone bzw. ' +
       'Begegnungszone. Eine Hauptstrasse, die nicht zur Zone gehört, ist eine Strecke, auch mit Tempo 30. In der Tempo-30-Zone ist ' +
       'ein Fussgängerstreifen nur mit besonderem Grund erlaubt, in der Begegnungszone nie.',
-    vorschlag: 'aus OSM (zone:maxspeed bzw. maxspeed); ab 40 km/h Strecke (eine Zone hat höchstens 30 km/h); Tempo 20 ohne andere Zonenangabe: Begegnungszone vorgeschlagen, gilt für die Beurteilung (sonst «Strecke» wählen). Tempo 30 ohne Zonenangabe in Bern nach der Strassenhierarchie als Annahme: Quartierstrasse Zone, Basisnetz Strecke, sonst offen.',
+    vorschlag: 'in Zürich aus passenden amtlichen Tempoabschnitten und Verkehrszonen; Widersprüche und Zonenränder offen. Sonst aus OSM: Zonentags vor Zahlenwert; ab 40 km/h Strecke, Tempo 20 ohne Widerspruch Begegnungszone als Vorschlag. Tempo 30 ohne Zonentag in Bern nach Strassenhierarchie als Annahme. Quellen neben dem Feld wählbar.'
   },
   v85: {
     was: 'Das Tempo, das 85 von 100 Fahrzeugen nicht überschreiten, aus einer Messung. Beispiel: signalisiert 50 km/h, gemessen ' +
@@ -164,7 +164,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
       'Ein solcher Grund erlaubt einen Streifen auch in einer Tempo-30-Zone bzw. bei wenig Querenden. In Bern gilt auch die ' +
       'Zugehörigkeit zum Fusswegnetz als Begründung (nur mit der Ebene Bern).',
     leer: 'Leer: offen, die genannten Prüfungen bleiben offen. Gibt es keinen solchen Grund, «keines» ankreuzen.',
-    vorschlag: 'Volksschule bzw. Kindergarten bis 150 m (Geoportal Stadt Bern), Heim bis 150 m (OSM, Annahme), Haltestelle bis 50 m; ausserhalb Berns Schule bzw. Kindergarten nach OSM als Annahme. In Bern «Fusswegnetz» im Basisnetz bzw. publikumsattraktiven Bereich; nichts gefunden: «keines» als Annahme. Schulweg nur von Hand.',
+    vorschlag: 'Örtliche Inventare: eindeutig bezeichnete Schulen, Kitas und Heime/Spitäler bis 150 m; unklare Typen und GWR/POI erst bestätigen. Haltestellen bis 50 m, OSM als Rückfall/Annahme. Quelle und Stand am Feld. Leere Inventare belegen kein «keines». Schulweg von Hand; Fusswegnetz nur mit Ebene Bern.',
   },
   nachfrage: {
     was: 'Gebündelt: die Leute queren an einer Stelle. Verteilt: sie queren überall entlang einer längeren Strecke (z. B. ' +
@@ -187,7 +187,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     was: 'Durchschnittlicher täglicher Verkehr: Motorfahrzeuge pro Tag in beiden Richtungen im Jahresmittel, z. B. aus einer ' +
       'Verkehrszählung von Kanton oder Stadt.',
     ablauf: 'Unter 3000 Fahrzeugen nennt die Empfehlung auch die Querung ohne bauliche Massnahme.',
-    vorschlag: 'in der Stadt Bern aus den Verkehrsdaten des Geoportals; Strassen ohne Eintrag 500 als Annahme; sonst offen.',
+    vorschlag: 'aus Geoportal Stadt Bern und ARE; NPVM, neben dem Feld wählbar. Lokale Daten haben Vorrang. NPVM: modellierter DTV beider Richtungen je Modellstrecke, nur bei eindeutiger Zuordnung und nach ausdrücklicher Übernahme. Ohne lokalen Eintrag: 500 als Annahme, soweit kein passender Modellwert vorliegt; sonst offen.',
   },
   starkBelastet: {
     was: 'Ja, wenn die Strasse nach eigener Einschätzung stark befahren ist (die Norm nennt keine Zahl). Dann ist ein Lichtsignal ' +
@@ -353,10 +353,10 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     leer: 'Leer: der Befund übernimmt das Ergebnis des Sichtrechners je Zufahrt (frei bzw. verdeckt). Das ist der Normalfall.',
   },
   erkennungM: {
-    was: 'Aus welcher Entfernung Fahrende den Streifen (Markierung bzw. Tafel) erkennen, in Metern. Pflicht ist mindestens die ' +
+    was: 'Aus welcher Entfernung Fahrende die Fussgängerstreifenanlage erkennen, in Metern. Pflicht ist mindestens die ' +
       'nötige Sichtweite, empfohlen das Doppelte (auch in der Grundprüfung).',
-    vorschlag: 'aus dem Sichtrechner als Annahme: kleinster Wert der geraden Zufahrten (Sicht von der Fahrlinie auf die Markierung bis ' +
-      '110 m; Gebäude, Hecken, Mauern, Bäume, Auto-Parkfelder und, sobald geladen, das Gelände verdecken), ohne die blaue Tafel. Ein ' +
+    vorschlag: 'aus dem Sichtrechner als Annahme: kleinster Wert der geraden Zufahrten (Sicht von der Fahrlinie auf die Bodenmarkierung bis ' +
+      '110 m; geladene Hindernisse und, sobald geladen, Geländemodell swissALTI3D). Signale werden dabei nicht zusätzlich bewertet. Ein ' +
       'Wert «mindestens …» gilt nur, wenn er das Doppelte erreicht; sonst bleibt das Feld offen (Hinweis).',
   },
 
@@ -408,7 +408,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
 
   // ── Ausrüstung ──
   fgsMitLsa: {
-    was: 'Ja, wenn die Querung mit einem Lichtsignal (Ampel) für Fussgänger geregelt ist.',
+    was: 'Ja, wenn die Querung mit einem Lichtsignal (Ampel) für Zufussgehende geregelt ist.',
     ablauf: 'Mit Lichtsignal gelten die Grundprüfung bfu und die Sichtregeln des Fussgängerstreifens ohne Signal nicht; die ' +
       'Signalzeiten prüft die App nicht (eigener Rechner).',
     vorschlag: 'aus der Eingabe am Streifen bzw. aus OSM (Lichtsignal am Streifen).',
@@ -418,7 +418,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
       'schwer zu finden.',
     vorschlag: 'aus der Fahrtrichtung der geraden Zufahrten zur Streifenachse.',
   },
-  signal411: { was: 'Ja, wenn die blaue Tafel mit dem Fussgänger (Signal 4.11) am Streifen steht.' },
+  signal411: { was: 'Ja, wenn die blaue Tafel mit dem Fussgängersymbol (Signal 4.11) am Streifen steht.' },
   signal411Insel: { was: 'Ja, wenn die blaue Tafel zusätzlich auf der Insel steht.' },
   beleuchtung: { was: 'Ja, wenn Streifen und Warteflächen nachts eigens öffentlich beleuchtet sind.' },
   schattenfrei: { was: 'Ja, wenn die Beleuchtung keine Schatten (z. B. von Bäumen oder Masten) auf Streifen und Wartefläche wirft.' },
@@ -710,7 +710,7 @@ const FGS_K = T('fgs')
 const NICHT_LSA_K = alle(T('fgs', 'furt', 'ohne_vortritt', 'trottoirueberfahrt', 'mehrzweck'), kann('fgsMitLsa', false))
 const GRUND_K = alle(T('fgs'), kann('fgsMitLsa', false))
 const NICHT_TUE = T('fgs', 'lsa', 'furt', 'ohne_vortritt', 'mehrzweck')
-/** Pfad E (Querung ohne Vortritt): Typ ohne Vortritt, Mehrzweck ohne Streifen oder Fussgängerstreifen nicht angezeigt (C1, C2) */
+/** Pfad E (Querung ohne Vortritt): Typ ohne Vortritt, Mehrzweck ohne Streifen oder Zufussgehendenstreifen nicht angezeigt (C1, C2) */
 const E_K = alle(NICHT_TUE, { eines: [T('furt', 'ohne_vortritt'), alle(T('mehrzweck'), kann('mzsMitFgs', false)),
   kann('tempoRegime', 't30_zone'), { feld: 'vSig', ueber: 60 }, { feld: 'v85', ueber: 60 }] })
 const Q3_K: Bedingung = { eines: [kann('lage', 'einmuendung'), T('trottoirueberfahrt')] }
@@ -904,7 +904,7 @@ export function leerText(pfad: string): string {
     'nie als erfüllt. Keine Pflicht, aber jede Angabe macht das Ergebnis vollständiger.'
 }
 
-// ── Fragen je Feld (Runde 2, Verdichtung): offene Angaben als Frage in Alltagssprache statt Feldname ──
+// ── Fragen je Feld (Verdichtung): offene Angaben als Frage in Alltagssprache statt Feldname ──
 // Je Feld der Maske eine eigene Frage (Wächter: jedes Feld hat eine, mit Fragezeichen); dazu Objekt-Felder und Sonderfälle, wie sie
 // als fehlende Felder im Befund erscheinen. Klick auf die Frage springt im Panel zum Feld (feldZiel).
 export const FRAGEN: Readonly<Record<string, string>> = {
@@ -989,7 +989,7 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   durchfahrt: 'Wie breit ist die Fahrbahn neben der Insel (je Seite)?',
   veloQuerung: 'Queren hier auch Velos und warten auf der Insel?',
   // Ausrüstung
-  fgsMitLsa: 'Hat die Querung ein Lichtsignal für Fussgänger?',
+  fgsMitLsa: 'Hat die Querung ein Lichtsignal für Zufussgehende?',
   achsWinkel: 'In welchem Winkel quert der Streifen die Fahrbahn?',
   signal411: 'Steht am Streifen die blaue Tafel Fussgängerstreifen?',
   signal411Insel: 'Steht die blaue Tafel auch auf der Insel?',

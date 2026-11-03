@@ -1,4 +1,4 @@
-// ── Amtliche Parkfelder als Quelle (Nutzerentscheid 11.10.2026) ──
+// ── Amtliche Parkfelder als Quelle ──
 //
 // Je Stadt ein Eintrag wie beim Baumkataster: wo er gilt (BFS-Nummer der AV-Gemeinde), wie geladen wird, Quellenangabe.
 // Die Felder zählen sofort als Hindernis (nicht als Vorschlag), einzelne lassen sich verwerfen, die ganze Quelle abschalten.

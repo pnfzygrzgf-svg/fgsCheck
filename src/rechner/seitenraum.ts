@@ -1,4 +1,4 @@
-// ── Vorgezogener Seitenraum: Standardelement der Flächen (Plan) (Nutzerentscheid 23.10.2026) ──
+// ── Vorgezogener Seitenraum: Standardelement der Flächen (Plan) ──
 //
 // Grundlage: VSS 40 240 Z. 13.4 (und Masterplan Fussverkehr Stadt Bern): an einer Querung zwischen Längsparkierung ist ein
 // vorgezogener Seitenraum nötig (E2b), idealerweise mindestens 0,20 m über die Parkstreifenlinie in die Fahrbahn (E2c; Feld
@@ -120,8 +120,8 @@ const SR_DICHTE_M = 0.5                 // Kanten der Parkierung so dicht abtast
 const SR_ORT_TOL_M = 3.0                // örtliche Bordkante höchstens so weit von der Geraden c(s) (Bogen R = 40 m auf 15 m: 2,8 m)
 export const SR_SPRUNG_M = 0.30         // Bordkante springt um mehr als das auf SR_DICHTE_M Länge: versetzt (Nase, Bucht)
 const SR_FOLGE_M = 2.0                  // beim Verfolgen der Kante: grössere Änderung auf einen Schritt = andere Kante (Einmündung)
-export const SR_RAND_MIN_M = 0.50       // Rand, wenn die Parkierung bis an bzw. in den Streifen reicht (Nutzerentscheid)
-export const SR_RAND_MAX_M = 5.0        // Rand bis zum ersten Parkfeld höchstens so weit über den Streifen hinaus (Nutzerentscheid)
+export const SR_RAND_MIN_M = 0.50       // Rand, wenn die Parkierung bis an bzw. in den Streifen reicht
+export const SR_RAND_MAX_M = 5.0        // Rand bis zum ersten Parkfeld höchstens so weit über den Streifen hinaus
 const median = (xs: number[]) => { const a = [...xs].sort((x, y) => x - y), n = a.length; return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2 }
 
 /**
@@ -277,7 +277,7 @@ const ueber = (a: Box, b: Box) => !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] ||
 
 export interface SrErsetzt { id: string; ganz: boolean }
 /**
- * Parkierung unter vorgezogenen Seitenräumen (polys: wirksame Teile, planflaechen.avMitPlan; Nutzerentscheid 23.10.2026): nur Auto-
+ * Parkierung unter vorgezogenen Seitenräumen (polys: wirksame Teile, planflaechen.avMitPlan): nur Auto-
  * Parkierung (Velo- und Motorradfelder bleiben). Ein einzelnes Parkfeld entfällt ganz, wenn mindestens SR_PARK_ANTEIL davon überdeckt
  * ist, sonst nur der überdeckte Teil; eine Reihe (Längsparkierung bzw. Feld länger als SR_REIHE_M) wird immer nur um den überdeckten
  * Teil gekürzt (Reste unter SR_REST_M2 weg; die Reste sind Parkfelder mit derselben Id). Ohne Element bzw. Überdeckung: dieselbe Liste

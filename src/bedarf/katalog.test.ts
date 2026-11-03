@@ -96,7 +96,7 @@ describe('Regelkatalog', () => {
 })
 
 /**
- * Prüfsätze (Nutzerentscheid 23.10.2026): je Regel ein Satz in Alltagssprache, was gemessen bzw. abgefragt wird und was folgt. Die
+ * Prüfsätze: je Regel ein Satz in Alltagssprache, was gemessen bzw. abgefragt wird und was folgt. Die
  * Grenzwerte stehen im Satz so, wie die Regel sie aus werte liest (8,5 → «8,50»); 1 und 2 auch als Wort («mehr als einen», «zwei»,
  * «doppelte»), 2/3 und 1/3 als «zwei Drittel» bzw. «ein Drittel».
  */
@@ -171,7 +171,7 @@ describe('Normtext-Wächter', () => {
     }
   })
 
-  /** alle Zeichenketten der Module in src/bedarf (ohne Tests): auch Texte ausserhalb des Katalogs (Korrektur K1) */
+  /** alle Zeichenketten der Module in src/bedarf (ohne Tests): auch Texte ausserhalb des Katalogs */
   const modulTexte: [string, string][] = readdirSync(__dirname).filter(f => f.endsWith('.ts') && !f.endsWith('.test.ts')).flatMap(f => {
     const src = readFileSync(join(__dirname, f), 'utf-8').split('\n').filter(z => !/^\s*(\/\/|\*|\/\*\*)/.test(z)).join('\n')
     return [...src.matchAll(/'((?:[^'\\\n]|\\.)*)'|`((?:[^`\\]|\\.)*)`/g)].map(m => [f, m[1] ?? m[2]] as [string, string])
@@ -230,13 +230,13 @@ describe('Werkverzeichnis: voller Titel und offizielle Adressen', () => {
       if (w.pdf) expect(w.pdf.mb, id).toBeGreaterThan(0)
       if (!w.pdf && !w.seite) expect(id === 'ENTSCHEID' || !!w.bezug, id).toBe(true)
     }
-    // Normen: kein Link (kostenpflichtig, Nutzerentscheid 23.10.2026), nur der Vermerk
+    // Normen: kein Link (kostenpflichtig), nur der Vermerk
     for (const id of ['40241', '40240', '40242', '40837', '40213', '40040', '640075', '640850a', '640852'] as const)
       expect([WERKE[id].pdf, WERKE[id].seite, WERKE[id].bezug], id).toEqual([null, null, 'kostenpflichtig'])
     expect([WERKE.ENTSCHEID.pdf, WERKE.ENTSCHEID.seite]).toEqual([null, null])
   })
   it('Adressen der Herausgeber stehen nur in katalog.ts (Geodienste wie map.bern.ch ausgenommen)', () => {
-    const GEODIENSTE = ['map.bern.ch']
+    const GEODIENSTE = ['map.bern.ch', 'www.geoservice.apps.be.ch']
     const dateien = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? dateien(join(d, e.name))
       : /\.(ts|tsx)$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [join(d, e.name)] : [])
     const src = join(__dirname, '..')

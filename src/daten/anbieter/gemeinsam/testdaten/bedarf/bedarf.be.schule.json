@@ -1,0 +1,54 @@
+{
+  "mitte": [
+    2583694.795000002,
+    1231846.6689999998
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 1,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2583694.795000002,
+            1231846.6689999998
+          ]
+        },
+        "properties": {
+          "OBJECTID": 1,
+          "STONAME": "Ecole secondaire Reconvilier",
+          "STOSTRHSNR": "Chemin du Nord 1",
+          "GEMNAME": "Reconvilier"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": 17,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2583690.8060000017,
+            1231690.2159999982
+          ]
+        },
+        "properties": {
+          "OBJECTID": 17,
+          "STONAME": "Ecole primaire Reconvilier",
+          "STOSTRHSNR": "Rue du Collège 7",
+          "GEMNAME": "Reconvilier"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

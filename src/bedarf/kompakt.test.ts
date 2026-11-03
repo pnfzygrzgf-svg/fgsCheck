@@ -1,4 +1,4 @@
-// Tests Runde 2, Verdichtung: Aggregation je Punkt der Grundprüfung (D1), Fragen je Feld (D2), Einheiten bei Ist/Soll.
+// Tests, Verdichtung: Aggregation je Punkt der Grundprüfung (D1), Fragen je Feld (D2), Einheiten bei Ist/Soll.
 import { describe, expect, it } from 'vitest'
 import { beurteile } from './entscheid'
 import { grundpruefung, type GrundPunkt, type GrundTeil } from './grundpruefung'
@@ -18,7 +18,7 @@ describe('Aggregation je Punkt (D1): die Muss-Regel bestimmt den Zustand', () =>
     // 23.10.2026: in der Zeile nur gezählt, der Rest in den Details des Punkts
     expect(a).toMatchObject({ zustand: 'erfuellt', satz: 'alle 3 Zufahrten frei (nötig: 25 m)', zusatz: '1 Punkt offen', fragen: [] })
     const b = punktZeile(punkt([teil('B5-1', 'erfuellt'), teil('B5-1b', 'verletzt', { name: 'Erkennungsdistanz', staerke: 'weich', ist: '60 m' })]))
-    // Korrektur S9: die Soll-Regel bestimmt den Zustand, ihr Satz steht in der Zeile, die erfüllte Muss-Regel im Zusatz
+    // Die Soll-Regel bestimmt den Zustand, ihr Satz steht in der Zeile, die erfüllte Muss-Regel im Zusatz
     expect(b).toMatchObject({ zustand: 'soll', satz: 'Erkennungsdistanz: 60 m' })
     const c = punktZeile(punkt([teil('B5-1', 'erfuellt', { name: 'Sichtweite', ist: '70 m', soll: '≥ 55 m' }),
       teil('B5-1b', 'verletzt', { name: 'Erkennungsdistanz', staerke: 'weich', ist: '60 m', soll: '≥ 110 m' })]))
@@ -77,7 +77,7 @@ describe('Aggregation je Punkt (D1): die Muss-Regel bestimmt den Zustand', () =>
     expect(k.zeilen.map(z => z.satz)[0]).toBe('50 km/h signalisiert, V85 48 km/h')
     const ko = grundKopf(grundpruefung(fall({ v85: null, beleuchtung: null, anzeichenSchneller: true })))
     expect(ko.zeilen[0]).toMatchObject({ zustand: 'offen', fragen: ['v85'] })
-    // Runde 5 (Stelle 16): ohne Antwort zu Anzeichen «voraussichtlich erfüllt» mit der Frage danach
+    // Ohne Antwort zu Anzeichen «voraussichtlich erfüllt» mit der Frage danach
     const kv = grundKopf(grundpruefung(fall({ v85: null, vSig: 30, anzeichenSchneller: null })))
     expect(kv.zeilen[0]).toMatchObject({ zustand: 'offen', wort: 'voraussichtlich erfüllt', fragen: ['anzeichenSchneller'] })
     expect(kv.zeilen[0].satz).toBe('signalisiert 30 km/h; V85 messen nur bei Verdacht auf schnelleres Fahren')

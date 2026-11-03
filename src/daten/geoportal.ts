@@ -7,7 +7,7 @@
 // («Geodaten Stadt Bern»); in Texten der Vorbelegung als «Geoportal Stadt Bern».
 // Zuständigkeit wie beim Parkkataster: AV-Gemeinde Stadt Bern (BFS 351). Zwischenspeicher: erfolgreiche Antworten je Abfrage
 // (gleicher Ort, gleicher Ausschnitt) bis GEO_CACHE_MAX Einträge; Fehler und Abbrüche werden nicht gespeichert.
-// Seit Automatik Paket C (21.10.2026) weitere Dienste (Richtplan Fussverkehr, Strassenhierarchie und Strassentypen, signalisierte
+// Seit Automatik (21.10.2026) weitere Dienste (Richtplan Fussverkehr, Strassenhierarchie und Strassentypen, signalisierte
 // Höchstgeschwindigkeit, Volksschulen und Kindergärten, taktil-visuelle Markierungen, Nutzungszonen, ÖV-Linien; je ein Modul in
 // src/daten/): je Layer eine Abfrage im gleichen Rechteck, wahlweise mit Layer-Nummer, Koordinaten-Rundung (geometryPrecision)
 // und Vereinfachung (maxAllowableOffset) für grosse Linien bzw. Flächen. Gemeinsame Hilfen zum Einlesen der Geometrie unten.
@@ -34,7 +34,7 @@ export function bfsAmPunkt(p: P, av: readonly AvFlaeche[]): number | null {
   return f ? f.bfs : null
 }
 /**
- * Zuständigkeit der Berner Dienste (Korrektur M4): nur nach der Gemeinde der AV-Fläche unter dem Punkt (Streifen bzw. Ladeort), wie
+ * Zuständigkeit der Berner Dienste: nur nach der Gemeinde der AV-Fläche unter dem Punkt (Streifen bzw. Ladeort), wie
  * die Ebenen-Vorgabe; nicht nach allen Gemeinden im geladenen Ausschnitt (Köniz/Wabern an der Grenze bekommt keine Berner Daten
  * und keine Annahme DTV 500).
  */
@@ -77,10 +77,10 @@ export function arcgisPruefen(gj: ArcgisGeoJson): void {
   if (!/(^|[^0-9])2056$/.test(gj.crs?.properties?.name ?? '')) throw new AbrufFehler('Antwort nicht in LV95 (EPSG:2056)')
 }
 
-/** Einträge im Zwischenspeicher: rund vier Orte mit allen Berner Abfragen (seit Paket C 13 je Ort) */
+/** Einträge im Zwischenspeicher: rund vier Orte mit allen Berner Abfragen (13 je Ort) */
 export const GEO_CACHE_MAX = 60
 const cache = new Map<string, Abruf<ArcgisGeoJson>>()
-/** nur für Tests */
+/** Neue Fall-Ladeaufträge verwenden neue Dienstantworten; ausserdem für Tests. */
 export const geoCacheLeeren = () => cache.clear()
 
 /** Abfrage holen und prüfen; erfolgreiche Antworten aus dem Zwischenspeicher (ms 0) */

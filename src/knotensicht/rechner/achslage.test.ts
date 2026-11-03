@@ -1,4 +1,4 @@
-// Lage der Achsen je Querschnitt (Entscheid 31.10.2026, Befund OSM-Knoten 270973574 Jolimontstrasse/Buchserstrasse): liegt die
+// Lage der Achsen je Querschnitt (Befund OSM-Knoten 270973574 Jolimontstrasse/Buchserstrasse): liegt die
 // OSM-Linie schräg zur AV-Fahrbahn, folgt die Achse der Fahrbahn statt einer festen Verschiebung der OSM-Linie.
 //
 // Lage (Meter, x Ost, y Nord, Ursprung = OSM-Knoten), wie rechnen.test.ts:
@@ -107,7 +107,7 @@ describe('Zufahrt mit schräger OSM-Linie (Fall 1)', () => {
     const pts = e.zufahrtAchse.map(rel).filter(([, y]) => y <= -6.9)
     expect(pts.length).toBeGreaterThan(5)
     for (const [x, y] of pts) expect(Math.abs(x - 1.25), `x ${x} bei y ${y}`).toBeLessThan(TOL)
-    // zum Knoten hin die Lage der ersten Stelle konstant (Entscheid): Abweichung höchstens Schräge × Abstand zur ersten Stelle
+    // zum Knoten hin die Lage der ersten Stelle konstant: Abweichung höchstens Schräge × Abstand zur ersten Stelle
     for (const [x, y] of e.zufahrtAchse.map(rel).filter(([, y]) => y > -6.9))
       expect(Math.abs(x - 1.25), `x ${x} bei y ${y}`).toBeLessThan(SCHRAEGE * (7 + y) + 0.05)
   })

@@ -1,4 +1,4 @@
-// ── Bedarfsmodul: Regelübersicht (Nutzerwunsch 23.10.2026) ──
+// ── Bedarfsmodul: Regelübersicht ──
 //
 // Alle Regeln des Katalogs als Liste, erzeugt aus dem Katalog (keine Handliste): Kurztitel, Nummer, Thema, Verbindlichkeit,
 // Fundstellen, wo die Regel wirkt (Grundprüfung mit Punkt bzw. erweiterte Prüfung mit Thema), wann sie gilt (Geltung und Ebene in

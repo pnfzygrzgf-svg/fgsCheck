@@ -52,9 +52,8 @@ export const herkunft16 = (grad: number) => R16[teil(herkunftAzimut(grad), 16)]
 export const HERKUNFT_LINIE_MIN_M = 2
 /**
  * Azimut der Herkunft einer Zufahrt. Gerade: vom ersten zum letzten Sichtpunkt (bzw. Anfang und Ende der Fahrlinie). Abbiegend
- * aus der Fahrtrichtung im Arm (Prüfbefunde S1 und Nachprüfung 16.10.2026). Sonst bzw. bei zu kurzer Strecke
- * (HERKUNFT_LINIE_MIN_M) aus der Fahrtrichtung grad.
- */
+ * aus der Fahrtrichtung im Arm. Sonst bzw. bei zu kurzer Strecke
+ * (HERKUNFT_LINIE_MIN_M) aus der Fahrtrichtung grad. */
 export function zufahrtAzimut(z: { richtung: number; art?: string; knotenM?: number | null; sichtpunkte?: P[]; spur?: P[] },
   _breite = 0): number {
   // Abbiegend: Fahrtrichtung im Arm (Nachprüfung 16.10.2026: passt am besten zur Lage der OSM-Arme, 2 von 38 im

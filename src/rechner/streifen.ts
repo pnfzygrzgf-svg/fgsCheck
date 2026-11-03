@@ -87,7 +87,7 @@ export function zufahrtenStreifen(S: Streifen[]): void {
 // Teilen statt beider Richtungen). Bis 16.10.2026 hatten alle Streifen von Hand die Kennung 'hand': mehrere Streifen an einem
 // Knoten (z. B. auf zwei Armen) galten als Teilstreifen und verfälschten einander (Prüfung 16.10.2026, Glockenstrasse: Streifen
 // B allein «verdeckt_gebaeude», zusammen mit A «frei», Abbiegezufahrt weg, gerade Zufahrt als «Inselteil» entfallen).
-// Seit 16.10.2026 (Korrektur) gehören Streifen von Hand nur zusammen, wenn sie auf einer Achse liegen wie die Teilstreifen aus
+// Seit 16.10.2026 gehören Streifen von Hand nur zusammen, wenn sie auf einer Achse liegen wie die Teilstreifen aus
 // OSM + AV bzw. aus dem Luftbild, die «Streifen übernehmen» (fall.streifenUebernehmen) als Streifen von Hand schreibt (Vorschlag
 // der Prüfung: Winkel, Querversatz der Mitten, Lücke):
 // - Winkel zwischen den beiden Achsen höchstens TEIL_ACHSE_GRAD (20°): übernommene Teile 0°; die vorgeschlagenen 10° trennten
@@ -409,13 +409,13 @@ export function gequerterWeg(u: UebergangWahl, netz: OsmNetz): { best: { wid: nu
 // Verkehrsinsel) in die Zufahrten (Inselteil, Einspur, Gegenstück) und den Annäherungsbereich ein (pruefen), nicht in die
 // Fahrbahn, die Sichtpunkte oder die Parkfeld-Logik. Eine Insel von Hand (Werkzeug «Insel») ersetzt die Annahme und teilt
 // den Streifen wie eine AV-Verkehrsinsel. false = wie bisher.
-// Nutzerentscheid 14.10.2026: OSM allein ist kein Beleg (5126286188: OSM und Luftbild veraltet, die nachgeführte AV hat dort
+// OSM allein ist kein Beleg (5126286188: OSM und Luftbild veraltet, die nachgeführte AV hat dort
 // keine Insel mehr; 623891265: OSM-Tag falsch, Balken durchgehend), die AV behält das letzte Wort. Die Annahme ohne
 // Luftbild (Insel 2 m am Knoten) und mit nur einer Balkengruppe (Insel 2 m am Ende der Balken) ist darum entfallen; ohne
 // Beleg im Luftbild bleibt der Streifen durchgehend, mit Hinweis (osmInselHinweis).
 // Prüfung 14.10.2026: auch aus dem Luftbild nur Teile ab TEIL_MIN_M wie beim Weg über OSM + AV (5126286188: Teil 0,5 m;
 // Brunnadernstrasse 4486147172: Teil 1,5 m – beide nicht mehr geteilt, Hinweis) und eine Lücke höchstens INSEL_LUECKE_MAX_M.
-// 30.10.2026 (Nutzerentscheid «nicht gebaut ist nicht gebaut»): Schalter aus – eine Insel, die nur OSM bzw. das Luftbild zeigen, teilt
+// Schalter aus – eine Insel, die nur OSM bzw. das Luftbild zeigen, teilt
 // den Streifen nicht mehr; es bleibt der Hinweis, eine gebaute Insel von Hand zu setzen (Werkzeug «Insel»).
 export const INSEL_AUS_OSM = false
 let inselAusOsm = INSEL_AUS_OSM
@@ -432,7 +432,7 @@ export type InselHerkunft = 'luftbild' | 'hand'
 /** Insel ausserhalb der AV: angenommen nach OSM und Luftbild oder von Hand gezeichnet */
 export interface InselZusatz { ring: P[]; herkunft: InselHerkunft; breite: number }
 const INSEL_GRUND: Record<InselHerkunft, string> = { luftbild: 'Insel nach OSM und Luftbild angenommen', hand: 'Insel von Hand auf der Achse' }
-// Wortlaut neutral (Nutzerentscheid 14.10.2026): keine Aussage, ob die Insel markiert oder gebaut ist. Markierte Inseln
+// Wortlaut neutral: keine Aussage, ob die Insel markiert oder gebaut ist. Markierte Inseln
 // (Sperrflächen) stehen zwar nie in der AV, aber auch gebaute Inseln fehlen dort zuweilen (Sempachstrasse 610573409); bis
 // dahin hiess es «in der AV keine gebaute Insel, vermutlich markiert».
 export const inselLuftbildText = (breite: number) =>
@@ -582,7 +582,7 @@ export function streifenAusUebergang(u: UebergangWahl, netz: OsmNetz, fahrbahn: 
   const inselAn = (x: number) => zusatz.find((_, k) => zusatzIv[k].some(([a, b]) => Math.abs(a - x) < 0.06 || Math.abs(b - x) < 0.06)) ?? null
   // AV-Verkehrsinsel auf der Achse (zwischen bzw. neben den Teilen): keine Insel nach OSM (auch nicht aus dem Luftbild)
   const avInsel = osmInselTagRoh(u.tags) && !zusatz.length ? avInselAufAchse(inseln, c, n, teile[0][0], teile[teile.length - 1][1]) : undefined
-  // crossing:island=yes ohne AV-Insel und ohne Insel von Hand bzw. aus dem Luftbild: durchgehend, Hinweis (Nutzerentscheid 14.10.2026)
+  // crossing:island=yes ohne AV-Insel und ohne Insel von Hand bzw. aus dem Luftbild: durchgehend, Hinweis
   const osmHinweis = avInsel === false ? osmInselHinweis() : ''
   // zu kurze Teile neben einer solchen Insel nicht mitzählen (Nummern und «Teilstreifen i von n» nur für gebildete Teile)
   if (zusatz.length) teile = teile.filter(([a, b]) => b - a >= TEIL_MIN_M)
@@ -638,7 +638,7 @@ function inselAufTeil(t: TeilErkannt, a: number, b: number): P[] {
  * Insel nach OSM aus den Balken eines Luftbild-Teils (INSEL_AUS_OSM). Zwei Balkengruppen mit einer Lücke ab INSEL_LUECKE_MIN_M
  * (zwischen den Balkenkanten): die Lücke ist die Insel (bei mehreren die nächste am Knoten), höchstens INSEL_KNOTEN_M vom
  * OSM-Knoten c, höchstens INSEL_LUECKE_MAX_M breit, beide Abschnitte ab TEIL_MIN_M (wie beim Weg über OSM + AV). Nur eine
- * Gruppe (Balken durchgehend, auch wenn sie vor einer Bordkante enden): keine Insel (Nutzerentscheid 14.10.2026).
+ * Gruppe (Balken durchgehend, auch wenn sie vor einer Bordkante enden): keine Insel.
  * -> Abschnitte (m ab p0) und Insel; sonst der Grund, warum keine Insel (für osmInselHinweis).
  */
 export function inselAusBalken(t: TeilErkannt, c: P): { abschnitte: [number, number][]; insel: [number, number] } | { grund: string } {

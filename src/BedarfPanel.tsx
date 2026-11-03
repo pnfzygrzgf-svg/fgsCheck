@@ -8,20 +8,20 @@
 // Feldhilfen (bedarf/feldhilfen.ts): je Feld ein Knopf «?» mit Erklärung, Regeln und Quellen, Bedeutung von leer; Felder, die im
 // Fall nicht zählen, sind ausgeblendet (Werte bleiben im Fall). Im Bericht keine Feldhilfen.
 // Regeln erscheinen nie als Nummer allein: Kurztitel mit Nummer als Verweis (bedarf/regelname.ts; Texte über mitTiteln = T).
-// Runde 2 (bedarf/themen.ts, bedarf/kompakt.ts): eine Zeile je Punkt der Grundprüfung bzw. je Eintrag (Symbol, Kurztitel,
+// bedarf/themen.ts, bedarf/kompakt.ts: eine Zeile je Punkt der Grundprüfung bzw. je Eintrag (Symbol, Kurztitel,
 // Verbindlichkeit, ein Satz); Nummern, Fundstellen und Normhinweise hinter «Details». Offene Angaben als Frage (feldhilfen.FRAGEN);
 // ein Klick springt zum Feld (FeldSprung). Die erweiterte Prüfung ordnet nach Thema.
-// Runde 3 (bedarf/zusammenfassung.ts): zuoberst je Querung eine Zusammenfassung in drei Sätzen (Antwort, das Wichtigste, was
+// bedarf/zusammenfassung.ts: zuoberst je Querung eine Zusammenfassung in drei Sätzen (Antwort, das Wichtigste, was
 // fehlt) als Absatz; die Empfehlung steht dort, darum entfällt im Panel die Zeile «Empfohlen: …» (Zusatz und Begründung bleiben).
-// Automatik Paket A (21.10.2026): der vorbelegte Wert steht im Feld (Klasse «vorbelegt»), daneben ein Quellen-Chip (Herkunft als
+// Der vorbelegte Wert steht im Feld (Klasse «vorbelegt»), daneben ein Quellen-Chip (Herkunft als
 // Tooltip). Eine Änderung wird nur zur Handeingabe, wenn sie vom vorbelegten Wert abweicht (Chip «von Hand» mit «zurück»); «offen»
 // verwirft die Vorbelegung bewusst. Felder im Zustand «rechner» (Sichtweite je Zufahrt, Kurvenradius ohne Abbieger) zeigen das
 // Ergebnis des Sichtrechners, darunter die Eingabe «von Hand überschreiben». Unter der Zusammenfassung stehen die offenen Fragen der
 // Grundprüfung zum direkten Beantworten (Block «Offene Fragen», 23.10.2026).
-// Runde 4: offene Felder nennen klein, wofür die Angabe fehlt (bedarf/feldbedarf.ts); «Vorschlag bestätigen» nur, wo ein Verbot an der
+// Offene Felder nennen klein, wofür die Angabe fehlt (bedarf/feldbedarf.ts); «Vorschlag bestätigen» nur, wo ein Verbot an der
 // Annahme hängt; in den Details führt der Werkname zum Quellenverzeichnis der Hilfe (bedarf/quellen.ts), Begriffe in Feldhilfen und
 // Details lassen sich mit «?» erklären (bedarf/begriffe.ts); im Bericht beides als Verzeichnis des Falls (VerzeichnisBericht).
-// Runde 5 (Lesetest 21.10.2026): Zeile zum Typ auch im Panel (Panel und Bericht gleich, «Falls zulässig» bei offener Zulässigkeit),
+// Zeile zum Typ auch im Panel (Panel und Bericht gleich, «Falls zulässig» bei offener Zulässigkeit),
 // Zusätze ohne Regelnummern, Belege in ⟦…⟧ nur im Tooltip (bedarf/lesetext.ts), Stand der Grundprüfung in Zeile und Details gleich,
 // Masse mit Ausnahme bzw. Vorbehalt beim Wert, Bericht «Eingaben und Quellen» als Tabelle.
 // Erweiterte Prüfung nach Thema (23.10.2026, bedarf/themenansicht.ts): je Thema ein Aufklapper mit den Befunden, den offenen Angaben als
@@ -33,7 +33,7 @@ import type { Fall } from './fall'
 import { FELD_DEF, FELD_DEFS, GRUPPEN, feldName, istGrundFeld, wertText, type FeldDef } from './bedarf/felder'
 import { ANNAHME_V85, type GrundPunkt, type GrundTeil, type GrundZustand, type Grundpruefung } from './bedarf/grundpruefung'
 import { ZUSTAND_ANZEIGE, annahmenJePunkt, eintragSatz, fragenFelder, grundKopf, istSoll, type GrundZeile } from './bedarf/kompakt'
-import { HAND_QUELLEN, QUELLE_TEXT, gleicherWert, handSetzen, handPruefen, ebeneSetzen, type BedarfEbenen, type Herkunft } from './bedarf/fallBedarf'
+import { DATENQUELLEN, HAND_QUELLEN, QUELLE_TEXT, gleicherWert, handSetzen, handPruefen, quellenWahlSetzen, ebeneSetzen, type QuellenOption, type BedarfEbenen, type Herkunft } from './bedarf/fallBedarf'
 import type { BefundBlatt } from './bedarf/befundblatt'
 import type { Ebene, Eintrag } from './bedarf/typen'
 import { QUELLEN_ANNAHME, QUELLEN_BESTAETIGBAR, type Quelle, KURVE_BEDINGUNGEN } from './bedarf/eingaben'
@@ -75,7 +75,7 @@ export const feldZeileId = (pfad: string): string => `feld-${pfad.replace(/\./g,
 
 /** Frage zu einem fehlenden Feld; im Panel ein Knopf, der zum Feld springt */
 function Frage({ feld, text, zweck }: { feld: string; text?: string
-  /** Halbsatz, warum die Frage hier steht (Muster 7) */
+  /** Halbsatz, warum die Frage hier steht */
   zweck?: string }) {
   const sprung = useContext(FeldSprung)
   const ziel = feldZiel(feld)
@@ -86,14 +86,14 @@ function Frage({ feld, text, zweck }: { feld: string; text?: string
 }
 /** mehrere Fragen, höchstens max, dann «und N weitere» */
 function Fragen({ felder, max = 99, regel }: { felder: readonly string[]; max?: number
-  /** Regel, für die gefragt wird (Zweck der Frage, Muster 7) */
+  /** Regel, für die gefragt wird (Zweck der Frage) */
   regel?: string }) {
   const f = fragenFelder(felder)
   return <>{f.slice(0, max).map((x, i) => <Fragment key={x}>{i ? ' ' : ''}<Frage feld={x} zweck={regel ? frageZweck(x, regel) : undefined} /></Fragment>)}
     {f.length > max ? ` und ${f.length - max} weitere` : ''}</>
 }
 
-/** Warum eine Frage bei einer Regel steht, wenn sie mehreren Regeln dient (Runde 5, Muster 7 und Stelle 26) */
+/** Warum eine Frage bei einer Regel steht, wenn sie mehreren Regeln dient */
 export function frageZweck(feld: string, regel: string): string | undefined {
   const sicht = ['H1', 'H1b', 'H3a', 'H3b', 'D5-4', 'E3', 'B5-1', 'B5-1b']
   if (['anzeichenSchneller', 'v85', 'v85Nachweis'].includes(feld))
@@ -133,7 +133,7 @@ export function BegriffVerweise({ texte, nur }: { texte: readonly (string | unde
       onClick={e => { if (hilfeZeigen(`begriff-${b.id}`)) e.preventDefault() }}>alle Begriffe</a></span>}</span>
 }
 
-/** Bericht (Runde 4): Quellenverzeichnis und Begriffe am Ende des Bedarfsteils, nur was im Fall vorkommt */
+/** Bericht: Quellenverzeichnis und Begriffe am Ende des Bedarfsteils, nur was im Fall vorkommt */
 export function VerzeichnisBericht({ blaetter }: { blaetter: readonly BefundBlatt[] }) {
   const werke = werkeImFall(blaetter), begriffe = begriffeImFall(blaetter)
   return <>
@@ -186,7 +186,7 @@ const OFFEN_WAHL = '__offen'
 /** Handangabe «offen» (ohne Wert) */
 export const istHandOffenH = (h: Herkunft): boolean => h.zustand === 'hand' && (h.wert === null || h.wert === undefined)
 /**
- * Eingabe übernehmen (Automatik Paket A): gleicher Wert wie die Vorbelegung ist keine Handeingabe (eine bestehende wird entfernt);
+ * Eingabe übernehmen: gleicher Wert wie die Vorbelegung ist keine Handeingabe (eine bestehende wird entfernt);
  * leer (null) ohne Handeingabe lässt die Vorbelegung stehen. false: ungültig bzw. nicht übernommen (Feld springt zurück)
  */
 export function eingabeUebernehmen(h: Herkunft, x: unknown, setze: Setze): boolean {
@@ -197,7 +197,7 @@ export function eingabeUebernehmen(h: Herkunft, x: unknown, setze: Setze): boole
   return setze(x)
 }
 
-/** Liste nach einem Klick: leer heisst ohne Vorbelegung offen (null), mit Vorbelegung Handeingabe «keines» ([]) (Korrektur S4) */
+/** Liste nach einem Klick: leer heisst ohne Vorbelegung offen (null), mit Vorbelegung Handeingabe «keines» ([]) */
 export const listeNeu = (x: string[], vorbelegt: boolean): string[] | null => (x.length ? x : vorbelegt ? [] : null)
 
 /**
@@ -237,8 +237,8 @@ export function FeldEingabe({ d, h, setze, offen, knoepfe = false, label }: { d:
   if (a.art === 'liste') {
     const x = (handOffen ? null : hand ? h.wert : vor?.wert) as string[] | null | undefined
     const liste = Array.isArray(x) ? x : null
-    // letztes Häkchen weg: ohne Vorbelegung wieder offen; mit Vorbelegung eine Handeingabe «keines» (kein Rückfall auf die Vorbelegung,
-    // Korrektur S4); «keines» ist eine eigene Angabe
+    // letztes Häkchen weg: ohne Vorbelegung wieder offen; mit Vorbelegung eine Handeingabe «keines» (kein Rückfall auf die Vorbelegung);
+    // «keines» ist eine eigene Angabe
     return <span className="bedarf-liste" role="group" aria-label={d.name}>
       {a.optionen.map(([k, t]) => <label key={k}><input type="checkbox" checked={!!liste?.includes(k)} onChange={e => {
         const neu = new Set(liste ?? [])
@@ -272,9 +272,24 @@ export function ListeMitKnopf({ d, name, vor, uebernehmen }: { d: FeldDef; name:
 }
 
 /** Herkunft eines Felds: Quelle der Handeingabe (wählbar) bzw. der Vorbelegung */
-function HerkunftZelle({ d, h, quelle, zurueck, offen, hinweis, bestaetigen }: { d: FeldDef; h: Herkunft; quelle: (q: Quelle) => void
+function QuellenWahl({ d, h, waehlen }: { d: FeldDef; h: Herkunft; waehlen: (q: QuellenOption) => void }) {
+  const optionen = h.vorbelegt?.quellenOptionen
+  if (!optionen?.length) return null
+  return <><div className="feld-quellen" role="group" aria-label={`Datenquelle wählen: ${d.name}`}>{optionen.map(q => {
+    const aktiv = h.zustand === 'hand' ? h.datenquelle?.id === q.id && gleicherWert(h.wert, q.wert) : !!q.vorgabe && !h.vorbelegt?.bestaetigungNoetig
+    return <button type="button" key={`${q.id}:${JSON.stringify(q.wert)}`} className={`zweit quelle-chip${aktiv ? ' gewaehlt' : ''}`} aria-pressed={aktiv}
+      disabled={q.wert == null} title={`${q.wert == null ? 'Kein übernehmbarer Wert' : 'Wert übernehmen und bestätigen'}: ${tooltipText(q.text)}`}
+      onClick={() => waehlen(q)}>{DATENQUELLEN[q.id]} · {q.wert == null ? 'offen' : wertText(d, q.wert)}{q.id === 'are.npvm' ? ' (modelliert)' : ''}{q.zusatz ? ` (${q.zusatz})` : ''}</button>
+  })}</div><div className="klein quellen-staende">{optionen.map(q=><div key={`${q.id}:${JSON.stringify(q.wert)}`}>{DATENQUELLEN[q.id]}: Datenstand {q.datenstand || 'unbekannt'}{q.zusatz ? `; ${q.zusatz}` : ''}</div>)}</div></>
+}
+
+function HerkunftZelle(props: Parameters<typeof HerkunftAngabe>[0] & { waehlen: (q: QuellenOption) => void }) {
+  return <><QuellenWahl d={props.d} h={props.h} waehlen={props.waehlen} /><HerkunftAngabe {...props} /></>
+}
+
+function HerkunftAngabe({ d, h, quelle, zurueck, offen, hinweis, bestaetigen }: { d: FeldDef; h: Herkunft; quelle: (q: Quelle) => void
   zurueck: () => void; offen: () => void; hinweis?: string
-  /** Annahme der Vorbelegung als Handeingabe «bestätigt» übernehmen (Korrektur M2) */
+  /** Annahme der Vorbelegung als Handeingabe «bestätigt» übernehmen */
   bestaetigen?: () => void }) {
   const zurueckKnopf = <button className="zweit klein" title={h.vorbelegt ? `Handeingabe entfernen: wieder vorbelegt (${h.vorbelegt.text})`
     : 'Handeingabe entfernen: offen'} aria-label={`${d.name}: Handeingabe entfernen`} onClick={zurueck}>zurück</button>
@@ -285,18 +300,19 @@ function HerkunftZelle({ d, h, quelle, zurueck, offen, hinweis, bestaetigen }: {
       onChange={e => quelle(e.target.value as Quelle)}>
       {HAND_QUELLEN.map(q => <option key={q} value={q}>{QUELLE_TEXT[q]}</option>)}
     </select>{' '}
-    <span className="quelle-chip hand">von Hand</span>{' '}{zurueckKnopf}
+    <span className="quelle-chip hand" title={tooltipText(h.text)}>{h.datenquelle ? DATENQUELLEN[h.datenquelle.id] : 'von Hand'}</span>{h.datenquelle && <small> Datenstand {h.datenquelle.datenstand || 'unbekannt'} (übernommen)</small>}{' '}{zurueckKnopf}
   </>
-  if (h.zustand === 'vorbelegt') return <><span className={`quelle-chip q-${h.quelle}`} title={`${d.name}: ${tooltipText(h.text)}`}>{QUELLE_TEXT[h.quelle!]}</span>
+  if (h.zustand === 'vorbelegt') return <><span className={`quelle-chip q-${h.quelle}`} title={`${d.name}: ${tooltipText(h.text)}`}>{h.vorbelegt?.quellenOptionen?.find(q => q.vorgabe) ? DATENQUELLEN[h.vorbelegt.quellenOptionen.find(q => q.vorgabe)!.id] : QUELLE_TEXT[h.quelle!]}</span>
+    {['osm','av','geoportal','amtlich'].includes(h.quelle ?? '') && !h.vorbelegt?.quellenOptionen?.length && <small> Datenstand {h.vorbelegt?.datenstand || 'unbekannt'}</small>}
     {/* Fusswegnetz (30.10.2026): Kategorie und Abstand sichtbar neben dem Wert, nicht nur im Tooltip */}
     {herkunftSichtbar(d.pfad, h.text) && <>{' '}<span className="klein herkunft-sichtbar" title={tooltipText(h.text)}>– {herkunftSichtbar(d.pfad, h.text)}</span></>}
     {bestaetigen && h.vorbelegt && QUELLEN_BESTAETIGBAR.includes(h.quelle!) && <>{' '}<button type="button" className="zweit klein"
       title={`Annahme übernehmen: ${tooltipText(h.text)} (wird Handeingabe «bestätigt»; ein Verbot, das auf ihr beruht, gilt dann)`}
       aria-label={`${d.name}: Vorschlag bestätigen`} onClick={bestaetigen}>Vorschlag bestätigen</button></>}
     {!(d.art.art === 'bool' || d.art.art === 'wahl') && <>{' '}<button type="button" className="zweit klein"
-      title="Vorbelegung verwerfen: Feld bewusst offen (von Hand)" aria-label={`${d.name}: offen setzen`} onClick={offen}>offen</button></>}</>
+      title="Wert löschen und Vorbelegung verwerfen; das Feld bleibt bis zu einer neuen Eingabe leer" aria-label={`${d.name}: Wert löschen`} onClick={offen}>Wert löschen</button></>}</>
   if (h.zustand === 'rechner') return <span className="quelle-chip q-rechnung" title={h.text}>{QUELLE_TEXT.rechnung}</span>
-  // offenes Feld mit Hinweis der Vorbelegung (z. B. Lampe in OSM, Haltestelle in der Nähe): Hinweis statt nur «offen» (Korrektur S3)
+  // offenes Feld mit Hinweis der Vorbelegung (z. B. Lampe in OSM, Haltestelle in der Nähe): Hinweis statt nur «offen»
   return <span className="klein" title={hinweis && hinweis !== lesetext(hinweis) ? tooltipText(hinweis) : undefined}>{hinweis ? <>offen – {lesetext(hinweis)}</> : 'offen'}</span>
 }
 
@@ -324,7 +340,8 @@ export function FeldHilfe({ d, h, id, kontexte, hinweis }: { d: FeldDef; h: Herk
       {alle ? 'weniger anzeigen' : `weitere anzeigen (${weitere.length})`}</button>}
     {bed && <p><b>Zählt nur, wenn:</b> {bedingungText(bed)}.</p>}
     <p><b>Leer lassen:</b> {T(leerText(d.pfad).replace(/^Leer: /, ''))}</p>
-    {(fh?.vorschlag || vor || hinweis || h.zustand === 'rechner') && <p><b>Vorschlag der App:</b> {vor ? `hier ${wertText(d, vor.wert)} (${QUELLE_TEXT[vor.quelle]}: ${lesetext(vor.text)})` +
+    {!!vor?.quellenOptionen?.length && <ul>{vor.quellenOptionen.map(q => <li key={`${q.id}:${JSON.stringify(q.wert)}`}><b>{DATENQUELLEN[q.id]}:</b> {q.wert == null ? 'offen' : wertText(d, q.wert)} · {lesetext(q.text)}</li>)}</ul>}
+    {(fh?.vorschlag || vor || hinweis || h.zustand === 'rechner') && <p><b>Vorschlag der App:</b> {vor ? `hier ${wertText(d, vor.wert)} (${vor.quellenOptionen?.find(q => q.vorgabe) ? DATENQUELLEN[vor.quellenOptionen.find(q => q.vorgabe)!.id] : QUELLE_TEXT[vor.quelle]}: ${lesetext(vor.text)})` +
       (h.zustand === 'hand' ? '; von Hand überschrieben, «zurück» stellt ihn wieder her' : '') : h.zustand === 'rechner' ? `hier kein Wert; ${lesetext(h.text)}`
       : hinweis ? `hier kein Wert: ${lesetext(hinweis)}` : 'hier keiner'}
       {fh?.vorschlag ? `; allgemein ${fh.vorschlag}` : '.'}</p>}
@@ -336,15 +353,22 @@ export function FeldHilfe({ d, h, id, kontexte, hinweis }: { d: FeldDef; h: Herk
  * Wertebereich wie beim Lesen der Fall-Datei) und als Handeingabe in den Fall schreiben. handQuelle: Quelle einer neuen Eingabe (die
  * bisherige; nach «Vorschlag bestätigen» wieder «von Hand»; sonst die Vorgabe des Felds)
  */
-function useFeldSetzen(fall: Fall, aendern: (f: (x: Fall) => Fall) => void) {
+function useFeldSetzen(fall: Fall, aendern: (f: (x: Fall) => Fall) => void, vor?: BefundBlatt['vorbelegt']['werte']) {
   const [fehler, setFehler] = useState<Record<string, string>>({})
-  const setze = (pfad: string, wert: unknown, quelle: Quelle, offen = false): boolean => {
+  const setze = (pfad: string, wert: unknown, quelle: Quelle, offen = false, auswahl?: QuellenOption): boolean => {
     const f = offen ? null : handPruefen(pfad, wert, quelle)
     setFehler(x => { const n = { ...x }; if (f) n[pfad] = f; else delete n[pfad]; return n })
     if (f) return false
     aendern(x => {
-      const b = handSetzen(x.bedarf, pfad, wert, quelle, offen)
-      if (b) x.bedarf = b; else delete x.bedarf
+      const option = auswahl ?? (quelle === 'bestaetigt' && !offen
+        ? vor?.[pfad]?.quellenOptionen?.find(q => q.vorgabe && gleicherWert(q.wert, wert)) : undefined)
+      const b = option ? quellenWahlSetzen(x.bedarf, pfad, option) : handSetzen(x.bedarf, pfad, wert, quelle, offen)
+      if (b) {
+        const beleg = option ? option.npvmBeleg : vor?.[pfad]?.npvmBeleg
+        if (pfad === 'dtv' && quelle === 'bestaetigt' && beleg?.wert === wert && b.felder[pfad])
+          b.felder[pfad].npvmBeleg = structuredClone(beleg)
+        x.bedarf = b
+      } else delete x.bedarf
       return x
     })
     return true
@@ -362,9 +386,9 @@ export function Maske({ fall, blatt, aendern, felder, flach = false, zaehlt, all
   fall: Fall; blatt: BefundBlatt
   aendern: (f: (x: Fall) => Fall) => void; felder: FeldDef[]; flach?: boolean; zaehlt: (pfad: string) => boolean; alle: boolean
   kontexte: readonly SichtKontext[]
-  /** Runde 4: wofür ein offenes Feld fehlt (Muss-Hinweis) */
+  /** Wofür ein offenes Feld fehlt (Muss-Hinweis) */
   bedarf?: ReadonlyMap<string, FeldBedarf>
-  /** Runde 4: Felder, deren Annahme ein Verbot offen hält («Vorschlag bestätigen» nur dort) */
+  /** Felder, deren Annahme ein Verbot offen hält («Vorschlag bestätigen» nur dort) */
   bestaetig?: ReadonlySet<string>
   /** Gliederung statt der Blöcke der Maske (erweiterte Prüfung, «Weitere Angaben»: je Thema) */
   abschnitte?: { id: string; name: string; defs: FeldDef[] }[]
@@ -372,12 +396,12 @@ export function Maske({ fall, blatt, aendern, felder, flach = false, zaehlt, all
   ohneKoepfe?: boolean }) {
   const [hilfe, setHilfe] = useState<ReadonlySet<string>>(new Set())
   const umschalten = (pfad: string) => setHilfe(x => { const n = new Set(x); if (n.has(pfad)) n.delete(pfad); else n.add(pfad); return n })
-  const { setze, fehler, handQuelle } = useFeldSetzen(fall, aendern)
+  const { setze, fehler, handQuelle } = useFeldSetzen(fall, aendern, blatt.vorbelegt.werte)
   const herkunft = (pfad: string): Herkunft => blatt.gebildet.herkunft.get(pfad) ?? { zustand: 'offen', quelle: null, text: 'offen' }
   const zeile = (d: FeldDef, h: Herkunft) => {
     const id = `feldhilfe-${d.pfad.replace(/\./g, '-')}`, auf = hilfe.has(d.pfad)
     const offenSetzen = () => { setze(d.pfad, null, 'hand', true) }
-    const offenF = h.zustand === 'offen' || istHandOffenH(h), best = !!bestaetig?.has(d.pfad) && h.zustand === 'vorbelegt'
+    const offenF = h.zustand === 'offen' || istHandOffenH(h), best = (!!bestaetig?.has(d.pfad) || !!h.vorbelegt?.bestaetigungNoetig) && h.zustand === 'vorbelegt'
     const bedarfText = offenF || best ? feldBedarfText(bedarf?.get(d.pfad)) : null
     const zaehltNicht = !zaehlt(d.pfad)
     return <Fragment key={d.pfad}><tr id={feldZeileId(d.pfad)} className={[offenF ? 'offen' : '', zaehltNicht ? 'zaehlt-nicht' : ''].filter(Boolean).join(' ') || undefined}>
@@ -390,6 +414,7 @@ export function Maske({ fall, blatt, aendern, felder, flach = false, zaehlt, all
         setze={x => setze(d.pfad, x, handQuelle(d))} />
       {fehler[d.pfad] && <div className="klein fehler" role="alert">{fehler[d.pfad]}</div>}</td>
     <td><HerkunftZelle d={d} h={h} quelle={q => setze(d.pfad, fall.bedarf?.felder[d.pfad]?.wert, q)} zurueck={() => setze(d.pfad, null, 'hand')}
+      waehlen={q => { setze(d.pfad, q.wert, 'bestaetigt', false, q) }}
       offen={offenSetzen} hinweis={blatt.vorbelegt.feldHinweise?.[d.pfad]}
       bestaetigen={best ? () => { setze(d.pfad, h.vorbelegt!.wert, 'bestaetigt') } : undefined} /></td>
   </tr>
@@ -412,7 +437,7 @@ export function Maske({ fall, blatt, aendern, felder, flach = false, zaehlt, all
   })}</>
 }
 
-/** Auswahl «Fusswegnetz (Bern)» beim besonderen Grund nur mit der Ebene Bern (Korrektur nach Prüfung Runde 5); ein gesetzter Wert bleibt sichtbar */
+/** Auswahl «Fusswegnetz (Bern)» beim besonderen Grund nur mit der Ebene Bern; ein gesetzter Wert bleibt sichtbar */
 function feldFuerEbenen(d: FeldDef, bern: boolean): FeldDef {
   if (bern || d.pfad !== 'beduerfnis' || d.art.art !== 'liste') return d
   return { ...d, art: { ...d.art, optionen: d.art.optionen.filter(([k]) => k !== 'fusswegnetz') } }
@@ -521,7 +546,7 @@ export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sich
         <TypAnzeige b={b} />
         <GrundpruefungAnzeige g={b.grund} feldHinweise={b.vorbelegt.feldHinweise} sichtLinks={sichtLinks?.(b.streifen)} />
       </div>)}
-      {/* zugeklappt, sobald keine Frage der Grundprüfung mehr offen ist (Nutzerwunsch 23.10.2026); Sprünge zum Feld klappen auf.
+      {/* zugeklappt, sobald keine Frage der Grundprüfung mehr offen ist; Sprünge zum Feld klappen auf.
           key: beim Wechsel offen ↔ alles beantwortet neu aufbauen, damit der Vorgabezustand gilt */}
       <details className="bedarf-grund-eingaben" key={grundOffen ? 'offen' : 'fertig'} open={grundOffen}>
         <summary><b>{b0.grund.gilt ? 'Eingaben der Grundprüfung' : 'Wichtigste Eingaben'}</b>{' '}
@@ -534,8 +559,8 @@ export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sich
       <details className="bedarf-erweitert" open={blaetter.some(istTue) || undefined}>
         <summary><b>Erweiterte Prüfung</b> <span className="klein" title={`${LEGENDE} ${SYMBOLE}`}>{erweitertKopf(ansicht)}</span></summary>
         <div className="klein bedarf-ebenen"><span title="Bundesrecht und Normen gelten immer">Welche Vorgaben gelten:</span>{' '}
-          {(['bern', 'kantonBE', 'richtlinie'] as const).map(k => <label key={k} title={`${ebeneText[k]}; ${k === 'richtlinie' ? 'Vorgabe: an' :
-            `Vorgabe nach dem Ort (AV): ${vorgabe[k] ? 'an' : 'aus'}`}`}>
+          {(['bern', 'kantonBE', 'richtlinie'] as const).map(k => <label key={k} title={`${ebeneText[k]}; ${k === 'richtlinie' ? 'standardmässig eingeschaltet' :
+            `automatisch nach dem Ort (AV): ${vorgabe[k] ? 'an' : 'aus'}`}`}>
             <input type="checkbox" checked={b0.ebenen[k]} onChange={e => schalten(k, e.target.checked)} /> {EBENE_KURZ[k]}
             {fall.bedarf?.ebenen?.[k] !== undefined ? ' (von Hand)' : ''}</label>)}
         </div>
@@ -569,7 +594,7 @@ export function themaZahl(t: ThemaTeil): [string, string][] {
   return aus
 }
 
-/** Kurzgrund einer Frage im Block: nur, wo die Antwort (Zulässigkeit bzw. Typ) daran hängt (Nutzerentscheid 23.10.2026) */
+/** Kurzgrund einer Frage im Block: nur, wo die Antwort (Zulässigkeit bzw. Typ) daran hängt */
 const frageGrund = (f: OffeneFrage): string | null => (f.entscheidend ? 'davon hängt die Antwort ab' : null)
 /** Erkennungsdistanz (①): Empfehlung aus dem Soll der Grundprüfung (doppelte Sichtweite) */
 function erkennungEmpfohlen(b: BefundBlatt): string {
@@ -616,7 +641,7 @@ function FragenListe({ b, fall, aendern, springe, fragen, leerFokus }: { b: Befu
   springe?: (pfad: string) => void; fragen: readonly FrageZeile[]
   /** Aufklapper, dessen Kopf den Fokus erhält, wenn die letzte Frage beantwortet ist */
   leerFokus?: string }) {
-  const { setze, fehler, handQuelle } = useFeldSetzen(fall, aendern)
+  const { setze, fehler, handQuelle } = useFeldSetzen(fall, aendern, b.vorbelegt.werte)
   const [aendernAuf, setAendernAuf] = useState<string | null>(null)
   const [fokus, setFokus] = useState(false)
   const [hilfeAuf, setHilfeAuf] = useState<string | null>(null)
@@ -653,6 +678,7 @@ function FragenListe({ b, fall, aendern, springe, fragen, leerFokus }: { b: Befu
         : f.ziel === 'fg5h'
           ? <span className="frage-antworten">gezählt: {eingabe('fg5h', `${f.frage} gezählt`)} oder geschätzt: {eingabe('fgKlasse', `${f.frage} geschätzt`)}</span>
           : eingabe(f.ziel, f.frage)}{' '}
+      <QuellenWahl d={FELD_DEF.get(f.ziel)!} h={h} waehlen={q => { if (setze(f.ziel, q.wert, 'bestaetigt', false, q)) setFokus(true) }} />
       {f.zumFeld && springe && <button type="button" className="frage-knopf klein" aria-label={`zum Feld: ${feldName(f.ziel)}`} onClick={() => springe(f.ziel)}>zum Feld</button>}
       {(fehler[f.ziel] || (f.ziel === 'fg5h' && fehler.fgKlasse)) && <div className="klein fehler" role="alert">{fehler[f.ziel] ?? fehler.fgKlasse}</div>}
       {f.bedarf && <div className="klein feld-bedarf"><span aria-hidden="true">⚑</span> {f.bedarf}</div>}
@@ -663,9 +689,8 @@ function FragenListe({ b, fall, aendern, springe, fragen, leerFokus }: { b: Befu
 
 /**
  * Block «Offene Fragen» (23.10.2026, ersetzt die einzelne Frage nach Anzeichen für schnelleres Fahren): unter der Zusammenfassung alle
- * offenen Fragen der Grundprüfung (Nutzerentscheid: nur Grundprüfung, ohne Nummern, mit dem festen Zeichen des Punkts), je Frage mit
- * Eingabe (FragenListe) und Knopf «zum Feld».
- */
+ * offenen Fragen der Grundprüfung (nur Grundprüfung, ohne Nummern, mit dem festen Zeichen des Punkts), je Frage mit
+ * Eingabe (FragenListe) und Knopf «zum Feld». */
 function OffeneFragen({ b, fall, aendern, springe, bestaetig }: { b: BefundBlatt; fall: Fall; aendern: (f: (x: Fall) => Fall) => void
   springe: (pfad: string) => void; bestaetig: ReadonlySet<string> }) {
   const fragen = offeneFragen(b, bestaetig)
@@ -686,7 +711,7 @@ function OffeneFragen({ b, fall, aendern, springe, bestaetig }: { b: BefundBlatt
 /** beurteilte Anlage ist eine Trottoirüberfahrt */
 export const istTue = (b: BefundBlatt): boolean => b.gebildet.eingaben.typ.wert === 'trottoirueberfahrt'
 
-/** Kopfzeile des Aufklappers je Querung: empfohlener Typ; offene Zulässigkeit ohne Elemente (Runde 3, Korrektur) */
+/** Kopfzeile des Aufklappers je Querung: empfohlener Typ; offene Zulässigkeit ohne Elemente */
 export function kopfText(b: BefundBlatt): string {
   const f = b.befund
   if (istTue(b)) return 'Trottoirüberfahrt beurteilt'
@@ -697,7 +722,7 @@ export function kopfText(b: BefundBlatt): string {
   if (f.zulaessigkeit === 'offen' && !f.ausgewertet.includes('Q3-4')) return 'Fussgängerstreifen: noch offen, ob erlaubt'
   return typText(f, false) + (f.empfehlung.vorlaeufig ? ' (vorläufig)' : '')
 }
-/** gewählte Anlage ohne Vortritt (Satz 1 und Kopf, Runde 5) */
+/** gewählte Anlage ohne Vortritt (Satz 1 und Kopf) */
 const ANLAGE_NAME: Record<string, string> = { furt: 'Fussgängerfurt', ohne_vortritt: 'Querung ohne Vortritt', mehrzweck: 'Mehrzweckstreifen' }
 /** Überschrift einer Querung (Titel beginnt schon mit «Querung» bzw. ist ein Streifen von Hand; «Querung 1» seit 30.10.2026 für eine
  * Querung, die kein Fussgängerstreifen ist) */
@@ -721,8 +746,7 @@ export function ZusammenfassungAnzeige({ b, titel, druck = false, imBlock }: { b
 
 /**
  * Empfohlener Querungstyp; Begründung mit Ziffern im Panel aufklappbar. Die fehlenden Angaben nennt die Zusammenfassung darüber
- * (Runde 3: keine Dopplung); ohneKopf: ohne die Zeile zum Typ (Runde 5: Panel und Bericht zeigen sie beide)
- */
+ * (keine Dopplung); ohneKopf: ohne die Zeile zum Typ (Panel und Bericht zeigen sie beide) */
 function TypAnzeige({ b, druck = false, ohneKopf = false }: { b: BefundBlatt; druck?: boolean; ohneKopf?: boolean }) {
   const begr = <>{b.begruendung && <><VerweisText text={T(b.begruendung)} druck={druck} />.</>}</>
   const zusatz = zusatzTexte(b)
@@ -738,9 +762,8 @@ function TypAnzeige({ b, druck = false, ohneKopf = false }: { b: BefundBlatt; dr
 }
 
 /**
- * Zeile zum Querungstyp (Runde 5, Muster 1): «Empfohlen» nur bei geklärter Zulässigkeit; offen: «Falls zulässig: …»; gewählte Anlage
- * ohne Vortritt: «Beurteilt: …»; ohne Ortslage: «Noch keine Empfehlung …»
- */
+ * Zeile zum Querungstyp: «Empfohlen» nur bei geklärter Zulässigkeit; offen: «Falls zulässig: …»; gewählte Anlage
+ * ohne Vortritt: «Beurteilt: …»; ohne Ortslage: «Noch keine Empfehlung …» */
 export function typZeile(b: BefundBlatt): JSX.Element {
   const f = b.befund, t = typText(f, false)
   const anlage = ANLAGE_NAME[b.gebildet.eingaben.typ.wert ?? '']
@@ -796,7 +819,7 @@ function TueNormkonform({ b }: { b: BefundBlatt }) {
     {regelTitel(id)}</button></Fragment>)}{rest > 0 ? weitereMerkmale(rest) : ''}.</>
 }
 
-/** Zusätze der Empfehlung ohne Codes (Runde 5, Stellen 29, 30): Trottoirüberfahrt bzw. Querung ohne Vortritt in Worten */
+/** Zusätze der Empfehlung ohne Codes (Stellen 29, 30): Trottoirüberfahrt bzw. Querung ohne Vortritt in Worten */
 export function zusatzTexte(b: BefundBlatt): string[] {
   const f = b.befund
   const felderVon = (ids: string[]) => new Set(ids.flatMap(id => f.offenFelder[id] ?? f.alle.find(x => x.id === id)?.fehlend ?? [])).size
@@ -830,7 +853,7 @@ export function zusatzTexte(b: BefundBlatt): string[] {
   })
 }
 
-/** feste Hinweise nur in der Hilfe, nicht in den Details (Runde 5, Stelle 22: Studien ohne Wertung) */
+/** feste Hinweise nur in der Hilfe, nicht in den Details (Studien ohne Wertung) */
 const NUR_HILFE = ['B5-5b']
 const NR: Record<GrundPunkt['nr'], string> = { T: 'Vorbedingung', 1: '①', 2: '②', 3: '③', 4: '④', 5: '⑤' }
 /** Symbol, Text und Farbklasse eines Zustands (Symbol und Text, damit der Druck auch ohne Farbe lesbar bleibt) */
@@ -931,7 +954,7 @@ export function GrundpruefungAnzeige({ g: g0, titel, druck = false, feldHinweise
   const quelle = <>Nach <WerkVerweis w="BFU" anzeige={LESENAME.BFU} druck={druck} />, Ziffer 2.1–2.3{druck ? '' : <WerkLinks w="BFU" kurz />}</>
   if (!g.gilt) return <div className={druck ? 'grundpruefung druck' : 'grundpruefung'}>
     <div className="grund-kopf"><b>{kopfText}</b></div><p className="klein">{T(g.grund)}
-      {/* Nutzerentscheid 23.10.2026: Begegnungszone bei Tempo 20 nur vorgeschlagen, von Hand auf Strecke änderbar */}
+      {/* Begegnungszone bei Tempo 20 nur vorgeschlagen, von Hand auf Strecke änderbar */}
       {g.zoneVorschlag && !druck && <>{' '}<Frage feld="tempoRegime" text="Falls Strecke: unter «Strecke oder Zone» ändern" /></>}</p>
       <p className="klein grund-fuss">{quelle}.</p></div>
   const k = grundKopf(g, feldHinweise ?? {})
@@ -1156,7 +1179,7 @@ function ThemaAnzeige({ t, blaetter, druck, eingabe, begriffe }: { t: ThemaTeil;
   </ErwTeil>
 }
 
-/** Stand einer Masse-Zeile (Runde 5, Muster 3: Ausnahmen und Vorbehalte beim Wert) */
+/** Stand einer Masse-Zeile (Ausnahmen und Vorbehalte beim Wert) */
 const MASS_STAND: Record<MassZeile['zustand'], (m: MassZeile) => JSX.Element | string> = {
   verletzt: () => 'nicht erfüllt', offen: () => 'offen', erfuellt: () => 'erfüllt', annahme: () => 'erfüllt (Annahme)',
   vorbehalt: () => 'erfüllt unter Vorbehalt', ausnahme: m => m.zusatz ?? 'zulässig (Ausnahme)',
@@ -1323,11 +1346,11 @@ export function BefundblattAnzeige({ b, mehrere = false, druck = false, ohneTyp 
   )
 }
 
-/** Quelle in einem Wort (Bericht, Tabelle «Eingaben und Quellen», Runde 5 Stelle 50) */
-const QUELLE_WORT: Record<string, string> = { av: 'AV', osm: 'OSM', geoportal: 'Geoportal', luftbild: 'Luftbild', hand: 'von Hand',
+/** Quelle in einem Wort (Bericht, Tabelle «Eingaben und Quellen») */
+const QUELLE_WORT: Record<string, string> = { av: 'AV', osm: 'OSM', geoportal: 'Geoportal', amtlich: 'amtliche Quelle', luftbild: 'Luftbild', hand: 'von Hand',
   bestaetigt: 'bestätigt', annahme: 'Annahme', schaetzung: 'Schätzung', rechnung: 'Sichtrechner', vorschlag: 'Vorschlag' }
 export interface EingabeZeile { gruppe: string; feld: string; wert: string; quelle: string; annahme: boolean; grund?: string }
-/** Eingaben als Tabelle (Bericht): Feld, Wert, Quelle in einem Wort, Annahme ja/nein; eine Begründung nur bei Annahmen (Muster 6) */
+/** Eingaben als Tabelle (Bericht): Feld, Wert, Quelle in einem Wort, Annahme ja/nein; eine Begründung nur bei Annahmen */
 export function eingabenTabelle(b: BefundBlatt): EingabeZeile[] {
   const aus: EingabeZeile[] = []
   for (const g of GRUPPEN) for (const d of FELD_DEFS.filter(x => x.gruppe === g.id)) {

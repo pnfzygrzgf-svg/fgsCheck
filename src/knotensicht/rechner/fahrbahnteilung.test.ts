@@ -1,5 +1,5 @@
-// Tests Korrektur 31.10.2026, Punkt 17 (synthetische Netze): Fahrbahnteilung und Zuordnung der Vortrittssignale.
-// Fahrbahnteilung am Punkt 12: Arm Süd mit beiden Richtungen (Weg 1, zum Punkt digitalisiert), Einbahn vom Punkt weg nach Nordost (Weg 2),
+// Tests (synthetische Netze): Fahrbahnteilung und Zuordnung der Vortrittssignale.
+// Fahrbahnteilung am Arm Süd mit beiden Richtungen (Weg 1, zum Punkt digitalisiert), Einbahn vom Punkt weg nach Nordost (Weg 2),
 // Einbahn aus Nordwest zum Punkt (Weg 3). Spiegelverkehrt: die wegführende Einbahn liegt links der zuführenden.
 
 import { describe, expect, it } from 'vitest'
@@ -113,7 +113,7 @@ describe('Punkt 17: Signal auf einer Einbahn vom Knoten weg', () => {
   })
 })
 
-// Punkt 22 (Nutzer 31.10.2026): Zusammenführung zweier Einbahnen, vorerst Meldung statt Rechnung
+// Punkt 22: Zusammenführung zweier Einbahnen, vorerst Meldung statt Rechnung
 describe('Punkt 22: Zusammenführung', () => {
   // Einbahn weg nach West (Weg 1), zwei Einbahnen aus Ost zum Punkt: Weg 2 von (200, 10), Weg 3 von (200, −10) bzw. quer von Nord
   const zusammen = (quer = false, wegTags: Record<string, string> = {}): OsmDaten => daten([

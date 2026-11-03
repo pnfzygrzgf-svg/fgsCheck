@@ -1,0 +1,41 @@
+{
+  "mitte": [
+    2585342,
+    1220577
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 1,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2585342,
+            1220577
+          ]
+        },
+        "properties": {
+          "OBJECTID": 1,
+          "BEZ_FIRMA": "Aesthetische Chirurgie Biel AG",
+          "BEZ_STO": "Klinik für Ästehtische Chirurgie Biel",
+          "LOKALISAT": "Bahnhofstrasse 39",
+          "AKUT": 1,
+          "PSYCHKLIN": 0,
+          "REHAKLIN": 0,
+          "GEBURT": 0
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

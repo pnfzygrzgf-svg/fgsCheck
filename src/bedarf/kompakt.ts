@@ -1,7 +1,7 @@
-// ── Bedarfsmodul Runde 2, Verdichtung: eine Zeile je Punkt bzw. Eintrag (nur Anzeige, Befunde unverändert) ──
+// ── Bedarfsmodul, Verdichtung: eine Zeile je Punkt bzw. Eintrag (nur Anzeige, Befunde unverändert) ──
 //
 // Grundprüfung (Big Five): je Punkt Symbol, Wort und ein Satz; Nummern, Fundstellen, Normhinweise, feste Hinweise und Annahmen nur
-// in den Details des Punkts (je Punkt aufklappbar, 23.10.2026). Zustand der Zeile (Aggregation, Korrektur D1): die Muss-Regel des
+// in den Details des Punkts (je Punkt aufklappbar, 23.10.2026). Zustand der Zeile (Aggregation): die Muss-Regel des
 // Punkts bestimmt ihn (✗ nicht erfüllt, ? offen); ist sie erfüllt, bleibt ✓ bzw. ! (Soll-Regel nicht erfüllt, deren Satz) – übrige
 // offene Teilregeln, Annahmen und Hinweise nur als Zahl in Klammern. Punkte ohne Muss-Regel (② ohne gebaute Insel, ⑤) nehmen die
 // schlimmste Teilregel (Soll nicht erfüllt vor offen vor Hinweis vor erfüllt). Offene Angaben erscheinen als Frage (feldhilfen.FRAGEN).
@@ -37,7 +37,7 @@ export interface GrundZeile {
   hinweise: string[]
   /** fehlende Felder der bestimmenden Regel (als Fragen anzuzeigen) */
   fragen: string[]
-  /** Wort statt dem des Zustands (Runde 5: Tempo «voraussichtlich erfüllt») */
+  /** Wort statt dem des Zustands (Tempo «voraussichtlich erfüllt») */
   wort?: string
 }
 
@@ -61,7 +61,7 @@ const ERFUELLT_SATZ: Partial<Record<string, string>> = { 'B5-4': 'öffentliche B
 export function teilSatz(t: GrundTeil): string {
   const ist = t.ist !== undefined ? istWort(t.ist) : '', soll = t.soll !== undefined ? sollWort(t.soll) : ''
   if (t.zustand === 'erfuellt' && ERFUELLT_SATZ[t.id]) return ERFUELLT_SATZ[t.id]!
-  // Sicht erfüllt: das Soll als «nötig» in Klammern (Runde 5, Stelle 21)
+  // Sicht erfüllt: das Soll als «nötig» in Klammern
   if (t.zustand === 'erfuellt' && t.id === 'B5-1' && ist && soll) return `${ist} (nötig: ${soll.replace(/mindestens |≥ /g, '')})`
   if (t.zustand === 'hinweis') return [ist, soll || t.detail || ''].filter(Boolean).join(': ')
   // offen ohne Ist und ohne fehlende Angabe (z. B. über 60 km/h keine Sichtweite): der Grund als Satz
@@ -83,7 +83,7 @@ const anzahl = (n: number, eins: string, mehr: string): string => `${n} ${n === 
 
 /**
  * Zeile eines Punkts (Aggregation D1). Muss-Regel verletzt bzw. offen bestimmt den Zustand; Muss erfüllt und eine Soll-Regel nicht
- * erfüllt: «!» mit dem Satz der Soll-Regel (Korrektur S9). In der Zeile steht nur der Satz der Teilregel, die den Zustand bestimmt;
+ * erfüllt: «!» mit dem Satz der Soll-Regel. In der Zeile steht nur der Satz der Teilregel, die den Zustand bestimmt;
  * die übrigen offenen bzw. nicht erfüllten Teilregeln, Annahmen und Hinweise höchstens als kurzer Zusatz «(1 Punkt offen, 1 Annahme)»
  * (23.10.2026, Nutzertest: sonst las sich die erfüllte Inseltiefe wie der Grund für «!»). Ihre Sätze stehen in den Details des
  * Punkts (hinweise): Sicht (①) ohne V85 unter Vorbehalt (S2), Tempo des Sichtrechners, zusatzAussen (z. B. Hinweis der Vorbelegung
@@ -92,12 +92,12 @@ const anzahl = (n: number, eins: string, mehr: string): string => `${n} ${n === 
 export function punktZeile(p: GrundPunkt, annahmen: readonly string[] = [], zusatzAussen?: string, tempoHinweis?: string): GrundZeile {
   const m = p.teile.filter(muss), rest = p.teile.filter(t => !muss(t))
   const sortiert = (xs: GrundTeil[]) => [...xs].sort((a, b) => RANG[zz(b)] - RANG[zz(a)])
-  // Tempo bis 50 km/h ohne Antwort zu Anzeichen für schnelleres Fahren: «voraussichtlich erfüllt» (Runde 5, Stelle 16)
+  // Tempo bis 50 km/h ohne Antwort zu Anzeichen für schnelleres Fahren: «voraussichtlich erfüllt»
   const t0 = p.teile[0]
   if (p.nr === 'T' && t0?.zustand === 'offen' && t0.fehlend?.length === 1 && t0.fehlend[0] === 'anzeichenSchneller')
     return { nr: p.nr, zustand: 'offen', wort: 'voraussichtlich erfüllt', satz: `${t0.ist}; V85 messen nur bei Verdacht auf schnelleres Fahren`,
       fragen: ['anzeichenSchneller'], hinweise: [] }
-  // Sicht nach dem signalisierten Tempo: unter Vorbehalt (Runde 5, Muster 2)
+  // Sicht nach dem signalisierten Tempo: unter Vorbehalt
   const vorbehalt = p.nr === '1' && annahmen.includes(ANNAHME_V85) ? 'unter Vorbehalt: angenommen, dass nicht schneller als signalisiert gefahren wird' : ''
   const tempo = p.nr === '1' ? tempoHinweis ?? '' : ''
   const hinweise = [vorbehalt, tempo, zusatzAussen ?? ''].filter(Boolean)
@@ -168,7 +168,7 @@ export function grundKopf(g: Grundpruefung, feldHinweise: Readonly<Record<string
   // Hinweise der Vorbelegung zu Feldern, die eine Zeile offen lassen (z. B. Beleuchtung: Lampe in OSM, vor Ort prüfen; S3)
   const aussen = (p: GrundPunkt) => (p.nr === '4' && p.zustand === 'offen' && feldHinweise.beleuchtung ? lesetext(feldHinweise.beleuchtung) : undefined)
   const zeilen = g.punkte.map(p => punktZeile(p, g.annahmen, aussen(p), g.tempoHinweis))
-  // Runde 5 (Stelle 19): gezählt werden nur die fünf Punkte (Tempo und «Weitere» getrennt)
+  // Gezählt werden nur die fünf Punkte (Tempo und «Weitere» getrennt)
   const fuenf = zeilen.filter(x => x.nr !== 'T')
   const n = (z: ZeilenZustand) => fuenf.filter(x => x.zustand === z).length
   const WORT_ZAHL: Record<ZeilenZustand, string> = { verletzt: 'nicht erfüllt', soll: 'Soll nicht erfüllt', erfuellt: '', hinweis: 'Hinweis', offen: 'offen' }
@@ -195,7 +195,7 @@ export function eintragSatz(x: Eintrag): string {
 
 /**
  * fehlende Felder hinter dem Vorbehalt der Empfehlung (offenWegen: Regeln bzw. Felder), dedupliziert in Reihenfolge; auch aus still
- * ausgewerteten Regeln (Befund.offenFelder, z. B. D2 bei einer Furt ohne Fahrbahnbreite; Korrektur M3). Ohne solche Regeln: die offene
+ * ausgewerteten Regeln (Befund.offenFelder, z. B. D2 bei einer Furt ohne Fahrbahnbreite). Ohne solche Regeln: die offene
  * Zulässigkeit (C1, C2) bzw. die fehlenden Angaben zur Trottoirüberfahrt.
  */
 export function vorbehaltFelder(b: Pick<Befund, 'alle' | 'empfehlung'> & Partial<Pick<Befund, 'offenFelder' | 'nichtGeprueft'>>): string[] {

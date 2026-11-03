@@ -1,0 +1,94 @@
+{
+  "mitte": [
+    2680876,
+    1247185
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "bbox": [
+      8.506737,
+      47.368718,
+      8.512105,
+      47.372365
+    ],
+    "crs": {
+      "properties": {
+        "name": "urn:ogc:def:crs:EPSG::2056"
+      },
+      "type": "name"
+    },
+    "features": [
+      {
+        "geometry": {
+          "coordinates": [
+            2680876,
+            1247185
+          ],
+          "type": "Point"
+        },
+        "id": "poi_sonderschule_view.1",
+        "properties": {
+          "adr_inter": null,
+          "adresse": "Gutstrasse 8",
+          "adrzus_int": null,
+          "behindertenparkplatz": null,
+          "bemerkung": null,
+          "ccmail": null,
+          "da": "Fachschule Viventa",
+          "datum": "202412161145",
+          "datum_cms": null,
+          "dep": "Schul- und Sportdepartement (SSD)",
+          "editor": "ssdbn4n5",
+          "erforderlichedokumente": null,
+          "fax": null,
+          "geometrie_gdo": null,
+          "hausnummer": "8",
+          "hindernisfreiheit": "0_",
+          "infrastruktur": ";NULL",
+          "isbetriebsferien_gebaeude": "1",
+          "isbetriebsferien_schalter": "0",
+          "kategorie": "Sonderschule",
+          "mail": null,
+          "name": "Schulhaus Gutstrasse",
+          "namenzus": null,
+          "objectid": 1,
+          "oeffnungszeiten_gebaeude_di": "n.a.",
+          "oeffnungszeiten_gebaeude_do": "n.a.",
+          "oeffnungszeiten_gebaeude_fr": "n.a.",
+          "oeffnungszeiten_gebaeude_mi": "n.a.",
+          "oeffnungszeiten_gebaeude_mo": "n.a.",
+          "oeffnungszeiten_gebaeude_sa": "n.a.",
+          "oeffnungszeiten_gebaeude_so": "n.a.",
+          "oeffnungszeiten_schalter_di": "n.a.",
+          "oeffnungszeiten_schalter_do": "n.a.",
+          "oeffnungszeiten_schalter_fr": "n.a.",
+          "oeffnungszeiten_schalter_mi": "n.a.",
+          "oeffnungszeiten_schalter_mo": "n.a.",
+          "oeffnungszeiten_schalter_sa": "n.a.",
+          "oeffnungszeiten_schalter_so": "n.a.",
+          "ort": "Zürich",
+          "plz": "8055",
+          "poi_id": "so010",
+          "postadresse": null,
+          "publish_internet": "1",
+          "strasse": "Gutstrasse",
+          "suchen": "Sonderschulen, Heilpädagogische Schule, HPS",
+          "tel": null,
+          "tel2": null,
+          "www": null,
+          "zahlungsmittel_internet": "NULL;NULL;",
+          "zahlungsmittel_schalter": "NULL;NULL;",
+          "zahlungsmittel_telefon": "NULL;NULL;",
+          "zvv_label": "Gutstrasse 8",
+          "zvv_link": "https://www.zvv.ch/de/fahrplan-und-informationen/fahrplan.html?toname=Zürich%2C%20Gutstrasse%208&tolat=47.37053812&tolon=8.50942058"
+        },
+        "type": "Feature"
+      }
+    ]
+  },
+  "meta": {
+    "result": {
+      "dateLastUpdated": "02.11.2026"
+    }
+  }
+}

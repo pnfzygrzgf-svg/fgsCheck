@@ -16,7 +16,7 @@
 // verschoben) prüft neu, eine alte Antwort überschreibt keine neuere.
 
 import type { P } from './geo'
-import { AUGHOEHE_M, type Erkennung, type ErkennungLinie } from './rechner/erkennung'
+import { AUGHOEHE_M, type Erkennung, type ErkennungLinie, type GelaendePruefbereich } from './rechner/erkennung'
 import type { ProfilPunkt } from './knotensicht/rechner/neigung'
 import type { ZufahrtErgebnis } from './rechner/typen'
 
@@ -27,12 +27,13 @@ export const ZIEL_HOEHE_M = 0
 export const GELAENDE_TOL_M = 0.3
 /** halbierende Abfragen zwischen der letzten freien und der ersten geschnittenen Sichtlinie (10 m → 2,5 m) */
 export const VERFEINERN_GELAENDE = 2
-export const GELAENDE_NAME = 'Gelände (swissALTI3D)'
+export const GELAENDE_NAME = 'Geländemodell (swissALTI3D)'
 
 /** Stand der Geländeprüfung einer Zufahrt: lädt, geprüft (abM: Erkennungsdistanz durch das Gelände begrenzt, null: Gelände frei;
  * frei: Ergebnis je Sichtlinie nach x; abfragen: Anzahl Profile) bzw. Fehler (Rechnung bleibt 2D) */
+export interface GelaendeErgebnis { abM: number | null; frei: Record<string, boolean>; abfragen: number; pruefbereich?: GelaendePruefbereich }
 export type GelaendeStand = { stand: 'laedt' }
-  | { stand: 'ok'; abM: number | null; frei: Record<string, boolean>; abfragen: number }
+  | ({ stand: 'ok' } & GelaendeErgebnis)
   | { stand: 'fehler'; text: string }
 /** Höhenprofil entlang der Strecke Augpunkt → Ziel (dist ab dem Augpunkt) */
 export type ProfilLader = (auge: P, ziel: P) => Promise<ProfilPunkt[]>
@@ -83,7 +84,7 @@ function linieBei(linien: readonly ErkennungLinie[], x: number): { auge: P; ziel
  * (die Rechnung bleibt dann 2D); fehlt ein Profil der Verfeinerung, gilt die letzte freie Lage. Ein Abbruch wird weitergereicht.
  */
 export async function gelaendePruefen(e: Erkennung, linien: readonly ErkennungLinie[], laden: ProfilLader):
-  Promise<{ abM: number | null; frei: Record<string, boolean>; abfragen: number }> {
+  Promise<GelaendeErgebnis> {
   const sortiert = [...linien].sort((a, b) => a.x - b.x)
   const kand: { x: number; auge: P; ziel: P }[] = sortiert.filter(l => l.x > 1e-6 && l.x <= e.wert + 1e-6 && !l.bruecke)
   if (e.wert > 1e-6 && !sortiert.some(l => Math.abs(l.x - e.wert) < 1e-6)) {
@@ -102,6 +103,7 @@ export async function gelaendePruefen(e: Erkennung, linien: readonly ErkennungLi
   const k = res.indexOf(false)
   if (k < 0) return { abM: null, frei, abfragen }
   let lo = k ? kand[k - 1].x : 0, hi = kand[k].x
+  let letzteFreiM: number | null = k ? lo : null
   for (let i = 0; i < VERFEINERN_GELAENDE; i++) {
     const m = (lo + hi) / 2, q = linieBei(sortiert, m)
     if (!q || q.bruecke) break
@@ -112,9 +114,9 @@ export async function gelaendePruefen(e: Erkennung, linien: readonly ErkennungLi
       break
     }
     if (f === null) break
-    if (f) lo = m; else hi = m
+    if (f) { lo = m; letzteFreiM = m } else hi = m
   }
-  return { abM: Math.floor(lo + 1e-6), frei, abfragen }
+  return { abM: Math.floor(lo + 1e-6), frei, abfragen, pruefbereich: { letzteFreiM, ersteVerdecktM: hi } }
 }
 
 /**
@@ -137,9 +139,16 @@ export function erkennungAnzeige(z: Pick<ZufahrtErgebnis, 'fgsId' | 'zufahrt' | 
   // Bewuchs gilt nur, solange er vor der neuen Erkennungsdistanz beginnt
   const { ende: _ende, hindernis: _h, bewuchsAb, bewuchs, ...rest } = e0
   return { e: { ...rest, wert: g.abM, bis: 'verdeckt', hindernis: { klasse: 'gelaende', name: GELAENDE_NAME },
-    ...(bewuchsAb !== undefined && bewuchsAb < g.abM ? { bewuchsAb, bewuchs } : {}), gelaende: 'mit' }, linien }
+    ...(bewuchsAb !== undefined && bewuchsAb < g.abM ? { bewuchsAb, bewuchs } : {}), gelaende: 'mit',
+    ...(g.pruefbereich ? { gelaendePruefbereich: g.pruefbereich } : {}) }, linien }
 }
 
-/** Zusatz zur Erkennungsdistanz: «mit Gelände (swissALTI3D)», sonst «Gelände nicht geprüft» (bzw. «Höhenprofile laden») */
-export const gelaendeText = (e: Pick<Erkennung, 'gelaende'>): string => (e.gelaende === 'mit' ? 'mit Gelände (swissALTI3D)'
-  : e.gelaende === 'laedt' ? 'Gelände: Höhenprofile laden' : 'Gelände nicht geprüft')
+/** Fahrzeugpositionen, keine entlang der Sichtlinie gemessene Verdeckungsstelle und keine exakte Grenze. */
+export function pruefbereichText(p: GelaendePruefbereich): string {
+  const m = (x: number) => Number(x.toFixed(2)).toString().replace('.', ',')
+  return `${p.letzteFreiM === null ? 'keine freie Position geprüft' : `letzte frei geprüfte Position ${m(p.letzteFreiM)} m`}; erste verdeckte Position ${m(p.ersteVerdecktM)} m vor dem Streifen`
+}
+/** Modellbezug und, falls vorhanden, die tatsächlich geprüften Grenzpositionen. */
+export const gelaendeText = (e: Pick<Erkennung, 'gelaende' | 'gelaendePruefbereich'>): string => (e.gelaende === 'mit'
+  ? `mit Geländemodell (swissALTI3D)${e.gelaendePruefbereich ? `; ${pruefbereichText(e.gelaendePruefbereich)}` : ''}`
+  : e.gelaende === 'laedt' ? 'Geländemodell: Höhenprofile laden' : 'Geländemodell nicht geprüft')

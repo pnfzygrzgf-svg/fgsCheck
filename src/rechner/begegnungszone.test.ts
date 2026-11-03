@@ -1,4 +1,4 @@
-// Tests Querung in der Begegnungszone (Nutzerentscheid 30.10.2026): eine unmarkierte OSM-Querung ohne Wahl am Streifen in einer
+// Tests Querung in der Begegnungszone: eine unmarkierte OSM-Querung ohne Wahl am Streifen in einer
 // Begegnungszone (Strecke oder Zone wie im Bedarf: OSM living_street bzw. CH:zone20, Vorschlag bei Tempo 20, Widerspruch mit V_sig
 // offen, Handeingabe im Bedarf geht vor) ist keine Querung ohne Vortritt; Soll je Zufahrt = Anhaltesichtweite (VSS 40 240 Z. 8.2),
 // Abbieger höchstens bis zum Beginn des Abbiegens. Künstliche Strassen (keine echten Daten).
@@ -209,7 +209,7 @@ describe('Abbieger in der Begegnungszone: höchstens bis zum Beginn des Abbiegen
   })
 })
 
-// VSS 40 241 Tab. 1 nach Ortslage (Nutzerentscheid 30.10.2026): bei 60 km/h innerorts 75 m, ausserorts 100 m; 20 km/h und über 60 km/h
+// VSS 40 241 Tab. 1 nach Ortslage: bei 60 km/h innerorts 75 m, ausserorts 100 m; 20 km/h und über 60 km/h
 // als Annahme gekennzeichnet. Ortslage aus dem Bedarf (von Hand), sonst OSM am gequerten Weg (CH:rural), sonst innerorts als Annahme
 describe('Sichtweite nach Tab. 1 und Ortslage', () => {
   const ZEBRA = { highway: 'crossing', crossing: 'uncontrolled', 'crossing:markings': 'zebra' }

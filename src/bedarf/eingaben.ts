@@ -1,19 +1,18 @@
 // ── Bedarfsmodul: Eingaben (E0) ──
 //
 // Alle Felder aus Bedarfsmodul_E0_Regeln.md Abschnitt 2.2, je mit Wert und Quelle. Ein Feld ohne Wert ist «offen»
-// (Entscheid E0-2): Regeln, die es brauchen, melden «offen» statt «bestanden». Einziger Ersatzwert: fehlt V85, gilt das
+//: Regeln, die es brauchen, melden «offen» statt «bestanden». Einziger Ersatzwert: fehlt V85, gilt das
 // signalisierte Tempo (als Annahme im Befund).
-// Begriffe (Entscheid E0-3): fahrbahnB = Bord–Bord entlang der Streifenachse (nach Flächen (Plan)), inklusive Park- und
+// Begriffe: fahrbahnB = Bord–Bord entlang der Streifenachse (nach Flächen (Plan)), inklusive Park- und
 // Radstreifen (wie die Vermassung); nRichtung = Fahrstreifen je Richtung aus OSM lanes, Busstreifen zählen, Radstreifen nicht.
 // E0 hat keine Oberfläche; E1 hängt diesen Block an die Fall-Datei (Block bedarf).
 
 /**
- * Herkunft eines Werts; bestaetigt = vorgeschlagene Annahme von Hand bestätigt (Korrektur M2, gilt als Handeingabe, keine Annahme);
+ * Herkunft eines Werts; bestaetigt = vorgeschlagene Annahme von Hand bestätigt (gilt als Handeingabe, keine Annahme);
  * vorschlag = Vorschlag der Vorbelegung, der für die Beurteilung wie eine Tatsache gilt und von Hand geändert werden kann (bisher nur
- * Begegnungszone bei Tempo 20, Nutzerentscheid 23.10.2026); keine Annahme, also kein «Annahme bestätigen»
- */
-export type Quelle = 'av' | 'osm' | 'geoportal' | 'luftbild' | 'hand' | 'bestaetigt' | 'annahme' | 'schaetzung' | 'rechnung' | 'vorschlag'
-export const QUELLEN: readonly Quelle[] = ['av', 'osm', 'geoportal', 'luftbild', 'hand', 'bestaetigt', 'annahme', 'schaetzung', 'rechnung', 'vorschlag']
+ * Begegnungszone bei Tempo 20); keine Annahme, also kein «Annahme bestätigen» */
+export type Quelle = 'av' | 'osm' | 'geoportal' | 'amtlich' | 'luftbild' | 'hand' | 'bestaetigt' | 'annahme' | 'schaetzung' | 'rechnung' | 'vorschlag'
+export const QUELLEN: readonly Quelle[] = ['av', 'osm', 'geoportal', 'amtlich', 'luftbild', 'hand', 'bestaetigt', 'annahme', 'schaetzung', 'rechnung', 'vorschlag']
 /** Quellen, die der Befund als Annahme ausweist */
 export const QUELLEN_ANNAHME: readonly Quelle[] = ['annahme', 'schaetzung']
 /** Quellen einer Vorbelegung, die «Vorschlag bestätigen» anbietet (27.10.2026: auch der Vorschlag zum heutigen Zustand an einer
@@ -26,7 +25,7 @@ export type TempoRegime = 'strecke' | 't30_zone' | 'begegnungszone'
 export type FgKlasse = '<100' | '100-500' | '>500'
 export type FgQuelle = 'zaehlung' | 'schaetzung'
 export type Netz = 'basisnetz' | 'publikumsintensiv' | 'feinverteiler' | 'keins'
-/** fusswegnetz: Zugehörigkeit zum Fusswegnetz (Bern, C2-B; Runde 5), zählt nur mit der Ebene Bern */
+/** fusswegnetz: Zugehörigkeit zum Fusswegnetz (Bern, C2-B), zählt nur mit der Ebene Bern */
 export type Beduerfnis = 'schule' | 'kindergarten' | 'heim' | 'haltestelle' | 'schulweg' | 'fusswegnetz'
 export type Strassentyp = 'verkehrsorientiert' | 'siedlungsorientiert'
 export type Nachfrage = 'punktuell' | 'flaechig'
@@ -55,7 +54,7 @@ export interface Haltestelle {
   beidseits?: boolean | null
 }
 /** Fussweg in der Achse des Streifens (G3b) */
-/** Fussweg in der Achse: versatz und umlaufschranke zählen nur, wenn der Weg direkt und verdeckt mündet (Korrektur S8) */
+/** Fussweg in der Achse: versatz und umlaufschranke zählen nur, wenn der Weg direkt und verdeckt mündet */
 export interface FusswegAchse { rechtwinkligUneinsehbar: boolean; versatz: boolean | null; umlaufschranke: boolean | null }
 export interface Randabschluss { art: 'vertikal' | 'schraeg' | 'hoch'; hoeheMm: number | null; breiteM: number | null }
 /** Kurve vor dem Streifen bzw. Knotenradius; die fünf Voraussetzungen der Kurvenregel (VSS 40 241 Z. 14, S. 7) einzeln (null: offen);
@@ -217,7 +216,7 @@ export interface Werte {
 export type FeldName = keyof Werte
 /** Wert mit Quelle; wert null = offen */
 export interface Feld<T> { wert: T | null; quelle: Quelle | null
-  /** Runde 4: Abstand entlang der Strasse ist die Länge der ganzen Strasse (sie endet beidseits ohne Fortsetzung; nur aus der
+  /** Abstand entlang der Strasse ist die Länge der ganzen Strasse (sie endet beidseits ohne Fortsetzung; nur aus der
    * Vorbelegung, eine Handeingabe trägt es nicht): G1/G2 dann als Hinweis, kein weiterer Streifen bzw. kein Lichtsignal möglich */
   ganzeStrasse?: true
   /** 23.10.2026: Feld offen, weil Datenquellen sich widersprechen (bisher nur Strecke/Zone: Begegnungszone aus OSM gegen amtliches

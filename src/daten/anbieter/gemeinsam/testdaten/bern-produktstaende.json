@@ -1,0 +1,82 @@
+[
+  {
+    "produktname": "Strassentypen",
+    "letzte_aktualisierung": "02.06.2026",
+    "nachfuehrungsfrequenz": "Unregelmässig"
+  },
+  {
+    "produktname": "Haltestellen",
+    "letzte_aktualisierung": "07.09.2026",
+    "nachfuehrungsfrequenz": "Periodisch"
+  },
+  {
+    "produktname": "Flaechendeckende_Verkehrsdaten",
+    "letzte_aktualisierung": "02.06.2026",
+    "nachfuehrungsfrequenz": "Jährlich"
+  },
+  {
+    "produktname": "Richtplan_Fussverkehr",
+    "letzte_aktualisierung": "17.06.2020",
+    "nachfuehrungsfrequenz": "Nicht geplant"
+  },
+  {
+    "produktname": "Signalisierte_Hoechstgeschwindigkeit",
+    "letzte_aktualisierung": "02.06.2026",
+    "nachfuehrungsfrequenz": "Halbjährlich"
+  },
+  {
+    "produktname": "Volksschulen",
+    "letzte_aktualisierung": "09.01.2024",
+    "nachfuehrungsfrequenz": "Unregelmässig"
+  },
+  {
+    "produktname": "Kindergaerten",
+    "letzte_aktualisierung": "22.08.2022",
+    "nachfuehrungsfrequenz": "Unregelmässig"
+  },
+  {
+    "produktname": "Kindertagesstaetten",
+    "letzte_aktualisierung": "06.01.2026",
+    "nachfuehrungsfrequenz": "Monatlich"
+  },
+  {
+    "produktname": "Kinderangebote",
+    "letzte_aktualisierung": "15.09.2025",
+    "nachfuehrungsfrequenz": "Periodisch"
+  },
+  {
+    "produktname": "Heime",
+    "letzte_aktualisierung": "06.12.2025",
+    "nachfuehrungsfrequenz": "Monatlich"
+  },
+  {
+    "produktname": "Spitaeler",
+    "letzte_aktualisierung": "16.12.2025",
+    "nachfuehrungsfrequenz": "Monatlich"
+  },
+  {
+    "produktname": "Taktil_visuelle_Markierungen",
+    "letzte_aktualisierung": "08.10.2026",
+    "nachfuehrungsfrequenz": "Laufend"
+  },
+  {
+    "produktname": "Nutzungszonenplan",
+    "letzte_aktualisierung": "23.10.2026",
+    "nachfuehrungsfrequenz": "Laufend"
+  },
+  {
+    "produktname": "OeV_Linien",
+    "letzte_aktualisierung": "08.07.2024",
+    "nachfuehrungsfrequenz": "Periodisch"
+  },
+  {
+    "produktname": "Parkplaetze_oeffentlich",
+    "letzte_aktualisierung": "18.06.2024",
+    "nachfuehrungsfrequenz": "Laufend"
+  },
+  {
+    "produktname": "Baumkataster",
+    "letzte_aktualisierung": "29.10.2026",
+    "nachfuehrungsfrequenz": "Laufend"
+  }
+]

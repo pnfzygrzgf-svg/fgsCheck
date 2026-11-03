@@ -1,0 +1,9 @@
+{"type": "FeatureCollection",
+ "bbox": [ 8.41, 47.092, 8.645, 47.219],
+ "crs": {"properties":{"name":"urn:ogc:def:crs:EPSG::2056"},"type":"name"},
+ "features": [
+  {"geometry":{"coordinates":[2674737.79,1221329.85],"type":"Point"},"id":"zg_fussgaengerstreifen_kantonsstrassen.4-1","properties":{"bezeichnung":"Lindenmatt","t_id":"4-1"},"type":"Feature"}
+ ,{"geometry":{"coordinates":[2674884.79,1221429.85],"type":"Point"},"id":"zg_fussgaengerstreifen_kantonsstrassen.4-2","properties":{"bezeichnung":"Lindenkreisel West","t_id":"4-2"},"type":"Feature"}
+ ,{"geometry":{"coordinates":[2674895.79,1221469.85],"type":"Point"},"id":"zg_fussgaengerstreifen_kantonsstrassen.4-3","properties":{"bezeichnung":"Lindenkreisel Nord","t_id":"4-3"},"type":"Feature"}
+ ]
+}

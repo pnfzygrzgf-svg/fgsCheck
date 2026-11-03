@@ -9,13 +9,13 @@
 // Kontrolle bei i = 0 gegen den unteren Wert der VSS 40 273 Tab. 1 (Ablesung 30./31.10.2026): 30 km/h +4 m (24 statt 20 m),
 // 40 km/h +2 m (37 statt 35 m), 50 km/h +1 m (51 statt 50 m), 60 km/h −2 m (68 statt 70 m), 70 km/h −3 m (87 statt 90 m),
 // 80 km/h +1 m (111 statt 110 m): die Abweichung steht im Diagramm selbst (Tab. 1 offenbar gerundet).
-// Entscheid 15.10.2026: Die Kurven werden so verschoben, dass sie bei i = 0 den unteren Wert der Tab. 1 treffen (wert =
+// Die Kurven werden so verschoben, dass sie bei i = 0 den unteren Wert der Tab. 1 treffen (wert =
 // Diagrammwert − Abweichung bei i = 0); aus Abb. 2 zählt nur die Wirkung der Neigung, die VSS 40 273 bleibt bei i = 0 die Referenz, und an der 2-%-Grenze entsteht kein Sprung. Der rohe Diagrammwert bleibt in «roh».
 // Die Kurven 70 und 80 km/h sind nicht über den ganzen Bereich gezeichnet (ANHALTESICHT_GEZEICHNET, mit den gestrichelten
 // Stücken); die Werte ausserhalb sind verlängert (Gerade über die letzten 2 % der Kurve). Die Kurven ab 50 km/h sind an den Enden
 // gestrichelt; durchgezogen sind (am 300-dpi-Render nachgemessen, 31.10.2026) 30 und 40 km/h −12 … +12 %, 50 km/h −11 … +10 %,
 // 60 km/h −10 … +10 %, 70 km/h −9 … +9 %, 80 km/h −8 … +8 % (ANHALTESICHT_DURCHGEZOGEN). Die Bedeutung der Strichelung nennt die
-// Norm nicht; Entscheid 31.10.2026: gestrichelt gilt als nicht gezeichnet. Ausserhalb des durchgezogenen Stücks bleibt der Wert
+// Norm nicht; Gestrichelt gilt als nicht gezeichnet. Ausserhalb des durchgezogenen Stücks bleibt der Wert
 // (aus dem gestrichelten Stück abgelesen bzw. verlängert), gilt aber als unsicher (mit Hinweis).
 
 import { TAB1 } from './sichtweite'
@@ -42,7 +42,7 @@ export const ANHALTESICHT_STUFEN = Object.keys(ANHALTESICHT).map(Number).sort((a
 export const ANHALTESICHT_GEZEICHNET: Record<number, [number, number]> = {
   30: [-12, 12], 40: [-12, 12], 50: [-12, 12], 60: [-12, 12], 70: [-10.8, 11], 80: [-10, 10],
 }
-/** Bereich von i [%], über den die Kurve in Abb. 2 durchgezogen ist (Entscheid 31.10.2026: nur dieser gilt als gezeichnet;
+/** Bereich von i [%], über den die Kurve in Abb. 2 durchgezogen ist (nur dieser gilt als gezeichnet;
  *  ausserhalb unsicher) */
 export const ANHALTESICHT_DURCHGEZOGEN: Record<number, [number, number]> = {
   30: [-12, 12], 40: [-12, 12], 50: [-11, 10], 60: [-10, 10], 70: [-9, 9], 80: [-8, 8],

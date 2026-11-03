@@ -1,0 +1,95 @@
+{
+  "mitte": [
+    2686128,
+    1245135
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "bbox": [
+      8.575869,
+      47.349615,
+      8.581239,
+      47.353265
+    ],
+    "crs": {
+      "properties": {
+        "name": "urn:ogc:def:crs:EPSG::2056"
+      },
+      "type": "name"
+    },
+    "features": [
+      {
+        "geometry": {
+          "coordinates": [
+            2686128,
+            1245135
+          ],
+          "type": "Point"
+        },
+        "id": "poi_kindertagesstaette_view.1",
+        "properties": {
+          "adr_inter": null,
+          "adresse": "Forchstrasse 370",
+          "adrzus_int": null,
+          "behindertenparkplatz": null,
+          "bemerkung": "Bietet subventionierte Plätze an.",
+          "ccmail": null,
+          "da": "Departementssekretariat",
+          "datum": "202412161145",
+          "datum_cms": null,
+          "dep": "Sozialdepartement (SD)",
+          "editor": "sozgjs",
+          "erforderlichedokumente": null,
+          "fax": null,
+          "geometrie_gdo": null,
+          "gvidk_kita": "nein",
+          "hausnummer": "370",
+          "hindernisfreiheit": "0_",
+          "infrastruktur": ";NULL",
+          "isbetriebsferien_gebaeude": "1",
+          "isbetriebsferien_schalter": "0",
+          "kategorie": "Kindertagesstätte",
+          "mail": "info@globegarden.org",
+          "name": "globegarden Kinderhaus Seldwyla",
+          "namenzus": null,
+          "objectid": 1,
+          "oeffnungszeiten_gebaeude_di": "n.a.",
+          "oeffnungszeiten_gebaeude_do": "n.a.",
+          "oeffnungszeiten_gebaeude_fr": "n.a.",
+          "oeffnungszeiten_gebaeude_mi": "n.a.",
+          "oeffnungszeiten_gebaeude_mo": "n.a.",
+          "oeffnungszeiten_gebaeude_sa": "n.a.",
+          "oeffnungszeiten_gebaeude_so": "n.a.",
+          "oeffnungszeiten_schalter_di": "n.a.",
+          "oeffnungszeiten_schalter_do": "n.a.",
+          "oeffnungszeiten_schalter_fr": "n.a.",
+          "oeffnungszeiten_schalter_mi": "n.a.",
+          "oeffnungszeiten_schalter_mo": "n.a.",
+          "oeffnungszeiten_schalter_sa": "n.a.",
+          "oeffnungszeiten_schalter_so": "n.a.",
+          "ort": "Zürich",
+          "plz": "8008",
+          "poi_id": "kk3580",
+          "postadresse": null,
+          "publish_internet": "1",
+          "strasse": "Forchstrasse",
+          "suchen": null,
+          "tel": "+41 44 536 55 32",
+          "tel2": null,
+          "www": "http://www.globegarden.org",
+          "zahlungsmittel_internet": "NULL;NULL;",
+          "zahlungsmittel_schalter": "NULL;NULL;",
+          "zahlungsmittel_telefon": "NULL;NULL;",
+          "zvv_label": "Forchstrasse 370",
+          "zvv_link": "https://www.zvv.ch/de/fahrplan-und-informationen/fahrplan.html?toname=Zürich%2C%20Forchstrasse%20370&tolat=47.35143633&tolon=8.57855285"
+        },
+        "type": "Feature"
+      }
+    ]
+  },
+  "meta": {
+    "result": {
+      "dateLastUpdated": "02.11.2026"
+    }
+  }
+}

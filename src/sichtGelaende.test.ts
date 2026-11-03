@@ -1,4 +1,4 @@
-// Tests Sicht auf die Wartefläche mit Gelände (Entscheid 30.10.2026, sichtGelaende.ts): künstliche Höhenprofile über einen eingespeisten
+// Tests Sicht auf die Wartefläche mit Gelände (sichtGelaende.ts): künstliche Höhenprofile über einen eingespeisten
 // Lader, kein Abruf; Geometrie, Verfeinerung, Prüfsumme, Zusammenführung des Status und Texte.
 import { describe, expect, it } from 'vitest'
 import type { P } from './geo'
@@ -100,9 +100,9 @@ describe('Sicht auf die Wartefläche: Prüfung je Zufahrt', () => {
     expect(zz.sichtGelaende).toMatchObject({ stand: 'mit', abM: 35, bisM: 55 })
     expect(zz.sichtGelaende!.linien.find(l => l.x === 40)!.frei).toBe(false)
     expect(zz.sichtGelaende!.linien.find(l => l.x === 20)!.frei).toBe(true)
-    expect(sichtGelaendeText(zz.sichtGelaende!)).toBe('Gelände: verdeckt ab 35 m (swissALTI3D)')
-    expect(statusText(zz, [])).toBe('verdeckt (Gelände, swissALTI3D)')
-    expect(STATUS[STATUS_GELAENDE]).toBe('verdeckt (Gelände, swissALTI3D)')
+    expect(sichtGelaendeText(zz.sichtGelaende!)).toBe('Geländemodell (swissALTI3D): Verdeckung; letzte frei geprüfte Position 35 m; erste verdeckte Position 37,5 m vor dem Streifen')
+    expect(statusText(zz, [])).toBe('verdeckt (Geländemodell, swissALTI3D)')
+    expect(STATUS[STATUS_GELAENDE]).toBe('verdeckt (Geländemodell, swissALTI3D)')
     // Streifen: höchster Status seiner Zufahrten
     const s = { fgsId: 'f1', status: 'frei', ann: ANN, zufahrten: [z, zuf(55, { zufahrt: 's' })] } as unknown as StreifenErgebnis
     const r = rechnungMitSichtGelaende({ streifen: [s] }, werteVon(z, { stand: 'ok', ...e }))!
@@ -126,7 +126,7 @@ describe('Sicht auf die Wartefläche: Prüfung je Zufahrt', () => {
       .toBe(STATUS_GELAENDE)
     expect(streifenStatusNeu({ status: 'ohne_zufahrt', zufahrten: [] })).toBe('ohne_zufahrt')
   })
-  it('Gelände frei: Status und «frei bis» unverändert, «Gelände: frei»', async () => {
+  it('im Geländemodell frei: Status und «frei bis» unverändert, «Geländemodell: geprüfte Sichtlinien frei»', async () => {
     const z = zuf(40)
     const k = kuppe(-100)
     const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, k.laden)
@@ -134,7 +134,7 @@ describe('Sicht auf die Wartefläche: Prüfung je Zufahrt', () => {
     const zz = zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'ok', ...e }))
     expect(zz.status).toBe('frei')
     expect(zz.freiBisM).toBe(40)
-    expect(sichtGelaendeText(zz.sichtGelaende!)).toBe('Gelände: frei')
+    expect(sichtGelaendeText(zz.sichtGelaende!)).toBe('Geländemodell: geprüfte Sichtlinien frei')
   })
   it('höchstens 14 Abfragen je Zufahrt, auch bei 110 m', async () => {
     const k = kuppe(104)
@@ -144,7 +144,7 @@ describe('Sicht auf die Wartefläche: Prüfung je Zufahrt', () => {
     expect(e.abM).toBeGreaterThanOrEqual(100)
     expect(e.abM).toBeLessThan(110)
   })
-  it('kein Profil (Fehler bzw. lädt): Rechnung bleibt 2D mit «Gelände: nicht geprüft»; andere Lage der Linien zählt nicht', async () => {
+  it('kein Profil (Fehler bzw. lädt): Rechnung bleibt 2D mit «Geländemodell: nicht geprüft»; andere Lage der Linien zählt nicht', async () => {
     const z = zuf(55)
     const g = sichtGeo(z, ANN)!
     await expect(sichtGelaendePruefen(g, async () => { throw new Error('HTTP 500') })).rejects.toThrow('HTTP 500')
@@ -154,9 +154,9 @@ describe('Sicht auf die Wartefläche: Prüfung je Zufahrt', () => {
     for (const w of [null, werteVon(z, { stand: 'fehler', text: 'HTTP 500' })]) {
       const zz = zufahrtMitGelaende(z, ANN, w)
       expect(zz.status).toBe('frei')
-      expect(sichtGelaendeText(zz.sichtGelaende!)).toBe('Gelände: nicht geprüft')
+      expect(sichtGelaendeText(zz.sichtGelaende!)).toBe('Geländemodell: nicht geprüft')
     }
-    expect(sichtGelaendeText(zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'laedt' })).sichtGelaende!)).toBe('Gelände: lädt')
+    expect(sichtGelaendeText(zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'laedt' })).sichtGelaende!)).toBe('Geländemodell: lädt')
     // Prüfsumme: verschobene Sichtpunkte, andere Warteflächen bzw. anderes Soll geben einen anderen Schlüssel
     const key = sichtGelaendeSchluessel(z, ANN)!
     const z2 = zuf(55, { sichtpunkte: punkte(55).map(p => [p[0] + 0.5, p[1]] as P) })
@@ -176,13 +176,13 @@ describe('Sicht auf die Wartefläche: Prüfung je Zufahrt', () => {
     expect(sichtGelaendeSchluessel(z, ANN, bruecke)).not.toBe(sichtGelaendeSchluessel(z, ANN))
     const a = sichtGelaendeAnzeige(z, ANN, { [sichtGelaendeSchluessel(z, ANN, bruecke)!]: { stand: 'ok', ...e } }, bruecke)!
     expect(a.linien.find(l => l.x === 30)).toMatchObject({ frei: null, bruecke: true })
-    expect(sichtGelaendeText(a)).toBe('Gelände: frei (Sichtlinien auf der Brücke nicht geprüft)')
+    expect(sichtGelaendeText(a)).toBe('Geländemodell: geprüfte Sichtlinien frei (Sichtlinien auf der Brücke nicht geprüft)')
     // alle Linien auf der Brücke: nicht prüfbar
     const ganz = { enthaelt: () => true }
     const e2 = await sichtGelaendePruefen(g, kuppe(-100).laden, ganz)
     expect(e2).toEqual({ abM: null, frei: {}, abfragen: 0 })
     expect(sichtGelaendeText(sichtGelaendeAnzeige(z, ANN, { [sichtGelaendeSchluessel(z, ANN, ganz)!]: { stand: 'ok', ...e2 } }, ganz)!))
-      .toBe('Gelände: nicht prüfbar (Brücke)')
+      .toBe('Geländemodell: nicht prüfbar (Brücke)')
   })
   it('Rechnung zum Zeigen: Trottoirüberfahrt und «kein FGS» unverändert, null bleibt null', () => {
     const tue = { fgsId: 't', status: 'kein_fgs', trottoirueberfahrt: true, ann: ANN, zufahrten: [] } as unknown as StreifenErgebnis
@@ -244,8 +244,45 @@ describe('Sicht auf die Wartefläche: an der gerechneten Zufahrt', () => {
 })
 
 describe('Sicht auf die Wartefläche: Tooltip des Sichtfelds', () => {
-  it('«verdeckt (Gelände)» statt des Status-Codes', () => {
-    expect(statusKurzKarte(STATUS_GELAENDE)).toBe('verdeckt (Gelände)')
+  it('«verdeckt (Geländemodell)» statt des Status-Codes', () => {
+    expect(statusKurzKarte(STATUS_GELAENDE)).toBe('verdeckt (Geländemodell)')
     expect(statusKurzKarte('verdeckt_gebaeude')).toBe('verdeckt gebaeude')
+  })
+})
+
+describe('D1: geprüfte Fahrzeugpositionen statt scheinbar genauer Sichtgrenze', () => {
+  const hoehenschnitt = (verdeckt: boolean): ProfilPunkt[] => [{ dist: 0, h: 500 }, { dist: 5, h: verdeckt ? 502 : 500 }, { dist: 10, h: 500 }]
+  it('führt 17,5 m frei / 20 m verdeckt mit, während Rechenwert 17 m und fünf Abfragen gleich bleiben', async () => {
+    const z = zuf(24), aufrufe: number[] = []
+    const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, async a => { aufrufe.push(a[1]); return hoehenschnitt(a[1] > 17.5) })
+    expect(aufrufe).toEqual([10, 20, 24, 15, 17.5])
+    expect(e).toMatchObject({ abM: 17, abfragen: 5, pruefbereich: { letzteFreiM: 17.5, ersteVerdecktM: 20 } })
+    const zz = zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'ok', ...e }))
+    expect(zz.freiBisM).toBe(17)
+    expect(zz.status).toBe(STATUS_GELAENDE)
+    expect(sichtGelaendeText(zz.sichtGelaende!)).toBe('Geländemodell (swissALTI3D): Verdeckung; letzte frei geprüfte Position 17,5 m; erste verdeckte Position 20 m vor dem Streifen')
+  })
+  it('bezeichnet die rechnerische Untergrenze 0 nicht als frei geprüft', async () => {
+    const z = zuf(24)
+    const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, async () => hoehenschnitt(true))
+    expect(e).toMatchObject({ abM: 0, abfragen: 5, pruefbereich: { letzteFreiM: null, ersteVerdecktM: 2.5 } })
+    const text = sichtGelaendeText(zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'ok', ...e })).sichtGelaende!)
+    expect(text).toContain('keine freie Position geprüft; erste verdeckte Position 2,5 m')
+    expect(text).not.toContain('Position 0 m')
+  })
+  it.each(['fehler', 'ohne_hoehen', 'bruecke'] as const)('erfindet bei unterbrochener Verfeinerung (%s) keine Zwischenlage', async art => {
+    const z = zuf(24)
+    const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, async a => {
+      if (a[1] === 15) { if (art === 'fehler') throw Error('HTTP 500'); return [] }
+      return hoehenschnitt(a[1] >= 20)
+    }, art === 'bruecke' ? { enthaelt: a => a[1] === 15 } : undefined)
+    expect(e).toMatchObject({ abM: 10, abfragen: art === 'bruecke' ? 3 : 4, pruefbereich: { letzteFreiM: 10, ersteVerdecktM: 20 } })
+  })
+  it('nennt bei älteren Ergebnissen nur den bekannten abgerundeten Rechenwert', () => {
+    const a = sichtGelaendeAnzeige(zuf(24), ANN, werteVon(zuf(24), { stand: 'ok', abM: 17, abfragen: 5, frei: {} }))!
+    const text = sichtGelaendeText(a)
+    expect(text).toContain('abgerundeter Rechenwert 17 m, genaue Prüflagen nicht verfügbar')
+    expect(text).not.toContain('erste verdeckte Position')
+    expect(text).not.toContain('letzte frei geprüfte Position')
   })
 })

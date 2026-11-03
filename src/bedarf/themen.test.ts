@@ -1,4 +1,4 @@
-// Tests Runde 2 (mit Korrekturen): Themen je Regel, Verbindlichkeit in Worten, Befundblatt nach Thema und Prüfübersicht.
+// Tests Themen je Regel, Verbindlichkeit in Worten, Befundblatt nach Thema und Prüfübersicht.
 import { describe, expect, it } from 'vitest'
 import { KATALOG, REGEL_IDS } from './katalog'
 import { beurteile } from './entscheid'
@@ -40,13 +40,13 @@ describe('Themen', () => {
       expect(t.name.toLowerCase()).not.toContain('zebra'); expect(t.umfang.toLowerCase()).not.toContain('zebra')
     }
   })
-  it('Grundprüfung: bfu-Namen führen (Nutzerentscheid), das Thema der erweiterten Prüfung gehört dazu; ihre Regeln im selben Thema', () => {
+  it('Grundprüfung: bfu-Namen führen, das Thema der erweiterten Prüfung gehört dazu; ihre Regeln im selben Thema', () => {
     const g = grundpruefung(fall({}))
     expect(g.gilt).toBe(true)
     expect(g.punkte.map(p => p.titel)).toEqual(['Tempo', 'Sichtverhältnisse', 'Fussgängerschutzinsel', 'Ein Fahrstreifen je Richtung', 'Beleuchtung', 'Fussgängerfrequenz'])
     expect(g.punkte.map(p => themaName(p.thema))).toEqual(['Zulässigkeit', 'Sicht', 'Insel', 'Fahrstreifen und Verkehr', 'Beleuchtung', 'Nachfrage'])
     for (const p of g.punkte) for (const t of [...p.teile, ...p.notizen]) expect(themaVon(t.id), t.id).toBe(p.thema)
-    // Korrektur Themen: C2-B Zulässigkeit, C4-B neben C4, E1b Lichtsignal, G9 Sicht
+    // C2-B Zulässigkeit, C4-B neben C4, E1b Lichtsignal, G9 Sicht
     expect(['C2-B', 'C4-B', 'C4', 'E1b', 'G9'].map(themaVon)).toEqual(['zulaessigkeit', 'fahrstreifen', 'fahrstreifen', 'lichtsignal', 'sicht'])
     expect(['H1', 'H3a', 'E3', 'G7'].map(themaVon)).toEqual(['sicht', 'sicht', 'sicht', 'sicht'])
     expect(['D2', 'F2', 'F3'].map(themaVon)).toEqual(['insel', 'insel', 'insel'])
@@ -75,7 +75,7 @@ describe('Verbindlichkeit in Worten (Muss/Soll/Hinweis)', () => {
     expect(new Set(Object.values(ist)).size).toBe(EBENEN.length * STAERKEN.length)
     for (const w of [...Object.values(ist), ...Object.values(STAERKE_WORT), ...Object.values(EBENE_WORT)])
       expect(w).not.toMatch(/\b(rot|gelb|grün|blau|grau)\b/i)
-    // Rechtsnatur-Satz gestrichen (Nutzerentscheid 23.10.2026)
+    // Rechtsnatur-Satz gestrichen
     expect(LEGENDE).toBe('Muss, Soll und Hinweis nach dem Wortlaut der Quelle.')
   })
   it('Projektentscheide (A1, C3c): «Hinweis (Projektentscheid fgsCheck)»', () => {
@@ -181,9 +181,9 @@ describe('Befundblatt nach Thema und Prüfübersicht (alle Testfälle mal Varian
   })
   it('Beispiel Grundfall S0 (Fussgängerstreifen, Tempo 50, DTV 8000, ohne Insel)', () => {
     const u = ue({})
-    expect([u.geprueft, u.ohneBefund, u.offen, u.befunde, u.hinweise, u.nichtGeprueft, u.nichtAnwendbar]).toEqual([40, 39, 0, 0, 1, 7, 74])   // Runde 4: Begegnungszone (A2) bei Strecke nicht anwendbar; 30.10.2026: G11 ohne Befund, G12 nur am Kreisel; − 9 gestrichene (F2g, Q3-M10, F5b, F5f, F5i bis F5m), bisher nicht anwendbar; Block 3: − F1a, F1b, F1c (ohne Befund), − Block I, G7, G7b, F1-K (nicht anwendbar)
+    expect([u.geprueft, u.ohneBefund, u.offen, u.befunde, u.hinweise, u.nichtGeprueft, u.nichtAnwendbar]).toEqual([40, 39, 0, 0, 1, 7, 74])   // Begegnungszone (A2) bei Strecke nicht anwendbar; 30.10.2026: G11 ohne Befund, G12 nur am Kreisel; − 9 gestrichene (F2g, Q3-M10, F5b, F5f, F5i bis F5m), bisher nicht anwendbar; Block 3: − F1a, F1b, F1c (ohne Befund), − Block I, G7, G7b, F1-K (nicht anwendbar)
     expect(zaehlText(u.themen.find(z => z.thema.id === 'insel')!)).toBe('3 geprüft, 2 ohne Befund, 1 Hinweis')
-    // Korrektur S6: «Ebene ausgeschaltet» nur für Regeln, die mit eingeschalteter Ebene gälten (D6-2 ja, C2-B auf der Strecke nicht)
+    // «Ebene ausgeschaltet» nur für Regeln, die mit eingeschalteter Ebene gälten (D6-2 ja, C2-B auf der Strecke nicht)
     const b0 = beurteile(fall({}))
     expect(b0.ebeneAus).toContain('D6-2')
     expect(b0.ebeneAus).not.toContain('C2-B')

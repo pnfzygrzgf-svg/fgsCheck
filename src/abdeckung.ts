@@ -21,15 +21,15 @@
 // neuen Ladeort liegt; dann deckt der Ausschnitt auch den Streifen aus OSM + AV (z. B. nach dem Löschen der Streifen von Hand).
 // Mit der halben Balkenlänge (Annahme 4 m: 2 m) reicht dieser Streifen bis rund 15 + 15 + 2 = 32 m vom Ladeort, 2 m über
 // NACHLADEN_M: das liegt in der Reserve von 5 m der REICHWEITE_M (die Rechnung erreicht 115 m, die Daten reichen 150 − 32 =
-// 118 m), QUERUNG_M bleibt darum 15 m (Korrektur 16.10.2026, Prüfung).
+// 118 m), QUERUNG_M bleibt darum 15 m (Prüfung).
 //
-// Mehrere Streifen von Hand (Korrektur 16.10.2026, S2): 30 m um einen Streifen sind für die Streifen eines Knotens knapp.
+// Mehrere Streifen von Hand (S2): 30 m um einen Streifen sind für die Streifen eines Knotens knapp.
 // Ladeort ist darum die Mitte des kleinsten Kreises um alle Streifen von Hand (gemeinsamerOrt: um die Kreise mit halber Breite
 // um die Achsenenden, dieselbe Schranke wie oben), wenn dann alle abgedeckt sind: die Streifen spannen dann höchstens rund
 // 2 × 30 = 60 m auf. Sonst wie bisher um den Bezugsstreifen; die übrigen meldet die App. Die Ausschnitte (±150 m, 300 m)
 // bleiben.
 //
-// Regeln (Auftrag 16.10.2026, Planung neuer Streifen; Korrektur 16.10.2026):
+// Regeln (Planung neuer Streifen):
 // - neuer Streifen von Hand: zum laufenden Fall dazu, wenn er in der Abdeckung um den Ladeort liegt oder alle Streifen von Hand
 //   (bisherige und neuer) zusammen abgedeckt werden können (danach um den gemeinsamen Ort nachladen, falls nötig); sonst bzw.
 //   ohne geladenen Ort neuer Fall am Streifen, nur mit diesem Streifen (planEntscheid). Ein Fall mit OSM-Übergang bleibt im

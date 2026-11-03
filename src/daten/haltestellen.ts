@@ -12,6 +12,8 @@ import { type P, lv95, dist } from '../geo'
 import { HALT_OSM_RADIUS_M } from './osm'
 import { arcgisUrl, arcgisHolen, GEOPORTAL_BERN, type ArcgisGeoJson } from './geoportal'
 import type { Abruf } from './holen'
+import { BAV_HERKUNFT, bavDatenstandText } from './anbieter/gemeinsam/bav'
+import type { BavSnapshot, Stand } from './anbieter/gemeinsam/typen'
 
 /** Bereich, den geladene Daten ganz abdecken: Kreis (Overpass around) bzw. Quadrat ±radiusM (Geoportal) um die Mitte (LV95) */
 export interface Bereich { mitte: P; radiusM: number; form: 'kreis' | 'quadrat' }
@@ -23,10 +25,12 @@ export function imBereich(p: P, rand: number, b: Bereich): boolean {
 
 export type HaltArt = 'bus' | 'tram' | 'bus_tram' | 'oev'
 export interface OevHalt { id: string; name: string; p: P; art: HaltArt
-  /** nur OSM (Automatik Paket B): Tags und Knoten-Id (bus_bay, stop_position auf der Fahrbahn) */
+  /** nur OSM: Tags und Knoten-Id (bus_bay, stop_position auf der Fahrbahn) */
   tags?: Record<string, string>; osmId?: number }
 /** Haltestellen für die Vorbelegung: Punkte, Herkunft (Text), Quelle und abgedeckter Bereich; zusatz: z. B. Ausfall des Geoportals */
-export interface HaltestellenStand { quelle: 'geoportal' | 'osm'; herkunft: string; halte: OevHalt[]; bereich: Bereich; zusatz?: string }
+export interface HaltestellenStand { quelle: 'geoportal' | 'osm' | 'bav'; herkunft: string; halte: OevHalt[]; bereich: Bereich; zusatz?: string
+  /** false: Inventar unvollständig/unbekannt oder bevorzugter Dienst ausgefallen; keine Negativaussage zulässig */
+  vollstaendig?: boolean }
 export type HaltestellenErgebnis = HaltestellenStand | { fehler: string }
 
 export const HALT_TEXT: Record<HaltArt, string> = { bus: 'Bushaltestelle', tram: 'Tramhaltestelle', bus_tram: 'Bus- und Tramhaltestelle',
@@ -100,4 +104,19 @@ export function haltestellenStand(bern: BernHalte | null, osmRoh: unknown | null
   if ('laedt' in bern) return null
   if ('fehler' in bern) return osm(`${GEOPORTAL_BERN} nicht erreichbar (${bern.fehler})`)
   return { quelle: 'geoportal', herkunft: GEOPORTAL_BERN, halte: bern.halte, bereich: { mitte: ladeort, radiusM: bernRadiusM, form: 'quadrat' } }
+}
+
+/** Lokale Haltekanten vor BAV-Haltestellenpunkten, dann OSM. Antwortgeschwindigkeit ändert die Priorität nicht. */
+export function haltestellenMitBav(bern: BernHalte | null, bav: Stand<BavSnapshot>, osmRoh: unknown | null,
+  ladeort: P, bernRadiusM: number): HaltestellenErgebnis | null {
+  if (bern && !('fehler' in bern)) return haltestellenStand(bern, osmRoh, ladeort, bernRadiusM)
+  if ('laedt' in bav) return null
+  if ('daten' in bav) return { quelle: 'bav', herkunft: BAV_HERKUNFT, halte: bav.daten.halte,
+    bereich: { mitte: bav.daten.mitte, radiusM: bav.daten.radiusM, form: 'quadrat' }, vollstaendig: false,
+    zusatz: `${bern && 'fehler' in bern ? `Geoportal Stadt Bern nicht erreichbar (${bern.fehler}); ` : ''}` +
+      `Haltestellenpunkte, keine Haltekanten; abgerufen ${bav.daten.abgerufen}; Datenstand ${bavDatenstandText(bav.daten)} (Ebene); Vollständigkeit unbekannt` }
+  const alt = haltestellenStand(bern, osmRoh, ladeort, bernRadiusM)
+  if ('fehler' in bav && alt && !('fehler' in alt)) return { ...alt, vollstaendig: false,
+    zusatz: [alt.zusatz, `BAV nicht erreichbar (${bav.fehler}); OSM als Rückfall`].filter(Boolean).join('; ') }
+  return alt
 }

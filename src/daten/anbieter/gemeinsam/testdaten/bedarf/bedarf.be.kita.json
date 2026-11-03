@@ -1,0 +1,58 @@
+{
+  "mitte": [
+    2604527,
+    1193615.5
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 1,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2604527,
+            1193615.5
+          ]
+        },
+        "properties": {
+          "OBJECTID": 1,
+          "ART_CODE": "kita",
+          "BETRARTT_ART_DE": "Tagesstätte für Kleinkinder",
+          "NAME": "Kita Bim Bam Bini Belp",
+          "STRASSE": "Schützenweg 4",
+          "ORT": "Belp"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": 187,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2604633.75,
+            1193669
+          ]
+        },
+        "properties": {
+          "OBJECTID": 187,
+          "ART_CODE": "kita",
+          "BETRARTT_ART_DE": "Tagesstätte für Kleinkinder",
+          "NAME": "Kita Schlössli Belp",
+          "STRASSE": "Schlössliweg 2",
+          "ORT": "Belp"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

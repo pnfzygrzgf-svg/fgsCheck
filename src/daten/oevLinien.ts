@@ -1,4 +1,4 @@
-// ── ÖV-Linien der Stadt Bern (Geoportal) für die Vorbelegung (Bus oder Tram am Halt, Linienbus; Automatik Paket C, 21.10.2026) ──
+// ── ÖV-Linien der Stadt Bern (Geoportal) für die Vorbelegung (Bus oder Tram am Halt, Linienbus, 21.10.2026) ──
 //
 // Service «OeV_Linien», Layer 0 (Linien je Linie und Richtung): Verkehrsmittel_typ (im Dienst Bus, Trolleybus, Tram, Zug,
 // Drahtseilbahn; geprüft 21.10.2026), Nummer_linie. Jede Linie kommt ganz (über die ganze Stadt): Abfrage mit Koordinaten auf 0,1 m

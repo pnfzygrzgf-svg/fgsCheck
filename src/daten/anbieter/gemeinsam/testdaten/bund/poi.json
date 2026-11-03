@@ -1,0 +1,85 @@
+{
+  "roh": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.534236550331116,
+            47.38178851157289
+          ]
+        },
+        "properties": {
+          "feature_id": 32085550,
+          "class": "hospital",
+          "subclass": "hospital",
+          "name": "Fachspital Sune-Egge",
+          "name:latin": "Fachspital Sune-Egge",
+          "name:de": "Fachspital Sune-Egge",
+          "name:fr": "Fachspital Sune-Egge",
+          "name:it": "Fachspital Sune-Egge",
+          "name:rm": "Fachspital Sune-Egge",
+          "name:en": "Fachspital Sune-Egge",
+          "closest_station_id": "[8591282:116:[8.533332,47.381118],[8.535682,47.382637]:482134];[8596126:395:[8.533321,47.38053],[8.538479,47.382403]:482135];[8591368:416:[8.533298,47.379416],[8.538332,47.382131]:482136]",
+          "sourceTile": "https://vectortiles.geo.admin.ch/tiles/ch.swisstopo.base.vt/v1.0.0/14/8580/5737.pbf"
+        },
+        "id": "14/8580/5737:15"
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.534225821495056,
+            47.38323777958303
+          ]
+        },
+        "properties": {
+          "feature_id": 32088370,
+          "class": "school",
+          "subclass": "school",
+          "name": "Sekundarschule Limmat, Zürich-Limmattal",
+          "name:latin": "Sekundarschule Limmat, Zürich-Limmattal",
+          "name:de": "Sekundarschule Limmat, Zürich-Limmattal",
+          "name:fr": "Sekundarschule Limmat, Zürich-Limmattal",
+          "name:it": "Sekundarschule Limmat, Zürich-Limmattal",
+          "name:rm": "Sekundarschule Limmat, Zürich-Limmattal",
+          "name:en": "Sekundarschule Limmat, Zürich-Limmattal",
+          "closest_station_id": "[8591282:120:[8.533147,47.381757],[8.535584,47.38344]:466738];[8591257:245:[8.530944,47.382541],[8.53452,47.385063]:466739];[8596126:429:[8.533125,47.38065],[8.5385,47.38344]:466740]",
+          "sourceTile": "https://vectortiles.geo.admin.ch/tiles/ch.swisstopo.base.vt/v1.0.0/14/8580/5737.pbf"
+        },
+        "id": "14/8580/5737:233"
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.534225821495056,
+            47.38323777958303
+          ]
+        },
+        "properties": {
+          "feature_id": 32088126,
+          "class": "school",
+          "subclass": "school",
+          "name": "Primarschule Limmat, Zürich-Limmattal",
+          "name:latin": "Primarschule Limmat, Zürich-Limmattal",
+          "name:de": "Primarschule Limmat, Zürich-Limmattal",
+          "name:fr": "Primarschule Limmat, Zürich-Limmattal",
+          "name:it": "Primarschule Limmat, Zürich-Limmattal",
+          "name:rm": "Primarschule Limmat, Zürich-Limmattal",
+          "name:en": "Primarschule Limmat, Zürich-Limmattal",
+          "closest_station_id": "[8591282:120:[8.533147,47.381757],[8.535584,47.38344]:474992];[8591257:245:[8.530944,47.382541],[8.53452,47.385063]:474993];[8596126:429:[8.533125,47.38065],[8.5385,47.38344]:474994]",
+          "sourceTile": "https://vectortiles.geo.admin.ch/tiles/ch.swisstopo.base.vt/v1.0.0/14/8580/5737.pbf"
+        },
+        "id": "14/8580/5737:235"
+      }
+    ]
+  },
+  "meta": {
+    "datenstand": "08.06.2026 (Kachelveröffentlichung, Last-Modified)"
+  }
+}

@@ -138,7 +138,7 @@ describe('Netz und Topologie (fgs_netz.OsmNetz)', () => {
     const arm = kb.arme.find(a => a.wid === 2)!
     expect(arm.rolle).toBe('abbiegend')
   })
-  it('Arm ab 10° Drehung ist Abbiegezufahrt, darunter Nebenast (Nutzerentscheid 13.10.2026, bis dahin 30°)', () => {
+  it('Arm ab 10° Drehung ist Abbiegezufahrt, darunter Nebenast (bis dahin 30°)', () => {
     const rolle = (grad: number) => {
       const netz = new OsmNetz(schraeg(grad)[0])
       const [gl] = netz.zuordnen(lv(0, -3.7), lv(0, 3.7), null, true, 4)
@@ -157,7 +157,7 @@ describe('Netz und Topologie (fgs_netz.OsmNetz)', () => {
 })
 
 describe('Rechnung am Übergang', () => {
-  // GEDECKT_RECHNEN seit 14.10.2026 standardmässig aus (Nutzerentscheid); Tests mit Schalter an setzen ihn über
+  // GEDECKT_RECHNEN seit 14.10.2026 standardmässig aus; Tests mit Schalter an setzen ihn über
   // gedecktRechnenSetzen(true), danach wieder die Vorgabe
   afterEach(() => gedecktRechnenSetzen(null))
   it('zwei gerade Zufahrten, Querstrasse 38 m vor dem Streifen durch die gerade Zufahrt mitgeprüft: entfällt «gedeckt»', () => {
@@ -193,7 +193,7 @@ describe('Rechnung am Übergang', () => {
       'Strecke über 55 m mit')
     expect(ab.netzHinweis).toContain('gedeckt')
     // Sichtweite: die Kurvensichtweite (eckige AV-Ecke, R 5 m: bfu 10 m), nicht «bis Knoten» (38 m); den Weg ab dem Knoten
-    // prüft die gerade Zufahrt (Nutzerentscheid 13.10.2026; zuvor hier «bis Knoten (Tab. 1 eigene Strasse, Tempo 50)», 38 m)
+    // prüft die gerade Zufahrt (zuvor hier «bis Knoten (Tab. 1 eigene Strasse, Tempo 50)», 38 m)
     expect(ab.kurvenradiusM).toBe(5)
     expect([ab.sichtweite, ab.sichtweiteQuelle]).toEqual([10, 'Kurvensichtweite (bfu); ab dem Knoten prüft die gerade Zufahrt mit'])
     expect(ab.sichtpunkte.length).toBeGreaterThan(2)
@@ -295,7 +295,7 @@ describe('Rechnung am Übergang', () => {
   })
 })
 
-describe('Insel nach OSM (crossing:island=yes, INSEL_AUS_OSM; ohne Luftbild kein Teilen, Nutzerentscheid 14.10.2026; Schalter seit 30.10.2026 aus, hier an)', () => {
+describe('Insel nach OSM (crossing:island=yes, INSEL_AUS_OSM; ohne Luftbild kein Teilen; Schalter seit 30.10.2026 aus, hier an)', () => {
   beforeEach(() => inselAusOsmSetzen(true))
   afterEach(() => inselAusOsmSetzen(null))
   const mitInsel = (extra: Record<string, string> = { 'crossing:island': 'yes' }) => {

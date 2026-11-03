@@ -1,4 +1,4 @@
-// ── Bedarfsmodul Runde 4: Muss-Hinweis an offenen Feldern der Maske, «Vorschlag bestätigen» nur, wo ein Verbot daran hängt ──
+// ── Muss-Hinweis an offenen Feldern der Maske, «Vorschlag bestätigen» nur, wo ein Verbot daran hängt ──
 //
 // Je offenes Feld ein kurzer Zusatz (nur Text, klein, grau, mit Symbol): «fehlt für 2 Muss-Prüfungen», «fehlt für 1 Muss- und
 // 2 Soll-Prüfungen», «fehlt nur für 1 Hinweis»; Felder, an denen die Zulässigkeit hängt: «entscheidet über die Zulässigkeit».
@@ -34,7 +34,8 @@ export const BESTAETIGUNG_MOEGLICH: readonly string[] = [...new Set(Object.value
 
 /** Felder, deren vorgeschlagene Annahme im Fall ein Verbot offen hält (Einträge mit bestaetigen): dort steht «Vorschlag bestätigen» */
 export function bestaetigungsFelder(blaetter: readonly BefundBlatt[]): Set<string> {
-  return new Set(blaetter.flatMap(b => b.befund.alle.filter(x => x.bestaetigen).flatMap(x => x.fehlend ?? [])))
+  return new Set(blaetter.flatMap(b => [...b.befund.alle.filter(x => x.bestaetigen).flatMap(x => x.fehlend ?? []),
+    ...Object.entries(b.vorbelegt.werte).filter(([, v]) => v.bestaetigungNoetig).map(([pfad]) => pfad)]))
 }
 
 const wort = (s: Staerke): 'muss' | 'soll' | 'hinweis' => (s === 'hart' || s === 'hart_bericht' ? 'muss' : s === 'weich' ? 'soll' : 'hinweis')

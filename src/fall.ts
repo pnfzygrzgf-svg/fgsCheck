@@ -1,3 +1,9 @@
+import { amtlicherUebergangLesen, type AmtlicherUebergang } from './daten/amtlicheUebergaenge'
+import { signalEntscheideLesen, type SignalEntscheid } from './daten/anbieter/gemeinsam/regionalSignale'
+import { regionalSnapshotLesen, regionalSnapshotSchreiben, type RegionalSnapshot } from './daten/anbieter/gemeinsam/regional'
+import { zuerichSnapshotLesen, type ZuerichSnapshot } from './daten/anbieter/gemeinsam/zuerich'
+import type { NpvmSnapshot } from './daten/anbieter/npvm'
+import { npvmSnapshotLesen } from './daten/anbieter/npvmSpeicher'
 // ── Fall-Datei: alle Eingaben eines Übergangs (E2) ──
 //
 // JSON mit Version, Ort und Quellenstand; Koordinaten in LV95 (m). Wird als Datei gespeichert/geladen und zusätzlich im
@@ -9,11 +15,13 @@ import type { Hindernis } from './rechner/hindernisse'
 import type { SpurHand } from './rechner/spurhand'
 import type { VonHand } from './rechner/pruefen'
 import { ANN_HAND_BREITE, ANN_HAND_VERSATZ_MAX, type AnnHand, type QuerungOhneVortritt, type QuerungSicht } from './rechner/typen'
-import { bedarfLesen, bedarfLeer, type BedarfBlock } from './bedarf/fallBedarf'
+import { bedarfLesen, bedarfLeer, DATENQUELLEN, type BedarfBlock } from './bedarf/fallBedarf'
 import { herkunftLesen, type LuftbildHerkunft } from './daten/luftbildFgs'
+import type { AmtlicheQuellen } from './daten/anbieter/gemeinsam/typen'
+import { amtlicheQuellenLesen } from './daten/anbieter/gemeinsam/speicher'
 
 /**
- * Versionen der Fall-Datei (Korrektur 16.10.2026, Prüfbefund S2): 1 = bisher; 2 = mit Flächen (Plan) (Feld flaechenPlan). Version 2
+ * Versionen der Fall-Datei: 1 = bisher; 2 = mit Flächen (Plan) (Feld flaechenPlan). Version 2
  * wird nur geschrieben, wenn der Fall Flächen (Plan) hat (fallVersion): eine ältere App lehnt die Datei dann ab («Fall-Datei
  * Version 2 wird nicht unterstützt»), statt still ohne die Plan-Flächen zu rechnen; alle übrigen Dateien bleiben Version 1 und
  * für ältere Apps lesbar. FALL_VERSION ist die höchste lesbare Version.
@@ -25,15 +33,25 @@ import { herkunftLesen, type LuftbildHerkunft } from './daten/luftbildFgs'
  * Version 5 (30.10.2026): Lage einer bestehenden Querung von Hand angepasst (StreifenHand.bestand) an einem Übergang ohne
  * Fussgängerstreifen. Eine ältere App läse den Streifen als geplanten Fussgängerstreifen (still eine andere Bewertung); sie lehnt die
  * Datei ab. An einem markierten Übergang rechnet sie gleich (Bestand, Fussgängerstreifen): dort bleibt es bei der bisherigen Version.
- */
-export const FALL_VERSION = 5
+ * Version 6 (Quellenintegration E1a, 01.11.2026): gespeicherte BAV-/Gebietsausschnitte mit Herkunft, Stand und Abrufzeit.
+ * Die BAV-Quelle kann bestätigungspflichtige Vorschläge erzeugen; ältere Apps sollen diese Fälle nicht still anders vorbelegen.
+ * Ohne amtlicheQuellen bleibt die bisherige bedingte Version erhalten. Beim Öffnen werden alle benötigten Quellen frisch geladen.
+ * Version 7 (E1b, 01.11.2026): NPVM-Ausschnitt, bestätigter Zuordnungsbeleg und explizite Quellenwahl je Bedarfsfeld.
+ * Bestätigte Werte behalten ihre ursprüngliche Herkunft, auch wenn neu geladene Daten abweichen.
+ * Version 8 (E2-Pilot Stadt Zürich, 02.11.2026): heutige Tempo-/Zonenausschnitte und deren explizite Feldquellen.
+ * Version 9: regionale Ausschnitte, amtliche Übergänge und Signalentscheide.
+ * Version 10 (E1c): weitere Bundesquellen und ihre Bestätigungen.
+ * Version 11 (E4): örtliche Bedarfsquellen. E6-Kontextteile nutzen das bestehende Regionalformat.
+ * Version 12 ist nicht eingeführt: Das Überspringen unbekannter Regionalteile mit Hinweis ändert das Format nicht.
+ * Bekannte Teile werden weiterhin streng aus ihren Rohdaten gelesen; ihre Validierung wird nicht gelockert. */
+export const FALL_VERSION = 11
 export const FALL_VERSION_BASIS = 1
-/** Version, mit der ein Fall geschrieben wird: 5 mit der Lage einer bestehenden Querung ohne Fussgängerstreifen von Hand angepasst
+/** Version, mit der ein Fall geschrieben wird: 11 mit örtlichen Bedarfsquellen (E4), 10 mit weiteren Bundesquellen/Bestätigungen (E1c), 9 mit regionalen Ausschnitten, amtlichem Übergang oder Signalentscheid; 8 mit Zürcher Ausschnitt bzw. Feldquelle, 7 mit NPVM oder expliziter Feldquelle (E1b), 6 mit amtlichen Quellenausschnitten (E1a), 5 mit der Lage einer bestehenden Querung ohne Fussgängerstreifen von Hand angepasst
  * (30.10.2026), 4 mit einem vorgezogenen Seitenraum (seit 23.10.2026: eine ältere App würde die Parkierung darunter weiter zählen, sie
  * lehnt die Datei mit «neuere Version, Seite neu laden» ab), 3 mit Bedarf bzw. Querung ohne Vortritt, 2 mit Flächen (Plan), sonst 1 */
 export const fallVersion = (f: { flaechenPlan?: FlaechePlan[]; bedarf?: BedarfBlock; streifen?: Record<string, StreifenEingabe>
-  streifenHand?: StreifenHand[]; ort?: { markierung?: Markierung } }): number =>
-  (f.streifenHand?.some(h => !!h.bestand) && !(f.ort?.markierung && istFgs(f.ort.markierung)) ? 5
+  streifenHand?: StreifenHand[]; ort?: { markierung?: Markierung; amtlich?: AmtlicherUebergang }; amtlicheQuellen?: AmtlicheQuellen; npvm?: NpvmSnapshot; zuerich?: ZuerichSnapshot; regional?: RegionalSnapshot; signalEntscheide?: SignalEntscheid[] }): number =>
+  (f.regional?.teile.some(t => t.id.startsWith('bedarf.')) || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.id.startsWith('regional.bedarf.')) ? 11 : f.regional?.teile.some(t => t.id.startsWith('bund.')) || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.id.startsWith('regional.bund.')) ? 10 : f.ort?.amtlich || f.signalEntscheide?.length || f.regional || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.datenstand !== undefined) || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.id.startsWith('regional.')) ? 9 : f.zuerich || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.id.startsWith('zh.')) ? 8 : f.npvm || f.bedarf?.felder.dtv?.npvmBeleg || Object.values(f.bedarf?.felder ?? {}).some(h => !!h.datenquelle) ? 7 : f.amtlicheQuellen ? 6 : f.streifenHand?.some(h => !!h.bestand) && !(f.ort?.markierung && istFgs(f.ort.markierung)) ? 5
     : f.flaechenPlan?.some(x => x.standard?.typ === 'seitenraum') ? 4
     : !bedarfLeer(f.bedarf) || Object.values(f.streifen ?? {}).some(e => !!e.typ) ? 3 : f.flaechenPlan?.length ? 2 : FALL_VERSION_BASIS)
 
@@ -125,13 +143,20 @@ export interface Fall {
      * Kennung des Kandidaten, herkunft trägt Lage, Richtung, Sicherheit und Flugjahre, damit die App den Übergang beim Laden wieder
      * einfügt. Fehlt bei OSM-Übergängen (alte Dateien unverändert, keine neue Version: eine ältere App findet den Übergang nicht in
      * OSM und meldet das, statt still anders zu rechnen) */
-    herkunft?: LuftbildHerkunft }
+    herkunft?: LuftbildHerkunft; amtlich?: AmtlicherUebergang }
   quellen: { osm?: string; av?: string; baumkataster?: string; parkkataster?: string; luftbild?: string; geladen?: string
     /** Geoportal Stadt Bern für die Vorbelegung des Bedarfsmoduls (seit 20.10.2026) */
     haltestellen?: string; verkehrsdaten?: string
-    /** weitere Dienste des Geoportals Stadt Bern (Automatik Paket C, seit 21.10.2026) */
+    /** weitere Dienste des Geoportals Stadt Bern (seit 21.10.2026) */
     richtplan?: string; strassenhierarchie?: string; vsig?: string; schulen?: string; taktil?: string; nutzungszonen?: string
-    oevLinien?: string }
+    oevLinien?: string; bav?: string; gebiet?: string; npvm?: string; zhTempo?: string; zhZonen?: string; regional?: string }
+  /** Version 6: BAV-/Gebietsausschnitt samt Herkunft erhalten, beim Wiederöffnen werden die Quellen neu geladen. */
+  amtlicheQuellen?: AmtlicheQuellen
+  /** Modellierter DTV-Ausschnitt mit Stand; bestätigte Zuordnungsbelege liegen zusätzlich am Bedarf-Feld. */
+  npvm?: NpvmSnapshot
+  zuerich?: ZuerichSnapshot
+  regional?: RegionalSnapshot
+  signalEntscheide?: SignalEntscheid[]
   streifenHand: StreifenHand[]
   hindernisse: Hindernis[]
   zufahrten: Record<string, ZufahrtHand>          // Schlüssel «Streifen|Kennung»
@@ -263,7 +288,7 @@ function seitenraumPruefen(x: Record<string, unknown>): PlanSeitenraum | null {
 }
 
 const QUELLEN_SCHLUESSEL = ['osm', 'av', 'baumkataster', 'parkkataster', 'luftbild', 'geladen', 'haltestellen', 'verkehrsdaten',
-  'richtplan', 'strassenhierarchie', 'vsig', 'schulen', 'taktil', 'nutzungszonen', 'oevLinien'] as const
+  'richtplan', 'strassenhierarchie', 'vsig', 'schulen', 'taktil', 'nutzungszonen', 'oevLinien', 'bav', 'gebiet', 'npvm', 'zhTempo', 'zhZonen', 'regional'] as const
 
 /** Fall aus JSON lesen und prüfen -> [Fall, Hinweise]. Ausnahme nur bei fremder Datei, Version oder ungültigem Ort; ungültige
  * Listen bzw. Objekte und einzelne ungültige Einträge werden übergangen und gemeldet. Auch für den Browser-Speicher (fallErinnern). */
@@ -279,8 +304,15 @@ export function fallLesen(text: string): [Fall, string[]] {
     throw new Error(`Ort ausserhalb der Schweiz bzw. Liechtensteins (lat ${ort.lat}, lon ${ort.lon}); fgsCheck rechnet nur dort`)
   const hinweise: string[] = []
   const fall = leererFall(ort.lat, ort.lon, zahl(ort.uebergang) ? ort.uebergang : null)
+  fall.amtlicheQuellen = amtlicheQuellenLesen(roh.amtlicheQuellen, hinweise)
+  if (roh.signalEntscheide !== undefined) { const xs = signalEntscheideLesen(roh.signalEntscheide); if (xs.length) fall.signalEntscheide = xs; if (!Array.isArray(roh.signalEntscheide) || xs.length !== roh.signalEntscheide.length) hinweise.push('Ungültige amtliche Signalzuordnungen übergangen') }
+  if (roh.regional !== undefined) { const r = regionalSnapshotLesen(roh.regional, hinweise); if (r) fall.regional = r; else hinweise.push('Gespeicherte regionale Quellen ungültig, übergangen') }
+  if (roh.zuerich !== undefined) { const z = zuerichSnapshotLesen(roh.zuerich); if (z) fall.zuerich = z; else hinweise.push('Gespeicherte Zürcher Quellen ungültig, übergangen') }
+  if (roh.npvm !== undefined) { const n = npvmSnapshotLesen(roh.npvm)
+    if (n) fall.npvm = n; else hinweise.push('Gespeicherte NPVM-Verkehrsdaten ungültig, übergangen') }
   if (typeof ort.bezeichnung === 'string') fall.ort.bezeichnung = ort.bezeichnung
   if (MARKIERUNGEN.includes(ort.markierung as Markierung)) fall.ort.markierung = ort.markierung as Markierung
+  if (ort.amtlich !== undefined) { const a = amtlicherUebergangLesen(ort.amtlich); if (a && a.id === fall.ort.uebergang) fall.ort.amtlich = a; else hinweise.push('Ungültiger amtlicher Übergang übergangen') }
   if (ort.herkunft !== undefined) {
     // nur zu einem Übergang aus dem Luftbild (negative Kennung)
     const h = fall.ort.uebergang !== null && fall.ort.uebergang < 0 ? herkunftLesen(ort.herkunft) : null
@@ -418,7 +450,7 @@ export function fallSchreiben(fall: Fall, ergebnis: FallErgebnis | null = null):
   void _alt
   // leerer Bedarf-Block (keine Handeingabe, keine Ebene) wird nicht geschrieben: der Fall bleibt Version 1 bzw. 2
   const rest = bedarfLeer(bedarf) ? ohne : { ...ohne, bedarf }
-  return JSON.stringify({ ...rest, version: fallVersion(fall), gespeichert: new Date().toISOString(), ...(ergebnis ? { ergebnis } : {}) }, null, 1)
+  return JSON.stringify({ ...rest, ...(fall.regional ? { regional: regionalSnapshotSchreiben(fall.regional) } : {}), version: fallVersion(fall), gespeichert: new Date().toISOString(), ...(ergebnis ? { ergebnis } : {}) }, null, 1)
 }
 
 /** Annäherungsbereich eines Endes von Hand prüfen (Versatz und Breite in den Grenzen) */
@@ -453,7 +485,15 @@ export function annHandSetzen(s: StreifenHand, k: 0 | 1, h: AnnHand | null): voi
 export function vonHandAusFall(fall: Fall, vorgabe: QuerungSicht | null | ((fid: string) => QuerungSicht | null) = null): VonHand {
   const z = (fid: string, kennung: string) => fall.zufahrten[zufahrtSchluessel(fid, kennung)]
   const vg = (fid: string) => (typeof vorgabe === 'function' ? vorgabe(fid) : vorgabe)
+  const h = fall.bedarf?.felder.vSig
+  const tempoVorgabe = h && typeof h.wert === 'number' && Number.isFinite(h.wert) && h.wert >= 5 && h.wert <= 120
+    ? { wert: h.wert, quelle: h.datenquelle
+      ? `${DATENQUELLEN[h.datenquelle.id]} (gewählt); Datenstand ${h.datenquelle.datenstand || 'unbekannt'}`
+      : h.quelle === 'hand' ? 'Korrektur' : `${h.quelle === 'bestaetigt' ? 'bestätigt' : h.quelle === 'schaetzung' ? 'Schätzung' : 'Annahme'} (Signalisiertes Tempo)` }
+    : undefined
   return {
+    // D1: Vorgabe der geprüften Strasse; Abbiegezufahrten behalten das Tempo ihrer Querstrasse.
+    tempoVorgabe,
     spur: (fid, kennung) => z(fid, kennung)?.spur ?? null,
     streichen: (fid, kennung) => !!z(fid, kennung)?.streichen,
     // Trottoirüberfahrt: kein Lichtsignal der Querung selbst (das an der Einmündung steht im Bedarf, 27.10.2026)
@@ -480,14 +520,14 @@ export const istTrottoirueberfahrt = (fall: Fall, fid: string): boolean =>
 export const inselMarkiert = (fall: Fall): boolean => fall.bedarf?.felder['insel.art']?.wert === 'markiert'
 
 /**
- * Schlüssel der Eingaben, die die Rechnung braucht: der ganze Fall ohne Bedarf-Block (der wirkt nur über «Insel nur markiert», mit
+ * Schlüssel der Eingaben, die die Rechnung braucht: der ganze Fall ohne Bedarf-Block (der wirkt über «Signalisiertes Tempo», «Insel nur markiert», mit
  * einer Trottoirüberfahrt über «Breite der Trottoirüberfahrt» und «Tempo der Hauptstrasse» für die Knotensicht und an einem Übergang
  * ohne Fussgängerstreifen über «Strecke oder Zone» und das Tempo (Begegnungszone), je mit Quelle), ohne Speicherdatum und Ergebnis-Auszug.
  * Gleicher Schlüssel: keine neue Rechnung nach einer Bedarf-Eingabe (App)
  */
 export function rechnungsSchluessel(f: Fall): string {
-  const { bedarf: _b, gespeichert: _g, ergebnis: _e, ...rest0 } = f
-  void _b; void _g; void _e
+  const { bedarf: _b, gespeichert: _g, ergebnis: _e, regional: _regional, ...rest0 } = f
+  void _b; void _g; void _e; void _regional
   // Auge von Hand zählt nur an einer Trottoirüberfahrt (sonst ohne Wirkung auf die Rechnung)
   const ohneAuge = Object.values(f.streifen).some(e => (e.tueD || e.tueDtrottoir) && (e.typ !== 'trottoirueberfahrt' || e.keinFgs))
   const rest = ohneAuge ? { ...rest0, streifen: Object.fromEntries(Object.entries(f.streifen).map(([k, e]) => {
@@ -500,27 +540,41 @@ export function rechnungsSchluessel(f: Fall): string {
   // unmarkierte bzw. unbelegte OSM-Querung (Begegnungszone, 30.10.2026): «Strecke oder Zone» und das Tempo von Hand im Bedarf bestimmen,
   // ob die angenommene Querung in der Begegnungszone liegt (rechneFall, zoneFuerSicht)
   const zone = f.ort.uebergang !== null && !['lsa', 'markiert', 'vermutlich'].includes(f.ort.markierung ?? '')
-  const felder = [...(tue ? ['q3.breiteM', 'q3.vSigHaupt'] : []), ...(zone ? ['tempoRegime', 'vSig'] : [])]
-  return stabil([rest, inselMarkiert(f), ...felder.flatMap(k => [f.bedarf?.felder[k]?.wert ?? null, f.bedarf?.felder[k]?.quelle ?? null])])
+  const felder = ['vSig', ...(tue ? ['q3.breiteM', 'q3.vSigHaupt'] : []), ...(zone ? ['tempoRegime'] : [])]
+  return stabil([rest, inselMarkiert(f), ...felder.flatMap(k => [f.bedarf?.felder[k]?.wert ?? null, f.bedarf?.felder[k]?.quelle ?? null,
+    f.bedarf?.felder[k]?.datenquelle ?? null])])
+}
+
+/** Browser-Erinnerung enthält ausschliesslich Eingaben, Entscheide und Quellenwahl.
+ * Quellenausschnitte und ihre Lade-/Ergebnisangaben werden beim Öffnen neu ermittelt. */
+function browserFall(f: Fall): Fall {
+  return { app: f.app, version: f.version, ort: f.ort, quellen: {},
+    streifenHand: f.streifenHand, hindernisse: f.hindernisse, zufahrten: f.zufahrten, streifen: f.streifen,
+    vorschlaege: f.vorschlaege, baumkataster: f.baumkataster, parkkataster: f.parkkataster, luftbild: f.luftbild,
+    fixpunkte: f.fixpunkte, flaechenPlan: f.flaechenPlan, bedarf: f.bedarf, signalEntscheide: f.signalEntscheide,
+    gespeichert: f.gespeichert }
 }
 
 // ---------------------------------------------------------------- localStorage (nur Bequemlichkeit, darf fehlen)
 const SPEICHER = 'fgsCheck.fall.'
 /** Fall im Browser merken (Schlüssel «fgsCheck.fall.<Übergang>»); ein Fall ohne Eingaben wird nicht gespeichert, ein
  * vorhandener Eintrag dann entfernt (z. B. nach «Eingaben verwerfen» oder wenn alle Eingaben gelöscht sind) */
-export function fallMerken(fall: Fall): void {
+export function fallMerken(fall: Fall): string | null {
   const key = SPEICHER + (fall.ort.uebergang ?? 'ort')
   try {
-    if (hatEingaben(fall)) localStorage.setItem(key, fallSchreiben(fall))
+    if (hatEingaben(fall)) localStorage.setItem(key, fallSchreiben(browserFall(fall)))
     else localStorage.removeItem(key)
-  } catch { /* ohne Speicher */ }
+    return null
+  } catch (e) {
+    return `${(e as Error)?.name === 'QuotaExceededError' ? 'Der Browserspeicher ist voll.' : 'Die Browser-Erinnerung konnte nicht aktualisiert werden.'} Eingaben bleiben hier erhalten. Mit «Fall speichern» als Datei sichern; eine automatische Wiederherstellung ist derzeit nicht gewährleistet.`
+  }
 }
 /** Gemerkten Fall lesen: zu einem Übergang bzw. 'ort' = der zuletzt bearbeitete Fall ohne Übergang (Planung; ein einziger
  * Eintrag, «Letzten geplanten Fall wiederherstellen»). Unlesbarer Inhalt bzw. ohne Speicher: null */
 export function fallErinnern(uebergang: number | 'ort'): Fall | null {
   try {
     const t = localStorage.getItem(SPEICHER + uebergang)
-    return t ? fallLesen(t)[0] : null
+    return t ? browserFall(fallLesen(t)[0]) : null
   } catch { return null }
 }
 /** Eintrag eines Übergangs entfernen: der Fall gehört nicht mehr zu ihm (Ort verlegt, Übergang ausserhalb der geladenen
@@ -535,6 +589,7 @@ export function ohneUebergang(f: Fall): Fall {
   neu.ort.uebergang = null
   delete neu.ort.markierung
   delete neu.ort.herkunft
+  delete neu.ort.amtlich
   // ohne Übergang gibt es keine bestehende Querung mehr: die Streifen bleiben als Streifen von Hand (30.10.2026)
   for (const h of neu.streifenHand) delete h.bestand
   return neu
@@ -557,9 +612,9 @@ function stabil(x: unknown): string {
 export function eingabenSchluessel(f: Fall): string {
   // Flächen (Plan) nur, wenn vorhanden: der Schlüssel der Fälle ohne sie bleibt wie bisher
   // Bedarf ebenso nur, wenn vorhanden (Bedarfsmodul E1)
-  return stabil([f.ort.bezeichnung ?? '', f.streifenHand, f.hindernisse, f.zufahrten, f.streifen, f.vorschlaege, f.baumkataster,
+  return stabil([f.ort.bezeichnung ?? '', ...(f.ort.amtlich ? [f.ort.amtlich] : []), f.streifenHand, f.hindernisse, f.zufahrten, f.streifen, f.vorschlaege, f.baumkataster,
     f.parkkataster !== false, f.luftbild !== false, f.fixpunkte ?? [], ...(f.flaechenPlan?.length ? [f.flaechenPlan] : []),
-    ...(!bedarfLeer(f.bedarf) ? [{ bedarf: f.bedarf }] : [])])
+    ...(f.signalEntscheide?.length ? [f.signalEntscheide] : []), ...(!bedarfLeer(f.bedarf) ? [{ bedarf: f.bedarf }] : [])])
 }
 
 /**
@@ -576,14 +631,14 @@ export function ortMerkenEntscheid(fall: Fall, eigen: boolean, gemerkt: Fall | n
   return hatEingaben(fall) ? 'rueckfrage' : 'nichts'
 }
 
-// ---------------------------------------------------------------- Hilfen für die Oberfläche (E2-Korrektur)
+// ---------------------------------------------------------------- Hilfen für die Oberfläche
 /** Anzahl Eingaben eines Falls (Streifen von Hand, Hindernisse, Zufahrten, Streifen-Eingaben, verworfene Vorschläge bzw.
  * Parkfelder, Baumkataster zugeschaltet, amtliche Parkfelder abgeschaltet, Fixpunkte, Flächen (Plan), Bedarf: Handeingaben und
  * geschaltete Ebenen) */
 export function eingabenZahl(f: Fall): number {
   return f.streifenHand.length + f.hindernisse.length + Object.keys(f.zufahrten).length + Object.keys(f.streifen).length +
     Object.keys(f.vorschlaege).length + (f.baumkataster ? 1 : 0) + (f.parkkataster === false ? 1 : 0) + (f.fixpunkte?.length ?? 0) +
-    (f.flaechenPlan?.length ?? 0) + Object.keys(f.bedarf?.felder ?? {}).length + Object.keys(f.bedarf?.ebenen ?? {}).length
+    (f.signalEntscheide?.length ?? 0) + (f.ort.amtlich ? 1 : 0) + (f.flaechenPlan?.length ?? 0) + Object.keys(f.bedarf?.felder ?? {}).length + Object.keys(f.bedarf?.ebenen ?? {}).length
 }
 
 /** Hat der Fall etwas zu merken? Eingaben (eingabenZahl), Luftbild-Suche abgeschaltet oder eine Bezeichnung */

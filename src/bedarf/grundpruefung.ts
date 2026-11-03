@@ -1,7 +1,7 @@
 // ── Bedarfsmodul: Grundprüfung nach bfu MS.013-2025 (Big Five) ──
 //
 // Eigene Regeln (Katalog Gruppe B5) strikt nach der bfu-Fachdokumentation Fussgängerstreifen, Ziff. 2.1 bis 2.3, mit deren Werten
-// und Stärken nach Wortlaut (Nutzerentscheid 20.10.2026). Je Punkt ein Zustand erfüllt / verletzt (rot hart, gelb weich) / offen /
+// und Stärken nach Wortlaut. Je Punkt ein Zustand erfüllt / verletzt (rot hart, gelb weich) / offen /
 // Hinweis; anders als das Befundblatt (nur Verletzungen und Offenes) mit ausdrücklichem «erfüllt». Unabhängig von den Ebenen-
 // Schaltern, nicht im Entscheidbaum (keine Doppelungen im Befundblatt). Gilt nur für Fussgängerstreifen ohne Lichtsignalanlage.
 //
@@ -12,7 +12,7 @@
 // Sichtrechners. Frei auf einer kürzeren Strecke als nötig bzw. verdeckt auf einer längeren Strecke ist offen, nicht erfüllt bzw.
 // verletzt. Unsichere Soll-Werte (Stufe 60 ohne Angabe innerorts, Kurvenradius von Hand ohne Zuordnung der Zufahrt) als Bereich:
 // verletzt nur unter der unteren, erfüllt nur ab der oberen Grenze, dazwischen offen.
-// Automatik Paket B (21.10.2026): verdeckte gerade Zufahrten mit «frei bis» (Sichtrechner) gelten als erfüllt, wenn die freie Länge
+// Verdeckte gerade Zufahrten mit «frei bis» (Sichtrechner) gelten als erfüllt, wenn die freie Länge
 // das nötige Soll erreicht, als verletzt, wenn sie darunter liegt; dazwischen offen.
 
 import { KATALOG, quellText, type GrundId } from './katalog'
@@ -64,9 +64,9 @@ export interface Grundpruefung {
   /** weitere bfu-Punkte (DTV, Annäherungsbereich, Fahrbahnhaltestelle) */
   weitere: GrundTeil[]
   annahmen: string[]
-  /** Tempo des Sichtrechners weicht vom signalisierten Tempo ab (Runde 5, F2; Befundblatt): Hinweis in der Zeile ① */
+  /** Tempo des Sichtrechners weicht vom signalisierten Tempo ab (F2, Befundblatt): Hinweis in der Zeile ① */
   tempoHinweis?: string
-  /** Begegnungszone nur vorgeschlagen (Tempo 20, Nutzerentscheid 23.10.2026): Anzeige mit Sprung zum Feld «Strecke oder Zone» */
+  /** Begegnungszone nur vorgeschlagen (Tempo 20): Anzeige mit Sprung zum Feld «Strecke oder Zone» */
   zoneVorschlag?: true
 }
 
@@ -202,7 +202,7 @@ function sichtRechner(k: Kontext, zs: GrundSicht[], ohneZufahrt: string[]): Roh 
   const liste: Z[] = zs.map(z => {
     let unten = z.soll, oben = z.soll, nachV85 = false, fehlt: string | undefined, hoeher = ''
     if (!z.abbiegend) {
-      // gerade Zufahrt: Stufe nach V85, ohne V85 nach max(signalisiert, Tempo des Sichtrechners) (Korrektur M3: liegt das
+      // gerade Zufahrt: Stufe nach V85, ohne V85 nach max(signalisiert, Tempo des Sichtrechners) (liegt das
       // signalisierte Tempo höher, z. B. Geoportal bzw. von Hand, nie «erfüllt» mit dem tieferen); geometrische Grenze bzw. Kurvenregel
       // des Sichtrechners (bis Knoten, Wegende, Gebäude, Kreiselring) bleibt Obergrenze, das Soll ist dann min(Tab. 1, Soll des Sichtrechners)
       if (v85 === null) k.annahmen.add(ANNAHME_V85)
@@ -237,7 +237,7 @@ function sichtRechner(k: Kontext, zs: GrundSicht[], ohneZufahrt: string[]): Roh 
   })
   const leer = ohneZufahrt.map(n => `${n}: keine Zufahrt geprüft`)
   const mit = liste.filter(x => x.unten !== null)
-  // Runde 5 (Stelle 21): Soll getrennt nach geraden und abbiegenden Zufahrten
+  // Soll getrennt nach geraden und abbiegenden Zufahrten
   const sollVon = (ab: boolean) => [...new Set(mit.filter(x => !!x.z.abbiegend === ab).map(x => bereichText(x.unten!, x.oben)))].join('; ')
   const sG = sollVon(false), sA = sollVon(true)
   const sollText = sG && sA ? `${sG} geradeaus, ${sA} für Abbiegende` : sG || (sA ? `${sA} für Abbiegende` : '') || undefined
@@ -281,7 +281,7 @@ const GRUND: Record<GrundId, GrundFn> = {
     if (vSig === null) throw new Offen(['vSig'])
     const nh = 'Norm: VSS 40 241:2019 Z. 13 rechnet ohne Messung mit dem signalisierten Tempo (C1).'
     if (v85 === null) {
-      // Runde 5 (Stelle 16): bis 50 km/h signalisiert entscheidet die Frage nach Anzeichen für schnelleres Fahren, nicht die Messung
+      // Bis 50 km/h signalisiert entscheidet die Frage nach Anzeichen für schnelleres Fahren, nicht die Messung
       const anz = k.o('anzeichenSchneller')
       if (vSig <= max - 10 + EPS && anz === false) return ok({ ist: `${zahl(vSig)} km/h signalisiert, keine Anzeichen für schnelleres Fahren`,
         soll: `≤ ${max} km/h`, detail: 'V85 nicht gemessen (ohne Verdacht nicht nötig)', normHinweis: nh })
@@ -396,7 +396,7 @@ const GRUND: Record<GrundId, GrundFn> = {
     if (k.w('haltestelle').art !== 'fahrbahn') return null
     if (!k.insBaulich()) return verletzt({ ist: k.inselMarkiert() ? 'Fahrbahnhaltestelle, Insel nur markiert' : 'Fahrbahnhaltestelle ohne Insel', soll: 'Schutzinsel' })
     const d = k.w('durchfahrt'), W = K['B5-W3'].werte
-    // untere Grenze 3,45 m wie B5-2c: die bfu nennt 3,5 m auf eine Nachkommastelle (Korrektur 23.10.2026)
+    // untere Grenze 3,45 m wie B5-2c: die bfu nennt 3,5 m auf eine Nachkommastelle
     const schlecht = d.map((x, i) => [x, i] as const).filter(([x]) => x < W.dMin - EPS || x > W.dTol + EPS)
     const x = { ist: `Durchfahrt ${durchfahrtIst(d)}`, soll: `rund ${fmt(W.d)} m (${fmt(W.dMin)}–${fmt(W.dTol)} m)`,
       detail: schlecht.length ? schlecht.map(([v, i]) => `Seite ${i + 1}: ${fmt(v)} m`).join('; ') : undefined }
@@ -414,7 +414,7 @@ const NAME: Record<GrundId, string> = {
   'B5-W3': 'Fahrbahnhaltestelle',
 }
 
-/** Punkte: Name nach bfu (Nutzerentscheid Runde 2: bfu-Namen führen), Thema der erweiterten Prüfung daneben */
+/** Punkte: Name nach bfu, Thema der erweiterten Prüfung daneben */
 const PUNKTE: { nr: GrundPunkt['nr']; thema: Thema; titel: string; teile: GrundId[]; notizen?: GrundId[] }[] = [
   { nr: 'T', thema: 'zulaessigkeit', titel: 'Tempo', teile: ['B5-T'] },
   { nr: '1', thema: 'sicht', titel: 'Sichtverhältnisse', teile: ['B5-1', 'B5-1b'], notizen: ['B5-1c'] },
@@ -463,7 +463,7 @@ function teil(id: GrundId, k: Kontext, o: GrundOptionen): GrundTeil | null {
 
 /** Grundprüfung einer Querung (reine Funktion) */
 export function grundpruefung(e: BedarfEingaben, o: GrundOptionen = {}): Grundpruefung {
-  // Begegnungszone (Tatsache bzw. Vorschlag bei Tempo 20, Nutzerentscheid 23.10.2026): kein Fussgängerstreifen, keine Grundprüfung;
+  // Begegnungszone (Tatsache bzw. Vorschlag bei Tempo 20): kein Fussgängerstreifen, keine Grundprüfung;
   // als Annahme bleibt sie offen (A2 «Annahme bestätigen») und die Grundprüfung läuft wie bisher
   const tr = e.tempoRegime
   if (tr?.wert === 'begegnungszone' && !(tr.quelle && QUELLEN_ANNAHME.includes(tr.quelle))) {
@@ -499,7 +499,7 @@ export function grundpruefung(e: BedarfEingaben, o: GrundOptionen = {}): Grundpr
     // Kurve: die Grundprüfung liest nur den Radius; ohne Radius ist die Annahme zu den Kurven-Voraussetzungen ohne Belang
     if (f === 'kurve' && (e.kurve.wert?.radius ?? null) === null) continue
     const q = e[f].quelle
-    // Schlüssel wie im Befund (entscheid.ts); das Befundblatt setzt Wert und Herkunft ein (Runde 5)
+    // Schlüssel wie im Befund (entscheid.ts); das Befundblatt setzt Wert und Herkunft ein
     if (q && QUELLEN_ANNAHME.includes(q)) annahmen.push(`${f}: ${q === 'annahme' ? 'Annahme' : 'Schätzung'}`)
   }
   return { gilt: true, punkte, weitere, annahmen }

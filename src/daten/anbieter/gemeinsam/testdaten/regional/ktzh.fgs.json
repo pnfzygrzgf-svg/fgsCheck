@@ -1,0 +1,10 @@
+{
+"type": "FeatureCollection",
+"name": "ogd-0047_giszhpub_tba_str_fussgaengerstreifen_p",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::2056" } },
+"features": [
+{ "type": "Feature", "properties": { "achsnummer": "742", "nummer": "1855", "startdista": 2261.35, "status": 1.0, "typ": 3.0, "dat_logo": "26_03_2025", "status_txt": "aktiv", "typ_txt": "Fussgängerstreifen mit Mittelinsel gebaut", "geodb_oid": 1 }, "geometry": { "type": "Point", "coordinates": [ 2690841.337400000542402, 1245195.851599998772144 ] } },
+{ "type": "Feature", "properties": { "achsnummer": "742", "nummer": "1856", "startdista": 2392.15, "status": 1.0, "typ": 3.0, "dat_logo": "26_03_2025", "status_txt": "aktiv", "typ_txt": "Fussgängerstreifen mit Mittelinsel gebaut", "geodb_oid": 2 }, "geometry": { "type": "Point", "coordinates": [ 2690960.965399999171495, 1245149.135400000959635 ] } },
+{ "type": "Feature", "properties": { "achsnummer": "742", "nummer": "1858", "startdista": 4882.99, "status": 1.0, "typ": 2.0, "dat_logo": "26_03_2025", "status_txt": "aktiv", "typ_txt": "Fussgängerstreifen ohne Mittelinsel", "geodb_oid": 3 }, "geometry": { "type": "Point", "coordinates": [ 2692816.953600000590086, 1244022.647599998861551 ] } }
+]
+}

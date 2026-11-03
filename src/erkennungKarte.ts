@@ -5,7 +5,7 @@
 // höchstens 110 m), rot von dort bis zum Soll (verdeckt) bzw. grau (Fahrlinie endet, weiter zurück nicht geprüft). Reicht die Fahrlinie
 // nicht so weit, geht das Band gerade in ihrer letzten Richtung weiter. Das verdeckende Hindernis (Erkennung.hindernis) wird über seine
 // Kennung gesucht (Hindernisse von Hand, Vorschläge, Kataster).
-// Höchstens bis zum Soll (Nutzerentscheid 30.10.2026): reicht die Erkennungsdistanz weiter, endet das Band trotzdem beim Soll (der
+// Höchstens bis zum Soll: reicht die Erkennungsdistanz weiter, endet das Band trotzdem beim Soll (der
 // Tooltip nennt den gefundenen Wert); ebenso die Sichtlinien.
 // Sichtlinien (30.10.2026): Klick auf ein Band zeigt die dünnen Sichtlinien der Rechnung (ZufahrtErgebnis.erkennungLinien) bis zum Soll:
 // je Augpunkt eine Linie zum genutzten Zielpunkt der Markierung.
@@ -24,7 +24,7 @@ import { erkennungAnzeige, gelaendeText, type GelaendeStand } from './erkennungG
 type Gelaende = Readonly<Record<string, GelaendeStand>> | null | undefined
 
 /** Wort für das verdeckende Hindernis (wie texte.erkennungZusatz) */
-const HINDERNIS_WORT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld', baum: 'Baum', gelaende: 'Gelände (swissALTI3D)' }
+const HINDERNIS_WORT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld', baum: 'Baum', gelaende: 'Geländemodell (swissALTI3D)' }
 
 export interface ErkennungBand {
   /** Schlüssel «fgsId|zufahrt» */
@@ -96,7 +96,7 @@ export function erkennungBaender(s: StreifenErgebnis, gelaende?: Gelaende): Erke
     const kurz = e.wert < soll - 1e-9
     const fehlt = kurz ? { art: e.bis === 'verdeckt' ? 'verdeckt' as const : 'ungeprueft' as const, linie: abschnitt(z.spur, a0 + e.wert, a0 + soll) } : null
     const wer = e.hindernis ? HINDERNIS_WORT[e.hindernis.klasse] ?? e.hindernis.name : ''
-    const text = `Erkennungsdistanz: Markierung ${e.bis === 'fahrlinie_endet' ? 'auf' : 'ab'} ${erkennungWert(e)} sichtbar` +
+    const text = (e.gelaendePruefbereich?.letzteFreiM === null ? 'Erkennungsdistanz: Bodenmarkierung ohne frei geprüfte Position' : `Erkennungsdistanz: Bodenmarkierung im Modell ${e.bis === 'fahrlinie_endet' ? 'auf' : 'ab'} ${erkennungWert(e)} sichtbar`) +
       `${e.bewuchsAb !== undefined ? ` (in den Daten frei), ${erkennungBewuchs(e)}` : ''}, Soll ${Math.round(soll)} m` +
       (e.bis === 'verdeckt' ? (wer ? `; verdeckt durch ${wer}` : '; weiter entfernt verdeckt')
         : e.bis === 'fahrlinie_endet' ? '; Fahrlinie endet, weiter zurück nicht geprüft' : '') + `; ${gelaendeText(e)}`
@@ -115,8 +115,8 @@ export function erkennungSichtlinien(z: ZufahrtErgebnis, gelaende?: Gelaende): S
   if (!a || !a.linien.length || z.art === 'abbiegend') return []
   const bis = erkennungSoll(z)
   return a.linien.filter(x => x.x > 1e-6 && x.x <= bis + 1e-6).map(x => ({ x: x.x, auge: x.auge, ziel: x.ziel, art: x.befund,
-    text: `Sichtlinie ${Math.round(x.x)} m vor dem Streifen auf die Markierung: ${x.befund === 'frei' ? 'in den Daten frei'
+    text: `Sichtlinie ${Math.round(x.x)} m vor dem Streifen auf die Bodenmarkierung: ${x.befund === 'frei' ? 'in den Daten frei'
       : x.befund === 'bewuchs' ? `nicht sicher (Bewuchs AV: ${BEWUCHS_NAME[x.grund ?? ''] ?? x.grund}) – vor Ort oder in Street View prüfen`
-        : `verdeckt${x.grund ? ` (${x.grund})` : ''}`}${x.gelaende === true ? ', Gelände frei' : x.gelaende === false ? ''
-      : x.bruecke ? ', Gelände nicht prüfbar (Brücke)' : x.befund !== 'verdeckt' ? ', Gelände nicht geprüft' : ''}` }))
+        : `verdeckt${x.grund ? ` (${x.grund})` : ''}`}${x.gelaende === true ? ', im Geländemodell frei' : x.gelaende === false ? ''
+      : x.bruecke ? ', Geländemodell nicht prüfbar (Brücke)' : x.befund !== 'verdeckt' ? ', Geländemodell nicht geprüft' : ''}` }))
 }

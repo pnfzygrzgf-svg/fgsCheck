@@ -1,0 +1,77 @@
+<?xml version='1.0' encoding="UTF-8" ?>
+<wfs:FeatureCollection
+   xmlns:ms="http://mapserver.gis.umn.edu/mapserver"
+   xmlns:gml="http://www.opengis.net/gml/3.2"
+   xmlns:wfs="http://www.opengis.net/wfs/2.0"
+   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+   xsi:schemaLocation="http://mapserver.gis.umn.edu/mapserver https://map.geo.sz.ch/mapserv_proxy?ogcserver=source%20for%20image%2Fpng&amp;SERVICE=WFS&amp;VERSION=2.0.0&amp;REQUEST=DescribeFeatureType&amp;TYPENAME=ms:ch.sz.a245a.strassensignale.hinweissignale.weitere&amp;OUTPUTFORMAT=application%2Fgml%2Bxml%3B%20version%3D3.2 http://www.opengis.net/wfs/2.0 http://schemas.opengis.net/wfs/2.0/wfs.xsd http://www.opengis.net/gml/3.2 http://schemas.opengis.net/gml/3.2.1/gml.xsd"
+   timeStamp="2026-11-02T11:43:27" numberMatched="unknown" numberReturned="3"
+   next="https://map.geo.sz.ch/mapserv_proxy?ogcserver=source%20for%20image%2Fpng&amp;SERVICE=WFS&amp;VERSION=2.0.0&amp;REQUEST=GetFeature&amp;TYPENAME=ms%3Ach.sz.a245a.strassensignale.hinweissignale.weitere&amp;SRSNAME=EPSG%3A2056&amp;MAXFEATURES=3&amp;role_ids=58&amp;user_id=-1&amp;STARTINDEX=3">
+      <wfs:boundedBy>
+      	<gml:Envelope srsName="urn:ogc:def:crs:EPSG::2056">
+      		<gml:lowerCorner>2687802.231600 1206146.413800</gml:lowerCorner>
+      		<gml:upperCorner>2709050.790500 1226628.865400</gml:upperCorner>
+      	</gml:Envelope>
+      </wfs:boundedBy>
+    <wfs:member>
+      <ms:ch.sz.a245a.strassensignale.hinweissignale.weitere gml:id="ch.sz.a245a.strassensignale.hinweissignale.weitere.17827">
+        <gml:boundedBy>
+        	<gml:Envelope srsName="urn:ogc:def:crs:EPSG::2056">
+        		<gml:lowerCorner>2687802.231600 1206146.413800</gml:lowerCorner>
+        		<gml:upperCorner>2687802.231600 1206146.413800</gml:upperCorner>
+        	</gml:Envelope>
+        </gml:boundedBy>
+        <ms:geom>
+          <gml:Point gml:id="ch.sz.a245a.strassensignale.hinweissignale.weitere.17827.1" srsName="urn:ogc:def:crs:EPSG::2056">
+            <gml:pos>2687802.231600 1206146.413800</gml:pos>
+          </gml:Point>
+        </ms:geom>
+        <ms:id>17827</ms:id>
+        <ms:ssv_typ_cd>4.51.1</ms:ssv_typ_cd>
+        <ms:ssv_typ_tx>Wegweiser ohne Zielangabe </ms:ssv_typ_tx>
+        <ms:beschreibung>- - -</ms:beschreibung>
+        <ms:typ_jpg>- - -</ms:typ_jpg>
+      </ms:ch.sz.a245a.strassensignale.hinweissignale.weitere>
+    </wfs:member>
+    <wfs:member>
+      <ms:ch.sz.a245a.strassensignale.hinweissignale.weitere gml:id="ch.sz.a245a.strassensignale.hinweissignale.weitere.2667">
+        <gml:boundedBy>
+        	<gml:Envelope srsName="urn:ogc:def:crs:EPSG::2056">
+        		<gml:lowerCorner>2709050.790500 1226628.865400</gml:lowerCorner>
+        		<gml:upperCorner>2709050.790500 1226628.865400</gml:upperCorner>
+        	</gml:Envelope>
+        </gml:boundedBy>
+        <ms:geom>
+          <gml:Point gml:id="ch.sz.a245a.strassensignale.hinweissignale.weitere.2667.1" srsName="urn:ogc:def:crs:EPSG::2056">
+            <gml:pos>2709050.790500 1226628.865400</gml:pos>
+          </gml:Point>
+        </ms:geom>
+        <ms:id>2667</ms:id>
+        <ms:ssv_typ_cd>4.31</ms:ssv_typ_cd>
+        <ms:ssv_typ_tx>Wegweiser zu Autobahnen oder Autostrassen </ms:ssv_typ_tx>
+        <ms:beschreibung>- - -</ms:beschreibung>
+        <ms:typ_jpg>- - -</ms:typ_jpg>
+      </ms:ch.sz.a245a.strassensignale.hinweissignale.weitere>
+    </wfs:member>
+    <wfs:member>
+      <ms:ch.sz.a245a.strassensignale.hinweissignale.weitere gml:id="ch.sz.a245a.strassensignale.hinweissignale.weitere.2609">
+        <gml:boundedBy>
+        	<gml:Envelope srsName="urn:ogc:def:crs:EPSG::2056">
+        		<gml:lowerCorner>2692696.814800 1207656.849800</gml:lowerCorner>
+        		<gml:upperCorner>2692696.814800 1207656.849800</gml:upperCorner>
+        	</gml:Envelope>
+        </gml:boundedBy>
+        <ms:geom>
+          <gml:Point gml:id="ch.sz.a245a.strassensignale.hinweissignale.weitere.2609.1" srsName="urn:ogc:def:crs:EPSG::2056">
+            <gml:pos>2692696.814800 1207656.849800</gml:pos>
+          </gml:Point>
+        </ms:geom>
+        <ms:id>2609</ms:id>
+        <ms:ssv_typ_cd>4.45</ms:ssv_typ_cd>
+        <ms:ssv_typ_tx>Wegweiser für bestimmte Fahrzeugarten</ms:ssv_typ_tx>
+        <ms:beschreibung>- - -</ms:beschreibung>
+        <ms:typ_jpg>- - -</ms:typ_jpg>
+      </ms:ch.sz.a245a.strassensignale.hinweissignale.weitere>
+    </wfs:member>
+</wfs:FeatureCollection>
+

@@ -6,7 +6,7 @@
 //   Zufahrt von Süden, Achse des Zufahrtsstreifens x = 0, Fahrt nach Norden; links = Westen.
 //   Verkehr von links fährt nach Osten auf der nahen Fahrspur: Achse y = 1,5 (d = 1,50 m vom rechten Rand y = 0).
 //   K = (0; 1,5); Zielpunkte FA(s) = (−s; 1,5).
-//   D: B = 3 m vor dem Rand, 0,5 m links der Achse (Fahrersitz): D = (−0,5; −3).
+//   D: B = 3 m vor dem Rand, 0,5 m links der Achse (Fahrer*innensitz): D = (−0,5; −3).
 // Handlösung (Strahlensatz, Spitze D): Gebäudeecke C = (−cx; −cy) mit cy < 3. Die Sichtlinie D–FA(s) streift C, wenn
 //   (s − 0,5) / (cx − 0,5) = (1,5 + 3) / (3 − cy)   ->   s = 0,5 + (cx − 0,5) · 4,5 / (3 − cy).
 // Hinweis zum Plan: Die Ecke «3 m vom Rand» läge auf der Höhe von D (y = −3); die Sichtlinien steigen von D aus an und

@@ -1,9 +1,9 @@
-// ── Bedarfsmodul Runde 2: Themen, Verbindlichkeit in Worten, Prüfübersicht (nur Anzeige) ──
+// ── Themen, Verbindlichkeit in Worten, Prüfübersicht (nur Anzeige) ──
 //
 // Themen: jede Regel des Katalogs hat genau ein Thema (KATALOG[id].thema, Pflichtfeld). THEMEN gibt Namen in Alltagssprache,
 // Umfang und Anzeigereihenfolge. Die Punkte der Grundprüfung (bfu, Big Five) führen die bfu-Namen, ihr Thema steht klein daneben.
 //
-// Verbindlichkeit (Korrektur Runde 2, Schweizer Amtssprache Muss/Soll/Kann): aus Stärke (Wortlaut der Quelle, Entscheid E0-1) und
+// Verbindlichkeit (Schweizer Amtssprache Muss/Soll/Kann): aus Stärke (Wortlaut der Quelle) und
 // Ebene ein Wort, z. B. «Muss (Norm)», «Muss (Norm), Abweichung nur mit verkehrstechnischem Bericht», «Soll (Norm), Abweichung
 // begründen», «Hinweis (Richtlinie)». Regeln aus Projektentscheiden (erste Quelle fgsCheck) heissen «… (Projektentscheid fgsCheck)».
 // Mehr sagt das Wort nicht (LEGENDE).
@@ -142,7 +142,7 @@ export function nachAbschnitt<T>(xs: readonly T[], idVon: (x: T) => string): T[]
 
 // ── Verbindlichkeit in Worten ──
 
-/** Stärke nach Wortlaut der Quelle (Entscheid E0-1): Muss, Soll, Hinweis */
+/** Stärke nach Wortlaut der Quelle: Muss, Soll, Hinweis */
 export const STAERKE_WORT: Readonly<Record<Staerke, string>> = { hart: 'Muss', hart_bericht: 'Muss', weich: 'Soll', hinweis: 'Hinweis' }
 /** Zusatz nach der Ebene */
 export const STAERKE_ZUSATZ: Readonly<Record<Staerke, string>> = {
@@ -164,7 +164,7 @@ export function verbindlichkeitVon(x: Pick<Eintrag, 'id' | 'ebene' | 'staerke'>)
 }
 /** Legende unter Befundblatt und im Bericht */
 export const LEGENDE = 'Muss, Soll und Hinweis nach dem Wortlaut der Quelle.'
-/** Wort für einen offenen Eintrag (Eingabe fehlt, Entscheid E0-2) */
+/** Wort für einen offenen Eintrag (Eingabe fehlt) */
 export const OFFEN_WORT = 'Angabe fehlt'
 
 /**
@@ -231,7 +231,7 @@ const ZAEHLT = (d: RegelDef): boolean => d.gruppe !== 'B5' && d.art === 'befund'
 export const ERWEITERT_IDS: readonly string[] = REGEL_IDS.filter(id => ZAEHLT(DEF[id]))
 
 /**
- * Regelpaare bzw. Ketten (Korrektur A1): die zweite Stufe zählt nicht als «ohne Befund», wenn die erste verletzt oder offen ist
+ * Regelpaare bzw. Ketten: die zweite Stufe zählt nicht als «ohne Befund», wenn die erste verletzt oder offen ist
  * (die zweite Stufe ist dann nicht anwendbar bzw. unbekannt, ihr «nicht verletzt» hätte keine Grundlage).
  */
 export const PAARE: readonly (readonly [string, string])[] = [
@@ -292,7 +292,7 @@ function grundVon(id: string, b: Pick<Befund, 'ausgewertet' | 'ende' | 'nichtGep
   // Ausstattung der Trottoirüberfahrt (neu 27.10.2026): bei bekanntem anderem Querungstyp nicht anwendbar (zählt nicht als «nicht geprüft»)
   if (TUE_AUSSTATTUNG.includes(id) && k.typ && k.typ !== 'trottoirueberfahrt') return null
   const eb = k.ebenen ?? { bern: false, kantonBE: false, richtlinie: true }
-  // Korrektur S6: ausgeschaltete Ebene nur, wo die Regel mit eingeschalteter Ebene anwendbar wäre (Befund.ebeneAus); sonst nicht anwendbar
+  // Ausgeschaltete Ebene nur, wo die Regel mit eingeschalteter Ebene anwendbar wäre (Befund.ebeneAus); sonst nicht anwendbar
   const aus = (d.ebene === 'Bern' && !eb.bern) || (d.ebene === 'Kanton BE' && !eb.kantonBE) || (d.ebene === 'Richtlinie' && !eb.richtlinie)
   if (aus) return !b.ebeneAus || b.ebeneAus.includes(id) ? EBENE_AUS : null
   if (b.ende && ENDE[b.ende]) return ENDE[b.ende]

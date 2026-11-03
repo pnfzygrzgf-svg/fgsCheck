@@ -320,7 +320,7 @@ export function abzugSeite(t: Tags, seite: 'right' | 'left'): Abzug {
   return { park, velo }
 }
 
-// Annahme zu den Abzügen als Text (Panel, Bericht; Korrektur 16.10.2026: «Abzug: Velostreifen aus OSM (cycleway:*)» verstand
+// Annahme zu den Abzügen als Text (Panel, Bericht; «Abzug: Velostreifen aus OSM (cycleway:*)» verstand
 // niemand). abzugQuelle (fahrstreifenmitte) bleibt als Kennzeichen im Ergebnis unverändert.
 const f2_ = (x: number) => x.toFixed(2).replace('.', ',')
 const ABZUG_TEXT: Record<string, string> = {

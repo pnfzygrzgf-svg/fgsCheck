@@ -14,3 +14,5 @@ cache*/
 # Normen und andere PDFs (urheberrechtlich geschützt) nie einchecken
 *.pdf
 *.PDF
+# Zwischenspeicher der TypeScript-Typprüfung (tsc -b), auf jedem Rechner anders
+tsconfig.tsbuildinfo

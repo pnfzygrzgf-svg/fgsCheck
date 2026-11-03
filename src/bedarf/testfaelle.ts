@@ -74,7 +74,7 @@ const KANTON = { kantonBE: true } as const
 const ins = (x: Partial<Insel>): Insel => ({ ...INSEL_OK, ...x })
 const q3 = (x: Partial<Q3>): Q3 => ({ ...Q3_OK, ...x })
 const EINM = { lage: 'einmuendung' } as const
-/** beurteilte Trottoirüberfahrt an der Einmündung (Q3-Befunde nur dann, Korrektur M2) */
+/** beurteilte Trottoirüberfahrt an der Einmündung (Q3-Befunde nur dann) */
 const TUE = { lage: 'einmuendung', typ: 'trottoirueberfahrt' } as const
 const HALT_FB = { art: 'fahrbahn', lage: 'fgs_nach_halt', verdeckt: false, ueberholenUnterbunden: true } as const
 
@@ -97,7 +97,7 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'C1', name: 'vSig 70, ohne V85', abw: { vSig: 70, v85: null }, erwartet: { C1: 'hart' } },
   { regel: 'C2', name: 'T30-Zone ohne Bedürfnis', abw: { tempoRegime: 't30_zone', vSig: 30 }, erwartet: { C2: 'hart', E1: 'hinweis', D2c: '-' } },
   { regel: 'C2b', name: 'T30-Zone mit Schule', abw: { tempoRegime: 't30_zone', vSig: 30, beduerfnis: ['schule'] }, erwartet: { C2b: 'hinweis', C2: '-' }, empfehlung: 'Q1' },
-  // C2c gestrichen (Nutzerentscheid 20.10.2026): Hauptstrasse mit Tempo 30 ausserhalb der Zone ist eine Strecke
+  // C2c gestrichen: Hauptstrasse mit Tempo 30 ausserhalb der Zone ist eine Strecke
   { regel: 'C2', name: 'Tempo 30 auf einer Hauptstrasse ausserhalb der Zone (Strecke)', abw: { tempoRegime: 'strecke', vSig: 30 }, erwartet: { C2: '-', C2b: '-' }, empfehlung: 'Q1' },
   { regel: 'C2-B', name: 'T30-Zone Basisnetz, Bern', abw: { tempoRegime: 't30_zone', vSig: 30 }, ebenen: BERN, erwartet: { C2: 'hart', 'C2-B': 'hinweis' } },
   { regel: 'C3', name: 'FG 99, kein Netz', abw: { fg5h: 99, netz: 'keins' }, erwartet: { C3: 'weich' } },
@@ -140,7 +140,7 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'D5-2', name: 'Kreuzung mit bestehender LSA', abw: { lage: 'knoten_berechtigt', fgsMitLsa: true }, erwartet: { 'D5-2': '-' } },
   { regel: 'D5-4', name: 'Sicht 50 (Soll 55)', abw: { sichtVorh: [50, 70] }, erwartet: { H1: 'hart', 'D5-4': 'hinweis' } },
   { regel: 'D5-6', name: 'sehr viele Querende', abw: { fgSehrHoch: true }, erwartet: { 'D5-6': 'hinweis' } },
-  // Korrektur 23.10.2026: mit bestehendem Lichtsignal keine Hinweise «Lichtsignal prüfen»
+  // Mit bestehendem Lichtsignal keine Hinweise «Lichtsignal prüfen»
   { regel: 'D5-1', name: 'stark belastet mit bestehender LSA', abw: { starkBelastet: true, fgsMitLsa: true }, erwartet: { 'D5-1': '-' } },
   { regel: 'D5-4', name: 'Sicht 50 mit bestehender LSA', abw: { sichtVorh: [50, 70], fgsMitLsa: true }, erwartet: { H1: 'hart', 'D5-4': '-' } },
   { regel: 'D5-5', name: 'Tram auf der Fahrbahn mit bestehender LSA', abw: { tram: 'fahrbahn', fgsMitLsa: true }, erwartet: { 'D5-5': '-' } },
@@ -239,7 +239,7 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'F2f', name: 'Kopf 0,70', abw: { insel: ins({ kopfUeberstand: [0.7, 1] }) }, erwartet: { F2f: 'hinweis' } },
   { regel: 'F2f', name: 'Kopf 0,75', abw: { insel: ins({ kopfUeberstand: [0.75, 0.75] }) }, erwartet: { F2f: '-' } },
   { regel: 'F2-B', name: 'Insel ohne Furt, Bern', abw: { insel: ins({ furt: 0 }) }, ebenen: BERN, erwartet: { 'F2-B': 'hinweis' } },
-  // Nutzerentscheid 23.10.2026: F2-K nach querenden Velos (veloQuerung), nicht mehr nach dem Radstreifen; nur gebaute Insel
+  // F2-K nach querenden Velos (veloQuerung), nicht mehr nach dem Radstreifen; nur gebaute Insel
   { regel: 'F2-K', name: 'Velos queren, Insel 1,80, Kanton', abw: { veloQuerung: true, insel: ins({ breite: 1.8 }) }, ebenen: KANTON, erwartet: { 'F2-K': 'hinweis' } },
   { regel: 'F2-K', name: 'Velos queren, Insel 2,00, Kanton', abw: { veloQuerung: true, insel: ins({ breite: 2 }) }, ebenen: KANTON, erwartet: { 'F2-K': '-' } },
   { regel: 'F2-K', name: 'Radstreifen ohne querende Velos, Insel 1,80', abw: { radstreifen: true, insel: ins({ breite: 1.8 }) }, ebenen: KANTON, erwartet: { 'F2-K': '-' } },
@@ -282,7 +282,7 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'F5n', name: 'mit Aufmerksamkeitsfeldern, 3,00 m breit', abw: { ...TUE, q3: q3({ taktil: true, breiteM: 3 }) }, erwartet: { F5n: '-' } },
   { regel: 'F6a', name: 'Mehrzweckstreifen 1,40', abw: { typ: 'mehrzweck', mzsBreiteM: 1.4, v85: 30 }, erwartet: { F6a: 'hart', F6b: '-', F6c: '-' } },
   { regel: 'F6b', name: 'Mehrzweckstreifen 1,80', abw: { typ: 'mehrzweck', mzsBreiteM: 1.8, v85: 30 }, erwartet: { F6b: 'weich', F6a: '-' } },
-  // Korrektur 23.10.2026: über 30 bis 40 km/h Hinweis, über 40 km/h Soll
+  // Über 30 bis 40 km/h Hinweis, über 40 km/h Soll
   { regel: 'F6c', name: 'Mehrzweckstreifen V85 35', abw: { typ: 'mehrzweck', v85: 35 }, erwartet: { F6c: 'hinweis' } },
   { regel: 'F6c', name: 'Mehrzweckstreifen V85 40', abw: { typ: 'mehrzweck', v85: 40 }, erwartet: { F6c: 'hinweis' } },
   { regel: 'F6c', name: 'Mehrzweckstreifen V85 41', abw: { typ: 'mehrzweck', v85: 41 }, erwartet: { F6c: 'weich' } },

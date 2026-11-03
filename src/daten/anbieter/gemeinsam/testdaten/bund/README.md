@@ -1,0 +1,5 @@
+Originalantworten vom 02.11.2026, via öffentliche GeoAdmin-identify-/Vektorkacheldienste. JSON-Antworten auf wenige Originalobjekte gekürzt; keine fachlichen Attribute verändert. GWR enthält nur für die App benötigte Gebäudeattribute, keine Wohnungsdaten. Tram: Bern [2600150,1199500]; Strassen/Bauzonen/Unfälle: Zürich [2682274.51,1248547.29]; GWR/POI: Zürich Limmat [2682729.64,1248622.30], jeweils ±200 m. ASTRA mit layerDefs accidentyear >= 2011 (alle angebotenen Jahre). Kachel: https://vectortiles.geo.admin.ch/tiles/ch.swisstopo.base.vt/v1.0.0/14/8580/5737.pbf.
+
+Quellenangaben: © swisstopo (TLM), © ARE/Kantone (Bauzonen), © BFS/GWR, © ASTRA; POI gemäss Attribution des Basiskartendienstes: © swisstopo, © EDA, © BAFU, © BABS, © SAC, © Naturfreunde Schweiz, © opentransportdata.swiss.
+
+Zusätzlicher Strassenklassentreffer: Seftigenstrasse bei [2601200,1197000], Verkehrsbedeutung 300. Die übrigen städtischen Testabschnitte liefern 999998 (kein Wert). Semantik nach Objektkatalog swissTLM3D 2.4, Februar 2026, S. 23: 100 Hochleistungsstrasse, 200 Durchgangsstrasse, 300 Verbindungsstrasse. Keine automatische Zuordnung zu Normklassen.

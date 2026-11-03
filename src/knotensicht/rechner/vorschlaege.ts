@@ -7,7 +7,7 @@
 // Fahrbahn; lane/half_on_kerb auf der Fahrbahn, street_side ausserhalb; nicht näher als KNOTEN_ABSTAND_M an einem Knoten
 // (Parkierungsverbot nahe der Verzweigung angenommen). Ob dort wirklich parkiert wird, zeigt nur das Luftbild bzw. der Ort.
 // In fgsCheck hielten die Vorschläge zusätzlich 5 m Abstand zum Fussgängerstreifen; das entfällt hier.
-// Amtliche Parkfelder (Nutzerentscheid 11.10.2026, fgsCheck) sind keine Vorschläge: sie zählen sofort, einzelne lassen sich
+// Amtliche Parkfelder (fgsCheck) sind keine Vorschläge: sie zählen sofort, einzelne lassen sich
 // verwerfen. Sie kommen hier als «Vorschlag» mit Quelle 'kataster' zurück (Anzeige und Verwerfen wie in fgsCheck).
 
 import { type P, add, dist, rechts } from '../geo'

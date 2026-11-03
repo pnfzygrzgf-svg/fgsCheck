@@ -71,7 +71,7 @@ describe('Tempo (Vorbedingung, B5-T)', () => {
     expect(teil(gp({ vSig: 50, v85: 61 }), 'B5-T')!.ist).toBe('V85 61 km/h')
   })
   it('V85 fehlt: offen mit «V85 messen» und Normhinweis; über 60 signalisiert trotzdem hart; vSig fehlt: offen bzw. hart nach V85', () => {
-    // Runde 5 (Stelle 16): bis 50 km/h entscheidet die Frage nach Anzeichen; ohne Anzeichen erfüllt, unbekannt «voraussichtlich erfüllt» (offen)
+    // Bis 50 km/h entscheidet die Frage nach Anzeichen; ohne Anzeichen erfüllt, unbekannt «voraussichtlich erfüllt» (offen)
     expect(teil(gp({ v85: null, anzeichenSchneller: false }), 'B5-T')).toMatchObject({ zustand: 'erfuellt' })
     expect(teil(gp({ v85: null, anzeichenSchneller: null }), 'B5-T')).toMatchObject({ zustand: 'offen', fehlend: ['anzeichenSchneller'] })
     expect(teil(gp({ v85: null, vSig: 60, anzeichenSchneller: false }), 'B5-T')).toMatchObject({ zustand: 'offen', fehlend: ['v85'] })
@@ -221,10 +221,10 @@ describe('② Fussgängerschutzinsel (B5-2a, B5-2b, B5-2c)', () => {
   })
   it('Durchfahrt: 3,50 m (gemessen 3,45 bis 3,75 m) oder ab 4,50 m; dazwischen und darunter weich; je Seite; fehlt: offen', () => {
     expect(KATALOG['B5-2c'].werte.dTol).toBe(KATALOG.F3.werte.schmalMax)
-    // bfu-Toleranz ab 3,45 m; die Arbeitshilfe (F3) prüft seit dem Nutzerentscheid 23.10.2026 wieder ab 3,50 m
+    // bfu-Toleranz ab 3,45 m; die Arbeitshilfe (F3) prüft wieder ab 3,50 m
     expect([KATALOG['B5-2c'].werte.dMin, KATALOG.F3.werte.min]).toEqual([3.45, 3.5])
     const d = (x: number[]) => z(gp({ insel: INSEL({}), durchfahrt: x }), 'B5-2c')
-    // Korrektur 23.10.2026: die bfu nennt 3,5 m auf eine Nachkommastelle, untere Grenze 3,45 m
+    // Die bfu nennt 3,5 m auf eine Nachkommastelle, untere Grenze 3,45 m
     expect([3.44, 3.45, 3.49, 3.5, 3.75, 3.76, 4.49, 4.5, 6].map(x => d([x, x])))
       .toEqual(['weich', 'erfuellt', 'erfuellt', 'erfuellt', 'erfuellt', 'weich', 'weich', 'erfuellt', 'erfuellt'])
     expect([3.44, 3.45, 3.49, 3.5, 3.75, 3.76, 4.49, 4.5].map(bfuDurchfahrtOk)).toEqual([false, true, true, true, true, false, false, true])
@@ -347,7 +347,7 @@ describe('Weitere bfu-Punkte (B5-W1, B5-W2, B5-W3)', () => {
     expect(teil(gp({ haltestelle: halt('fahrbahn') }), 'B5-W3')!.quelle).toBe('bfu MS.013:2025 Ziff. 2.3')
     expect(z(gp({ haltestelle: halt('fahrbahn'), insel: INSEL({ art: 'markiert' }) }), 'B5-W3')).toBe('weich')
     const d = (x: number) => z(gp({ haltestelle: halt('fahrbahn'), insel: INSEL({}), durchfahrt: [x, 3.6] }), 'B5-W3')
-    // untere Grenze 3,45 m (Korrektur 23.10.2026), ohne Alternative ab 4,50 m
+    // untere Grenze 3,45 m, ohne Alternative ab 4,50 m
     expect([3.44, 3.45, 3.49, 3.5, 3.75, 3.76, 4.5].map(d)).toEqual(['weich', 'erfuellt', 'erfuellt', 'erfuellt', 'erfuellt', 'weich', 'weich'])
     expect(KATALOG['B5-W3'].werte.dMin).toBe(KATALOG['B5-2c'].werte.dMin)
     expect(teil(gp({ haltestelle: halt('fahrbahn'), insel: INSEL({}), durchfahrt: [3.47, 3.5] }), 'B5-W3'))

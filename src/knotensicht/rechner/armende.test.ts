@@ -17,7 +17,7 @@ const ll = (x: number, y: number): [number, number] => wgs(O[0] + x, O[1] + y)
 const weg = (id: number, knoten: [number, number, number][], tags: Record<string, string>): OsmWeg =>
   ({ id, tags, knoten: knoten.map(k => k[0]), geom: knoten.map(k => ll(k[1], k[2])) })
 const HAUPT = { highway: 'unclassified', name: 'Hauptstrasse', maxspeed: '50' }
-/** quer: Wege am Ende des Arms Ost (Punkt 13); ohne: Arm Ost läuft 200 m gerade weiter */
+/** quer: Wege am Ende des Arms Ost; ohne: Arm Ost läuft 200 m gerade weiter */
 const osm = (quer: OsmWeg[] | null): OsmDaten => ({
   wege: [
     weg(1, [[10, -200, 0], [12, 0, 0], quer ? [13, 30, 0] : [13, 200, 0]], HAUPT),

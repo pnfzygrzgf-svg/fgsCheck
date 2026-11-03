@@ -1,0 +1,38 @@
+{
+  "mitte": [
+    2570958.272999998,
+    1161697.5340000018
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 246,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2570958.272999998,
+            1161697.5340000018
+          ]
+        },
+        "properties": {
+          "OBJECTID": 246,
+          "BATIMENT_NOM": "CO de la Gruyère, Tour-de-Trême, Route de la Ronclina 2",
+          "ETABLISSEMENT_NOM": "CO de la Gruyère (La Tour-de-Trême)",
+          "CYCLE": "Secondaire",
+          "ADRESSE": "Route de la Ronclina 2, 1635 La Tour-de-Trême"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

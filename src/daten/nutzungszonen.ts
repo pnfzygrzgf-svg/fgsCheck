@@ -1,11 +1,11 @@
-// ── Nutzungszonenplan der Stadt Bern (Geoportal) für die Vorbelegung (Automatik Paket C, 21.10.2026) ──
+// ── Nutzungszonenplan der Stadt Bern (Geoportal) für die Vorbelegung ──
 //
 // Service «Nutzungszonenplan», Layer 91 «NZP_Grundzonen_Flaechen» (Flächen): U_nutzungszone mit Text, U_bauklasse mit Text.
 // Grundzonen im Dienst (geprüft 21.10.2026) u. a. 1000 Wohnzone, 1001 gemischte Wohnzone, 1002 Kernzone (städtisch), 1003
 // Dienstleistungszone, 1004 Industrie- und Gewerbezone, 1005–1012 Zonen für öffentliche Nutzungen bzw. private Bauten im
 // allgemeinen Interesse, 1013–1015 Schutzzonen, 1016/1017 Altstadt, 1018 Gewerbegebiet Matte, 1019 Landwirtschaftszone, 1021–1023
 // übriges Gebiet (Wald, Gewässer, Verkehrsfläche ausserhalb des Siedlungsgebiets). Gewerbe = 1004 (Industrie und Gewerbe) und 1018
-// (Gewerbegebiet Matte; Nutzerentscheid 21.10.2026).
+// (Gewerbegebiet Matte).
 // Grosse Flächen: Abfrage mit Koordinaten auf 0,1 m und Vereinfachung 0,5 m (Probe Mühlemattstrasse ±150 m: 27 Flächen, 37 kB
 // ohne, 15 kB mit). Nur Daten, keine Regeln.
 
@@ -13,7 +13,7 @@ import type { P } from '../geo'
 import { arcgisUrl, arcgisHolen, flaechenRinge, textFeld, zahlFeld, featureId, type ArcgisGeoJson } from './geoportal'
 import type { Abruf } from './holen'
 
-/** Gewerbe: Industrie- und Gewerbezone (1004) und Gewerbegebiet Matte (1018, Nutzerentscheid 21.10.2026) */
+/** Gewerbe: Industrie- und Gewerbezone (1004) und Gewerbegebiet Matte (1018) */
 export const NZ_GEWERBE: readonly number[] = [1004, 1018]
 /** Zonen ausserhalb des Siedlungsgebiets (Landwirtschaft, Weiler, Wald, Gewässer, Verkehrsfläche ausserhalb) */
 export const NZ_UNBEBAUT: readonly number[] = [1019, 1020, 1021, 1022, 1023]

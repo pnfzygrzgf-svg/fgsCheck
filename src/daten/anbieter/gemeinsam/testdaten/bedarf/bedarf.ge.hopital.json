@@ -1,0 +1,54 @@
+{
+  "mitte": [
+    2500698.21,
+    1116109.53
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 1,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2500698.21,
+            1116109.53
+          ]
+        },
+        "properties": {
+          "OBJECTID": 1,
+          "NOM_ETABLISSEMENT": "Clinique de Champel Elysée",
+          "TYPE_ETABLISSEMENT": "Clinique",
+          "ADRESSE": "42 avenue de Champel  1206 Genève"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": 15,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2500498.7800000003,
+            1116057.1600000001
+          ]
+        },
+        "properties": {
+          "OBJECTID": 15,
+          "NOM_ETABLISSEMENT": "Beau-Séjour",
+          "TYPE_ETABLISSEMENT": "Hôpital",
+          "ADRESSE": "avenue de Beau-Séjour 26"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

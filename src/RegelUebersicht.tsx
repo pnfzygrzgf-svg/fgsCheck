@@ -1,4 +1,4 @@
-// ── Panel-Abschnitt «Regeln» (Nutzerwunsch 23.10.2026): alle Regeln des Katalogs, nach Thema oder nach Quelle, mit Filter und Suche ──
+// ── Panel-Abschnitt «Regeln»: alle Regeln des Katalogs, nach Thema oder nach Quelle, mit Filter und Suche ──
 //
 // Daten aus bedarf/regeluebersicht.ts. Gruppen zugeklappt mit Anzahl im Kopf; Sprünge aus der Quellentabelle (Werk) und aus den
 // Details (Regel) kommen als Ereignis «fgs-regel». Nicht im Bericht.

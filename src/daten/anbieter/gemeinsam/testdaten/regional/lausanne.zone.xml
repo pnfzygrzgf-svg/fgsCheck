@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding="UTF-8" ?>
+<wfs:FeatureCollection
+   xmlns:ms="http://mapserver.gis.umn.edu/mapserver"
+   xmlns:gml="http://www.opengis.net/gml"
+   xmlns:wfs="http://www.opengis.net/wfs"
+   xmlns:ogc="http://www.opengis.net/ogc"
+   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+   xsi:schemaLocation="http://mapserver.gis.umn.edu/mapserver https://map.lausanne.ch/mapserv_proxy?ogcserver=source%20for%20image%2Fpng&amp;SERVICE=WFS&amp;VERSION=1.1.0&amp;REQUEST=DescribeFeatureType&amp;TYPENAME=mobilite_moderation_trafic&amp;OUTPUTFORMAT=text/xml;%20subtype=gml/3.1.1  http://www.opengis.net/wfs http://schemas.opengis.net/wfs/1.1.0/wfs.xsd">
+      <gml:boundedBy>
+      	<gml:Envelope srsName="EPSG:2056">
+      		<gml:lowerCorner>2537734.103273 1151515.224760</gml:lowerCorner>
+      		<gml:upperCorner>2537766.140720 1151611.012871</gml:upperCorner>
+      	</gml:Envelope>
+      </gml:boundedBy>
+    <gml:featureMember>
+      <ms:mobilite_moderation_trafic gml:id="mobilite_moderation_trafic.47567">
+        <gml:boundedBy>
+        	<gml:Envelope srsName="EPSG:2056">
+        		<gml:lowerCorner>2537734.103273 1151515.224760</gml:lowerCorner>
+        		<gml:upperCorner>2537766.140720 1151611.012871</gml:upperCorner>
+        	</gml:Envelope>
+        </gml:boundedBy>
+        <ms:geom>
+          <gml:Polygon srsName="EPSG:2056">
+            <gml:exterior>
+              <gml:LinearRing>
+                <gml:posList srsDimension="2">2537759.200442 1151611.012871 2537766.140720 1151609.356668 2537744.426061 1151515.224760 2537734.103273 1151517.415505 2537734.646578 1151520.254709 2537739.028067 1151523.041336 2537759.200442 1151611.012871 </gml:posList>
+              </gml:LinearRing>
+            </gml:exterior>
+          </gml:Polygon>
+        </ms:geom>
+        <ms:type>Zone 30</ms:type>
+        <ms:numero></ms:numero>
+        <ms:nom>Grammont Nord</ms:nom>
+        <ms:creation>2014</ms:creation>
+      </ms:mobilite_moderation_trafic>
+    </gml:featureMember>
+</wfs:FeatureCollection>
+

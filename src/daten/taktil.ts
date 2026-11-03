@@ -1,4 +1,4 @@
-// ── Taktil-visuelle Markierungen der Stadt Bern (Geoportal) für die Vorbelegung (Automatik Paket C, 21.10.2026) ──
+// ── Taktil-visuelle Markierungen der Stadt Bern (Geoportal) für die Vorbelegung ──
 //
 // Service «Taktil_visuelle_Markierungen»: Layer 1 «TVM_Feld» (Punkte je Feld; Art mit Text in Art_beschrieb, Baujahr) und
 // Layer 2 «TVM_Linie» (Linien; Art, Art_beschrieb, Baujahr). Werte im Dienst (geprüft 21.10.2026):

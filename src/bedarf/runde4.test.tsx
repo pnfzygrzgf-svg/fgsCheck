@@ -1,4 +1,4 @@
-// Tests Runde 4 (21.10.2026): Quellenverzeichnis, Begriffsliste, Muss-Hinweis an offenen Feldern. Künstliche Strasse wie
+// Tests Quellenverzeichnis, Begriffsliste, Muss-Hinweis an offenen Feldern. Künstliche Strasse wie
 // automatik.test.tsx (Hauptstrasse West–Ost, Fahrbahn 8 m, Tempo 50, Übergang bei x = 0).
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -52,7 +52,7 @@ describe('Runde 4: Quellenverzeichnis', () => {
     for (const w of WERK_IDS) {
       const i = WERK_INFO[w]
       expect(i.was, w).toMatch(/\.$/)
-      // Normen: nur der erste Satz (Nutzerentscheid 23.10.2026), sonst zwei Sätze
+      // Normen: nur der erste Satz, sonst zwei Sätze
       if (i.ebene === 'Norm') expect(i.gilt, w).toBe('')
       else expect(i.gilt, w).toMatch(/\.$/)
       expect(satzZahl(werkText(w)), w).toBe(i.ebene === 'Norm' ? 1 : 2)
@@ -138,7 +138,7 @@ describe('Runde 4: Quellenverzeichnis', () => {
     const d20 = text(renderToStaticMarkup(<BefundblattAnzeige b={b20} druck />))
     expect(d20).toContain('Empfehlung folgt, sobald geklärt ist, ob die Querung in einer Begegnungszone liegt (siehe Zusammenfassung)')
     expect(d20).not.toContain('Empfohlen:')
-    expect(text(druck)).toContain('Falls zulässig: Fussgängerstreifen')      // Tempo 50: Begegnungszone nicht möglich (Runde 5: Zone offen)
+    expect(text(druck)).toContain('Falls zulässig: Fussgängerstreifen')      // Tempo 50: Begegnungszone nicht möglich (Zone offen)
   })
 })
 
@@ -301,19 +301,18 @@ describe('Runde 4: Abstand bei beidseitigem Strassenende (ganze Strasse)', () =>
 })
 
 describe('Hilfe kurz; Quellen und Begriffe als eigene Abschnitte (23.10.2026)', () => {
-  it('«So funktioniert\'s»: höchstens 8 kurze Schritte, ausführliche Bedienung und Grenzen zugeklappt, ohne Quellen- und Begriffstabelle', () => {
+  it('«So funktioniert\'s»: sechs kurze Schritte als Grundanleitung, ohne zusätzliche Fach- und Quellenabschnitte', () => {
     const html = renderToStaticMarkup(<Anleitung />)
     const schritte = /<ol>(.*?)<\/ol>/s.exec(html)![1].match(/<li>/g)!.length
-    expect(schritte).toBeLessThanOrEqual(8)
-    for (const li of /<ol>(.*?)<\/ol>/s.exec(html)![1].split('<li>').slice(1)) expect(text(li).length).toBeLessThanOrEqual(260)
-    expect(html).toContain('<summary>Mehr zur Bedienung</summary>')
-    expect(html).toContain('<summary>Grenzen der App</summary>')
+    expect(schritte).toBe(6)
+    for (const li of /<ol>(.*?)<\/ol>/s.exec(html)![1].split('<li>').slice(1)) expect(text(li).length).toBeLessThanOrEqual(180)
+    expect(text(html).split(/\s+/).length).toBeLessThan(220)
+    expect(html.match(/<details/g)).toHaveLength(1)
     expect(html).not.toContain('quellen-tabelle')
     expect(html).not.toContain('begriffe-liste')
     expect(text(html)).toContain('«Grundlagen und Quellen» und «Begriffe»')
-    // ausführliche Bedienung bleibt erhalten (nur verschoben)
-    for (const t of ['Ecke runden:', 'Mittelinsel (Standard):', 'Vermassung ab Fixpunkt:', 'Feldhilfen:', 'Grundprüfung (Big Five, bfu):'])
-      expect(text(html)).toContain(t)
+    for (const t of ['Mehr zur Bedienung', 'Amtliche Quellen:', 'Bundesquellen:', 'Örtliche Einrichtungen:', 'CORS'])
+      expect(text(html)).not.toContain(t)
   })
   it('Begriff-Knopf: Erklärung mit Sprung zum Abschnitt «Begriffe»; Quellen-Anker in der Tabelle', () => {
     const tab = renderToStaticMarkup(<QuellenTabelle />)
@@ -332,13 +331,11 @@ describe('Feste Texte mit Werkverweisen (Nutzerbefund 23.10.2026)', () => {
     expect(html).toContain(`href="${WERKE.BFU.seite}"`)
     expect(text(html)).toContain('Verkehrsregelnverordnung (VRV)')
     expect(text(html)).not.toMatch(/\b(Z|Tab)\. /)
-    // Hilfe «Mehr zur Bedienung»: Werknamen verlinkt
-    const hilfe = renderToStaticMarkup(<Anleitung />)
-    for (const w of ['40241', '40240', 'BFU', 'MP', 'AHBE']) expect(hilfe, w).toContain(`href="#quelle-${w}"`)
+
   })
 })
 
-describe('Kein Satz zur Rechtsnatur (Nutzerentscheid 23.10.2026)', () => {
+describe('Kein Satz zur Rechtsnatur', () => {
   it('weder «kein Gesetz» noch «keine Gesetze» im Panel, Befundblatt, Bericht, in den Quellen und der Hilfe', () => {
     const htmls = [renderToStaticMarkup(<BedarfAbschnitt fall={fOffen} blaetter={[bOffen]} vorgabe={BERN.vorgabe} aendern={() => {}} />),
       renderToStaticMarkup(<BefundblattAnzeige b={bOffen} druck />), renderToStaticMarkup(<VerzeichnisBericht blaetter={[bOffen]} />),

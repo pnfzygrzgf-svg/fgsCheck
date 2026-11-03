@@ -1,4 +1,4 @@
-// ── Richtplan Fussverkehr der Stadt Bern (Geoportal) für die Vorbelegung des Bedarfsmoduls (Automatik Paket C, 21.10.2026) ──
+// ── Richtplan Fussverkehr der Stadt Bern (Geoportal) für die Vorbelegung des Bedarfsmoduls ──
 //
 // Service «Richtplan_Fussverkehr»: Layer 4 «Basisnetz_Fussweg_bestehend» (Linien, einziges Sachfeld Layer = «RP-Inhalt-Basisnetz
 // Fussweg_bestehend») und Layer 7 «Hinweis» (Flächen, Layer = «RP-Hinweis-publikumsattraktive Bereiche», Refname meist leer).

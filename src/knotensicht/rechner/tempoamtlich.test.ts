@@ -1,3 +1,5 @@
+import { zhUrl, zhMetadatenUrl, type ZuerichSnapshot } from '../daten/anbieter/gemeinsam/zuerich'
+import { zhStrassen } from '../daten/anbieter/gemeinsam/zuerichZuordnung'
 // Tests K0: amtliches Tempo (Stadt Bern, V_sig des Geoportals) in der Rechnung, mit Attrappen der Linien (kein Netz), und das
 // Einlesen der Geoportal-Antwort (daten/vsig.ts).
 //
@@ -8,7 +10,7 @@ import { wgs, type P } from '../geo'
 import type { OsmDaten, OsmWeg } from '../daten/osm'
 import type { AvFlaeche } from '../daten/av'
 import { rechneKnoten } from './rechnen'
-import { amtlichBei, AMTLICH_SUCH_M } from './tempo'
+import { amtlichBei, amtlichNaechste, AMTLICH_SUCH_M } from './tempo'
 import { vsigAusGeoportal, vsigUrl, vsigPruefen, vsigRechnung, bernZustaendig, GEOPORTAL_BERN } from '../daten/vsig'
 import { KEINE_ALLE_EINGABEN, type Ergebnis, type KnotenFall, type TempoAmtlichDaten, type TempoAmtlichLinie } from './typen'
 
@@ -149,4 +151,70 @@ describe('K0: daten/vsig.ts (Geoportal Stadt Bern)', () => {
     expect(bernZustaendig(lv(100, 0), [bern, koeniz])).toBe(false)
     expect(bernZustaendig(null, [bern])).toBe(false)
   })
+})
+
+
+describe('E2: Zürcher Tempo und Zonen im SichtweitenCheck', () => {
+  const zh = (): ZuerichSnapshot => ({ version: 1, mitte: O, radiusM: 200,
+    tempo: { objekte: [{ id: 'view_geoserver_tempo_ist.1', name: 'Hauptstrasse', regime: 'T30', code: 'T30', umgesetzt: null,
+      rechtskraeftig: null, teile: [[lv(-180, 0), lv(180, 0)]], tempo: 30, verbot: false, ausnahmen: '', signal: '' }], datenstand: '2026-11-02',
+      url: zhUrl('tempo', O), metadaten: zhMetadatenUrl('tempo'), abgerufen: '2026-11-02T07:00:00.000Z' },
+    zonen: { objekte: [{ id: 'view_geoserver_zonen_ist.1', name: 'Beispielzone', regime: 'T30-Zone', code: 'T30', art: 't30_zone', umgesetzt: null,
+      rechtskraeftig: null, polygone: [[[lv(-180, -30), lv(180, -30), lv(180, 30), lv(-180, 30), lv(-180, -30)]]] }], datenstand: '2026-11-02',
+      url: zhUrl('zonen', O), metadaten: zhMetadatenUrl('zonen'), abgerufen: '2026-11-02T07:00:00.000Z' } })
+  const zd = (o: OsmDaten, z = zh()): TempoAmtlichDaten => ({ linien: [], bereich: { mitte: O, radiusM: 200 }, quelle: 'Stadt Zürich', zuerich: z, zhStrassen: zhStrassen(o.wege) })
+  it('passt Tempo beider Richtungen an, erhält Handwert und benutzt den amtlichen Bezug für die Vortrittsvorgabe', () => {
+    const o = osm(), t = zd(o), e = rechne(o, { tempoAmtlich: t, eingaben: { ...KEINE_ALLE_EINGABEN, regelung: 'vortritt' } })
+    expect(seite(e, 'links').tempo).toBe(30); expect(seite(e, 'rechts').tempo).toBe(30)
+    expect(seite(e, 'links').tempoQuelle).toContain('Stadt Zürich')
+    expect(e.regelungVorgabe).toBe('rechtsvortritt')
+    expect(e.regelungQuelle).toContain('Tempo-/Zonenbezug nach Stadt Zürich')
+    const hand = rechne(o, { tempoAmtlich: t, eingaben: { ...KEINE_ALLE_EINGABEN, regelung: 'vortritt', tempo: { links: { art: 'signalisiert', wert: 40, begruendung: '' }, rechts: null } } })
+    expect(seite(hand, 'links').tempo).toBe(40)
+    expect(e.hinweise.join(' ')).toContain('keine Ortstafel')
+  })
+  it('amtlicher Konflikt oder falsche Strasse überschreibt OSM nicht; explizites Stop-Signal bleibt vorrangig', () => {
+    // OSM 50, amtlich 30 bzw. 40: nur der eindeutige Treffer darf das Tempo ändern
+    const o = osm(), z = zh()
+    expect(seite(rechne(o, { tempoAmtlich: zd(o, z) }), 'links').tempo).toBe(30)
+    z.tempo!.objekte.push({ ...z.tempo!.objekte[0], id: 'view_geoserver_tempo_ist.2', regime: 'T40', code: 'T40', tempo: 40 })
+    const e = rechne(o, { tempoAmtlich: zd(o, z) })
+    expect(seite(e, 'links').tempo).toBe(50)
+    expect(seite(e, 'links').tempoQuelle).toContain('OSM')
+    expect(e.regelungVorgabe).toBe('vortritt')
+    const andere = zh(); andere.tempo!.objekte[0].name = 'Andere Strasse'
+    const f = rechne(o, { tempoAmtlich: zd(o, andere) })
+    expect(seite(f, 'links').tempo).toBe(50)
+    expect(seite(f, 'links').tempoQuelle).toContain('OSM')
+    const stop = osm(); stop.vortritt = [{ id: 400, lat: ll(0, -10)[0], lon: ll(0, -10)[1], tags: { highway: 'stop' } }]
+    expect(rechne(stop, { tempoAmtlich: zd(stop) }).regelungVorgabe).toBe('stop')
+  })
+})
+
+it('E1c: Ortslage erst nach Bestätigung; B und Überholfall ändern sich, Stop bleibt bei B 3 m',()=>{
+ const o=osm({maxspeed:'60'}), basis=rechne(o)
+ expect(basis.ausserorts).toBe(true);expect(basis.B).toBe(5)
+ const eingaben={...structuredClone(KEINE_ALLE_EINGABEN),innerorts:true}
+ const inner=rechne(o,{eingaben})
+ expect(inner.ausserorts).toBe(false);expect(inner.B).toBe(3)
+ expect(inner.ueberholen?.geprueft).toBe(false)
+ const stop=rechne(o,{eingaben:{...eingaben,innerorts:false,regelung:'stop'}})
+ expect(stop.B).toBe(3)
+})
+
+// Fehlende Abschnitte sind keine Abschnitte mit leerem Tempowert.
+it('regional: keine Linie, leere Linie und ausserhalb bleiben unterscheidbar', () => {
+ const regional={version:1 as const,mitte:O,radiusM:200,teile:[]}
+ const d:TempoAmtlichDaten={...daten([]),regional}
+ expect(amtlichNaechste(d)(lv(20,0),[1,0])).toBeNull()
+ expect(amtlichNaechste(d)(lv(250,0),[1,0])).toBe('aussen')
+ expect(amtlichNaechste(daten([linie('leer',null,[-200,0],[200,0])]))(lv(20,0),[1,0])).toEqual({v:null})
+})
+it('Berner V_sig beeinflusst die Regelungsannahme, Signal bleibt vorrangig', () => {
+ const o=osm({maxspeed:'30','zone:maxspeed':'CH:zone30'})
+ o.wege[0].tags.highway='residential'
+ const f={tempoAmtlich:daten([linie('bern',50,[-200,0],[200,0])])}
+ expect(rechne(o,f).regelungVorgabe).toBe('vortritt')
+ const mitStop={...o,vortritt:[{id:21,lat:ll(0,-10)[0],lon:ll(0,-10)[1],tags:{highway:'stop'}}]}
+ expect(rechne(mitStop,f).regelungVorgabe).toBe('stop')
 })

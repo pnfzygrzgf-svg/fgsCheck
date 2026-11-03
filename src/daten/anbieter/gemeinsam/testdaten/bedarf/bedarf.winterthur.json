@@ -1,0 +1,395 @@
+{
+  "mitte": [
+    2699986.688589844,
+    1260030.952118618
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "96892",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.765278029,
+            47.483440452
+          ]
+        },
+        "properties": {
+          "adresse": "Büelhofstrasse 32",
+          "bezeichnung": "Sekundarschulhaus Büelwiesen",
+          "fid": 96892,
+          "kategorie": "Bildung",
+          "ort": null,
+          "typ": "Schulhaus",
+          "url": "http://www.sek-buelwiesen.ch/",
+          "uuid": "597b433a-d0dd-11f2-e063-5015630a85fe"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97042",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.76368888,
+            47.484670197
+          ]
+        },
+        "properties": {
+          "adresse": "Kanzleistrasse 24",
+          "bezeichnung": "Kanzleistrasse",
+          "fid": 97042,
+          "kategorie": "Infrastruktur",
+          "ort": null,
+          "typ": "Freizeitanlage",
+          "url": "https://stadt.winterthur.ch/themen/leben-in-winterthur/freizeit-und-sport/reservationen/raeume%20zum%20mieten",
+          "uuid": "597b433a-d181-11f2-e063-5015630a85fe"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97043",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.765022583,
+            47.484811247
+          ]
+        },
+        "properties": {
+          "adresse": "Hofstettweg 12",
+          "bezeichnung": "Hütte am Hofstettweg",
+          "fid": 97043,
+          "kategorie": "Infrastruktur",
+          "ort": null,
+          "typ": "Freizeitanlage",
+          "url": "https://stadt.winterthur.ch/themen/leben-in-winterthur/freizeit-und-sport/reservationen/raeume%20zum%20mieten",
+          "uuid": "597b433a-d182-11f2-e063-5015630a85fe"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97102",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.764168988,
+            47.48429139
+          ]
+        },
+        "properties": {
+          "adresse": "Büelwiesenweg 8",
+          "bezeichnung": "Kita SalZH, Büelwiesenweg",
+          "fid": 97102,
+          "kategorie": "Kinderbetreuung",
+          "ort": null,
+          "typ": "Vorschulkinder",
+          "url": "http://www.salzh.ch/",
+          "uuid": "597b433a-d1c2-11f2-e063-5015630a85fe"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97196",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.76461187,
+            47.484095068
+          ]
+        },
+        "properties": {
+          "adresse": "Büelhofstrasse 27",
+          "bezeichnung": "Kindergarten Büelhof",
+          "fid": 97196,
+          "kategorie": "Bildung",
+          "ort": null,
+          "typ": "Kindergarten",
+          "url": "https://www.oberseenprimar.ch/",
+          "uuid": "597b433a-d22c-11f2-e063-5015630a85fe"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97339",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.763732087,
+            47.484043647
+          ]
+        },
+        "properties": {
+          "adresse": "Büelhofstrasse 25a",
+          "bezeichnung": "Turnhalle Büelhofstrasse",
+          "fid": 97339,
+          "kategorie": "Sport",
+          "ort": null,
+          "typ": "Turn- und Sporthalle",
+          "url": null,
+          "uuid": "597b433a-d2cc-11f2-e063-5015630a85fe"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97340",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.764693346,
+            47.483490501
+          ]
+        },
+        "properties": {
+          "adresse": "Büelhofstrasse 32",
+          "bezeichnung": "Sekundarschulhaus Büelwiesen",
+          "fid": 97340,
+          "kategorie": "Sport",
+          "ort": null,
+          "typ": "Turn- und Sporthalle",
+          "url": "http://www.sek-buelwiesen.ch/",
+          "uuid": "597b433a-d2cd-11f2-e063-5015630a85fe"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97501",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.763223916,
+            47.484790221
+          ]
+        },
+        "properties": {
+          "adresse": "Kanzleistrasse",
+          "bezeichnung": "Zentrum Seen",
+          "fid": 97501,
+          "kategorie": "Infrastruktur",
+          "ort": null,
+          "typ": "Sammelstelle",
+          "url": "https://stadt.winterthur.ch/themen/leben-in-winterthur/abfall/grundlagen",
+          "uuid": "597b433a-d386-11f2-e063-5015630a85fe"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97522",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.763150904,
+            47.484786837
+          ]
+        },
+        "properties": {
+          "adresse": "Kanzleistrasse 23",
+          "bezeichnung": "Parkhaus Shopping Seen",
+          "fid": 97522,
+          "kategorie": "Parkiermöglichkeiten",
+          "ort": null,
+          "typ": "Parkhaus",
+          "url": "https://www.shopping-seen.ch",
+          "uuid": "597b433a-d39e-11f2-e063-5015630a85fe"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97640",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.763875588,
+            47.484753068
+          ]
+        },
+        "properties": {
+          "adresse": "Kanzleistrasse",
+          "bezeichnung": "Kanzleistrasse Anlage",
+          "fid": 97640,
+          "kategorie": "Parkanlagen",
+          "ort": null,
+          "typ": "Park",
+          "url": "https://stadt.winterthur.ch/themen/leben-in-winterthur/freizeit-und-sport/ausflugsziele-freiraeume/anlagen-garten-und-parks/kanzleistrasse-anlage",
+          "uuid": "597b433a-d3a1-11f2-e063-5015630a85fe"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97722",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.763257736,
+            47.484734987
+          ]
+        },
+        "properties": {
+          "adresse": "Kanzleistrasse 23",
+          "bezeichnung": "Shopping Seen, Kanzleistrasse 23",
+          "fid": 97722,
+          "kategorie": "Parkiermöglichkeiten",
+          "ort": null,
+          "typ": "Behindertenparkplatz",
+          "url": "https://stadtplan.winterthur.ch/system/docs/Stadtplan/Behindertenparkplatz/9163-WINT0043.JPG",
+          "uuid": "597b433a-d413-11f2-e063-5015630a85fe"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97866",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.764595014,
+            47.484562194
+          ]
+        },
+        "properties": {
+          "adresse": "Kanzleistrasse 24",
+          "bezeichnung": "QA Kanzleistrasse",
+          "fid": 97866,
+          "kategorie": "Infrastruktur",
+          "ort": null,
+          "typ": "Spielplatz",
+          "url": null,
+          "uuid": "0200016b-491e-92c9-e063-5015630a1ac2"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97972",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.767008362,
+            47.481709891
+          ]
+        },
+        "properties": {
+          "adresse": "Grünmattstrasse 1",
+          "bezeichnung": "SchuBe Grünmatt",
+          "fid": 97972,
+          "kategorie": "Infrastruktur",
+          "ort": null,
+          "typ": "Spielplatz",
+          "url": null,
+          "uuid": "04c3dfa3-ca61-0059-e063-5015630a804d"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97993",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.764193319,
+            47.483646917
+          ]
+        },
+        "properties": {
+          "adresse": "Büelhofstrasse 32",
+          "bezeichnung": "SH Büelwiesen",
+          "fid": 97993,
+          "kategorie": "Infrastruktur",
+          "ort": null,
+          "typ": "Spielplatz",
+          "url": null,
+          "uuid": "0200016b-4977-92c9-e063-5015630a1ac2"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97994",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.764658675,
+            47.484002537
+          ]
+        },
+        "properties": {
+          "adresse": "Büelhofstrasse 27",
+          "bezeichnung": "KG Büelhofstrasse",
+          "fid": 97994,
+          "kategorie": "Infrastruktur",
+          "ort": null,
+          "typ": "Spielplatz",
+          "url": null,
+          "uuid": "0200016b-495a-92c9-e063-5015630a1ac2"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "97995",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.763795205,
+            47.484181628
+          ]
+        },
+        "properties": {
+          "adresse": "Büelhofstrasse 25a",
+          "bezeichnung": "TH Büelhofstrasse",
+          "fid": 97995,
+          "kategorie": "Infrastruktur",
+          "ort": null,
+          "typ": "Spielplatz",
+          "url": null,
+          "uuid": "0200016b-48e0-92c9-e063-5015630a1ac2"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "98009",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.764376563,
+            47.484538125
+          ]
+        },
+        "properties": {
+          "adresse": "Bäumlistrasse 39",
+          "bezeichnung": "Statt Spiel Platz / Ritiplampi",
+          "fid": 98009,
+          "kategorie": "Infrastruktur",
+          "ort": null,
+          "typ": "Spielplatz",
+          "url": null,
+          "uuid": "04c3dfa3-ca64-0059-e063-5015630a804d"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "98241",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8.763429241,
+            47.484728247
+          ]
+        },
+        "properties": {
+          "adresse": null,
+          "bezeichnung": "Zentrum Seen",
+          "fid": 98241,
+          "kategorie": "Öffentl. Verkehr",
+          "ort": "Winterthur",
+          "typ": "Bushaltestelle",
+          "url": null,
+          "uuid": "597b4b1c-8bfc-866e-e063-5015630ae37f"
+        }
+      }
+    ],
+    "numberReturned": 18,
+    "timeStamp": "2026-11-02T15:35:24Z",
+    "links": []
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

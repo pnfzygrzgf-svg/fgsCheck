@@ -197,3 +197,20 @@ export function median(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b), n = s.length
   return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2
 }
+
+/** Ausgleichskreis durch Punkte (algebraisch nach Kåsa) -> Mitte und Radius, null bei weniger als drei Punkten bzw. auf einer Geraden */
+export function kreisAnpassen(pts: P[]): { m: P; r: number } | null {
+  const n = pts.length
+  if (n < 3) return null
+  const cx = pts.reduce((s, p) => s + p[0], 0) / n, cy = pts.reduce((s, p) => s + p[1], 0) / n
+  let suu = 0, svv = 0, suv = 0, suuu = 0, svvv = 0, suvv = 0, svuu = 0
+  for (const p of pts) {
+    const u = p[0] - cx, v = p[1] - cy
+    suu += u * u; svv += v * v; suv += u * v; suuu += u * u * u; svvv += v * v * v; suvv += u * v * v; svuu += v * u * u
+  }
+  const det = suu * svv - suv * suv
+  if (Math.abs(det) < 1e-9) return null
+  const b1 = (suuu + suvv) / 2, b2 = (svvv + svuu) / 2
+  const uc = (b1 * svv - b2 * suv) / det, vc = (suu * b2 - suv * b1) / det
+  return { m: [cx + uc, cy + vc], r: Math.sqrt(uc * uc + vc * vc + (suu + svv) / n) }
+}

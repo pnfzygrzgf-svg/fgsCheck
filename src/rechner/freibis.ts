@@ -7,7 +7,7 @@ import type { Konflikt } from './typen'
 /** Schlüssel eines Konflikts (gleiches Objekt in zwei Läufen der Konfliktsuche) */
 const konfliktKey = (k: Konflikt) => `${k.klasse}|${k.id ?? ''}|${k.layer}|${k.abstand.toFixed(3)}`
 /**
- * Frei bis (Automatik Paket B, 21.10.2026): zusätzliches Ausgabefeld, ändert weder Status noch Soll. Ohne Konflikt die geprüfte
+ * Frei bis: zusätzliches Ausgabefeld, ändert weder Status noch Soll. Ohne Konflikt die geprüfte
  * Länge sw; sonst die Länge entlang der Sichtpunkte bis zum letzten Sichtpunkt, dessen Sichtfeld (Sichtpunkte 0 bis k) noch keinen
  * der gemeldeten Konflikte trifft (Suche halbierend, das Sichtfeld wächst mit k). Abgerundet auf ganze Meter. Seit 29.10.2026 auch für
  * abbiegende Zufahrten (abbiegen.ts)

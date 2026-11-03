@@ -66,6 +66,9 @@ const auf01 = (x: number) => Math.ceil(x * 10 - 1e-9) / 10
 
 /** Eingaben von Hand (E2: Tempo bestätigen/korrigieren, Parkierung/Velostreifen; im Referenzvergleich die Berner Werte) */
 export interface VonHand {
+  /** Explizite fallweite Vorgabe aus «Signalisiertes Tempo»; eine Korrektur je Zufahrt geht vor. */
+  /** Tempo der geprüften Strasse; gilt nur für die geraden Zufahrten. */
+  tempoVorgabe?: { wert: number; quelle: string }
   tempo?: (fid: string, art: 'gerade' | 'abbiegend', grad: number) => number | null
   abzug?: (fid: string, art: 'gerade' | 'abbiegend', grad: number) => { r: Abzug; l: Abzug } | null
   /** Tempo von Hand je Zufahrt (Kennung) */
@@ -104,7 +107,7 @@ export interface Kontext {
 }
 
 /**
- * Ortslage für VSS 40 241 Tab. 1 (Nutzerentscheid 30.10.2026; nur bei 60 km/h verschieden: 75 m innerorts, 100 m ausserorts): Angabe
+ * Ortslage für VSS 40 241 Tab. 1 (nur bei 60 km/h verschieden: 75 m innerorts, 100 m ausserorts): Angabe
  * im Bedarf (Fall), sonst OSM am gequerten Weg (maxspeed:type bzw. zone:maxspeed CH:rural: ausserorts), sonst innerorts als Annahme
  */
 export function ortslageSicht(kx: Pick<Kontext, 'innerorts' | 'netz'>, wid: number | null): { ausserorts: boolean; annahme: boolean } {
@@ -263,7 +266,7 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
     vorab.set(s.fgsId, zufahrtenBilden(s, netz, inseln, r0, r1, tk))
   }
   teilstreifenPaare(S, new Map([...vorab].map(([fid, [zfs]]) => [fid, zfs])), inseln)
-  // Querung an einer Einmündung (Nutzerentscheid 30.10.2026, ohneVortritt.ts): je Übergang die Fahrtrichtungen der Zufahrten, deren
+  // Querung an einer Einmündung (ohneVortritt.ts): je Übergang die Fahrtrichtungen der Zufahrten, deren
   // nächster Knoten bis EINMUENDUNG_NAH_M vom Streifenrand liegt und dort ohne Fortsetzung der gequerten Strasse nur Abbieger hat
   const einmRichtungen = new Map<string, P[]>()
   if (netz) for (const s of S) for (const zf of vorab.get(s.fgsId)![0]) {
@@ -330,8 +333,7 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
 /**
  * Querung ohne Vortritt (Bedarfsmodul E1): L = Querdistanz des Streifens entlang der Achse zwischen den Bordkanten der Rechnung
  * (bei angenommenen Bordkanten: 0,3 m vor den Enden); Insel nur markiert: über alle Teilstreifen derselben Querung (Übergang),
- * vom äussersten zum äussersten Rand (ganze Fahrbahn, 40 240 Z. 13.3, Entscheid 6). null: Fussgängerstreifen
- */
+ * vom äussersten zum äussersten Rand (ganze Fahrbahn, 40 240 Z. 13.3). null: Fussgängerstreifen */
 function ohneVortritt(s: StreifenX, S: StreifenX[], q: { typ: QuerungSicht; inselMarkiert: boolean } | null): OhneVortritt | null {
   if (!q) return null
   const n = einheitV(sub(s.p1, s.p0))
@@ -414,6 +416,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     if (amtl[0] !== tempo && tempoQ !== 'Ersatz') annahmen.push(`Tempo ${amtl[0]} km/h laut ${amtl[1]} (OSM: ${tempo} km/h)`)
     ;[tempo, tempoQ] = amtl
   }
+  if (kx.vonHand?.tempoVorgabe) ({ wert: tempo, quelle: tempoQ } = kx.vonHand.tempoVorgabe)
   let sw = swTab(tempo)
   const tempoHand = kx.vonHand?.tempo?.(fid, 'gerade', gradD) ??
     kx.vonHand?.tempoKennung?.(fid, zf.g !== null ? kennungGerade(zf.g, zf.sd!) : `s${fid}:${gradD}`) ?? null
@@ -500,7 +503,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       sw = swR; gesamt = swR + h; swQuelle = qR!
     }
   }
-  // Gegenseite einer Querung an einer Einmündung (Nutzerentscheid 30.10.2026, ohneVortritt.ts): eine Zufahrt entlang der gequerten
+  // Gegenseite einer Querung an einer Einmündung (ohneVortritt.ts): eine Zufahrt entlang der gequerten
   // Strasse höchstens bis zum nächsten Knoten (eigene Annahme der App: Soll = min(Normwert; Strecke bis zum Knoten, auf 0,1 m), mindestens
   // SPUR_MIN_M), keine Fortsetzung durch den Knoten; die Abbieger an diesem Knoten entfallen (durch diese Zufahrt mitgeprüft)
   let annahmeK: { grenze: string; normM: number; quelle: string; sw: number } | null = null
@@ -809,7 +812,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       }
     }
   }
-  // Sichtpunkte ab dem Rand am Umriss (Auftrag 2)
+  // Sichtpunkte ab dem Rand am Umriss
   const swAlt = sw
   const abstSp = abst.slice(0, sichtpunkte.length)
   const swBeiG = (h_: number) => {
@@ -861,7 +864,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
    * Fahrlinie von Hand B: die gezeichnete Linie gerade verlängert wie in der Sichtprüfung.
    * Messbezug (Prüfung 23.10.2026): x = Abstand ENTLANG der Fahrlinie ab dem ersten Sichtpunkt (Projektion auf die Linie, nicht die
    * Summe der Sichtpunkt-Abstände, die bei seitlich versetzten Punkten zickzackt); Enden nach OSM (ab der Streifenmitte) ebenso.
-   */
+ */
   function erkennungGerade(): ErkennungErgebnis | undefined {
     if (!sichtpunkte.length) return undefined
     const grenze = ERKENNUNG_MAX_M

@@ -1,5 +1,5 @@
 // Tests Planung (16.10.2026): Abdeckung der geladenen Daten, Nachlade-Entscheid, gemeinsamer Ladeort mehrerer Streifen von Hand
-// (Korrektur S2), Fall-Datei mit Streifen weit vom Ort, Texte (S3).
+//, Fall-Datei mit Streifen weit vom Ort, Texte (S3).
 import { describe, expect, it } from 'vitest'
 import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, NACHLADEN_M, REICHWEITE_M, QUERUNG_M, STREIFEN_OSM_HALB_M, ORT_TOL_M, abgedeckt,
   streifenAbstand, ortEntscheid, planEntscheid, ortVerlegen, fallAmStreifen, abstandText, nichtAbgedeckt, nachladenText,

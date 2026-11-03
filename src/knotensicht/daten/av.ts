@@ -11,6 +11,7 @@ export interface AvFlaeche {
   kanton: string
   qualitaet: string
   bfs: number | null     // BFS-Nummer der Gemeinde (BFSNr), für gemeindebezogene Quellen (Baumkataster)
+  gemeinde?: string     // Gemeindenname, falls der AV-Dienst ihn liefert
   ringe: P[][]           // äusserer Ring + Löcher; bei MultiPolygon je Teil eine eigene Fläche
 }
 
@@ -36,7 +37,8 @@ export function avParsen(gj: GeoJson): AvFlaeche[] {
     const pr = f.properties ?? {}, g = f.geometry
     if (!g) continue
     const bfs = Number(pr.BFSNr)
-    const basis = { art: String(pr.Art ?? ''), kanton: String(pr.Kanton ?? ''), qualitaet: String(pr.Qualitaet ?? ''),
+    const gemeinde = [pr.Gemeinde, pr.Gemeindename].find((x): x is string => typeof x === 'string' && !!x.trim())
+    const basis = { ...(gemeinde ? { gemeinde: gemeinde.trim() } : {}), art: String(pr.Art ?? ''), kanton: String(pr.Kanton ?? ''), qualitaet: String(pr.Qualitaet ?? ''),
       bfs: Number.isFinite(bfs) && bfs > 0 ? bfs : null }
     const zweiD = (r: number[][]) => r.map(p => [p[0], p[1]] as P)
     if (g.type === 'Polygon') aus.push({ ...basis, ringe: (g.coordinates as number[][][]).map(zweiD) })

@@ -1,4 +1,4 @@
-// ── Strassenhierarchie und Strassentypen der Stadt Bern (Geoportal) für die Vorbelegung (Automatik Paket C, 21.10.2026) ──
+// ── Strassenhierarchie und Strassentypen der Stadt Bern (Geoportal) für die Vorbelegung ──
 //
 // Service «Strassenhierarchie», Layer 0 (Linien auf der Strassenachse): Typ_id mit Text im Feld Strassenhierarchie, Strassenname.
 // Werte (geprüft 21.10.2026, alle im Dienst vorkommenden): 1000 Quartierstrasse, 1001 Quartierverbindungsstrasse, 1002 Basisnetz,

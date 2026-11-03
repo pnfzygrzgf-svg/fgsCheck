@@ -1,4 +1,4 @@
-// ── Bedarfsmodul Runde 5 (Lesetest): Datenbank-Angaben nur im Tooltip ──
+// ── Bedarfsmodul Datenbank-Angaben nur im Tooltip ──
 //
 // Herkunftstexte der Vorbelegung dürfen OSM-Tags, Knotennummern oder Layernamen als Beleg tragen, aber nur in ⟦…⟧. Im Lesetext
 // (Panel, Bericht, Annahmen, Hinweise) fallen diese Teile weg (lesetext); im Tooltip stehen sie in Klammern (tooltipText).

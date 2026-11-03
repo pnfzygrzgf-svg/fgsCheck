@@ -1,4 +1,4 @@
-// Tests Runde 3: Zusammenfassung in drei Sätzen je Querung (Vorlagen aus Befund, Grundprüfung und Fragen).
+// Tests Zusammenfassung in drei Sätzen je Querung (Vorlagen aus Befund, Grundprüfung und Fragen).
 // Über alle Testfälle mal Typvarianten mal zwei Ebenenstände und an synthetischen Befundblättern (Rechnung wie befundblatt.test.ts):
 // Länge (höchstens vier Sätze, 60 Wörter), keine leeren Werte, keine nackte Regelnummer, Fragen mit Fragezeichen, Konsistenz mit dem
 // Befund (Muss genannt, vorläufig, nicht zulässig mit Grund, ohne offene Angabe kein Satz 3, Typen ohne Grundprüfung).
@@ -60,7 +60,7 @@ function pruefe(name: string, x: ZfEingabe, z: Zusammenfassung): string[] {
     if (z.grundIds.includes(id) || z.genannt.includes(id)) continue
     if (!z.befunde.includes(id) || z.weitereBefunde === 0 || !/\d+ weitere(r)?, siehe|\d+ Befunde? \(siehe/.test(z.wichtig)) f.push(`${name}: Muss ${id} fehlt in Satz 2`)
   }
-  // Korrektur M1: ein Soll- bzw. Muss-Punkt der Grundprüfung fehlt nur, wenn eine gleichwertige Regel im Baum selbst einen Befund meldet
+  // Ein Soll- bzw. Muss-Punkt der Grundprüfung fehlt nur, wenn eine gleichwertige Regel im Baum selbst einen Befund meldet
   const gemeldet = new Set(b.alle.filter(e => e.zustand === 'verletzt' && (e.staerke !== 'hinweis' || z.grundIds.includes(e.id))).map(e => e.id))
   if (x.grund.gilt && b.ende === null) for (const t of [...x.grund.punkte.flatMap(p => p.teile), ...x.grund.weitere])
     if (t.zustand === 'verletzt' && t.staerke !== 'hinweis' && !(GLEICH_TEST[t.id] ?? []).some(id => gemeldet.has(id)) && !z.befunde.includes(t.id))
@@ -70,7 +70,7 @@ function pruefe(name: string, x: ZfEingabe, z: Zusammenfassung): string[] {
   const mussIds = z.befunde.filter(id => MUSS.includes(b.alle.find(e => e.id === id && e.zustand === 'verletzt')?.staerke ??
     [...x.grund.punkte.flatMap(p => p.teile), ...x.grund.weitere].find(t => t.id === id)?.staerke ?? ''))
   if (/Zu beheben/.test(z.wichtig) !== mussIds.length > 0) f.push(`${name}: «Zu beheben» passt nicht`)
-  // Runde 5 (Muster 8): wenig Verkehr bzw. wenig Querende «spricht eher gegen einen Streifen», nicht «zu verbessern»
+  // wenig Verkehr bzw. wenig Querende «spricht eher gegen einen Streifen», nicht «zu verbessern»
   const gegenIds = z.befunde.filter(id => ['C3', 'C4'].includes(id))
   if (/[Zz]u verbessern/.test(z.wichtig) !== z.befunde.length > mussIds.length + gegenIds.length) f.push(`${name}: «zu verbessern» passt nicht`)
   if (/Spricht eher gegen/.test(z.wichtig) !== gegenIds.length > 0) f.push(`${name}: «spricht eher gegen» passt nicht`)
@@ -79,7 +79,7 @@ function pruefe(name: string, x: ZfEingabe, z: Zusammenfassung): string[] {
     (id.startsWith('B5') && DEF[id].staerke === 'hart' && x.grund.punkte.flatMap(p => p.teile).concat(x.grund.weitere).find(tt => tt.id === id)?.staerke !== 'weich'))
   if (st.some((m, i) => m && st.slice(0, i).some(v => !v))) f.push(`${name}: Soll vor Muss`)
   // vorläufig: Satz 1 sagt es, Satz 3 nennt die Angaben
-  // Runde 5 (Muster 1): offene Zulässigkeit nennt Typ und entscheidende Frage; eine gewählte Anlage ohne Vortritt steht vorn
+  // offene Zulässigkeit nennt Typ und entscheidende Frage; eine gewählte Anlage ohne Vortritt steht vorn
   const anlage = b.ende === null && (x.kontext?.typ === 'furt' || x.kontext?.typ === 'ohne_vortritt' || x.kontext?.typ === 'mehrzweck')
   if (b.empfehlung.vorlaeufig && ((!anlage && b.zulaessigkeit !== 'offen' && !/[Vv]orläufig/.test(z.antwort)) || !z.fehlt)) f.push(`${name}: vorläufig ohne Vermerk bzw. Satz 3`)
   if (b.zulaessigkeit === 'offen' && !anlage && !b.ausgewertet.includes('Q3-4') && !/^(Noch offen ist|Offen ist, ob die Querung in einer Begegnungszone)/.test(z.antwort))
@@ -129,7 +129,7 @@ describe('Zusammenfassung über alle Testfälle', () => {
       fehler.push(...pruefe(`${t.regel} ${t.name} ${String(typ)} ${JSON.stringify(eb)}`, x, z))
     }
     expect(n).toBeGreaterThan(3000)
-    expect(mitFragen).toBeGreaterThan(40)   // Runde 5: Tempo bis 50 ohne Anzeichen für schnelleres Fahren ist erfüllt (weniger offen)
+    expect(mitFragen).toBeGreaterThan(40)   // Tempo bis 50 ohne Anzeichen für schnelleres Fahren ist erfüllt (weniger offen)
     expect(mitBefund).toBeGreaterThan(1000)
     expect(kurz).toBe(0)
     expect(fehler.slice(0, 20)).toEqual([])
@@ -150,14 +150,14 @@ describe('Vorlagen', () => {
     const z = zf({})
     expect(z.antwort).toBe('Ein Fussgängerstreifen ist hier zulässig.')
     expect(z.wichtig).toBe('Grundprüfung bfu: 4 von 5 Punkten erfüllt, Fussgängerschutzinsel mit Hinweis. Übrige Prüfungen ohne Befund (1 Hinweis).')
-    // Korrektur 23.10.2026: mit Lichtsignal entfallen «Lichtsignal prüfen» bei starkem Verkehr und sehr vielen Querenden (D5-1, D5-6)
+    // Mit Lichtsignal entfallen «Lichtsignal prüfen» bei starkem Verkehr und sehr vielen Querenden (D5-1, D5-6)
     expect(zf({ typ: 'lsa', fgsMitLsa: true }).wichtig).toBe('Keine Befunde: 19 von 20 Prüfungen ohne Befund, 1 Hinweis.')   // 30.10.2026: + G11; Block 3: − F1a, F1b, F1c, I1, I2, I4, I6
     expect(z.fehlt).toBeNull()
   })
   it('Grundfall mit offenen Feldern: Fragen, Muss zuerst, höchstens zwei ausgeschrieben, Rest als Zahl', () => {
     const z = zf({ fahrbahnB: 9, dtv: null, beleuchtung: null, fg5h: null, fgKlasse: null })
     expect(z.antwort).toBe('Ein Fussgängerstreifen ist hier zulässig; vorläufig: ob eine Schutzinsel nötig ist, ist offen.')
-    // Runde 5 (Muster 9): zuerst, was über die Antwort entscheidet, dann die Zahl der übrigen
+    // zuerst, was über die Antwort entscheidet, dann die Zahl der übrigen
     expect(z.fehlt!.einleitung).toBe('Für die Antwort entscheidend:')
     expect(z.fehlt!.felder[0]).toBe('dtv')
     expect(z.fehlt!.nachsatz).toMatch(/^Für die vollständige Prüfung fehlen noch \d+ weitere Angaben \(siehe unten\)\.$/)
@@ -224,7 +224,7 @@ describe('Vorlagen', () => {
     expect(kurzform({ id: 'C3', ist: 'Klasse <100', einheit: 'Pers.' })).toBe('wenige Querende (geschätzt unter 100 Personen in 5 Spitzenstunden)')
     expect(kurzform({ id: 'C4', ist: '2000', einheit: 'Fz/Tag' })).toBe('wenig Fahrverkehr (2000 Fahrzeuge pro Tag), Querende finden meist genug Lücken')
     expect(kurzform({ id: 'G3', ist: '12', soll: '≤ 10', einheit: 'm' })).toBe('Querung abseits der Gehlinie (12 m statt höchstens 10 m)')
-    // Werte je Zufahrt bzw. je Seite (Korrektur S3), Sichtweiten auf ganze Meter
+    // Werte je Zufahrt bzw. je Seite, Sichtweiten auf ganze Meter
     expect(kurzform({ id: 'H1', ist: '70,0 / 70,0', soll: '≥ 75', einheit: 'm' })).toBe('zu wenig Sicht auf die Wartefläche (je Zufahrt 70 m statt mindestens 75 m)')
     expect(kurzform({ id: 'E3', ist: '70,0 / 50,4', soll: '≥ 82,6', einheit: 'm' })).toBe('zu wenig Sicht (je Zufahrt 70 m und 50 m statt mindestens 83 m)')
     expect(kurzform({ id: 'B5-1', ist: '54,6 m (kleinste von 2, Zufahrt 1)', soll: '≥ 55 m' })).toBe('zu wenig Sicht auf die Wartefläche (54 m statt mindestens 55 m)')
@@ -356,7 +356,7 @@ describe('Zusammenfassung an Befundblättern mit Rechnung', () => {
   })
   it('ohne Handeingaben: vorläufig, Fragen springen zum Feld; Sicht verdeckt: Muss aus dem Sichtrechner genannt', () => {
     const z0 = zusammenfassungBlatt(blatt(fallMit(x => { x.bedarf = { felder: { tempoRegime: { wert: null, quelle: 'hand' } } } })))
-    // der Verweis auf die Frage unten fällt bei Platzmangel weg, wenn Satz 3 die entscheidende Frage nennt (Korrektur nach Prüfung)
+    // der Verweis auf die Frage unten fällt bei Platzmangel weg, wenn Satz 3 die entscheidende Frage nennt
     expect(z0.antwort).toMatch(/^Noch offen ist, ob hier ein Fussgängerstreifen zulässig ist( \(das entscheidet die erste Frage unten\))?; falls ja, passt ein Fussgängerstreifen\.$/)
     expect(z0.fehlt!.felder.length).toBeGreaterThanOrEqual(1)
     for (const q of z0.fehlt!.felder) expect(feldZiel(q), q).not.toBeNull()

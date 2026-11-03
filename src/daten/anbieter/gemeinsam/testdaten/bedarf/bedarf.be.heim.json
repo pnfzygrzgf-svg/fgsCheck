@@ -1,0 +1,39 @@
+{
+  "mitte": [
+    2602254,
+    1199259
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 1,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2602254,
+            1199259
+          ]
+        },
+        "properties": {
+          "OBJECTID": 1,
+          "INAME": "Domicil Egelmoos",
+          "ADRESSE": "Bürglenstrasse 2",
+          "ALTERSHEIM": 1,
+          "TAGESTBETA": 0,
+          "WOHNMITDL": 0
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

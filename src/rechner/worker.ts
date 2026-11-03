@@ -12,8 +12,7 @@ import type { Fall } from '../fall'
 import type { KatasterBaum } from '../daten/baumkataster'
 import type { KatasterFeld } from '../daten/parkkataster'
 import type { LuftbildRoh } from '../daten/luftbild'
-import { vsigTempo, type VsigLinie } from '../daten/vsig'
-import type { Bereich } from '../daten/haltestellen'
+import { vsigTempo, type VsigEingang } from '../daten/vsig'
 import { type P, lv95 } from '../geo'
 import { AV_RADIUS_M } from '../abdeckung'
 import { knotensichtAnfuegen } from '../tue/knotensicht'
@@ -24,9 +23,9 @@ interface Auftrag {
   kataster: { baeume: KatasterBaum[]; quellenangabe: string } | null
   park: { felder: KatasterFeld[]; quellenangabe: string } | null
   luftbild: LuftbildRoh | null
-  /** signalisierte Höchstgeschwindigkeit (Geoportal Stadt Bern): Tempo der Zufahrten vor OSM (Nutzerentscheid 21.10.2026) und, wie in
+  /** signalisierte Höchstgeschwindigkeit (Geoportal Stadt Bern): Tempo der Zufahrten vor OSM und, wie in
    * der Vorbelegung des Bedarfs, Strecke oder Zone der unmarkierten OSM-Querung (Begegnungszone, 30.10.2026) */
-  vsig?: { linien: VsigLinie[]; bereich: Bereich } | null
+  vsig?: VsigEingang | null
   /** Trottoirüberfahrt (K2/K3): Mitte des AV-Ausschnitts und Längsneigung der Knotensicht aus dem Höhenmodell */
   avZentrum?: P; hoehen?: Record<string, HoehenVorgabe> | null
 }
@@ -52,7 +51,7 @@ self.onmessage = async (ev: MessageEvent<Auftrag>) => {
     let b: Bild | null = null
     if (luftbild) { try { b = await dekodieren(luftbild) } catch { b = null } }
     const r = rechneFall(osmParsen(osm as Parameters<typeof osmParsen>[0]), avParsen(av), sosf ? avParsen(sosf) : [], nid, fall, kataster, b,
-      park ?? null, vsig ? vsigTempo(vsig) : null, vsig ?? null)
+      park ?? null, vsig ? vsigTempo(vsig) : null, vsig?.bereich && !vsig.zuerich && !vsig.regional ? { linien: [...vsig.linien], bereich: { ...vsig.bereich!, form: 'quadrat' } } : null, vsig?.zuerich ?? null, vsig?.regional ?? null)
     if (luftbild && !b) r.meldungen.push('Luftbild nicht lesbar: Streifen aus OSM + AV.')
     // Trottoirüberfahrt: Knotensicht der Einbiegenden (Kern des SichtweitenCheck); ohne Trottoirüberfahrt geschieht nichts
     knotensichtAnfuegen(r, { osm, av }, fall, { park: park ?? null, baeume: kataster ?? null, vsig: vsig ?? null, avZentrum: avZentrum ?? lv95(fall.ort.lat, fall.ort.lon),

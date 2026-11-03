@@ -1,4 +1,4 @@
-// ── Erweiterte Prüfung nach Thema (Nutzerentscheid 23.10.2026, reine Darstellung) ──
+// ── Erweiterte Prüfung nach Thema (reine Darstellung) ──
 //
 // Die erweiterte Prüfung steht im Panel und im Bericht je Thema (themen.THEMEN): zuerst die Befunde (✗ ! i), dann die offenen Angaben
 // als Fragen (je Feld einmal, auch wenn mehrere Regeln es brauchen), im Panel mit Eingabe; darunter die übrigen Felder des Themas.

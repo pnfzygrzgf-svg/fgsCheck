@@ -44,8 +44,8 @@ describe('VSS 40 273 Tab. 1', () => {
   })
 })
 
-// E1: Wert nach Strassentyp (Entscheid 1: Zwischenwert = Mittel, aufgerundet), ungünstige Verhältnisse, Anhaltesichtweite ab
-// |i| > 2 % (Entscheid 2), Status gegen den massgebenden Wert
+// E1: Wert nach Strassentyp (Zwischenwert = Mittel, aufgerundet), ungünstige Verhältnisse, Anhaltesichtweite ab
+// |i| > 2 %, Status gegen den massgebenden Wert
 describe('VSS 40 273 Ziffer 13.1: Strassentyp, ungünstige Verhältnisse, Neigung', () => {
   const U = (x: Partial<Ungunst>): Ungunst => ({ ...KEINE_UNGUNST, ...x })
   it('Zwischenwert je Stufe: Mittel von unterem und oberem Wert, auf ganze Meter aufgerundet', () => {

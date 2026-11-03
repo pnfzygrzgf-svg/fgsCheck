@@ -31,37 +31,38 @@ export function strassenArme(netz: OsmNetz, n: number): Arm[] {
   return netz.arme(n).filter(a => { const w = netz.w(a[0]); return w.strasse && MFZ_HW.has(w.hw) })
 }
 
-/** Art eines Punkts mit Strassenarmen (Korrektur 31.10.2026, Punkte 12, 16 und 17): «kein» unter drei Strassenarmen; «kreisel», wenn ein
- *  Weg mit junction=roundabout bzw. circular am Punkt hängt (nicht Gegenstand der App, VSS 40 273 Ziffer 1); «gabelung», wenn höchstens
+/** Art eines Punkts mit Strassenarmen: «kreisel», wenn ein Weg mit junction=roundabout bzw.
+ *  circular am Punkt hängt (K1: der Kreisel als ein Knoten, kreisel.ts; auch Ringpunkte ohne Arm); «kein» unter drei Strassenarmen; «gabelung», wenn höchstens
  *  ein Arm zum Punkt führt (Motorfahrzeuge bzw. Velos gegen die Einbahn): kein wartepflichtiger Verkehr; «fahrbahnteilung», wenn sich
  *  die Fahrbahn in zwei Einbahnen teilt, ohne dass sich die Fahrströme kreuzen (fahrbahnteilung); sonst «knoten» */
 export type KnotenArt = 'knoten' | 'gabelung' | 'kreisel' | 'fahrbahnteilung' | 'zusammenfuehrung' | 'kein'
 export function knotenArt(netz: OsmNetz, n: number): KnotenArt {
+  if (netz.arme(n).some(a => netz.w(a[0]).ring)) return 'kreisel'
   const arme = strassenArme(netz, n)
   if (arme.length < 3) return 'kein'
-  if (netz.arme(n).some(a => netz.w(a[0]).ring)) return 'kreisel'
   if (arme.filter(a => netz.zufluss(a) || netz.veloZufluss(a)[0]).length <= 1) return 'gabelung'
   if (fahrbahnteilung(netz, n)) return 'fahrbahnteilung'
   if (zusammenfuehrung(netz, n)) return 'zusammenfuehrung'
   return 'knoten'
 }
-/** Meldungen statt einer Rechnung (Korrektur 31.10.2026, Punkte 12, 16 und 17) */
+/** Meldungen statt einer Rechnung */
 export const GABELUNG_TEXT = 'Gabelung: höchstens ein Arm führt zum Knoten, kein Vortrittsfall'
+/** Grundstückzufahrt am Ring eines Kreisels (seit K1 nur noch dort; Kreisel selbst: kreisel.ts) */
 export const KREISEL_TEXT = 'Kreisverkehr: nicht Gegenstand der App (VSS 40 273 Ziffer 1, S. 4; siehe VSS 40 263)'
 export const FAHRBAHNTEILUNG_TEXT = 'Fahrbahnteilung: Hier teilt sich die Fahrbahn in zwei Einbahnen, die Fahrströme kreuzen sich nicht; ' +
   'kein Vortrittsfall'
-/** Zusammenführung (Nutzer 31.10.2026, Punkt 22, vorerst Meldung statt Rechnung; die Variante «erkennen und richtig rechnen» ist für
+/** Zusammenführung (vorerst Meldung statt Rechnung; die Variante «erkennen und richtig rechnen» ist für
  *  später festgehalten, Korrekturliste Punkt 22) */
 export const ZUSAMMENFUEHRUNG_TEXT = 'Zusammenführung: Hier laufen zwei Einbahnen spitz zusammen, der Verkehr fädelt ein. Solche ' +
   'Stellen rechnet die App nicht; prüfe das Einfädeln vor Ort (VSS 40 273 Ziffer 10, S. 7)'
 /** Zusatz, wenn eine der beiden Einbahnen bald in einen Kreisel führt (TEILUNG_KREISEL_M) */
 export const TEILUNG_KREISEL_TEXT = 'Teil der Zufahrt zum Kreisverkehr (siehe VSS 40 263)'
 
-/** Annahme (Entscheid 31.10.2026, Punkt 17): die beiden Einbahnen einer Fahrbahnteilung liegen höchstens so weit auseinander (Richtung
+/** Annahme: die beiden Einbahnen einer Fahrbahnteilung liegen höchstens so weit auseinander (Richtung
  *  der Arme ab dem Punkt). Der Wechsel von der einen in die andere ist dann eine Wende von mindestens 180° minus diesem Winkel, also
  *  keine Fahrbeziehung; bei grösserem Winkel (z. B. Einbahn um die Ecke, durchgehende Einbahn) bleibt es ein Knoten */
 export const TEILUNG_WINKEL_GRAD = 60
-/** Annahme (Entscheid 31.10.2026, Punkt 17): führt eine der beiden Einbahnen innert dieser Strecke ab dem Punkt in einen Kreisel
+/** Annahme: führt eine der beiden Einbahnen innert dieser Strecke ab dem Punkt in einen Kreisel
  *  (junction=roundabout bzw. circular), gehört die Fahrbahnteilung zur Zufahrt des Kreisverkehrs (Zusatz zur Meldung) */
 export const TEILUNG_KREISEL_M = 60
 
@@ -85,7 +86,7 @@ export function einbahnTeilung(netz: OsmNetz, n: number): { beide: Arm; zu: Arm;
 }
 
 /**
- * Fahrbahnteilung (Korrektur 31.10.2026, Punkt 17): Einbahnteilung (einbahnTeilung), bei der von dem Arm mit beiden Richtungen her
+ * Fahrbahnteilung: Einbahnteilung (einbahnTeilung), bei der von dem Arm mit beiden Richtungen her
  * gesehen die wegführende Einbahn rechts der zuführenden liegt (Rechtsverkehr: so kreuzen sich die Ströme nicht; spiegelverkehrt
  * kreuzen sie sich, das bleibt ein Knoten). Velos gegen die Einbahn: fahren auf der wegführenden Einbahn Velos zum Punkt
  * (veloZufluss), münden sie in den Strom aus der zuführenden Einbahn ein; das ist ein Vortrittsfall, es bleibt ein Knoten.
@@ -100,11 +101,10 @@ export function fahrbahnteilung(netz: OsmNetz, n: number): { zu: Arm; weg: Arm }
 }
 
 /**
- * Zusammenführung (Nutzer 31.10.2026, Punkt 22, Knoten 31413260): genau drei Strassenarme, zwei Einbahnen zum Punkt und eine Einbahn
+ * Zusammenführung (Knoten 31413260): genau drei Strassenarme, zwei Einbahnen zum Punkt und eine Einbahn
  * vom Punkt weg (ohne Velos gegen die Einbahn); die beiden zuführenden höchstens TEILUNG_WINKEL_GRAD auseinander und beide gegenüber der
  * wegführenden (der Verkehr fährt geradeaus weiter und fädelt ein). Ein spitzer Winkel trennt sie vom Knoten, an dem eine Einbahn
- * quer in eine andere mündet. -> die beiden zuführenden Arme bzw. null
- */
+ * quer in eine andere mündet. -> die beiden zuführenden Arme bzw. null */
 export function zusammenfuehrung(netz: OsmNetz, n: number): [Arm, Arm] | null {
   const arme = strassenArme(netz, n)
   if (arme.length !== 3) return null
@@ -170,18 +170,20 @@ export function fahrbahnteilungText(netz: OsmNetz, n: number): string {
 
 export const istKnoten = (netz: OsmNetz, n: number): boolean => knotenArt(netz, n) === 'knoten'
 
-/** alle Knoten im Netz (für Tests und die Anzeige nach dem Klick); ohne Gabelungen, Kreisel und Fahrbahnteilungen */
+/** alle Knoten im Netz (für Tests und die Anzeige nach dem Klick); ohne Gabelungen, Kreisel (eigener Punkt in der Mitte, K1) und
+ *  Fahrbahnteilungen */
 export function knotenFinden(netz: OsmNetz): number[] {
   return [...netz.an.keys()].filter(n => istKnoten(netz, n)).sort((a, b) => a - b)
 }
-/** Punkte mit drei und mehr Strassenarmen, die keine Knoten der App sind (Gabelungen, Kreisel, Fahrbahnteilungen): die Knotensuche
- *  blendet sie aus */
+/** Punkte mit drei und mehr Strassenarmen, die keine Knoten der App sind (Gabelungen, Fahrbahnteilungen, Zusammenführungen): die
+ *  Knotensuche blendet sie aus. Seit K1 ohne Kreisel: deren Ringpunkte fehlen schon in der Abfrage, der Kreisel erscheint als Punkt in
+ *  der Mitte mit dem kleinsten Ringpunkt als Kennung (der sonst hier ausgeblendet würde) */
 export function keineKnoten(netz: OsmNetz): number[] {
-  return [...netz.an.keys()].filter(n => { const k = knotenArt(netz, n); return k === 'gabelung' || k === 'kreisel' || k === 'fahrbahnteilung' || k === 'zusammenfuehrung' })
+  return [...netz.an.keys()].filter(n => { const k = knotenArt(netz, n); return k === 'gabelung' || k === 'fahrbahnteilung' || k === 'zusammenfuehrung' })
     .sort((a, b) => a - b)
 }
 
-/** Annahme (Korrektur 31.10.2026, Punkt 13): Lichtsignal (OSM highway=traffic_signals) bis so weit vom Knoten auf einem Arm (höchstens
+/** Annahme: Lichtsignal (OSM highway=traffic_signals) bis so weit vom Knoten auf einem Arm (höchstens
  *  SIGNAL_ARM_M neben dem Arm) bzw. am Knotenpunkt (LSA_PUNKT_M): der Knoten gilt als LSA-Knoten */
 export const LSA_ARM_M = 30
 const LSA_PUNKT_M = 3
@@ -206,7 +208,7 @@ export const NR_GRUNDSTUECK = 'Z'
 /** Azimut [°] im Uhrzeigersinn ab Norden; bis 1° westlich von Nord zählt als Nord (Sehne knapp neben der Nordrichtung) */
 const azimut = (v: P): number => { const a = (450 - winkelGrad(v)) % 360; return a > 359 ? a - 360 : a }
 /** Arme nummerieren: im Uhrzeigersinn ab Norden 1, 2, 3 …, fest je Knoten (unabhängig von der Zufahrt) */
-export function nummerieren(arme: ArmInfo[]): ArmInfo[] {
+export function nummerieren<T extends ArmInfo>(arme: T[]): T[] {
   const folge = [...arme].sort((a, b) => azimut(a.richtung) - azimut(b.richtung) || (a.key < b.key ? -1 : 1))
   return arme.map(a => ({ ...a, nr: String(folge.indexOf(a) + 1) }))
 }
@@ -263,17 +265,19 @@ export function vortrittsSignale(osm: OsmDaten | null, p: P, lv: (lat: number, l
 
 /** Liegt das Signal an der Zufahrt (bis SIGNAL_ARM_M neben den ersten Metern des Arms bzw. am Knoten)? */
 export function signalAnArm(netz: OsmNetz, arm: ArmInfo, s: VortrittsHinweis): boolean {
+  if (s.armKey) return arm.key === s.armKey
   const linie = netz.armLinie([arm.wid, arm.i, arm.sd], SIGNAL_KNOTEN_M)
   for (let k = 0; k < linie.length - 1; k++) if (abstandStrecke(s.p, linie[k], linie[k + 1]) <= SIGNAL_ARM_M) return true
   return false
 }
 
-/** Arm ohne Zufahrt (Korrektur 31.10.2026, Punkt 11): Einbahn vom Knoten weg ohne Velo gegen die Einbahn */
+/** Arm ohne Zufahrt: Einbahn vom Knoten weg ohne Velo gegen die Einbahn */
 export const keineZufahrt = (a: Pick<ArmInfo, 'zufluss' | 'veloZufluss'>): boolean => !a.zufluss && !a.veloZufluss
 
 /** Arm, zu dem ein Vortrittssignal gehört: der nächste Arm, an dem es liegt (signalAnArm; nahe am Knoten liegt es sonst an mehreren);
  *  undefined, wenn es an keinem Arm liegt */
 export function signalArm(netz: OsmNetz, arme: ArmInfo[], s: VortrittsHinweis): ArmInfo | undefined {
+  if (s.armKey) return arme.find(a => a.key === s.armKey)
   const abstand = (a: ArmInfo) => {
     const l = netz.armLinie([a.wid, a.i, a.sd], SIGNAL_KNOTEN_M)
     return Math.min(...l.slice(0, -1).map((q, k) => abstandStrecke(s.p, q, l[k + 1])))
@@ -281,17 +285,17 @@ export function signalArm(netz: OsmNetz, arme: ArmInfo[], s: VortrittsHinweis): 
   return arme.filter(a => signalAnArm(netz, a, s)).sort((a, b) => abstand(a) - abstand(b))[0]
 }
 
-/** Korrektur 31.10.2026 (Punkt 17): Vortrittssignale, die zu diesem Knoten gehören. Ein Signal zählt nur an einem Arm, auf dem Verkehr
+/** Vortrittssignale, die zu diesem Knoten gehören. Ein Signal zählt nur an einem Arm, auf dem Verkehr
  *  zum Knoten fährt (Motorfahrzeuge bzw. Velos gegen die Einbahn); eines auf einer Einbahn vom Knoten weg gilt dem nächsten Knoten in
  *  Fahrtrichtung (z. B. der Einfahrt in einen Kreisel) und fällt hier weg. Signale an keinem Arm bleiben (Hinweis «anderer Arm») */
 export const knotenSignale = (netz: OsmNetz, arme: ArmInfo[], signale: VortrittsHinweis[]): VortrittsHinweis[] =>
   signale.filter(s => { const a = signalArm(netz, arme, s); return !a || !keineZufahrt(a) })
 
 /** Knoten mit Armen, Vortrittsstrasse und Vorschlag für die Zufahrt; null, wenn n kein Knoten ist (unter drei Strassenarmen).
- *  Korrektur 31.10.2026 (Punkt 15): steht an einem Arm ein Vortrittssignal (OSM give_way bzw. stop), bilden die übrigen Arme die
+ *  Steht an einem Arm ein Vortrittssignal (OSM give_way bzw. stop), bilden die übrigen Arme die
  *  Vortrittsstrasse (vortrittSicher, mitVortritt); ebenso zwei Arme einer Hauptstrasse (priority_road). Vorschlag dann der erste Arm
- *  mit Signal; nie ein Arm ohne Zufahrt (Punkt 11). Punkt 17: nur Signale an Armen mit Verkehr zum Knoten (knotenSignale; info.signale
- *  ohne die übrigen). lsa: Lichtsignal am Knoten (Punkt 13) */
+ *  mit Signal; nie ein Arm ohne Zufahrt. nur Signale an Armen mit Verkehr zum Knoten (knotenSignale; info.signale
+ *  ohne die übrigen). lsa: Lichtsignal am Knoten */
 export function knotenInfo(netz: OsmNetz, n: number, signaleNah: VortrittsHinweis[] = [], lsa = false): KnotenInfo | null {
   if (!netz.P.has(n)) return null
   const arme = nummerieren(strassenArme(netz, n).map(a => armInfo(netz, a)))
@@ -306,7 +310,7 @@ export function knotenInfo(netz: OsmNetz, n: number, signaleNah: VortrittsHinwei
   if (mitSignal.length && ohneSignal.length >= 2) {
     const sp = vortrittPaar(ohneSignal)!
     const s0 = signale.find(s => armVon(s) === mitSignal[0])!
-    vortrittSicher = `Signal «${s0.art === 'stop' ? 'Stop' : 'Kein Vortritt'}» an ${armText(mitSignal[0])} (OSM highway=${s0.art})`
+    vortrittSicher = `Signal «${s0.art === 'stop' ? 'Stop' : 'Kein Vortritt'}» an ${armText(mitSignal[0])} (${s0.quelle ?? `OSM highway=${s0.art}`})`
     vp = [sp[0], `${vortrittSicher}; ${sp[1]}`]
   } else if (prio.length >= 2) {
     const sp = vortrittPaar(prio)!

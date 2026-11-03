@@ -1,4 +1,4 @@
-// ── Geometrie-Hilfen für die Vorbelegung aus Geodaten (Automatik Paket C, 21.10.2026) ──
+// ── Geometrie-Hilfen für die Vorbelegung aus Geodaten ──
 //
 // Alles in LV95 (Meter). Linien als Linienzüge (teile: P[][], wie die Berner Dienste und VdLinie), Flächen als flache Ringliste
 // (Gerade-Ungerade-Regel wie AV-Flächen, Löcher inbegriffen). Reine Funktionen ohne Zustand; die Vorbelegungsregeln nutzen sie.

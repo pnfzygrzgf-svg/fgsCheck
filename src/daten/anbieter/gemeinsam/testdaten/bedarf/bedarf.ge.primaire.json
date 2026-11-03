@@ -1,0 +1,38 @@
+{
+  "mitte": [
+    2500185.0100000016,
+    1116195.460000001
+  ],
+  "roh": {
+    "type": "FeatureCollection",
+    "crs": {
+      "type": "name",
+      "properties": {
+        "name": "EPSG:2056"
+      }
+    },
+    "features": [
+      {
+        "type": "Feature",
+        "id": 1,
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            2500185.0100000016,
+            1116195.460000001
+          ]
+        },
+        "properties": {
+          "OBJECTID": 1,
+          "NOM_ETABLISSEMENT": "Roseraie",
+          "TYPE_ETABLISSEMENT": "Ecole Primaire",
+          "FORMATION_NIVEAU": "Primaire",
+          "ADRESSE": "Rue des Peupliers 15"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "editingInfo": null
+  }
+}

@@ -1,3 +1,5 @@
+import type { RegionalSnapshot } from '../daten/anbieter/gemeinsam/regional'
+import type { ZuerichSnapshot } from '../daten/anbieter/gemeinsam/zuerich'
 // ── Einstieg der Rechnung: Daten aufbereiten, Streifen bilden, prüfen ──
 
 import { BEWUCHS_ARTEN } from './erkennung'
@@ -183,7 +185,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   tempoAmtlich: TempoAmtlich | null = null,
   /** V_sig-Linien des Geoportals Stadt Bern mit Bereich (wie geo.vsig der Vorbelegung): für Strecke oder Zone der unmarkierten
    * OSM-Querung (Begegnungszone, 30.10.2026); null: ausserhalb Berns bzw. nicht geladen */
-  vsigZone: GeoVorbelegung['vsig'] = null): FallRechnung {
+  vsigZone: GeoVorbelegung['vsig'] = null, zuerich: ZuerichSnapshot | null = null, regional: RegionalSnapshot | null = null): FallRechnung {
   const t0 = performance.now()
   // Flächen (Plan) von Hand (planflaechen.ts): ersetzen die AV-Bodenbedeckung darunter, für die ganze Rechnung (ohne sie: av)
   const plan = avMitPlan(av0, fall.flaechenPlan)
@@ -234,7 +236,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
     const r = streifenAusUebergang(uw, kxOhne.netz!, kxOhne.fahrbahn, kxOhne.inseln, osm.querungen ?? [], { inseln: handInseln })
     streifen = r.streifen; meldungen = r.meldungen
     // Luftbild (E3): «erkannt» ersetzt die Streifen aus OSM + AV, «unsicher» bleibt Vorschlag. Die Erkennung läuft immer auf dem
-    // Bestand (unverschnittene AV; Korrektur 16.10.2026, Prüfbefund M1): sonst hinge das Ergebnis mit Flächen (Plan) davon ab, ob
+    // Bestand (unverschnittene AV): sonst hinge das Ergebnis mit Flächen (Plan) davon ab, ob
     // die Erkennung zwischengespeichert war (luftbildCache: Schlüssel nur Bild und Übergang). Mit Flächen (Plan) ist das Luftbild
     // (Bestand) nur Vorschlag, auch «erkannt»: gerechnet wird mit OSM + AV auf der verschnittenen Fahrbahn (Enden an den
     // geplanten Bordkanten), ohne Teilen an einer Insel aus dem Luftbild
@@ -298,7 +300,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const kx = kontextBauen(osm, av, sosf, hindernisse)
   const u = nid !== null ? osm.uebergaenge.find(x => x.id === nid) : undefined
   const mk = u ? markierung(u.tags) : null
-  // unmarkierte OSM-Querung (Nutzerentscheid 29.10.2026): ohne Wahl am Streifen eine Querung ohne Vortritt (Annahme), Furt mit Insel
+  // unmarkierte OSM-Querung: ohne Wahl am Streifen eine Querung ohne Vortritt (Annahme), Furt mit Insel
   // (Teilstreifen über eine AV-Insel bzw. eine angenommene Insel nach OSM und Luftbild), sonst ohne bauliche Massnahme. Streifen von
   // Hand bleiben ein geplanter Fussgängerstreifen, ausser sie sind nur die Lage der bestehenden Querung (StreifenHand.bestand, 30.10.2026:
   // «Lage der Querung anpassen»): dann wie die Querung aus OSM + AV
@@ -314,7 +316,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const io = fall.bedarf?.felder.innerorts?.wert
   kx.innerorts = typeof io === 'boolean' ? io : null
   let erg = streifen.length ? pruefen(streifen, kx) : []
-  // Begegnungszone (Nutzerentscheid 30.10.2026): liegt die angenommene Querung ohne Vortritt in einer Begegnungszone (Strecke oder
+  // Begegnungszone: liegt die angenommene Querung ohne Vortritt in einer Begegnungszone (Strecke oder
   // Zone wie im Bedarf: zoneFuerSicht mit den OSM-Tags und V_sig, Handeingabe im Bedarf geht vor), hat der Fussverkehr Vortritt: zweite
   // Rechnung als Querung in der Begegnungszone (Soll = Anhaltesichtweite). Eine Wahl am Streifen geht vor; Zone offen: ohne Vortritt
   const autoAnnahme = (s: StreifenErgebnis) => istBestand(s.fgsId) && !fall.streifen[s.fgsId]?.typ && !fall.streifen[s.fgsId]?.keinFgs && !!s.querung
@@ -322,7 +324,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   if (grau && erg.some(autoAnnahme)) {
     const osmTags = new Map(osm.wege.map(w => [w.id, w.tags] as const))
     const g = querungen(erg).find(x => x.streifen.some(autoAnnahme))!
-    const z = zoneFuerSicht(g, fall, { osmTags, vsig: vsigZone })
+    const z = zoneFuerSicht(g, fall, { osmTags, vsig: vsigZone, osm, zuerich, regional })
     if (z.wert === 'begegnungszone') {
       bgzText = z.text
       kx.vonHand = vonHandAusFall(fall, vorgabe('begegnungszone'))

@@ -70,18 +70,19 @@ describe('Gelände: Prüfung je Zufahrt', () => {
     const zz = z(e, l)
     const werte: Record<string, GelaendeStand> = { [gelaendeSchluessel(zz)!]: { stand: 'ok', ...g } }
     const a = erkennungAnzeige(zz, werte)!
-    expect(a.e).toEqual({ wert: g.abM, bis: 'verdeckt', hindernis: { klasse: 'gelaende', name: GELAENDE_NAME }, gelaende: 'mit' })
-    expect(erkennungText(a.e)).toBe(`Streifen erkennbar ab ${g.abM} m (weiter entfernt verdeckt: Gelände (swissALTI3D))`)
-    expect(gelaendeText(a.e)).toBe('mit Gelände (swissALTI3D)')
+    expect(a.e).toEqual({ wert: g.abM, bis: 'verdeckt', hindernis: { klasse: 'gelaende', name: GELAENDE_NAME }, gelaende: 'mit',
+      gelaendePruefbereich: { letzteFreiM: 52.5, ersteVerdecktM: 55 } })
+    expect(erkennungText(a.e)).toBe(`Bodenmarkierung im Modell erkennbar ab ${g.abM} m (abgerundeter Rechenwert; weiter entfernt verdeckt: Geländemodell (swissALTI3D))`)
+    expect(gelaendeText(a.e)).toBe('mit Geländemodell (swissALTI3D); letzte frei geprüfte Position 52,5 m; erste verdeckte Position 55 m vor dem Streifen')
     expect(a.linien.find(x => x.x === 70)).toMatchObject({ befund: 'verdeckt', grund: GELAENDE_NAME, gelaende: false })
     expect(a.linien.find(x => x.x === 40)).toMatchObject({ befund: 'frei', gelaende: true })
     // Band: grün bis zum neuen Wert, rot bis zum Soll (60 m); Sichtlinien mit Gelände
     const [b] = erkennungBaender({ zufahrten: [zz] } as unknown as StreifenErgebnis, werte)
     expect(b.fehlt!.art).toBe('verdeckt')
-    expect(b.text).toBe(`Erkennungsdistanz: Markierung ab ${g.abM} m sichtbar, Soll 60 m; verdeckt durch Gelände (swissALTI3D); mit Gelände (swissALTI3D)`)
+    expect(b.text).toBe(`Erkennungsdistanz: Bodenmarkierung im Modell ab ${g.abM} m sichtbar, Soll 60 m; verdeckt durch Geländemodell (swissALTI3D); mit Geländemodell (swissALTI3D); letzte frei geprüfte Position 52,5 m; erste verdeckte Position 55 m vor dem Streifen`)
     const sl = erkennungSichtlinien(zz, werte)
-    expect(sl.find(x => x.x === 60)!.text).toBe('Sichtlinie 60 m vor dem Streifen auf die Markierung: verdeckt (Gelände (swissALTI3D))')
-    expect(sl.find(x => x.x === 10)!.text).toBe('Sichtlinie 10 m vor dem Streifen auf die Markierung: in den Daten frei, Gelände frei')
+    expect(sl.find(x => x.x === 60)!.text).toBe('Sichtlinie 60 m vor dem Streifen auf die Bodenmarkierung: verdeckt (Geländemodell (swissALTI3D))')
+    expect(sl.find(x => x.x === 10)!.text).toBe('Sichtlinie 10 m vor dem Streifen auf die Bodenmarkierung: in den Daten frei, im Geländemodell frei')
   })
   it('Bewuchs bleibt, wenn er vor der Geländegrenze beginnt, sonst entfällt er', () => {
     const l = linien(XS)
@@ -93,7 +94,7 @@ describe('Gelände: Prüfung je Zufahrt', () => {
     expect(mit(70).bewuchsAb).toBeUndefined()
     expect(mit(70).bewuchs).toBeUndefined()
   })
-  it('Gelände frei: Wert wie 2D, «mit Gelände»; Wert zwischen zwei Linien zusätzlich geprüft; nur bis zur 2D-Erkennungsdistanz', async () => {
+  it('im Geländemodell frei: Wert wie 2D, «mit Gelände»; Wert zwischen zwei Linien zusätzlich geprüft; nur bis zur 2D-Erkennungsdistanz', async () => {
     const e: Erkennung = { wert: 43, bis: 'verdeckt', hindernis: { klasse: 'gebaeude', name: 'Gebäude (AV)' } }
     const l = linien(XS)
     const k = kuppe(-100)
@@ -104,7 +105,7 @@ describe('Gelände: Prüfung je Zufahrt', () => {
     const a = erkennungAnzeige(zz, { [gelaendeSchluessel(zz)!]: { stand: 'ok', ...g } })!
     expect(a.e).toEqual({ ...e, gelaende: 'mit' })
   })
-  it('kein Profil (Fehler bzw. lädt): Ergebnis bleibt 2D mit «Gelände nicht geprüft»; eine andere Lage der Linien zählt nicht', async () => {
+  it('kein Profil (Fehler bzw. lädt): Ergebnis bleibt 2D mit «Geländemodell nicht geprüft»; eine andere Lage der Linien zählt nicht', async () => {
     const e: Erkennung = { wert: 110, bis: 'frei' }
     const l = linien(XS)
     await expect(gelaendePruefen(e, l, async () => { throw new Error('HTTP 500') })).rejects.toThrow('HTTP 500')
@@ -113,7 +114,7 @@ describe('Gelände: Prüfung je Zufahrt', () => {
     for (const st of [undefined, { stand: 'fehler', text: 'HTTP 500' } as GelaendeStand]) {
       const a = erkennungAnzeige(zz, st ? { [key]: st } : null)!
       expect(a.e).toEqual({ wert: 110, bis: 'frei', gelaende: 'ohne' })
-      expect(gelaendeText(a.e)).toBe('Gelände nicht geprüft')
+      expect(gelaendeText(a.e)).toBe('Geländemodell nicht geprüft')
     }
     expect(erkennungAnzeige(zz, { [key]: { stand: 'laedt' } })!.e.gelaende).toBe('laedt')
     // Ergebnis zu anderen Linien (Streifen verschoben): gilt nicht
@@ -157,7 +158,7 @@ const OSM: OsmDaten = { wege: [weg(1, [[10, -300, 0], [12, 0, 0], [13, 300, 0]],
 const AV: AvFlaeche[] = [av('Strasse_Weg', rechteck(-300, -4, 300, 4)), av('Trottoir', rechteck(-300, 4, 300, 7)), av('Trottoir', rechteck(-300, -7, 300, -4))]
 
 describe('Gelände: Vorbelegung «Ab welcher Distanz ist der Streifen erkennbar»', () => {
-  it('mit Geländeprüfung der kleinere Wert «mit Gelände (swissALTI3D)», ohne sie 2D «ohne Gelände»', async () => {
+  it('mit Geländeprüfung der kleinere Wert «mit Geländemodell (swissALTI3D)», ohne sie 2D «ohne Gelände»', async () => {
     const fall = leererFall(ll(0, 0)[0], ll(0, 0)[1], 12)
     const r = rechneFall(OSM, AV, [], 12, fall, null)
     const zs = r.streifen[0].zufahrten.filter(x => x.art !== 'abbiegend')
@@ -172,9 +173,50 @@ describe('Gelände: Vorbelegung «Ab welcher Distanz ist der Streifen erkennbar�
     const werte = { [gelaendeSchluessel(west)!]: { stand: 'ok' as const, ...g } }
     const ohne = vorbelegen(querungen(r.streifen)[0], fall)
     expect(ohne.werte.erkennungM).toMatchObject({ wert: 110, quelle: 'annahme' })
-    expect(ohne.werte.erkennungM.text).toContain('ohne Gelände')
+    expect(ohne.werte.erkennungM.text).toContain('Geländemodell nicht geprüft')
     const mit = vorbelegen(querungen(r.streifen)[0], fall, [], { erkennungGelaende: werte })
     expect(mit.werte.erkennungM).toMatchObject({ wert: g.abM, quelle: 'annahme' })
-    expect(mit.werte.erkennungM.text).toMatch(new RegExp(`^Sichtrechner: Streifen erkennbar ab ${g.abM} m \\(Zufahrt \\d, weiter entfernt verdeckt: Gelände \\(swissALTI3D\\)\\), mit Gelände \\(swissALTI3D\\); nur Markierung geprüft`))
+    expect(mit.werte.erkennungM.text).toContain(`Sichtrechner: ${erkennungText(erkennungAnzeige(west, werte)!.e)}`)
+    expect(mit.werte.erkennungM.text).toContain('letzte frei geprüfte Position')
+    expect(mit.werte.erkennungM.text).toContain('nur Bodenmarkierung geprüft; Signale hier nicht zusätzlich bewertet')
+  })
+})
+
+describe('D1: Grenzpositionen für die Bodenmarkierung', () => {
+  const hoehenschnitt = (verdeckt: boolean): ProfilPunkt[] => [{ dist: 0, h: 500 }, { dist: 5, h: verdeckt ? 502 : 500 }, { dist: 10, h: 500 }]
+  it('zeigt Prüflagen statt einer erfundenen genauen Grenze und erhält den abgerundeten Wert', async () => {
+    const e: Erkennung = { wert: 24, bis: 'frei' }, l = linien([0, 10, 20, 24]), aufrufe: number[] = []
+    const g = await gelaendePruefen(e, l, async a => { aufrufe.push(a[1] - 1); return hoehenschnitt(a[1] > 18.5) })
+    expect(aufrufe).toEqual([10, 20, 24, 15, 17.5])
+    expect(g).toMatchObject({ abM: 17, abfragen: 5, pruefbereich: { letzteFreiM: 17.5, ersteVerdecktM: 20 } })
+    const zz = z(e, l), a = erkennungAnzeige(zz, { [gelaendeSchluessel(zz)!]: { stand: 'ok', ...g } })!
+    expect(a.e.wert).toBe(17)
+    expect(erkennungText(a.e)).toContain('Bodenmarkierung im Modell erkennbar ab 17 m (abgerundeter Rechenwert;')
+    expect(gelaendeText(a.e)).toContain('letzte frei geprüfte Position 17,5 m; erste verdeckte Position 20 m')
+  })
+  it('behauptet bei ausschliesslich verdeckten Proben keine freie Position am Streifenrand', async () => {
+    const e: Erkennung = { wert: 24, bis: 'frei' }, l = linien([0, 10, 20, 24])
+    const g = await gelaendePruefen(e, l, async () => hoehenschnitt(true))
+    expect(g).toMatchObject({ abM: 0, abfragen: 5, pruefbereich: { letzteFreiM: null, ersteVerdecktM: 2.5 } })
+    const zz = z(e, l), werte = { [gelaendeSchluessel(zz)!]: { stand: 'ok' as const, ...g } }
+    const a = erkennungAnzeige(zz, werte)!
+    expect(erkennungText(a.e)).toBe('Bodenmarkierung: keine frei geprüfte Position im Geländemodell')
+    expect(gelaendeText(a.e)).toContain('keine freie Position geprüft')
+    expect(erkennungBaender({ zufahrten: [zz] } as StreifenErgebnis, werte)[0].text).not.toContain('ab 0 m sichtbar')
+  })
+  it.each(['fehler', 'ohne_hoehen'] as const)('erhält bei fehlender Verfeinerung (%s) die tatsächlich geprüften Grenzen', async art => {
+    const e: Erkennung = { wert: 24, bis: 'frei' }, l = linien([0, 10, 20, 24])
+    const g = await gelaendePruefen(e, l, async a => {
+      if (a[1] === 16) { if (art === 'fehler') throw Error('HTTP 500'); return [] }
+      return hoehenschnitt(a[1] >= 21)
+    })
+    expect(g).toMatchObject({ abM: 10, abfragen: 4, pruefbereich: { letzteFreiM: 10, ersteVerdecktM: 20 } })
+  })
+  it('erfindet bei einem älteren Geländewert keine Prüflagen', () => {
+    const zz = z({ wert: 24, bis: 'frei' }, linien([0, 10, 20, 24]))
+    const a = erkennungAnzeige(zz, { [gelaendeSchluessel(zz)!]: { stand: 'ok', abM: 17, abfragen: 5, frei: {} } })!
+    expect(erkennungText(a.e)).toContain('abgerundeter Rechenwert')
+    expect(gelaendeText(a.e)).not.toContain('geprüfte Position')
+    expect(a.e.wert).toBe(17)
   })
 })
