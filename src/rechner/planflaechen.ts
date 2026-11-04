@@ -292,7 +292,7 @@ export function eckeAmPunkt(ring: P[], p: P, r: number, kandidaten?: number[]): 
   return best
 }
 
-// Echte Ecken (Nutzerbefund 20.10.2026: Bogenpunkte erschienen als Rund-Ziele): Punkte eines Bogens (gerundet bzw. von Hand) und
+// Echte Ecken (Bogenpunkte erschienen als Rund-Ziele): Punkte eines Bogens (gerundet bzw. von Hand) und
 // fast gerade Punkte drehen je nur wenige Grad; als Ecke zum Runden gelten Punkte mit mindestens ECKE_MIN_DREH_GRAD Drehung, an
 // denen sich überhaupt runden lässt (eckeRadiusMax nicht null). Ein Bogen sind mindestens BOGEN_MIN_PUNKTE aufeinanderfolgende
 // Punkte, die nicht echte Ecken sind, je mindestens 0,2° im selben Sinn drehen und höchstens BOGEN_KANTE_M auseinander liegen

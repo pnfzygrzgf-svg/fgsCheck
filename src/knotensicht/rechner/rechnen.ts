@@ -285,7 +285,7 @@ export function rechneKnoten(osm: OsmDaten, av: AvFlaeche[], fall: KnotenFall, k
   return { knoten: info, ergebnis, meldungen: [], ms: performance.now() - t0, ...umkreis(netz, ampeln) }
 }
 
-/** Ende der OSM-Linie eines Arms der Vortrittsstrasse (Befund 31.10.2026, Knoten 132629283): ab geradeAb [m ab dem Knotenpunkt] nimmt die
+/** Ende der OSM-Linie eines Arms der Vortrittsstrasse (Beispiel Knoten 132629283): ab geradeAb [m ab dem Knotenpunkt] nimmt die
  *  App die Mittellinie gerade an (kein Anschlussweg bis 45°); quer: Name der Querstrasse dort, nur wenn eindeutig; kreuzung: am Ende
  *  hängen weitere befahrbare Wege */
 export interface ArmEnde { geradeAb: number; quer: string | null; kreuzung: boolean }
@@ -394,7 +394,7 @@ interface NeigungStand { i: number; vorgabe: number; hand: boolean; quelle: stri
 export const NEIGUNG_UNBEKANNT_QUELLE = 'unbekannt, strengster Wert'
 // hoehenDa: die App hat die Profile zu diesem Fall geholt (Fall.hoehen gesetzt). Vorher (null) lädt das Höhenmodell noch: der
 // Bericht wartet darauf. Fehlt danach die Messung einer Richtung, wurde für sie kein Profil geholt (nicht geprüft, kein Verkehr):
-// kein «lädt», sonst wartete der Druck ewig (Befund 17.10.2026); die Neigung ist dann unbekannt.
+// kein «lädt», sonst wartete der Druck ewig; die Neigung ist dann unbekannt.
 export function neigungBestimmen(hand: number | null, m: NeigungMessung | undefined, hoehenDa: boolean): NeigungStand {
   const vorgabe = m?.i ?? 0
   const gemessen = m !== undefined && m.i !== null
@@ -423,7 +423,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   const istWeg = (wid: number) => wid >= 0 && netz.W.has(wid)
   if (g) hinweise.push(...g.hinweise)
   // Zufahrt: OSM-Linie des Arms, im Mündungsbereich geglättet (muendungGeglaettet), damit D und F_B nicht an Knickstücken hängen.
-  // Befund 31.10.2026 (Knoten 282773328): teilt sich die Fahrbahn der Zufahrt in zwei Einbahnen, folgt die Linie der zuführenden (dort
+  // Beispiel Knoten 282773328: teilt sich die Fahrbahn der Zufahrt in zwei Einbahnen, folgt die Linie der zuführenden (dort
   // fährt der wartende Verkehr zum Knoten; armMittellinieMitEnde)
   const zLinie = g ? null : armMittellinieMitEnde(netz, achsen, zArm, ZUF_LAENGE_M)
   const zMl = g ? g.zMl(ZUF_LAENGE_M) : muendungGeglaettet(zLinie!.linie)
@@ -587,8 +587,8 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       `${180 - EINBIEGEWINKEL_GRENZE_GRAD}°).`)
 
   // Mittellinien und Querschnitte der vortrittsberechtigten Arme
-  // Befund 31.10.2026 (Knoten 132629283): ende = Stelle, ab der die Mittellinie gerade verlängert ist, mit der Querstrasse dort
-  // Befund 31.10.2026 (Knoten 282773328): teilt sich die Fahrbahn eines Arms in zwei Einbahnen, folgt die Mittellinie der zuführenden
+  // Beispiel Knoten 132629283: ende = Stelle, ab der die Mittellinie gerade verlängert ist, mit der Querstrasse dort
+  // Beispiel Knoten 282773328: teilt sich die Fahrbahn eines Arms in zwei Einbahnen, folgt die Mittellinie der zuführenden
   // (Verkehr zum Knoten: Fahrlinie, Velo, Überholfall, Tempo). Rand, Radweg und Trottoir auf der Seite der Zufahrt gehören zur
   // Gegenrichtung, wenn die Zufahrt rechts von u liegt (links von u ist der rechte Rand des Verkehrs zum Knoten): dort folgt die Linie
   // der wegführenden Einbahn (seiteZ; ohne Teilung dieselbe Linie)
@@ -624,7 +624,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     // Radweg ohne OSM-Linie (cycleway=track bzw. von Hand gewählt): RADWEG_BREITE_M direkt am Fahrbahnrand angenommen
     const radweg: RadwegLage | null = fuehrung !== 'radweg' ? null : rw ?? { id: 0, versatz: h.qs.links + RADWEG_BREITE_M / 2,
       breite: RADWEG_BREITE_M, breiteOsm: false, abstand: 0, zweiRichtungen: false, eigeneSeite: true, treffer: 0 }
-    // Befund 31.10.2026 (Knoten 282773328): teilt sich die Fahrbahn in zwei Einbahnen, gelten ab der Teilung die Tags der zuführenden
+    // Beispiel Knoten 282773328: teilt sich die Fahrbahn in zwei Einbahnen, gelten ab der Teilung die Tags der zuführenden
     // Einbahn (dort fährt der Verkehr zum Knoten; Seite rechts in Fahrtrichtung). Die Achsen wechseln dort nur zwischen Mischverkehr und
     // Radstreifen (ab); ein anderer Unterschied (Radweg, kein Veloverkehr) bleibt ein Hinweis. Von Hand gewählt gilt durchgehend
     let ab: VeloStand['ab'] = null
@@ -690,7 +690,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   } else {
   const abAlle: number[] = []
   for (let s = nah + ZUF_VON_M; s <= nah + ZUF_BIS_M + 1e-9; s += ZUF_SCHRITT_M) abAlle.push(s)
-  // Teilung der Zufahrt in zwei Einbahnen (Befund 31.10.2026): Querschnitte nur bis zur Teilung (Fahrbahn mit beiden Richtungen); liegen
+  // Teilung der Zufahrt in zwei Einbahnen: Querschnitte nur bis zur Teilung (Fahrbahn mit beiden Richtungen); liegen
   // dort zu wenige, die danach auf der zuführenden Einbahn (Lage als Einbahn)
   const vorTeilung = zTeilung ? abAlle.filter(x => x <= zTeilung.ab) : abAlle
   const nachTeilung = !!zTeilung && vorTeilung.length < SEHNE_MIN_PUNKTE
@@ -700,7 +700,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   const art = zArm.einbahn !== 0 || nachTeilung ? 'einbahn' : 'beide'
   const sehnenRoh = ref.map(([q, r]) => fahrbahn.sehne(q, r))
   // Sehnen an der Suchgrenze zählen nicht (wie querschnitt, randProfil); an mehr als SEHNE_OFFEN_ANTEIL der Stellen (Platz,
-  // Kreuzungsfläche neben der Zufahrt): kein AV-Querschnitt, Lage aus OSM (Befund 31.10.2026, Hubelmattstrasse/Loryplatz)
+  // Kreuzungsfläche neben der Zufahrt): kein AV-Querschnitt, Lage aus OSM (Beispiel Hubelmattstrasse/Loryplatz)
   const offen = sehnenRoh.filter(sh => sh && Math.max(sh[0], sh[1]) >= SEHNE_HALB - 0.5).length
   const gemessen = sehnenRoh.filter(sh => sh).length
   const zOffen = gemessen > 0 && offen > SEHNE_OFFEN_ANTEIL * gemessen
@@ -996,7 +996,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   const unbekannt = richtungen.filter(r => r.neigungUnbekannt)
   if (unbekannt.length) an.verkehr.splice(annahmeNeigung, 0, `Längsneigung ${unbekannt.map(r => lageKurz(r)).join(' und ')} unbekannt ` +
     `(kein Höhenprofil): strengster Wert der Tab. 3 (Spalte ≤ −4 %)${rv ? '' : ` bzw. Anhaltesichtweite (VSS 40 090b Abb. 2) bei ` +
-    `${fi(ANHALTESICHT_I_MIN)} %`} angenommen; Neigung von Hand eingeben, um das zu verfeinern (Entscheid 31.10.2026).`)
+    `${fi(ANHALTESICHT_I_MIN)} %`} angenommen; Neigung von Hand eingeben, um das zu verfeinern.`)
   if (unbekannt.some(r => r.status !== 'keine_zufahrt') && !rv && eg.neigungGross === null && strasse.typ === 'hvs' && !strasse.ungunst.neigung)
     hinweise.push('Längsneigung unbekannt: die automatische Einstufung «grosse Längsneigung» (ungünstige Verhältnisse) bleibt aus, weil kein Mass bekannt ' +
       'ist; trifft sie zu, im Panel setzen (oberer Wert der Tab. 1).')
@@ -1007,10 +1007,10 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   // Anhaltesichtweite (VSS 40 090b Abb. 2): nur nennen, wo sie in einer geprüften Richtung angewendet ist
   if (!rv && richtungen.some(r => r.status !== 'keine_zufahrt' && r.anhalteAngewendet)) {
     an.verkehr.push(`Bei Gefälle oder Steigung über ${NEIGUNG_EBEN_PROZENT} % zählt zusätzlich die Anhaltesichtweite nach VSS 40 090b ` +
-      '(Abb. 2, S. 5; aus dem Diagramm abgelesen, Entscheide 15.10. und 31.10.2026).')
+      '(Abb. 2, S. 5; aus dem Diagramm abgelesen).')
     herleitung.push(`Anhaltesichtweite nach VSS 40 090b Abb. 2 (übrige Strassen; aus dem Diagramm abgelesen, Ablesung 30./31.10.2026, ±2 m; ` +
-      'VP = Tempo der Tab. 1), Kurven bei 0 % auf den unteren Wert der Tab. 1 verschoben (Entscheid 15.10.2026); Untergrenze erst über ' +
-      `±${NEIGUNG_EBEN_PROZENT} % (VSS 40 273 Ziffer 13.1); gestrichelte Kurvenenden gelten als nicht gezeichnet (Entscheid 31.10.2026).`)
+      'VP = Tempo der Tab. 1), Kurven bei 0 % auf den unteren Wert der Tab. 1 verschoben; Untergrenze erst über ' +
+      `±${NEIGUNG_EBEN_PROZENT} % (VSS 40 273 Ziffer 13.1); gestrichelte Kurvenenden gelten als nicht gezeichnet.`)
   }
   // Fahrlinie der Fahrzeuge mit Vortritt: an den Anfang des Themas; Prüfpunktregel der Parkierung in der Regelübersicht
   const autoR = richtungen.filter(r => r.status !== 'keine_zufahrt')
@@ -1018,7 +1018,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     `(VSS 40 273 Ziffer 10, S. 7), wo parkiert wird ${f2(D_MFZ_M)} m neben den parkierten Autos` +
     `${autoR.some(r => r.veloFuehrung === 'radstreifen') ? `, neben einem Radstreifen ${f2(D_MFZ_M)} m neben dem Radstreifen` : ''}. ` +
     `Parkierung: ${autoR.map(r => `${vonSatz(r)} ${r.parkStreifen.abzug ? 'ja' : 'nein'}`).join(', ')}.`)
-  // Befund 31.10.2026 (Knoten 282773328): Teilung der Fahrbahn in zwei Einbahnen, die Fahrlinie folgt der zuführenden (Annahme gleich
+  // Beispiel Knoten 282773328: Teilung der Fahrbahn in zwei Einbahnen, die Fahrlinie folgt der zuführenden (Annahme gleich
   // nach dem Satz zur Fahrlinie, Herleitung nach der Lage der Fahrlinie)
   let nachFahrlinie = autoR.length ? 1 : 0
   richtungen.forEach((r, j) => {
@@ -1169,7 +1169,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
         `${lageNach({ lage: lageLR[j] })} ${l.t ? `Mitte der AV-Fläche Trottoir (${l.t.n} Querschnitte, Breite ${f1(l.t.breite)} m)` :
         anders ? 'wie die Gegenseite' : 'Mitte des Trottoirs an der Zufahrt, parallel zur Strasse'}`)
       // Gehlinie ab dem Fahrbahnrand je Stelle; Trottoirachse nach AV (Mitte der Fläche) fest zur Mittellinie, an einer Teilung der
-      // Fahrbahn (Befund 31.10.2026) ab dem Rand je Stelle
+      // Fahrbahn ab dem Rand je Stelle
       const linie = mitVerlaengerung(tueB || l.geteilt ? versetztVariabel(l.ml, s => l.seite * (l.randBei(s) + abstand - l.rand)) :
         versetzt(l.ml, l.seite * abstand))
       const x = schnittBei(zAchse, linie, kp)
@@ -1194,7 +1194,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       ...(tueB ? { gehlinie: true } : {}) }
     trottoirProfil = [...abschneiden(linien[0], TROTTOIR_PROFIL_M).reverse(), ...abschneiden(linien[1], TROTTOIR_PROFIL_M).slice(1)]
     const neigungT = gemessenT ? `aus dem Höhenmodell (Ausgleichsgerade über ${TROTTOIR_PROFIL_M} m beidseits)` : unbekanntT ?
-      'unbekannt (kein Höhenprofil): strengster Wert der Tab. 2 (Spalte ≤ −6 %) angenommen (Entscheid 31.10.2026)' :
+      'unbekannt (kein Höhenprofil): strengster Wert der Tab. 2 (Spalte ≤ −6 %) angenommen' :
       '0 % (vorerst, das Höhenmodell lädt noch)'
     // D' beim wartenden Fahrzeug, die Zufussgehende beim Verkehr mit Vortritt; Lage der Achsen in der Herleitung,
     // Auslegung der Neigungsrichtung und Spaltenregel in der Regelübersicht
@@ -1238,7 +1238,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
         hinweise: [...teil.hinweise, ...(xu ? [] : ['Kein Schnitt der Zufahrtsachse mit der Achse des Gegenfahrstreifens: Anfang als Lot vom Knoten.'])] }
       r.ueberholfall = u
       geprueft.push(lageKurz(r))
-      // Befund 31.10.2026: ab einer Teilung der Fahrbahn ist die Gegenrichtung baulich getrennt; die Achse bleibt auf der zuführenden
+      // ab einer Teilung der Fahrbahn ist die Gegenrichtung baulich getrennt; die Achse bleibt auf der zuführenden
       // Einbahn, D_MFZ_M von deren linkem Rand (mehrstreifig: Überholstreifen; einstreifig nahe der Fahrlinie, konservativ weiter geprüft)
       const t = h.teilungen[0]
       if (t) geteilt.push(`${lageKurz(r)} ab ${Math.round(t.ab)} m`)
@@ -1438,10 +1438,10 @@ export function ueberholenVorgabe(netz: OsmNetz, a: ArmInfo): [boolean, string] 
 /** Veloführung einer Richtung (E3b): in der Rechnung, Vorgabe aus OSM mit Quelle, Radweg (OSM bzw. angenommen) */
 interface VeloStand { fuehrung: Velofuehrung; vorgabe: Velofuehrung; quelle: string; gewaehlt: boolean; radweg: RadwegLage | null
   radwegOsm: RadwegLage | null
-  /** Befund 31.10.2026 (Knoten 282773328): ab der Teilung der Fahrbahn (Bogenlänge s auf der Mittellinie) gilt nach den Tags der
+  /** Beispiel Knoten 282773328: ab der Teilung der Fahrbahn (Bogenlänge s auf der Mittellinie) gilt nach den Tags der
    *  zuführenden Einbahn diese Führung (nur Wechsel zwischen Mischverkehr und Radstreifen; Übergang über VELO_WECHSEL_M) */
   ab: { s: number; fuehrung: 'misch' | 'radstreifen'; quelle: string } | null }
-/** Annahme (Befund 31.10.2026): Wechsel der Veloführung an einer Teilung der Fahrbahn: Achsen gleiten über diese Länge ab der Teilung
+/** Annahme: Wechsel der Veloführung an einer Teilung der Fahrbahn: Achsen gleiten über diese Länge ab der Teilung
  *  von der einen Lage in die andere (kein Sprung) */
 const VELO_WECHSEL_M = 10
 /** Ziffer 12: Toleranz am Grenzwert 2,00 m (Rundung der Lage) und höchster Abstand der OSM-Radweglinie vom Schnitt mit der
@@ -1550,9 +1550,11 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
   const tempoVorgabe = trefferA ? ta : vorgabeAnnahme && rvR ? RV_TEMPO : tempoOsm
   const tempoVorgabeQuelle = vorgabeAnnahme && rvR ? `Annahme (ohne OSM-Angabe; beim Rechtsvortritt ${RV_TEMPO} km/h wie die Norm, Ziffer 15)` : trefferA ? `${am?.quelle ?? amtlich!.quelle} (signalisierte Höchstgeschwindigkeit V_sig, Mehrheit entlang der Achse)` :
     vorgabeAnnahme ? `Annahme (ohne OSM-Angabe)` : w && tempoVorgabe === w[0] ? w[1] : 'OSM maxspeed (Mehrheit entlang der Achse)'
-  if (trefferA && ta !== tempoOsm)
-    hinweise.push(`Tempo ${ta} km/h laut ${am?.quelle ?? amtlich!.quelle} (signalisierte Höchstgeschwindigkeit), OSM ${!treffer && !w ? 'ohne Angabe' :
-      `${tempoOsm} km/h`}.`)
+  // Vergleich nur mit einem echten OSM-Wert: ohne Angabe zählt die Ersatzannahme nicht als Übereinstimmung
+  const osmWert = !treffer && !w ? null : tempoOsm
+  const tempoOsmVergleich = trefferA && ta !== osmWert ? (osmWert === null ? 'OSM ohne Angabe' : `OSM ${osmWert} km/h`) : null
+  if (tempoOsmVergleich)
+    hinweise.push(`Tempo ${ta} km/h laut ${am?.quelle ?? amtlich!.quelle} (signalisierte Höchstgeschwindigkeit), ${tempoOsmVergleich}.`)
   else if (am && !trefferA && a.zufluss)
     hinweise.push(`${amtlich!.quelle}: ${!am.innen ? 'Richtung ausserhalb des geladenen Bereichs' : !am.wert && !am.leer ?
       'entlang dieser Richtung keine Linie' : `${am.wert} von ${am.wert + am.leer} Punkten an einer Linie mit Wert`}: Tempo aus OSM.`)
@@ -1605,7 +1607,7 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
   if (weit > avRadius - 5)
     hinweise.push(`Zielpunkte reichen über den AV-Ausschnitt (±${avRadius} m) hinaus: weiter weg fehlen Gebäude` +
       (weit + AV_RESERVE_M > AV_MAX_M ? ` (nachgeladen wird höchstens ±${AV_MAX_M} m).` : '.'))
-  const basis = { richtung, lage, arm: a.key, strasse: armText(a), spur, tempo, tempoQuelle, tempoAnnahme, tempoVorgabe, tempoVorgabeQuelle,
+  const basis = { richtung, lage, arm: a.key, strasse: armText(a), spur, tempo, tempoQuelle, tempoAnnahme, tempoVorgabe, tempoVorgabeQuelle, tempoOsmVergleich,
     tempoArt: te?.art ?? null, tempoBegruendung: te?.begruendung.trim() ?? '', stufe: sw.stufe,
     erforderlichUnten: sw.unten, erforderlichOben: sw.oben, zwischenwert: sw.zwischen, typStufe: sw.typStufe, typWert: sw.typWert,
     typText: sw.typText, neigung: sw.neigung, neigungVorgabe: ns.vorgabe, neigungHand: ns.hand,
@@ -1626,8 +1628,8 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
   const veloRechnen = (): VeloErgebnis | null => {
     if (vs.fuehrung === 'kein') return null
     const rw = vs.radweg
-    // Abstand der Veloachse vom rechten Rand (Mischverkehr, Radstreifen, Radweg ohne OSM-Linie); Rand je Stelle (Entscheid
-    // 31.10.2026). Radweg aus OSM: feste Lage seiner Linie
+    // Abstand der Veloachse vom rechten Rand (Mischverkehr, Radstreifen, Radweg ohne OSM-Linie); Rand je Stelle.
+    // Radweg aus OSM: feste Lage seiner Linie
     const vomRand = vs.fuehrung === 'misch' ? ps.abzug + D_VELO_M : vs.fuehrung === 'radstreifen' ? ps.abzug + RADSTREIFEN_M / 2 :
       !rw!.id ? -RADWEG_BREITE_M / 2 : null
     // Teilung mit anderer Führung auf der zuführenden Einbahn (vs.ab: nur Mischverkehr und Radstreifen)
@@ -1660,7 +1662,7 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
     return { ...teil, fuehrung: vs.fuehrung, lageText, randAbstand: qs.links - versatz, radweg: rw, tempo: vt,
       tempoQuelle: vt === tempo ? tempoQuelle : tempoVorgabeQuelle, neigung: ns.i, neigungUnbekannt: ns.unbekannt, text: vsw.text, ebike: vsw.ebike, hinweise: vh }
   }
-  // Befund 31.10.2026 (Knoten 132629283): liegt der Zielpunkt bei A (Auto bzw. Velo; der Überholfall hat dasselbe A wie das Auto) auf dem
+  // Beispiel Knoten 132629283: liegt der Zielpunkt bei A (Auto bzw. Velo; der Überholfall hat dasselbe A wie das Auto) auf dem
   // gerade verlängerten Stück der Mittellinie, Hinweis ohne Statuswirkung
   const ueberEnde = (linie: P[], s: number) => {
     const bisA = abschneiden(linie, s)

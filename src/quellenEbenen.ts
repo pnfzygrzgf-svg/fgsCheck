@@ -47,7 +47,7 @@ export interface EbeneDef {
   titel: string
   quellenHinweis?: string
   quelle: string
-  // symbol: Zeichen im Quadrat der Punkte (Form statt Farbe allein, Nutzerbefund 01.11.2026: Heime und LSA-Übergänge fast gleich violett);
+  // symbol: Zeichen im Quadrat der Punkte (Form statt Farbe allein: Heime und LSA-Übergänge fast gleich violett);
   // Punkte der Quellen sind Quadrate mit Zeichen, die Objekte der Prüfung Kreise
   legende: [klasse: string, farbe: string, text: string, symbol?: string][]
 }

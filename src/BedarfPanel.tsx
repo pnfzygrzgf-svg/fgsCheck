@@ -56,7 +56,7 @@ import { reiterZeigen } from './reiter'
 import { regelAnker, regelZeigen } from './bedarf/regeluebersicht'
 
 /** Sprung zu einem Feld der Maske (Panel); im Bericht fehlt er, die Fragen sind dort Text */
-/** Text für die Anzeige: Regelnummern mit Titel (mitTiteln), Abkürzungen der Fundstellen ausgeschrieben (Nutzertest 23.10.2026) */
+/** Text für die Anzeige: Regelnummern mit Titel (mitTiteln), Abkürzungen der Fundstellen ausgeschrieben */
 function T(text: string): string
 function T(text: string | undefined): string | undefined
 function T(text: string | undefined): string | undefined { return text === undefined ? text : abkLesbar(mitTiteln(text)) }
@@ -106,7 +106,7 @@ export function frageZweck(feld: string, regel: string): string | undefined {
 
 export { hilfeZeigen, VerweisText }
 
-/** Fundstellen eines Eintrags lesbar (Nutzertest 23.10.2026): Werk mit Lesenamen als Verweis ins Quellenverzeichnis, Ziffer
+/** Fundstellen eines Eintrags lesbar: Werk mit Lesenamen als Verweis ins Quellenverzeichnis, Ziffer
  * ausgeschrieben, Artikel bzw. Seite mit direktem Link; im Bericht reiner Text. Ohne Katalogeintrag: der Text lesbar */
 export function QuelleMitVerweis({ id, quelle, druck = false }: { id: string; quelle: string; druck?: boolean }) {
   const def = (KATALOG as Readonly<Record<string, { quellen: readonly { werk: string; ziffer: string }[] }>>)[id]
@@ -469,7 +469,7 @@ export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sich
   alternative?: boolean; setAlternative?: (x: boolean) => void
   /** «Datenlage hier» (Quellenregister, Datenlage.tsx) unter dem Kopf */
   datenlage?: ReactNode }) {
-  // ausgeblendete Felder je Maske einblenden (Nutzertest 23.10.2026: ein Schalter je Maske, nahe bei ihr)
+  // ausgeblendete Felder je Maske einblenden (ein Schalter je Maske, nahe bei ihr)
   const [alleGrund, setAlleGrund] = useState(false)
   const [alleErw, setAlleErw] = useState(false)
   const [sprungZiel, setSprungZiel] = useState<string | null>(null)
@@ -927,7 +927,7 @@ function GrundZeileAnzeige({ z, name, thema, details, druck }: { z: GrundZeile; 
   const id = useId()
   const a = ZUSTAND_ANZEIGE[z.zustand]
   return <>
-    {/* ganze Zeile klickbar (Nutzertest 23.10.2026); Knöpfe in der Zeile (Fragen, Details) halten den Klick selbst */}
+    {/* ganze Zeile klickbar; Knöpfe in der Zeile (Fragen, Details) halten den Klick selbst */}
     <tr className={`${a.klasse}${druck ? '' : ' grund-zeile-klick'}`} onClick={druck ? undefined : () => setAuf(!auf)}>
       <th scope="row">{name}{thema && <span className="klein"> ({thema})</span>}</th>
       <td className="grund-wort"><span className="grund-symbol" aria-hidden="true">{a.symbol}</span> {z.wort ?? a.wort}</td>

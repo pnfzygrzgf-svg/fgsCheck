@@ -124,7 +124,7 @@ describe('Runde 4: Quellenverzeichnis', () => {
   it('Details je Eintrag: Werkname als Verweis auf das Verzeichnis mit vollem Titel und Satz als Tooltip, Link ↗ zum Herausgeber; im Bericht reiner Text', () => {
     const panel = renderToStaticMarkup(<BefundblattAnzeige b={bOffen} />)
     expect(panel).toMatch(/<a href="#quelle-[^"]+" class="werk-link" title="[^"]+">/)
-    // Nutzertest 23.10.2026: Lesename statt Kennung, Artikel direkt in fedlex
+    // Lesename statt Kennung, Artikel direkt in fedlex
     expect(panel).toContain(`href="#quelle-VOT30" class="werk-link" title="${WERKE.VOT30.voll}. ${WERK_INFO.VOT30.was} ${WERK_INFO.VOT30.gilt}">Tempo-30-Zonen-Verordnung (SR 741.213.3)</a>`)
     expect(panel).toContain(`<a href="${WERKE.VOT30.seite}#art_4" target="_blank" rel="noopener" class="werk-extern"`)
     expect(text(panel).replace(/ ,/g, ',')).toContain('Tempo-30-Zonen-Verordnung (SR 741.213.3), Art. 4 Abs. 2 ↗')
@@ -321,7 +321,7 @@ describe('Hilfe kurz; Quellen und Begriffe als eigene Abschnitte (23.10.2026)', 
   })
 })
 
-describe('Feste Texte mit Werkverweisen (Nutzerbefund 23.10.2026)', () => {
+describe('Feste Texte mit Werkverweisen', () => {
   it('«Rechnung und Sichtweiten»: je genanntes Werk ein Verweis ins Quellenverzeichnis, VRV mit Artikel-Link, bfu mit Link zum Herausgeber', () => {
     const html = renderToStaticMarkup(<RechnungGrundlagen />)
     for (const w of ['40241', 'BFU']) expect(html, w).toContain(`href="#quelle-${w}" class="werk-link"`)

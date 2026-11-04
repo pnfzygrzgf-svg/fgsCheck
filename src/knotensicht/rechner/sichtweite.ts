@@ -75,7 +75,7 @@ const STUFE_TEXT: Record<TypStufe, string> = { unten: 'unterer Wert', zwischen: 
 /** Zwischenwert für Hauptverkehrsstrassen: Mittel von unterem und oberem Wert, auf ganze Meter aufgerundet */
 export const zwischenwert = (unten: number, oben: number): number => Math.ceil((unten + oben) / 2)
 /** Herkunft des Zwischenwerts (die Norm nennt für Hauptverkehrsstrassen nur einen Bereich) */
-export const ZWISCHENWERT_TEXT = 'Mittel von unterem und oberem Wert, aufgerundet; Entscheid 15.10.2026 – die Norm nennt nur einen Bereich'
+export const ZWISCHENWERT_TEXT = 'Mittel von unterem und oberem Wert, aufgerundet; Projektentscheid, die Norm nennt nur einen Bereich'
 
 export interface Sichtweite {
   tempo: number            // Zufahrtstempo (Eingang)

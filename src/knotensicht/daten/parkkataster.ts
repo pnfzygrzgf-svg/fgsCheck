@@ -45,7 +45,7 @@ interface GeoJsonFlaechen {
 const istZahlPaar = (x: unknown): x is [number, number] =>
   Array.isArray(x) && x.length >= 2 && Number.isFinite(x[0]) && Number.isFinite(x[1])
 
-/** Koordinaten der Antwort: LV95 [E, N] bzw. WGS84 [lon, lat] (dann mit lv95() umgerechnet) */
+/** Koordinaten der Antwort: LV95 [E, N] bzw. WGS84 [lon, lat] (dann mit lv95 umgerechnet) */
 export type Koord = 'lv95' | 'wgs84'
 
 /** Aussenring in LV95 bereinigen: ungültige (verdrehte) Ringe über eine Vereinigung, je Teil ein Ring ab PARK_MIN_M2 */

@@ -24,7 +24,7 @@ const ACHSE_MAX_WINKEL = 35 * Math.PI / 180
 /** Zonen-Angaben (zone:maxspeed, maxspeed:type) -> km/h, z. B. CH:zone30, CH:zone20, CH:urban */
 export function zonenTempo(v: string | undefined): number | null {
   if (!v) return null
-  // CH:zone30 bzw. CH:30 (zone:maxspeed in der Schweiz oft ohne «zone»; Befund Prüfrunde E0)
+  // CH:zone30 bzw. CH:30 (zone:maxspeed in der Schweiz oft ohne «zone»; )
   const z = /^CH:(?:zone)?(\d+)$/.exec(v.trim())
   if (z) return parseInt(z[1], 10)
   return ({ 'CH:urban': 50, 'CH:rural': 80, 'CH:trunk': 100, 'CH:motorway': 120, 'CH:living_street': 20 } as Record<string, number>)[v.trim()] ?? null

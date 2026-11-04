@@ -1,4 +1,4 @@
-// Tests Befund 31.10.2026 (Knoten 132629283, synthetisch nachgebaut): Arm der Vortrittsstrasse endet kurz nach dem Knoten an einer
+// Tests an Knoten 132629283 (synthetisch nachgebaut): Arm der Vortrittsstrasse endet kurz nach dem Knoten an einer
 // Querstrasse (Abzweige rund 90°), die App verlängert seine Mittellinie gerade. Reicht A darüber hinaus: Hinweis, Status unverändert.
 // T-Knoten 12: Hauptstrasse West–Ost, Arm Ost (Nr. 1) endet nach 30 m am Punkt 13; Nebenstrasse (Zufahrt) nach Süden.
 

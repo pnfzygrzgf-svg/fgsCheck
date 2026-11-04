@@ -277,7 +277,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const ortFreigabe = useRef(false)
   const ortVergessen = useRef<number | null>(null)
   const [ortKonflikt, setOrtKonflikt] = useState<Fall | null>(null)
-  // aktueller Ladehinweis für Effekte, die nach laden() (setzt ihn zurück) einen Hinweis anhängen
+  // aktueller Ladehinweis für Effekte, die nach laden (setzt ihn zurück) einen Hinweis anhängen
   const ladeHinweisRef = useRef(ladeHinweis)
   ladeHinweisRef.current = ladeHinweis
   const [auswahl, setAuswahl] = useState<string | null>(null)

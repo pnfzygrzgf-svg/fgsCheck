@@ -30,8 +30,7 @@ export function Anleitung() {
   )
 }
 
-/** Grundlagen der Sichtrechnung (Panel «Grundlagen und Quellen»): Werke als Verweise wie im Lesetext, VRV mit Artikel-Link
- * (Nutzerbefund 23.10.2026) */
+/** Grundlagen der Sichtrechnung (Panel «Grundlagen und Quellen»): Werke als Verweise wie im Lesetext, VRV mit Artikel-Link */
 export function RechnungGrundlagen() {
   return <p className="klein">
     Sichtweiten: <VerweisText text={`${LESENAME['40241']}, Tabelle 1`} /> ({TAB1_TEXT});

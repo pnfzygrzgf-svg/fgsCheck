@@ -1,7 +1,7 @@
 import { contours } from 'd3-contour'
 import { RASTER, ringSchneiden, type Box, type Kurve, type Punkt, type Raster } from './modell'
 
-/** Keine Weichzeichnung und kein Umrechnen; d3 smooth() heisst Interpolation zwischen den Originalpixeln. */
+/** Keine Weichzeichnung und kein Umrechnen; d3 smooth heisst Interpolation zwischen den Originalpixeln. */
 export function ableiten(r:Raster,box:Box):Kurve[] {
   let min=Infinity,max=-Infinity
   for(const h of r.werte){if(!Number.isFinite(h))throw Error('Höhenraster deckt den Ausschnitt nicht vollständig ab.');min=Math.min(min,h);max=Math.max(max,h)}

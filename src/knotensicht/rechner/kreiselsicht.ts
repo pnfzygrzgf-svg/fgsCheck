@@ -1,4 +1,4 @@
-// ── Kreisel: Sicht aus der gewählten Einfahrt (K4) und zwischen benachbarten Zufahrten (K4b), Plan Kreisel 31.10./01.11.2026 ──
+// ── Kreisel: Sicht aus der gewählten Einfahrt (K4) und zwischen benachbarten Zufahrten (K4b) ──
 //
 // Ak (VSS 40 263 Ziffer 13.2, S. 8–9, Abb. 3): A nach VSS 40 273 Tab. 1 mit dem Tempo aus K3 (kleinstes β; Minikreisel fest 30 km/h,
 // ohne gültige Konstruktion 40 km/h); bei 35 km/h zwischen den Werten für 30 und 40 km/h linear (Annahme). Strassentyp der
@@ -175,10 +175,10 @@ export function kreiselSicht(k: KreiselInfo, verdeckend: Verdeckend[]):
     }
   }
   // Annahmen
-  if (sw.interpoliert) annahmen.push('Tempo 35 km/h: A zwischen den Werten der Tab. 1 für 30 und 40 km/h linear (Entscheid E7).')
+  if (sw.interpoliert) annahmen.push('Tempo 35 km/h: A zwischen den Werten der Tab. 1 für 30 und 40 km/h linear.')
   annahmen.push(`Strassentyp der Kreiselfahrbahn: ${typ === 'hvs' ? 'Hauptverkehrsstrasse, weil ein Arm eine ist (wie am Knoten der Zwischenwert)' :
-    'unterer Wert, weil kein Arm eine Hauptverkehrsstrasse ist'}; die Kreiselfahrbahn gilt als eben (Entscheid E3).`)
-  annahmen.push('Velos fahren auf derselben Fahrlinie wie die Autos, in der Mitte der Kreiselfahrbahn (Entscheid E6).')
+    'unterer Wert, weil kein Arm eine Hauptverkehrsstrasse ist'}; die Kreiselfahrbahn gilt als eben.`)
+  annahmen.push('Velos fahren auf derselben Fahrlinie wie die Autos, in der Mitte der Kreiselfahrbahn.')
   annahmen.push('Die App rechnet im Grundriss und prüft nicht, ob ein Hindernis in die Höhe des Sichtfelds reicht (0,60 bis 3,00 m, ' +
     'VSS 40 273 Ziffer 10, S. 7).')
   if (az) annahmen.push(`Az ist ein Vergleichswert, kein Normwert (${AZ_QUELLE}).`)

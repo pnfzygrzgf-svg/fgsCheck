@@ -1,4 +1,4 @@
-// Platz neben der Zufahrt (Befund 31.10.2026, OSM-Knoten 132629283 Hubelmattstrasse am Loryplatz, Bern): die AV führt den Platz als
+// Platz neben der Zufahrt (Beispiel OSM-Knoten 132629283 Hubelmattstrasse am Loryplatz, Bern): die AV führt den Platz als
 // Strasse_Weg, quer zur Zufahrt liegt auf einer Seite kein Fahrbahnrand innert der Suchlänge (SEHNE_HALB). Bisher zählten diese Sehnen
 // in fahrstreifenmitte mit 22 m als Rand: Fahrbahn rund 24 m, Achse des Zufahrtsstreifens und D rund 20 m neben der Zufahrt.
 //

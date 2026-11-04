@@ -402,7 +402,7 @@ describe('E2: Zürich durchgängig in Bedarf, Sicht und Fall-Datei', () => {
 })
 
 
-describe('Review Paket 2: Bern bleibt trotz zusätzlicher Quellen unverändert', () => {
+describe('Bern bleibt trotz zusätzlicher Quellen unverändert', () => {
   const punktRoh = (properties: Record<string,unknown>) => ({ type:'FeatureCollection',crs:{properties:{name:'EPSG:2056'}},features:[{type:'Feature',id:'test',properties,geometry:{type:'Point',coordinates:O}}] })
   const teil = (id:string, objekte:RegionalObjekt[], roh:unknown={}):RegionalTeil => ({id,objekte,roh,url:regionalUrl(regionalDienst(id)!,O),abgerufen:'2026-11-03T12:00:00Z',datenstand:'03.11.2026'})
   const bedarf = [
@@ -490,7 +490,7 @@ describe('Review Paket 2: Bern bleibt trotz zusätzlicher Quellen unverändert',
 })
 
 
-it('Review Paket 2: der Innerortshinweis nennt auch die amtliche Quelle aus dem Sichtrechner',()=>{
+it('der Innerortshinweis nennt auch die amtliche Quelle aus dem Sichtrechner',()=>{
   const gruppe=structuredClone(g)
   for(const st of gruppe.streifen)for(const z of st.zufahrten)z.tempoQuelle='Geodaten Basel-Stadt'
   const v=vorbelegen(gruppe,fallMit(),[],{osm:OSM,osmTags:new Map([[1,TAGS]])})
@@ -499,7 +499,7 @@ it('Review Paket 2: der Innerortshinweis nennt auch die amtliche Quelle aus dem 
   expect(v.feldHinweise?.innerorts).toContain('Geodaten Basel-Stadt')
 })
 
-it('Review Paket 2: ein Zürcher Ausschnitt ohne Tempo-Treffer am Ort sperrt keine bisherige Innerortsableitung',()=>{
+it('ein Zürcher Ausschnitt ohne Tempo-Treffer am Ort sperrt keine bisherige Innerortsableitung',()=>{
   const f=fallMit(),geo:GeoVorbelegung={osm:OSM,osmTags:new Map([[1,TAGS]])}
   const zuerich:ZuerichSnapshot={version:1,mitte:O,radiusM:200,tempo:{objekte:[],datenstand:'03.11.2026',url:zhUrl('tempo',O),metadaten:zhMetadatenUrl('tempo'),abgerufen:'2026-11-03T12:00:00Z'}}
   const ohne=vor(geo,f),mit=vor({...geo,zuerich},f)

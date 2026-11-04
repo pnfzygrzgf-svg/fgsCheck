@@ -103,7 +103,7 @@ describe('E6a: Originalquellen und unveränderte Fachrechnung', () => {
 })
 
 
-describe('Review Paket 1: fehlerhafte Antworten und Quellen ohne Kennung', () => {
+describe('fehlerhafte Antworten und Quellen ohne Kennung', () => {
   it('behält zwei St. Galler Leuchten am selben Standort mit Hash und Zähler je Geometrie', () => {
     const d = e6Dienst('e6.sg.licht')!, a = fixture('sg.licht').roh
     const roh = { ...a, total_count: 2, results: [a.results[0], { ...a.results[0] }] }

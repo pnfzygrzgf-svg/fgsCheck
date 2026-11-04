@@ -127,7 +127,7 @@ describe('Knotensicht im Worker-Weg (rechneFall + knotensichtAnfuegen)', () => {
   })
 })
 
-describe('Knotensicht: Bäume, Seitenraum und Flächen (Plan) wie in der Sichtprüfung (Entscheid 23.10.2026)', () => {
+describe('Knotensicht: Bäume, Seitenraum und Flächen (Plan) wie in der Sichtprüfung', () => {
   const PARK = (x: Fall) => x.hindernisse.push({ id: 'h1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-60, -4, -48, -1.8), quelle: 'hand' })
   const links = (f: Fall, rest: Partial<Rest> = {}) => ks(rechnen(f, rest).streifen[0].knotensicht).richtungen.find(r => r.richtung === 'links')!
   it('Bäume aus dem Baumkataster zählen sofort (Baumreihe links); verworfene nicht', () => {
@@ -208,7 +208,7 @@ describe('Knotensicht: Anzeige und Bericht (Render-Wächter)', () => {
   })
 })
 
-describe('Knotensicht: Korrekturen nach Review (S1–S3, K3, K4, K7)', () => {
+describe('Knotensicht: Einzelfälle (S1–S3, K3, K4, K7)', () => {
   it('S1: AV-Ausschnitt reicht nicht: kurzer Hinweis je Richtung, Ergebnis unsicher, keine Vorbelegung', () => {
     const k = ks(rechnen(fallTue(), { avRadius: 30 }).streifen[0].knotensicht)
     expect(k.unklar.join(' ')).toContain('AV-Ausschnitt reicht nicht'); expect(k.ok).toBeNull()
@@ -363,7 +363,7 @@ function abstand(p: P, a: P, b: P): number {
   return Math.abs((p[0] - a[0]) * dy - (p[1] - a[1]) * dx) / Math.hypot(dx, dy)
 }
 
-describe('Knotensicht: zweite Review (Einbahn, Veloachse, Handwerte)', () => {
+describe('Knotensicht: Einbahn, Veloachse, Handwerte', () => {
   const mitQuerweg = (tags: Record<string, string>) => ({ elements: [OSM_ROH.elements[0],
     weg(2, [[11, -40, 0], [20, -40, -200]], { highway: 'residential', name: 'Querweg', maxspeed: '30', ...tags })] })
   const rechnenOsm = (osm: typeof OSM_ROH, f: Fall) => {

@@ -58,7 +58,7 @@ describe('VSS 40 273 Ziffer 13.1: Strassentyp, ungünstige Verhältnisse, Neigun
     expect(sichtweiteA(50)).toMatchObject({ typ: 'es', typStufe: 'unten', typWert: 50, massgebend: 50 })
     expect(sichtweiteA(50, 'es', U({ fahrstreifen: true, neigung: true, schwerverkehr: true }))).toMatchObject({ typStufe: 'unten', massgebend: 50 })
     expect(sichtweiteA(50, 'hvs')).toMatchObject({ typStufe: 'zwischen', typWert: 60, massgebend: 60, massgebendText: 'Zwischenwert, ' +
-      'Hauptverkehrsstrasse (Mittel von unterem und oberem Wert, aufgerundet; Entscheid 15.10.2026 – die Norm nennt nur einen Bereich)' })
+      'Hauptverkehrsstrasse (Mittel von unterem und oberem Wert, aufgerundet; Projektentscheid, die Norm nennt nur einen Bereich)' })
     for (const k of ['fahrstreifen', 'neigung', 'schwerverkehr'] as (keyof Ungunst)[])
       expect(sichtweiteA(50, 'hvs', U({ [k]: true }))).toMatchObject({ typStufe: 'oben', typWert: 70, massgebend: 70 })
     expect(sichtweiteA(30, 'hvs').massgebend).toBe(28)
@@ -96,7 +96,7 @@ describe('VSS 40 273 Ziffer 13.1: Strassentyp, ungünstige Verhältnisse, Neigun
     expect(sichtStatus(142, sw)).toBe('erfuellt')
     expect(sw.hinweise.join(' ')).toContain('verlängert')
   })
-  it('Neigung unbekannt (Entscheid 31.10.2026): Anhaltesichtweite angewendet mit dem Wert bei −12 %', () => {
+  it('Neigung unbekannt: Anhaltesichtweite angewendet mit dem Wert bei −12 %', () => {
     // 50 km/h, ES: Abb. 2 bei −12 % 58 m, verschoben um −1 m: 57 m > 50 m; i bleibt 0, die Vorgabe «grosse Längsneigung» nicht
     const sw = sichtweiteA(50, 'es', KEINE_UNGUNST, 0, true)
     expect(sw).toMatchObject({ neigung: 0, neigungUnbekannt: true, anhalteAngewendet: true, massgebend: 57,

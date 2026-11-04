@@ -352,7 +352,7 @@ export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Fahrba
   ref.forEach(([q, r], i) => {
     const sh = fahrbahn.sehne(q, r)
     // Sehnen an der Suchgrenze (kein Rand innert SEHNE_HALB: Platz, Kreuzungsfläche) zählen nicht, wie in querschnitt und randProfil
-    // (Befund 31.10.2026, Hubelmattstrasse/Loryplatz: Median 22 m = Suchgrenze als Fahrbahnrand, D 21 m neben der Zufahrt)
+    // (Beispiel Hubelmattstrasse/Loryplatz: Median 22 m = Suchgrenze als Fahrbahnrand, D 21 m neben der Zufahrt)
     if (sh === null || Math.max(sh[0], sh[1]) >= SEHNE_HALB - 0.5) return
     er.push(sh[0]); el.push(sh[1])
     // Parkstreifen: Auto-Parkfeld am Prüfpunkt PARK_SONDE_M innerhalb der Bordkante (fahrstreifenmitte, park.trifft)
@@ -445,7 +445,7 @@ export function randProfil(s: number[], sehnen: ([number, number] | null)[], bez
   if (roh.length < SEHNE_MIN_PUNKTE) return null
   const breite = bezug ?? bezugsBreite(roh.map(x => x.sh[0] + x.sh[1]))
   const tol = ausreisserTol(breite)
-  // je Rand: Stellen auf einem stetigen Zug (stetig); Eckausrundung am Knoten, Mündungen und Buchten springen heraus (Befund 31.10.2026,
+  // je Rand: Stellen auf einem stetigen Zug (stetig); Eckausrundung am Knoten, Mündungen und Buchten springen heraus (Beispiele
   // Buchserstrasse/Sonnenhofweg, Jolimontstrasse). Beide Ränder stetig und Breite in der Grenze: Stelle gilt wie bisher
   const xs = roh.map(x => x.s)
   const stetigR = stetig(xs, roh.map(x => x.sh[0])), stetigL = stetig(xs, roh.map(x => x.sh[1]))

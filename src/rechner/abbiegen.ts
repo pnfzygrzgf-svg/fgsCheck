@@ -122,7 +122,7 @@ export const eckCacheLeeren = () => eckCache.clear()
 // Bogen nach Plan-Fläche (20.10.2026, «Ecke runden»): der Kreisfit der Ecke (eckradiusAv) nimmt alle Randpunkte im Keil, die
 // weder in der Richtung des Anfangs noch des Endes laufen. Endet der Keil an einer zweiten Ecke (z. B. eine gerundete Ecke,
 // daneben eine gerade Kante und eine scharfe Ecke einer Plan-Fläche), misst er die Endrichtung dort und nimmt die gerade Kante
-// in den Fit (Nutzerfall Könizstrasse: Bogen 6 m gerundet, gelesen 9,0 m). Mit Flächen (Plan) liegen die Ecken eines
+// in den Fit (Beispiel Könizstrasse: Bogen 6 m gerundet, gelesen 9,0 m). Mit Flächen (Plan) liegen die Ecken eines
 // gezeichneten bzw. gerundeten Bogens als Ringpunkte vor: eine Folge von mindestens PLAN_BOGEN_MIN Ringecken auf dem gelesenen
 // Bogen, je PLAN_BOGEN_GRAD gedreht (gleicher Sinn), Kanten höchstens PLAN_BOGEN_KANTE_M, zusammen mindestens
 // PLAN_BOGEN_SUMME_GRAD, Kreisfit innert BOGEN_RES_MAX. Sie gilt als Bogen dieser Ecke, wenn ihre beiden Endtangenten je einer der

@@ -182,7 +182,7 @@ export interface KreiselArm extends ArmInfo {
   bypass: KreiselBypass[]     // E10: zweite Einfahrt kurz vor der Ausfahrt des nächsten Arms
   velobypass: KreiselVelobypass[]   // Velobypass ab diesem Arm (01.11.2026)
 }
-/** Velobypass (Nutzerbefund 01.11.2026): Rad- bzw. Fuss- und Radweg, der den Ring nicht berührt und zwei Arme verbindet; kein Arm */
+/** Velobypass: Rad- bzw. Fuss- und Radweg, der den Ring nicht berührt und zwei Arme verbindet; kein Arm */
 export interface KreiselVelobypass { wege: number[]; linien: P[][]; zu: string; einbahn: boolean }
 /** E10 (01.11.2026): zweite Einfahrt eines Arms, die kurz vor der Ausfahrt des nächsten Arms in den Ring mündet: keine Kreiselzufahrt */
 export interface KreiselBypass { key: string; wid: number; linie: P[]; abstand: number; vor: string }
@@ -413,6 +413,7 @@ export interface RichtungErgebnis {
   tempoAnnahme: boolean       // ohne OSM-Angabe 50 km/h angenommen (nicht bei Tempo von Hand)
   tempoVorgabe: number        // Tempo aus OSM (bzw. Annahme), auch wenn von Hand ersetzt (E2b)
   tempoVorgabeQuelle: string
+  tempoOsmVergleich: string | null   // weicht das amtliche Tempo von OSM ab: «OSM 50 km/h» bzw. «OSM ohne Angabe», sonst null
   tempoArt: TempoArt | null   // Tempo von Hand: Art (null = Vorgabe aus OSM)
   tempoBegruendung: string
   stufe: number               // Stufe der Tab. 1

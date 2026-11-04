@@ -39,7 +39,7 @@ export const SCHMAL_M = 3.5
 export const ENG_LAENGE_M = 20
 export const ENG_SCHRITT_M = 2
 /** ein Arm gilt als «von rechts», wenn er mehr als so viel rechts der Fahrtrichtung liegt [°] (sonst geradeaus bzw. links; eine
- *  durchgehende Strasse mit einem Knick bis 25° gilt als geradeaus, Annahme nach der Prüfrunde) */
+ *  durchgehende Strasse mit einem Knick bis 25° gilt als geradeaus, Annahme) */
 export const RECHTS_MIN_GRAD = 25
 
 export type Wahrnehmbarkeit = 'sehr_gut' | 'gut' | 'schlecht' | 'sehr_schlecht'

@@ -1,4 +1,4 @@
-// ── Kreisel: Einfahrt, K, D (K2) und Ablenkungswinkel β (K3), Plan Kreisel 31.10./01.11.2026 ──
+// ── Kreisel: Einfahrt, K, D (K2) und Ablenkungswinkel β (K3) ──
 //
 // Fahrstreifen einer Ein- bzw. Ausfahrt: OSM-Linie des Arms, seitlich in die Mitte des Fahrstreifens verschoben. Lage aus dem
 // AV-Querschnitt QUERSCHNITT_AUSSEN_M ausserhalb des Aussenrands (sonst weitere Abstände); quert ihn ein anderer OSM-Weg, nur bis zur
@@ -302,7 +302,7 @@ export function kreiselBeta(netz: OsmNetz, fahrbahn: Fahrbahn | null, v: Kreisel
   const min = gueltig.length ? gueltig.reduce((m, x) => (x.betaGon! < m.betaGon! ? x : m)) : null
   const massgebend = min?.key ?? null, betaGon = min?.betaGon ?? null
   if (typ === 'mini') return { beziehungen, massgebend, betaGon, tempo: TEMPO_MINI, annahme: true,
-    tempoGrund: `Minikreisel: fest ${TEMPO_MINI} km/h, ohne Ablenkungswinkel (Annahme, Entscheid E1)` }
+    tempoGrund: `Minikreisel: fest ${TEMPO_MINI} km/h, ohne Ablenkungswinkel (Annahme)` }
   if (!min) return { beziehungen, massgebend, betaGon, tempo: TEMPO_OHNE_BETA, annahme: true,
     tempoGrund: `ohne gültige Konstruktion des Ablenkungswinkels ${TEMPO_OHNE_BETA} km/h (Annahme)` }
   const b = min.betaGon!

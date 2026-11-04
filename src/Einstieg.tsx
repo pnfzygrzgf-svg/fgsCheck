@@ -21,7 +21,7 @@ export default function Einstieg() {
     window.addEventListener('hashchange', h)
     return () => window.removeEventListener('hashchange', h)
   }, [])
-  // Startseite: Seite wächst mit dem Inhalt (sonst Höhe 100 % für Karte und Panel); Klasse statt CSS :has()
+  // Startseite: Seite wächst mit dem Inhalt (sonst Höhe 100 % für Karte und Panel); Klasse statt CSS :has
   useLayoutEffect(() => {
     document.documentElement.classList.toggle('startseite', !pruefen)
   }, [pruefen])

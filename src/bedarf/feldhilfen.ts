@@ -741,7 +741,7 @@ function geltungTeil(b: Bedingung): string {
   return `${feldText(b.feld)}: ${w.map(x => wertName(b.feld, x)).join(' oder ')}`
 }
 /**
- * Geltung kurz in Worten (Regelübersicht, Nutzertest 23.10.2026): Bausteine mit Namen («Fussgängerstreifen ohne Lichtsignal», «mit
+ * Geltung kurz in Worten (Regelübersicht): Bausteine mit Namen («Fussgängerstreifen ohne Lichtsignal», «mit
  * Insel»), sonst Feld und Werte ohne «offen»; alle Teile (die Übersicht kürzt auf zwei), genau: bedingungText
  */
 export function geltungKurz(b: Bedingung | undefined): { teile: string[]; mehr: boolean; genau: string } {

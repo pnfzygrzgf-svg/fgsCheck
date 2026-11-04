@@ -30,7 +30,7 @@ describe('Overpass: Sperre nach 429 bzw. Retry-After', () => {
   })
 })
 
-describe('Overpass: Verlauf der Versuche, Fehlerseiten, Abfrage um einen Knoten (Befund 15.10.2026)', () => {
+describe('Overpass: Verlauf der Versuche, Fehlerseiten, Abfrage um einen Knoten', () => {
   // Fehlerseite, wie sie overpass.osm.ch am 15.10.2026 bei gleichzeitig laufender gleicher Abfrage sandte (HTTP 200)
   const DOPPELT_SEITE = '<p><strong style="color:#FF0000">Error</strong>: runtime error: open64: 0 Success /osm3s_osm_base ' +
     'Dispatcher_Client::request_read_and_idx::duplicate_query </p>'

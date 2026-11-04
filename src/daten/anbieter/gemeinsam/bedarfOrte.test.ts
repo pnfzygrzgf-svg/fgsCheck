@@ -47,7 +47,7 @@ it('OGC-API: folgt begrenzten räumlichen Seiten; fremde oder wiederholte Folges
 })
 
 
-it('Review Paket 2: alle fünf BE-Inventare laden ausserhalb, aber nicht innerhalb der Stadt Bern', () => {
+it('alle fünf BE-Inventare laden ausserhalb, aber nicht innerhalb der Stadt Bern', () => {
   const ids = ['bedarf.be.schule','bedarf.be.kita','bedarf.be.spital','bedarf.be.heim','bedarf.be.behinderung']
   expect(BEDARF_DIENSTE.filter(d => d.kanton === 'BE').map(d => d.id)).toEqual(ids)
   for (const id of ids) expect(BEDARF_DIENSTE.find(d => d.id === id)!.ausgenommen).toEqual([351])

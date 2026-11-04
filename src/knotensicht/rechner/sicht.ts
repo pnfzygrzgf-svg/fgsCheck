@@ -5,7 +5,7 @@
 // Hindernisse, linieTrifft aus fgsCheck). Vorhandene Sichtweite = grösstes s, bis zu dem alle Punkte ab K sichtbar sind;
 // zwischen dem letzten sichtbaren und dem ersten verdeckten Punkt wird die Grenze durch Halbieren auf GENAU_M bestimmt
 // (sicher: der letzte sichtbare Wert).
-// Wirkung der Flächen (E2a, Entscheide vom 16.10.2026):
+// Wirkung der Flächen:
 // - voll (Gebäude, Parkfeld Auto, Längsparkierung, Hecke/Mauer/übriges «sichtbehindernd», Zaun dicht): verdeckt wie oben.
 // - Palisade (Bäume, Ziffer 11 und Abb. 3): die Zielpunkte werden fein (FEIN_M) geprüft; die vorhandene Sichtweite endet erst
 //   vor einer zusammenhängend verdeckten Strecke, die innerhalb von A mindestens PALISADE_MIN_M misst (eine Fahrzeuglänge;

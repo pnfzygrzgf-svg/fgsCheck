@@ -44,7 +44,7 @@ describe('Aggregation je Punkt (D1): die Muss-Regel bestimmt den Zustand', () =>
     expect(o).toMatchObject({ zustand: 'offen', fragen: ['sichtVorh'] })
     expect(punktZeile(punkt([teil('B5-1', 'verletzt'), teil('B5-1b', 'erfuellt')])).zustand).toBe('verletzt')
   })
-  it('Nutzertest 23.10.: ② Inseltiefe erfüllt, Durchfahrt nicht erfüllt → «!» mit dem Satz der Durchfahrt, Inseltiefe nicht in der Zeile', () => {
+  it('② Inseltiefe erfüllt, Durchfahrt nicht erfüllt → «!» mit dem Satz der Durchfahrt, Inseltiefe nicht in der Zeile', () => {
     const p2 = grundpruefung(fall({ insel: INSEL_OK, durchfahrt: [3.3, 3.5] })).punkte.find(p => p.nr === '2')!
     expect(p2.teile.map(t => [t.id, t.zustand])).toEqual([['B5-2b', 'erfuellt'], ['B5-2c', 'verletzt']])
     const z = punktZeile(p2)

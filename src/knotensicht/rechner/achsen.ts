@@ -19,10 +19,10 @@ const SPUR_PRUEF_M = 40.0
 
 export type AchsTreffer = [number, number, number, number, number]     // linie, segment, t, abstand, winkel
 
-/** Ende der OSM-Linie einer Spur (Befund 31.10.2026, Knoten 132629283): ab geradeAb (Bogenlänge ab dem Anfang der Spur) ist sie gerade
+/** Ende der OSM-Linie einer Spur (Beispiel Knoten 132629283): ab geradeAb (Bogenlänge ab dem Anfang der Spur) ist sie gerade
  *  verlängert, weil am OSM-Knoten «knoten» kein Weg bis 45° weiterführt; wege: die befolgten OSM-Wege */
 export interface SpurEnde { geradeAb: number; knoten: number; wege: number[] }
-/** Wegwechsel auf der Spur (Befund 31.10.2026, Knoten 282773328): bei ab (Bogenlänge ab dem Anfang der Spur) geht sie am OSM-Knoten
+/** Wegwechsel auf der Spur (Beispiel Knoten 282773328): bei ab (Bogenlänge ab dem Anfang der Spur) geht sie am OSM-Knoten
  *  «knoten» vom Weg von auf den Weg nach über; vorgabe: nach kam aus vorzug (z. B. zuführende Einbahn an einer Teilung) statt aus der
  *  kleinsten Richtungsänderung */
 export interface SpurWechsel { ab: number; knoten: number; von: number; nach: number; vorgabe: boolean }

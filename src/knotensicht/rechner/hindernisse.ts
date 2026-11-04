@@ -6,7 +6,7 @@
 // Rechnung behandelt alle Quellen gleich.
 // Hecken, Mauern und übrige Hindernisse gibt es im Berner Projekt nicht; sie zählen wie Gebäude (Fläche bzw. Linie im
 // Sichtfeld ohne Streifen und Annäherungsbereiche), wenn sie als «sichtbehindernd» markiert sind.
-// SichtweitenCheck E2a: dazu Zaun bzw. Geländer (Linie, dicht oder sichtdurchlässig) und hindernisVerdeckend(): Hindernisse
+// SichtweitenCheck E2a: dazu Zaun bzw. Geländer (Linie, dicht oder sichtdurchlässig) und hindernisVerdeckend: Hindernisse
 // als verdeckende Polygone für rechner/sicht.ts mit ihrer Wirkung (voll, Palisade, nur Hinweis; VSS 40 273 Ziffer 11, Abb. 3).
 // HindernisDaten und ParkRaster bleiben aus fgsCheck (Typen in spur.ts und fahrstreifen.ts), die Sichtrechnung nutzt sie nicht.
 
@@ -182,7 +182,7 @@ export function hindernisRing(h: Hindernis): P[] {
 }
 
 /**
- * Wirkung in der Sichtrechnung (Entscheide vom 16.10.2026): Parkfeld Auto und Längsparkierung voll (Parkfeld gilt als belegt);
+ * Wirkung in der Sichtrechnung: Parkfeld Auto und Längsparkierung voll (Parkfeld gilt als belegt);
  * Parkfeld Velo bzw. Motorrad nur Hinweis; Baum als Palisade (rechner/sicht.ts); Hecke, Mauer und
  * übriges voll, wenn «sichtbehindernd», sonst keine; Zaun dicht voll, sichtdurchlässig nur Hinweis.
  * null = zählt nicht (auch nicht als Hinweis). */

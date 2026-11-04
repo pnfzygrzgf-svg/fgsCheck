@@ -45,7 +45,7 @@ const rechne = (o: OsmDaten, av: AvFlaeche[], f: Partial<KnotenFall> = {}): Erge
 }
 const seite = (e: Ergebnis, r: 'links' | 'rechts') => e.richtungen.find(x => x.richtung === r)!
 
-describe('Mündungsbereich der Zufahrt (Befund 17.10.2026)', () => {
+describe('Mündungsbereich der Zufahrt', () => {
   it('Knickstück der OSM-Linie am Knoten: D und F_B stehen in der Richtung des geraden Teils', () => {
     // Nebenstrasse mit kurzem Knick: Knoten (0,0) -> (0,5; −1,2) -> (0,8; −2,8) -> (0,9; −4) -> (0,9; −200): die ersten 1,2 m
     // weichen 23° ab, der gerade Teil läuft genau nach Süden. Ohne Glättung käme die Tangente an D (3 m hinter der Kante) aus
@@ -71,7 +71,7 @@ describe('E2b: Vortrittsregelung', () => {
     expect([e.regelung, e.regelungVorgabe, e.regelungGewaehlt, e.B]).toEqual(['vortritt', 'vortritt', false, 5])
     expect(e.annahmen.join(' | ')).toContain('Vortrittsregelung «Kein Vortritt (Signal 3.02)» angenommen (ohne Signal in OSM')
   })
-  it('Vorgabe ohne Signal nach der Vortrittsstrasse (Entscheid 17.10.2026): Quartierstrasse Tempo 30 -> Rechtsvortritt, sonst Vortritt', () => {
+  it('Vorgabe ohne Signal nach der Vortrittsstrasse: Quartierstrasse Tempo 30 -> Rechtsvortritt, sonst Vortritt', () => {
     // residential mit maxspeed 30: Rechtsvortritt (Annahme), B 5,00 m nach Abb. 4
     const q = rechne(osm({ highway: 'residential', maxspeed: '30' }), [fahrbahn])
     expect([q.regelung, q.regelungVorgabe, q.regelungGewaehlt, q.B]).toEqual(['rechtsvortritt', 'rechtsvortritt', false, 5])
@@ -288,7 +288,7 @@ describe('E2b: Grundstückzufahrt', () => {
       expect(seite(es, r).vorhanden).toBeCloseTo(seite(gz, r).vorhanden, 3)
     }
   })
-  it('schiefe Zufahrt (55°) an einem am Knoten geteilten Weg: Knotenpunkt auf dem anschliessenden Weg, dieselbe Rechnung (Prüfrunde Nr. 1)', () => {
+  it('schiefe Zufahrt (55°) an einem am Knoten geteilten Weg: Knotenpunkt auf dem anschliessenden Weg, dieselbe Rechnung', () => {
     // Hauptstrasse aus zwei Wegen (West, Ost) mit gleichem Namen; Nebenstrasse nach Südwesten, 55° zur Hauptstrasse. Die Achse des
     // Zufahrtsstreifens liegt 1,25 m rechts des Fahrers (Südosten) und trifft die Strassenachse östlich des Knotens.
     const u: P = [-Math.cos(55 * Math.PI / 180), -Math.sin(55 * Math.PI / 180)], n: P = [-u[1], u[0]]
@@ -314,7 +314,7 @@ describe('E2b: Grundstückzufahrt', () => {
       expect(Math.abs(seite(e, r).vorhanden - seite(a, r).vorhanden)).toBeLessThan(1)
     }
   })
-  it('OSM-Weg service parallel zur Strasse mit Einmündung weit weg: nicht übernommen, senkrecht mit Hinweis (Prüfrunde Nr. 4)', () => {
+  it('OSM-Weg service parallel zur Strasse mit Einmündung weit weg: nicht übernommen, senkrecht mit Hinweis', () => {
     const x = osm()
     x.wege.push(weg(3, [[14, 30, 0], [31, 30, -6], [32, 120, -6]], { highway: 'service', service: 'parking_aisle' }))
     const e = rechneKnoten(x, [fahrbahn], { knoten: null, zufahrt: null, zufahrtspunkt: { p: lv(80, -3.2), richtung: null } }).ergebnis!

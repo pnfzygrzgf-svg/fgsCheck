@@ -401,7 +401,7 @@ export function gequerterWeg(u: UebergangWahl, netz: OsmNetz): { best: { wid: nu
 }
 
 // ---------------------------------------------------------------- Insel nach OSM (14.10.2026)
-// Nutzerbefund OSM-Übergang 5126286188 (Waldmannstrasse Bern): erhöhte Insel mitten im Streifen, OSM crossing:island=yes,
+// Beispiel OSM-Übergang 5126286188 (Waldmannstrasse Bern): erhöhte Insel mitten im Streifen, OSM crossing:island=yes,
 // in der AV Teil von Strasse_Weg (keine Verkehrsinsel). Trägt der Übergangsknoten crossing:island=yes und liegt auf der Achse
 // keine AV-Verkehrsinsel, nimmt die App eine Insel nur mit Beleg im Luftbild an: zwei Balkengruppen mit einer Lücke ab
 // INSEL_LUECKE_MIN_M höchstens INSEL_KNOTEN_M vom Knoten, die Lücke ist die Insel (inselAusBalken, luftbildInsel). Sie teilt

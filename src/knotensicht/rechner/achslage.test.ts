@@ -1,4 +1,4 @@
-// Lage der Achsen je Querschnitt (Befund OSM-Knoten 270973574 Jolimontstrasse/Buchserstrasse): liegt die
+// Lage der Achsen je Querschnitt (Beispiel OSM-Knoten 270973574 Jolimontstrasse/Buchserstrasse): liegt die
 // OSM-Linie schräg zur AV-Fahrbahn, folgt die Achse der Fahrbahn statt einer festen Verschiebung der OSM-Linie.
 //
 // Lage (Meter, x Ost, y Nord, Ursprung = OSM-Knoten), wie rechnen.test.ts:

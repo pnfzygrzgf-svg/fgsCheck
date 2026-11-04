@@ -215,7 +215,7 @@ export function trottoirNeben(ml: P[], seite: 1 | -1, rand0: number, istTrottoir
   const ab: number[] = []
   for (let s = QUER_VON_M; s <= QUER_BIS_M + 1e-9; s += QUER_SCHRITT_M) ab.push(s)
   const mitten: number[] = [], breiten: number[] = []
-  // Rand je Stelle (randBei; Befund 31.10.2026, Teilung der Fahrbahn): Lage des Trottoirs relativ zum Rand, auf rand0 bezogen
+  // Rand je Stelle (randBei; Teilung der Fahrbahn): Lage des Trottoirs relativ zum Rand, auf rand0 bezogen
   for (const [[q, t], k] of punkteAufSpur(ml, ab).map((x, k) => [x, k] as const)) {
     const n = links(t)
     const rand = randBei ? randBei(ab[k]) : rand0, dr = rand - rand0

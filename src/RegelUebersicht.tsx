@@ -55,7 +55,7 @@ export function RegelUebersicht({ anfang = 'thema', anfangFilter = {} }: { anfan
       <details className="regel-gruppe" id={nach === 'quelle' && g.schluessel.startsWith('werk-') ? regelWerkAnker(g.schluessel.slice(5)) : undefined}>
       <summary><b>{g.name}</b> <span className="klein">({g.zeilen.length})</span></summary>
       <ul className="regel-liste">{g.zeilen.map(z => <li key={z.id} id={nach === 'thema' ? regelAnker(z.id) : undefined}>
-        {/* Nutzertest 23.10.2026: kurz und in Alltagssprache, Nummer klein grau beim Titel */}
+        {/* kurz und in Alltagssprache, Nummer klein grau beim Titel */}
         <b>{z.titel}</b> <span className="regel-nr">({z.id})</span>{z.verbindlichkeit && <> · {z.verbindlichkeit}</>}
         {nach === 'quelle' && <span className="klein"> · {themaName(z.thema)}</span>}
         <dl className="regel-teile klein">

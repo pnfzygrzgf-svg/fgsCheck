@@ -176,7 +176,7 @@ describe('Neu gezeichneter Streifen (planEntscheid)', () => {
 })
 
 describe('Fall-Datei mit Streifen von Hand weit vom Ort (fallAmStreifen)', () => {
-  // wie die Datei des Nutzers vom 16.10.2026: Ort = OSM-Übergang 5330970520, Streifen von Hand an der Glockenstrasse
+  // Beispielfall: Ort = OSM-Übergang 5330970520, Streifen von Hand an der Glockenstrasse
   const datei = JSON.stringify({ app: 'fgsCheck', version: 1, ort: { lat: 46.9376889, lon: 7.4297326, uebergang: 5330970520,
     markierung: 'unmarkiert' }, quellen: { osm: 'overpass.osm.ch' }, streifenHand: [{ id: 'hand-1', p0: [2596440.0762846987, 1198807.258953019],
     p1: [2596444.976733164, 1198805.6272765996], breite: 4, herkunft: 'gezeichnet' }], hindernisse: [], zufahrten: {}, streifen: {},

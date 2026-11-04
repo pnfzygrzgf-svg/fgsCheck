@@ -67,7 +67,7 @@ export const TEILUNG_WINKEL_GRAD = 60
 export const TEILUNG_KREISEL_M = 60
 
 /**
- * Einbahnteilung (Befund 31.10.2026, Knoten 282773328): genau drei Strassenarme, einer mit beiden Richtungen (beide), einer als Einbahn
+ * Einbahnteilung (Beispiel Knoten 282773328): genau drei Strassenarme, einer mit beiden Richtungen (beide), einer als Einbahn
  * zum Punkt (zu) und einer als Einbahn vom Punkt weg (weg); die beiden Einbahnen höchstens TEILUNG_WINKEL_GRAD auseinander und vor dem
  * Arm mit beiden Richtungen. Nur die Geometrie, gleich auf welcher Seite die Einbahnen liegen und ob Velos gegen eine Einbahn fahren:
  * Grundlage der Fahrbahnteilung (fahrbahnteilung) und der Fahrlinie eines Arms, der sich teilt (der Verkehr zum Knoten kommt über die
@@ -116,7 +116,7 @@ export function zusammenfuehrung(netz: OsmNetz, n: number): [Arm, Arm] | null {
   return [zu[0], zu[1]]
 }
 
-/** Fortsetzung der Fahrlinie eines Arms an einer Einbahnteilung (Befund 31.10.2026, Knoten 282773328): endet der Weg wid (mit beiden
+/** Fortsetzung der Fahrlinie eines Arms an einer Einbahnteilung (Beispiel Knoten 282773328): endet der Weg wid (mit beiden
  *  Richtungen) am Punkt n, an dem sich die Fahrbahn in zwei Einbahnen teilt, kommt der Verkehr zum Knoten über die zuführende Einbahn:
  *  ihr Weg (seite 'zu'; 'weg': der Weg der wegführenden Einbahn, für die Seite des Verkehrs vom Knoten weg); sonst null. Für
  *  OsmAchsen.spurMitEnde (vorzug) */

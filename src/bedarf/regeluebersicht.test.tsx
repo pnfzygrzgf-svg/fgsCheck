@@ -69,7 +69,7 @@ describe('Regelübersicht', () => {
     // jede Regel unter jedem ihrer Werke (nach Quelle keine doppelten Anker)
     expect([...quelle.matchAll(/ id="regel-/g)].length).toBe(0)
     expect(nummernOhneTitel(text(thema))).toEqual([])
-    // lesbar (Nutzertest 23.10.2026): keine Bedingungssyntax, jede Regel mit «Prüft:» und «Gilt für:», Felder mit Knopf «zum Feld»
+    // lesbar: keine Bedingungssyntax, jede Regel mit «Prüft:» und «Gilt für:», Felder mit Knopf «zum Feld»
     expect(text(thema)).not.toMatch(/offen oder| und Mit |: offen\b/)
     expect((thema.match(/<dt>Prüft:<\/dt>/g) ?? []).length).toBe(REGEL_IDS.length)
     expect((thema.match(/<dt>Gilt für:<\/dt>/g) ?? []).length).toBe(REGEL_IDS.length)

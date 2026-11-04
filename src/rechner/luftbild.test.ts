@@ -215,7 +215,7 @@ describe('Insel nach OSM aus den Balken (INSEL_AUS_OSM; nur zwei Balkengruppen; 
     expect([li.teile, li.insel]).toEqual([voll.teile, null])
     expect(li.hinweis).toBe('OSM meldet eine Mittelinsel (crossing:island=yes), die Amtliche Vermessung keine – im Luftbild laufen die Balken durch')
   })
-  // Rechnung mit Luftbild: Strasse West–Ost 8 m (wie bild()), Übergang 12 bei O mit crossing:island=yes
+  // Rechnung mit Luftbild: Strasse West–Ost 8 m (wie bild), Übergang 12 bei O mit crossing:island=yes
   const ll = (x: number, y: number) => wgs(O[0] + x, O[1] + y)
   const osm = (tags: Record<string, string>): OsmDaten => ({
     wege: [{ id: 1, tags: { highway: 'tertiary', name: 'Hauptstrasse', maxspeed: '50' }, knoten: [10, 12, 13], geom: [ll(-200, 0), ll(0, 0), ll(200, 0)] }],

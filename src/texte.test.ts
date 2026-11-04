@@ -1,4 +1,4 @@
-// Tests 23.10.2026: hier nicht geprüfte Richtungen und Zufahrtszeile in Alltagssprache (Nutzertest Zieglerstrasse)
+// Tests 23.10.2026: hier nicht geprüfte Richtungen und Zufahrtszeile in Alltagssprache (Beispiel Zieglerstrasse)
 import { describe, expect, it } from 'vitest'
 import { ART, ENTFALLEN_TITEL, GRUND, entfallenGrund, sichtQuelleKurz, tempoHerkunft, erkennungEmpfehlungText } from './texte'
 import { entfallen } from './rechner/zufahrten'

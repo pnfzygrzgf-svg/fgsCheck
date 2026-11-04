@@ -18,7 +18,7 @@ describe('LV95 ↔ WGS84', () => {
     expect(Math.abs(e - 2600000)).toBeLessThan(2)
     expect(Math.abs(n - 1200000)).toBeLessThan(2)
   })
-  it('wgs() ist die Umkehrung von lv95() auf wenige Millimeter (Höhe 0 je Richtung, wie PROJ in 2D)', () => {
+  it('wgs ist die Umkehrung von lv95 auf wenige Millimeter (Höhe 0 je Richtung, wie PROJ in 2D)', () => {
     for (const [e, n] of [[2599515, 1198997], [2683000, 1248000], [2500000, 1118000]] as P[]) {
       const [la, lo] = wgs(e, n)
       const [e2, n2] = lv95(la, lo)

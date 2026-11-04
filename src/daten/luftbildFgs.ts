@@ -21,7 +21,7 @@ import type { Box } from '../ausschnitt'
 
 /** Wert von source am synthetischen Übergang (und am Fussweg für die Richtung) */
 export const LUFTBILD_FGS_QUELLE = 'luftbild_eth'
-/** Tags des synthetischen Übergangs: Fussgängerstreifen (markierung() → markiert) mit Herkunft */
+/** Tags des synthetischen Übergangs: Fussgängerstreifen (markierung → markiert) mit Herkunft */
 export const KANDIDAT_TAGS: Readonly<Record<string, string>> = { highway: 'crossing', crossing: 'uncontrolled', 'crossing:markings': 'zebra',
   source: LUFTBILD_FGS_QUELLE }
 /** OSM-Übergang höchstens so weit (m): Kandidat ausgeblendet */

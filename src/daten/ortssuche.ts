@@ -58,7 +58,7 @@ export function ortLesen(origin: string, label: string): { text: string; art: Or
   }
   const zusatz = zusatzLesbar(ohneHtml((label.match(/<i>([\s\S]*?)<\/i>/i) ?? ['', ''])[1]))
   const text = ohneHtml(label.replace(/<i>[\s\S]*?<\/i>/gi, ' '))
-    .replace(/\s*\(\s*\)/g, '')                         // leere Kantonsklammer (Liechtenstein, «Vaduz ()»)
+    .replace(/\s*\(\s*\)/g, '')                         // leere Kantonsklammer (Liechtenstein, «Vaduz»)
     .replace(/,(?=\S)/g, ', ')
     .replace(/ - /g, ' – ')
     .trim()

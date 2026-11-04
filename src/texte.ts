@@ -11,7 +11,7 @@ export const f2 = (x: number) => x.toFixed(2).replace('.', ',')
 /** Länge in m: ganze Zahlen ohne Dezimalen (Tab. 1), sonst eine Dezimale mit Komma (Sichtweite ohne Vortritt, auf 0,1 m) */
 export const mText = (x: number) => (Number.isInteger(x) ? String(x) : f1(x))
 
-// Gründe hier nicht geprüfter Richtungen (Nutzertest 23.10.2026: Alltagssprache, je Grund warum die Richtung hier nicht zählt und wo
+// Gründe hier nicht geprüfter Richtungen (Alltagssprache, je Grund warum die Richtung hier nicht zählt und wo
 // sie geprüft wird; wo sie geprüft werden müsste, aber nicht kann: «nicht geprüft: … – bitte vor Ort prüfen»). Platzhalter {anderer}:
 // der andere Teil des Streifens bzw. die gerade Zufahrt (entfallenGrund setzt sie ein)
 export const GRUND: Record<string, string> = {
@@ -91,7 +91,7 @@ export function entfallenGrund(e: Entfallen, s: Pick<StreifenErgebnis, 'fgsId' |
 /** Winkelabstand zweier Richtungen [Grad, 0–180] */
 const winkelAbstand = (a: number, b: number): number => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d }
 
-/** Art einer Zufahrt in Worten (Nutzertest 23.10.2026) */
+/** Art einer Zufahrt in Worten */
 export const ART: Record<string, string> = { beide: 'geradeaus', einbahn: 'geradeaus, Einbahn', insel: 'geradeaus (Teil vor der Insel)', abbiegend: 'biegt ein' }
 /** Herkunft des Tempos kurz */
 export const tempoHerkunft = (q: string): string => (q === 'Ersatz' ? 'Annahme' : q === 'Korrektur' ? 'von Hand' : q === 'Geoportal' ? 'Geoportal Stadt Bern' : q.startsWith('OSM') ? 'OSM' : q)

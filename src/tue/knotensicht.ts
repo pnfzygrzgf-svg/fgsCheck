@@ -84,6 +84,8 @@ export type KsTempoHerkunft = 'hand' | 'geoportal' | 'amtlich' | 'osm' | 'annahm
 export interface KsRichtung {
   richtung: Richtung; lage: Lage; strasse: string
   tempo: number; tempoQuelle: string; tempoHerkunft: KsTempoHerkunft
+  /** weicht das amtliche Tempo von OSM ab: «OSM 50 km/h» bzw. «OSM ohne Angabe», sonst null */
+  tempoOsmVergleich: string | null
   /** Phase Fahrbahn: Auto (Tab. 1, massgebender Wert als Soll) und Velo (Tab. 3); null = kein Verkehr dieser Art von dieser Seite */
   auto: KsTeil | null; velo: KsTeil | null
   /** Phase Trottoir (Tab. 2); null = nicht geprüft */
@@ -267,7 +269,7 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
     const hf = kurzHinweise([...rr.hinweise, ...(rr.velo?.hinweise ?? [])]), ht = kurzHinweise(tr?.hinweise ?? [])
     unklar.push(...hf.unklar, ...ht.unklar)
     return { richtung: rr.richtung, lage: rr.lage, strasse: strassenName(arme.get(rr.arm)?.name), tempo: rr.tempo, tempoQuelle: rr.tempoQuelle,
-      tempoHerkunft: herkunft(rr),
+      tempoHerkunft: herkunft(rr), tempoOsmVergleich: rr.tempoArt ? null : rr.tempoOsmVergleich,
       auto: rr.status === 'keine_zufahrt' ? null : teil(rr.status, rr.massgebend, rr.vorhanden, rr.verdecker, rr.bisEnde),
       velo: rr.velo ? teil(rr.velo.status, rr.velo.A, rr.velo.vorhanden, rr.velo.verdecker, rr.velo.bisEnde) : null,
       trottoir: tr ? { ...teil(tr.status, tr.A, tr.vorhanden, tr.verdecker, tr.bisEnde), neigung: tr.neigung } : null,

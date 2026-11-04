@@ -1,4 +1,4 @@
-// Tests Befund 31.10.2026 (Knoten 282773328, synthetisch nachgebaut): ein Arm der Vortrittsstrasse teilt sich nach 30 m in zwei
+// Tests an Knoten 282773328 (synthetisch nachgebaut): ein Arm der Vortrittsstrasse teilt sich nach 30 m in zwei
 // Einbahnen. Die Fahrlinie des Verkehrs zum Knoten folgt der zuführenden Einbahn, nicht dem Weg mit der kleinsten Richtungsänderung.
 // Knoten 12: Hauptstrasse West–Ost (Weg 1, beide Richtungen, bis zum Punkt 13 bei x = 30), Nebenstrasse (Weg 5) nach Süden als Zufahrt.
 // Am Weg 2 = Einbahn vom Knoten weg, Weg 3 = Einbahn zum Knoten. Rechtsverkehr: die Einbahn zum Knoten (westwärts) liegt
@@ -50,7 +50,7 @@ const av = (s: 1 | -1 = 1): AvFlaeche[] => [
 const yBei = (linie: P[], x: number) => linie.reduce((b, p) => (Math.abs(p[0] - O[0] - x) < Math.abs(b[0] - O[0] - x) ? p : b))[1] - O[1]
 const rechne = (o: OsmDaten, a: AvFlaeche[], zufahrt = NEBEN) => rechneKnoten(o, a, { knoten: 12, zufahrt }).ergebnis!
 
-describe('Arm teilt sich in zwei Einbahnen: Fahrlinie auf der zuführenden (Befund 31.10.2026)', () => {
+describe('Arm teilt sich in zwei Einbahnen: Fahrlinie auf der zuführenden', () => {
   it('einbahnTeilung und Fortsetzung: am Wegende von Weg 1 auf die zuführende Einbahn (Weg 3), auch spiegelverkehrt', () => {
     for (const s of [1, -1] as const) {
       const netz = new OsmNetz(osm(s))
@@ -156,7 +156,7 @@ const zufahrtGeteilt = (geteilt: boolean): OsmDaten => ({
 const avZufahrt: AvFlaeche[] = [rechteck(-250, -4, 250, 4), rechteck(-3, -20, 3, -4), rechteck(-9, -50, 9, -20),
   rechteck(4.25, -200, 7.75, -50), rechteck(-7.75, -200, -4.25, -50)]
 
-describe('Zufahrt teilt sich in zwei Einbahnen (Befund 31.10.2026)', () => {
+describe('Zufahrt teilt sich in zwei Einbahnen', () => {
   it('Achse der Zufahrt folgt der zuführenden Einbahn; Querschnitte bis zur Teilung, D wie ohne Teilung; Annahme und Herleitung', () => {
     const e = rechne(zufahrtGeteilt(true), avZufahrt)
     const ohne = rechne(zufahrtGeteilt(false), [rechteck(-250, -4, 250, 4), rechteck(-3, -200, 3, -4)])

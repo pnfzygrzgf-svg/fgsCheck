@@ -1,4 +1,4 @@
-// Tests Regelprüfung nach Quelle, Block 2 (nach dem Vergleich mit VSS 40 240, 40 241 und 40 242): Stärke Hinweis,
+// Tests der Regeln nach Quelle (nach dem Vergleich mit VSS 40 240, 40 241 und 40 242): Stärke Hinweis,
 // gestrichene Regeln und Felder (alte Fall-Dateien still), Bedingungen Q3-M2 und D4c, Fundstellen, Sichtweite 20 km/h als Annahme,
 // Informationszeile zum Verkehr an der Trottoirüberfahrt, Verweis auf KnotenCheck mit Link. Block 3 (30.10.2026): Block I (LSA-Zeiten),
 // G7, G7b (Halteverbotslinie), F1a, F1b, F1c, F1-K (Streifenbreite, Abstand der Balken) gestrichen, F7d Hinweis, Fundstellen G3 und H1-V.
@@ -182,7 +182,7 @@ describe('Block 3', () => {
     expect(WERKE['40837'].name).toBe('VSS 40 837')
     expect(WERKE.HBLSA).toBeDefined()
   })
-  it('VSS 40 040b (Entscheid 31.10.2026): Begriffe verkehrs- bzw. siedlungsorientiert bei E1, E2 und E2a; eine Regel mit eigenem Befund', () => {
+  it('VSS 40 040b: Begriffe verkehrs- bzw. siedlungsorientiert bei E1, E2 und E2a; eine Regel mit eigenem Befund', () => {
     expect(WERKE['40040']).toMatchObject({ name: 'VSS 40 040b', titel: 'Strassentypen', ausgabe: '2019-03', bezug: 'kostenpflichtig' })
     expect(LESENAME['40040']).toBe('VSS-Norm 40 040b Strassentypen')
     expect(WERK_INFO['40040'].ebene).toBe('Norm')

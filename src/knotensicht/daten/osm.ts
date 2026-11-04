@@ -61,7 +61,7 @@ function warte(ms: number, signal?: AbortSignal): Promise<void> {
 // Netzwerkfehler und setzt keine Sperre (nicht unterscheidbar).
 export const SPERRE_STANDARD_MS = 30000
 export const SPERRE_MAX_MS = 120000
-let sperreBis = 0                                    // Date.now()-Zeit, vor der keine neue Abfrage beginnt
+let sperreBis = 0                                    // Date.now-Zeit, vor der keine neue Abfrage beginnt
 
 /** Retry-After (Sekunden bzw. HTTP-Datum) -> Millisekunden ab jetzt, null ohne bzw. bei ungültiger Angabe */
 export function retryAfterMs(wert: string | null, jetzt = Date.now()): number | null {

@@ -1,4 +1,4 @@
-// ── Kreisel erkennen und vermessen (K1, E9, E10; Plan Kreisel 31.10./01.11.2026) ──
+// ── Kreisel erkennen und vermessen (K1, E9, E10;) ──
 //
 // Ein Kreisel (OSM junction=roundabout bzw. circular) gilt als ein Knoten: alle Ringwege, die über gemeinsame Punkte zusammenhängen,
 // bilden den Ring. Kennung ist der kleinste OSM-Punkt des Rings (gleich wie in der Knotensuche, daten/osm.ts kreiselMitten).
@@ -49,7 +49,7 @@ export const BYPASS_M = 20
 export const VELOBYPASS_UMKREIS_M = 60
 export const VELOBYPASS_ARM_M = 25
 /** Annahme: ein Velobypass ist mindestens so lang [m], und beide Enden liegen mindestens so weit ausserhalb des Aussenrands [m]; ein
- *  kurzer Radweg, der an einem Arm unmittelbar am Ring endet, ist eine Zufahrt für Velos (Befund Dalmazibrücke, 01.11.2026) */
+ *  kurzer Radweg, der an einem Arm unmittelbar am Ring endet, ist eine Zufahrt für Velos (Beispiel Dalmazibrücke) */
 export const VELOBYPASS_MIN_LAENGE_M = 20
 export const VELOBYPASS_ENDE_AUSSEN_M = 5
 /** Annahme (E9): ab diesem Verhältnis grösster / kleinster Aussendurchmesser gilt ein Kreisel als nicht kreisrund */
@@ -381,7 +381,7 @@ export function kreiselArme(netz: OsmNetz, ringKnoten: number[], mitte: P, folge
     bypass: bpRoh.map(b => ({ key: b.x.info.key, wid: b.x.a[0], linie: linie(b.x.a), abstand: b.s, vor: armText(armVon(b.vor)) })) }))
 }
 
-/** Velobypässe (Nutzerbefund 01.11.2026): highway=cycleway bzw. path/footway mit bicycle=designated|yes (ohne Querungen), über gemeinsame
+/** Velobypässe: highway=cycleway bzw. path/footway mit bicycle=designated|yes (ohne Querungen), über gemeinsame
  *  Punkte zu Ketten verbunden; eine Kette ganz im Umkreis VELOBYPASS_UMKREIS_M, ohne Ringpunkt und ausserhalb des Aussenrands, mindestens
  *  VELOBYPASS_MIN_LAENGE_M lang, deren Enden mindestens VELOBYPASS_ENDE_AUSSEN_M ausserhalb des Aussenrands und je höchstens
  *  VELOBYPASS_ARM_M von zwei verschiedenen Armen liegen (Arm = OSM-Linie der Ein- und Ausfahrt, 80 m). Richtung:

@@ -68,9 +68,18 @@ describe('K0: amtliches Tempo in der Rechnung (vor OSM, von Hand geht vor)', () 
       expect(x.tempoQuelle).toBe('Geoportal Stadt Bern (signalisierte Höchstgeschwindigkeit V_sig, Mehrheit entlang der Achse)')
       expect(x.hinweise.join(' | ')).toContain('Tempo 30 km/h laut Geoportal Stadt Bern (signalisierte Höchstgeschwindigkeit), OSM 50 km/h')
       expect(x.velo!.tempo).toBe(30)                               // Tab. 3 nach der signalisierten Höchstgeschwindigkeit
+      expect(x.tempoOsmVergleich).toBe('OSM 50 km/h')
     }
     // ohne V_sig: OSM 50
     expect(seite(rechne(osm()), 'links').tempo).toBe(50)
+  })
+  it('Vergleich mit OSM: nur bei Abweichung; ohne OSM-Angabe zählt die Ersatzannahme 50 km/h nicht als gleich', () => {
+    const linie50 = daten([linie('a', 50, [-200, 0], [200, 0])])
+    expect(seite(rechne(osm(), { tempoAmtlich: linie50 }), 'links').tempoOsmVergleich).toBeNull()
+    expect(seite(rechne(osm()), 'links').tempoOsmVergleich).toBeNull()
+    const ohne = seite(rechne(osm({}), { tempoAmtlich: linie50 }), 'links')
+    expect(ohne.tempoOsmVergleich).toBe('OSM ohne Angabe')
+    expect(ohne.hinweise.join(' | ')).toContain('Tempo 50 km/h laut Geoportal Stadt Bern (signalisierte Höchstgeschwindigkeit), OSM ohne Angabe.')
   })
   it('nur nach rechts eine Linie (Ost), nach links OSM; leere Linie -> OSM mit Hinweis', () => {
     const e = rechne(osm(), { tempoAmtlich: daten([linie('ost', 30, [0, 0], [200, 0]), linie('west', null, [0, 0], [-200, 0])]) })

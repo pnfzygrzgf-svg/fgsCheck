@@ -89,7 +89,7 @@ it('AV-Ebene führt geladene Arten, tatsächlichen Kanton und dessen Datenstand 
 })
 
 
-describe('Review Paket 1: Ladezustand regionaler Kartenquellen', () => {
+describe('Ladezustand regionaler Kartenquellen', () => {
   it('trennt laufende, fehlgeschlagene und vollständig leere Abfragen', () => {
     const menu = ebenenSichtbar({
       'regional.bund.tram': [],

@@ -1,7 +1,7 @@
 // ── Bedarfsmodul: Auswertungskontext (E0) ──
 //
 // Zugriff der Regeln auf die Eingaben. Fehlt ein nötiger Wert, wirft der Zugriff Offen; entscheid.ts fängt das
-// und meldet die Regel als «offen» mit den fehlenden Feldern. Einziger Ersatzwert: v85e() nimmt ohne V85 das signalisierte Tempo
+// und meldet die Regel als «offen» mit den fehlenden Feldern. Einziger Ersatzwert: v85e nimmt ohne V85 das signalisierte Tempo
 // und vermerkt die Annahme.
 
 import type { BedarfEingaben, FeldName, Werte } from './eingaben'

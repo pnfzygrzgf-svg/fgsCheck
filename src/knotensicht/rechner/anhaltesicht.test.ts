@@ -34,8 +34,8 @@ describe('VSS 40 090b Abb. 2: Anhaltesichtweite übrige Strassen', () => {
     expect(anhaltesichtweite(60, -12)).toMatchObject({ roh: 81, wert: 83, meter: 83 })   // 70 + (81 − 68)
     expect(anhaltesichtweite(70, 12)).toMatchObject({ roh: 76, wert: 79, meter: 79 })    // 90 + (76 − 87)
   })
-  it('Nachmessung der Prüfrunde (eigene Eichung am PNG): Ablesung vom 30./31.10.2026 innert der Ablesegenauigkeit ±2 m', () => {
-    // [VP, i, gemessen in m] aus der unabhängigen Prüfrunde vom 15.10.2026
+  it('Unabhängige Nachmessung (eigene Eichung am PNG): Ablesung vom 30./31.10.2026 innert der Ablesegenauigkeit ±2 m', () => {
+    // [VP, i, gemessen in m] aus einer unabhängigen Nachmessung
     const mess: [number, number, number][] = [[30, 10, 21.7], [60, -6, 72.1], [80, 6, 99.7], [70, 0, 87.6], [50, 12, 44.6],
       [40, -10, 38.5], [30, 0, 23.9], [80, -10, 135.4], [70, -6, 94.9], [60, 12, 58.3]]
     for (const [v, i, m] of mess) expect(Math.abs(ANHALTESICHT[v][ANHALTESICHT_I.indexOf(i)] - m), `${v} km/h bei ${i} %`).toBeLessThanOrEqual(2)
@@ -79,7 +79,7 @@ describe('VSS 40 090b Abb. 2: Anhaltesichtweite übrige Strassen', () => {
     expect(anhaltesichtweite(80, -8)).toMatchObject({ unsicher: false, hinweise: [] })
     expect(anhaltesichtweite(50, Number.NaN).i).toBe(0)
   })
-  it('gestrichelte Kurvenenden gelten als nicht gezeichnet (Entscheid 31.10.2026): Wert bleibt, aber unsicher mit Hinweis', () => {
+  it('gestrichelte Kurvenenden gelten als nicht gezeichnet: Wert bleibt, aber unsicher mit Hinweis', () => {
     expect(ANHALTESICHT_DURCHGEZOGEN).toEqual({ 30: [-12, 12], 40: [-12, 12], 50: [-11, 10], 60: [-10, 10], 70: [-9, 9], 80: [-8, 8] })
     // 80 km/h: −8 % durchgezogen, −9 % gestrichelt (Wert aus der Tabelle unverändert: (135 + 130) / 2 = 132,5), −11 % verlängert
     const a = anhaltesichtweite(80, -9)

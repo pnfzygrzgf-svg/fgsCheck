@@ -92,7 +92,7 @@ select { max-width: 100%; }
   .karte-hoehe:hover { filter: none; background: #f4f4f4; }
   .leaflet-left { margin-left: env(safe-area-inset-left); }
   /* Quellenangabe einzeilig, Platz für den Massstab links lassen; Tippen klappt sie auf (Karte.tsx). Vorher zweizeilig über dem
-     unteren Kartenrand (Nutzerbefund 28.10.2026) */
+     unteren Kartenrand */
   .leaflet-control-attribution { max-width: calc(100vw - 90px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     font-size: 10px; cursor: pointer; }
   .leaflet-control-attribution.offen { white-space: normal; }
@@ -122,7 +122,7 @@ details.abschnitt > summary h2 .fehler { font-size: 13px; font-weight: 600; }
 button.zweit { background: #ffffff; color: var(--accent); }
 button.klein, .knopf.klein { padding: 2px 6px; font-size: 12px; }
 /* Hauptknopf klein (ohne «zweit»): weisse Schrift auf Bernstein; sonst gewinnt .klein (grau, gleiche bzw. höhere Spezifität als
-   button) und die Schrift ist unlesbar (Nutzerbefund 16.10.2026: «ersetzen», «bestätigen»). Zweitknöpfe bleiben Bernstein auf Weiss. */
+   button) und die Schrift ist unlesbar («ersetzen», «bestätigen»). Zweitknöpfe bleiben Bernstein auf Weiss. */
 button.klein:not(.zweit) { color: #ffffff; }
 button:disabled { opacity: .5; cursor: default; }
 .knopf { display: inline-block; font: inherit; padding: 6px 10px; border: 1px solid var(--accent); background: #ffffff; color: var(--accent); border-radius: 6px; cursor: pointer; }
@@ -384,7 +384,7 @@ a.knopf.streetview { text-decoration: none; }
 .grund-tabelle tr.blau .grund-symbol { color: #0369a1; }
 /* Details je Punkt (23.10.2026): Knopf am Zeilenende, Details in einer Zeile darunter (Rand in der Farbe der Zeile) */
 .grund-auf-zelle { text-align: right; white-space: nowrap; }
-/* Knopf «Details» (Nutzertest 23.10.2026: das Symbol ▸ war kaum zu sehen): Petrol auf Weiss 7,3:1, Fläche mindestens 32 × 24 px */
+/* Knopf «Details» (das Symbol ▸ war kaum zu sehen): Petrol auf Weiss 7,3:1, Fläche mindestens 32 × 24 px */
 .grund-auf { background: #ffffff; border: 1px solid var(--bedarf); color: var(--bedarf); border-radius: 6px; padding: 2px 8px; min-width: 32px;
   min-height: 24px; cursor: pointer; font: inherit; font-size: 12px; line-height: 1.2; }
 .grund-auf:hover { background: var(--bedarf-hell); filter: none; }
@@ -518,7 +518,7 @@ html.startseite, html.startseite body, html.startseite #root { height: auto; min
 .regel-gruppe > summary { cursor: pointer; margin: 2px 0; }
 .regel-liste { list-style: none; margin: 2px 0 6px; padding-left: 8px; }
 .regel-liste > li { margin: 4px 0; padding: 2px 0 2px 6px; border-left: 2px solid var(--border); }
-/* Regelübersicht lesbar (Nutzertest 23.10.2026) */
+/* Regelübersicht lesbar */
 .regel-nr { color: var(--text-muted); font-size: 11px; }
 .regel-teile { display: grid; grid-template-columns: max-content 1fr; gap: 1px 6px; margin: 2px 0 0; }
 .regel-teile dt { color: var(--text-muted); }
@@ -530,7 +530,7 @@ button.feld-link:hover { filter: none; text-decoration-thickness: 2px; }
 /* Fragen-Knöpfe mit «klein»: sonst gewinnt button.klein:not(.zweit) (weisse Schrift) und die Schrift ist auf hellem Grund unsichtbar */
 button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; border: none; }
 
-/* Tabellen im Reiter «Bedarf und Querungstyp» auf dem Smartphone gestapelt statt in Spalten (Nutzerbefund 28.10.2026: bei 390 px
+/* Tabellen im Reiter «Bedarf und Querungstyp» auf dem Smartphone gestapelt statt in Spalten (bei 390 px
    Grundprüfung 503 px, Bedarfsmasken bis 418 px, Befundmasse 387 px breit; das Panel scrollte seitlich, Texte waren abgeschnitten).
    Grundprüfung: Thema und «Details» oben, Stand und Text darunter; Masken: Frage über Feld und Herkunft; Befundmasse in Spalten fester
    Breite mit Umbruch. */
@@ -564,7 +564,7 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
 .q-knopf:hover { filter: none; background: #f4f4f4; }
 .q-knopf.offen { color: var(--accent); border-color: var(--accent); }
 /* Höhe: unten verankert, darum höchstens bis 10 px unter den oberen Rand (100 % − 72 px unten − 10 px), sonst ragt die Kopfzeile
-   hinaus und das Fenster lässt sich nicht mehr ziehen (Nutzerbefund 01.11.2026) */
+   hinaus und das Fenster lässt sich nicht mehr ziehen */
 .q-fenster { position: absolute; left: 10px; bottom: 72px; z-index: 1010;   /* über den Leaflet-Knöpfen (1000), damit die Kopfzeile frei bleibt */
   width: min(330px, calc(100% - 20px)); max-height: calc(100% - 82px);
   overflow-y: auto; background: #ffffff; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.25); padding: 6px; font-size: 12.5px; }

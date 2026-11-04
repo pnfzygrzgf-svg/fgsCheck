@@ -176,7 +176,7 @@ describe('Zusammenfassung mit Block: Satz 3 zählt die Fragen der Grundprüfung,
   })
 })
 
-describe('Ausgeblendete Felder: Schalter je Maske (Nutzertest 23.10.2026)', () => {
+describe('Ausgeblendete Felder: Schalter je Maske', () => {
   it('Grundprüfung und erweiterte Prüfung getrennt gezählt, je ein Schalter «trotzdem zeigen»; eingeblendete Felder mit Vermerk', () => {
     const f0 = fallMit(), b0 = blatt(f0)
     const html = panel(f0, b0)

@@ -40,14 +40,14 @@ export const QUER_VON_M = 6
 export const QUER_BIS_M = 40
 export const QUER_SCHRITT_M = 2
 export const QUER_MIN = 3
-/** Annahme (Befund 31.10.2026, Hubelmattstrasse/Loryplatz): stösst die AV-Fahrbahn an mehr als diesem Anteil der Querschnittstellen
+/** Annahme (Beispiel Hubelmattstrasse/Loryplatz): stösst die AV-Fahrbahn an mehr als diesem Anteil der Querschnittstellen
  *  an die Suchgrenze (kein Rand innert SEHNE_HALB: Platz oder Kreuzungsfläche neben dem Arm), gilt der AV-Querschnitt nicht, auch wenn
  *  einzelne Sehnen einen fernen Rand treffen (z. B. den Rand der nächsten Strasse jenseits des Platzes); Breite bzw. Lage aus OSM */
 export const SEHNE_OFFEN_ANTEIL = 0.5
 /** ohne AV-Querschnitt und ohne OSM-Breite angenommene Fahrbahnbreite (Annahme E0) */
 export const BREITE_ANNAHME_M = 6.0
 
-/** Teilung der Fahrbahn auf der Mittellinie eines Arms (Befund 31.10.2026, Knoten 282773328): ab ab [m ab dem Knoten] folgt die
+/** Teilung der Fahrbahn auf der Mittellinie eines Arms (Beispiel Knoten 282773328): ab ab [m ab dem Knoten] folgt die
  *  Linie am OSM-Knoten «knoten» der zuführenden Einbahn wid */
 export interface ArmTeilung { ab: number; knoten: number; wid: number }
 /** Mittellinie eines Arms mit dem Ende der OSM-Linie (SpurEnde), den Teilungen und den Stellen, ab denen die Fahrbahn eine andere ist
@@ -73,7 +73,7 @@ export function armMittellinie(netz: OsmNetz, achsen: OsmAchsen, arm: Pick<ArmIn
   return armMittellinieMitEnde(netz, achsen, arm, laenge).linie
 }
 /** wie armMittellinie, dazu die Stelle, ab der die Linie gerade verlängert ist (SpurEnde; null: folgt bis laenge den OSM-Wegen bzw. Weg
- *  ohne Achse). Befund 31.10.2026 (Knoten 282773328): teilt sich die Fahrbahn des Arms in zwei Einbahnen (einbahnTeilung), folgt die
+ *  ohne Achse). Beispiel Knoten 282773328: teilt sich die Fahrbahn des Arms in zwei Einbahnen (einbahnTeilung), folgt die
  *  Linie der zuführenden Einbahn, denn auf ihr kommt der Verkehr zum Knoten (Fahrzeuge mit Vortritt und die wartenden auf der
  *  Zufahrt); teilungen: wo und auf welchen Weg. seite 'weg': die Linie der Gegenrichtung (wegführende Einbahn), für Rand, Trottoir und
  *  Radweg auf der Seite des Verkehrs vom Knoten weg */
@@ -102,7 +102,7 @@ export function versetztVariabel(linie: P[], versatz: (s: number) => number, sch
   return punkteAufSpur(linie, ab).map(([q, t], i) => add(q, links(t), versatz(ab[i])))
 }
 
-/** Mündungsbereich der Zufahrt glätten (Befund 17.10.2026, Jolimontstrasse / Gruberstrasse): kurze Knickstücke der OSM-Linie
+/** Mündungsbereich der Zufahrt glätten (Beispiel Jolimontstrasse / Gruberstrasse): kurze Knickstücke der OSM-Linie
  *  direkt am Knoten (1 bis 3 m lange Segmente mit abweichender Richtung) stellten D, F_B und die Verlängerung schief, weil die
  *  Tangente an D aus diesen Stücken kam. Die ersten MUENDUNG_BIS_M der Linie werden durch eine Gerade ersetzt, deren Richtung
  *  die mittlere Richtung zwischen MUENDUNG_VON_M und MUENDUNG_BIS_M ist, verankert am Punkt bei MUENDUNG_BIS_M (ab dort folgt
@@ -212,7 +212,7 @@ export function randRechtsBei(qs: Querschnitt, s: number): number {
  * Suchlänge stossen (Einmündung, Platz), zählen nicht. Ohne AV: Breite aus OSM (width, lanes), sonst BREITE_ANNAHME_M.
  * Dazu die Ränder je Stelle von von bis zum Ende der Mittellinie (randProfil, Bezugsbreite = Median), damit
  * Fahrstreifen-, Velo- und Überholachse sowie der Rand der AV-Fahrbahn folgen, wenn die OSM-Linie schräg zu ihr liegt.
- * abschnitte (Befund 31.10.2026, Knoten 282773328; ArmLinie.abschnitte): ab jeder dieser Stellen ist die Fahrbahn eine andere (Teilung
+ * abschnitte (Beispiel Knoten 282773328; ArmLinie.abschnitte): ab jeder dieser Stellen ist die Fahrbahn eine andere (Teilung
  * in zwei Einbahnen, Zusammenführung): dort beginnt ein eigenes Randprofil mit eigener Bezugsbreite, sonst verwürfe es die schmalere
  * bzw. breitere Fahrbahn als Ausreisser. Abschnitte ohne Randprofil überbrückt profilBei (vor dem ersten gültigen konstant).
  */

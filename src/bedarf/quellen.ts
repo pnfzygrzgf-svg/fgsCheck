@@ -148,7 +148,7 @@ export function werkBezug(w: WerkId): string | null {
   return x.seite || x.pdf || w === 'ENTSCHEID' ? null : 'beim Herausgeber erhältlich'
 }
 
-// ── Fundstellen lesbar (Nutzertest 23.10.2026) ──
+// ── Fundstellen lesbar ──
 
 /** Name eines Werks im Lesetext: verständlich, ohne Ausgabe und Kennungen (die stehen im Quellenverzeichnis) */
 export const LESENAME: Readonly<Record<WerkId, string>> = {
@@ -208,7 +208,7 @@ const WERK_RE = new RegExp(`(?<![\\wäöü])(${MUSTER.map(m => m[0]).join('|')})
 export type VerweisTeil = { text: string } | { werk: WerkId; anzeige: string; ziffer?: { text: string; link: WerkLink | null } }
 
 /**
- * Lesetext mit Werkverweisen (Nutzertest 23.10.2026): Abkürzungen ausgeschrieben, Werknamen erkannt (Normen mit Kurzname, übrige
+ * Lesetext mit Werkverweisen: Abkürzungen ausgeschrieben, Werknamen erkannt (Normen mit Kurzname, übrige
  * mit Lesename, z. B. «bfu MS.013-2025» → «bfu-Fachdokumentation «Fussgängerstreifen»»); ein Artikel dahinter mit Link zu fedlex
  */
 export function verweisTeile(text: string): VerweisTeil[] {

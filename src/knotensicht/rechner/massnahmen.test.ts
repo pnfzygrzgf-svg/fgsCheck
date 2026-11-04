@@ -70,7 +70,7 @@ describe('E3a: Massnahmen, Fall A (50 km/h, Parkfeld in der Südwest-Ecke)', () 
     expect(sp.sichtUnterMin).toBe(true)
     expect(sp.bedingungen!.map(b => b[0])).toEqual(['stop', 'abstand', 'verkehr', 'tempo', 'standort', 'winter'])
   })
-  it('bestehende Haltelinie 0,40 m hinter der Kante (D 3,40 m): Schritte bis 1,65 m, zuletzt genau 1,50 m (Prüfrunde)', () => {
+  it('bestehende Haltelinie 0,40 m hinter der Kante (D 3,40 m): Schritte bis 1,65 m, zuletzt genau 1,50 m', () => {
     const h = rechne('50', [parkfeld(-18, -13)], { haltelinie: lv(1.25, -3.4) })
     expect(nr(h, 2)!.zeilen[0].text).toBe('bis D 1,50 m hinter der Kante: links 41,7 m (erforderlich 50 m), rechts 105,0 m (erforderlich 50 m); reicht nicht')
     expect(nr(h, 2)!.text).toContain('(3,40 m hinter der Kante)')

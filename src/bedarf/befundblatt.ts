@@ -154,7 +154,7 @@ const ZUL: Record<string, string> = {
   nicht_angezeigt: 'Fussgängerstreifen nicht angezeigt', offen: 'Zulässigkeit offen',
 }
 
-/** Regel mit Kurztitel und lesbarer Fundstelle, ohne Nummer (Nutzertest 23.10.2026), z. B. «Wenig Fahrverkehr – VSS-Norm 40 241
+/** Regel mit Kurztitel und lesbarer Fundstelle, ohne Nummer, z. B. «Wenig Fahrverkehr – VSS-Norm 40 241
  * Fussgängerstreifen, Ziffer 17»; die Anzeige verlinkt das Werk ins Quellenverzeichnis */
 const regelVerweis = (id: string): string => `${regelTitel(id)} – ${fundstelleKurz(id)}`
 

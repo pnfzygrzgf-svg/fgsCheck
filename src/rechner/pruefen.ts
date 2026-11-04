@@ -175,7 +175,7 @@ export function konflikteSuchen(feld: Multi, streifen: Multi, gebaeude: Gebaeude
   return out
 }
 
-/** Status nach ergebnis(): Rangfolge Auto-Parkfeld, Gebäude, übrige Hindernisse, Baum, Zweirad-Feld; Kennzahlen */
+/** Status nach ergebnis: Rangfolge Auto-Parkfeld, Gebäude, übrige Hindernisse, Baum, Zweirad-Feld; Kennzahlen */
 export function konfliktFelder(konflikte: Konflikt[]): Pick<ZufahrtErgebnis, 'status' | 'nAuto' | 'nZweirad' | 'nGebaeude' |
   'nBaeume' | 'nHindernisse' | 'ueberdeckungM2' | 'minAbstandAutoM' | 'unter5m'> {
   const auto = konflikte.filter(k => k.klasse === 'auto'), geb = konflikte.filter(k => k.klasse === 'gebaeude')

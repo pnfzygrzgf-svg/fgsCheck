@@ -186,7 +186,7 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
   })
 })
 
-// ── Fundstellen lesbar und verlinkt (Nutzertest 23.10.2026) ──
+// ── Fundstellen lesbar und verlinkt ──
 describe('Fundstellen lesbar: Lesename, ausgeschriebene Ziffern, keine Nummer vorn, Links nur zu den Herausgebern', () => {
   it('fundstelleText und Artikel-Links (fedlex) bzw. PDF-Seite', () => {
     expect(fundstelleText({ werk: 'VOT30', ziffer: 'Art. 4 Abs. 2' })).toBe('Tempo-30-Zonen-Verordnung (SR 741.213.3), Art. 4 Abs. 2')

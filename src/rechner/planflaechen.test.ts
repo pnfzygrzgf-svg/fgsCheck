@@ -290,7 +290,7 @@ describe('Fall-Datei: Version 2 nur mit Flächen (Plan) (Korrektur S2)', () => {
   })
 })
 
-describe('Fixpunkte lesen (Kann-Befund 16.10.2026)', () => {
+describe('Fixpunkte lesen', () => {
   it('Name gekürzt, Koordinaten in LV95 geprüft', () => {
     const roh = JSON.parse(fallSchreiben(fallMit(() => {})))
     roh.fixpunkte = [
@@ -308,7 +308,7 @@ describe('Fixpunkte lesen (Kann-Befund 16.10.2026)', () => {
   })
 })
 
-describe('Herkunft der Zufahrt aus der Fahrlinie (Kann-Befund 16.10.2026)', () => {
+describe('Herkunft der Zufahrt aus der Fahrlinie', () => {
   const z = (zufahrt: string, richtung: number, sp: P[], art = 'beide'): ZufahrtErgebnis =>
     ({ zufahrt, richtung, art, strasse: 'Kurvenstrasse', kennung: `k${zufahrt}`, sichtpunkte: sp, spur: sp } as ZufahrtErgebnis)
   it('kurvige Strasse: die Fahrlinie liegt bei 155° (Südsüdosten), am Streifen fährt man nach 48° (von Südwesten)', () => {

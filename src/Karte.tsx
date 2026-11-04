@@ -54,7 +54,7 @@ import type { Bereich } from './daten/haltestellen'
 import { BESCHRIFT_ZOOM, EBENEN, ebenenFarbe, ebenenSichtbar, ebenenSymbol, type EbeneId, type EbenenDaten, type EbenenObjekt } from './quellenEbenen'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
-// «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden (Nutzerbefund 11.10.2026)
+// «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden
 export { AV_FARBEN } from './daten/anbieter/gemeinsam/avKarte'
 
 /**
