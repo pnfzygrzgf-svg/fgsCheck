@@ -72,7 +72,7 @@ describe('Parkstreifen an der Fahrstreifenachse der Vortrittsstrasse', () => {
     // nach rechts (Rand y = +3) kein Parkstreifen
     expect(rechts(e).parkStreifen.abzug).toBe(0)
     expect(rel(rechts(e).K)[1]).toBeCloseTo(1.5, 2)
-    expect(e.annahmen.join(' | ')).toContain('Parkierung: von links ja, von rechts nein.')
+    expect(e.annahmen.join(' | ')).toContain('von links Parkierung, von rechts keine Parkierung.')
     expect(e.herleitung!.join(' | ')).toContain('Fahrlinie nach links: ')
     expect(e.herleitung!.join(' | ')).toContain('Abzug 1,90 m für Parkstreifen rechts')
   })
@@ -125,8 +125,7 @@ describe('Parkstreifen auf der Zufahrt: Achse, D und FB nach links', () => {
     expect(d[0]).toBeCloseTo(-0.675, 2); expect(d[1]).toBeCloseTo(-6, 2)
     expect(e.zufahrtLageQuelle).toContain('Abzug 1,90 m für Parkstreifen rechts')
     // festgelegter Wortlaut
-    expect(e.annahmen.join(' | ')).toContain('Parkierung entlang Zufahrt. Von der verfügbaren Fahrbahnbreite werden 1,90 m für Parkfelder ' +
-      'abgezogen. Achse des Zufahrtsstreifens, D und FB entsprechend verschoben.')
+    expect(e.annahmen.join(' | ')).toContain('Parkfelder entlang der Zufahrt: 1,90 m abgezogen, Achse, D und F_B entsprechend verschoben.')
     expect(e.hindernis.inD).toEqual([])                // D liegt nicht in einem Feld
   })
 })

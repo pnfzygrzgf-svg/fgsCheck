@@ -177,7 +177,7 @@ describe('E2: Zürcher Tempo und Zonen im SichtweitenCheck', () => {
     expect(seite(e, 'links').tempo).toBe(30); expect(seite(e, 'rechts').tempo).toBe(30)
     expect(seite(e, 'links').tempoQuelle).toContain('Stadt Zürich')
     expect(e.regelungVorgabe).toBe('rechtsvortritt')
-    expect(e.regelungQuelle).toContain('Tempo-/Zonenbezug nach Stadt Zürich')
+    expect(e.regelungQuelle).toContain('Tempo und Zone nach Stadt Zürich')
     const hand = rechne(o, { tempoAmtlich: t, eingaben: { ...KEINE_ALLE_EINGABEN, regelung: 'vortritt', tempo: { links: { art: 'signalisiert', wert: 40, begruendung: '' }, rechts: null } } })
     expect(seite(hand, 'links').tempo).toBe(40)
     expect(e.hinweise.join(' ')).toContain('keine Ortstafel')

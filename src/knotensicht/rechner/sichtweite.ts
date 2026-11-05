@@ -59,7 +59,7 @@ export const UNGUNST_TEXT: Record<keyof Ungunst, string> = {
   schwerverkehr: 'hoher Schwerverkehrsanteil (über 8 %)',
 }
 /** Herkunft der Masse der ungünstigen Verhältnisse (Panel, Annahmen, Bericht) */
-export const UNGUNST_MASSE_TEXT = 'Masse nach Kanton Solothurn, AVT, Richtlinien Strassenverkehrsanlagen 12/2024, S. 3 (Annahme; VSS 40 273 ' +
+export const UNGUNST_MASSE_TEXT = 'Masse nach Kanton Solothurn, AVT, Richtlinien Strassenverkehrsanlagen 12/2024, S. 3 (Annahme; ' +
   'Ziffer 13.1 nennt keine Masse)'
 /** Vorgabe «grosse Längsneigung» ab |i| über diesem Wert [%] (Gefälle in einer Richtung; Kanton Solothurn, Annahme) */
 export const NEIGUNG_GROSS_PROZENT = 5

@@ -48,13 +48,13 @@ export function knotenArt(netz: OsmNetz, n: number): KnotenArt {
 /** Meldungen statt einer Rechnung */
 export const GABELUNG_TEXT = 'Gabelung: höchstens ein Arm führt zum Knoten, kein Vortrittsfall'
 /** Grundstückzufahrt am Ring eines Kreisels (seit K1 nur noch dort; Kreisel selbst: kreisel.ts) */
-export const KREISEL_TEXT = 'Kreisverkehr: nicht Gegenstand der App (VSS 40 273 Ziffer 1, S. 4; siehe VSS 40 263)'
+export const KREISEL_TEXT = 'Kreisverkehr: nicht Gegenstand der App (Ziffer 1, S. 4; siehe VSS 40 263)'
 export const FAHRBAHNTEILUNG_TEXT = 'Fahrbahnteilung: Hier teilt sich die Fahrbahn in zwei Einbahnen, die Fahrströme kreuzen sich nicht; ' +
   'kein Vortrittsfall'
 /** Zusammenführung (vorerst Meldung statt Rechnung; die Variante «erkennen und richtig rechnen» ist für
  *  später festgehalten, Korrekturliste Punkt 22) */
 export const ZUSAMMENFUEHRUNG_TEXT = 'Zusammenführung: Hier laufen zwei Einbahnen spitz zusammen, der Verkehr fädelt ein. Solche ' +
-  'Stellen rechnet die App nicht; prüfe das Einfädeln vor Ort (VSS 40 273 Ziffer 10, S. 7)'
+  'Stellen rechnet die App nicht; prüfe das Einfädeln vor Ort (Ziffer 10, S. 7)'
 /** Zusatz, wenn eine der beiden Einbahnen bald in einen Kreisel führt (TEILUNG_KREISEL_M) */
 export const TEILUNG_KREISEL_TEXT = 'Teil der Zufahrt zum Kreisverkehr (siehe VSS 40 263)'
 
@@ -226,12 +226,36 @@ export const NR_ABSTAND_M = 12
 export const nrLage = (kn: Pick<KnotenInfo, 'p' | 'grundstueck'>, a: ArmInfo, zp: P | null = null, abstand = NR_ABSTAND_M): P =>
   (kn.grundstueck && a.nr === NR_GRUNDSTUECK && zp ? zp : add(kn.p, a.richtung, abstand))
 
+/** Annahme: ein Arm, dessen Strassenwege (ohne service) keine so lange Strecke weiterführen, ist ein Stichstück (Beispiel Knoten
+ *  2860577444: die Marzilistrasse geht nach 14 m als Fussgängerzone weiter); von dort kommt kein durchgehender Autoverkehr */
+export const STICH_M = 30
+/** Länge der Strassenwege ab dem Knoten über diesen Arm, wenn sie unter STICH_M bleibt, sonst null */
+export function armStichM(netz: OsmNetz, a: Arm): number | null {
+  const start = netz.w(a[0]).nds[a[1]]
+  const besucht = new Set([start])
+  const offen: [Arm, number][] = [[a, 0]]
+  let weit = 0
+  while (offen.length) {
+    const [[wid, i, sd], l] = offen.pop()!
+    const nds = netz.w(wid).nds
+    const n = nds[i + sd]
+    if (besucht.has(n)) continue
+    besucht.add(n)
+    const l2 = l + dist(netz.p(nds[i]), netz.p(n))
+    if (l2 >= STICH_M) return null
+    weit = Math.max(weit, l2)
+    offen.push(...strassenArme(netz, n).map((x): [Arm, number] => [x, l2]))
+  }
+  return weit
+}
+
 export function armInfo(netz: OsmNetz, a: Arm): ArmInfo {
   const w = netz.w(a[0])
   const richtung = netz.armRichtung(a)
   const [veloZufluss, veloZuflussQuelle] = netz.veloZufluss(a)
+  const stichM = armStichM(netz, a)
   return { key: armKey(a), nr: '', wid: a[0], i: a[1], sd: a[2], name: w.name, hw: w.hw, richtung, himmel: himmelsrichtung(richtung),
-    zufluss: netz.zufluss(a), einbahn: w.ow, veloZufluss, veloZuflussQuelle }
+    zufluss: netz.zufluss(a), einbahn: w.ow, veloZufluss, veloZuflussQuelle, ...(stichM !== null ? { stichM } : {}) }
 }
 
 /** Gestrecktheit eines Armpaars: 1 = gerade durch, -1 = umkehrend */
@@ -263,11 +287,16 @@ export function vortrittsSignale(osm: OsmDaten | null, p: P, lv: (lat: number, l
     .filter(s => dist(s.p, p) <= SIGNAL_KNOTEN_M)
 }
 
+/** Signal als Punkt eines OSM-Wegs: so nah muss es an der Linie des Arms liegen (Rundung der Koordinaten) */
+const SIGNAL_AUF_WEG_M = 0.5
 /** Liegt das Signal an der Zufahrt (bis SIGNAL_ARM_M neben den ersten Metern des Arms bzw. am Knoten)? */
 export function signalAnArm(netz: OsmNetz, arm: ArmInfo, s: VortrittsHinweis): boolean {
   if (s.armKey) return arm.key === s.armKey
   const linie = netz.armLinie([arm.wid, arm.i, arm.sd], SIGNAL_KNOTEN_M)
-  for (let k = 0; k < linie.length - 1; k++) if (abstandStrecke(s.p, linie[k], linie[k + 1]) <= SIGNAL_ARM_M) return true
+  // Liegt das Signal als Punkt auf einem OSM-Weg, gilt es nur dort (Beispiel Knoten 132704429: das Signal der Mattenhofstrasse steht
+  // 3 m neben dem Arm, gehört aber zum Nachbarknoten); nur frei gesetzte Signale dürfen neben dem Arm liegen
+  const grenze = netz.P.has(s.id) ? SIGNAL_AUF_WEG_M : SIGNAL_ARM_M
+  for (let k = 0; k < linie.length - 1; k++) if (abstandStrecke(s.p, linie[k], linie[k + 1]) <= grenze) return true
   return false
 }
 
@@ -300,7 +329,12 @@ export function knotenInfo(netz: OsmNetz, n: number, signaleNah: VortrittsHinwei
   if (!netz.P.has(n)) return null
   const arme = nummerieren(strassenArme(netz, n).map(a => armInfo(netz, a)))
   if (arme.length < 3) return null
-  let vp = vortrittPaar(arme)
+  // Stichstücke gehören nicht zur Vortrittsstrasse, solange zwei durchgehende Arme bleiben (Annahme, STICH_M); Signale gehen vor
+  const durch = arme.filter(a => a.stichM === undefined)
+  const stiche = durch.length >= 2 ? arme.filter(a => a.stichM !== undefined) : []
+  const dp = stiche.length ? vortrittPaar(durch) : null
+  let vp = dp ? [dp[0], `${stiche.map(a => `${armText(a)} endet nach ${Math.round(a.stichM!)} m für Motorfahrzeuge (Annahme: Stichstück)`).join(', ')}${
+    durch.length > 2 ? `; ${dp[1]}` : ''}`] as [[ArmInfo, ArmInfo], string] : vortrittPaar(arme)
   let vortrittSicher: string | null = null
   const signale = knotenSignale(netz, arme, signaleNah)
   const armVon = (s: VortrittsHinweis) => signalArm(netz, arme, s)

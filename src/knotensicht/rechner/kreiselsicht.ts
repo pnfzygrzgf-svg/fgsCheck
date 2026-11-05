@@ -43,10 +43,10 @@ export function kreiselA(tempo: number, typ: Strassentyp): { massgebend: number;
   if (tempo === 35) {
     const a = sichtweiteA(30, typ), b = sichtweiteA(40, typ)
     return { massgebend: (a.massgebend + b.massgebend) / 2, oben: (a.oben + b.oben) / 2, interpoliert: true,
-      text: `VSS 40 273 Tab. 1, 35 km/h zwischen 30 und 40 km/h linear (Annahme), ${a.typText}` }
+      text: `Tab. 1, 35 km/h zwischen 30 und 40 km/h linear (Annahme), ${a.typText}` }
   }
   const sw = sichtweiteA(tempo, typ)
-  return { massgebend: sw.massgebend, oben: sw.oben, interpoliert: false, text: `VSS 40 273 Tab. 1, ${tempo} km/h, ${sw.typText}` }
+  return { massgebend: sw.massgebend, oben: sw.oben, interpoliert: false, text: `Tab. 1, ${tempo} km/h, ${sw.typText}` }
 }
 
 /** Sicht auf einer Linie; Hindernisse (nicht Gebäude der AV), durch die die Linie bis A läuft, zählen nicht (wie am Knoten) */
@@ -119,7 +119,7 @@ export function kreiselSicht(k: KreiselInfo, verdeckend: Verdeckend[]):
   const veloA = Math.min(velo.A, runde)
   const sMax = Math.min(runde, Math.ceil(KREISEL_ZIEL_FAKTOR * Math.max(swB.oben, veloA)))
   const auto = { ...teil(D, linie, sMax, hv, swB.massgebend, swB.oben, null, sw.text, x => sichtStatus(x, swB)), begrenzt: begrenzt(sw.massgebend, sw.oben) }
-  const veloT = { ...teil(D, linie, sMax, hv, veloA, veloA, null, `VSS 40 273 ${velo.text} (Ring eben)`,
+  const veloT = { ...teil(D, linie, sMax, hv, veloA, veloA, null, `${velo.text} (Ring eben)`,
     x => (x + 1e-6 >= veloA ? 'erfuellt' : 'nicht_erfuellt')), begrenzt: begrenzt(velo.A, velo.A) }
   if (auto.begrenzt || veloT.begrenzt) annahmen.push(`Die nötige Sicht wäre länger als eine Runde auf der Fahrlinie mit Vortritt ` +
     `(${f1(runde)} m): nötig ist höchstens diese Rundenlänge (${[auto.begrenzt ? `Ak statt ${f1(sw.oben)} m` : '', veloT.begrenzt ?
@@ -180,7 +180,7 @@ export function kreiselSicht(k: KreiselInfo, verdeckend: Verdeckend[]):
     'unterer Wert, weil kein Arm eine Hauptverkehrsstrasse ist'}; die Kreiselfahrbahn gilt als eben.`)
   annahmen.push('Velos fahren auf derselben Fahrlinie wie die Autos, in der Mitte der Kreiselfahrbahn.')
   annahmen.push('Die App rechnet im Grundriss und prüft nicht, ob ein Hindernis in die Höhe des Sichtfelds reicht (0,60 bis 3,00 m, ' +
-    'VSS 40 273 Ziffer 10, S. 7).')
+    'Ziffer 10, S. 7).')
   if (az) annahmen.push(`Az ist ein Vergleichswert, kein Normwert (${AZ_QUELLE}).`)
   hinweise.push('Anhaltesichtweite auf der Kreiselfahrbahn und in die Ausfahrt folgt in einer späteren Version; die Sicht auf ' +
     'Fussgängerstreifen prüft fgsCheck.')

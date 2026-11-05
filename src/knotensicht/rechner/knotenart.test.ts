@@ -83,7 +83,7 @@ describe('Punkt 16: Kreisel (seit K1 als ein Knoten, kreisel.test.ts)', () => {
       expect(r.knoten?.kreisel?.arme.map(a => a.name)).toEqual(['Nebenstrasse'])
     }
     // nur noch an einer Grundstückzufahrt am Ring
-    expect(KREISEL_TEXT).toBe('Kreisverkehr: nicht Gegenstand der App (VSS 40 273 Ziffer 1, S. 4; siehe VSS 40 263)')
+    expect(KREISEL_TEXT).toBe('Kreisverkehr: nicht Gegenstand der App (Ziffer 1, S. 4; siehe VSS 40 263)')
   })
   it('Knotensuche: Punkte an Kreiseln werden in der Abfrage abgezogen', () => {
     expect(knotenAbfrage(46.9, 7.4, 46.91, 7.42)).toContain('way.w["junction"~"^(roundabout|circular)$"]->.r;(node(way_link.w:3-)(')
@@ -105,7 +105,7 @@ describe('Punkt 13: LSA-Knoten', () => {
     const r = rechneKnoten(mitAmpel(0, -15), [fahrbahn, ecke], { knoten: 12, zufahrt: NEBEN })
     const e = r.ergebnis!
     expect([e.lsa, e.hinweise[0]]).toEqual([true, LSA_TEXT])
-    expect(LSA_TEXT).toBe('Lichtsignalanlage: Im Betrieb regelt das Lichtsignal, die VSS 40 273 betrifft Knoten ohne Lichtsignal. ' +
+    expect(LSA_TEXT).toBe('Lichtsignalanlage: Im Betrieb regelt das Lichtsignal, die Norm betrifft Knoten ohne Lichtsignal. ' +
       'Gerechnet ist die Rückfallebene bei ausgeschalteter oder gelb blinkender Anlage (Signale Kein Vortritt bzw. Stop darunter).')
     expect(r.lsaKnoten).toEqual([12])
     const ohne = rechneKnoten(osm(), [fahrbahn, ecke], { knoten: 12, zufahrt: NEBEN }).ergebnis!
@@ -118,7 +118,7 @@ describe('Punkt 13: LSA-Knoten', () => {
     expect(rechneKnoten(osm(q), [fahrbahn], { knoten: 12, zufahrt: NEBEN }).ergebnis!.regelungVorgabe).toBe('rechtsvortritt')
     const e = rechneKnoten(mitAmpel(0, -15, q), [fahrbahn], { knoten: 12, zufahrt: NEBEN }).ergebnis!
     expect([e.regelungVorgabe, e.regelungQuelle]).toEqual(['vortritt',
-      'ohne Signal in OSM; Lichtsignalanlage: als Rückfallebene ohne Rechtsvortritt (Annahme)'])
+      'kein Signal in OSM, Lichtsignalanlage: als Rückfallebene ohne Rechtsvortritt (Annahme)'])
   })
 })
 

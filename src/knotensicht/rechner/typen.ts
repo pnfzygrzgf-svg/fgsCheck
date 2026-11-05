@@ -56,7 +56,7 @@ export const TEMPO_MAX = 120
 /** Eingaben zum Knoten bzw. zur Zufahrt (E2b, im Panel bzw. auf der Karte); null bzw. false = Vorgabe */
 export interface KnotenEingaben {
   regelung: Regelung | null         // Vorgabe: OSM highway=stop an der Zufahrt -> Stop, sonst Vortritt
-  haltelinie: P | null              // Vorderkante der Haltelinie (geklickt; gerechnet mit dem Lot auf die Zufahrtsachse)
+  haltelinie: P | null              // Vorderkante der Haltelinie (geklickt: Lot auf die Zufahrtsachse; mit halteRichtung: Mitte der Linie)
   D: P | null                       // Beobachtungspunkt von Hand (auf der Karte gezogen)
   trottoirFrei: boolean             // Trottoir ohne Hindernisse: F_B wartet an der Bordkante (Ziffer 13.1)
   tempo: Record<Richtung, TempoEingabe | null>   // Tempo von Hand je Richtung (Vorgabe: OSM)
@@ -72,11 +72,21 @@ export interface KnotenEingaben {
   trottoirueberfahrt?: TrottoirueberfahrtEingabe | null   // Trottoirüberfahrt über diese Einmündung (VSS 40 242 Ziffer 14.4)
   Dtrottoir?: P | null              // K0: Beobachtungspunkt D' der Phase Trottoir von Hand (nur mit Trottoirüberfahrt; auf der Karte gezogen)
   // Block 5, fehlt in älteren Fällen (= Vorgabe)
-  ueberholen?: boolean | null       // Überholen im Knotenbereich erlaubt (VSS 40 273 Ziffer 6; Vorgabe aus OSM overtaking*), nur ausserorts
+  ueberholen?: boolean | null       // Überholen im Knotenbereich erlaubt (Ziffer 6; Vorgabe aus OSM overtaking*), nur ausserorts
   // K1, fehlt in älteren Fällen (= Vorgabe nach dem Aussendurchmesser)
   kreiselTyp?: KreiselTyp | null    // Kreisel: Klein- bzw. Minikreisel von Hand
   kreiselBeziehungen?: Record<string, boolean> | null   // K3: Fahrbeziehungen für β von Hand an (true) bzw. ab (false), Schlüssel «von>nach»
+  // Lage von Hand, fehlen in älteren Fällen (= Vorgabe)
+  halteRichtung?: P | null          // Richtung längs der Halte- oder Wartelinie von Hand; null = quer zur Zufahrtsachse
+  fbRichtung?: P | null             // Fahrtrichtung von F_B von Hand (Drehpunkt D; nur Darstellung, die Sicht rechnet ab D)
+  zufahrtVersatz?: number | null   // F_B seitlich von Hand: die Zufahrtsachse wandert parallel [m], positiv links der fahrenden Person
+  veloHand?: Record<Richtung, number | null>   // Velo mit Vortritt seitlich von Hand [m], positiv weg vom rechten Fahrbahnrand: Veloachse parallel versetzt
+  faHand?: Record<Richtung, FahrzeugLageHand | null>   // F_A von Hand: der seitliche Versatz verschiebt die Fahrlinie (Prüfung darauf), längs nur Darstellung
 }
+/** Fahrzeug von Hand auf der Karte: Mitte und Fahrtrichtung */
+export interface FahrzeugLageHand { mitte: P; richtung: P }
+/** F_A von Hand: Lage, Front, Abstand ab K und neben der Fahrstreifenachse, erste volle Verdeckung der Sichtlinie von D auf die Front */
+export interface FaHandErgebnis { mitte: P; richtung: P; front: P; abstandK: number; seitlich: number; verdecker: string | null }
 /** Trottoirüberfahrt über die Einmündung der Zufahrt (K0): gesetzt = Modus an. breite: Breite der Überfahrt von Hand [m]; geht der
  *  AV vor (Reihenfolge: Eingabe, AV-Trottoir quer über die Zufahrt, schmaleres angrenzendes AV-Trottoir, Annahme; trottoirueberfahrt.ts) */
 export interface TrottoirueberfahrtEingabe { breite: number | null }
@@ -144,6 +154,7 @@ export interface ArmInfo {
   richtung: P                 // Einheitsvektor vom Knoten weg (Sehne 10 m)
   himmel: string              // Himmelsrichtung, z. B. «Süd»
   zufluss: boolean            // Verkehr fährt auf diesem Arm zum Knoten (keine Einbahn vom Knoten weg)
+  stichM?: number             // Stichstück: die Strassenwege des Arms enden nach so vielen Metern (armStichM, Annahme)
   einbahn: number             // OSM-Einbahn (+1/-1/0) des Wegs
   veloZufluss: boolean        // Velos fahren auf diesem Arm zum Knoten: wie zufluss, bei Einbahn vom Knoten weg mit Velo gegen die
                               // Einbahn (OSM oneway:bicycle=no, cycleway*=opposite*, cycleway:*:oneway gegen die Einbahn)
@@ -342,6 +353,7 @@ export interface VeloErgebnis extends SichtTeil {
   lageText: string            // z. B. «0,50 m vom rechten Fahrbahnrand (Mischverkehr)»
   randAbstand: number         // Abstand rechter Fahrbahnrand – Veloachse (negativ: ausserhalb der Fahrbahn, Radweg)
   radweg: RadwegLage | null
+  veloHand?: { versatz: number; randVorgabe: number }  // Veloachse von Hand versetzt: Versatz [m], positiv weg vom rechten Rand; berechneter Randabstand
   tempo: number               // zulässige Höchstgeschwindigkeit (Zeile der Tab. 3)
   tempoQuelle: string
   neigung: number
@@ -439,6 +451,9 @@ export interface RichtungErgebnis {
   bisEnde: boolean            // bis zum Ende der Zielpunkte (1,5 × oberer Wert) frei
   sMax: number                // Länge der geprüften Achse ab K
   status: RichtungStatus
+  herleitung: string[]        // technische Sätze dieser Richtung (nur Herleitung, nicht Hinweise)
+  faHand?: FaHandErgebnis | null   // F_A von Hand: Lage und Sichtlinie auf die Front
+  fahrlinieHand?: { versatz: number; randVorgabe: number }  // F_A seitlich versetzt: Versatz [m], positiv näher am rechten Rand; berechneter Randabstand
   statusZusatz: string[]      // z. B. «Hinweis: Zweiräder», «Hinweis: Palisade 4 %»
   verdecker: Verdecker | null
   verdeckerListe: VerdeckerEintrag[] // alle Flächen mit Treffer bis A (E2a)
@@ -503,7 +518,11 @@ export interface RechtsvortrittErgebnis {
 
 /** Haltelinie (E2b): Vorderkante auf der Zufahrtsachse, Querlinie für die Karte, Abstand von der Kante entlang der Achse
  *  (positiv: auf der Zufahrt hinter der Kante) */
-export interface HaltelinieErgebnis { p: P; quer: [P, P]; abstand: number; vorverlegt: boolean }
+export interface HaltelinieErgebnis { p: P; quer: [P, P]; abstand: number; vorverlegt: boolean
+  mitte: P; richtung: P       // Mitte der Linie und Richtung längs der Linie (Griffe auf der Karte)
+  hand: boolean               // Lage und Ausrichtung von Hand: p ist der Schnitt der Linie mit der Zufahrtsachse
+  winkel: number              // Abweichung von quer zur Zufahrtsachse [°]
+}
 /** Trottoir zwischen Zufahrt und Vortrittsstrasse nach AV (E2b): Breite entlang der Zufahrtsachse, Hinterkante */
 export interface TrottoirErgebnis { breite: number; hinterkante: P; frei: boolean }
 /** Grundstückzufahrt (E2b): geklickter Punkt (Schlüssel), Richtung, OSM-Weg service (falls über ihn gesetzt), Strasse */
@@ -542,7 +561,10 @@ export interface Ergebnis {
   Dvorgabe: P                 // D ohne Eingabe von Hand
   Dhand: boolean              // D von Hand
   Dlage: { laengs: number; seitlich: number }   // D gegenüber dem Nullpunkt: entlang der Achse (wirksames B), links der Achse
-  fbRichtung: P               // Fahrtrichtung von F_B (entlang der Zufahrtsachse zum Knoten)
+  fbRichtung: P               // Fahrtrichtung von F_B (entlang der Zufahrtsachse zum Knoten bzw. von Hand)
+  fbDachse?: P                // Bezugspunkt von F_B, wenn es von Hand gedreht ist (sonst Dachse)
+  fbHand?: boolean            // F_B von Hand gedreht
+  zufahrtVersatz?: number | null  // Zufahrtsachse von Hand versetzt [m], positiv links der fahrenden Person
   rand: P                     // Schnitt der Zufahrtsachse mit der zugewandten Kante des Fahrstreifens mit Vortritt
   nullpunkt: P                // Punkt auf der Zufahrtsachse, ab dem B gemessen wird (Kante, Haltelinie bzw. Trottoirhinterkante)
   nullpunktText: string

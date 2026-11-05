@@ -60,7 +60,7 @@ import { zuerichEntlang } from '../daten/anbieter/gemeinsam/zuerichZuordnung'
 // Bordkante). Amtliches Tempo: je Richtung Mehrheit entlang der Mittellinie des Arms (tempo.amtlichEntlang; überwiegen die Punkte an
 // einer Linie ohne Wert, gilt OSM), vor OSM, von Hand geht vor.
 
-import { type P, lv95, wgs, neg, drehung, kreuz, dist, links, imPolygon, wdiff, sub, add, abstandStrecke } from '../geo'
+import { type P, lv95, wgs, neg, drehung, kreuz, dist, links, rechts, einheit, imPolygon, wdiff, sub, add, abstandStrecke } from '../geo'
 import type { OsmDaten } from '../daten/osm'
 import type { AvFlaeche } from '../daten/av'
 import { OsmNetz, abschneiden } from './netz'
@@ -87,7 +87,8 @@ import { massnahmenRechnen, type Variante, type VarianteRichtung } from './massn
 import { PROFIL_MIN_M, ZUFAHRT_STEIL_PROZENT } from './neigung'
 import { B_INNERORTS_M, B_AUSSERORTS_M, istAusserorts, beobachtungsdistanz, beobachtungspunkt, beobachtungAb, lageAnAchse, trottoirAnZufahrt, querlinie,
   FAHRERSITZ_M } from './beobachtung'
-import { sichtEntlang, sichtdreieck, PALISADE_MIN_M, type Verdeckend } from './sicht'
+import { sichtEntlang, sichtdreieck, verdecktVoll, PALISADE_MIN_M, type Verdeckend } from './sicht'
+import { PW_LAENGE_M } from './fahrzeug'
 import { veloSichtweite, trottoirSichtweite, radwegLinien, radwegNeben, veloVorgabe, trottoirNeben, richtungsAenderung, KURVE_GRAD,
   D_VELO_M, RADSTREIFEN_M, RADWEG_BREITE_M, RADWEG_NAH_M, VELOFUEHRUNG_TEXT, TAB2, TROTTOIR_NEIGUNG_AUSLEGUNG, type RadwegLinie, type RadwegLage,
   type Velofuehrung } from './velo'
@@ -100,7 +101,7 @@ import { parkVorschlaege, baumVorschlaege, parkKatasterFelder, osmUeberdeckt, im
 import { KEINE_EINGABEN, KEINE_HINDERNISSE, KEINE_KNOTEN_EINGABEN, type ArmInfo, type Ergebnis, type HindernisEingaben,
   type HindernisStand, type KnotenEingaben, type KnotenFall, type KnotenInfo, type Rechnung, type Regelung, type Richtung,
   type RichtungErgebnis, type SichtEingaben, type StrasseErgebnis, type TempoArt, type TempoEingabe, type VerdeckerEintrag,
-  type HaltelinieErgebnis, type TrottoirErgebnis, type VortrittsHinweis, type HoehenVorgabe, type NeigungMessung, type SichtTeil,
+  type HaltelinieErgebnis, type FaHandErgebnis, type FahrzeugLageHand, type TrottoirErgebnis, type VortrittsHinweis, type HoehenVorgabe, type NeigungMessung, type SichtTeil,
   type VeloErgebnis, type TrottoirPruefung, type TrottoirRichtung, type RichtungStatus, type RvArm, type RvStatus,
   type RechtsvortrittErgebnis, type Lage, type TempoAmtlichDaten, type TueErgebnis, type TuePhase, type UeberholStand,
   type UeberholTeil, type AnnahmeThema, type AnnahmeThemaId, TUE_BREITE_MIN, TUE_BREITE_MAX } from './typen'
@@ -128,13 +129,18 @@ const ZUF_LAENGE_M = 80
  *  die Voraussetzungen stehen in der Regelübersicht) */
 /** Rechtsvortritt: Tempo wie sonst aus OSM bzw. Geoportal oder von Hand; die Auto-Sicht
  *  folgt Abb. 6, die auf 30 km/h beruht */
-export const RV_TEMPO_TEXT = `Die Norm geht beim Rechtsvortritt von ${RV_TEMPO} km/h aus (Ziffer 15, S. 10); ein tieferes Tempo ändert die nötige Sicht nicht.`
-export const RV_VORAUSSETZUNG_TEXT = 'Ob hier Rechtsvortritt korrekt ist, prüft die App nicht. Das muss vor Ort gemäss VSS 40 273 geprüft werden.'
+export const RV_TEMPO_TEXT = `Die Norm rechnet mit ${RV_TEMPO} km/h (Ziffer 15, S. 10), ein tieferes Tempo ändert nichts.`
+export const RV_VORAUSSETZUNG_TEXT = 'Ob hier Rechtsvortritt richtig ist, prüft die App nicht. Das muss vor Ort geprüft werden.'
 const ZUF_VON_M = 4
 const ZUF_BIS_M = 34
 const ZUF_SCHRITT_M = 2
 /** nächstliegender Rand: so weit entlang der Arme gezeichnet */
 const RAND_LAENGE_M = 60
+/** Veloachse von Hand: Versatz ab diesem Wert zählt (darunter Ziehungenauigkeit) */
+const VELO_HAND_MIN_M = 0.05
+/** F_A von Hand: seitlicher Versatz ab diesem Wert zählt (darunter Ziehungenauigkeit), ab FA_VERSATZ_PRUEFEN_M Hinweis (Annahmen) */
+const FA_VERSATZ_MIN_M = 0.05
+const FA_VERSATZ_PRUEFEN_M = 1
 /** Einbiegewinkel unter diesem Wert (bzw. über 180° minus diesem Wert) gilt als schief (Annahme zu B) */
 const SCHIEF_UNTER = 75
 /** Block 5: Einbiegewinkel unter diesem Wert (bzw. über 180° minus diesem Wert): Hinweis «deutlich von 90° abweichend» (VSS 40 273
@@ -146,6 +152,8 @@ export const HALTELINIE_VOR_M = 6
 export const HALTELINIE_HINTER_M = 30
 /** Haltelinie auf der Karte: so weit beidseits der Achse */
 const HALTELINIE_HALB_M = 1.5
+/** Ab dieser Abweichung von quer zur Zufahrtsachse [°] meldet die App die Linie als schräg */
+const HALTELINIE_SCHRAEG_GRAD = 5
 /** D von Hand: Hinweis, wenn weiter als so weit vom Nullpunkt */
 export const D_HAND_WEIT_M = 30
 /** Signal an einer Grundstückzufahrt: bis so weit neben den ersten Metern der Zufahrt */
@@ -161,8 +169,6 @@ export const ANNAHME_THEMEN: readonly [AnnahmeThemaId, string][] = [
   ['vortritt', 'Vortritt'], ['wartend', 'Wartendes Fahrzeug'], ['verkehr', 'Verkehr mit Vortritt und nötige Sicht'],
   ['hindernisse', 'Hindernisse'], ['wahrnehmbarkeit', 'Wahrnehmbarkeit'], ['eng', 'Enge Kreuzung'],
 ]
-/** Quelle mit Strichpunkten als Sätze: «ohne Signal in OSM; Quartierstrasse …» -> «ohne Signal in OSM. Quartierstrasse …» */
-const saetze = (q: string) => q.split('; ').map((x, i) => (i ? x.charAt(0).toUpperCase() + x.slice(1) : x)).join('. ')
 /** Richtung im Satz: «von links», «beim Gegenverkehr» */
 const vonSatz = (r: { lage: Lage }) => (r.lage === 'gegenueber' ? 'beim Gegenverkehr' : `von ${r.lage}`)
 /** Name eines Arms im Satz: Strassenname, sonst Nummer, Name und Himmelsrichtung */
@@ -173,7 +179,7 @@ const gross = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
 export const REGELUNG_TEXT: Record<Regelung, string> = { vortritt: 'Kein Vortritt (Signal 3.02)', stop: 'Stop (Signal 3.01)',
   rechtsvortritt: 'Rechtsvortritt (ohne Signal)' }
 /** Hinweis oben im Ergebnis und im Bericht an einem LSA-Knoten */
-export const LSA_TEXT = 'Lichtsignalanlage: Im Betrieb regelt das Lichtsignal, die VSS 40 273 betrifft Knoten ohne Lichtsignal. Gerechnet ' +
+export const LSA_TEXT = 'Lichtsignalanlage: Im Betrieb regelt das Lichtsignal, die Norm betrifft Knoten ohne Lichtsignal. Gerechnet ' +
   'ist die Rückfallebene bei ausgeschalteter oder gelb blinkender Anlage (Signale Kein Vortritt bzw. Stop darunter).'
 export const TEMPO_ART_TEXT: Record<TempoArt, string> = {
   signalisiert: 'signalisierte Höchstgeschwindigkeit', vp: 'Projektierungsgeschwindigkeit VP', v85: 'V85',
@@ -213,7 +219,9 @@ export function knotenEingabenAus(e: Partial<KnotenEingaben> | undefined): Requi
       rechts: e?.velo?.rechts ?? null }, ebikeVerboten: e?.ebikeVerboten ?? false, wahrnehmbarkeit: e?.wahrnehmbarkeit ?? null,
     alleArme: e?.alleArme ?? false, markierungRv: e?.markierungRv ?? false, trottoirueberfahrt: e?.trottoirueberfahrt ?? null, Dtrottoir: e?.Dtrottoir ?? null,
     ueberholen: e?.ueberholen ?? null, kreiselTyp: e?.kreiselTyp ?? null,
-    kreiselBeziehungen: e?.kreiselBeziehungen ?? null }
+    kreiselBeziehungen: e?.kreiselBeziehungen ?? null, halteRichtung: e?.halteRichtung ?? null, fbRichtung: e?.fbRichtung ?? null,
+    zufahrtVersatz: e?.zufahrtVersatz ?? null, veloHand: { links: e?.veloHand?.links ?? null, rechts: e?.veloHand?.rechts ?? null },
+    faHand: { links: e?.faHand?.links ?? null, rechts: e?.faHand?.rechts ?? null } }
 }
 
 /** Rechnung für den gewählten Knoten und die Zufahrt (ohne Zufahrt: Vorschlag, sonst nur Knoten und Arme) bzw. für eine
@@ -358,32 +366,33 @@ export interface VortrittsstrasseTags { hw: string; t: Record<string, string>; t
  *  priority_road, maxspeed ab 50 km/h) -> Vortritt; Quartierstrasse (residential, living_street) mit Tempo 30 bzw. 20 oder
  *  unclassified in einer Tempo-30-Zone (zone:maxspeed, maxspeed:type) -> Rechtsvortritt (SVG Art. 36 Abs. 2, in Tempo-30-Zonen
  *  die Regel); sonst Vortritt. An einer Grundstückzufahrt gilt kein Rechtsvortritt (VRV Art. 15 Abs. 3). Alles ohne Signal ist
- *  eine Annahme (Quelle beginnt mit «ohne Signal in OSM»). K0: an einer Trottoirüberfahrt gilt kein Rechtsvortritt (VSS 40 242
- *  Ziffer 12.3). */
+ *  eine Annahme (Quelle beginnt mit «kein Signal in OSM»). K0: an einer Trottoirüberfahrt gilt kein Rechtsvortritt (VSS 40 242
+ *  Ziffer 12.3). Aus einem Stichstück (stichM, armStichM) ebenfalls nicht (Annahme). */
 export function regelungVorgabe(signaleZufahrt: VortrittsHinweis[], strasse: VortrittsstrasseTags[] = [], grundstueck = false,
-  trottoirueberfahrt = false, lsa = false): [Regelung, string] {
+  trottoirueberfahrt = false, lsa = false, stichM: number | null = null): [Regelung, string] {
   if (signaleZufahrt.some(s => s.art === 'stop')) return ['stop', signaleZufahrt.find(s => s.art === 'stop')!.quelle ?? 'OSM highway=stop an der Zufahrt']
   if (signaleZufahrt.some(s => s.art === 'give_way')) return ['vortritt', signaleZufahrt.find(s => s.art === 'give_way')!.quelle ?? 'OSM highway=give_way («Kein Vortritt») an der Zufahrt']
-  if (grundstueck) return ['vortritt', 'ohne Signal in OSM; an einer Grundstückzufahrt gilt kein Rechtsvortritt']
-  if (trottoirueberfahrt) return ['vortritt', 'ohne Signal in OSM; an einer Trottoirüberfahrt gilt kein Rechtsvortritt (VSS 40 242 Ziffer 12.3)']
+  if (grundstueck) return ['vortritt', 'kein Signal in OSM, an einer Grundstückzufahrt gilt kein Rechtsvortritt']
+  if (trottoirueberfahrt) return ['vortritt', 'kein Signal in OSM, an einer Trottoirüberfahrt gilt kein Rechtsvortritt (VSS 40 242 Ziffer 12.3)']
+  if (stichM !== null) return ['vortritt', `kein Signal in OSM, die Zufahrt endet nach ${Math.round(stichM)} m für Motorfahrzeuge: kein Rechtsvortritt (Annahme)`]
   const hvs = strasse.find(x => HVS_HIGHWAY.includes(x.hw.replace(/_link$/, '')) || ['designated', 'yes'].includes(x.t.priority_road ?? '') ||
     (x.tempo ?? 0) >= 50)
   if (hvs) {
     const grund = HVS_HIGHWAY.includes(hvs.hw.replace(/_link$/, '')) ? `highway=${hvs.hw}` : hvs.t.priority_road ? `priority_road=${hvs.t.priority_road}` :
       `maxspeed ${hvs.tempo} km/h`
-    return ['vortritt', `ohne Signal in OSM; Vortrittsstrasse ${grund}`]
+    return ['vortritt', `kein Signal in OSM, Vortrittsstrasse ${grund}`]
   }
   const zone = (x: VortrittsstrasseTags) => zonenTempo(x.t['zone:maxspeed']) ?? zonenTempo(x.t['maxspeed:type'])
   const quartier = strasse.length > 0 && strasse.every(x => (['residential', 'living_street'].includes(x.hw) && (x.tempo ?? 99) <= 30) ||
     (x.hw === 'unclassified' && (zone(x) ?? 99) <= 30))
   // An einem LSA-Knoten als Rückfallebene nie Rechtsvortritt (Annahme)
-  if (quartier && lsa) return ['vortritt', 'ohne Signal in OSM; Lichtsignalanlage: als Rückfallebene ohne Rechtsvortritt (Annahme)']
+  if (quartier && lsa) return ['vortritt', 'kein Signal in OSM, Lichtsignalanlage: als Rückfallebene ohne Rechtsvortritt (Annahme)']
   if (quartier) {
     const z = strasse.map(zone).find(v => v !== null && v <= 30)
-    return ['rechtsvortritt', `ohne Signal in OSM; Quartierstrasse mit Tempo ${Math.min(...strasse.map(x => x.tempo ?? 30))} km/h` +
+    return ['rechtsvortritt', `kein Signal in OSM, Quartierstrasse mit Tempo ${Math.min(...strasse.map(x => x.tempo ?? 30))}` +
       `${z !== undefined ? ' (Tempo-30-Zone)' : ''}`]
   }
-  return ['vortritt', 'ohne Signal in OSM']
+  return ['vortritt', 'kein Signal in OSM']
 }
 
 /** Längsneigung einer Richtung: von Hand, sonst Vorgabe aus dem Höhenmodell (E3a), sonst unbekannt (strengster Wert) bzw. vorerst 0 %, solange das Höhenmodell lädt. i bleibt bei unbekannter Neigung 0 (kein Mass; die Rechnungen
@@ -482,10 +491,10 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     if (x.zone === 't30_zone' || x.zone === 'begegnungszone') tags['zone:maxspeed'] = x.zone === 't30_zone' ? 'CH:zone30' : 'CH:zone20'
     return { ...alt, t: tags, tempo: x.tempo }
   })
-  const [rVorgabe, rQuelleOsm] = regelungVorgabe(signaleZ, strasseTags, !!g, tue, !!info.lsa)
+  const [rVorgabe, rQuelleOsm] = regelungVorgabe(signaleZ, strasseTags, !!g, tue, !!info.lsa, !g && zArm.stichM !== undefined ? zArm.stichM : null)
   let rQuelle = rQuelleOsm + (zhRegelung && !signaleZ.some(s => s.art === 'stop' || s.art === 'give_way')
-    ? '; Tempo-/Zonenbezug nach Stadt Zürich, passende amtliche IST-Abschnitte und Zonen' : '') + (regionaleRegelung.size && !signaleZ.some(s=>s.art==='stop'||s.art==='give_way') ? `; Tempobezug nach ${[...regionaleRegelung].join(', ')}, eindeutige amtliche Abschnitte; Zonen nur bei belegtem Regime` : '')
-  if (bernRegelung && !signaleZ.some(s => s.art === 'stop' || s.art === 'give_way')) rQuelle += '; Tempobezug nach Geoportal Stadt Bern (V_sig); kein Zonenbeleg'
+    ? ' (Tempo und Zone nach Stadt Zürich)' : '') + (regionaleRegelung.size && !signaleZ.some(s=>s.art==='stop'||s.art==='give_way') ? ` (Tempo nach ${[...regionaleRegelung].join(', ')})` : '')
+  if (bernRegelung && !signaleZ.some(s => s.art === 'stop' || s.art === 'give_way')) rQuelle += ' (Tempo nach Geoportal Stadt Bern), keine Zone belegt'
   // LSA-Knoten, Hinweis zuoberst
   if (info.lsa) hinweise.push(LSA_TEXT)
   for (const e of amtlich?.signalEntscheide ?? []) if (e.knoten === info.id) hinweise.push(signalText(e))
@@ -499,8 +508,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       'Ziffer 12.3, VRV Art. 15 Abs. 3); gerechnet wie «Kein Vortritt».')
   // Festgelegter Wortlaut
   if (ke.regelung === null && !signaleZ.some(s => !!s.quelle))
-    an.vortritt.push(`Vortrittsregelung «${REGELUNG_TEXT[regelung]}» angenommen (${saetze(rQuelle)}` +
-      `${rVorgabe === 'rechtsvortritt' ? '. Ohne Signal gilt Rechtsvortritt nach SVG Art. 36 Abs. 2' : ''}). Vortrittsregelung kann angepasst werden.`)
+    an.vortritt.push(`${REGELUNG_TEXT[regelung].replace(' (ohne Signal)', '')} angenommen: ${rQuelle}.`)
   for (const s of info.signale) {
     const art = s.art === 'stop' ? 'Stop' : 'Kein Vortritt'
     if (!signaleZ.includes(s)) hinweise.push(`Signal «${art}» (${s.quelle ?? `OSM highway=${s.art}`}) an einem anderen Arm des Knotens: Vortrittsstrasse prüfen.`)
@@ -530,12 +538,12 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     if (vorgeschlagen) an.vortritt.push(`Die App schlägt ${armText(zArm)} als Zufahrt vor, weil nur dieser Arm nicht zur Vortrittsstrasse gehört.`)
   } else {
     // Festgelegter Wortlaut; dazu Tempo und Richtungen der Prüfung
-    an.vortritt.push(rArm ? `Rechtsvortritt: Vortritt vor der Zufahrt hat der Arm rechts davon, ${armText(rArm)}. Als rechts gilt ein ` +
-      `Arm mehr als ${RECHTS_MIN_GRAD}° rechts der Fahrtrichtung.` : `Rechtsvortritt: Kein Arm liegt mehr als ${RECHTS_MIN_GRAD}° rechts ` +
+    an.vortritt.push(rArm ? `Vortritt vor der Zufahrt hat der Arm rechts, ${armText(rArm)}; als rechts gilt ein ` +
+      `Arm mehr als ${RECHTS_MIN_GRAD}° rechts der Fahrtrichtung.` : `Kein Arm liegt mehr als ${RECHTS_MIN_GRAD}° rechts ` +
       'der Fahrtrichtung, darum hat kein Verkehr Vortritt vor dieser Zufahrt.')
-    if (rArm && (zArm.zufluss || zVeloGegen)) an.vortritt.push(`Beim Rechtsvortritt gilt die nötige Sicht nach Abb. 6 (S. 12). ${RV_TEMPO_TEXT.replace('Die Norm', 'Die VSS 40 273')} ` +
-      'Verkehr von links und Gegenverkehr prüft sie nicht: Wer von links kommt, muss der Zufahrt den ' +
-      'Vortritt lassen, und mit dem Gegenverkehr gibt es beim Geradeausfahren keinen Konflikt.')
+    if (rArm && (zArm.zufluss || zVeloGegen)) an.vortritt.push(`Nötige Sicht nach Abb. 6 (S. 12); ${RV_TEMPO_TEXT.replace('Die Norm', 'die Norm')} ` +
+      'Verkehr von links und Gegenverkehr werden nicht geprüft: Von links wartet man auf die Zufahrt, geradeaus gibt es mit dem ' +
+      'Gegenverkehr keinen Konflikt.')
     // Block 5: Voraussetzungen des Rechtsvortritts nach Ziffer 15 prüft die App nicht (Hinweis ohne Statuswirkung)
     hinweise.push(RV_VORAUSSETZUNG_TEXT)
     const weitere = rechteArme(zArm, info.arme).slice(1)
@@ -582,7 +590,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   // Block 5, Hinweis ohne Statuswirkung: Einbiegewinkel deutlich von 90° abweichend (eigene Grenze, Annahme; Anhalt VSS 40 242 Ziffer
   // 14.3.4, S. 12); nicht, wenn die Zufahrt auf der durchgehenden Strasse liegt (dort ist der Winkel ohne Bedeutung)
   if (!(durchgehend || gegenArm) && (einbiegewinkel < EINBIEGEWINKEL_GRENZE_GRAD || einbiegewinkel > 180 - EINBIEGEWINKEL_GRENZE_GRAD))
-    hinweise.push(`Einbiegewinkel rund ${Math.round(einbiegewinkel)}°: deutlich von 90° abweichend, nach VSS 40 273 Ziffer 10 (S. 7) ` +
+    hinweise.push(`Einbiegewinkel rund ${Math.round(einbiegewinkel)}°: deutlich von 90° abweichend, nach Ziffer 10 (S. 7) ` +
       `grundsätzlich zu vermeiden; spitze Winkel für Lastwagen besonders problematisch (Annahme der Grenze ${EINBIEGEWINKEL_GRENZE_GRAD}°/` +
       `${180 - EINBIEGEWINKEL_GRENZE_GRAD}°).`)
 
@@ -743,8 +751,8 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
         `${fs.nSehnen} Sehnen; ohne genügend AV-Querschnitte je Stelle: feste Lage ${seiteOsm(zLage)}` +
         `${pz.length ? `; ${pz.join('; ')}` : ''})`
     // Festgelegter Wortlaut (Seite und Zählung der Prüfpunkte stehen in der Herleitung)
-    if (pz.length) an.wartend.push(`Parkierung entlang Zufahrt. Von der verfügbaren Fahrbahnbreite werden ${pz.length > 1 ? '2 × ' : ''}` +
-      `${f2(PARKSTREIFEN)} m für Parkfelder abgezogen. Achse des Zufahrtsstreifens, D und FB entsprechend verschoben.`)
+    if (pz.length) an.wartend.push(`Parkfelder entlang der Zufahrt: ${pz.length > 1 ? '2 × ' : ''}${f2(PARKSTREIFEN)} m abgezogen, Achse, D und F_B ` +
+      'entsprechend verschoben.')
   } else {
     const [l0, , q] = lageOsm(netz, zArm.wid, LAGE_ERSATZ)
     zLage = l0 ?? LAGE_ERSATZ
@@ -791,9 +799,13 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   }
   }
   const zProf = zProfil
-  const zAchse = mitVerlaengerung(zProf ? versetztVariabel(zMl, s => profilBei(zProf.s, zProf.lage, s)) : versetzt(zMl, zLage))
+  const zAchseBerechnet = mitVerlaengerung(zProf ? versetztVariabel(zMl, s => profilBei(zProf.s, zProf.lage, s)) : versetzt(zMl, zLage))
+  // F_B seitlich von Hand (Korrektur, wenn die App die Fahrlinie falsch legt, z. B. wegen einer Sperrfläche): die ganze Zufahrtsachse wandert
+  // parallel, D, K und der Nullpunkt folgen, B bleibt. Die Achse läuft vom Knoten weg: links der fahrenden Person liegt rechts von ihr
+  const zVersatz = ke.zufahrtVersatz ?? 0
+  const zAchse = zVersatz ? versetzt(zAchseBerechnet, -zVersatz) : zAchseBerechnet
   /** seitliche Lage der Zufahrtsachse zur OSM-Linie bei der Bogenlänge s auf zMl */
-  const zLageBei = (s: number) => (zProf ? profilBei(zProf.s, zProf.lage, s) : zLage)
+  const zLageBei = (s: number) => (zProf ? profilBei(zProf.s, zProf.lage, s) : zLage) - zVersatz
 
   // B und D
   const ao = eg.innerorts == null ? istAusserorts(netz, [aL.wid, aR.wid]) : { ausserorts: !eg.innerorts, grund: eg.bundesbelege?.innerorts?.wert === eg.innerorts ? bundBelegText(eg.bundesbelege.innerorts) : 'eigener Prüfung der Ortslage' }
@@ -860,19 +872,31 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   // Zufahrtsachse; B ab ihrer Vorderkante, dem vorderen Rand (VSS 40 273 Ziffer 5)
   let haltelinie: HaltelinieErgebnis | null = null
   if (ke.haltelinie) {
-    const l = lageAnAchse(zAchse, ke.haltelinie)
+    // Ausrichtung von Hand: B ab dem Schnitt der Linie mit der Zufahrtsachse; sonst Lot auf die Achse, Linie quer dazu
+    const hr = ke.halteRichtung ? einheit(ke.halteRichtung) : null
+    const x = hr ? schnittBei(zAchse, [add(ke.haltelinie, hr, -HALTELINIE_SEITLICH_M), add(ke.haltelinie, hr, HALTELINIE_SEITLICH_M)], ke.haltelinie) : null
+    const lot0 = lageAnAchse(zAchse, ke.haltelinie)
+    const l = x ? { ...lageAnAchse(zAchse, x.p), s: x.sa, fuss: x.p, seitlich: dist(x.p, ke.haltelinie) } : lot0
     const abstand = l.s - beob.sRand
-    if (Math.abs(l.seitlich) > HALTELINIE_SEITLICH_M)
+    if (hr && !x)
+      hinweise.push(`Halte- oder Wartelinie trifft die Zufahrtsachse nicht innert ${HALTELINIE_SEITLICH_M} m: nicht gerechnet.`)
+    else if (Math.abs(l.seitlich) > HALTELINIE_SEITLICH_M)
       hinweise.push(`Halte- oder Wartelinie ${f1(Math.abs(l.seitlich))} m neben der Zufahrtsachse: nicht gerechnet (höchstens ${HALTELINIE_SEITLICH_M} m).`)
     else if (abstand < -HALTELINIE_VOR_M || abstand > HALTELINIE_HINTER_M)
       hinweise.push(`Halte- oder Wartelinie ${f1(Math.abs(abstand))} m ${abstand < 0 ? 'vor' : 'hinter'} der Kante: nicht gerechnet (zulässig ` +
         `${HALTELINIE_VOR_M} m davor bis ${HALTELINIE_HINTER_M} m dahinter).`)
     else {
       const vorverlegt = l.s < sNormal - 0.05
-      haltelinie = { p: l.fuss, quer: querlinie(l.fuss, l.t, HALTELINIE_HALB_M), abstand, vorverlegt }
+      const quer = hr ? [add(ke.haltelinie, hr, -HALTELINIE_HALB_M), add(ke.haltelinie, hr, HALTELINIE_HALB_M)] as [P, P] :
+        querlinie(l.fuss, l.t, HALTELINIE_HALB_M)
+      const richtung = einheit(sub(quer[1], quer[0]))
+      const winkel = Math.abs(90 - Math.acos(Math.min(1, Math.abs(richtung[0] * l.t[0] + richtung[1] * l.t[1]))) * 180 / Math.PI)
+      haltelinie = { p: l.fuss, quer, abstand, vorverlegt, mitte: hr ? ke.haltelinie : l.fuss, richtung, hand: !!hr, winkel }
+      if (hr && winkel >= HALTELINIE_SCHRAEG_GRAD)
+        hinweise.push(`Halte- oder Wartelinie ${Math.round(winkel)}° schräg zur Zufahrtsachse: B ab ihrem Schnitt mit der Achse (Annahme).`)
       if (vorverlegt)
         hinweise.push(`Halte- oder Wartelinie ${f2(sNormal - l.s)} m vor ${abRadweg ? 'der Aussenkante des Radwegs' : trAt && !ke.trottoirFrei && !tue ?
-          'der Trottoirhinterkante' : 'der Kante des Fahrstreifens mit Vortritt'} (vorverlegt): Ausnahme nach VSS 40 273 Ziffer 14, nur an bestehenden ` +
+          'der Trottoirhinterkante' : 'der Kante des Fahrstreifens mit Vortritt'} (vorverlegt): Ausnahme nach Ziffer 14, nur an bestehenden ` +
           'Knoten und Zufahrten und mit begleitenden Markierungen.')
     }
   }
@@ -899,21 +923,24 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   } else {
     // B nur einmal; D beim Velo im Satz zum Velogegenverkehr
     const wer = zufahrtVelo ? 'Velo' : 'Fahrzeug'
-    const ab = rv && rArm && nullpunktText === 'Kante des Fahrstreifens mit Vortritt' ? `hinter dem Rand des Arms rechts, ${armName(rArm)},` :
+    const ab = rv && rArm && nullpunktText === 'Kante des Fahrstreifens mit Vortritt' ? `hinter dem Rand des Arms rechts (${armName(rArm)})` :
       `hinter der ${nullpunktText}`
-    an.wartend.push((rv ? `Das wartende ${wer} steht ${f2(B)} m ${ab} (Rechtsvortritt, VSS 40 273 Ziffer 16, S. 10; Abb. 4).` :
-      `Das wartende ${wer} steht ${f2(B)} m ${ab} (Beobachtungsdistanz B ${ausserText}, Ortslage nach ${ao.grund}; VSS 40 273 ` +
-      'Ziffer 12, S. 7–8).') + (zufahrtVelo ? '' : ` Das Fahrer*innenauge (D) liegt ${f2(FAHRERSITZ_M)} m links der Fahrlinie (Fahrer*innensitz).`))
+    an.wartend.push((rv ? `Das ${wer} steht ${f2(B)} m ${ab} (Rechtsvortritt, Ziffer 16, S. 10, Abb. 4)` :
+      `Das ${wer} steht ${f2(B)} m ${ab} (B ${ausserText}, Ortslage nach ${ao.grund}; Ziffer 12, S. 7–8)`) +
+      (zufahrtVelo ? '.' : `, das Auge D ${f2(FAHRERSITZ_M)} m links der Fahrlinie.`))
   }
+  // F_B von Hand gedreht (um D): nur die Darstellung, die Sicht rechnet ab D
+  if (ke.fbRichtung) fbRichtung = einheit(ke.fbRichtung)
+  const fbDachse = ke.fbRichtung ? add(D, rechts(fbRichtung), dSeitlich) : Dachse
   if (trAt && !ke.trottoirFrei && !haltelinie && !ke.D && !tue)
     an.wartend.push(`Zwischen Zufahrt und Vortrittsstrasse liegt ein Trottoir (amtliche Vermessung, ${f1(trAt.breite)} m): das Fahrzeug ` +
-      'wartet davor, B zählt ab der Trottoirhinterkante. Steht auf dem Trottoir nichts im Weg, im Panel «Trottoir ohne Hindernisse» ' +
-      'setzen (VSS 40 273 Ziffer 13.1, S. 8).')
+      'wartet davor, B zählt ab der Trottoirhinterkante. Steht auf dem Trottoir nichts im Weg, «Trottoir ohne Hindernisse» ' +
+      'setzen (Ziffer 13.1, S. 8).')
   if (abRadweg && !haltelinie && !ke.D) {
     const rw = radwegMass!
     an.wartend.push(`Ein Radweg liegt ${f1(rw.abstand)} m neben dem Fahrbahnrand, näher als ${f2(RADWEG_NAH_M)} m: das Fahrzeug wartet ` +
       `vor dem Radweg, B zählt ab seiner Aussenkante (Radweg ${f2(rw.breite)} m breit${rw.breiteOsm ? ' nach OSM' : ', angenommen'}; ` +
-      'VSS 40 273 Ziffer 12, S. 8; Abb. 2, S. 6).')
+      'Ziffer 12, S. 8; Abb. 2, S. 6).')
   }
   const trottoirGrund = trAt ? '' : (tr as { grund: string }).grund
   if (rv && trAt) hinweise.push('Rechtsvortritt mit Trottoir quer über die Zufahrt (Trottoirüberfahrt): wer über ein Trottoir einfährt, ist ' +
@@ -930,9 +957,9 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   if (eg.bundesbelege?.typ?.wert === eg.typ) herleitung.push(bundBelegText(eg.bundesbelege.typ))
   if (eg.innerorts != null) herleitung.push(`Ortslage ${eg.innerorts ? 'innerorts' : 'ausserorts'} nach ${ao.grund}.`)
   if (!strasse.typGewaehlt && !rv) {
-    an.verkehr.push(`Die Vortrittsstrasse gilt als ${STRASSENTYP_TEXT[strasse.typ]} (nach ${strasse.typQuelle}; im Panel änderbar): ` +
-      `massgebend ist ${strasse.typ === 'es' ? 'der untere Wert der Tab. 1 (VSS 40 273, S. 8)' :
-      `der Zwischenwert der Tab. 1 (VSS 40 273, S. 8; ${ZWISCHENWERT_TEXT})`}.`)
+    an.verkehr.push(`Die Vortrittsstrasse gilt als ${STRASSENTYP_TEXT[strasse.typ]} (nach ${strasse.typQuelle}): ` +
+      `massgebend ist ${strasse.typ === 'es' ? 'der untere Wert der Tab. 1 (S. 8)' :
+      `der Zwischenwert der Tab. 1 (S. 8; ${ZWISCHENWERT_TEXT})`}.`)
     herleitung.push(`Strassentyp aus ${strasse.typQuelle}: trunk, primary, secondary, tertiary und deren links gelten als Hauptverkehrsstrasse ` +
       '(tertiary damit auf der sicheren Seite), sonst Erschliessungsstrasse (Annahme der App).')
   }
@@ -944,11 +971,11 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       `über ${SCHWERVERKEHR_PROZENT} %`] : []),
   ]
   if (ungGruende.length) an.verkehr.push(`Ungünstige Verhältnisse angenommen: ${ungGruende.join('; ')}. Die Masse stammen vom Kanton ` +
-    'Solothurn (AVT 12/2024, S. 3; Annahme, VSS 40 273 Ziffer 13.1 nennt keine).')
+    'Solothurn (AVT 12/2024, S. 3; Annahme, Ziffer 13.1 nennt keine).')
   const ung = strasse.ungunst.fahrstreifen || strasse.ungunst.neigung || strasse.ungunst.schwerverkehr
   if (strasse.typ === 'es' && ung && !rv)
     hinweise.push('Ungünstige Verhältnisse an einer Erschliessungs-, Sammel- oder Verbindungsstrasse: der untere Wert bleibt massgebend; ' +
-      'gilt die Strasse als Hauptverkehrsstrasse, hebt die Wahl im Panel auf den oberen Wert.')
+      'gilt die Strasse als Hauptverkehrsstrasse, zählt der obere Wert.')
   // 0 % (Höhenmodell lädt noch, oder von Hand 0) bzw. unbekannt (Höhenmodell geladen, keine Messung: strengster Wert) als
   // Annahme; gemessene Werte mit Quelle. Richtungen ohne Profil (nicht geprüft bzw. kein Verkehr; Profile geladen, aber für sie
   // keines geholt) erscheinen hier nicht
@@ -956,28 +983,26 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   const eben = (['links', 'rechts'] as Richtung[]).filter(r => ns[r].i === 0 && !ns[r].unbekannt && !(ns[r].gemessen && !ns[r].hand) &&
     !ohneProfil(r))
   const lageR = (r: Richtung) => ({ lage: lageLR[r === 'links' ? 0 : 1] })
-  if (eben.length) an.verkehr.push(`Längsneigung ${eben.map(r => lageKurz(lageR(r))).join(' und ')} 0 % (eben; ${eben.some(r => !ns[r].hand) ?
-    'vorerst, das Höhenmodell lädt noch; ' : ''}im Panel je Richtung einzugeben).`)
+  if (eben.length) an.verkehr.push(`Längsneigung ${eben.map(r => lageKurz(lageR(r))).join(' und ')} 0 % (eben${eben.some(r => !ns[r].hand) ?
+    '; vorerst, das Höhenmodell lädt noch' : ''}).`)
   // unbekannte Neigung: Annahme an dieser Stelle, sobald die Richtungen gerechnet sind (nur Richtungen mit Verkehr)
   const annahmeNeigung = an.verkehr.length
   const gemessen = (['links', 'rechts'] as Richtung[]).filter(r => ns[r].gemessen && !ns[r].hand)
   if (gemessen.length) an.verkehr.push(`Längsneigung ${gemessen.map(r => `${lageKurz(lageR(r))} ${fi(ns[r].i)} %`).join(', ')} aus dem ` +
-    `Höhenmodell swissALTI3D: gemessen über die nötige Sicht ab K (mindestens ${PROFIL_MIN_M} m), in Fahrtrichtung, abwärts negativ. ` +
-    'Einzelne Kuppen oder Senken prüft die App nicht; die Neigung kann im Panel geändert werden.')
+    `Höhenmodell swissALTI3D (über die nötige Sicht ab K, mindestens ${PROFIL_MIN_M} m, abwärts negativ); Kuppen und Senken nicht geprüft.`)
   // Hindernisse (E2a): in D liegende nicht rechnen (z. B. Parkierung entlang der Zufahrt an der Stelle des wartenden Fahrzeugs)
   const hvAlle = hindernisVerdeckend(zaehlend)
   const inD = hvAlle.filter(v => imPolygon(D, v.poly)).map(v => v.id)
   const hv = hvAlle.filter(v => !inD.includes(v.id))
   for (const id of inD) hinweise.push(`D liegt im Hindernis «${hvAlle.find(v => v.id === id)!.name}»: für die Sicht nicht gerechnet.`)
   const hat = (f: (h: Hindernis) => boolean) => zaehlend.some(f)
-  an.hindernisse.push(`Als Sichthindernisse zählen die Gebäude der amtlichen Vermessung${hv.length ? ` und ${hv.length} weitere Hindernisse ` +
-    '(von Hand gesetzt, bestätigte Vorschläge, amtliche Parkfelder)' : ' (weitere Hindernisse sind keine eingegeben bzw. geladen)'}. Die App ` +
-    'rechnet im Grundriss und prüft nicht, ob ein Hindernis in die Höhe des Sichtfelds reicht (0,60 bis 3,00 m, VSS 40 273 Ziffer 10, S. 7)' +
-    (hat(h => h.art === 'hecke' || h.art === 'mauer' || h.art === 'zaun' || h.art === 'uebrige') ? '; ob eine Hecke, Mauer, ein Zaun oder ' +
-      'ein übriges Hindernis die Sicht verdeckt, legst du beim Hindernis fest («sichtbehindernd» bzw. «dicht»).' : '.'))
+  an.hindernisse.push(`Gebäude der amtlichen Vermessung${hv.length ? ` und ${hv.length} weitere Hindernisse` : ' (keine weiteren eingegeben bzw. geladen)'}. ` +
+    'Gerechnet im Grundriss; ob ein Hindernis in die Sichthöhe reicht (0,60 bis 3,00 m, Ziffer 10, S. 7), wird nicht geprüft.' +
+    (hat(h => h.art === 'hecke' || h.art === 'mauer' || h.art === 'zaun' || h.art === 'uebrige') ? ' Ob eine Hecke, Mauer, ein Zaun oder ' +
+      'ein übriges Hindernis verdeckt, legst du beim Hindernis fest («sichtbehindernd» bzw. «dicht»).' : ''))
   if (hat(h => h.art === 'parkfeld' || h.art === 'laengsparkierung'))
-    an.hindernisse.push('Parkfelder gelten als besetzt: Ein parkiertes Auto verdeckt die Sicht. Velo- und Motorradparkfelder verdecken die ' +
-      'Sicht nicht und werden nur erwähnt; die Fahrzeuge mit Vortritt fahren aber neben ihnen wie neben Autoparkfeldern.')
+    an.hindernisse.push('Parkfelder gelten als besetzt. Velo- und Motorradparkfelder verdecken nicht und werden nur erwähnt; die Fahrzeuge ' +
+      'fahren aber neben ihnen wie neben Autoparkfeldern.')
   if (hat(h => h.art === 'baum'))
     an.hindernisse.push(`Bäume zählen mit dem Stamm (${f1(BAUM_STAMM_M)} m), die Krone liegt über dem Sichtfeld. Mehrere Bäume verdecken ` +
       `erst, wenn sie zusammen mindestens ${f1(PALISADE_MIN_M)} m der Strecke am Stück verdecken (Palisade).`)
@@ -991,7 +1016,27 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
         { grund: !rArm ? 'Rechtsvortritt: kein Arm rechts der Zufahrt, kein Verkehr hat Vortritt vor dieser Zufahrt; keine Prüfung' :
           lg === 'gegenueber' ? `Gegenverkehr aus ${armText(a)}: kein Vortrittsverhältnis beim Geradeausfahren (Linksabbiegen nicht geprüft)` :
           `Verkehr von links (${armText(a)}) muss dieser Zufahrt den Vortritt lassen: nicht geprüft` },
-      avZentrum, v, ke.ebikeVerboten))
+      avZentrum, v, ke.ebikeVerboten, ke.faHand[r], ke.veloHand[r]))
+  if (zVersatz) {
+    for (const r of richtungen) if (r.status !== 'keine_zufahrt') r.statusZusatz.push('Zufahrt von Hand')
+    hinweise.push(`Zufahrtsachse von Hand ${f2(Math.abs(zVersatz))} m nach ${zVersatz > 0 ? 'links' : 'rechts'} versetzt, etwa wegen einer ` +
+      `Sperrfläche: D, F_B, K und Nullpunkt folgen, B bleibt ${f2(B)} m.`)
+  }
+  for (const r of richtungen) herleitung.push(...r.herleitung.map(h => `${gross(vonSatz(r))}: ${h}`))
+  // F_A von Hand: der seitliche Versatz steckt schon in der Rechnung (richtungRechnen); hier die Sichtlinie auf die Front und der Hinweis
+  for (const r of richtungen) {
+    const h = ke.faHand[r.richtung]
+    if (!h || r.status === 'keine_zufahrt' || r.achse.length < 2) continue
+    const fl = r.fahrlinieHand ?? null
+    const fa = faHandPruefen(h, r.achse, D, [...k.gebaeude, ...hv], fl ? Math.abs(fl.versatz) : 0)
+    r.faHand = fa
+    const sicht = `Sicht von D auf die Front ${fa.verdecker ? `verdeckt durch ${fa.verdecker}` : 'frei'}.`
+    if (!fl) { hinweise.push(`F_A ${lageKurz(r)} von Hand: seitlich auf der berechneten Fahrlinie, ohne Wirkung auf die Rechnung. ${sicht}`); continue }
+    hinweise.push(`F_A ${lageKurz(r)} von Hand: Fahrlinie ${f2(Math.abs(fl.versatz))} m ${fl.versatz < 0 ? 'weiter weg vom' : 'näher am'} rechten Fahrbahnrand, ` +
+      `Wagenmitte ${f2(r.randAbstand)} m statt ${f2(fl.randVorgabe)} m vom Rand (Annahme). Status, Sichtdreieck und K rechnen auf dieser Linie, die ` +
+      `erforderliche Sichtweite bleibt; ein Verschieben längs der Linie zählt nicht. ${sicht}` +
+      (Math.abs(fl.versatz) >= FA_VERSATZ_PRUEFEN_M ? ' Grosse Abweichung: Fahrbahnrand und Lage vor Ort prüfen.' : ''))
+  }
   // Neigung unbekannt: je Richtung mit Verkehr ohne Neigung von Hand und ohne Messung
   const unbekannt = richtungen.filter(r => r.neigungUnbekannt)
   if (unbekannt.length) an.verkehr.splice(annahmeNeigung, 0, `Längsneigung ${unbekannt.map(r => lageKurz(r)).join(' und ')} unbekannt ` +
@@ -1010,14 +1055,13 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       '(Abb. 2, S. 5; aus dem Diagramm abgelesen).')
     herleitung.push(`Anhaltesichtweite nach VSS 40 090b Abb. 2 (übrige Strassen; aus dem Diagramm abgelesen, Ablesung 30./31.10.2026, ±2 m; ` +
       'VP = Tempo der Tab. 1), Kurven bei 0 % auf den unteren Wert der Tab. 1 verschoben; Untergrenze erst über ' +
-      `±${NEIGUNG_EBEN_PROZENT} % (VSS 40 273 Ziffer 13.1); gestrichelte Kurvenenden gelten als nicht gezeichnet.`)
+      `±${NEIGUNG_EBEN_PROZENT} % (Ziffer 13.1); gestrichelte Kurvenenden gelten als nicht gezeichnet.`)
   }
   // Fahrlinie der Fahrzeuge mit Vortritt: an den Anfang des Themas; Prüfpunktregel der Parkierung in der Regelübersicht
   const autoR = richtungen.filter(r => r.status !== 'keine_zufahrt')
-  if (autoR.length) an.verkehr.unshift(`Fahrzeuge mit Vortritt fahren mit der Wagenmitte ${f2(D_MFZ_M)} m vom rechten Fahrbahnrand ` +
-    `(VSS 40 273 Ziffer 10, S. 7), wo parkiert wird ${f2(D_MFZ_M)} m neben den parkierten Autos` +
-    `${autoR.some(r => r.veloFuehrung === 'radstreifen') ? `, neben einem Radstreifen ${f2(D_MFZ_M)} m neben dem Radstreifen` : ''}. ` +
-    `Parkierung: ${autoR.map(r => `${vonSatz(r)} ${r.parkStreifen.abzug ? 'ja' : 'nein'}`).join(', ')}.`)
+  if (autoR.length) an.verkehr.unshift(`Fahrzeuge fahren ${f2(D_MFZ_M)} m vom rechten Rand (Ziffer 10, S. 7), neben parkierten Autos ` +
+    `${f2(D_MFZ_M)} m daneben${autoR.some(r => r.veloFuehrung === 'radstreifen') ? `, neben einem Radstreifen ${f2(D_MFZ_M)} m daneben` : ''}; ` +
+    `${autoR.map(r => `${vonSatz(r)} ${r.parkStreifen.abzug ? 'Parkierung' : 'keine Parkierung'}`).join(', ')}.`)
   // Beispiel Knoten 282773328: Teilung der Fahrbahn in zwei Einbahnen, die Fahrlinie folgt der zuführenden (Annahme gleich
   // nach dem Satz zur Fahrlinie, Herleitung nach der Lage der Fahrlinie)
   let nachFahrlinie = autoR.length ? 1 : 0
@@ -1096,12 +1140,10 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     // Wahrnehmbarkeit eigenes Thema; Sicht nach rechts im Thema «Verkehr mit Vortritt»; enge
     // Kreuzung nur, wenn eine Fahrbahn höchstens SCHMAL_M breit ist und das Sichtfeld gerechnet wird
     if (ke.wahrnehmbarkeit === null && rArm && !grundKeine)
-      an.wahrnehmbarkeit.push(`Die Wahrnehmbarkeit des Knotens ist mit «${WAHRNEHMBARKEIT_TEXT[wahr]}» angenommen (VSS 40 273 Ziffer 18, ` +
-        'S. 12). Bitte vor Ort einschätzen und im Panel wählen.')
+      an.wahrnehmbarkeit.push(`Wahrnehmbarkeit des Knotens «${WAHRNEHMBARKEIT_TEXT[wahr]}» angenommen (Ziffer 18, S. 12); vor Ort einschätzen.`)
     if (rArm && !grundKeine) {
-      an.verkehr.push(`Geprüft wird die Sicht nach rechts (${armName(rArm)}) bis ${RV_ZIEL_M} m. Nötig sind ${RV_A_M} m; ${RV_A_MIN_M} m genügen ` +
-        'nur bei sehr guter Wahrnehmbarkeit (VSS 40 273 Ziffer 16, S. 10). Aus Sichtweite und Wahrnehmbarkeit ergibt sich der Zustand ' +
-        'nach Abb. 6 (S. 12).')
+      an.verkehr.push(`Geprüft wird die Sicht nach rechts (${armName(rArm)}) bis ${RV_ZIEL_M} m; nötig sind ${RV_A_M} m, ${RV_A_MIN_M} m nur ` +
+        'bei sehr guter Wahrnehmbarkeit (Ziffer 16, S. 10); daraus der Zustand nach Abb. 6 (S. 12).')
       herleitung.push(`Rechtsvortritt: Zielpunkte auf der Fahrstreifenachse des rechten Arms (zum Knoten fahrender Fahrstreifen, d ` +
         `${f2(D_MFZ_M)} m) bis ${RV_ZIEL_M} m ab K; Zustand nach Abb. 6 aus Wahrnehmbarkeit und vorhandener Sichtweite (Stufen ` +
         `${ABB6_GRENZEN.join(', ')} m, dazwischen die nächsttiefere).`)
@@ -1110,7 +1152,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       const engText = (b: number | null, name: string) => (b !== null ? `${name} ${f1(b)} m` : `${name} ohne Querschnitt der amtlichen Vermessung`)
       an.eng.push(`Enge Kreuzung: eine Fahrbahn ist höchstens ${f2(SCHMAL_M)} m breit (${engText(bZ, 'Zufahrt')}, ` +
         `${engText(bR, rArm ? armName(rArm) : 'rechter Arm')}). Zusätzlich prüft die App, ob sich zwei Fahrzeuge auf den letzten ` +
-        `${ENG_LAENGE_M} m vor der Ecke sehen (VSS 40 273 Abb. 5, S. 11; Konstruktion nach bfu BM.021 Kap. 3.2.2, Abb. 4, S. 4).`)
+        `${ENG_LAENGE_M} m vor der Ecke sehen (Abb. 5, S. 11; Konstruktion nach bfu BM.021 Kap. 3.2.2, Abb. 4, S. 4).`)
       herleitung.push(`Enge Kreuzung: Sichtlinien vom Beobachtungspunkt D (B ${f2(RV_B_M)} m; Annahme: beobachtende Person in D) zu Punkten alle ` +
         `${ENG_SCHRITT_M} m auf einem Pfad von ${ENG_LAENGE_M} m (doppelte Anhaltestrecke bei rund 25 km/h): ab D (Annahme: Pfadbeginn ` +
         'in D) entlang der Achse der Zufahrt bis zum Schnitt mit der Achse des rechten Arms, dann auf dieser (Fahrbahnmitte eines ' +
@@ -1121,14 +1163,14 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
 
   // Veloverkehr (E3b)
   // nur die Führung dieses Falls; Lagen und Spaltenregeln der Tab. 3 in der Regelübersicht
-  const FUEHRUNG_SATZ: Record<Exclude<Velofuehrung, 'kein'>, string> = { misch: `im Mischverkehr, ${f2(D_VELO_M)} m vom rechten Fahrbahnrand`,
+  const FUEHRUNG_SATZ: Record<Exclude<Velofuehrung, 'kein'>, string> = { misch: `im Mischverkehr, ${f2(D_VELO_M)} m vom Rand`,
     radstreifen: `auf einem Radstreifen, in seiner Mitte (${f2(RADSTREIFEN_M)} m breit angenommen)`, radweg: 'auf einem Radweg, auf seiner Achse' }
   const mitVelo = richtungen.filter(r => r.velo && !r.veloGegen)
   const fuehrungen = [...new Set(mitVelo.map(r => r.veloFuehrung as Exclude<Velofuehrung, 'kein'>))]
-  if (mitVelo.length) an.verkehr.push(`Velos fahren ${fuehrungen.length === 1 ? `${mitVelo.length > 1 ? 'hier ' : `${vonSatz(mitVelo[0])} `}` +
+  if (mitVelo.length) an.verkehr.push(`Velos ${fuehrungen.length === 1 ? `${mitVelo.length > 1 ? 'fahren ' : `${vonSatz(mitVelo[0])} `}` +
     FUEHRUNG_SATZ[fuehrungen[0]] : fuehrungen.map(f => `${mitVelo.filter(r => r.veloFuehrung === f).map(vonSatz).join(' und ')} ` +
-    FUEHRUNG_SATZ[f]).join(', ')} (VSS 40 273 Ziffer 10 und 13.3, S. 7 und 9). Die nötige Sichtweite richtet sich nach Tempo und ` +
-    `Gefälle (Tab. 3, S. 9)${rv ? '; beim Rechtsvortritt mit dem Tempo der Strasse von rechts' : ''}.`)
+    FUEHRUNG_SATZ[f]).join(', ')} (Ziffer 10 und 13.3, S. 7 und 9); nötige Sicht nach Tempo und Gefälle (Tab. 3, S. 9)` +
+    `${rv ? ', beim Rechtsvortritt mit dem Tempo der Strasse von rechts' : ''}.`)
   for (const r of richtungen) if (r.veloGegen) an.verkehr.push(`${gross(vonSatz(r))} kommen nur Velos (Einbahn vom Knoten weg, OSM ` +
     `${r.veloGegen}); sie fahren am für sie rechten Fahrbahnrand${r.velo ? ` (${VELOFUEHRUNG_TEXT[r.veloFuehrung]})` : ''}.`)
   for (const r of richtungen) if (r.velo) herleitung.push(`Veloachse ${lageNach(r)}: ${r.velo.lageText}; ${VELOFUEHRUNG_TEXT[r.veloFuehrung]} ` +
@@ -1152,7 +1194,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
       dtHinter = l.s - sH
       Dt = { ...Dt, D: ke.Dtrottoir, Dachse: add(ke.Dtrottoir, links(l.t), dSeitlich) }
       if (dtHinter < B_INNERORTS_M - 0.005) hinweise.push(`D' von Hand ${f2(dtHinter)} m hinter dem hinteren Rand der Überfahrt: weniger ` +
-        `als B = ${f2(B_INNERORTS_M)} m (VSS 40 273 Ziffer 13.2).`)
+        `als B = ${f2(B_INNERORTS_M)} m (Ziffer 13.2).`)
       if (dist(ke.Dtrottoir, Dt.nullpunkt) > D_HAND_WEIT_M)
         hinweise.push(`D' von Hand liegt ${Math.round(dist(ke.Dtrottoir, Dt.nullpunkt))} m vom hinteren Rand entfernt: Lage prüfen.`)
     }
@@ -1200,13 +1242,13 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     // Auslegung der Neigungsrichtung und Spaltenregel in der Regelübersicht
     const sitz = zufahrtVelo ? 'bei der velofahrenden Person' : 'am Fahrer*innensitz'
     an.wartend.push(tueB ? (dtHinter !== null ? `Für die Sicht aufs Trottoir liegt das Auge D' von Hand ${f2(dtHinter)} m hinter dem ` +
-      `hinteren Rand der Überfahrt (berechnete Ausgangslage ${f2(B_INNERORTS_M)} m, VSS 40 273 Ziffer 13.2, S. 8).` : `Für die Sicht aufs Trottoir liegt ` +
-      `das Auge D' ${f2(B_INNERORTS_M)} m hinter dem hinteren Rand der Überfahrt, ${sitz} (VSS 40 273 Ziffer 13.2, S. 8).`) :
-      `Für die Sicht aufs Trottoir liegt das Auge D' ${f2(B_INNERORTS_M)} m hinter der Trottoirhinterkante, ${sitz} (VSS 40 273 ` +
+      `hinteren Rand der Überfahrt (berechnete Ausgangslage ${f2(B_INNERORTS_M)} m, Ziffer 13.2, S. 8).` : `Für die Sicht aufs Trottoir liegt ` +
+      `das Auge D' ${f2(B_INNERORTS_M)} m hinter dem hinteren Rand der Überfahrt, ${sitz} (Ziffer 13.2, S. 8).`) :
+      `Für die Sicht aufs Trottoir liegt das Auge D' ${f2(B_INNERORTS_M)} m hinter der Trottoirhinterkante, ${sitz} (` +
       'Ziffer 13.2, S. 8).')
     an.verkehr.push((tueB ? `Zufussgehende gehen auf einer Linie ${f2(TUE_GEHLINIE_M)} m vor dem hinteren Rand der Überfahrt (VSS 40 242 ` +
-      'Ziffer 14.4, S. 13); die nötige Sicht auf sie richtet sich nach VSS 40 273 Tab. 2 (S. 8).' : 'Zufussgehende gehen in der Mitte des ' +
-      'Trottoirs beidseits der Zufahrt; die nötige Sicht auf sie richtet sich nach VSS 40 273 Tab. 2 (S. 8).') +
+      'Ziffer 14.4, S. 13); die nötige Sicht auf sie richtet sich nach Tab. 2 (S. 8).' : 'Zufussgehende gehen in der Mitte des ' +
+      'Trottoirs beidseits der Zufahrt; die nötige Sicht auf sie richtet sich nach Tab. 2 (S. 8).') +
       ` Längsneigung des Trottoirs in Gehrichtung auf die Zufahrt zu ${neigungT}.`)
     herleitung.push(`${tueB ? 'Gehlinie' : 'Trottoirachse'}: ${quellen.join('; ')}; ${TROTTOIR_NEIGUNG_AUSLEGUNG}.`)
   }
@@ -1250,13 +1292,13 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     if (geprueft.length) {
       an.verkehr.push(`Ausserorts ist hier Überholen erlaubt (${ke.ueberholen !== null ? 'von Hand' : `aus Daten: ${vorgabeQuelle}`}): die App ` +
         `prüft ${geprueft.join(' und ')} zusätzlich die Sicht auf ein überholendes Fahrzeug auf dem Gegenfahrstreifen bis A (Sichtlinie S', ` +
-        'VSS 40 273 Ziffer 6, S. 4; Abb. 1, S. 5).')
+        'Ziffer 6, S. 4; Abb. 1, S. 5).')
       herleitung.push(`Überholfall: Achse des Gegenfahrstreifens ${f2(D_MFZ_M)} m vom anderen Fahrbahnrand (ohne Abzug eines Parkstreifens, ` +
         'Annahme), Zielpunkte bis A wie für Motorfahrzeuge, Hindernisse wie für Motorfahrzeuge' + (geteilt.length ? `; ${geteilt.join(' und ')} ` +
         `(Fahrbahn geteilt, Gegenrichtung baulich getrennt) ${f2(D_MFZ_M)} m vom linken Rand der Einbahn zum Knoten (Annahme)` : '') + '.')
     }
     if (mitAuto.length && ao.ausserorts && grund.length)
-      an.verkehr.push(`Überholfall nicht geprüft (${grund.join('; ')}; VSS 40 273 Ziffer 6, S. 4).`)
+      an.verkehr.push(`Überholfall nicht geprüft (${grund.join('; ')}; Ziffer 6, S. 4).`)
   }
   // Gesamtstatus je Richtung: schlechtester von Auto, Velo, Überholfall und Trottoir dieser Seite
   for (const r of richtungen) {
@@ -1410,7 +1452,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
 
   return { knoten: g ? null : info.id, zufahrt: zArm.key, zufahrtName: g?.weg != null ? `${zArm.nr} ${zName}` : armText(zArm),
     zufahrtspunkt: g ? { eingabe: g.eingabe, richtung: g.richtung, gezeichnet: g.gezeichnet, weg: g.weg, strasse: g.strasse, herkunft: g.herkunft, winkel: zufahrtWinkel(g.strassenRichtung, g.richtung) } : null,
-    D, Dachse, Dvorgabe: vorgabe.D, Dhand: !!ke.D, Dlage, fbRichtung, rand: beob.rand, nullpunkt: vorgabe.nullpunkt, nullpunktText,
+    D, Dachse, Dvorgabe: vorgabe.D, Dhand: !!ke.D, Dlage, fbRichtung, fbDachse, fbHand: !!ke.fbRichtung, zufahrtVersatz: zVersatz || null, rand: beob.rand, nullpunkt: vorgabe.nullpunkt, nullpunktText,
     ...(!haltelinie && !abRadweg && (!trAt || ke.trottoirFrei || tue) && beob.randGefunden ? { bBezug: {
       linie: abschneiden(abBogen(rand, Math.max(0, lot(rand, beob.rand).s - 6)), 12),
       quelle: `Fahrstreifenkante für B, aus ${haupt.some(h => h.seiteZ.qs.annahme) ? 'angenommener Fahrbahnbreite' : 'AV-Querschnitten'} ` +
@@ -1482,6 +1524,11 @@ function veloAufTrottoir(netz: OsmNetz, arme: { arm: ArmInfo; seite: 1 | -1 }[],
 /** Sicht von D auf eine Achse ab K (Velo, Trottoir; E3b): erfüllt ab A, sonst nicht erfüllt (Tab. 2 und 3 ohne Bereich). Hindernisse
  *  (nicht Gebäude der AV), in denen ein Zielpunkt bis A liegt, zählen nicht (die Achse läuft durch sie hindurch, z. B. ein Parkfeld
  *  breiter als der Parkstreifen-Abzug): Hinweis */
+function faHandPruefen(h: FahrzeugLageHand, achse: P[], D: P, flaechen: Verdeckend[], seitlich: number): FaHandErgebnis {
+  const richtung = einheit(h.richtung), front = add(h.mitte, richtung, PW_LAENGE_M / 2), l = lageAnAchse(achse, front)
+  return { mitte: h.mitte, richtung, front, abstandK: l.s, seitlich, verdecker: verdecktVoll(D, front, flaechen)?.name ?? null }
+}
+
 function sichtTeil(D: P, achse: P[], sMax: number, flaechenAlle: Verdeckend[], A: number): SichtTeil {
   const ziel: number[] = []
   for (let s = 0; s <= A + 1e-9; s += 0.5) ziel.push(s)
@@ -1530,9 +1577,9 @@ function hindernisStand(k: Kontext, hg: HindernisEingaben, kp: P, reichweite: nu
 function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo, ml: P[], ende: ArmEnde | null, qs: Querschnitt, zAchse: P[], D: P, kp: P,
   strasse: StrasseErgebnis, ns: NeigungStand, avRadius: number, hindernisse: Verdeckend[], park: ParkRaster | null,
   te0: TempoEingabe | null, amtlich: TempoAmtlichDaten | null, rvR: { wahr: Wahrnehmbarkeit } | { grund: string } | null, avZentrum: P, vs: VeloStand,
-  ebikeVerboten: boolean): RichtungErgebnis {
+  ebikeVerboten: boolean, faHand: FahrzeugLageHand | null = null, veloHand: number | null = null): RichtungErgebnis {
   const { netz } = k
-  const hinweise: string[] = []
+  const hinweise: string[] = [], herleitungR: string[] = []
   // Rechtsvortritt (E3c, 31.10.2026): Tempo wie sonst (OSM, Geoportal, von Hand); es wirkt nur auf die Velos
   // (Tab. 3), die Auto-Sicht folgt Abb. 6
   const rvWahr = rvR && 'wahr' in rvR ? rvR.wahr : null
@@ -1575,12 +1622,13 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
   if (ns.hinweis) hinweise.push(ns.hinweis)
   if (sw.hinweis) hinweise.push(sw.hinweis)
   if (rvWahr && tempo > RV_TEMPO)
-    hinweise.push(`Tempo ${tempo} km/h: Die Norm geht beim Rechtsvortritt von ${RV_TEMPO} km/h aus (Ziffer 15, S. 10). Bei höherem Tempo ` +
+    hinweise.push(`Tempo ${tempo} km/h: Die Norm rechnet beim Rechtsvortritt mit ${RV_TEMPO} km/h (Ziffer 15, S. 10). Bei höherem Tempo ` +
       'fehlt eine Voraussetzung für den Rechtsvortritt; stufe die Wahrnehmbarkeit tiefer ein. Die Velos brauchen mehr Sicht (Tab. 3, S. 9).')
-  hinweise.push(...sw.hinweise)
+  // Ablesung aus Abb. 2 der 40 090b: technisch (Herleitung); «unsicher» (ausserhalb der Kurve) bleibt ein Hinweis
+  for (const h of sw.hinweise) (h.startsWith('Abb. 2 liegt für') ? herleitungR : hinweise).push(h)
   if (rvMin && Math.abs(ns.i) > NEIGUNG_EBEN_PROZENT + 1e-9)
-    hinweise.push(`Längsneigung ${fi(ns.i)} %: die Werte für den Rechtsvortritt gelten ohne Längsneigung (Ziffer 16); bei Gefälle ` +
-      'mehr Sichtweite vorsehen (nicht gerechnet).')
+    hinweise.push(`Längsneigung ${fi(ns.i)} %: die Werte für den Rechtsvortritt gelten ohne Neigung (Ziffer 16); bei Gefälle ` +
+      'mehr Sicht vorsehen, nicht gerechnet.')
   const sMax = rvMin ? RV_ZIEL_M : zielLaenge(sw)
   const rvGrund = rvR && 'grund' in rvR ? rvR.grund : null
   // Velo gegen die Einbahn (E4): Einbahn vom Knoten weg, aber Velozufluss (OSM-Tag); von dieser Seite kommen nur Velos (beim
@@ -1594,13 +1642,19 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
   const jeStelle = (wert: (f: Velofuehrung) => number) => (x: number) => !vs.ab ? wert(vs.fuehrung) :
     wert(vs.fuehrung) + (wert(vs.ab.fuehrung) - wert(vs.fuehrung)) * Math.max(0, Math.min(1, (x - vs.ab.s) / VELO_WECHSEL_M))
   const veloAbzugBei = jeStelle(f => (f === 'radstreifen' ? RADSTREIFEN_M : 0))
-  const fa = mitVerlaengerung(vs.ab ? versetztVariabel(ml, x => randLinksBei(qs, x) - (D_MFZ_M + ps.abzug + veloAbzugBei(x))) :
+  const faBerechnet = mitVerlaengerung(vs.ab ? versetztVariabel(ml, x => randLinksBei(qs, x) - (D_MFZ_M + ps.abzug + veloAbzugBei(x))) :
     fahrstreifenAchse(ml, qs, D_MFZ_M + ps.abzug + veloAbzug))
+  // F_A von Hand (Korrektur, wenn die App den Rand falsch erkannt hat): die Fahrlinie läuft parallel durch das Fahrzeug. Nur der seitliche
+  // Versatz zählt; ml läuft vom Knoten weg, der rechte Rand des Verkehrs zum Knoten liegt links davon (Versatz positiv = näher am Rand)
+  const handVersatz = faHand && a.zufluss && !rvGrund ? -lageAnAchse(faBerechnet, faHand.mitte).seitlich : 0
+  const faVersetzt = Math.abs(handVersatz) >= FA_VERSATZ_MIN_M
+  const fa = faVersetzt ? versetzt(faBerechnet, handVersatz) : faBerechnet
+  const randVorgabe = D_MFZ_M + ps.abzug + veloAbzug
   const abText = vs.ab ? `; ab der Teilung der Fahrbahn nach ${Math.round(vs.ab.s)} m ${VELOFUEHRUNG_TEXT[vs.ab.fuehrung]} (${vs.ab.quelle})` : ''
   const x = schnittBei(zAchse, fa, kp)
   let sK: number
   if (x) sK = x.sb
-  else { sK = lot(fa, kp).s; hinweise.push('Kein Schnitt der Zufahrtsachse mit der Fahrstreifenachse: K als Lot vom Knoten.') }
+  else { sK = lot(fa, kp).s; herleitungR.push('Kein Schnitt der Zufahrtsachse mit der Fahrstreifenachse: K als Lot vom Knoten.') }
   const achse = abBogen(fa, sK)
   const K = achse[0]
   const weit = a.zufluss ? Math.max(...abschneiden(achse, sMax).map(p => dist(avZentrum, p))) : 0
@@ -1608,7 +1662,7 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
     hinweise.push(`Zielpunkte reichen über den AV-Ausschnitt (±${avRadius} m) hinaus: weiter weg fehlen Gebäude` +
       (weit + AV_RESERVE_M > AV_MAX_M ? ` (nachgeladen wird höchstens ±${AV_MAX_M} m).` : '.'))
   const basis = { richtung, lage, arm: a.key, strasse: armText(a), spur, tempo, tempoQuelle, tempoAnnahme, tempoVorgabe, tempoVorgabeQuelle, tempoOsmVergleich,
-    tempoArt: te?.art ?? null, tempoBegruendung: te?.begruendung.trim() ?? '', stufe: sw.stufe,
+    tempoArt: te?.art ?? null, tempoBegruendung: te?.begruendung.trim() ?? '', stufe: sw.stufe, herleitung: herleitungR,
     erforderlichUnten: sw.unten, erforderlichOben: sw.oben, zwischenwert: sw.zwischen, typStufe: sw.typStufe, typWert: sw.typWert,
     typText: sw.typText, neigung: sw.neigung, neigungVorgabe: ns.vorgabe, neigungHand: ns.hand,
     // ohne Verkehr von dieser Seite kein Profil (dann auch nicht «unbekannt»)
@@ -1619,12 +1673,16 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
     neigungVorgabeQuelle: (a.zufluss && !rvGrund) || nurVelo ? ns.vorgabeQuelle : rvGrund ? 'entfällt: diese Richtung wird beim Rechtsvortritt nicht geprüft' :
       'kein Verkehr von dieser Seite: ohne Profil',
     anhalte: sw.anhalte, anhalteAngewendet: sw.anhalteAngewendet,
-    massgebend: sw.massgebend, massgebendText: sw.massgebendText, sMax, K, randAbstand: D_MFZ_M + ps.abzug + veloAbzug,
+    massgebend: sw.massgebend, massgebendText: sw.massgebendText, sMax, K, randAbstand: randVorgabe - (faVersetzt ? handVersatz : 0),
+    ...(faVersetzt ? { fahrlinieHand: { versatz: handVersatz, randVorgabe } } : {}),
     lageQuelle: `${qs.quelle}; ${parkStreifenText(ps)}${veloAbzug ? `; Radstreifen ${f2(RADSTREIFEN_M)} m (Annahme), Achse ${f2(D_MFZ_M)} m ` +
-      'daneben' : ''}${abText}`, parkStreifen: ps,
+      'daneben' : ''}${abText}${faVersetzt ? `; Fahrlinie von Hand ${f2(Math.abs(handVersatz))} m versetzt` : ''}`, parkStreifen: ps,
     veloFuehrung: vs.fuehrung, veloVorgabe: vs.vorgabe, veloVorgabeQuelle: vs.quelle, veloGewaehlt: vs.gewaehlt } as const
   // Veloverkehr (E3b, Ziffer 13.3): Veloachse je Führung, Tab. 3 nach der zulässigen Höchstgeschwindigkeit und der Neigung
   // Velo gegen die Einbahn (E4): dieselbe Achse am für das Velo rechten Rand (aus Sicht des Autoverkehrs dem linken)
+  const veloHandHinweis = (x: number, berechnet: number) => hinweise.push(`Veloachse von Hand ${f2(Math.abs(x))} m ` +
+    `${x > 0 ? 'weiter weg vom' : 'näher am'} Rand: ${f2(berechnet + x)} m statt ${f2(berechnet)} m. Die Velo-Prüfung rechnet auf dieser Linie, ` +
+    'die nötige Sichtweite bleibt.')
   const veloRechnen = (): VeloErgebnis | null => {
     if (vs.fuehrung === 'kein') return null
     const rw = vs.radweg
@@ -1644,8 +1702,13 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
       'Mitte des Gegenverkehrsstreifens') : lageText0) + '; Velo gegen die Einbahn: am für das Velo rechten, aus Sicht des Autoverkehrs ' +
       'linken Fahrbahnrand') + (vs.ab ? `; ab der Teilung der Fahrbahn nach ${Math.round(vs.ab.s)} m ${vs.ab.fuehrung === 'misch' ?
       `${f2(D_VELO_M)} m vom rechten Fahrbahnrand (Mischverkehr)` : `Mitte des Radstreifens`} (${vs.ab.quelle})` : '')
-    const va = mitVerlaengerung(vomRand !== null ? versetztVariabel(ml, s => randLinksBei(qs, s) - (vs.ab ? vomRandBei(s) : vomRand)) :
+    const vaBerechnet = mitVerlaengerung(vomRand !== null ? versetztVariabel(ml, s => randLinksBei(qs, s) - (vs.ab ? vomRandBei(s) : vomRand)) :
       versetzt(ml, versatz))
+    // Veloachse von Hand (Korrektur, z. B. Parkfeld oder Rand falsch erkannt): parallel versetzt, positiv weg vom rechten Rand. ml läuft vom
+    // Knoten weg, der rechte Rand dieses Verkehrs liegt links von ml: weg vom Rand = nach rechts von ml = negativer Versatz
+    const vVersatz = veloHand !== null && Math.abs(veloHand) >= VELO_HAND_MIN_M ? veloHand : 0
+    const va = vVersatz ? versetzt(vaBerechnet, -vVersatz) : vaBerechnet
+    const randAbstandBerechnet = qs.links - versatz
     const xv = schnittBei(zAchse, va, kp)
     const achseV = abBogen(va, xv ? xv.sb : lot(va, kp).s)
     // zulässige Höchstgeschwindigkeit: signalisiert von Hand bzw. OSM (V85, VP und fahrbares Tempo ändern die Zeile nicht)
@@ -1657,9 +1720,11 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
     if (te && te.art !== 'signalisiert') vh.push(`Tab. 3 nach der zulässigen Höchstgeschwindigkeit ${vt} km/h (${tempoVorgabeQuelle}), nicht nach dem Tempo von Hand.`)
     if (ebikeVerboten && vt <= 30) vh.push('«Schnelle E-Bikes verboten» gilt nur über 30 km/h: ohne Wirkung.')
     const kurve = richtungsAenderung(achseV, vsw.A)
-    if (kurve > KURVE_GRAD) vh.push(`Veloachse in einer Kurve (Richtungsänderung rund ${Math.round(kurve)}° bis A): A darf nach Ziffer 13.3 ` +
-      'reduziert werden, wenn die gefahrenen Geschwindigkeiten tiefer sind; nicht gerechnet.')
-    return { ...teil, fuehrung: vs.fuehrung, lageText, randAbstand: qs.links - versatz, radweg: rw, tempo: vt,
+    if (kurve > KURVE_GRAD) vh.push(`Veloachse in einer Kurve (rund ${Math.round(kurve)}° bis A): A dürfte nach Ziffer 13.3 kleiner sein, ` +
+      'wenn langsamer gefahren wird; nicht gerechnet.')
+    if (vVersatz) veloHandHinweis(vVersatz, randAbstandBerechnet)
+    return { ...teil, fuehrung: vs.fuehrung, lageText: lageText + (vVersatz ? `; von Hand ${f2(Math.abs(vVersatz))} m ${vVersatz > 0 ? 'weiter weg vom' : 'näher am'} Rand` : ''),
+      randAbstand: randAbstandBerechnet + vVersatz, ...(vVersatz ? { veloHand: { versatz: vVersatz, randVorgabe: randAbstandBerechnet } } : {}), radweg: rw, tempo: vt,
       tempoQuelle: vt === tempo ? tempoQuelle : tempoVorgabeQuelle, neigung: ns.i, neigungUnbekannt: ns.unbekannt, text: vsw.text, ebike: vsw.ebike, hinweise: vh }
   }
   // Beispiel Knoten 132629283: liegt der Zielpunkt bei A (Auto bzw. Velo; der Überholfall hat dasselbe A wie das Auto) auf dem
@@ -1693,6 +1758,7 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
     quelle: t.v.quelle ?? 'AV', wirkung: t.v.wirkung ?? 'voll', sErst: t.sErst, strecke: t.strecke, ring: t.v.poly[0] }))
   // Statuszusatz und Hinweise zu Zweirädern, durchlässigen Zäunen und zur Palisade (ohne Statuswirkung)
   const statusZusatz: string[] = zustand ? [`Abb. 6: ${ZUSTAND_TEXT[zustand]}`] : []
+  if (faVersetzt) statusZusatz.push('Fahrlinie von Hand')
   const hinweisArt = (f: (t: VerdeckerEintrag) => boolean) => verdeckerListe.filter(t => t.wirkung === 'hinweis' && f(t))
   const zweirad = hinweisArt(t => t.art.startsWith('Parkfeld'))
   if (zweirad.length) {
@@ -1704,7 +1770,7 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
   if (zaun.length) {
     statusZusatz.push('Hinweis: Zaun')
     hinweise.push(`Sichtdurchlässiger Zaun bzw. Geländer im Sichtfeld ab ${f1(zaun[0].sErst)} m: Durchsicht vor Ort prüfen (Palisadenwirkung, ` +
-      'VSS 40 273 Ziffer 11).')
+      'Ziffer 11).')
   }
   const pal = si.palisade
   if (pal && (pal.anteil > 0 || pal.zaehlt)) {
@@ -1713,7 +1779,7 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
     const wertung = pal.zaehlt ? `(ab ${f1(PALISADE_MIN_M)} m: zählt als Verdeckung, Sichtweite endet davor)` :
       pal.hinterVoll ? '(liegt hinter der ersten vollen Verdeckung: ohne Wirkung)' :
       `(unter ${f1(PALISADE_MIN_M)} m: zählt nicht als Verdeckung)`
-    hinweise.push(`Palisade (Bäume, VSS 40 273 Ziffer 11, Abb. 3): ${proz} % der Strecke bis A verdeckt, längste zusammenhängend verdeckte ` +
+    hinweise.push(`Palisade (Bäume, Ziffer 11, Abb. 3): ${proz} % der Strecke bis A verdeckt, längste zusammenhängend verdeckte ` +
       `Strecke bis A ${f1(pal.laengste)} m ${wertung}.` + (pal.beiA ? ' Der Zielpunkt bei A liegt im Schatten eines ' +
       'Stamms: Sichtbarkeit des Fahrzeugs bei A vor Ort prüfen.' : ''))
   }

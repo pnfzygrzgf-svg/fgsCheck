@@ -85,7 +85,7 @@ describe('VSS 40 273 Ziffer 13.1: Strassentyp, ungünstige Verhältnisse, Neigun
     expect(s30.massgebend).toBe(20)
     expect(s30.anhalte?.meter).toBe(19)
     expect(sichtweiteA(30, 'es', KEINE_UNGUNST, -6)).toMatchObject({ massgebend: 21, massgebendText: 'Anhaltesichtweite bei −6 %' })
-    expect(s30.hinweise.join(' ')).toContain('4 m über dem unteren Wert der VSS 40 273 Tab. 1 (20 m)')
+    expect(s30.hinweise.join(' ')).toContain('4 m über dem unteren Wert der Tab. 1 (20 m)')
   })
   it('Anhaltesichtweite über dem oberen Wert (80 km/h, −12 %): massgebend 142 m, Zielpunkte 1,5 × 142 m', () => {
     // Diagramm 143 m, um −1 m auf Tab. 1 verschoben (111 statt 110 m bei 0 %)

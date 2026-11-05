@@ -18,7 +18,7 @@
 // Je Richtung die Liste aller Flächen, die eine Sichtlinie bis A schneiden (erster verdeckter Meter, verdeckte Strecke; fein).
 // Sichtdreieck für die Anzeige: Polygon aus D und den Achsenpunkten von K bis A.
 
-import type { P } from '../geo'
+import { imPolygon, type P } from '../geo'
 import type { Poly } from './poly'
 import { linieTrifft } from './hindernisse'
 import { abschneiden, streckeLaenge } from './netz'
@@ -84,6 +84,10 @@ const boxVon = (poly: Poly): Box => {
   return [x0, y0, x1, y1]
 }
 const boxPunkte = (pts: P[]): Box => boxVon([pts])
+/** Erste Fläche, die die Sichtlinie D–Z voll verdeckt; Bäume (Palisade), Hinweisflächen und Hindernisse, in denen Z selbst liegt, zählen nicht */
+export const verdecktVoll = (D: P, Z: P, flaechen: Verdeckend[]): Verdeckend | null =>
+  verdeckt(D, Z, flaechen.filter(f => (f.wirkung ?? 'voll') === 'voll' && !(f.quelle && f.quelle !== 'AV' && imPolygon(Z, f.poly)))
+    .map(v => ({ v, box: boxVon(v.poly) })))
 const boxSchnitt = (a: Box, b: Box) => !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3])
 
 /**

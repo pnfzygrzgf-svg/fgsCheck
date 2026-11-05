@@ -69,21 +69,21 @@ describe('E2b: Vortrittsregelung', () => {
   it('Vorgabe ohne Signal: Vortritt (Annahme); ausserorts B 5,00 m', () => {
     const e = rechne(osm({ maxspeed: '60' }), [fahrbahn])
     expect([e.regelung, e.regelungVorgabe, e.regelungGewaehlt, e.B]).toEqual(['vortritt', 'vortritt', false, 5])
-    expect(e.annahmen.join(' | ')).toContain('Vortrittsregelung «Kein Vortritt (Signal 3.02)» angenommen (ohne Signal in OSM')
+    expect(e.annahmen.join(' | ')).toContain('Kein Vortritt (Signal 3.02) angenommen: kein Signal in OSM')
   })
   it('Vorgabe ohne Signal nach der Vortrittsstrasse: Quartierstrasse Tempo 30 -> Rechtsvortritt, sonst Vortritt', () => {
     // residential mit maxspeed 30: Rechtsvortritt (Annahme), B 5,00 m nach Abb. 4
     const q = rechne(osm({ highway: 'residential', maxspeed: '30' }), [fahrbahn])
     expect([q.regelung, q.regelungVorgabe, q.regelungGewaehlt, q.B]).toEqual(['rechtsvortritt', 'rechtsvortritt', false, 5])
-    expect(q.regelungQuelle).toContain('Quartierstrasse mit Tempo 30 km/h')
-    expect(q.annahmen.join(' | ')).toContain('Vortrittsregelung «Rechtsvortritt (ohne Signal)» angenommen (ohne Signal in OSM. Quartierstrasse')
+    expect(q.regelungQuelle).toContain('Quartierstrasse mit Tempo 30')
+    expect(q.annahmen.join(' | ')).toContain('Rechtsvortritt angenommen: kein Signal in OSM, Quartierstrasse')
     // unclassified nur mit Zonen-Tag
     expect(rechne(osm({ highway: 'unclassified', maxspeed: '30' }), [fahrbahn]).regelungVorgabe).toBe('vortritt')
     const z = rechne(osm({ highway: 'unclassified', maxspeed: '30', 'zone:maxspeed': 'CH:30' }), [fahrbahn])
-    expect([z.regelungVorgabe, z.regelungQuelle]).toEqual(['rechtsvortritt', 'ohne Signal in OSM; Quartierstrasse mit Tempo 30 km/h (Tempo-30-Zone)'])
+    expect([z.regelungVorgabe, z.regelungQuelle]).toEqual(['rechtsvortritt', 'kein Signal in OSM, Quartierstrasse mit Tempo 30 (Tempo-30-Zone)'])
     // Hauptverkehrsstrasse bzw. Tempo 50 bzw. priority_road: Vortritt mit Grund
-    expect(rechne(osm({ highway: 'tertiary', maxspeed: '30' }), [fahrbahn]).regelungQuelle).toBe('ohne Signal in OSM; Vortrittsstrasse highway=tertiary')
-    expect(rechne(osm({ highway: 'residential', maxspeed: '50' }), [fahrbahn]).regelungQuelle).toBe('ohne Signal in OSM; Vortrittsstrasse maxspeed 50 km/h')
+    expect(rechne(osm({ highway: 'tertiary', maxspeed: '30' }), [fahrbahn]).regelungQuelle).toBe('kein Signal in OSM, Vortrittsstrasse highway=tertiary')
+    expect(rechne(osm({ highway: 'residential', maxspeed: '50' }), [fahrbahn]).regelungQuelle).toBe('kein Signal in OSM, Vortrittsstrasse maxspeed 50 km/h')
     expect(rechne(osm({ highway: 'residential', maxspeed: '30', priority_road: 'designated' }), [fahrbahn]).regelungVorgabe).toBe('vortritt')
     // Signal geht vor
     const gw = osm({ highway: 'residential', maxspeed: '30' }, { vortritt: [{ id: 98, tags: { highway: 'give_way' }, lat: ll(0, -4)[0], lon: ll(0, -4)[1] }] })
@@ -95,7 +95,7 @@ describe('E2b: Vortrittsregelung', () => {
     nahe(e.Dachse, 1.25, -6)
     nahe(e.D, 0.75, -6)
     expect(e.annahmen.some(a => a.includes('Vortrittsregelung'))).toBe(false)
-    expect(e.annahmen.join(' | ')).toContain('steht 3,00 m hinter der Kante des Fahrstreifens mit Vortritt (Beobachtungsdistanz B ausserorts, Stop')
+    expect(e.annahmen.join(' | ')).toContain('steht 3,00 m hinter der Kante des Fahrstreifens mit Vortritt (B ausserorts, Stop')
   })
   it('Vorgabe aus OSM highway=stop an der Zufahrt: Stop, B 3,00 m ausserorts; give_way: Vortritt', () => {
     const stop = osm({ maxspeed: '60' }, { vortritt: [{ id: 99, tags: { highway: 'stop' }, lat: ll(0, -4)[0], lon: ll(0, -4)[1] }] })
@@ -333,5 +333,122 @@ describe('E2b: Grundstückzufahrt', () => {
     expect(zufahrtspunktLesen('2600123.4,1200456.7')).toEqual([2600123.4, 1200456.7])
     expect(zufahrtspunktLesen('7.4,46.9')).toBeNull()
     expect(zufahrtspunktLesen(null)).toBeNull()
+  })
+})
+
+describe('Lage von Hand: Halte- oder Wartelinie', () => {
+  it('quer zur Achse: gleiche Rechnung wie gesetzt, die Linie bleibt seitlich an der gezogenen Stelle', () => {
+    // Mitte (2,25; −4), längs nach Osten: Schnitt mit der Achse x = 1,25 bei y = −4, also 1 m hinter der Kante y = −3
+    const e = rechne(osm(), [fahrbahn], { eingaben: eg({ haltelinie: lv(2.25, -4), halteRichtung: [1, 0] }) })
+    const h = e.haltelinie!
+    nahe(h.p, 1.25, -4); nahe(h.mitte, 2.25, -4); nahe(h.quer[0], 0.75, -4); nahe(h.quer[1], 3.75, -4)
+    expect([h.hand, Math.round(h.winkel)]).toEqual([true, 0])
+    expect(h.abstand).toBeCloseTo(1, 6)
+    nahe(e.Dachse, 1.25, -7)
+    expect(e.hinweise.some(t => t.includes('schräg'))).toBe(false)
+  })
+  it('gedreht: B ab dem Schnitt mit der Achse, Hinweis als Annahme', () => {
+    // Mitte (2,25; −5), 45° nach Nordosten: die Linie trifft die Achse x = 1,25 bei y = −6; B 3,00 m dahinter: Dachse y = −9
+    const r = Math.SQRT1_2
+    const e = rechne(osm(), [fahrbahn], { eingaben: eg({ haltelinie: lv(2.25, -5), halteRichtung: [r, r] }) })
+    nahe(e.haltelinie!.p, 1.25, -6)
+    expect(e.haltelinie!.abstand).toBeCloseTo(3, 6)
+    expect(e.haltelinie!.winkel).toBeCloseTo(45, 4)
+    nahe(e.Dachse, 1.25, -9)
+    expect(e.hinweise.some(t => t.includes('45° schräg') && t.includes('Annahme'))).toBe(true)
+  })
+  it('parallel zur Achse: nicht gerechnet, B ab der Kante', () => {
+    const e = rechne(osm(), [fahrbahn], { eingaben: eg({ haltelinie: lv(2.25, -4), halteRichtung: [0, 1] }) })
+    expect(e.haltelinie).toBeNull()
+    expect(e.hinweise.some(t => t.includes('trifft die Zufahrtsachse nicht'))).toBe(true)
+    nahe(e.Dachse, 1.25, -6)
+  })
+})
+
+describe('Lage von Hand: Fahrzeuge', () => {
+  it('F_B gedreht: nur die Darstellung, D, Dachse und die Sicht bleiben', () => {
+    // nach Osten gedreht: Bezugspunkt 0,5 m rechts von D (0,75; −6), also (0,75; −6,5)
+    const ohne = rechne(osm(), [fahrbahn, ecke])
+    const e = rechne(osm(), [fahrbahn, ecke], { eingaben: eg({ fbRichtung: [1, 0] }) })
+    expect([e.fbHand, e.fbRichtung]).toEqual([true, [1, 0]])
+    nahe(e.D, 0.75, -6); nahe(e.Dachse, 1.25, -6); nahe(e.fbDachse!, 0.75, -6.5)
+    expect(e.richtungen.map(r => [r.vorhanden, r.status])).toEqual(ohne.richtungen.map(r => [r.vorhanden, r.status]))
+  })
+  it('F_A von Hand: seitlicher Versatz verschiebt die Fahrlinie, die Prüfung rechnet darauf und weist es aus', () => {
+    const ohne = rechne(osm(), [fahrbahn, ecke])
+    const o = seite(ohne, 'links')
+    const yAchse = o.K[1] - lv(0, 0)[1]
+    const e = rechne(osm(), [fahrbahn, ecke], { eingaben: eg({ faHand: { links: { mitte: lv(-30, yAchse + 1), richtung: [1, 0] }, rechts: null } }) })
+    const r = seite(e, 'links')
+    expect(r.fahrlinieHand!.versatz).toBeCloseTo(-1, 1)
+    expect(r.fahrlinieHand!.randVorgabe).toBeCloseTo(o.randAbstand, 5)
+    expect(r.randAbstand).toBeCloseTo(o.randAbstand + 1, 1)
+    expect(r.K[1] - o.K[1]).toBeCloseTo(1, 1)
+    expect(r.faHand!.seitlich).toBeCloseTo(1, 1)
+    expect(r.statusZusatz).toContain('Fahrlinie von Hand')
+    expect(r.erforderlichUnten).toBe(o.erforderlichUnten)
+    expect(r.vorhanden).toBeGreaterThan(o.vorhanden)        // weiter weg von der Gebäudeecke: die Sicht wird länger
+    expect(seite(e, 'rechts').fahrlinieHand).toBeUndefined()
+    const h = e.hinweise.find(t => t.startsWith('F_A'))!
+    expect(h).toContain('weiter weg vom rechten Fahrbahnrand')
+    expect(h).toContain('Grosse Abweichung')
+    // näher am Rand
+    const n = rechne(osm(), [fahrbahn, ecke], { eingaben: eg({ faHand: { links: { mitte: lv(-30, yAchse - 0.3), richtung: [1, 0] }, rechts: null } }) })
+    expect(seite(n, 'links').randAbstand).toBeCloseTo(o.randAbstand - 0.3, 1)
+    expect(n.hinweise.find(t => t.startsWith('F_A'))).toContain('näher am rechten Fahrbahnrand')
+  })
+  it('F_A von Hand: längs verschoben und gedreht ändert die Rechnung nicht, die Sichtlinie auf die Front wird geprüft', () => {
+    // Front (−27,75; y der Achse): auf der berechneten Fahrlinie
+    const ohne = rechne(osm(), [fahrbahn, ecke])
+    const o = seite(ohne, 'links')
+    const yAchse = o.K[1] - lv(0, 0)[1]
+    const e = rechne(osm(), [fahrbahn, ecke], { eingaben: eg({ faHand: { links: { mitte: lv(-30, yAchse), richtung: [1, 0.2] }, rechts: null } }) })
+    const r = seite(e, 'links')
+    expect(r.fahrlinieHand).toBeUndefined()
+    expect(r.faHand!.seitlich).toBe(0)
+    expect(r.statusZusatz).not.toContain('Fahrlinie von Hand')
+    expect([r.status, r.vorhanden, r.randAbstand]).toEqual([o.status, o.vorhanden, o.randAbstand])
+    expect(seite(e, 'rechts').faHand ?? null).toBeNull()
+    expect(e.hinweise.some(t => t.startsWith('F_A') && t.includes('ohne Wirkung auf die Rechnung'))).toBe(true)
+  })
+  it('F_B seitlich von Hand: die Zufahrtsachse wandert parallel, D, K und der Nullpunkt folgen, B bleibt, ausgewiesen', () => {
+    const ohne = rechne(osm(), [fahrbahn, ecke])
+    // Zufahrt von Süden: die fahrende Person schaut nach Norden, links ist Westen
+    const e = rechne(osm(), [fahrbahn, ecke], { eingaben: eg({ zufahrtVersatz: 1 }) })
+    expect(e.zufahrtVersatz).toBe(1)
+    expect(e.D[0] - ohne.D[0]).toBeCloseTo(-1, 2)
+    expect(e.D[1] - ohne.D[1]).toBeCloseTo(0, 2)
+    expect(e.nullpunkt[0] - ohne.nullpunkt[0]).toBeCloseTo(-1, 2)
+    expect(seite(e, 'rechts').K[0] - seite(ohne, 'rechts').K[0]).toBeCloseTo(-1, 2)
+    expect(e.B).toBe(ohne.B)
+    expect(e.Dhand).toBe(false)
+    expect(e.Dlage.laengs).toBeCloseTo(ohne.Dlage.laengs, 5)
+    expect(seite(e, 'rechts').statusZusatz).toContain('Zufahrt von Hand')
+    expect(e.hinweise.some(t => t.startsWith('Zufahrtsachse von Hand 1,00 m nach links'))).toBe(true)
+    // nach rechts
+    const r = rechne(osm(), [fahrbahn, ecke], { eingaben: eg({ zufahrtVersatz: -0.5 }) })
+    expect(r.D[0] - ohne.D[0]).toBeCloseTo(0.5, 2)
+    expect(ohne.zufahrtVersatz ?? null).toBeNull()
+  })
+  it('Velo von Hand: die Veloachse wird parallel versetzt, die Velo-Prüfung rechnet darauf und weist es aus', () => {
+    const ohne = rechne(osm(), [fahrbahn, ecke])
+    const o = seite(ohne, 'links').velo!
+    const e = rechne(osm(), [fahrbahn, ecke], { eingaben: eg({ veloHand: { links: 1, rechts: null } }) })
+    const v = seite(e, 'links').velo!
+    expect(v.veloHand).toEqual({ versatz: 1, randVorgabe: o.randAbstand })
+    expect(v.randAbstand).toBeCloseTo(o.randAbstand + 1, 5)
+    // Verkehr von links fährt nach Osten, sein rechter Rand liegt im Süden: weg vom Rand = nach Norden
+    expect(v.K[1] - o.K[1]).toBeCloseTo(1, 1)
+    expect(v.A).toBe(o.A)
+    expect(v.lageText).toContain('von Hand 1,00 m weiter weg vom Rand')
+    expect(seite(e, 'rechts').velo?.veloHand).toBeUndefined()
+    // Hinweis bei der Richtung (wie die übrigen Hinweise zum Velo dieser Richtung)
+    expect(seite(e, 'links').hinweise.some(t => t.startsWith('Veloachse von Hand 1,00 m weiter weg vom Rand'))).toBe(true)
+    // unter 5 cm: ohne Wirkung
+    expect(seite(rechne(osm(), [fahrbahn, ecke], { eingaben: eg({ veloHand: { links: 0.02, rechts: null } }) }), 'links').velo?.veloHand).toBeUndefined()
+  })
+  it('F_A von Hand mit freier Sicht', () => {
+    const e = rechne(osm(), [fahrbahn, ecke], { eingaben: eg({ faHand: { links: null, rechts: { mitte: lv(30, 1.5), richtung: [-1, 0] } } }) })
+    expect(seite(e, 'rechts').faHand!.verdecker).toBeNull()
   })
 })

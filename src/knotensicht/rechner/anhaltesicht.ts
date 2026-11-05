@@ -93,7 +93,7 @@ export function anhaltesichtweite(vp: number, i: number): Anhaltesicht {
   const abw = anhalteAbweichung(stufe)
   const wert = roh - abw
   if (Math.abs(abw) >= ABWEICHUNG_HINWEIS_M) hinweise.push(`Abb. 2 liegt für ${stufe} km/h bei i = 0 ${Math.abs(abw)} m ${abw > 0 ? 'über' : 'unter'} ` +
-    `dem unteren Wert der VSS 40 273 Tab. 1 (${TAB1[stufe][0]} m); die Kurve ist auf Tab. 1 verschoben, aus Abb. 2 zählt nur die ` +
+    `dem unteren Wert der Tab. 1 (${TAB1[stufe][0]} m); die Kurve ist auf Tab. 1 verschoben, aus Abb. 2 zählt nur die ` +
     `Wirkung der Neigung (Diagramm bei ${fi(ic)} %: ${Math.ceil(roh - 1e-9)} m).`)
   return { vp, stufe, i: ii, roh, wert, meter: Math.ceil(wert - 1e-9), unsicher, verlaengert, abweichung: abw, hinweise }
 }

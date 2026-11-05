@@ -80,7 +80,7 @@ export function veloSichtweite(tempo: number, i: number, ebikeVerboten = false, 
 }
 
 /** Richtung der Neigung des Trottoirs als Auslegung (Block 5; Annahmen, Panel, Hilfe) */
-export const TROTTOIR_NEIGUNG_AUSLEGUNG = 'Richtung der Neigung: in Gehrichtung auf die Zufahrt zu, talwärts negativ (Auslegung; VSS 40 273 ' +
+export const TROTTOIR_NEIGUNG_AUSLEGUNG = 'Richtung der Neigung: in Gehrichtung auf die Zufahrt zu, talwärts negativ (Auslegung; ' +
   'Tab. 2 nennt keine Richtung; gestützt auf bfu BM.021 Tab. 3, Fussnote S. 7: bei Gefälle höhere Geschwindigkeit auf dem Trottoir)'
 /** VSS 40 273 Tab. 2: A [m] auf dem Trottoir je Spalte (≤ −6, −4, −2, ≥ 0 %) */
 export const TAB2 = [30, 20, 20, 15]

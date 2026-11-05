@@ -106,7 +106,7 @@ describe('Punkt 17: Signal auf einer Einbahn vom Knoten weg', () => {
     // 1 m neben der Nebenstrasse, gut 3 m neben dem Arm West: früher «stop» für die Zufahrt West
     const e = rechneKnoten(tKnoten({ oneway: 'yes' }, [1, -3, 'stop']), [fahrbahn], { knoten: 12, zufahrt: WEST }).ergebnis!
     expect(e.regelungVorgabe).toBe('vortritt')
-    expect(e.regelungQuelle.startsWith('ohne Signal in OSM')).toBe(true)
+    expect(e.regelungQuelle.startsWith('kein Signal in OSM')).toBe(true)
     expect(e.hinweise.some(h => h.includes('Signal «Stop»'))).toBe(false)
     // dieselbe Lage auf einer Nebenstrasse mit Verkehr zum Knoten: zählt wie bisher
     expect(info(tKnoten({}, [1, -3, 'stop'])).signale.length).toBe(1)

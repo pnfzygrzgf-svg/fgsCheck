@@ -67,7 +67,7 @@ export interface Massnahme {
 export interface VarianteRichtung { richtung: Richtung; lage: Lage; vorhanden: number; massgebend: number; reicht: boolean; tempo: number
   velo?: { vorhanden: number; massgebend: number; reicht: boolean } | null
   ueberholfall?: { vorhanden: number; massgebend: number; reicht: boolean } | null   // Block 5: Überholfall (Ziffer 6), nur wenn geprüft
-  sichtfeldFrei?: boolean     // Rechtsvortritt, schmale Zufahrt: Sichtfeld nach bfu BM.021 Abb. 4 (VSS 40 273 Abb. 5) frei
+  sichtfeldFrei?: boolean     // Rechtsvortritt, schmale Zufahrt: Sichtfeld nach bfu BM.021 Abb. 4 (Abb. 5) frei
   nurVelo?: boolean           // E4: Velo gegen die Einbahn, von dieser Seite keine Motorfahrzeuge (vorhanden, massgebend: die des Velos)
 }
 /** Variante der bestehenden Rechnung: D an anderer Lage, ohne ein Hindernis, anderes Tempo je Richtung */
@@ -124,7 +124,7 @@ export function massnahmenRechnen(m: MassnahmenEingang): Massnahme[] | null {
   // 0 Rechtsvortritt aufheben (E3c, VSS 40 273 Ziffer 16)
   if (rv?.aufheben) out.push({ nr: 0, titel: 'Rechtsvortritt aufheben und Vortritt signalisieren', reicht: null, zeilen: [],
     text: 'Zustand nach Abb. 6 «zu sanieren» bzw. Sichtfeld nach Abb. 5 nicht frei: lassen sich Sichtweite und Wahrnehmbarkeit nicht ' +
-      'mit verhältnismässigem Aufwand verbessern, ist der Rechtsvortritt aufzuheben und der Vortritt zu signalisieren (VSS 40 273 Ziffer 16); ' +
+      'mit verhältnismässigem Aufwand verbessern, ist der Rechtsvortritt aufzuheben und der Vortritt zu signalisieren (Ziffer 16); ' +
       'danach gilt Teil D (Vortrittsregelung im Panel umstellen und neu rechnen).' })
   // Wahrnehmbarkeit verbessern (E3c, Ziffern 17 und 18): Zustand je Stufe bei der heutigen Sichtweite (Nr. 9, als Zweites gezeigt)
   if (rv) out.push({ nr: 9, titel: 'Wahrnehmbarkeit verbessern', reicht: null, zeilen: rv.wahrnehmbarkeit.map(text => ({ text, reicht: null })),

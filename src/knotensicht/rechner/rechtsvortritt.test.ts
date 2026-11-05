@@ -102,7 +102,7 @@ describe('E3c: T-Knoten mit Gebäudeecke rechts (Strahlensatz)', () => {
     const r = seite(e, 'rechts')
     expect([r.tempo, r.rv, r.strasse]).toEqual([50, true, '1 Hauptstrasse (Ost)'])
     // über 30 km/h: Hinweis auf die Voraussetzung des Rechtsvortritts
-    expect(r.hinweise.some(h => h.startsWith('Tempo 50 km/h: Die Norm geht beim Rechtsvortritt von 30 km/h aus'))).toBe(true)
+    expect(r.hinweise.some(h => h.startsWith('Tempo 50 km/h: Die Norm rechnet beim Rechtsvortritt mit 30 km/h'))).toBe(true)
     expect(rel(r.K).map(x => Math.round(x * 100) / 100)).toEqual([1.25, 1.5])
     expect(seite(e, 'links').status).toBe('keine_zufahrt')
     expect(e.rechtsvortritt!.arm.rechtsName).toBe('1 Hauptstrasse (Ost)')
@@ -119,16 +119,16 @@ describe('E3c: T-Knoten mit Gebäudeecke rechts (Strahlensatz)', () => {
       // sehr gut: Massnahmen nur wegen des Velos (Tab. 3), ohne «Rechtsvortritt aufheben»
       expect(e.massnahmen?.[0].nr === 0).toBe(w !== 'sehr_gut')
       // Fundstelle der Aufhebung: VSS 40 273 Ziffer 16 (die Wahrnehmbarkeit Ziffer 17)
-      if (w !== 'sehr_gut') expect(e.massnahmen![0].text).toContain('(VSS 40 273 Ziffer 16)')
+      if (w !== 'sehr_gut') expect(e.massnahmen![0].text).toContain('(Ziffer 16)')
     }
   })
   it('Ecke bei x = 10: 21,47 m; sehr gut und gut anzustreben, schlecht und sehr schlecht zu sanieren; Vorgabe gut als Annahme', () => {
     const e = rechne(osm(), [tFahrbahn(), ecke(10)])
     expect(e.rechtsvortritt!.arm.vorhanden).toBeCloseTo(21.46875, 2)
     expect([e.rechtsvortritt!.wahrnehmbarkeit, e.rechtsvortritt!.wahrnehmbarkeitGewaehlt, e.rechtsvortritt!.arm.status]).toEqual(['gut', false, 'erfuellt'])
-    expect(e.annahmen.join(' | ')).toContain('Die Wahrnehmbarkeit des Knotens ist mit «gut» angenommen (VSS 40 273 Ziffer 18, S. 12)')
+    expect(e.annahmen.join(' | ')).toContain('Wahrnehmbarkeit des Knotens «gut» angenommen (Ziffer 18, S. 12)')
     // Block 5: Voraussetzungen nach Ziffer 15 als Hinweis; beim Rechtsvortritt kein Überholfall
-    expect(e.hinweise).toContain('Ob hier Rechtsvortritt korrekt ist, prüft die App nicht. Das muss vor Ort gemäss VSS 40 273 geprüft werden.')
+    expect(e.hinweise).toContain('Ob hier Rechtsvortritt richtig ist, prüft die App nicht. Das muss vor Ort geprüft werden.')
     expect([e.ueberholen, e.annahmen.some(x => x.includes('Überholfall'))]).toEqual([null, false])
     // Themen in der Reihenfolge der Rechnung; ohne schmale Fahrbahn keine «Enge Kreuzung»
     expect(e.annahmenThemen!.map(x => x.thema)).toEqual(['vortritt', 'wartend', 'verkehr', 'hindernisse', 'wahrnehmbarkeit'])

@@ -56,6 +56,10 @@ export function faLage(sichtpunkte: P[], iA: number): [P, P] | null {
   return [add(sichtpunkte[iA], u, -PW_LAENGE_M / 2), u]
 }
 
+/** F_A für die Anzeige: von Hand gesetzt, sonst am Ende von A (faLage) */
+export const faAnzeige = (hand: { mitte: P; richtung: P } | null | undefined, sichtpunkte: P[], iA: number): [P, P] | null =>
+  hand ? [hand.mitte, hand.richtung] : faLage(sichtpunkte, iA)
+
 // ---------------------------------------------------------------- Velo (E3b)
 /** Velo von oben (Annahme, nur Darstellung): Länge und Breite (Lenker) */
 export const VELO_LAENGE_M = 1.8

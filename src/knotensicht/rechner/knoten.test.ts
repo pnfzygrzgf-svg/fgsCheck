@@ -72,6 +72,45 @@ describe('Knoten und Arme', () => {
     ]))
     expect(knotenInfo(n2, 12)!.vortritt).toEqual(['2:1:-1', '2:1:1'])
   })
+  it('Stichstück: ein Arm mit gleichem Namen, der für Motorfahrzeuge nach 14 m endet, gehört nicht zur Vortrittsstrasse (Knoten 2860577444)', () => {
+    const netz = new OsmNetz(daten([
+      weg(1, [[30, 0, -200], [12, 0, 0]], { highway: 'residential', name: 'Marzilistrasse', maxspeed: '30' }),
+      weg(2, [[12, 0, 0], [31, 2, 14]], { highway: 'residential', name: 'Marzilistrasse', maxspeed: '30' }),
+      weg(3, [[31, 2, 14], [32, 5, 60]], { highway: 'pedestrian', name: 'Marzilistrasse', bicycle: 'yes' }),
+      weg(4, [[12, 0, 0], [33, 100, 170]], { highway: 'residential', name: 'Aarstrasse', maxspeed: '30' }),
+    ]))
+    const k = knotenInfo(netz, 12)!
+    const stich = k.arme.find(a => a.wid === 2)!
+    expect(stich.stichM).toBeCloseTo(14.1, 0)
+    expect(k.vortritt).toEqual(expect.arrayContaining(['1:1:-1', '4:0:1']))
+    expect(k.vorschlag).toBe(stich.key)
+    expect(k.vortrittGrund).toContain('endet nach 14 m für Motorfahrzeuge (Annahme: Stichstück)')
+    // Ein Signal am Stichstück ändert nichts, eines an einem anderen Arm geht vor
+    const sig = vortrittsSignale({ ...daten([]), vortritt: [{ id: 9, lat: ll(9, 15.3)[0], lon: ll(9, 15.3)[1], tags: { highway: 'give_way' } }] }, [O[0], O[1]], lv95)
+    expect(knotenInfo(netz, 12, sig)!.vorschlag).toBe(k.arme.find(a => a.wid === 4)!.key)
+  })
+  it('Signal auf einem anderen OSM-Weg gilt nicht für den Arm daneben (Knoten 132704429)', () => {
+    const netz = new OsmNetz(daten([
+      weg(1, [[12, 0, 0], [13, 140, 100]], { highway: 'residential', name: 'Mühlemattstrasse' }),
+      weg(2, [[12, 0, 0], [14, -16, -7]], { highway: 'residential', name: 'Mühlemattstrasse' }),
+      weg(3, [[14, -16, -7], [15, -110, -33]], { highway: 'residential', name: 'Mühlemattstrasse' }),
+      weg(4, [[16, -140, 55], [17, -18, -4.5], [14, -16, -7]], { highway: 'residential', name: 'Mattenhofstrasse' }),
+      weg(5, [[12, 0, 0], [18, -11, -60]], { highway: 'residential', name: 'Sulgenbachstrasse' }),
+    ]))
+    const [lat, lon] = ll(-18, -4.5)
+    const nah = vortrittsSignale({ ...daten([]), vortritt: [{ id: 17, lat, lon, tags: { highway: 'give_way' } }] }, [O[0], O[1]], lv95)
+    expect(nah.length).toBe(1)
+    const k = knotenInfo(netz, 12, nah)!
+    expect(k.vortrittSicher).toBeUndefined()
+    expect(k.vorschlag).toBe(k.arme.find(a => a.wid === 5)!.key)
+  })
+  it('Stichstück: bleiben keine zwei durchgehenden Arme, gilt die Regel nach Weg, Name und Klasse', () => {
+    const netz = new OsmNetz(daten([
+      weg(1, [[10, -10, 0], [12, 0, 0], [13, 10, 0]], { highway: 'residential', name: 'Kurz' }),
+      weg(2, [[12, 0, 0], [20, 0, -200]], { highway: 'residential', name: 'Lang' }),
+    ]))
+    expect(knotenInfo(netz, 12)!.vortritt).toEqual(['1:1:-1', '1:1:1'])
+  })
   it('Zufahrt auf der Vortrittsstrasse: die übrigen Arme bilden die Vortrittsstrasse', () => {
     const k = knotenInfo(new OsmNetz(T()), 12)!
     const vp = vortrittPaar(k.arme, '1:1:1')!
