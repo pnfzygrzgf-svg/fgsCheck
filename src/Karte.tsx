@@ -20,7 +20,7 @@ import { useSichtWahl, sichtZeigen, sichtMassZeigen, fgsSichtId, tueSichtId } fr
 import { alphabetisch } from './daten/anbieter/gemeinsam/sortierung'
 import { QuellenMetadaten } from './daten/anbieter/gemeinsam/metadaten'
 import { quellenQualitaetText, type QuellenQualitaet } from './daten/anbieter/gemeinsam/qualitaet'
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import L from 'leaflet'
 import './kartenbaustein/tooltipRand'
 import 'leaflet/dist/leaflet.css'
@@ -32,7 +32,7 @@ import { annGleich, annGriffX, annGriffZiehen, type AnnGriff, type FangTreffer }
 import type { FallRechnung } from './rechner'
 import type { Vorschlag } from './rechner/vorschlaege'
 import { istZhParkId, ZH_PARK_FLAECHE } from './daten/anbieter/gemeinsam/parkZuerich'
-import type { Multi } from './rechner/poly'
+import type { Multi, Poly } from './rechner/poly'
 import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernisse'
 import { type StreifenHand, type Fixpunkt, type FlaechePlan, type PlanArt, PLAN_ARTEN, inselStandard } from './fall'
 import { planTitel, planFlaecheM2, PLAN_NAME, eckeRadiusMax, echteEcken, RUNDEN_R_BEREICH } from './rechner/planflaechen'
@@ -67,6 +67,8 @@ import { TK_KARTE_LAYER, TK_KARTE_NAME, TK_KARTE_QUELLE, TK_KARTE_ZOOM, tkAusFel
 import type { TaktilDaten } from './daten/taktil'
 import type { Bereich } from './daten/haltestellen'
 import { BESCHRIFT_ZOOM, EBENEN, ebenenFarbe, ebenenSichtbar, ebenenSymbol, type EbeneId, type EbenenDaten, type EbenenObjekt } from './quellenEbenen'
+import Ansicht3D, { AnsichtSchalter } from './ansicht3d/Ansicht3D'
+import { szene3d, type Farben3D, type SzeneOptionen } from './ansicht3d/modell'
 
 // AV-Farben nach der Berner Karte (karte_vorlage.html AV_STIL), Gebäude neutral dunkelgrau statt braun: kein Rot/Orange, damit Gebäude und Trottoir nicht mit
 // «verdeckt» bzw. dem Luftbild-Streifen verwechselt werden
@@ -157,6 +159,9 @@ export const PARK_FARBE: Record<string, string> = { auto: '#1e40af', velo: '#0f7
 /** Farbe eines Hindernisses: amtliche Parkfelder nach Klasse, sonst nach Quelle */
 export const hindernisFarbe = (h: Hindernis): string =>
   h.art === 'insel' ? INSEL_FARBE : h.quelle === 'kataster' && h.art === 'parkfeld' ? PARK_FARBE[h.klasse] : QUELLE_FARBE[h.quelle] ?? '#0ea5e9'
+
+/** Farben der 2D-Karte für die 3D-Ansicht (ansicht3d/modell.ts lädt kein Leaflet) */
+const FARBEN_3D: Farben3D = { status: STATUS_FARBE, hindernis: hindernisFarbe, plan: PLAN_FARBEN, insel: INSEL_FARBE }
 
 /** Annäherungsbereich von Hand in den Grenzen (Breite, Versatz); Rechnung der Griffe in annGriff.ts */
 export { annBegrenzt } from './annGriff'
@@ -372,6 +377,8 @@ const KARTE_STUFEN = [30, 45, 70]   // Kartenhöhe auf dem Smartphone in % der F
 export default function Karte(props: {
   mitte: [number, number]
   av: AvFlaeche[] | null
+  /** 3D-Ansicht: Brückenumrisse (AV-Einzelobjekte Bruecke_Passerelle, LV95) */
+  bruecken?: readonly Poly[]
   kantone: string[]
   uebergaenge: OsmKnoten[]
   /** Streifen aus dem Luftbild (ETH-Modell), nicht in OSM (daten/luftbildFgs.ts); gewählt über gewaehlt (negative Kennung) */
@@ -493,6 +500,13 @@ export default function Karte(props: {
   const [qOffen, setQOffen] = useState(false)
   const [profilAuswahl, setProfilAuswahl] = useState<string | null>(null)
   const [alleGelaendeProfile, setAlleGelaendeProfile] = useState(false)
+  // 3D-Ansicht (ansicht3d/): ersetzt die Karte im Kartenbereich, solange sie offen ist; die Szene folgt Rechnung und Auswahl
+  const [dreiD, setDreiD] = useState(false)
+  const szene3D = useMemo(() => {
+    if (!dreiD) return null
+    const optionen: SzeneOptionen = { feldZeigen: (art, z) => sichtZeigen(sicht, art, fgsSichtId(z)), profil: profilAuswahl, bruecken: props.bruecken }
+    return szene3d(rechnung, auswahl, hindernisse, flaechenPlan, props.neigung ?? null, FARBEN_3D, av ?? [], optionen)
+  }, [dreiD, rechnung, auswahl, hindernisse, flaechenPlan, props.neigung, av, sicht, profilAuswahl, props.bruecken])
   const [kartenStaende, setKartenStaende] = useState<Record<string, QuellenQualitaet>>({})
   useEffect(() => {
     if (!qOffen) return
@@ -1651,11 +1665,13 @@ export default function Karte(props: {
   useEffect(() => {
     const raf = requestAnimationFrame(() => kartenRef.current?.invalidateSize())
     return () => cancelAnimationFrame(raf)
-  }, [stufe, kartenRef])
+  }, [stufe, dreiD, kartenRef])
   return (
-    <div className="kartenrahmen" style={{ '--karte-h': `${stufe}dvh` } as CSSProperties}>
+    <div className={'kartenrahmen' + (dreiD ? ' dreid' : '')} style={{ '--karte-h': `${stufe}dvh` } as CSSProperties}>
       <PlanMuster />
-      <div ref={elRef} className="karte" />
+      <div ref={elRef} className="karte" aria-hidden={dreiD || undefined} />
+      {dreiD && szene3D && <Ansicht3D szene={szene3D} profil={profilAuswahl} setProfil={setProfilAuswahl} />}
+      <AnsichtSchalter dreiD={dreiD} setzen={setDreiD} moeglich={!!rechnung?.streifen.length} />
       <button type="button" className="karte-hoehe" onClick={stufeWeiter}
               aria-label={`Kartenhöhe ${stufe} % – ${stufe === 70 ? 'kleiner' : 'grösser'}`}
               title={`Karte ${stufe === 70 ? 'kleiner' : 'grösser'} (jetzt ${stufe} % der Höhe)`}>

@@ -19,7 +19,7 @@ import { ZH_PARK_SCHLUESSEL } from './daten/anbieter/gemeinsam/parkZuerich'
 /** Schlüssel in Fall.quellen bzw. in «Geladene Quellen» -> Kennung im Register */
 export const QUELLE_JE_SCHLUESSEL: Readonly<Record<string, string>> = {
   ...Object.fromEntries(REGIONAL_DIENSTE.map(d => [`regional.${d.id}`, `regional.${d.id}`])),
-  hoehenkurven: 'hoehenkurven', av: 'av', sosf: 'av', osm: 'osm', suche: 'osm', luftbild: 'swissimage', hoehen: 'swissalti', hoehenSicht: 'swissalti',
+  hoehenkurven: 'hoehenkurven', ansicht3d: 'swisstopo.3d', av: 'av', sosf: 'av', osm: 'osm', suche: 'osm', luftbild: 'swissimage', hoehen: 'swissalti', hoehenSicht: 'swissalti',
   hoehenBern: 'bern.dtm', hoehenSichtBern: 'bern.dtm',
   kataster: BAUMKATASTER[0].quelleId, baumkataster: BAUMKATASTER[0].quelleId, parkkataster: PARKKATASTER[0].quelleId,
   haltestellen: HALT_QUELLE_ID, verkehrsdaten: VD_QUELLE_ID,

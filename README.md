@@ -19,6 +19,9 @@ npm test         # Tests (vitest)
 npm run build    # Typprüfung und Build nach dist/
 ```
 
+`npm run dev` und `npm run build` kopieren vorher die Dateien von CesiumJS für die 3D-Ansicht nach `public/cesium/`
+(`scripts/cesium_assets.mjs`, nicht im Repository).
+
 ## Aufbau
 
 React, TypeScript und Vite, Karte mit Leaflet. Es gibt keinen eigenen Server; gerechnet wird im Web Worker.
@@ -33,6 +36,7 @@ React, TypeScript und Vite, Karte mit Leaflet. Es gibt keinen eigenen Server; ge
 | `src/daten/anbieter/gemeinsam/`, `src/hoehenkurven/`, `src/hoehenprofil/` | gemeinsame Module, hier führend |
 | `src/kartenbaustein/` | Hover, Ebenenfenster, Unfälle, Quellen-Links und Quellenliste aller vier Rechner, hier führend |
 | `src/fall.ts` | Fall-Datei und Speicherung im Browser |
+| `src/ansicht3d/` | 3D-Ansicht mit CesiumJS, nur Darstellung: Szene aus der Rechnung `modell.ts`, Cesium-Aufrufe `cesiumSzene.ts` |
 
 Die gemeinsamen Module werden hier geändert und mit `scripts/anbieter_uebernehmen.mjs`, `hoehenkurven_uebernehmen.mjs` und
 `hoehenprofil_uebernehmen.mjs` in die anderen Rechner übernommen, der Kartenbaustein mit `kartenbaustein_uebernehmen.mjs`. Den Rechenkern holt `scripts/knotensicht_holen.mjs` aus dem
@@ -45,6 +49,8 @@ wirken erst nach Bestätigung. Ein leerer oder unvollständiger Ausschnitt ergib
 Ort gelten, zeigt die App unter «Datenlage hier».
 
 - Luftbild, Landeskarte, Höhenmodell swissALTI3D (Profile; ausserhalb der Stadt Bern), swissTLM3D, Gemeindegrenzen: © swisstopo
+- 3D-Ansicht: Gelände (ch.swisstopo.terrain.3d), Luftbild SWISSIMAGE, swissBUILDINGS3D und Vegetation: © swisstopo; Boden aus der Amtlichen Vermessung; Bibliothek CesiumJS
+  (Apache-2.0), Lizenz unter `public/licenses/cesium.txt`; 3D-Modelle der Fahrzeuge unter `public/modelle/` (CC0, Herkunft in `HERKUNFT.txt`)
 - Haltestellen, Verkehrsmodell NPVM, Bauzonen, Unfälle: BAV, ARE und ASTRA über geo.admin.ch
 - Bodenbedeckung: Amtliche Vermessung der Kantone über geodienste.ch; Stadt Luzern: Strassenflächen der Stadt, Blockmodelle Gebäude des Kantons
 - Strassennetz und Übergänge: © OpenStreetMap-Mitwirkende, ODbL (Overpass API)
@@ -77,6 +83,8 @@ Liste der Dienste steht in der App unter «Datenschutz».
 - Gelände entlang einzelner Sichtlinien; es verdeckt erst ab 0,3 m über der Sichtlinie (swissALTI3D) bzw. 0,15 m (DTM 2023 der
   Stadt Bern), beides Annahmen nach der Genauigkeit der Modelle. Fällt der Berner Dienst aus, rechnet die App mit swissALTI3D.
 - Wartezeit beim Ausfahren nur als Schätzung aus dem DTV der Hauptstrasse (Bern); ohne Verkehrszahlen offen.
+- 3D-Ansicht: Höhen von Fahrzeugen, Parkfeldern, Hecken und Bäumen sind Annahmen; auf Brücken liegt das Gelände unter der Fahrbahn;
+  Modellbäume sind keine echten Kronen. Die Ansicht prüft nichts und ändert kein Ergebnis.
 - Die App ersetzt keine Beurteilung vor Ort.
 
 ## Veröffentlichung

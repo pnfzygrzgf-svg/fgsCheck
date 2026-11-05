@@ -128,14 +128,30 @@ export const QUELLEN: readonly Quelle[] = [
       'Kurve vor dem Streifen bzw. mit Radstreifen oder Radweg die Fahrlinie der Zufahrt (50 m, Koordinaten) für die Längsneigung ' +
       '(Kurvenregel, Sicht vom Velo; api3.geo.admin.ch); am Fussgängerstreifen je Zufahrt bis 14 Sichtlinien (Augpunkt und ' +
       'Markierung bzw. Wartefläche, Koordinaten) für das Gelände der Erkennungsdistanz und der Sicht auf die Wartefläche (api3.geo.admin.ch); ' +
-      'in der Stadt Bern nur, wenn der Dienst der Stadt nicht antwortet', empfaenger: 'swisstopo',
-    module: ['knotensicht/daten/hoehen.ts', 'daten/sichtProfil.ts', 'daten/hoehenDienst.ts'],
-    hinweis: 'Gelände verdeckt erst ab 0,3 m über der Sichtlinie (Annahme nach der Genauigkeit ±0,3 m)' },
+      'in der Stadt Bern nur, wenn der Dienst der Stadt nicht antwortet; bei geöffneter 3D-Ansicht zusätzlich je Zufahrt die vollständige Fahrlinie ' +
+      '(Koordinaten, auch von Hand korrigierte) für ein Bodenprofil. Ausserhalb Berns gehen ein Profilpunkt und seine gelieferte Bodenhöhe an ' +
+      'geodesy.geo.admin.ch (REFRAME) für den Höhenbezug, keine Prüfergebnisse', empfaenger: 'swisstopo',
+    module: ['knotensicht/daten/hoehen.ts', 'daten/sichtProfil.ts', 'daten/hoehenDienst.ts', 'ansicht3d/bodenprofil.ts'],
+    hinweis: 'Gelände verdeckt erst ab 0,3 m über der Sichtlinie (Annahme nach der Genauigkeit ±0,3 m); Profile LN02. Für die 3D-Szene LHN95-Annahme: in Bern −0,04 m, ausserhalb lokaler REFRAME-Versatz am ersten gültigen Profilpunkt, entlang der Zufahrt konstant angenommen. Fehlender Höhenbezug wird nicht ersetzt.' },
   { ...bernDienst('bern.dtm', ['hoehen'], 'Geländemodell DTM 2023 (25 cm, Höhenprofile)',
     'Im Stadtgebiet gehen die Linien der Höhenprofile (Knotensicht, Fahrlinie, Sichtlinien; nur Koordinaten) an gisapp.bern.ch (DTM 2023, 25 cm) ' +
-    'statt an swisstopo; antwortet der Dienst nicht, an swisstopo (swissALTI3D).', 'daten/bernDtm.ts',
+    'statt an swisstopo; antwortet der Dienst nicht, an swisstopo (swissALTI3D). Bei geöffneter 3D-Ansicht wird je Zufahrt die vollständige ' +
+    'Fahrlinie (Koordinaten, auch von Hand korrigierte) für ein Bodenprofil abgefragt; fehlende Messwerte bleiben Lücken.', 'daten/bernDtm.ts',
     'Befliegung 2. Juni 2023; Produktstand aus den Metadaten'), datenschutzSatz: true,
-    hinweis: 'Gelände verdeckt erst ab 0,15 m über der Sichtlinie (Annahme nach der Genauigkeit ca. 10 cm); ausserhalb der Stadt und bei Ausfall swissALTI3D' },
+    module: ['daten/bernDtm.ts', 'ansicht3d/bodenprofil.ts'],
+    hinweis: 'Gelände verdeckt erst ab 0,15 m über der Sichtlinie (Annahme nach der Genauigkeit ca. 10 cm); ausserhalb der Stadt und bei Ausfall swissALTI3D. Höhen LN02; in der 3D-Ansicht −0,04 m als lokaler Versatz zur LHN95-Szenenkonvention (Annahme für Bern).' },
+  { ...bernDienst('bern.kunstbauten', [], '3D-Ansicht: Kunstbauten (Brücken, Überführungen, Lärmschutzwände als 3D-Netz)',
+    'Öffnet man im Stadtgebiet die 3D-Ansicht, geht ein Rechteck von ±150 m um den Streifen (nur Koordinaten) an gisapp.bern.ch; ' +
+    'zurück kommen die Bauwerke darin. Ausserhalb der Stadt und bei Ausfall bleiben die Brücken aus swissTLM3D.', 'ansicht3d/kunstbauten.ts'),
+    datenschutzSatz: true, hinweis: 'nur Anzeige; Höhen LN02 wie die Landeshöhen der swisstopo-Kacheln, −0,04 m nach LHN95 (Annahme: in der Stadt konstant, REFRAME am Klösterlistutz)' },
+  { id: 'swisstopo.3d', themen: [], name: '3D-Ansicht: Gelände, Karte swissTLM für 3D (grau), Luftbild SWISSIMAGE, swissBUILDINGS3D, Brücken aus swissTLM3D, Modellbäume', anbieter: 'swisstopo',
+    gebiet: { art: 'schweiz' }, dienst: 'api', lizenz: SWISSTOPO_LIZENZ, stand: 'Datum der Kachelpfade (Gelände, Gebäude, Brücken, Vegetation); Karte und Luftbild «current»',
+    cors: true, empfaenger: 'swisstopo', datenschutzSatz: true,
+    datenschutz: 'Die 3D-Ansicht lädt nur, solange sie geöffnet ist, Geländekacheln (ch.swisstopo.terrain.3d), Gebäudekacheln (swissBUILDINGS3D), Brückenkacheln (swissTLM3D) ' +
+      'und auf Wunsch Modellbäume (Vegetation) von 3d.geo.admin.ch sowie Kartenkacheln (Karte swissTLM für 3D, grau) und auf Wunsch ' +
+      'Luftbildkacheln (SWISSIMAGE), beide im Raster WGS84, von wmts.geo.admin.ch; ' +
+      'welche Kacheln das sind, bestimmt die Kamera. Es gehen nur Kachelnummern, keine Eingaben oder Ergebnisse.',
+    module: ['ansicht3d/cesiumSzene.ts'], hinweis: 'nur Anzeige, keine Änderung der Rechnung; Bibliothek CesiumJS (Apache-2.0)' },
   BAV_QUELLE,
   NPVM_QUELLE,
   { id: 'swisstopo.gebiet', themen: [], name: 'Gebietsbestimmung (Gemeindegrenzen)', anbieter: 'swisstopo',

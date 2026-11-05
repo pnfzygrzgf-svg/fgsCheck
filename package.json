@@ -5,16 +5,19 @@
   "version": "0.9.3",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/cesium_assets.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/cesium_assets.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.17"
   },
   "dependencies": {
     "@mapbox/vector-tile": "^3.0.0",
+    "cesium": "^1.147.0",
     "d3-contour": "^4.0.2",
     "fast-xml-parser": "^5.11.2",
     "geotiff": "^3.0.5",

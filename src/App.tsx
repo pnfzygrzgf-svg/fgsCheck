@@ -4,6 +4,7 @@ import { quellenStaende } from './quellenStaende'
 import { zustaendigkeitAmOrt, istZuerichAmOrt, gemeindeText } from './daten/anbieter/gemeinsam/gebiet'
 import { RechenWorker } from './RechenWorker'
 import { useHoehenkurvenQuelle } from './hoehenkurven/stand'
+import { useAnsicht3dQuelle } from './ansicht3d/stand'
 import { SichtfelderWahl, SichtTaste, fgsSichtId } from './Sichtfelder'
 import { ZufahrtTempo } from './ZufahrtTempo'
 import { amtlicheSignalZiele } from './amtlicheSignalZiele'
@@ -298,12 +299,13 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [auswahl, setAuswahl] = useState<string | null>(null)
   const [quellen, setQuellen] = useState<Record<string, QuellenStand>>({})
   const hkQuellen = useHoehenkurvenQuelle()
-  const quellenMitSnapshots = useMemo<Record<string, QuellenStand>>(() => ({ ...quellen, ...hkQuellen, ...Object.fromEntries(lbSnaps.map(sn => {
+  const a3Quellen = useAnsicht3dQuelle()
+  const quellenMitSnapshots = useMemo<Record<string, QuellenStand>>(() => ({ ...quellen, ...hkQuellen, ...a3Quellen, ...Object.fromEntries(lbSnaps.map(sn => {
     const stadt = sn.datei.match(/luftbild_fgs_(\w+)\.json$/)?.[1]
     return [`eth.fgs.${stadt}`, { name: `Streifen aus dem Luftbild (ETH-Modell), ${stadt}`, server: 'eigene Datei',
       objekte: `${sn.kandidaten.length} Kandidaten im Stadtsnapshot`,
       datenstand: `${sn.erzeugt ? sn.erzeugt.split('-').reverse().join('.') : 'unbekannt'} (Snapshot-Erzeugung); Flugjahre ${sn.flugjahre.join(', ') || 'unbekannt'}` }]
-  })) }), [quellen, lbSnaps, hkQuellen])
+  })) }), [quellen, lbSnaps, hkQuellen, a3Quellen])
   const [werkzeug, setWerkzeug] = useState<Werkzeug>(null)
   // Trottoirüberfahrt: Alternative Fussgängerstreifen mit Fragen prüfen (nur in der Sitzung, nicht im Fall; 27.10.2026)
   const [alternative, setAlternative] = useState(false)
@@ -399,6 +401,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const sichtWerte = sichtGel && sichtGel.nr === ladeNr.current ? sichtGel.werte : null
   const sosfRoh = daten?.sosf ?? null
   const bruecke = useMemo(() => (sosfRoh ? brueckenumriss(avParsen(sosfRoh)) : null), [sosfRoh])
+  // 3D-Ansicht: Brückenumrisse, nur darin hebt die Szene auf eine Brückenfahrbahn
+  const brueckenUmrisse = useMemo(() => (sosfRoh ? avParsen(sosfRoh).filter(f => f.art === 'Bruecke_Passerelle').map(f => f.ringe) : []), [sosfRoh])
   const rechnung = useMemo(() => rechnungMitSichtGelaende(rechnungRoh, sichtWerte, bruecke), [rechnungRoh, sichtWerte, bruecke])
   const quellenMetadaten = useRef(new QuellenMetadaten())
   const setzeQuelle = useCallback((k: string, s: QuellenStand) => {
@@ -1939,7 +1943,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const verwaist = useMemo(() => (fall && rechnung && rechnungFall === rechenFall ? eingabenVerwaist(fall, rechnung.streifen) : []),
     [fall, rechnung, rechnungFall, rechenFall])
   // «Datenquellen und Ladezustand» eingeklappt; hat eine Quelle einen Fehler, klappt der Abschnitt auf (und die Überschrift nennt ihn)
-  const quellenFehler = Object.values({...quellen,...hkQuellen}).some(q => q.fehler)
+  const quellenFehler = Object.values({...quellen,...hkQuellen,...a3Quellen}).some(q => q.fehler)
   const [quellenOffen, setQuellenOffen] = useState(false)
   useEffect(() => { if (quellenFehler) setQuellenOffen(true) }, [quellenFehler])
   const kantone = useMemo(() => [...new Set((av ?? []).map(f => f.kanton).filter(Boolean))].sort(), [av])
@@ -2327,7 +2331,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
   return (
     <div className="app" style={{ '--panel-breite': `${panelBreite}px` } as CSSProperties}>
-      <Karte luftbildBestaetigt={!!(fall && rechnung?.luftbild && luftbildGilt(fall, rechnung.luftbild.teile))} quellenEbenen={quellenEbenen} osmTags={geoVor.osmTags ?? null} mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
+      <Karte bruecken={brueckenUmrisse} luftbildBestaetigt={!!(fall && rechnung?.luftbild && luftbildGilt(fall, rechnung.luftbild.teile))} quellenEbenen={quellenEbenen} osmTags={geoVor.osmTags ?? null} mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         amtlicheKandidaten={amtKandidaten} onAmtlicherKandidat={pruefenAmtlich} luftbildKandidaten={lbKandidaten} onLuftbildKandidat={pruefenLuftbild}
         fusswegnetz={fusswegnetz} richtplanVorhanden={richtplanVorhanden} onRichtplan={setRpStand}
         taktilGenutzt={taktilGen} taktilVorhanden={taktilVorhanden} onTaktil={setTkStand}
