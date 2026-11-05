@@ -35,7 +35,7 @@ import { sichtweiteKurve } from '../rechner/tempo'
 import { sichtQuelleKurz } from '../texte'
 import { annahmeKurz } from '../rechner/ohneVortritt'
 import { sichtFgs } from './tabellen'
-import { GELAENDE_NAME } from '../erkennungGelaende'
+import { gelaendeName } from '../erkennungGelaende'
 
 export interface BlattOptionen {
   /** Vorgabe der Ebenen nach dem Ort (fallBedarf.ebenenVorgabe) */
@@ -228,7 +228,7 @@ function statusKurzK(k: readonly { klasse: string; layer: string }[]): string {
 function statusKurz(z: ZufahrtErgebnis): string {
   if (z.status === 'frei') return 'frei'
   // Gelände (Geländeprüfung der App, sichtGelaende.ts; nur in der Sitzung)
-  const arten = [...new Set([...z.konflikte.map(konfliktName), ...(z.sichtGelaende?.abM != null ? [GELAENDE_NAME] : [])])].slice(0, 3)
+  const arten = [...new Set([...z.konflikte.map(konfliktName), ...(z.sichtGelaende?.abM != null ? [gelaendeName(z.sichtGelaende.quelle)] : [])])].slice(0, 3)
   return `verdeckt${arten.length ? ` durch ${arten.join(', ')}` : ''}`
 }
 /** Hindernis im Lesetext: keine Layer- bzw. Rohnamen */
@@ -695,7 +695,7 @@ export function sichtAnzeige(g: QuerungGruppe, titel: (fgsId: string) => string,
         continue
       }
       const k = [...z.konflikte].sort((a, b) => a.abstand - b.abstand)[0]
-      const gel = !k && z.sichtGelaende?.abM != null ? `, ${GELAENDE_NAME} ab ${m1(z.sichtGelaende.abM)}` : ''
+      const gel = !k && z.sichtGelaende?.abM != null ? `, ${gelaendeName(z.sichtGelaende.quelle)} ab ${m1(z.sichtGelaende.abM)}` : ''
       teile.push(`${name}: verdeckt${k ? `, ${konfliktName(k)} ${m1(k.abstand)} vor dem Streifen` : gel}` +
         `${z.freiBisM !== undefined ? `, frei bis ${m1(z.freiBisM)}` : ''}, ${soll}`)
     }

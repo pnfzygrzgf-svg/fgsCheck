@@ -18,14 +18,15 @@ import { quellenQualitaetText, type QuellenQualitaet } from './daten/anbieter/ge
 export const QUELLE_JE_SCHLUESSEL: Readonly<Record<string, string>> = {
   ...Object.fromEntries(REGIONAL_DIENSTE.map(d => [`regional.${d.id}`, `regional.${d.id}`])),
   hoehenkurven: 'hoehenkurven', av: 'av', sosf: 'av', osm: 'osm', suche: 'osm', luftbild: 'swissimage', hoehen: 'swissalti', hoehenSicht: 'swissalti',
+  hoehenBern: 'bern.dtm', hoehenSichtBern: 'bern.dtm',
   kataster: BAUMKATASTER[0].quelleId, baumkataster: BAUMKATASTER[0].quelleId, parkkataster: PARKKATASTER[0].quelleId,
   haltestellen: HALT_QUELLE_ID, verkehrsdaten: VD_QUELLE_ID,
   zhTempo: 'zh.tempo', zhZonen: 'zh.zone', npvm: 'are.npvm', bav: 'bav.halt', gebiet: 'swisstopo.gebiet',
   ...Object.fromEntries(BERN_C_KEYS.map(k => [k, BERN_DIENSTE_C[k].quelleId])),
 }
 
-/** Kennungen der genutzten Quellen eines Falls (Fall.quellen, Übergang aus dem Luftbild, Höhenprofile), ohne Doppel */
-export function genutzteQuellen(quellen: Readonly<Record<string, unknown>>, zusatz: { herkunftP?: [number, number] | null; hoehen?: boolean } = {}): string[] {
+/** Kennungen der genutzten Quellen eines Falls (Fall.quellen, Übergang aus dem Luftbild, Höhendienste der Profile), ohne Doppel */
+export function genutzteQuellen(quellen: Readonly<Record<string, unknown>>, zusatz: { herkunftP?: [number, number] | null; hoehen?: readonly string[] } = {}): string[] {
   const ids = Object.keys(quellen).map(k => QUELLE_JE_SCHLUESSEL[k]).filter((x): x is string => !!x)
   if (zusatz.herkunftP) {
     // Snapshot der Stadt, deren Rechteck die Lage des Übergangs enthält
@@ -33,7 +34,7 @@ export function genutzteQuellen(quellen: Readonly<Record<string, unknown>>, zusa
     const q = quellenFuer({ lat, lon }).find(x => x.themen.includes('fgsLuftbild'))
     if (q) ids.push(q.id)
   }
-  if (zusatz.hoehen) ids.push('swissalti')
+  if (zusatz.hoehen) ids.push(...zusatz.hoehen)
   return [...new Set(ids)]
 }
 

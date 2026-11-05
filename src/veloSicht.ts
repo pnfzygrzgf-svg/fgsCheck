@@ -9,12 +9,13 @@
 import { veloSichtweite } from './knotensicht/rechner/velo'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import type { ZufahrtErgebnis } from './rechner/typen'
+import { modellName } from './hoehenModell'
 
 export interface VeloSoll {
   /** Längsneigung [%] in Fahrtrichtung (talwärts negativ); 0 ohne Messung (lädt) und bei unbekannter Neigung (kein Mass; das Soll
    * nimmt dann die Spalte ≤ −4 %) */
   i: number
-  /** «Längsneigung −3 % (swissALTI3D)», «Längsneigung unbekannt (…): strengster Wert der Tab. 3 angenommen» bzw. «Längsneigung vorerst
+  /** «Längsneigung −3 % (swissALTI3D)» bzw. «… (DTM 2023 Stadt Bern)», «Längsneigung unbekannt (…): strengster Wert der Tab. 3 angenommen» bzw. «Längsneigung vorerst
    * 0 % angenommen (Höhenmodell lädt)» */
   neigungText: string
   /** Neigung aus dem Höhenprofil gemessen (false: lädt bzw. unbekannt) */
@@ -48,7 +49,7 @@ export function veloSoll(z: Pick<ZufahrtErgebnis, 'fgsId' | 'zufahrt' | 'tempo' 
   const kurz = !v.konflikte.length && v.freiBisM < vs.A - 1
   return { i, gemessen, unbekannt, A: vs.A, text: vs.text, ...(kurz ? { nurBis: v.freiBisM } : {}), frei: !v.konflikte.length || v.freiBisM >= vs.A - 1e-6,
     ebikeA: vs.zeile === 'ueber30' ? veloSichtweite(z.tempo, i, true, unbekannt).A : null,
-    neigungText: gemessen ? `Längsneigung ${prozent(i)} (swissALTI3D)`
+    neigungText: gemessen ? `Längsneigung ${prozent(i)} (${modellName(m!.quelle)})`
       : unbekannt ? 'Längsneigung unbekannt (Höhenmodell nicht verfügbar): strengster Wert der Tab. 3 angenommen'
         : 'Längsneigung vorerst 0 % angenommen (Höhenmodell lädt)' }
 }

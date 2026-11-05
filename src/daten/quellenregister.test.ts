@@ -85,11 +85,15 @@ describe('quellenFuer und datenlage', () => {
   it('Bern: schweizweite Quellen, alle Berner Dienste und der Berner Snapshot', () => {
     const ids = quellenFuer(BERN).map(q => q.id)
     expect(ids).toEqual(expect.arrayContaining(['av', 'swissimage', 'swissalti', 'osm', 'bern.park', 'bern.baum', 'bern.halt', 'bern.dtv',
-      'bern.richtplan', 'bern.strassen', 'bern.vsig', 'bern.schulen', 'bern.taktil', 'bern.zonen', 'bern.oev', 'eth.fgs.bern']))
+      'bern.richtplan', 'bern.strassen', 'bern.vsig', 'bern.schulen', 'bern.taktil', 'bern.zonen', 'bern.oev', 'bern.dtm', 'eth.fgs.bern']))
     expect(ids).not.toContain('eth.fgs.zurich')
     const d = datenlage(BERN)
     expect(d.tempo?.id).toBe('bern.vsig')
     expect(d.haltestellen?.id).toBe('bern.halt')
+    // Höhen: in der Stadt das DTM 2023 der Stadt (Datenschutz als eigener Satz), sonst swissALTI3D
+    expect(d.hoehen?.id).toBe('bern.dtm')
+    expect(quelle('bern.dtm')).toMatchObject({ dienst: 'arcgis', datenschutzSatz: true, empfaenger: 'bern', module: ['daten/bernDtm.ts'] })
+    expect(datenlage(ZUERICH).hoehen?.id).toBe('swissalti')
     expect(d.vermessung?.id).toBe('av')
     expect(THEMEN.every(t => d[t] !== null)).toBe(true)
   })
@@ -137,7 +141,7 @@ describe('Datenschutz aus dem Register', () => {
   it('je Empfänger eine Zeile im bisherigen Wortlaut', () => {
     const { gruppen, eigen } = datenschutzGruppen()
     expect(gruppen.map(g => g.name)).toEqual(['swisstopo (geo.admin.ch)', 'geodienste.ch (Amtliche Vermessung)', 'Overpass (OpenStreetMap)',
-      'Regionale Geoportale der Kantone und Städte (nur im jeweiligen Gebiet)', 'ogd.stadt-zuerich.ch und data.stadt-zuerich.ch (Stadt Zürich)', 'map.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern'])
+      'Regionale Geoportale der Kantone und Städte (nur im jeweiligen Gebiet)', 'ogd.stadt-zuerich.ch und data.stadt-zuerich.ch (Stadt Zürich)', 'map.bern.ch und gisapp.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern'])
     const t = Object.fromEntries(gruppen.map(g => [g.name.split(' ')[0], g.text]))
     expect(t['swisstopo']).toMatch(/Kartenkacheln \(Luftbild bzw\. Landeskarte\) des sichtbaren Ausschnitts \(wmts\.geo\.admin\.ch\); Luftbild-Ausschnitt ±30 m/)
     expect(t['swisstopo']).toContain('bei der Ortssuche der eingegebene Suchbegriff (api3.geo.admin.ch)')
@@ -146,7 +150,9 @@ describe('Datenschutz aus dem Register', () => {
     expect(t['map.bern.ch']).toBe('Rechteck ±150 m für amtliche Parkfelder, Baumkataster, Haltestellen, Verkehrsdaten, Richtplan Fussverkehr, ' +
       'Strassenhierarchie und Strassentypen, signalisierte Höchstgeschwindigkeit, Volksschulen, Kindergärten, Kitas (als Kindergarten), ' +
       'Kinderangebote (als Schule), Heime und Spitäler (als Heim) (±200 m), taktil-visuelle ' +
-      'Markierungen, Nutzungszonen und ÖV-Linien. Die Kartenebene «Richtplan Fussverkehr (Geoportal Bern)» sendet den sichtbaren ' +
+      'Markierungen, Nutzungszonen und ÖV-Linien. Im Stadtgebiet gehen die Linien der Höhenprofile (Knotensicht, Fahrlinie, Sichtlinien; ' +
+      'nur Koordinaten) an gisapp.bern.ch (DTM 2023, 25 cm) statt an swisstopo; antwortet der Dienst nicht, an swisstopo (swissALTI3D). ' +
+      'Die Kartenebene «Richtplan Fussverkehr (Geoportal Bern)» sendet den sichtbaren ' +
       'Kartenausschnitt mit Rand (Rechteck in LV95, je Layer eine Abfrage) nur, wenn sie eingeschaltet ist. Die Kartenebene «Taktile ' +
       'Markierungen (Stadt Bern)» sendet den sichtbaren Kartenausschnitt mit Rand (Rechteck in LV95, je Layer eine Abfrage, zwei Layer) ' +
       'nur, wenn sie eingeschaltet ist, und erst ab Zoomstufe 15.')

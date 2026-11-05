@@ -22,7 +22,7 @@ function spur(gerade: number, r: number, grad: number): P[] {
 const zuf = (sp: P[], x: Partial<ZufahrtErgebnis> = {}): ZufahrtErgebnis => ({ fgsId: 'f1', zufahrt: 'a90', art: 'abbiegend', spur: sp,
   sichtpunkte: [sp[0], sp[10]], kurvenradiusM: 20, sichtweite: 100, tempo: 50, tempoQuelle: 'OSM', fahrstreifenOsmN: 1, mehrstreifig: 0, ...x } as ZufahrtErgebnis)
 const st = (z: ZufahrtErgebnis) => [{ zufahrten: [z] } as unknown as StreifenErgebnis]
-function vor(z: ZufahrtErgebnis, innerorts: boolean | null = true, neigung: Record<string, { i: number | null; laenge: number }> | null = null,
+function vor(z: ZufahrtErgebnis, innerorts: boolean | null = true, neigung: Record<string, { i: number | null; laenge: number; quelle?: string }> | null = null,
   lage: string | null = null) {
   const w: Vorbelegung = innerorts === null ? {} : { innerorts: { wert: innerorts, quelle: 'osm', text: '' } }
   if (lage) w.lage = { wert: lage, quelle: 'osm', text: '' }
@@ -58,7 +58,7 @@ describe('Kurvenregel: Geometrie der Fahrlinie', () => {
 
 describe('Kurvenregel: Vorbelegung der fünf Voraussetzungen', () => {
   it('innerorts 50 km/h, ein Fahrstreifen, Kurvenende 8 m, 70°, Gefälle 3 %: alle ja mit Quelle', () => {
-    const { w, h } = vor(zuf(spur(6, 30, 70)), true, { 'f1|a90': { i: -3, laenge: 50 } })
+    const { w, h } = vor(zuf(spur(6, 30, 70)), true, { 'f1|a90': { i: -3, laenge: 50, quelle: 'swissALTI3D (swisstopo), Profil 50 m, 20 Punkte' } })
     expect(KURVE_BEDINGUNGEN.map(u => w[`kurve.${u}`]?.wert)).toEqual([true, true, true, true, true])
     // Vortritt nicht aus den Daten: als Annahme (30.10.2026)
     expect(w['kurve.b1Innerorts50']).toMatchObject({ quelle: 'annahme' })

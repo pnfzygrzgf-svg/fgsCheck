@@ -20,6 +20,7 @@ import type { P } from './geo'
 import type { GeoVorbelegung } from './bedarf/vorbelegung'
 import type { OsmWeg } from './daten/osm'
 import { lv95 } from './geo'
+import { modellName } from './hoehenModell'
 
 export type EbeneId = 'av' | 'unfaelleFuss' | 'unfaelleVelo' | `regional.${string}` | 'tempo' | 'dtv' | 'haltestellen' | 'bav' | 'oev' | 'hierarchie' | 'strassentyp' | 'nutzungszonen' | 'schulen'
   | 'zhTempo' | 'zhZonen' | 'npvm' | 'baeume' | 'beleuchtung' | 'vortritt' | 'steigung' | 'bruecken' | 'gelaende'
@@ -99,10 +100,10 @@ export const EBENEN: readonly EbeneDef[] = [
     legende: [['lampe', '#a16207', 'Strassenlampe', 'L'], ['lit', '#fde047', 'Strasse beleuchtet (lit=yes)'], ['dunkel', '#475569', 'lit=no']] },
   { id: 'vortritt', titel: 'Vortrittszeichen', quelle: 'OpenStreetMap highway=give_way, stop, traffic_sign',
     legende: [['give_way', '#b91c1c', 'Kein Vortritt', '▽'], ['stop', '#7f1d1d', 'Stop', '■'], ['schild', '#475569', 'übriges Vortrittssignal', '◇']] },
-  { id: 'steigung', titel: 'Längsneigung (Profile)', quelle: 'swissALTI3D (swisstopo), Profile der Fahrlinien',
+  { id: 'steigung', titel: 'Längsneigung (Profile)', quelle: 'Höhenmodell (swissALTI3D © swisstopo; in der Stadt Bern DTM 2023, Geodaten Stadt Bern), Profile der Fahrlinien',
     legende: [['n0', '#16a34a', 'bis 2 %'], ['n2', '#ca8a04', 'über 2 %'], ['n6', '#dc2626', 'über 6 %'], ['n?', '#64748b', 'nicht bestimmbar']] },
-  { id: 'gelaende', titel: 'Gelände (swissALTI3D, Sichtprofile)',
-    quelle: '© swisstopo; swissALTI3D, Geländeprüfung entlang der Sichtlinien; keine flächige Geländekarte',
+  { id: 'gelaende', titel: 'Gelände (Höhenmodell, Sichtprofile)',
+    quelle: 'Höhenmodell (swissALTI3D © swisstopo; in der Stadt Bern DTM 2023, Geodaten Stadt Bern), Geländeprüfung entlang der Sichtlinien; keine flächige Geländekarte',
     legende: [['frei', '#16a34a', 'im Geländemodell frei'], ['verdeckt', '#dc2626', 'im Geländemodell verdeckt'], ['bruecke', '#b45309', 'Brückenbereich: Aussage unsicher']] },
   { id: 'bruecken', titel: 'Brücken (AV-Einzelobjekte)', quelle: 'Amtliche Vermessung, Einzelobjekte (Brücke)',
     legende: [['bruecke', '#78716c', 'Brücke']] },
@@ -140,7 +141,7 @@ const HW_KLASSE: Record<string, string> = { primary: 'haupt', secondary: 'haupt'
 const ST_KLASSE: Record<string, string> = { SS_30: 'sammel', SS_50: 'sammel', VS_50_60: 'verbindung', HVS_50_60: 'haupt', HVS_80: 'haupt' }
 
 /** Profillinie der Längsneigung je Zufahrt (App: kurveProfilLinie und die Messung dazu) */
-export interface ProfilAnzeige { key: string; linie: P[]; i: number | null; laenge: number; zufahrt: string }
+export interface ProfilAnzeige { key: string; linie: P[]; i: number | null; laenge: number; zufahrt: string; quelle?: string }
 
 /** Alle Ebenen aus den Geodaten der Vorbelegung (geoVor), den OSM-Wegen, den Profilen und den Brückenumrissen */
 export function ebenenAusGeo(geo: GeoVorbelegung, wege: OsmWeg[], profile: ProfilAnzeige[] = [], bruecken: P[][] = [], baeume: readonly KatasterBaum[] = [], av: readonly import('./daten/av').AvFlaeche[] = []): EbenenDaten {
@@ -215,7 +216,7 @@ export function ebenenAusGeo(geo: GeoVorbelegung, wege: OsmWeg[], profile: Profi
     text: `${z.art === 'give_way' ? 'Kein Vortritt' : z.art === 'stop' ? 'Stop' : 'Vortrittssignal'}${z.richtung ? ` (Richtung ${z.richtung})` : ''} (OpenStreetMap)` }))
   d.steigung = profile.filter(p => p.linie.length >= 2).map(p => ({ id: `pr:${p.key}`, profil: true as const, linien: [p.linie], klasse: neigungKlasse(p.i),
     ...(p.i != null ? { wert: `${f1(p.i)} %` } : {}),
-    text: p.i != null ? `${p.zufahrt}: Längsneigung ${f1(p.i)} % zum Streifen hin (swissALTI3D, Profil ${Math.round(p.laenge)} m)` : `${p.zufahrt}: Neigung nicht bestimmbar` }))
+    text: p.i != null ? `${p.zufahrt}: Längsneigung ${f1(p.i)} % zum Streifen hin (${modellName(p.quelle)}, Profil ${Math.round(p.laenge)} m)` : `${p.zufahrt}: Neigung nicht bestimmbar` }))
   d.bruecken = bruecken.filter(r => r.length >= 3).map((r, k) => ({ id: `br:${k}`, ringe: [r], klasse: 'bruecke', deckkraft: 0.35,
     text: 'Brücke (amtliche Vermessung, Einzelobjekt)' }))
   return d

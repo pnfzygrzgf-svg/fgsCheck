@@ -58,7 +58,8 @@ import { ART, ENTFALLEN_ERKLAERUNG, ENTFALLEN_TITEL, entfallenGrund, sichtQuelle
 import { KnotensichtBlock } from './tue/KnotensichtBlock'
 import { tueBreiteHand } from './tue/texte'
 import type { Knotensicht } from './tue/knotensicht'
-import { ladeNeigung } from './knotensicht/daten/hoehen'
+import { hoehenDienst, hoehenDienstFuer, ladeNeigungMit, mitRueckfall, rueckfallText, type HoehenDienst } from './daten/hoehenDienst'
+import { ausHoehenmodell, modellName } from './hoehenModell'
 import { hoehenNichtVerfuegbar } from './tue/knotensicht'
 import { kurveProfilLinie, kurveProfilSchluessel, strassenKurve } from './bedarf/kurvenregel'
 import { ebenenBeschriften, ebenenAusGeo, type ProfilAnzeige } from './quellenEbenen'
@@ -136,11 +137,11 @@ interface Daten { osm: unknown; av: GeoJson; sosf: GeoJson | null; nid: number |
 
 const START: [number, number] = [46.9420585, 7.4322619]      // Startansicht: Mühlemattstrasse, Bern
 const WORKER_MS = 30000
-/** Höhenprofile der Knotensicht (Trottoirüberfahrt) in den geladenen Quellen */
 const TUE_STREIFEN_M = 4
-const HOEHEN_NAME = 'Höhenmodell (swisstopo, swissALTI3D, Profile der Knotensicht)'
-/** Höhenprofile der Sichtlinien auf die Wartefläche (sichtGelaende.ts) in den geladenen Quellen */
-const HOEHEN_SICHT_NAME = 'Höhenmodell (swisstopo, swissALTI3D, Profile der Sicht auf die Wartefläche)'
+/** Name des Höhendienstes in den geladenen Quellen: Profile der Knotensicht, der Fahrlinie und der Erkennungsdistanz (neigung) bzw.
+ * der Sichtlinien auf die Wartefläche (sicht; sichtGelaende.ts) */
+const hoehenName = (d: HoehenDienst, art: 'neigung' | 'sicht') =>
+  `Höhenmodell (${d.kurz}, ${d.anbieter.replace(/^© /, '')}; ${art === 'sicht' ? 'Profile der Sicht auf die Wartefläche' : 'Profile der Knotensicht, Fahrlinie und Erkennungsdistanz'})`
 // Automatische Übergangssuche nach dem Verschieben bzw. Zoomen: ab SUCHE_ZOOM (rund 1:10 000; weiter draussen wird der
 // Ausschnitt für eine Overpass-Abfrage zu gross; dazu Flächengrenze in ausschnitt.ts), SUCHE_PAUSE_MS nach dem letzten moveend,
 // zwischen zwei Abfragen mindestens SUCHE_ABSTAND_MS (Overpass Fair Use: höchstens eine laufende Suche, keine Abfragen-Flut
@@ -504,7 +505,14 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     : daten && vsigBern && vsigStand && 'daten' in vsigStand
     ? { linien: vsigStand.daten.linien, bereich: { mitte: daten.ort, radiusM: BERN_DIENSTE_C.vsig.radiusM ?? PARK_RADIUS_M, form: 'quadrat' } }
     : fall?.signalEntscheide?.length ? { linien: [], bereich: { mitte: lv95(fall.ort.lat, fall.ort.lon), radiusM: 200, form: 'quadrat' }, signalEntscheide: fall.signalEntscheide } : null), [daten, vsigBern, vsigStand, zh.daten, zhAmOrt, regional.rechnen, fall?.signalEntscheide])
-  // Trottoirüberfahrt (K3): Längsneigung der Knotensicht aus dem Höhenmodell (swisstopo, swissALTI3D), je «Knoten|Zufahrt»; nach dem
+  // Höhendienste in der Reihenfolge des Rückfalls (daten/hoehenDienst.ts): in der Stadt Bern das DTM 2023 der Stadt, dann swissALTI3D;
+  // sonst nur swissALTI3D. Gleiche Zuständigkeit wie Tempo und Parkfelder (AV-Fläche unter dem Streifen bzw. Ladeort)
+  const hoehenDienste = useMemo(() => hoehenDienstFuer(vsigBern), [vsigBern])
+  const hoehenLetzter = hoehenDienste[hoehenDienste.length - 1]
+  /** Rückfall in «Geladene Quellen»: Fehlerzeile beim ausgefallenen Dienst, der nächste meldet unter seinem Schlüssel */
+  const rueckfallMelden = useCallback((art: 'neigung' | 'sicht') => (d: HoehenDienst, f: Error, n: HoehenDienst) =>
+    setzeQuelle(d.schluessel[art], { name: hoehenName(d, art), fehler: rueckfallText(f, n) }), [setzeQuelle])
+  // Trottoirüberfahrt (K3): Längsneigung der Knotensicht aus dem Höhenmodell, je «Knoten|Zufahrt»; nach dem
   // Eintreffen rechnet der Worker die Knotensicht neu (Effekt «Längsneigung der Knotensicht» unten)
   const [ksHoehen, setKsHoehen] = useState<{ nr: number; werte: Record<string, HoehenVorgabe> } | null>(null)
   const hoehenWerte = ksHoehen && ksHoehen.nr === ladeNr.current ? ksHoehen.werte : null
@@ -514,7 +522,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     return () => clearTimeout(t)
   }, [daten, rechenFall, kataster, parkDaten, vsigRechnung, hoehenWerte, rechnen])
   // Nach einer Rechnung mit Knotensicht: Profile entlang der Fahrstreifenachsen, der Zufahrt und der Gehlinie (höchstens vier je
-  // Knoten und Zufahrt, nur einmal je Ladevorgang); ein Fehler des Dienstes gibt 0 % mit Hinweis (daten/hoehen der Kopie)
+  // Knoten und Zufahrt, nur einmal je Ladevorgang), alle mit demselben Dienst; beim Berner Dienst ist ein fehlendes Profil ein
+  // Rückfallgrund, beim letzten Dienst gibt ein Fehler 0 % mit Hinweis (hoehenDienst.neigungMit)
   const hoehenLaeuft = useRef(new Set<string>())
   useEffect(() => {
     const ctrl = abbruchRef.current, nr = ladeNr.current
@@ -525,14 +534,19 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       const lauf = `${nr}|${k.hoehenSchluessel}`
       hoehenLaeuft.current.add(lauf)
       const linien = (Object.entries(k.profile) as [keyof HoehenVorgabe, P[]][]).filter(([, l]) => l.length >= 2)
-      setzeQuelle('hoehen', { name: HOEHEN_NAME })
-      Promise.all(linien.map(([n, l]) => ladeNeigung(l, ctrl.signal).then(r => [n, r] as const))).then(res => {
+      setzeQuelle(hoehenDienste[0].schluessel.neigung, { name: hoehenName(hoehenDienste[0], 'neigung') })
+      mitRueckfall(hoehenDienste, async d => {
+        const res = await Promise.all(linien.map(([n, l]) => ladeNeigungMit(d, l, ctrl.signal).then(r => [n, r] as const)))
+        const f = d !== hoehenLetzter ? res.find(([, [, a]]) => typeof a === 'string') : undefined
+        if (f) throw new Error(f[1][1] as string)
+        return res
+      }, rueckfallMelden('neigung')).then(({ dienst: d, wert: res }) => {
         if (ctrl.signal.aborted || ladeNr.current !== nr) return
         const stand: HoehenVorgabe = Object.fromEntries(res.map(([n, [m]]) => [n, m]))
         setKsHoehen(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [k.hoehenSchluessel]: stand } }))
         const fehler = res.filter(([, [, a]]) => typeof a === 'string')
         const ok = res.map(([, [, a]]) => a).filter((a): a is Exclude<typeof a, string> => typeof a !== 'string')
-        setzeQuelle('hoehen', { name: HOEHEN_NAME, objekte: `${res.length} Profile`, ...(ok.length ? { ms: Math.max(...ok.map(a => a.ms)),
+        setzeQuelle(d.schluessel.neigung, { name: hoehenName(d, 'neigung'), objekte: `${res.length} Profile`, ...(ok.length ? { ms: Math.max(...ok.map(a => a.ms)),
           bytes: ok.reduce((x, a) => x + a.bytes, 0), server: ok[0].quelle } : {}),
           ...(fehler.length ? { fehler: `${fehler.length} Profil(e) nicht verfügbar (Längsneigung unbekannt, strengster Wert)` } : {}) })
       }, err => {
@@ -540,12 +554,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         // Dienst-Fehler: jedes Profil «nicht verfügbar» (wie ein fehlerhaftes Einzelprofil), damit der Kern die
         // Neigung als unbekannt rechnet (strengster Wert) und nicht dauerhaft «vorerst 0 %» bleibt
         setKsHoehen(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [k.hoehenSchluessel]: hoehenNichtVerfuegbar(linien.map(([n]) => n), err) } }))
-        setzeQuelle('hoehen', { name: HOEHEN_NAME, fehler: `${(err as Error).message} (Längsneigung unbekannt, strengster Wert)` })
+        setzeQuelle(hoehenLetzter.schluessel.neigung, { name: hoehenName(hoehenLetzter, 'neigung'), fehler: `${(err as Error).message} (Längsneigung unbekannt, strengster Wert)` })
       })
     }
   }, [rechnungRoh, hoehenWerte])
 
-  // Längsneigung entlang der Fahrlinie (29.10.2026), 50 m vor dem Streifen, aus demselben Höhenprofil-Dienst wie die Knotensicht:
+  // Längsneigung entlang der Fahrlinie (29.10.2026), 50 m vor dem Streifen, aus demselben Höhendienst wie die Knotensicht:
   // für die Kurvenregel (Zufahrt mit der Strassenkurve) und die Sicht vom Velo (Zufahrten mit Radstreifen bzw. Radweg); einmal je
   // Ladevorgang und Zufahrt. Fehlt das Profil (lädt, Fehler), gelten 0 % bzw. die Frage bleibt offen
   const [kurveNeigung, setKurveNeigung] = useState<{ nr: number; werte: Record<string, NeigungMessung> } | null>(null)
@@ -560,22 +574,27 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       const linie = kurveProfilLinie(z)
       if (linie.length < 2 || kurveLaeuft.current.has(lauf)) continue
       kurveLaeuft.current.add(lauf)
-      setzeQuelle('hoehen', { name: HOEHEN_NAME })
-      ladeNeigung(linie, ctrl.signal).then(([m, a]) => {
+      setzeQuelle(hoehenDienste[0].schluessel.neigung, { name: hoehenName(hoehenDienste[0], 'neigung') })
+      mitRueckfall(hoehenDienste, async d => {
+        const r = await ladeNeigungMit(d, linie, ctrl.signal)
+        if (typeof r[1] === 'string' && d !== hoehenLetzter) throw new Error(r[1])
+        return r
+      }, rueckfallMelden('neigung')).then(({ dienst: d, wert: [m, a] }) => {
         if (ctrl.signal.aborted || ladeNr.current !== nr) return
         setKurveNeigung(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [key]: m } }))
-        setzeQuelle('hoehen', typeof a === 'string' ? { name: HOEHEN_NAME, fehler: `${a} (Längsneigung der Fahrlinie: 0 % bzw. offen)` }
-          : { name: HOEHEN_NAME, objekte: 'Profil der Fahrlinie', ms: a.ms, bytes: a.bytes, server: a.quelle })
+        setzeQuelle(d.schluessel.neigung, typeof a === 'string' ? { name: hoehenName(d, 'neigung'), fehler: `${a} (Längsneigung der Fahrlinie: 0 % bzw. offen)` }
+          : { name: hoehenName(d, 'neigung'), objekte: 'Profil der Fahrlinie', ms: a.ms, bytes: a.bytes, server: a.quelle })
       }, err => {
         if (ctrl.signal.aborted || istAbbruch(err)) return
-        setzeQuelle('hoehen', { name: HOEHEN_NAME, fehler: `${(err as Error).message} (Längsneigung der Fahrlinie: 0 % bzw. offen)` })
+        setzeQuelle(hoehenLetzter.schluessel.neigung, { name: hoehenName(hoehenLetzter, 'neigung'), fehler: `${(err as Error).message} (Längsneigung der Fahrlinie: 0 % bzw. offen)` })
       })
     }
   }, [rechnung])
 
   // Erkennungsdistanz mit Gelände (30.10.2026; erkennungGelaende.ts): nach jeder Rechnung je gerade Zufahrt eines Fussgängerstreifens
   // die Höhenprofile der Sichtlinien bis zur Erkennungsdistanz (höchstens 14, daten/sichtProfil.ts mit Cache), je Zufahrt und Lage der
-  // Linien einmal je Ladevorgang; ein neuer Ort bricht ab. Ohne Antwort bleibt die Erkennungsdistanz 2D («Gelände nicht geprüft»)
+  // Linien einmal je Ladevorgang, je Zufahrt ein Dienst (Toleranz und Modellname des Dienstes im Ergebnis); ein neuer Ort bricht ab.
+  // Ohne Antwort bleibt die Erkennungsdistanz 2D («Gelände nicht geprüft»)
   const [erkGelaende, setErkGelaende] = useState<{ nr: number; werte: Record<string, GelaendeStand> } | null>(null)
   const erkLaeuft = useRef(new Set<string>())
   useEffect(() => {
@@ -587,18 +606,22 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       erkLaeuft.current.add(lauf)
       const setze = (g: GelaendeStand) => setErkGelaende(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [key]: g } }))
       setze({ stand: 'laedt' })
-      setzeQuelle('hoehen', { name: HOEHEN_NAME })
-      const abrufe: Abruf<unknown>[] = []
-      gelaendePruefen(z.erkennungM, z.erkennungLinien ?? [], (a, b) => ladeSichtProfil(a, b, ctrl.signal).then(r => { abrufe.push(r); return r.daten }))
-        .then(g => {
+      setzeQuelle(hoehenDienste[0].schluessel.neigung, { name: hoehenName(hoehenDienste[0], 'neigung') })
+      const e = z.erkennungM, linien = z.erkennungLinien ?? []
+      mitRueckfall(hoehenDienste, async d => {
+        const abrufe: Abruf<unknown>[] = []
+        const g = await gelaendePruefen(e, linien, (a, b) => ladeSichtProfil(a, b, ctrl.signal, d).then(r => { abrufe.push(r); return r.daten }), d.tolM)
+        return { g: { ...g, quelle: d.kurz, tolM: d.tolM }, abrufe }
+      }, rueckfallMelden('neigung'))
+        .then(({ dienst: d, wert: { g, abrufe } }) => {
           if (ctrl.signal.aborted || ladeNr.current !== nr) return
           setze({ stand: 'ok', ...g })
-          if (abrufe.length) setzeQuelle('hoehen', { name: HOEHEN_NAME, objekte: `${g.abfragen} Profile der Sichtlinien (Erkennungsdistanz)`,
+          if (abrufe.length) setzeQuelle(d.schluessel.neigung, { name: hoehenName(d, 'neigung'), objekte: `${g.abfragen} Profile der Sichtlinien (Erkennungsdistanz)`,
             ms: Math.max(...abrufe.map(a => a.ms)), bytes: abrufe.reduce((x, a) => x + a.bytes, 0), server: abrufe[0].quelle })
         }, err => {
           if (ctrl.signal.aborted || istAbbruch(err)) { erkLaeuft.current.delete(lauf); return }
           setze({ stand: 'fehler', text: (err as Error).message })
-          setzeQuelle('hoehen', { name: HOEHEN_NAME, fehler: `${(err as Error).message} (Erkennungsdistanz ohne Gelände)` })
+          setzeQuelle(hoehenLetzter.schluessel.neigung, { name: hoehenName(hoehenLetzter, 'neigung'), fehler: `${(err as Error).message} (Erkennungsdistanz ohne Gelände)` })
         })
     }
   }, [rechnungRoh])
@@ -619,26 +642,39 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       sichtLaeuft.current.add(lauf)
       const setze = (st: GelaendeStand) => setSichtGel(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [key]: st } }))
       setze({ stand: 'laedt' })
-      setzeQuelle('hoehenSicht', { name: HOEHEN_SICHT_NAME })
-      const abrufe: Abruf<unknown>[] = []
-      sichtGelaendePruefen(g, (a, b) => ladeSichtProfil(a, b, ctrl.signal).then(r => { abrufe.push(r); return r.daten }), bruecke)
-        .then(e => {
+      setzeQuelle(hoehenDienste[0].schluessel.sicht, { name: hoehenName(hoehenDienste[0], 'sicht') })
+      mitRueckfall(hoehenDienste, async d => {
+        const abrufe: Abruf<unknown>[] = []
+        const e = await sichtGelaendePruefen(g, (a, b) => ladeSichtProfil(a, b, ctrl.signal, d).then(r => { abrufe.push(r); return r.daten }), bruecke, d.tolM)
+        return { e: { ...e, quelle: d.kurz, tolM: d.tolM }, abrufe }
+      }, rueckfallMelden('sicht'))
+        .then(({ dienst: d, wert: { e, abrufe } }) => {
           if (ctrl.signal.aborted || ladeNr.current !== nr) return
           setze({ stand: 'ok', ...e })
           const sa = sichtAbfragen.current.nr === nr ? sichtAbfragen.current : { nr, n: 0, zufahrten: 0, ms: 0, bytes: 0 }
           sichtAbfragen.current = { nr, n: sa.n + e.abfragen, zufahrten: sa.zufahrten + 1, ms: Math.max(sa.ms, ...abrufe.map(a => a.ms)),
             bytes: sa.bytes + abrufe.reduce((x, a) => x + a.bytes, 0) }
           const t = sichtAbfragen.current
-          setzeQuelle('hoehenSicht', { name: HOEHEN_SICHT_NAME, objekte: `${t.n} Höhenabfragen (Sichtlinien auf die Wartefläche, ${t.zufahrten} Zufahrt${t.zufahrten === 1 ? '' : 'en'})`,
+          setzeQuelle(d.schluessel.sicht, { name: hoehenName(d, 'sicht'), objekte: `${t.n} Höhenabfragen (Sichtlinien auf die Wartefläche, ${t.zufahrten} Zufahrt${t.zufahrten === 1 ? '' : 'en'})`,
             ...(t.ms ? { ms: t.ms } : {}), ...(t.bytes ? { bytes: t.bytes } : {}), ...(abrufe[0] ? { server: abrufe[0].quelle } : {}) })
         }, err => {
           if (ctrl.signal.aborted || istAbbruch(err)) { sichtLaeuft.current.delete(lauf); return }
           setze({ stand: 'fehler', text: (err as Error).message })
-          setzeQuelle('hoehenSicht', { name: HOEHEN_SICHT_NAME, fehler: `${(err as Error).message} (Sicht auf die Wartefläche ohne Gelände)` })
+          setzeQuelle(hoehenLetzter.schluessel.sicht, { name: hoehenName(hoehenLetzter, 'sicht'), fehler: `${(err as Error).message} (Sicht auf die Wartefläche ohne Gelände)` })
         })
     }
   }, [rechnungRoh, bruecke])
   const erkWerte = erkGelaende && erkGelaende.nr === ladeNr.current ? erkGelaende.werte : null
+  // benutzte Höhendienste je Zweck (aus dem Modellnamen der Ergebnisse): Fusszeile, Bericht, Quellentabelle
+  const hoehenGenutzt = useMemo(() => {
+    const aus = (kurz: Iterable<string | undefined>) => [...new Set([...kurz].map(k => hoehenDienst(k)).filter((d): d is HoehenDienst => !!d))]
+    const mess = (ms: Iterable<NeigungMessung | undefined>) => [...ms].map(m => (m && m.i !== null && ausHoehenmodell(m.quelle) ? modellName(m.quelle) : undefined))
+    const ks = aus(mess(Object.values(hoehenWerte ?? {}).flatMap(v => Object.values(v) as (NeigungMessung | undefined)[])))
+    const kurve = aus(mess(Object.values(kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : {})))
+    const erk = aus(Object.values(erkWerte ?? {}).map(g => (g.stand === 'ok' ? g.quelle : undefined)))
+    const sicht = aus(Object.values(sichtWerte ?? {}).map(g => (g.stand === 'ok' ? g.quelle : undefined)))
+    return { ks, kurve, erk, sicht, alle: aus([...ks, ...kurve, ...erk, ...sicht].map(d => d.kurz)) }
+  }, [hoehenWerte, kurveNeigung, erkWerte, sichtWerte])
 
   const aendern = useCallback((f: (x: Fall) => Fall) => setFall(x => (x ? f(structuredClone(x)) : x)), [])
 
@@ -1954,7 +1990,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       const key = kurveProfilSchluessel(z), m = werte[key]
       if (!m || gesehen.has(key)) return []
       gesehen.add(key)
-      return [{ key, linie: kurveProfilLinie(z), i: m.i, laenge: m.laenge, zufahrt: 'Fahrlinie zum Streifen' }]
+      return [{ key, linie: kurveProfilLinie(z), i: m.i, laenge: m.laenge, zufahrt: 'Fahrlinie zum Streifen', quelle: m.quelle }]
     })
     const bruecken = sosfRoh ? avParsen(sosfRoh).filter(f => f.art === 'Bruecke_Passerelle').map(f => f.ringe[0]).filter(Boolean) : []
     const d = ebenenAusGeo(geoVor, geoVor.osm?.wege ?? [], profile, bruecken, kataster?.baeume ?? [], avKarte ?? [])
@@ -2660,7 +2696,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             (Auto-Parkfeld, Gebäude, Gelände), <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_hindernis }} />Hecke, Mauer,
             übriges Hindernis, <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_baum }} />Baum,
             <span className="farbe" style={{ background: STATUS_FARBE.verdeckt_zweirad }} />Zweirad-Feld (Velo/Motorrad); gewählte Zufahrt:
-            rot gestrichelt die Sichtlinien auf die Wartefläche, die das Gelände verdeckt (swissALTI3D)</li>
+            rot gestrichelt die Sichtlinien auf die Wartefläche, die das Gelände verdeckt (Geländemodell)</li>
           {rechnung?.streifen.some(s => s.zufahrten.some(z => z.velo)) && <li>Sicht vom Velo (Radstreifen bzw. Radweg; VSS 40 273 Tab. 3), gestrichelt:
             Sichtfeld <span className="farbe gestrichelt" style={{ background: VELO_SICHT_FARBE.frei, borderStyle: 'dashed' }} />türkis frei,
             {' '}<span className="farbe gestrichelt" style={{ background: VELO_SICHT_FARBE.verdeckt, borderStyle: 'dashed' }} />orange verdeckt;
@@ -2682,7 +2718,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             Fläche, Gartenanlage; vor Ort oder in Street View prüfen), <span className="farbe"
             style={{ background: STATUS_FARBE.verdeckt }} />verdeckt bis zum Soll (doppelte Sichtweite, höchstens 110 m; das verdeckende
             Hindernis rot), <span className="farbe gestrichelt" style={{ background: ERKENNUNG_UNGEPRUEFT }} />nicht geprüft (Fahrlinie
-            endet); das Gelände (swissALTI3D) prüft die App entlang der Sichtlinien nach, sobald die Höhenprofile da sind. Klick auf
+            endet); das Gelände (Geländemodell) prüft die App entlang der Sichtlinien nach, sobald die Höhenprofile da sind. Klick auf
             das Band: die geprüften Sichtlinien (alle 10 m ein Augpunkt, je die Linie zur Markierung), nochmals bzw. daneben klicken
             blendet sie aus</li>}
           <li><span className="farbe" style={{ background: QUELLE_FARBE.hand }} />von Hand, <span className="farbe" style={{ background: QUELLE_FARBE.osm }} />aus OSM (gestrichelt: Vorschlag, prüfen),
@@ -2716,7 +2752,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <h3>Daten</h3>
         <p className="klein">
           Luftbild und Streifen-Erkennung {LUFTBILD_QUELLE}{daten?.flugjahr ? ` (Flugjahr ${daten.flugjahr})` : ''} · Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '…'}, geodienste.ch ·
-          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.bav ? ` · ${BAV_QUELLENANGABE}` : ''}{fall?.quellen.npvm ? ` · ${NPVM_QUELLENANGABE}` : ''}{fall?.zuerich ? ` · ${ZH_QUELLE}` : ''}{(fall?.regional?.teile ?? []).map(t => ` · ${regionaleQuellenAngabe(t.id)}`).join('')}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}{hoehenWerte || kurveNeigung || erkWerte || sichtWerte ? ' · Höhenmodell swissALTI3D © swisstopo' : ''}.
+          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.bav ? ` · ${BAV_QUELLENANGABE}` : ''}{fall?.quellen.npvm ? ` · ${NPVM_QUELLENANGABE}` : ''}{fall?.zuerich ? ` · ${ZH_QUELLE}` : ''}{(fall?.regional?.teile ?? []).map(t => ` · ${regionaleQuellenAngabe(t.id)}`).join('')}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}{hoehenGenutzt.alle.map(d => ` · Höhenmodell ${d.kurz} (${d.anbieter})`).join('')}.
         </p>
         <p className="klein">
           Streifen aus dem Luftbild, die in OSM fehlen: {ETH_MODELL_QUELLE} (<a href={ETH_MODELL_URL} target="_blank" rel="noopener noreferrer">Artikel ↗</a>,{' '}
@@ -2760,12 +2796,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             ...BERN_C_KEYS.filter(k => fall.quellen[k]).map(bernDienstBericht),
             ...(fall.ort.amtlich ? [amtlicherText(fall.ort.amtlich)] : []),
             ...(fall.ort.herkunft ? [`Übergang aus dem Luftbild (nicht in OSM): ${ETH_MODELL_QUELLE}`] : []),
-            ...(hoehenWerte ? ['Längsneigung der Knotensicht: Höhenmodell swissALTI3D © swisstopo (Profile, api3.geo.admin.ch)'] : []),
-            ...(kurveNeigung ? ['Längsgefälle der Kurvenregel: Höhenmodell swissALTI3D © swisstopo (Profil entlang der Fahrlinie, api3.geo.admin.ch)'] : []),
-            ...(erkWerte ? ['Gelände der Erkennungsdistanz: Höhenmodell swissALTI3D © swisstopo (Profile entlang der Sichtlinien, api3.geo.admin.ch)'] : []),
-            ...(sichtWerte ? ['Gelände der Sicht auf die Wartefläche: Höhenmodell swissALTI3D © swisstopo (Profile entlang der Sichtlinien, api3.geo.admin.ch)'] : [])]}
+            ...hoehenGenutzt.ks.map(d => `Längsneigung der Knotensicht: Höhenmodell ${d.kurz} ${d.anbieter} (Profile, ${d.host})`),
+            ...hoehenGenutzt.kurve.map(d => `Längsgefälle der Kurvenregel bzw. Sicht vom Velo: Höhenmodell ${d.kurz} ${d.anbieter} (Profil entlang der Fahrlinie, ${d.host})`),
+            ...hoehenGenutzt.erk.map(d => `Gelände der Erkennungsdistanz: Höhenmodell ${d.kurz} ${d.anbieter} (Profile entlang der Sichtlinien, ${d.host}; Toleranz ${String(d.tolM).replace('.', ',')} m, Annahme)`),
+            ...hoehenGenutzt.sicht.map(d => `Gelände der Sicht auf die Wartefläche: Höhenmodell ${d.kurz} ${d.anbieter} (Profile entlang der Sichtlinien, ${d.host}; Toleranz ${String(d.tolM).replace('.', ',')} m, Annahme)`)]}
           ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} datenlage={ortLage} quellenQualitaet={qualitaetJeQuelle(quellenMitSnapshots)}
-          quellenIds={genutzteQuellen({ ...fall.quellen, ...hkQuellen, ...Object.fromEntries((fall.regional?.teile ?? []).map(t => [`regional.${t.id}`, true])), ...(fall.ort.amtlich ? { [`regional.${fall.ort.amtlich.quelleId}`]: true } : {}), ...(fall.bedarf?.felder.dtv?.npvmBeleg ? { npvm: NPVM_QUELLENANGABE } : {}) }, { herkunftP: fall.ort.herkunft?.p ?? null, hoehen: !!(hoehenWerte || kurveNeigung || erkWerte || sichtWerte) })} />
+          quellenIds={genutzteQuellen({ ...fall.quellen, ...hkQuellen, ...Object.fromEntries((fall.regional?.teile ?? []).map(t => [`regional.${t.id}`, true])), ...(fall.ort.amtlich ? { [`regional.${fall.ort.amtlich.quelleId}`]: true } : {}), ...(fall.bedarf?.felder.dtv?.npvmBeleg ? { npvm: NPVM_QUELLENANGABE } : {}) }, { herkunftP: fall.ort.herkunft?.p ?? null, hoehen: hoehenGenutzt.alle.map(d => d.id) })} />
       )}
     </div>
   )

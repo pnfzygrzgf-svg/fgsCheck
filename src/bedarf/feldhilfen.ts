@@ -345,7 +345,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   },
   'kurve.b5Gefaelle5': {
     was: 'Ja, wenn die Strasse vor dem Streifen höchstens 5 % Längsgefälle hat (VSS 40 241 Z. 14, S. 7).',
-    vorschlag: 'aus dem Höhenmodell swissALTI3D entlang der Fahrlinie (50 m vor dem Streifen); ohne Höhenmodell offen.',
+    vorschlag: 'aus dem Höhenmodell (swissALTI3D, in der Stadt Bern DTM 2023) entlang der Fahrlinie (50 m vor dem Streifen); ohne Höhenmodell offen.',
   },
   sichtVorh: {
     was: `Wie weit Fahrende je Zufahrt auf die Wartefläche am Streifen sehen, in Metern (${MIT_SLASH}). Nur nötig, wenn das ` +
@@ -356,7 +356,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     was: 'Aus welcher Entfernung Fahrende die Fussgängerstreifenanlage erkennen, in Metern. Pflicht ist mindestens die ' +
       'nötige Sichtweite, empfohlen das Doppelte (auch in der Grundprüfung).',
     vorschlag: 'aus dem Sichtrechner als Annahme: kleinster Wert der geraden Zufahrten (Sicht von der Fahrlinie auf die Bodenmarkierung bis ' +
-      '110 m; geladene Hindernisse und, sobald geladen, Geländemodell swissALTI3D). Signale werden dabei nicht zusätzlich bewertet. Ein ' +
+      '110 m; geladene Hindernisse und, sobald geladen, das Geländemodell). Signale werden dabei nicht zusätzlich bewertet. Ein ' +
       'Wert «mindestens …» gilt nur, wenn er das Doppelte erreicht; sonst bleibt das Feld offen (Hinweis).',
   },
 

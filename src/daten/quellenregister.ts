@@ -117,9 +117,16 @@ export const QUELLEN: readonly Quelle[] = [
     lizenz: SWISSTOPO_LIZENZ, stand: LIVE, cors: true,
     datenschutz: 'an einer Trottoirüberfahrt bis vier Linien der Knotensicht (Koordinaten) für Höhenprofile (api3.geo.admin.ch); mit einer ' +
       'Kurve vor dem Streifen bzw. mit Radstreifen oder Radweg die Fahrlinie der Zufahrt (50 m, Koordinaten) für die Längsneigung ' +
-      '(Kurvenregel, Sicht vom Velo; api3.geo.admin.ch); am Fussgängerstreifen je gerade Zufahrt bis 14 Sichtlinien (Augpunkt und ' +
-      'Markierung, Koordinaten) für das Gelände der Erkennungsdistanz (api3.geo.admin.ch)', empfaenger: 'swisstopo',
-    module: ['knotensicht/daten/hoehen.ts', 'daten/sichtProfil.ts'] },
+      '(Kurvenregel, Sicht vom Velo; api3.geo.admin.ch); am Fussgängerstreifen je Zufahrt bis 14 Sichtlinien (Augpunkt und ' +
+      'Markierung bzw. Wartefläche, Koordinaten) für das Gelände der Erkennungsdistanz und der Sicht auf die Wartefläche (api3.geo.admin.ch); ' +
+      'in der Stadt Bern nur, wenn der Dienst der Stadt nicht antwortet', empfaenger: 'swisstopo',
+    module: ['knotensicht/daten/hoehen.ts', 'daten/sichtProfil.ts', 'daten/hoehenDienst.ts'],
+    hinweis: 'Gelände verdeckt erst ab 0,3 m über der Sichtlinie (Annahme nach der Genauigkeit ±0,3 m)' },
+  { ...bernDienst('bern.dtm', ['hoehen'], 'Geländemodell DTM 2023 (25 cm, Höhenprofile)',
+    'Im Stadtgebiet gehen die Linien der Höhenprofile (Knotensicht, Fahrlinie, Sichtlinien; nur Koordinaten) an gisapp.bern.ch (DTM 2023, 25 cm) ' +
+    'statt an swisstopo; antwortet der Dienst nicht, an swisstopo (swissALTI3D).', 'daten/bernDtm.ts',
+    'Befliegung 2. Juni 2023; Produktstand aus den Metadaten'), datenschutzSatz: true,
+    hinweis: 'Gelände verdeckt erst ab 0,15 m über der Sichtlinie (Annahme nach der Genauigkeit ca. 10 cm); ausserhalb der Stadt und bei Ausfall swissALTI3D' },
   BAV_QUELLE,
   NPVM_QUELLE,
   { id: 'swisstopo.gebiet', themen: [], name: 'Gebietsbestimmung (Gemeindegrenzen)', anbieter: 'swisstopo',
@@ -267,7 +274,7 @@ export const EMPFAENGER_NAME: Record<Exclude<Empfaenger, 'eigen'>, string> = {
   swisstopo: 'swisstopo (geo.admin.ch)', geodienste: 'geodienste.ch (Amtliche Vermessung)', overpass: 'Overpass (OpenStreetMap)',
   regional: 'Regionale Geoportale der Kantone und Städte (nur im jeweiligen Gebiet)',
   zuerich: 'ogd.stadt-zuerich.ch und data.stadt-zuerich.ch (Stadt Zürich)',
-  bern: 'map.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern',
+  bern: 'map.bern.ch und gisapp.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern',
 }
 const und = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} und ${xs[xs.length - 1]}` : xs[0] ?? '')
 

@@ -45,6 +45,7 @@ import { zufahrtNamen } from '../benennung'
 import { erkennungText } from '../texte'
 import { ERKENNUNG_FAKTOR, type Erkennung } from '../rechner/erkennung'
 import { erkennungAnzeige, gelaendeText, type GelaendeStand } from '../erkennungGelaende'
+import { modellName } from '../hoehenModell'
 import { sichtFgs } from './tabellen'
 import { type Fall, inselStandard } from '../fall'
 import type { Quelle, TempoRegime } from './eingaben'
@@ -641,7 +642,7 @@ export function kurvenregelVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vor
   // (5) Längsgefälle aus dem Höhenmodell entlang der Fahrlinie
   const m = neigung?.[kurveProfilSchluessel(z)]
   if (m && m.i !== null) setze('kurve.b5Gefaelle5', Math.abs(m.i) <= KURVE_GEFAELLE_MAX, 'rechnung',
-    `Längsneigung ${String(Math.abs(m.i)).replace('.', ',')} % auf ${ganz(m.laenge)} m vor dem Streifen (Höhenmodell swissALTI3D) ${Z}`)
+    `Längsneigung ${String(Math.abs(m.i)).replace('.', ',')} % auf ${ganz(m.laenge)} m vor dem Streifen (Höhenmodell ${modellName(m.quelle)}) ${Z}`)
   else feldHinweis('kurve.b5Gefaelle5', `Höhenmodell nicht verfügbar: Längsgefälle von Hand angeben ${Z}`)
 }
 

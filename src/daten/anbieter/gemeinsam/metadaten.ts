@@ -9,6 +9,7 @@ const BERN_PRODUKTE: Record<string, string[]> = {
   schulen: ['Volksschulen', 'Kindergaerten', 'Kindertagesstaetten', 'Kinderangebote', 'Heime', 'Spitaeler'],
   taktil: ['Taktil_visuelle_Markierungen'], nutzungszonen: ['Nutzungszonenplan'], oevLinien: ['OeV_Linien'],
   parkkataster: ['Parkplaetze_oeffentlich'], kataster: ['Baumkataster'], baumkataster: ['Baumkataster'],
+  hoehenBern: ['DTM_2023'], hoehenSichtBern: ['DTM_2023'],
 }
 export const bernProduktUrl = (name: string) => `${BERN_PRODUKT_URL}?name=${encodeURIComponent(name)}`
 

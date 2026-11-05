@@ -84,7 +84,7 @@ import { parkStreifen, sondenRechts, parkStreifenText, KEIN_PARKSTREIFEN, PARK_S
 import { armMittellinieMitEnde, muendungGeglaettet, querschnitt, fahrstreifenAchse, versetzt, versetztVariabel, mitVerlaengerung, schnittBei, lot,
   abBogen, randLinksBei, randRechtsBei, D_MFZ_M, VERLAENGERUNG_M, SEHNE_OFFEN_ANTEIL, type Querschnitt } from './hauptachsen'
 import { massnahmenRechnen, type Variante, type VarianteRichtung } from './massnahmen'
-import { PROFIL_MIN_M, ZUFAHRT_STEIL_PROZENT } from './neigung'
+import { PROFIL_MIN_M, ZUFAHRT_STEIL_PROZENT, modellName } from './neigung'
 import { B_INNERORTS_M, B_AUSSERORTS_M, istAusserorts, beobachtungsdistanz, beobachtungspunkt, beobachtungAb, lageAnAchse, trottoirAnZufahrt, querlinie,
   FAHRERSITZ_M } from './beobachtung'
 import { sichtEntlang, sichtdreieck, verdecktVoll, PALISADE_MIN_M, type Verdeckend } from './sicht'
@@ -989,7 +989,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   const annahmeNeigung = an.verkehr.length
   const gemessen = (['links', 'rechts'] as Richtung[]).filter(r => ns[r].gemessen && !ns[r].hand)
   if (gemessen.length) an.verkehr.push(`Längsneigung ${gemessen.map(r => `${lageKurz(lageR(r))} ${fi(ns[r].i)} %`).join(', ')} aus dem ` +
-    `Höhenmodell swissALTI3D (über die nötige Sicht ab K, mindestens ${PROFIL_MIN_M} m, abwärts negativ); Kuppen und Senken nicht geprüft.`)
+    `Höhenmodell ${[...new Set(gemessen.map(r => modellName(ns[r].vorgabeQuelle)))].join(' bzw. ')} (über die nötige Sicht ab K, mindestens ${PROFIL_MIN_M} m, abwärts negativ); Kuppen und Senken nicht geprüft.`)
   // Hindernisse (E2a): in D liegende nicht rechnen (z. B. Parkierung entlang der Zufahrt an der Stelle des wartenden Fahrzeugs)
   const hvAlle = hindernisVerdeckend(zaehlend)
   const inD = hvAlle.filter(v => imPolygon(D, v.poly)).map(v => v.id)

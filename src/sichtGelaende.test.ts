@@ -94,15 +94,19 @@ describe('Sicht auf die Wartefläche: Prüfung je Zufahrt', () => {
     expect(e).toMatchObject({ abM: 35, abfragen: 8 })
     expect(e.frei['30.00']).toBe(true)
     expect(e.frei['40.00']).toBe(false)
-    const zz = zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'ok', ...e }))
+    const zz = zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'ok', ...e, quelle: 'swissALTI3D', tolM: GELAENDE_TOL_M }))
     expect(zz.status).toBe(STATUS_GELAENDE)
     expect(zz.freiBisM).toBe(35)
-    expect(zz.sichtGelaende).toMatchObject({ stand: 'mit', abM: 35, bisM: 55 })
+    expect(zz.sichtGelaende).toMatchObject({ stand: 'mit', abM: 35, bisM: 55, quelle: 'swissALTI3D' })
     expect(zz.sichtGelaende!.linien.find(l => l.x === 40)!.frei).toBe(false)
     expect(zz.sichtGelaende!.linien.find(l => l.x === 20)!.frei).toBe(true)
     expect(sichtGelaendeText(zz.sichtGelaende!)).toBe('Geländemodell (swissALTI3D): Verdeckung; letzte frei geprüfte Position 35 m; erste verdeckte Position 37,5 m vor dem Streifen')
-    expect(statusText(zz, [])).toBe('verdeckt (Geländemodell, swissALTI3D)')
-    expect(STATUS[STATUS_GELAENDE]).toBe('verdeckt (Geländemodell, swissALTI3D)')
+    expect(statusText(zz, [])).toBe('verdeckt (Geländemodell)')
+    expect(STATUS[STATUS_GELAENDE]).toBe('verdeckt (Geländemodell)')
+    // Berner DTM: Name des Modells im Text; ohne Modellname nur «Geländemodell»
+    const bern = zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'ok', ...e, quelle: 'DTM 2023 Stadt Bern', tolM: 0.15 }))
+    expect(sichtGelaendeText(bern.sichtGelaende!)).toMatch(/^Geländemodell \(DTM 2023 Stadt Bern\): Verdeckung; /)
+    expect(sichtGelaendeText(zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'ok', ...e })).sichtGelaende!)).toMatch(/^Geländemodell: Verdeckung; /)
     // Streifen: höchster Status seiner Zufahrten
     const s = { fgsId: 'f1', status: 'frei', ann: ANN, zufahrten: [z, zuf(55, { zufahrt: 's' })] } as unknown as StreifenErgebnis
     const r = rechnungMitSichtGelaende({ streifen: [s] }, werteVon(z, { stand: 'ok', ...e }))!
@@ -257,7 +261,7 @@ describe('D1: geprüfte Fahrzeugpositionen statt scheinbar genauer Sichtgrenze',
     const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, async a => { aufrufe.push(a[1]); return hoehenschnitt(a[1] > 17.5) })
     expect(aufrufe).toEqual([10, 20, 24, 15, 17.5])
     expect(e).toMatchObject({ abM: 17, abfragen: 5, pruefbereich: { letzteFreiM: 17.5, ersteVerdecktM: 20 } })
-    const zz = zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'ok', ...e }))
+    const zz = zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'ok', ...e, quelle: 'swissALTI3D' }))
     expect(zz.freiBisM).toBe(17)
     expect(zz.status).toBe(STATUS_GELAENDE)
     expect(sichtGelaendeText(zz.sichtGelaende!)).toBe('Geländemodell (swissALTI3D): Verdeckung; letzte frei geprüfte Position 17,5 m; erste verdeckte Position 20 m vor dem Streifen')

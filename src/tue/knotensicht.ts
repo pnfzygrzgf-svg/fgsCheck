@@ -34,7 +34,8 @@ import { D_MFZ_M } from '../knotensicht/rechner/hauptachsen'
 import { faLage, fbLage, fbVeloLage, veloLage } from '../knotensicht/rechner/fahrzeug'
 import { kurzHinweise, ksUeberHaupt, KS_DURCHGEHEND, KS_EINBAHN, KS_EINBAHN_VELO } from './kurztexte'
 import { fahrstreifenTags } from '../rechner/fahrstreifen'
-import { HOEHEN_QUELLE, neigungMessung } from '../knotensicht/rechner/neigung'
+import { neigungMessung } from '../knotensicht/rechner/neigung'
+import { ausHoehenmodell as ausModell, modellName } from '../hoehenModell'
 import { KEINE_ALLE_EINGABEN, TUE_BREITE_MAX, TUE_BREITE_MIN, TEMPO_MIN, TEMPO_MAX, type HoehenVorgabe, type Lage, type Richtung, type RichtungStatus,
   type TueBreiteQuelle, type TuePhase } from '../knotensicht/rechner/typen'
 import type { Hindernis } from '../rechner/hindernisse'
@@ -344,7 +345,7 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
         ? 'von Hand' : `${f2(B_INNERORTS_M)} m hinter dem hinteren Rand`} (Trottoir).`,
     `Gehlinie ${f2(t.gehlinie)} m vor dem hinteren Rand der Überfahrt; Fahrlinie der Autos ${f2(D_MFZ_M)} m vom rechten Fahrbahnrand.`,
     `Tempo ${mitVerkehr.map(x => `${x.lage === 'gegenueber' ? 'von gegenüber' : `von ${x.lage}`} ${x.tempo} km/h (${HERKUNFT_WORT[x.tempoHerkunft]})`).join(', ') || '–'}.`,
-    neigungGemessen ? 'Längsneigung aus dem Höhenmodell (swissALTI3D).' : neigungUnbekannt
+    neigungGemessen ? `Längsneigung aus dem Höhenmodell (${[...new Set(Object.values(hoehen ?? {}).filter(m => m && m.i !== null).map(m => modellName(m!.quelle)))].join(', ') || 'swissALTI3D'}).` : neigungUnbekannt
       ? 'Längsneigung unbekannt (kein brauchbares Höhenprofil): strengster Wert der Tab. 2 bzw. Tab. 3 angenommen.'
       : 'Längsneigung vorerst 0 % (Höhenmodell lädt).',
     `Strassentyp der Hauptstrasse: ${STRASSENTYP_TEXT[e.strasse.typ]} (nach OSM).`,
@@ -386,8 +387,8 @@ export function hoehenNichtVerfuegbar(profile: readonly (keyof HoehenVorgabe)[],
   return Object.fromEntries(profile.map(n => [n, neigungMessung(f)])) as HoehenVorgabe
 }
 
-/** Herkunft der Neigung: aus dem Höhenmodell (Text der Messung beginnt mit der Quelle) */
-export const ausHoehenmodell = (quelle: string): boolean => quelle.startsWith(HOEHEN_QUELLE)
+/** Herkunft der Neigung: aus dem Höhenmodell (Text der Messung beginnt mit dem Modellnamen; hoehenModell.ts) */
+export const ausHoehenmodell = (quelle: string): boolean => ausModell(quelle)
 
 /** Daten für die Knotensicht aus den Rohdaten des Workers (Overpass, AV-GeoJSON) */
 export function ksDatenAusRoh(osmRoh: unknown, avRoh: GeoJson, rest: Omit<KsDaten, 'osm' | 'av' | 'kx' | 'avBestand'>, av?: AvFlaeche[]): KsDaten {

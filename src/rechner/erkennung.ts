@@ -73,6 +73,8 @@ export interface Erkennung {
    * laden noch (laedt) bzw. nicht geprüft (ohne) */
   gelaende?: 'mit' | 'laedt' | 'ohne'
   gelaendePruefbereich?: GelaendePruefbereich
+  /** Modellname der Geländeprüfung (swissALTI3D bzw. DTM 2023 Stadt Bern); nur Anzeige */
+  gelaendeQuelle?: string
   /** Bewuchs: ab hier [m, kleiner als wert] sieht man die Markierung nur über AV-Bodenbedeckung mit Bewuchs (Art bewuchs), nicht
    * sicher frei */
   bewuchsAb?: number; bewuchs?: string

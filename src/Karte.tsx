@@ -1625,7 +1625,7 @@ export default function Karte(props: {
       const pl = [l.auge, l.ziel].map(ll)
       L.polyline(pl, { pane: ERK_PANE, color: '#0f172a', weight: 4, opacity: 0.45, interactive: false }).addTo(eb.auswahl)
       L.polyline(pl, { pane: ERK_PANE, color: STATUS_FARBE.verdeckt_gelaende, weight: 2, opacity: 0.95, dashArray: '6 4' })
-        .bindTooltip(esc(sichtGelaendeLinieText(l.x)), { sticky: true }).addTo(eb.auswahl)
+        .bindTooltip(esc(sichtGelaendeLinieText(l.x, z.sichtGelaende?.quelle)), { sticky: true }).addTo(eb.auswahl)
     }
     for (const k of z.konflikte)
       L.polygon(multiLl(k.geom), { color: '#7f1d1d', weight: 2, fillColor: '#dc2626', fillOpacity: 0.6 })

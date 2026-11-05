@@ -24,6 +24,9 @@ export const PROFIL_MIN_M = 20
 /** Zufahrt: Hinweis «steile Zufahrt» ab |i| über diesem Wert [%] (noch ohne Wirkung auf B; Tab. 2 folgt in E3b) */
 export const ZUFAHRT_STEIL_PROZENT = 6
 export const HOEHEN_QUELLE = 'swissALTI3D (swisstopo)'
+/** Modellname aus der Quelle einer Messung: Text vor der ersten Klammer bzw. dem ersten Komma («swissALTI3D (swisstopo), Profil …» →
+ *  «swissALTI3D»; die App schreibt für das Berner DTM «DTM 2023 Stadt Bern (Geodaten Stadt Bern), …») */
+export const modellName = (quelle: string): string => quelle.split(' (')[0].split(',')[0].trim() || 'Höhenmodell'
 
 export interface ProfilPunkt { dist: number; h: number }
 

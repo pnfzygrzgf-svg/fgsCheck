@@ -68,13 +68,21 @@ describe('Gelände: Prüfung je Zufahrt', () => {
     expect(g.frei['50.00']).toBe(true)
     expect(g.frei['60.00']).toBe(false)
     const zz = z(e, l)
-    const werte: Record<string, GelaendeStand> = { [gelaendeSchluessel(zz)!]: { stand: 'ok', ...g } }
+    // Ergebnis mit dem Modellnamen des benutzten Dienstes (App); die Texte nennen ihn
+    const werte: Record<string, GelaendeStand> = { [gelaendeSchluessel(zz)!]: { stand: 'ok', ...g, quelle: 'swissALTI3D', tolM: GELAENDE_TOL_M } }
     const a = erkennungAnzeige(zz, werte)!
-    expect(a.e).toEqual({ wert: g.abM, bis: 'verdeckt', hindernis: { klasse: 'gelaende', name: GELAENDE_NAME }, gelaende: 'mit',
-      gelaendePruefbereich: { letzteFreiM: 52.5, ersteVerdecktM: 55 } })
+    expect(a.e).toEqual({ wert: g.abM, bis: 'verdeckt', hindernis: { klasse: 'gelaende', name: 'Geländemodell (swissALTI3D)' }, gelaende: 'mit',
+      gelaendeQuelle: 'swissALTI3D', gelaendePruefbereich: { letzteFreiM: 52.5, ersteVerdecktM: 55 } })
     expect(erkennungText(a.e)).toBe(`Bodenmarkierung im Modell erkennbar ab ${g.abM} m (abgerundeter Rechenwert; weiter entfernt verdeckt: Geländemodell (swissALTI3D))`)
     expect(gelaendeText(a.e)).toBe('mit Geländemodell (swissALTI3D); letzte frei geprüfte Position 52,5 m; erste verdeckte Position 55 m vor dem Streifen')
-    expect(a.linien.find(x => x.x === 70)).toMatchObject({ befund: 'verdeckt', grund: GELAENDE_NAME, gelaende: false })
+    expect(a.linien.find(x => x.x === 70)).toMatchObject({ befund: 'verdeckt', grund: 'Geländemodell (swissALTI3D)', gelaende: false })
+    // ohne Modellname (Ergebnis ohne quelle) nur «Geländemodell»; Berner DTM mit seinem Namen
+    const ohne = erkennungAnzeige(zz, { [gelaendeSchluessel(zz)!]: { stand: 'ok', ...g } })!.e
+    expect(ohne.hindernis).toEqual({ klasse: 'gelaende', name: GELAENDE_NAME })
+    expect(gelaendeText(ohne)).toMatch(/^mit Geländemodell; /)
+    const bern = erkennungAnzeige(zz, { [gelaendeSchluessel(zz)!]: { stand: 'ok', ...g, quelle: 'DTM 2023 Stadt Bern' } })!.e
+    expect(gelaendeText(bern)).toMatch(/^mit Geländemodell \(DTM 2023 Stadt Bern\); /)
+    expect(erkennungText(bern)).toContain('verdeckt: Geländemodell (DTM 2023 Stadt Bern))')
     expect(a.linien.find(x => x.x === 40)).toMatchObject({ befund: 'frei', gelaende: true })
     // Band: grün bis zum neuen Wert, rot bis zum Soll (60 m); Sichtlinien mit Gelände
     const [b] = erkennungBaender({ zufahrten: [zz] } as unknown as StreifenErgebnis, werte)
@@ -132,6 +140,22 @@ describe('Gelände: Prüfung je Zufahrt', () => {
     expect(g.frei['40.00']).toBeUndefined()
     expect(g.frei['60.00']).toBe(true)
     expect(g.abM).toBeNull()
+  })
+  it('Toleranz des Dienstes: eine Kuppe von 0,3 m verdeckt mit 0,15 m (Berner DTM), nicht mit 0,3 m (swissALTI3D)', async () => {
+    const l = linien(XS), e: Erkennung = { wert: 110, bis: 'frei' }
+    // flache Kuppe 0,3 m hoch kurz vor der Markierung (y = 3 bis 7): vom Augpunkt 20 m liegt die Sichtlinie bei y = 3 auf 0,10 m
+    // (0,3 > 0,10 + 0,15, aber nicht > 0,10 + 0,3), vom Augpunkt 10 m auf 0,20 m (frei)
+    const laden: ProfilLader = async (a, b) => {
+      const L = Math.hypot(a[0] - b[0], a[1] - b[1])
+      return profil(L, d => (Math.abs(a[1] + d * (b[1] - a[1]) / L - 5) < 3 && a[1] - 5 > 3 ? 0.3 : 0))
+    }
+    expect((await gelaendePruefen(e, l, laden)).abM).toBeNull()
+    expect((await gelaendePruefen(e, l, laden, GELAENDE_TOL_M)).abM).toBeNull()
+    const bern = await gelaendePruefen(e, l, laden, 0.15)
+    expect(bern.frei['10.00']).toBe(true)
+    expect(bern.frei['20.00']).toBe(false)
+    expect(bern.abM).toBeGreaterThanOrEqual(10)
+    expect(bern.abM).toBeLessThan(20)
   })
   it('Lader der Sichtprofile: nur die zwei Endpunkte (0,1 m), Stützpunkte nach der Länge', () => {
     expect(sichtProfilPunkte(4)).toBe(10)

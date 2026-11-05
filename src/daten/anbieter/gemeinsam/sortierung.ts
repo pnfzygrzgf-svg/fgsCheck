@@ -5,7 +5,7 @@ export const alphabetisch = (a: string, b: string): number => kollator.compare(a
 
 const THEMEN: Record<string, string> = {
   av: 'Vermessung', sosf: 'Vermessung – Einzelobjekte', osm: 'Strassennetz (OSM)', suche: 'Übergänge und Strassennamen',
-  luftbild: 'Luftbild', hoehen: 'Höhenmodell', hoehenSicht: 'Höhenmodell – Wartefläche',
+  luftbild: 'Luftbild', hoehen: 'Höhenmodell', hoehenSicht: 'Höhenmodell – Wartefläche', hoehenBern: 'Höhenmodell', hoehenSichtBern: 'Höhenmodell – Wartefläche',
   kataster: 'Bäume', baumkataster: 'Bäume', parkkataster: 'Parkfelder', bav: 'Haltestellen', haltestellen: 'Haltestellen',
   gebiet: 'Gebietsangaben', verkehrsdaten: 'Verkehrsmenge (DTV)', npvm: 'Verkehrsmenge (DTV)', richtplan: 'Fusswegnetz',
   strassenhierarchie: 'Strassenhierarchie und Strassentypen', vsig: 'Tempo', zhTempo: 'Tempo', zhZonen: 'Verkehrszonen', schulen: 'Schulen, Kindergärten und Heime',

@@ -236,7 +236,7 @@ describe('Werkverzeichnis: voller Titel und offizielle Adressen', () => {
     expect([WERKE.ENTSCHEID.pdf, WERKE.ENTSCHEID.seite]).toEqual([null, null])
   })
   it('Adressen der Herausgeber stehen nur in katalog.ts (Geodienste wie map.bern.ch ausgenommen)', () => {
-    const GEODIENSTE = ['map.bern.ch', 'www.geoservice.apps.be.ch']
+    const GEODIENSTE = ['map.bern.ch', 'gisapp.bern.ch', 'www.geoservice.apps.be.ch']
     const dateien = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? dateien(join(d, e.name))
       : /\.(ts|tsx)$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [join(d, e.name)] : [])
     const src = join(__dirname, '..')

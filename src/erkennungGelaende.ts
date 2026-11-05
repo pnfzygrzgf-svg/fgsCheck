@@ -1,10 +1,11 @@
-// ── Erkennungsdistanz mit Gelände (30.10.2026; Höhenmodell swissALTI3D © swisstopo) ──
+// ── Erkennungsdistanz mit Gelände (30.10.2026; Höhenmodell swissALTI3D © swisstopo, in der Stadt Bern DTM 2023 der Stadt) ──
 //
 // Die Rechnung (rechner/erkennung.ts) prüft die Sicht auf die Markierung in 2D und gibt dünne Sichtlinien mit (ZufahrtErgebnis.
 // erkennungLinien: alle 10 m ein Augpunkt mit dem genutzten Zielpunkt). Danach holt die App je Sichtlinie bis zur Erkennungsdistanz
-// ein Höhenprofil (daten/sichtProfil.ts, derselbe Profil-Dienst wie Längsneigung, Kurvenregel und Velo-Sicht) und prüft, ob das
-// Gelände (DTM, ohne Gebäude und Bewuchs) die Linie schneidet: Augpunkt AUGHOEHE_M (1,0 m, VSS 40 241 Ziffer 14, S. 6) über dem Gelände, Ziel die Markierung am Boden
-// (ZIEL_HOEHE_M), Gelände verdeckt erst, wenn es mehr als GELAENDE_TOL_M über die Linie ragt.
+// ein Höhenprofil (daten/sichtProfil.ts, derselbe Höhendienst wie Längsneigung, Kurvenregel und Velo-Sicht; daten/hoehenDienst.ts) und
+// prüft, ob das Gelände (DTM, ohne Gebäude und Bewuchs) die Linie schneidet: Augpunkt AUGHOEHE_M (1,0 m, VSS 40 241 Ziffer 14, S. 6) über
+// dem Gelände, Ziel die Markierung am Boden (ZIEL_HOEHE_M), Gelände verdeckt erst, wenn es mehr als die Toleranz des Dienstes über die
+// Linie ragt (GELAENDE_TOL_M für swissALTI3D, daten/bernDtm.ts für das Berner DTM). Das Ergebnis trägt den Namen des Modells (quelle).
 // Warum je Sichtlinie ein Profil (statt eines Rasters bzw. weniger Profile entlang der Fahrlinie und Interpolation): in Kurven läuft
 // die Sichtlinie quer über die Innenseite (Böschung, Hang), die ein Profil entlang der Fahrlinie gar nicht erfasst; der Dienst liefert
 // nur Profile entlang von Linien, kein Raster. Ein Profil je Sichtlinie misst genau den Boden unter der Linie.
@@ -22,16 +23,22 @@ import type { ZufahrtErgebnis } from './rechner/typen'
 
 /** Ziel: die Markierung liegt am Boden */
 export const ZIEL_HOEHE_M = 0
-/** Gelände verdeckt erst, wenn es so weit über die Sichtlinie ragt [m]: Höhengenauigkeit von swissALTI3D auf befestigten, offenen
- * Flächen rund ±0,3 m, Höhen im Profil auf 0,1 m gerundet; so verdeckt eine ebene bzw. gleichmässig geneigte Fahrbahn nie */
+/** Gelände verdeckt erst, wenn es so weit über die Sichtlinie ragt [m] (swissALTI3D; Annahme): Höhengenauigkeit auf befestigten, offenen
+ * Flächen rund ±0,3 m, Höhen im Profil auf 0,1 m gerundet; so verdeckt eine ebene bzw. gleichmässig geneigte Fahrbahn nie. Das Berner
+ * DTM 2023 hat seine eigene Toleranz (daten/bernDtm.ts) */
 export const GELAENDE_TOL_M = 0.3
 /** halbierende Abfragen zwischen der letzten freien und der ersten geschnittenen Sichtlinie (10 m → 2,5 m) */
 export const VERFEINERN_GELAENDE = 2
-export const GELAENDE_NAME = 'Geländemodell (swissALTI3D)'
+/** Wort für das Gelände als Hindernis; mit Modellname über gelaendeName */
+export const GELAENDE_NAME = 'Geländemodell'
+/** «Geländemodell (swissALTI3D)» bzw. nur «Geländemodell», wenn das Modell unbekannt ist */
+export const gelaendeName = (quelle?: string | null): string => (quelle ? `${GELAENDE_NAME} (${quelle})` : GELAENDE_NAME)
 
 /** Stand der Geländeprüfung einer Zufahrt: lädt, geprüft (abM: Erkennungsdistanz durch das Gelände begrenzt, null: Gelände frei;
- * frei: Ergebnis je Sichtlinie nach x; abfragen: Anzahl Profile) bzw. Fehler (Rechnung bleibt 2D) */
-export interface GelaendeErgebnis { abM: number | null; frei: Record<string, boolean>; abfragen: number; pruefbereich?: GelaendePruefbereich }
+ * frei: Ergebnis je Sichtlinie nach x; abfragen: Anzahl Profile; quelle: Modellname, tolM: Toleranz des benutzten Dienstes) bzw.
+ * Fehler (Rechnung bleibt 2D) */
+export interface GelaendeErgebnis { abM: number | null; frei: Record<string, boolean>; abfragen: number; pruefbereich?: GelaendePruefbereich
+  quelle?: string; tolM?: number }
 export type GelaendeStand = { stand: 'laedt' }
   | ({ stand: 'ok' } & GelaendeErgebnis)
   | { stand: 'fehler'; text: string }
@@ -80,10 +87,11 @@ function linieBei(linien: readonly ErkennungLinie[], x: number): { auge: P; ziel
 }
 
 /**
- * Gelände entlang der Sichtlinien bis zur 2D-Erkennungsdistanz prüfen (Ablauf oben). Wirft, wenn ein Profil der ersten Runde fehlt
- * (die Rechnung bleibt dann 2D); fehlt ein Profil der Verfeinerung, gilt die letzte freie Lage. Ein Abbruch wird weitergereicht.
+ * Gelände entlang der Sichtlinien bis zur 2D-Erkennungsdistanz prüfen (Ablauf oben; tol: Toleranz des Dienstes). Wirft, wenn ein
+ * Profil der ersten Runde fehlt (die Rechnung bleibt dann 2D); fehlt ein Profil der Verfeinerung, gilt die letzte freie Lage. Ein
+ * Abbruch wird weitergereicht.
  */
-export async function gelaendePruefen(e: Erkennung, linien: readonly ErkennungLinie[], laden: ProfilLader):
+export async function gelaendePruefen(e: Erkennung, linien: readonly ErkennungLinie[], laden: ProfilLader, tol = GELAENDE_TOL_M):
   Promise<GelaendeErgebnis> {
   const sortiert = [...linien].sort((a, b) => a.x - b.x)
   const kand: { x: number; auge: P; ziel: P }[] = sortiert.filter(l => l.x > 1e-6 && l.x <= e.wert + 1e-6 && !l.bruecke)
@@ -93,7 +101,7 @@ export async function gelaendePruefen(e: Erkennung, linien: readonly ErkennungLi
   }
   kand.sort((a, b) => a.x - b.x)
   const res = await Promise.all(kand.map(l => laden(l.auge, l.ziel).then(p => {
-    const f = gelaendeFrei(p)
+    const f = gelaendeFrei(p, tol)
     if (f === null) throw new Error('Höhenprofil ohne Höhen')
     return f
   })))
@@ -109,7 +117,7 @@ export async function gelaendePruefen(e: Erkennung, linien: readonly ErkennungLi
     if (!q || q.bruecke) break
     abfragen++
     let f: boolean | null
-    try { f = gelaendeFrei(await laden(q.auge, q.ziel)) } catch (err) {
+    try { f = gelaendeFrei(await laden(q.auge, q.ziel), tol) } catch (err) {
       if ((err as Error)?.name === 'AbortError') throw err
       break
     }
@@ -131,15 +139,16 @@ export function erkennungAnzeige(z: Pick<ZufahrtErgebnis, 'fgsId' | 'zufahrt' | 
   const l0 = z.erkennungLinien ?? []
   const k = gelaendeSchluessel(z), g = k ? werte?.[k] : undefined
   if (!g || g.stand !== 'ok' || !g.abfragen) return { e: { ...e0, gelaende: g?.stand === 'laedt' ? 'laedt' : 'ohne' }, linien: l0 }
+  const name = gelaendeName(g.quelle), q = g.quelle ? { gelaendeQuelle: g.quelle } : {}
   const linien = l0.map(l => {
     const f = g.frei[xKey(l.x)]
-    return f === undefined ? l : f ? { ...l, gelaende: true } : { ...l, gelaende: false, befund: 'verdeckt' as const, grund: GELAENDE_NAME }
+    return f === undefined ? l : f ? { ...l, gelaende: true } : { ...l, gelaende: false, befund: 'verdeckt' as const, grund: name }
   })
-  if (g.abM === null || g.abM >= e0.wert) return { e: { ...e0, gelaende: 'mit' }, linien }
+  if (g.abM === null || g.abM >= e0.wert) return { e: { ...e0, gelaende: 'mit', ...q }, linien }
   // Bewuchs gilt nur, solange er vor der neuen Erkennungsdistanz beginnt
   const { ende: _ende, hindernis: _h, bewuchsAb, bewuchs, ...rest } = e0
-  return { e: { ...rest, wert: g.abM, bis: 'verdeckt', hindernis: { klasse: 'gelaende', name: GELAENDE_NAME },
-    ...(bewuchsAb !== undefined && bewuchsAb < g.abM ? { bewuchsAb, bewuchs } : {}), gelaende: 'mit',
+  return { e: { ...rest, wert: g.abM, bis: 'verdeckt', hindernis: { klasse: 'gelaende', name },
+    ...(bewuchsAb !== undefined && bewuchsAb < g.abM ? { bewuchsAb, bewuchs } : {}), gelaende: 'mit', ...q,
     ...(g.pruefbereich ? { gelaendePruefbereich: g.pruefbereich } : {}) }, linien }
 }
 
@@ -149,6 +158,6 @@ export function pruefbereichText(p: GelaendePruefbereich): string {
   return `${p.letzteFreiM === null ? 'keine freie Position geprüft' : `letzte frei geprüfte Position ${m(p.letzteFreiM)} m`}; erste verdeckte Position ${m(p.ersteVerdecktM)} m vor dem Streifen`
 }
 /** Modellbezug und, falls vorhanden, die tatsächlich geprüften Grenzpositionen. */
-export const gelaendeText = (e: Pick<Erkennung, 'gelaende' | 'gelaendePruefbereich'>): string => (e.gelaende === 'mit'
-  ? `mit Geländemodell (swissALTI3D)${e.gelaendePruefbereich ? `; ${pruefbereichText(e.gelaendePruefbereich)}` : ''}`
+export const gelaendeText = (e: Pick<Erkennung, 'gelaende' | 'gelaendePruefbereich' | 'gelaendeQuelle'>): string => (e.gelaende === 'mit'
+  ? `mit ${gelaendeName(e.gelaendeQuelle)}${e.gelaendePruefbereich ? `; ${pruefbereichText(e.gelaendePruefbereich)}` : ''}`
   : e.gelaende === 'laedt' ? 'Geländemodell: Höhenprofile laden' : 'Geländemodell nicht geprüft')

@@ -43,11 +43,11 @@ Reihenfolge je Feld: amtlich lokal, Bund, OSM, Annahme, Eingabe von Hand. Modell
 wirken erst nach Bestätigung. Ein leerer oder unvollständiger Ausschnitt ergibt nie ein «keines» oder «Nein». Welche Quellen an einem
 Ort gelten, zeigt die App unter «Datenlage hier».
 
-- Luftbild, Landeskarte, Höhenmodell swissALTI3D, swissTLM3D, Gemeindegrenzen: © swisstopo
+- Luftbild, Landeskarte, Höhenmodell swissALTI3D (Profile; ausserhalb der Stadt Bern), swissTLM3D, Gemeindegrenzen: © swisstopo
 - Haltestellen, Verkehrsmodell NPVM, Bauzonen, Unfälle: BAV, ARE und ASTRA über geo.admin.ch
 - Bodenbedeckung: Amtliche Vermessung der Kantone über geodienste.ch
 - Strassennetz und Übergänge: © OpenStreetMap-Mitwirkende, ODbL (Overpass API)
-- Parkfelder, Bäume, Tempo, Haltestellen, Verkehrsdaten Stadt Bern: Geodaten Stadt Bern
+- Parkfelder, Bäume, Tempo, Haltestellen, Verkehrsdaten, Geländemodell DTM 2023 (Höhenprofile) Stadt Bern: Geodaten Stadt Bern
 - Tempo, Zonen, Signale, Einrichtungen und Kartenkontext weiterer Kantone und Städte: je nach Ort, Anbieter und Lizenz nennt die App
 
 Normen erscheinen nur als Nummern, Ziffern, Seiten und Zahlenwerte, nie als Normtext. Lizenzen der eingebundenen Bibliotheken und
@@ -71,6 +71,8 @@ Liste der Dienste steht in der App unter «Datenschutz».
   Hecken und Mauern (Höhe) fehlen in den Daten.
 - Knotensicht der Trottoirüberfahrt nur an Einmündungen und an Kreuzungen über die Zufahrt ohne Vortritt; an
   Grundstückzufahrten nur ein Hinweis. Bäume aus dem Baumkataster zählen (anders als im SichtweitenCheck).
+- Gelände entlang einzelner Sichtlinien; es verdeckt erst ab 0,3 m über der Sichtlinie (swissALTI3D) bzw. 0,15 m (DTM 2023 der
+  Stadt Bern), beides Annahmen nach der Genauigkeit der Modelle. Fällt der Berner Dienst aus, rechnet die App mit swissALTI3D.
 - Wartezeit beim Ausfahren nur als Schätzung aus dem DTV der Hauptstrasse (Bern); ohne Verkehrszahlen offen.
 - Die App ersetzt keine Beurteilung vor Ort.
 

@@ -104,6 +104,8 @@ export interface SichtGelaendeAnzeige {
   abM: number | null
   bisM: number
   pruefbereich?: GelaendePruefbereich
+  /** Modellname (swissALTI3D bzw. DTM 2023 Stadt Bern) */
+  quelle?: string
   linien: { x: number; auge: P; ziel: P; frei: boolean | null; bruecke?: true }[]
 }
 

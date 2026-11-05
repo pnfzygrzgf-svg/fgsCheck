@@ -92,7 +92,7 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
             geplanten Fall wiederherstellen»); sichern Sie ihn mit «Fall speichern». Die Fall-Datei und der PDF-Bericht werden
             lokal gespeichert, ohne Upload. Auch die gewählte Breite des rechten Bereichs merkt sich der Browser.</li>
           <li>Für Karte und Rechnung fragt die App den Kartenausschnitt bei swisstopo, geodienste.ch, OpenStreetMap
-            (Overpass), in Bern bei map.bern.ch und in Zürich bei den Geodatendiensten der Stadt ab; gesendet werden nur Koordinaten des Ausschnitts. Den Suchbegriff der
+            (Overpass), in Bern bei map.bern.ch und gisapp.bern.ch und in Zürich bei den Geodatendiensten der Stadt ab; gesendet werden nur Koordinaten des Ausschnitts. Den Suchbegriff der
             Ortssuche erhält swisstopo; der eigene Standort bleibt im Browser. Die Links «Street View ↗» öffnen Google Maps erst
             auf Klick; dabei gehen die Koordinaten an Google.</li>
           <li>Nutzungsstatistik: Seitenaufrufe werden mit GoatCounter gezählt, ohne Cookies und ohne Speicherung der

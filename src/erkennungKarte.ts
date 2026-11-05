@@ -24,7 +24,7 @@ import { erkennungAnzeige, gelaendeText, type GelaendeStand } from './erkennungG
 type Gelaende = Readonly<Record<string, GelaendeStand>> | null | undefined
 
 /** Wort für das verdeckende Hindernis (wie texte.erkennungZusatz) */
-const HINDERNIS_WORT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld', baum: 'Baum', gelaende: 'Geländemodell (swissALTI3D)' }
+const HINDERNIS_WORT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld', baum: 'Baum' }   // Gelände: Name mit Modell (gelaendeName)
 
 export interface ErkennungBand {
   /** Schlüssel «fgsId|zufahrt» */

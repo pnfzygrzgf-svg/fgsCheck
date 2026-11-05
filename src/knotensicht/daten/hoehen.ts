@@ -20,10 +20,14 @@ const PROFIL_MS = 15000
 
 interface ProfilRoh { dist?: number; alts?: { COMB?: number | null; DTM2?: number | null; DTM25?: number | null } }
 
-export function profilUrl(linie: P[], punkte = PROFIL_PUNKTE): string {
+/** Ecken der Linie für die Adresse: gleichmässig auf höchstens PROFIL_ECKEN_MAX ausgedünnt (Anfang und Ende bleiben), auf 0,01 m */
+export function profilEcken(linie: P[]): P[] {
   const schritt = Math.max(1, Math.ceil((linie.length - 1) / (PROFIL_ECKEN_MAX - 1)))
-  const ecken = linie.filter((_, k) => k % schritt === 0 || k === linie.length - 1)
-  const geom = JSON.stringify({ type: 'LineString', coordinates: ecken.map(p => [Math.round(p[0] * 100) / 100, Math.round(p[1] * 100) / 100]) })
+  return linie.filter((_, k) => k % schritt === 0 || k === linie.length - 1).map(p => [Math.round(p[0] * 100) / 100, Math.round(p[1] * 100) / 100])
+}
+
+export function profilUrl(linie: P[], punkte = PROFIL_PUNKTE): string {
+  const geom = JSON.stringify({ type: 'LineString', coordinates: profilEcken(linie) })
   return `https://api3.geo.admin.ch/rest/services/profile.json?geom=${encodeURIComponent(geom)}&sr=2056&nb_points=${punkte}`
 }
 

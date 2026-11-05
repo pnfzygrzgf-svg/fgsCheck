@@ -38,8 +38,8 @@ describe('«Datenlage hier» im Panel', () => {
 describe('Bericht: nur die genutzten Quellen', () => {
   it('Fall-Quellen, Übergang aus dem Luftbild und Höhen -> Kennungen; Tabelle mit Themen nach der Datenlage', () => {
     const ids = genutzteQuellen({ osm: 'x', av: 'y', luftbild: 'z', vsig: 'v', haltestellen: 'h', geladen: '2026-10-30' },
-      { herkunftP: lv95(46.95, 7.44), hoehen: true })
-    expect(ids).toEqual(['osm', 'av', 'swissimage', 'bern.vsig', 'bern.halt', 'eth.fgs.bern', 'swissalti'])
+      { herkunftP: lv95(46.95, 7.44), hoehen: ['bern.dtm', 'swissalti'] })
+    expect(ids).toEqual(['osm', 'av', 'swissimage', 'bern.vsig', 'bern.halt', 'eth.fgs.bern', 'bern.dtm', 'swissalti'])
     const t = text(renderToStaticMarkup(<BerichtQuellenTabelle ids={ids} lage={BERN} />))
     expect(t).toContain('OpenStreetMap (Overpass) Strassennetz, Übergänge OpenStreetMap Abruf beim Laden Datenstand unbekannt; Vollständigkeit unbekannt ODbL')
     expect(t).not.toContain('Baumkataster')
@@ -56,7 +56,7 @@ describe('Hilfe', () => {
   it('Datenschutz aus dem Register: Dienste wie bisher, eigene Dateien, Street View und Statistik bleiben', () => {
     const t = text(renderToStaticMarkup(<Datenschutz />))
     expect(t).toContain('geodienste.ch (Amtliche Vermessung): Rechteck ±150 m um den Übergang bzw. die geplanten Streifen.')
-    expect(t).toContain('map.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern: Rechteck ±150 m für amtliche Parkfelder')
+    expect(t).toContain('map.bern.ch und gisapp.bern.ch (Geodaten Stadt Bern), nur in der Stadt Bern: Rechteck ±150 m für amtliche Parkfelder')
     expect(t).toContain('liegen als Datei je Stadt auf dieser Seite')
     expect(t).toContain('Street View')
     expect(t).toContain('GoatCounter')

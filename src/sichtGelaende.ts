@@ -1,4 +1,4 @@
-// ── Sicht auf die Wartefläche mit Gelände (Höhenmodell swissALTI3D © swisstopo) ──
+// ── Sicht auf die Wartefläche mit Gelände (Höhenmodell swissALTI3D © swisstopo, in der Stadt Bern DTM 2023 der Stadt) ──
 //
 // Die Rechnung (rechner/pruefen.ts: sichtfeld, konflikteSuchen) prüft die Sicht von den Sichtpunkten auf die Wartefläche
 // (VSS 40 241 Z. 14, S. 6, mit Tab. 1) in 2D: Gebäude, Parkfelder, Bäume, Hindernisse. Kuppen und andere Geländeformen kennt sie nicht.
@@ -11,7 +11,7 @@
 //   Augpunkt EINE Sichtlinie zum ungünstigsten Zielpunkt (Annahme): zur Ecke, die am stärksten von der Fahrtrichtung abweicht (äusserer
 //   Rand des Sichtkeils; diese Linie verläuft am weitesten neben der Fahrbahn, z. B. über die Innenseite einer Kurve). Eine Linie je
 //   Augpunkt hält die Abfragen klein; eine Kuppe auf der Fahrbahn schneidet alle Linien eines Augpunkts ähnlich. Ziel
-//   ZIEL_HOEHE_WARTE_M über dem Boden, Toleranz GELAENDE_TOL_M wie bei der Erkennung.
+//   ZIEL_HOEHE_WARTE_M über dem Boden, Toleranz des Dienstes wie bei der Erkennung (GELAENDE_TOL_M für swissALTI3D).
 // - Abfragen je Zufahrt: eine je Sichtlinie (höchstens 11 bis 110 m, Reichweite der geladenen Daten), dazu VERFEINERN_GELAENDE
 //   halbierende zwischen der letzten freien und der ersten geschnittenen Linie (10 m → 2,5 m): höchstens 13 (SICHT_ABFRAGEN_MAX 14).
 // - Ergebnis: «Gelände frei» bzw. «Verdeckung im Geländemodell» mit letzter freier/erster verdeckter Prüflage (Rechenwert aus letzter freier Lage,
@@ -26,7 +26,7 @@
 import { add, dist, sub, type P } from './geo'
 import type { Poly } from './rechner/poly'
 import { RANG_STATUS, type SichtGelaendeAnzeige, type StreifenErgebnis, type ZufahrtErgebnis } from './rechner/typen'
-import { GELAENDE_TOL_M, VERFEINERN_GELAENDE, gelaendeFrei, xKey, pruefbereichText, type GelaendeErgebnis, type GelaendeStand, type ProfilLader } from './erkennungGelaende'
+import { GELAENDE_TOL_M, VERFEINERN_GELAENDE, gelaendeFrei, gelaendeName, xKey, pruefbereichText, type GelaendeErgebnis, type GelaendeStand, type ProfilLader } from './erkennungGelaende'
 
 /** Ziel über dem Boden der Wartefläche [m]: untere Grenze der Sichtfeldhöhe (Annahme) */
 export const ZIEL_HOEHE_WARTE_M = 0.6
@@ -128,10 +128,10 @@ export function sichtGelaendeSchluessel(z: Pick<ZufahrtErgebnis, 'fgsId' | 'zufa
  * Gelände entlang der Sichtlinien bis zur geprüften Länge (Ablauf oben). Wirft, wenn ein Profil der ersten Runde fehlt (die Rechnung
  * bleibt dann 2D); fehlt ein Profil der Verfeinerung, gilt die letzte freie Lage. Ein Abbruch wird weitergereicht.
  */
-export async function sichtGelaendePruefen(g: SichtGeo, laden: ProfilLader, bruecke?: Bruecke):
+export async function sichtGelaendePruefen(g: SichtGeo, laden: ProfilLader, bruecke?: Bruecke, tol = GELAENDE_TOL_M):
   Promise<GelaendeErgebnis> {
   const kand = sichtLinien(g, bruecke).filter(l => !l.bruecke)
-  const pruefe = (p: Parameters<typeof gelaendeFrei>[0]) => gelaendeFrei(p, GELAENDE_TOL_M, ZIEL_HOEHE_WARTE_M)
+  const pruefe = (p: Parameters<typeof gelaendeFrei>[0]) => gelaendeFrei(p, tol, ZIEL_HOEHE_WARTE_M)
   const res = await Promise.all(kand.map(l => laden(l.auge, l.ziel).then(p => {
     const f = pruefe(p)
     if (f === null) throw new Error('Höhenprofil ohne Höhen')
@@ -168,7 +168,7 @@ export function sichtGelaendeAnzeige(z: Pick<ZufahrtErgebnis, 'fgsId' | 'zufahrt
   if (!st || st.stand !== 'ok') return { stand: st?.stand === 'laedt' ? 'laedt' : 'ohne', abM: null, bisM: g.bis, linien: [] }
   if (!st.abfragen) return { stand: 'bruecke', abM: null, bisM: g.bis, linien: [] }
   return { stand: 'mit', abM: st.abM !== null && st.abM < g.bis - 1e-6 ? st.abM : null, bisM: g.bis,
-    ...(st.pruefbereich ? { pruefbereich: st.pruefbereich } : {}),
+    ...(st.pruefbereich ? { pruefbereich: st.pruefbereich } : {}), ...(st.quelle ? { quelle: st.quelle } : {}),
     linien: sichtLinien(g, bruecke).map(l => ({ ...l, frei: l.bruecke ? null : st.frei[xKey(l.x)] ?? null })) }
 }
 
@@ -202,18 +202,18 @@ export function rechnungMitSichtGelaende<R extends { streifen: StreifenErgebnis[
 }
 
 /** Gleicher Modellbefund für Sichtprüfung und Bericht; Prüflagen nie als genaue Sichtgrenze darstellen. */
-export function sichtGelaendeText(a: Pick<SichtGelaendeAnzeige, 'stand' | 'abM' | 'linien' | 'pruefbereich'>): string {
+export function sichtGelaendeText(a: Pick<SichtGelaendeAnzeige, 'stand' | 'abM' | 'linien' | 'pruefbereich' | 'quelle'>): string {
   if (a.stand === 'laedt') return 'Geländemodell: lädt'
   if (a.stand === 'ohne') return 'Geländemodell: nicht geprüft'
   if (a.stand === 'bruecke') return 'Geländemodell: nicht prüfbar (Brücke)'
-  if (a.abM !== null) return `Geländemodell (swissALTI3D): Verdeckung; ${a.pruefbereich ? pruefbereichText(a.pruefbereich) : `abgerundeter Rechenwert ${a.abM} m, genaue Prüflagen nicht verfügbar`}`
+  if (a.abM !== null) return `${gelaendeName(a.quelle)}: Verdeckung; ${a.pruefbereich ? pruefbereichText(a.pruefbereich) : `abgerundeter Rechenwert ${a.abM} m, genaue Prüflagen nicht verfügbar`}`
   return `Geländemodell: geprüfte Sichtlinien frei${a.linien.some(l => l.bruecke) ? ' (Sichtlinien auf der Brücke nicht geprüft)' : ''}`
 }
 /** Tooltip der Zeile */
 export const SICHT_GELAENDE_TITEL = 'Geländemodell (Kuppen, Senken, Böschungen) zwischen Fahrlinie und Wartefläche: nach der Rechnung entlang ' +
-  'einzelner Sichtlinien (alle 10 m bis zur nötigen Sicht) aus dem Höhenmodell swissALTI3D geprüft, Auge 1,0 m (VSS 40 241 Ziffer 14, S. 6) ' +
+  'einzelner Sichtlinien (alle 10 m bis zur nötigen Sicht) aus dem Höhenmodell (swissALTI3D, in der Stadt Bern DTM 2023) geprüft, Auge 1,0 m (VSS 40 241 Ziffer 14, S. 6) ' +
   'und Ziel 0,60 m über dem Boden (Annahme); verdeckt es die Sicht vor der nötigen Sicht, ist die Zufahrt verdeckt. Ohne Antwort gilt die Rechnung in 2D ' +
   '(«Geländemodell: nicht geprüft»). Die genannten Positionen sind Fahrzeugpositionen entlang der Fahrlinie, keine genaue Sichtgrenze.'
 /** Tooltip einer geländeverdeckten Sichtlinie auf der Karte */
-export const sichtGelaendeLinieText = (x: number): string =>
-  `Sichtlinie ${Math.round(x)} m vor dem Streifen auf die Wartefläche: im Geländemodell verdeckt (swissALTI3D)`
+export const sichtGelaendeLinieText = (x: number, quelle?: string): string =>
+  `Sichtlinie ${Math.round(x)} m vor dem Streifen auf die Wartefläche: im ${gelaendeName(quelle)} verdeckt`

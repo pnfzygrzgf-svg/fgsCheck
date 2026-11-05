@@ -110,7 +110,7 @@ export function sichtQuelleKurz(q: string): string {
 }
 export const STATUS: Record<string, string> = {
   frei: 'frei', verdeckt: 'verdeckt (Auto-Parkfeld)', verdeckt_gebaeude: 'verdeckt (Gebäude)', verdeckt_hindernis: 'verdeckt (Hecke, Mauer bzw. übriges Hindernis)',
-  verdeckt_baum: 'verdeckt (Baum)', verdeckt_zweirad: 'verdeckt (Zweirad-Feld)', verdeckt_gelaende: 'verdeckt (Geländemodell, swissALTI3D)', kein_fgs: 'kein FGS (von Hand)', ohne_zufahrt: 'keine Zufahrt',
+  verdeckt_baum: 'verdeckt (Baum)', verdeckt_zweirad: 'verdeckt (Zweirad-Feld)', verdeckt_gelaende: 'verdeckt (Geländemodell)', kein_fgs: 'kein FGS (von Hand)', ohne_zufahrt: 'keine Zufahrt',
 }
 /** Status einer Zufahrt im Tooltip des Sichtfelds auf der Karte: «verdeckt gebaeude» wie bisher, das Gelände (sichtGelaende.ts) als
  * «verdeckt (Gelände)» */
@@ -127,7 +127,8 @@ export const TUE_NUR_EINMUENDUNG = 'nur an Einmündungen'
 const ENDE_TEXT: Record<string, string> = { knoten: 'Fahrlinie endet am Knoten, weiter zurück nicht geprüft',
   wegende: 'Fahrlinie endet am Wegende, weiter zurück nicht geprüft', kreisel: 'Fahrlinie endet im Kreisel, weiter zurück nicht geprüft',
   gebaeude: 'weiter zurück nicht prüfbar' }
-const HINDERNIS_TEXT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld', gelaende: 'Geländemodell (swissALTI3D)' }
+/** Wort für das verdeckende Hindernis; das Gelände nennt sein Modell im Namen (erkennungGelaende.gelaendeName) */
+const HINDERNIS_TEXT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld' }
 /** Wert der Erkennungsdistanz: «64 m» bzw. «mindestens 30 m» (Fahrlinie endet vorher) */
 export const erkennungWert = (e: Erkennung): string => `${e.bis === 'fahrlinie_endet' ? 'mindestens ' : ''}${e.wert} m`
 /** «erkennbar ab 64 m» bzw. «erkennbar auf mindestens 30 m» (Untergrenze, weiter zurück nicht geprüft) */
@@ -164,7 +165,7 @@ export function erkennungEmpfehlungText(e: Erkennung, sichtweite: number): strin
 export const ERKENNUNG_TITEL = 'Erkennungsdistanz aus dem Sichtrechner: Sicht von der Fahrlinie auf die Markierung im eigenen Fahrstreifen, ' +
   'geprüft bis 110 m. Hindernisse: Gebäude, Hecken, Mauern, Bäume und Auto-Parkfelder; über Bewuchs der AV (Wald, bestockte Fläche, ' +
   'Gartenanlage) nicht sicher frei. Gelände (Kuppen, Senken, Böschungen): danach ' +
-  'entlang einzelner Sichtlinien (alle 10 m) aus dem Höhenmodell swissALTI3D, Auge 1,0 m über dem Boden (VSS 40 241 Ziffer 14, S. 6); ohne Antwort 2D («Gelände ' +
+  'entlang einzelner Sichtlinien (alle 10 m) aus dem Höhenmodell (swissALTI3D, in der Stadt Bern DTM 2023), Auge 1,0 m über dem Boden (VSS 40 241 Ziffer 14, S. 6); ohne Antwort 2D («Gelände ' +
   'nicht geprüft»). Modellprüfung der Bodenmarkierung; kein örtlicher Nachweis der Erkennungsdistanz der gesamten Anlage. Signale werden hier nicht zusätzlich bewertet.'
 
 /** Status einer Zufahrt; bei «verdeckt_hindernis» mit den Arten der verdeckenden Hindernisse (Hecke, Mauer, übriges Hindernis) */
