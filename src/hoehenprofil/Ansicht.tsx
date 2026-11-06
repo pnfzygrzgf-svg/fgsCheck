@@ -103,8 +103,8 @@ export function HoehenprofilAnsicht({ profile, onAuswahl, kartenAlle = false, on
           <p>Auge {zahl(p.sicht.augeM, 2)} m, Ziel {zahl(p.sicht.zielM, 2)} m über Gelände. Gebäude und Bewuchs sind in diesem Geländeprofil nicht enthalten.</p>
           <p>Die Fahrzeugposition wird entlang der Fahrbahn gemessen. Die waagerechte Achse des Schnitts zeigt die Länge der Sichtlinie vom Fahrer*innenauge zum Ziel.</p>
         </>}
-        <p style={{ fontSize: 11 }}>Horizontale und vertikale Achse haben unterschiedliche Massstäbe. {g.punkte.length} Stützpunkte; zwischen ihnen ist die Linie verbunden.</p>
-        <p style={{ margin: '6px 0', fontSize: 11 }}>{p.quelle}; Datenstand {p.datenstand || 'unbekannt'}; Vollständigkeit unbekannt
+        <p style={{ fontSize: 12 }}>Horizontale und vertikale Achse haben unterschiedliche Massstäbe. {g.punkte.length} Stützpunkte; zwischen ihnen ist die Linie verbunden.</p>
+        <p style={{ margin: '6px 0', fontSize: 12 }}>{p.quelle}; Datenstand {p.datenstand || 'unbekannt'}; Vollständigkeit unbekannt
           {p.abgerufen ? `; abgerufen ${new Date(p.abgerufen).toLocaleString('de-CH')}` : ''}.</p>
       </details>
     </> : <p>Für diesen Höhenschnitt fehlen ausreichende Höhenpunkte.</p>}

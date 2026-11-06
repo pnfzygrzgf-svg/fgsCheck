@@ -23,7 +23,7 @@ export function Anleitung() {
         <li><b>Bedarf und Querungstyp:</b> Die Zusammenfassung lesen, offene Fragen beantworten und Vorschläge prüfen.</li>
         <li><b>Angaben ergänzen:</b> Unter «Eingaben von Hand» zum Beispiel Tempo anpassen oder Hindernisse einzeichnen. Die App rechnet neu.</li>
         <li><b>Neu planen:</b> In der Gruppe «Planen» das passende Werkzeug wählen. Für einen neuen Streifen «Streifen planen» wählen und die beiden Wartebereiche anklicken.</li>
-        <li><b>Bericht und Fall:</b> «Bericht drucken / als PDF» öffnet die Druckansicht. «Fall speichern» sichert die Eingaben; «Fall laden» öffnet sie wieder.</li>
+        <li><b>Bericht und Fall:</b> «Bericht / PDF» öffnet die Druckansicht. «Fall speichern» sichert die Eingaben; «Fall laden» öffnet sie wieder.</li>
       </ol>
       <p className="klein">Weitere Erklärungen stehen bei den Fragezeichen sowie unter «Grundlagen und Quellen» und «Begriffe».</p>
     </details>
@@ -80,12 +80,12 @@ export function Datenschutz() {
         <li>Keine Anmeldung, kein eigener Server: gerechnet wird im Browser (Web Worker).</li>
         <li>Eingaben (Hindernisse, Tempo, Fahrlinien, Streifen, Bezeichnung) bleiben im Browser: je Übergang mit Eingaben ein Eintrag
           im lokalen Speicher (localStorage, Schlüssel «fgsCheck.fall.» und Nummer des Übergangs, mit den Koordinaten), sonst nur in
-          der Fall-Datei, wenn Sie sie speichern. Übergänge ohne Eingaben werden nicht gespeichert. Fälle ohne Übergang (z. B. ein
+          der Fall-Datei, wenn du sie speicherst. Übergänge ohne Eingaben werden nicht gespeichert. Fälle ohne Übergang (z. B. ein
           geplanter Streifen) teilen sich einen einzigen Eintrag «fgsCheck.fall.ort»; liegt dort ein anderer Fall, fragt die App, bevor
           sie ihn ersetzt, und «Letzten geplanten Fall wiederherstellen» holt ihn zurück. Gehört ein Fall nicht mehr zu seinem
           Übergang (Streifen von Hand verschoben bzw. in einer Fall-Datei weit vom Übergang), merkt die App ihn unter
           «fgsCheck.fall.ort» und entfernt danach den Eintrag des Übergangs. «Eingaben verwerfen» bzw. das Löschen aller Eingaben entfernt den Eintrag des
-          Übergangs; alle Einträge löschen Sie über die Website-Daten dieser Seite in den Browser-Einstellungen. An keinen Dienst
+          Übergangs; alle Einträge löschst du über die Website-Daten dieser Seite in den Browser-Einstellungen. An keinen Dienst
           gehen Eingaben oder Ergebnisse. Die Breite des rechten Bereichs (Trenner) steht unter «fgsCheck.panelBreite», die zuletzt gesehene Kartenansicht (Mitte und Zoom) unter «fgsCheck.karteAnsicht».</li>
         <li>Der Browser holt die Daten direkt bei diesen Diensten; sie sehen dabei technisch die IP-Adresse und Browserangaben:
           <ul>
@@ -98,7 +98,7 @@ export function Datenschutz() {
           Koordinaten des Standpunkts und die Blickrichtung an Google. Die App bettet nichts von Google ein.</li>
         <li>Nutzungsstatistik: Seitenaufrufe werden mit GoatCounter gezählt, ohne Cookies und ohne Speicherung der IP-Adresse. Erfasst
           werden Seitenpfad, Herkunftsseite (Referrer), Bildschirmbreite, Browser und Betriebssystem, Sprache sowie das Land (aus der
-          IP-Adresse abgeleitet), nicht Ihre Eingaben oder Ergebnisse.
+          IP-Adresse abgeleitet), nicht deine Eingaben oder Ergebnisse.
           GitHub Pages protokolliert zudem Zugriffe (IP-Adresse, Browser), wie jeder Webserver.</li>
       </ul>
     </details>
@@ -109,10 +109,10 @@ export function Datenschutz() {
 export function Fusszeile() {
   return (
     <footer className="fuss klein">
-      fgsCheck v{__APP_VERSION__} · Code unter <a href="https://opensource.org/license/mit" target="_blank" rel="noopener noreferrer">MIT</a>, eigene Inhalte unter{' '}
+      fgsCheck Beta v{__APP_VERSION__} · Code unter <a href="https://opensource.org/license/mit" target="_blank" rel="noopener noreferrer">MIT</a>, eigene Inhalte unter{' '}
       <a href="https://creativecommons.org/licenses/by/4.0/deed.de" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>{' '}
       (eingebundene Daten behalten ihre eigenen Lizenzen) ·{' '}
-      <a href="https://github.com/pnfzygrzgf-svg/fgsCheck" target="_blank" rel="noopener noreferrer">Quellcode auf GitHub</a>
+      <a href="https://github.com/pnfzygrzgf-svg/fgsCheck" target="_blank" rel="noopener noreferrer">Quellcode auf GitHub</a> · Vibecoding. Don't trust, verify!
       {' '}· <a href="https://ko-fi.com/pnfzygrzgfsvg" target="_blank" rel="noopener noreferrer">Unterstützen ↗</a>
     </footer>
   )

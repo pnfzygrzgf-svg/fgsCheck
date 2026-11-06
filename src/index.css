@@ -1,8 +1,11 @@
 :root {
   color-scheme: light;
   --bg: #f1f5f9;
-  --accent: #b45309;
-  /* Zweitfarbe «Bedarf und Querungstyp» (dunkles Petrol, hebt sich vom Bernstein ab): Kontrast auf Weiss 7,3:1, auf --bedarf-hell
+  --accent: #1d4ed8;
+  /* Tönungen der Produktfarbe für Gewähltes und Hervorgehobenes; Warnungen behalten ihr eigenes Gelb und Orange */
+  --accent-hell: #eff6ff;
+  --accent-mittel: #dbeafe;
+  /* Zweitfarbe «Bedarf und Querungstyp» (dunkles Petrol, hebt sich vom Blau ab): Kontrast auf Weiss 7,3:1, auf --bedarf-hell
      6,5:1, Weiss auf --bedarf 7,3:1 (WCAG AA und AAA für Text) */
   --bedarf: #0f5f6b;
   --bedarf-hell: #e7f3f4;
@@ -26,14 +29,14 @@ html, body, #root { margin: 0; height: 100%; background: var(--bg); }
   display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
 .kartenkopf > * { pointer-events: auto; }
 .ortssuche { position: relative; }
-.ortssuche input { width: 100%; font: inherit; font-size: 16px; padding: 7px 28px 7px 10px; border: 1px solid var(--border);
+.ortssuche input { width: 100%; font: inherit; font-size: 14px; padding: 7px 28px 7px 10px; border: 1px solid var(--border);
   border-radius: 8px; background: #ffffff; color: var(--text-strong); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 .ortssuche input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
 .ortssuche-laedt { position: absolute; right: 10px; top: 7px; color: var(--text-muted); }
 .ortssuche-liste { list-style: none; margin: 4px 0 0; padding: 4px 0; background: #ffffff; border: 1px solid var(--border);
   border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.25); max-height: 50vh; overflow-y: auto; }
 .ortssuche-liste li { padding: 6px 10px; cursor: pointer; line-height: 1.3; }
-.ortssuche-liste li.aktiv { background: #fef3c7; }
+.ortssuche-liste li.aktiv { background: var(--accent-mittel); }
 .ortssuche-liste li.ortssuche-leer { cursor: default; color: var(--text-muted); }
 .ortssuche-art { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
 .ortssuche-fehler, .kartenhinweis { font-size: 12px; background: rgba(255,255,255,.92); border: 1px solid var(--border);
@@ -77,6 +80,10 @@ th { font-weight: 600; color: var(--text-muted); font-size: 12px; }
    oben mit dem Knopf für die Höhe (Karte.tsx), Panel mit dem sicheren Bereich (iPhone-Balken, Notch quer; viewport-fit=cover). */
 html { -webkit-text-size-adjust: 100%; }
 select { max-width: 100%; }
+/* Schriftstufen wie in den anderen Rechnern: Titel 20, Abschnitt 15, normal 14, klein 12; Felder normal, auf Touch 16 (unten) */
+input, select, textarea { font: inherit; }
+/* Auswahlfelder weiss wie im VeloroutenCheck; ohne eigenen Stil zeichnet der Browser sie grau */
+select { background: #ffffff; color: var(--text-strong); border: 1px solid var(--border); border-radius: 8px; padding: 3px 6px; }
 @media (pointer: coarse) {
   button:not(.begriff-knopf):not(.hilfe-knopf):not(.frage-knopf):not(.feld-link):not(.logo-knopf):not(.quelle-chip), select, input:not([type=checkbox]):not([type=radio]) { min-height: 44px; }
   input, select, textarea { font-size: 16px !important; }
@@ -97,17 +104,16 @@ select { max-width: 100%; }
     font-size: 10px; cursor: pointer; }
   .leaflet-control-attribution.offen { white-space: normal; }
 }
-@media (max-width: 700px) { .regel-nr, .quelle-chip, .begriff-knopf, .quellen-tabelle { font-size: 12px; } }   /* kleine Schriften mindestens 12 px */
 /* Zufahrten-Tabelle auf schmalen Bildschirmen in der Breite des Panels (bei 375 px vorher 382 px, das Panel scrollte seitlich) */
 @media (max-width: 700px) { table.zufahrten { table-layout: fixed; width: 100%; } .zufahrten td, .zufahrten th { overflow-wrap: anywhere; } }
-h3 { font-size: 13px; margin: 8px 0 4px; color: var(--text-strong); }
-button { font: inherit; padding: 6px 10px; border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 6px; cursor: pointer; }
+h3 { font-size: 14px; margin: 8px 0 4px; color: var(--text-strong); }
+button { font: inherit; padding: 6px 10px; border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 8px; cursor: pointer; }
 button:hover { filter: brightness(1.1); }
 .knopfzeile { margin: 10px 0 4px; }
 .streifen { border-top: 1px solid var(--border); margin-top: 12px; }
 .zufahrten tbody tr { cursor: pointer; }
 .zufahrten tbody tr:hover { background: #f1f5f9; }
-.zufahrten tbody tr.aktiv { background: #fffbeb; }
+.zufahrten tbody tr.aktiv { background: var(--accent-hell); }
 .zufahrt-tempo select { width: 105px; max-width: 100%; font: inherit; }
 .detail { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; margin-bottom: 8px; }
 .annahmen { margin: 4px 0 8px; padding-left: 18px; font-size: 12px; color: #92400e; }
@@ -117,31 +123,31 @@ summary { cursor: pointer; }
 /* ein- und ausblendbare Abschnitte im Panel (Geladene Quellen, Legende, Grundlagen): Titel wie h2, Standard-Pfeil davor */
 details.abschnitt > summary { margin: 18px 0 6px; }
 details.abschnitt > summary h2 { display: inline; margin: 0; }
-details.abschnitt > summary h2 .fehler { font-size: 13px; font-weight: 600; }
+details.abschnitt > summary h2 .fehler { font-size: 12px; font-weight: 600; }
 /* E2: Eingaben */
 button.zweit { background: #ffffff; color: var(--accent); }
 button.klein, .knopf.klein { padding: 2px 6px; font-size: 12px; }
-/* Hauptknopf klein (ohne «zweit»): weisse Schrift auf Bernstein; sonst gewinnt .klein (grau, gleiche bzw. höhere Spezifität als
-   button) und die Schrift ist unlesbar («ersetzen», «bestätigen»). Zweitknöpfe bleiben Bernstein auf Weiss. */
+/* Hauptknopf klein (ohne «zweit»): weisse Schrift auf der Produktfarbe; sonst gewinnt .klein (grau, gleiche bzw. höhere Spezifität als
+   button) und die Schrift ist unlesbar («ersetzen», «bestätigen»). Zweitknöpfe bleiben in der Produktfarbe auf Weiss. */
 button.klein:not(.zweit) { color: #ffffff; }
 button:disabled { opacity: .5; cursor: default; }
-.knopf { display: inline-block; font: inherit; padding: 6px 10px; border: 1px solid var(--accent); background: #ffffff; color: var(--accent); border-radius: 6px; cursor: pointer; }
+.knopf { display: inline-block; font: inherit; padding: 6px 10px; border: 1px solid var(--accent); background: #ffffff; color: var(--accent); border-radius: 8px; cursor: pointer; }
 .knopfzeile { display: flex; flex-wrap: wrap; gap: 6px; }
 .werkzeuge { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
 .werkzeuge button { padding: 4px 8px; font-size: 12px; }
 /* Gruppe Planen (Planen.tsx): über der Reiterleiste, in beiden Reitern; Knöpfe umbrechend */
 .planen { margin: 12px 0 0; padding: 6px 8px 4px; border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px; }
-.planen > h2 { margin: 0 0 2px; font-size: 14px; }
+.planen > h2 { margin: 0 0 2px; font-size: 15px; }
 .planen details.geplant { margin: 6px 0 2px; }
 .planen details.geplant > summary { font-size: 12px; font-weight: 600; color: var(--text-strong); }
 @media (max-width: 700px) { .planen .werkzeuge button { padding: 6px 10px; } }
 button.aktiv { background: var(--accent); color: #ffffff; }
-.werkzeughilfe { font-size: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 6px 8px; margin: 4px 0; }
+.werkzeughilfe { font-size: 12px; background: #f1f5f9; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin: 4px 0; }
 .werkzeughilfe div { margin-top: 4px; }
 .werkzeughilfe input[type=number], .spur input[type=number] { width: 4.5em; }
 .liste { list-style: none; padding: 0; margin: 0 0 6px; font-size: 12px; }
 .liste li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 3px 0; border-bottom: 1px solid #f1f5f9; }
-.liste li.aktiv { background: #fffbeb; }
+.liste li.aktiv { background: var(--accent-hell); }
 /* Planung: Lage und Masse eines Streifens von Hand (aufklappbar, ganze Zeilenbreite) */
 .liste li details.masse { flex-basis: 100%; margin: 2px 0 2px 18px; }
 .masse table { border-collapse: collapse; margin: 2px 0 4px; }
@@ -204,11 +210,11 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 /* Werkzeug «Messen» (27.10.2026): Länge in der Farbe der Messlinie, etwas grösser */
 .messtext span { color: #6d28d9; font-size: 13px; }
 /* Gruppen der Themen und Gliederung eines Themas nach der Norm (27.10.2026) */
-.themen-gruppe { margin: 0.8em 0 0.2em; font-size: 0.9em; }
+.themen-gruppe { margin: 0.8em 0 0.2em; font-size: 14px; }
 .thema-abschnitt { margin: 0.6em 0 0.2em; }
 .thema-unter { margin: 0.3em 0 0.1em; }
 /* Nummernschild einer Zufahrt (17.10.2026, wie .arm-nr im SichtweitenCheck): weisser Kreis, dunkler Rand und Zahl; gewählte
-   Zufahrt Bernstein mit weisser Zahl. Leaflet setzt .leaflet-marker-icon auf display: block: Zahl über die Zeilenhöhe
+   Zufahrt in der Produktfarbe mit weisser Zahl. Leaflet setzt .leaflet-marker-icon auf display: block: Zahl über die Zeilenhöhe
    (22 px − 2 × 2 px Rand) und text-align zentriert. Bei mehreren Streifen rechts daneben der Streifen (weiss mit Halo). */
 .zufahrt-nr { box-sizing: border-box; background: #ffffff; border: 2px solid #0f172a; border-radius: 50%; color: #0f172a; cursor: pointer;
   text-align: center; font: 700 12px/18px system-ui, sans-serif; box-shadow: 0 0 2px #000; }
@@ -233,7 +239,7 @@ span.zufahrt-nr { display: inline-block; width: 18px; height: 18px; font-size: 1
 .fuss { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--border); line-height: 1.6; }
 .fuss a, .hilfe a { color: var(--accent); }
 
-/* Reiter im Panel (22.10.2026): «Sichtprüfung» (Bernstein) und «Bedarf und Querungstyp» (Petrol); aktiv gefüllt bzw. mit dicker
+/* Reiter im Panel (22.10.2026): «Sichtprüfung» (Produktfarbe) und «Bedarf und Querungstyp» (Petrol); aktiv gefüllt bzw. mit dicker
    Oberkante, nicht nur unterstrichen; auch schmal je 50 % der Breite. Verborgene Reiterfelder bleiben im DOM (hidden). */
 .reiterleiste { display: flex; gap: 4px; margin: 14px 0 0; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 5;
   background: #ffffff; padding-top: 4px; }
@@ -257,14 +263,14 @@ span.zufahrt-nr { display: inline-block; width: 18px; height: 18px; font-size: 1
 .reiterfeld[hidden] { display: none !important; }
 .reiterfeld-bedarf { border-left: 4px solid var(--bedarf); padding: 2px 0 4px 10px; }
 .bedarf-teaser { display: flex; align-items: baseline; gap: 6px; width: 100%; margin: 10px 0 6px; padding: 6px 10px; text-align: left;
-  font-size: 13px; background: var(--bedarf-hell); color: var(--bedarf); border: 1px solid var(--bedarf); border-left-width: 4px; border-radius: 6px; }
+  font-size: 14px; background: var(--bedarf-hell); color: var(--bedarf); border: 1px solid var(--bedarf); border-left-width: 4px; border-radius: 6px; }
 .bedarf-teaser:hover { filter: none; background: #d3e9ec; }
 .bedarf-teaser:focus-visible { outline: 2px solid var(--text-strong); outline-offset: 2px; }
 .teaser-symbol { font-weight: 700; }
 
 /* Bedarfsmodul E1: Abschnitt «Bedarf und Querungstyp» und Befundblatt (rot Pflicht, gelb Empfehlung, blau Hinweis, grau offen) */
 .bedarf-kopf { margin: 10px 0 8px; padding: 8px 10px; background: var(--bedarf-hell); border-radius: 0 8px 8px 0; }
-.bedarf-kopf h2 { margin: 0; color: var(--bedarf); font-size: 16px; }
+.bedarf-kopf h2 { margin: 0; color: var(--bedarf); font-size: 15px; }
 .bedarf-leitfrage { margin: 2px 0 0; font-weight: 600; color: var(--text-strong); }
 .bedarf-kopfzeile { margin: 4px 0 0; color: var(--bedarf); }
 /* «Datenlage hier» (Quellenregister): ein Satz, Tabelle je Thema aufklappbar */
@@ -290,10 +296,10 @@ span.zufahrt-nr { display: inline-block; width: 18px; height: 18px; font-size: 1
 .bedarf-liste label { display: inline-block; margin-right: 6px; }
 /* Vorbelegter Wert im Feld, Quellen-Chip, Anzeige des Sichtrechners, Frage oben */
 .bedarf-maske .vorbelegt { background: #f0f9ff; color: #0c4a6e; border: 1px solid #bae6fd; }
-.quelle-chip { display: inline-block; font-size: 11px; line-height: 1.4; padding: 0 6px; border-radius: 9px; border: 1px solid var(--border);
+.quelle-chip { display: inline-block; font-size: 12px; line-height: 1.4; padding: 0 6px; border-radius: 9px; border: 1px solid var(--border);
   background: #f8fafc; color: var(--text); white-space: nowrap; cursor: default; }
 .quelle-chip.q-annahme, .quelle-chip.q-schaetzung { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
-.quelle-chip.hand { background: #fff7ed; border-color: var(--accent); color: var(--accent); }
+.quelle-chip.hand { background: var(--accent-hell); border-color: var(--accent); color: var(--accent); }
 /* Muss-Hinweis an offenen Feldern (nur Text), Verweise auf Quellen und Begriffe, Verzeichnisse in der Hilfe */
 .feld-bedarf { margin-top: 1px; color: var(--text-muted); font-weight: 400; }
 .werk-link { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
@@ -303,31 +309,35 @@ span.zufahrt-nr { display: inline-block; width: 18px; height: 18px; font-size: 1
 a.knopf.streetview { text-decoration: none; }
 .werk-extern:hover { text-decoration: underline; }
 .begriff-verweise { color: var(--text-muted); }
-.begriff-knopf { background: none; border: none; padding: 0 1px; color: var(--text-muted); font: inherit; font-size: 11px;
+.begriff-knopf { background: none; border: none; padding: 0 1px; color: var(--text-muted); font: inherit; font-size: 12px;
   text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; }
 .begriff-knopf:hover, .begriff-knopf[aria-expanded="true"] { color: var(--accent); filter: none; }
 .begriff-def { display: block; margin: 2px 0; padding: 2px 6px; border-left: 2px solid var(--border); color: var(--text); }
 .hilfe-teil { margin: 6px 0; }
 .hilfe-teil > summary { cursor: pointer; font-weight: 600; color: var(--text-strong); }
 .tabelle-rahmen { overflow-x: auto; }
-.quellen-tabelle { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+.quellen-tabelle { border-collapse: collapse; width: 100%; font-size: 12px; }
 .quellen-tabelle th, .quellen-tabelle td { text-align: left; vertical-align: top; padding: 3px 4px; border-top: 1px solid var(--border); }
 .quellen-tabelle td.zahl-zelle { text-align: right; }
 .quellen-tabelle td:first-child { min-width: 7.5em; }
 .begriffe-liste { margin: 4px 0; }
 .begriffe-liste dt { font-weight: 600; color: var(--text-strong); margin-top: 4px; }
 .begriffe-liste dd { margin: 0 0 2px 10px; }
-.hervor { background: #fef3c7; transition: background 0.4s; }
+.hervor { background: var(--accent-mittel); transition: background 0.4s; }
 .rechner-anzeige { margin: 0 0 2px; line-height: 1.35; color: var(--text); }
 /* Block «Offene Fragen» (23.10.2026) unter der Zusammenfassung: je Frage die Antwort direkt */
-.offene-fragen { margin: 6px 0 8px; padding: 6px 8px; background: #fffbeb; border-left: 3px solid #f59e0b; font-size: 13px; }
+.offene-fragen { margin: 6px 0 8px; padding: 6px 8px; background: #fffbeb; border-left: 3px solid #f59e0b; font-size: 14px; }
 .offene-fragen ul { list-style: none; margin: 4px 0 0; padding-left: 0; }
 .offene-fragen li { margin: 4px 0; }
 .offene-fragen .frage-punkt { display: inline-block; min-width: 1.4em; font-weight: 600; color: #92400e; }
 .offene-fragen .frage-antworten { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .offene-fragen p { margin: 2px 0 0; }
 /* Feldhilfen: Knopf «?» je Feld, Erklärung als eigene Zeile unter dem Feld (kein Tooltip, auch auf Touch lesbar) */
-.hilfe-knopf { padding: 0 5px !important; margin-left: 2px; border-radius: 9px; line-height: 1.4; font-weight: 700; }
+/* Erklärzeichen «i» wie im SichtweitenCheck und VeloroutenCheck; hier klappt die Erklärung unter der Zeile auf */
+button.hilfe-knopf, button.hilfe-knopf.klein:not(.zweit) { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;
+  margin: 0 0 0 4px; padding: 0 !important; border: 1px solid #94a3b8; border-radius: 50%; background: #ffffff; color: var(--text-muted);
+  font: italic 700 11px/1 Georgia, 'Times New Roman', serif; vertical-align: 1px; flex-shrink: 0; min-height: 0; }
+button.hilfe-knopf:hover, button.hilfe-knopf[aria-expanded=true] { border-color: var(--accent); color: var(--accent); filter: none; }
 .bedarf-hilfe td { background: #f8fafc; border-left: 3px solid var(--border); }
 .feld-hilfe p { margin: 2px 0; }
 .feld-hilfe ul { margin: 1px 0 3px; padding-left: 16px; }
@@ -407,7 +417,7 @@ details.bedarf-thema { border: 1px solid var(--border); border-radius: 6px; padd
 details.bedarf-thema > summary { cursor: pointer; padding: 2px 0; }
 details.bedarf-thema[open] > summary { margin-bottom: 2px; }
 .thema-zahl { color: var(--text-muted); }
-.thema-fragen { margin: 4px 0; padding: 2px 8px; background: #fffbeb; border-left: 3px solid #f59e0b; font-size: 13px; }
+.thema-fragen { margin: 4px 0; padding: 2px 8px; background: #fffbeb; border-left: 3px solid #f59e0b; font-size: 14px; }
 .thema-fragen ul { list-style: none; margin: 2px 0; padding-left: 0; }
 .thema-fragen li { margin: 4px 0; }
 .thema-fragen .frage-antworten { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
@@ -467,11 +477,11 @@ details.thema-angaben > summary { cursor: pointer; color: var(--bedarf); }
 .bericht-legende .proben { flex: none; display: inline-flex; gap: 3px; margin-top: 2px; }
 .messen-knopf { margin-left: 4px; }
 /* Werkzeug «Messen» (06.11.2026): Kasten über der Karte (im .kartenkopf unter der Ortssuche), nach dem VeloroutenCheck */
-.messkasten { font-size: 12.5px; line-height: 1.45; background: #ffffff; border: 1px solid var(--accent); border-radius: 10px; padding: 8px 10px;
+.messkasten { font-size: 12px; line-height: 1.45; background: #ffffff; border: 1px solid var(--accent); border-radius: 10px; padding: 8px 10px;
   box-shadow: 0 4px 14px rgba(0,0,0,.25); color: var(--text); display: grid; gap: 6px; }
-.messkasten-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--text-strong); }
+.messkasten-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; color: var(--text-strong); }
 .messart { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; width: max-content; max-width: 100%; }
-.messart button { border: none; border-radius: 0; padding: 5px 10px; font-size: 12.5px; font-weight: 600; background: #ffffff; color: var(--text); }
+.messart button { border: none; border-radius: 0; padding: 5px 10px; font-size: 12px; font-weight: 600; background: #ffffff; color: var(--text); }
 .messart button[aria-pressed=true] { background: var(--accent); color: #ffffff; }
 .messwert { font-weight: 600; color: var(--text-strong); }
 .messwert.fehler { color: var(--fehler); }
@@ -533,16 +543,21 @@ html.startseite, html.startseite body, html.startseite #root { height: auto; min
 .start-knopf { border: none; background: var(--accent); color: #ffffff; cursor: pointer; border-radius: 8px; padding: 9px 18px;
   font-size: 14px; font-weight: 600; }
 .start-knopf:hover { filter: brightness(1.1); }
-.start-grenzen { font-size: 13px; color: var(--text-muted); background: #ffffff; border-left: 3px solid var(--accent);
-  padding: 8px 12px; border-radius: 4px; }
 .start-kachel { display: flex; align-items: center; gap: 14px; margin-top: 14px; text-decoration: none; background: #ffffff;
   border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; color: var(--text); }
 .start-kachel:hover { box-shadow: 0 4px 12px #0002; }
 .start-kachel img { flex-shrink: 0; border-radius: 8px; object-fit: cover; }
 .start-kachel-titel { font-weight: 700; color: var(--text-strong); }
-.start-kachel-text { font-size: 13px; color: var(--text-muted); }
+.start-kachel-text { font-size: 14px; color: var(--text-muted); }
+.start-spende { display: flex; align-items: center; gap: 14px; margin-top: 22px; flex-wrap: wrap; text-align: left; background: #fff7ed;
+  border: 1px solid #fed7aa; border-radius: 10px; padding: 14px 16px; }
+.start-spende-text { flex: 1 1 260px; }
+.start-spende-titel { font-weight: 700; color: var(--text-strong); }
+.start-spende-hinweis { font-size: 14px; line-height: 1.5; color: var(--text-muted); }
+.start-spende-knopf { flex-shrink: 0; background: #ea580c; color: #ffffff; text-decoration: none; border-radius: 8px; padding: 8px 14px;
+  font-size: 14px; font-weight: 600; white-space: nowrap; }
 .start-daten { margin-top: 22px; padding: 10px 14px; border-radius: 10px; background: #f8fafc; border: 1px solid var(--border);
-  font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
+  font-size: 12px; color: var(--text-muted); line-height: 1.45; }
 .start-daten-titel { font-weight: 700; color: var(--text); margin-bottom: 3px; }
 .start-daten ul { margin: 6px 0 0; padding-left: 20px; }
 .start-fuss { margin-top: 18px !important; font-size: 12px; color: var(--text-muted); text-align: center; }
@@ -555,7 +570,7 @@ html.startseite, html.startseite body, html.startseite #root { height: auto; min
 .regel-liste { list-style: none; margin: 2px 0 6px; padding-left: 8px; }
 .regel-liste > li { margin: 4px 0; padding: 2px 0 2px 6px; border-left: 2px solid var(--border); }
 /* Regelübersicht lesbar */
-.regel-nr { color: var(--text-muted); font-size: 11px; }
+.regel-nr { color: var(--text-muted); font-size: 12px; }
 .regel-teile { display: grid; grid-template-columns: max-content 1fr; gap: 1px 6px; margin: 2px 0 0; }
 .regel-teile dt { color: var(--text-muted); }
 .regel-teile dd { margin: 0; }
@@ -596,14 +611,14 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
 /* ── Geladene Quellen auf der Karte (seit 01.11.2026, quellenEbenen.ts; wie VeloroutenCheck): Knopf unten links über dem Massstab,
    Fenster an der Kopfzeile verschiebbar, Legende je Quelle, Wert-Beschriftung ── */
 .q-knopf { position: absolute; left: 10px; bottom: 34px; z-index: 950; border: 2px solid rgba(0,0,0,.2); border-radius: 6px; background: #ffffff;
-  color: var(--text-strong); font-size: 12.5px; font-weight: 600; padding: 5px 10px; min-height: 0; cursor: pointer; }
+  color: var(--text-strong); font-size: 12px; font-weight: 600; padding: 5px 10px; min-height: 0; cursor: pointer; }
 .q-knopf:hover { filter: none; background: #f4f4f4; }
 .q-knopf.offen { color: var(--accent); border-color: var(--accent); }
 /* Höhe: unten verankert, darum höchstens bis 10 px unter den oberen Rand (100 % − 72 px unten − 10 px), sonst ragt die Kopfzeile
    hinaus und das Fenster lässt sich nicht mehr ziehen */
 .q-fenster { position: absolute; left: 10px; bottom: 72px; z-index: 1010;   /* über den Leaflet-Knöpfen (1000), damit die Kopfzeile frei bleibt */
   width: min(330px, calc(100% - 20px)); max-height: calc(100% - 82px);
-  overflow-y: auto; background: #ffffff; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.25); padding: 6px; font-size: 12.5px; }
+  overflow-y: auto; background: #ffffff; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.25); padding: 6px; font-size: 12px; }
 .q-kopf { display: flex; justify-content: space-between; align-items: center; font-weight: 700; padding: 2px 6px 6px; cursor: move;
   user-select: none; touch-action: none; color: var(--text-strong); }
 .q-kopf .griff { color: var(--text-muted); margin-right: 4px; }
@@ -611,21 +626,20 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
 .q-ebene { display: flex; gap: 8px; align-items: flex-start; padding: 6px; border-radius: 6px; cursor: pointer; }
 .q-ebene:hover { background: var(--bg); }
 .q-ebene input { margin: 2px 0 0; min-height: 0; accent-color: var(--accent); flex-shrink: 0; }
-.q-ebene small { display: block; color: var(--text-muted); font-size: 11.5px; line-height: 1.3; }
+.q-ebene small { display: block; color: var(--text-muted); font-size: 12px; line-height: 1.3; }
 .q-ebene small.zahl { display: inline; }
-.q-legende { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px; font-size: 11.5px; color: var(--text); }
+.q-legende { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px; font-size: 12px; color: var(--text); }
 .q-legende i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
-.q-fuss { margin: 6px 6px 2px; font-size: 11.5px; color: var(--text-muted); }
+.q-fuss { margin: 6px 6px 2px; font-size: 12px; color: var(--text-muted); }
 .q-wert span { position: absolute; transform: translate(-50%, -50%); background: #ffffff; border: 2px solid; border-radius: 6px;
   padding: 1px 5px; font: 700 12px/17px system-ui, sans-serif; color: #111827; white-space: nowrap; box-shadow: 0 1px 3px #0005; }
 .feld-quellen { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0 5px; }
 .feld-quellen button.quelle-chip { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; min-height: 0; padding: 0 6px; border-radius: 9px; line-height: 1.4; }
 .feld-quellen button.quelle-chip:not(:disabled) { cursor: pointer; }
-.feld-quellen button.gewaehlt { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; background: #fef3c7; }
+.feld-quellen button.gewaehlt { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; background: var(--accent-mittel); }
 /* gewählter Chip (Datenquelle, amtliches Signal): Häkchen und gelber Grund, gleicher Zustand wie die Sichtfeld-Schalter (06.11.2026) */
-.amtliche-signale button.quelle-chip[aria-pressed=true] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; background: #fef3c7; }
+.amtliche-signale button.quelle-chip[aria-pressed=true] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; background: var(--accent-mittel); }
 @media (pointer: coarse) { .q-knopf { padding: 9px 12px; } .q-ebene { padding: 9px 6px; } .q-ebene input { width: 18px; height: 18px; } }
-@media (max-width: 700px) { .q-ebene small, .q-legende, .q-fuss { font-size: 12px; } }
 /* Punkte der Quellen: Quadrate mit Zeichen (die Objekte der Prüfung sind Kreise); in der Legende gleich */
 .q-punkt span { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; box-sizing: border-box; border-radius: 4px;
   border: 2px solid #ffffff; box-shadow: 0 0 0 1px #111827; color: #ffffff; font: 700 11px/1 system-ui, sans-serif; }
@@ -633,12 +647,12 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
   font-style: normal; vertical-align: middle; }
 
 /* Amtliche Quellenwahl: gleiche Höhe wie Quellenchips, vollständige Herkunft im Titel und darunter. */
-.amtliche-signale button.quelle-chip { font-size: 11px; line-height: 1.4; padding: 0 6px; border-radius: 9px; min-height: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.amtliche-signale button.quelle-chip { font-size: 12px; line-height: 1.4; padding: 0 6px; border-radius: 9px; min-height: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 /* Sichtwahl direkt beim Befund; keine zusätzliche Bedienung auf der Karte. */
 .sicht-befund { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 8px 0; }
-.sicht-taste { font: inherit; font-size: .85rem; padding: 3px 7px; border: 1px solid #94a3b8; border-radius: 4px;
-  background: #f1f5f9; color: inherit; cursor: pointer; }
+.sicht-taste { font: inherit; font-size: 12px; padding: 3px 7px; border: 1px solid #94a3b8; border-radius: 4px;
+  background: #ffffff; color: inherit; cursor: pointer; }
 .sicht-taste.ausgeblendet { border-style: dashed; background-image: repeating-linear-gradient(135deg, transparent, transparent 4px, #94a3b822 4px, #94a3b822 5px);
   opacity: .55; filter: grayscale(1); }
 /* Zustand als Auge wie im SichtweitenCheck (06.11.2026): offen = auf der Karte, rot durchgestrichen = ausgeblendet */
@@ -653,3 +667,20 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
 .q-av-arten label { display: flex; align-items: center; gap: 5px; font-size: 12px; margin: 0; }
 .q-av-arten i { width: 12px; height: 12px; border: 1px solid #0003; border-radius: 2px; flex: none; }
 .q-av-arten small { color: #64748b; }
+
+/* Kacheln wie im VeloroutenCheck: weisse Flächen auf grauem Grund. Innere Blöcke bleiben durch Linien getrennt, keine Kachel in der Kachel. */
+.panel { background: var(--bg); }
+.panel > details.abschnitt, .panel > details.hilfe, .reiterfeld section.eingaben, .reiterfeld section.streifen, .reiterfeld section.bedarf {
+  background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; margin: 10px 0 0; }
+.panel > details.hilfe { margin: 10px 0 0; }
+.panel > details.hilfe > summary { font-size: 15px; font-weight: 700; color: var(--text-strong); }
+.panel > details.abschnitt > summary { margin: 0; }
+.panel > details.abschnitt[open] > summary { margin-bottom: 8px; }
+.reiterfeld section > :first-child { margin-top: 0; }
+.planen { background: #ffffff; border-radius: 12px; }
+.reiterleiste { background: var(--bg); }
+/* der Bedarf behält seine Zweitfarbe als Rand der Kachel */
+.reiterfeld-bedarf { border-left: none; padding: 0; }
+.reiterfeld section.bedarf { border-left: 4px solid var(--bedarf); }
+/* Meldung oben im Panel: Abstand zu den Kacheln */
+.panel > .hinweis { margin-top: 8px; }

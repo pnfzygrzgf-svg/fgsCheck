@@ -1,4 +1,4 @@
-# fgsCheck (Prototyp)
+# fgsCheck (Beta)
 
 Prüft im Browser die Sicht an bestehenden und geplanten Fussgängerstreifen. Dazu kommen Bedarf und Querungstyp nach bfu, VSS 40 240,
 40 241 und 40 242, Stadt und Kanton Bern, und die Trottoirüberfahrt mit Knotensicht. Die App nutzt Daten der Amtlichen Vermessung und

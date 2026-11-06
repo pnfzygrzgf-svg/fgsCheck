@@ -218,7 +218,7 @@ const fixIcon = (blass: boolean) => L.divIcon({ className: 'fixpunkt' + (blass ?
 /** Mitte des Nummernschilds so weit hinter dem letzten Sichtpunkt [px], auf jedem Zoom gleich (Schild 22 px, Sichtpunkt r 5 px) */
 const SCHILD_PX = 20
 /**
- * Nummernschild einer Zufahrt (benennung.ts): weisser Kreis, dunkler Rand und Zahl, gewählt Bernstein; bei mehreren Streifen
+ * Nummernschild einer Zufahrt (benennung.ts): weisser Kreis, dunkler Rand und Zahl, gewählt in der Produktfarbe; bei mehreren Streifen
  * daneben der Streifen. Der Marker steht auf dem letzten Sichtpunkt, das Schild um SCHILD_PX nach aussen versetzt (Ankerpunkt;
  * Bildschirm: y nach Süden).
  */
@@ -1192,7 +1192,7 @@ export default function Karte(props: {
 
   // Nummernschilder der Zufahrten (benennung.ts) hinter dem letzten Sichtpunkt; Klick wählt die Zufahrt wie die Zeile im Panel
   // (auf der gewählten: Auswahl aufheben); gestrichene Zufahrten ohne Schild (keine Fahrlinie);
-  // Tooltip mit dem vollen Namen; die gewählte Zufahrt Bernstein und zuoberst. Beim Zeichnen nicht anklickbar (Klick an die Karte).
+  // Tooltip mit dem vollen Namen; die gewählte Zufahrt in der Produktfarbe und zuoberst. Beim Zeichnen nicht anklickbar (Klick an die Karte).
   const zNamen = props.zufahrtNamen
   useEffect(() => {
     const eb = ebenenRef.current

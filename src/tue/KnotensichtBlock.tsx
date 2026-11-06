@@ -29,7 +29,7 @@ const HERKUNFT: Record<string, string> = { hand: 'von Hand', geoportal: 'Geoport
 /** Tabelle je Richtung (Panel und Bericht) */
 export function KnotensichtTabelle({ k, klasse, schaltbar = false }: { k: Knotensicht; klasse: string; schaltbar?: boolean }) {
   return <table className={klasse}>
-    <thead><tr><th /><th title="vom hinteren Rand der Überfahrt aus">aufs Trottoir</th><th title="vom vorderen Rand der Überfahrt aus">auf die Fahrbahn</th></tr></thead>
+    <thead><tr><th>Richtung</th><th title="vom hinteren Rand der Überfahrt aus">aufs Trottoir</th><th title="vom vorderen Rand der Überfahrt aus">auf die Fahrbahn</th></tr></thead>
     <tbody>{k.richtungen.map(r => <tr key={r.richtung}>
       <td title={r.tempoQuelle}>{KS_LAGE[r.lage] ?? r.lage}<div className="klein">{r.strasse}{r.auto || r.velo ? `, ${r.tempo} km/h ${HERKUNFT[r.tempoHerkunft]}${r.tempoOsmVergleich ? `; ${r.tempoOsmVergleich}` : ''}` : ''}</div></td>
       <td>{r.trottoir ? <Teil t={r.trottoir} art="trottoir" id={schaltbar ? tueSichtId(k.streifenId, r.lage) : undefined} /> : '–'}</td>

@@ -14,7 +14,7 @@
 // bedarf/zusammenfassung.ts: zuoberst je Querung eine Zusammenfassung in drei Sätzen (Antwort, das Wichtigste, was
 // fehlt) als Absatz; die Empfehlung steht dort, darum entfällt im Panel die Zeile «Empfohlen: …» (Zusatz und Begründung bleiben).
 // Der vorbelegte Wert steht im Feld (Klasse «vorbelegt»), daneben ein Quellen-Chip (Herkunft als
-// Tooltip). Eine Änderung wird nur zur Handeingabe, wenn sie vom vorbelegten Wert abweicht (Chip «von Hand» mit «zurück»); «offen»
+// Tooltip). Eine Änderung wird nur zur Handeingabe, wenn sie vom vorbelegten Wert abweicht (Chip «von Hand» mit «zurücksetzen»); «offen»
 // verwirft die Vorbelegung bewusst. Felder im Zustand «rechner» (Sichtweite je Zufahrt, Kurvenradius ohne Abbieger) zeigen das
 // Ergebnis der Sichtprüfung, darunter die Eingabe «von Hand überschreiben». Unter der Zusammenfassung stehen die offenen Fragen der
 // Grundprüfung zum direkten Beantworten (Block «Offene Fragen», 23.10.2026).
@@ -301,7 +301,7 @@ function HerkunftAngabe({ d, h, quelle, zurueck, offen, hinweis, bestaetigen }: 
   /** Annahme der Vorbelegung als Handeingabe «bestätigt» übernehmen */
   bestaetigen?: () => void }) {
   const zurueckKnopf = <button className="zweit klein" title={h.vorbelegt ? `Handeingabe entfernen: wieder vorbelegt (${h.vorbelegt.text})`
-    : 'Handeingabe entfernen: offen'} aria-label={`${d.name}: Handeingabe entfernen`} onClick={zurueck}>zurück</button>
+    : 'Handeingabe entfernen: offen'} aria-label={`${d.name}: Handeingabe entfernen`} onClick={zurueck}>zurücksetzen</button>
   if (istHandOffenH(h)) return <><span className="quelle-chip hand" title="von Hand bewusst offen gesetzt (die Vorbelegung gilt nicht)">von Hand: offen</span>{' '}
     {zurueckKnopf}</>
   if (h.zustand === 'hand') return <>
@@ -351,7 +351,7 @@ export function FeldHilfe({ d, h, id, kontexte, hinweis }: { d: FeldDef; h: Herk
     <p><b>Leer lassen:</b> {T(leerText(d.pfad).replace(/^Leer: /, ''))}</p>
     {!!vor?.quellenOptionen?.length && <ul>{vor.quellenOptionen.map(q => <li key={`${q.id}:${JSON.stringify(q.wert)}`}><b>{DATENQUELLEN[q.id]}:</b> {q.wert == null ? 'offen' : wertText(d, q.wert)} · {lesetext(q.text)}</li>)}</ul>}
     {(fh?.vorschlag || vor || hinweis || h.zustand === 'rechner') && <p><b>Vorschlag der App:</b> {vor ? `hier ${wertText(d, vor.wert)} (${vor.quellenOptionen?.find(q => q.vorgabe) ? DATENQUELLEN[vor.quellenOptionen.find(q => q.vorgabe)!.id] : QUELLE_TEXT[vor.quelle]}: ${lesetext(vor.text)})` +
-      (h.zustand === 'hand' ? '; von Hand überschrieben, «zurück» stellt ihn wieder her' : '') : h.zustand === 'rechner' ? `hier kein Wert; ${lesetext(h.text)}`
+      (h.zustand === 'hand' ? '; von Hand überschrieben, «zurücksetzen» stellt ihn wieder her' : '') : h.zustand === 'rechner' ? `hier kein Wert; ${lesetext(h.text)}`
       : hinweis ? `hier kein Wert: ${lesetext(hinweis)}` : 'hier keiner'}
       {fh?.vorschlag ? `; allgemein ${fh.vorschlag}` : '.'}</p>}
   </div>
@@ -416,7 +416,7 @@ export function Maske({ fall, blatt, aendern, felder, flach = false, zaehlt, all
     return <Fragment key={d.pfad}><tr id={feldZeileId(d.pfad)} className={[offenF ? 'offen' : '', zaehltNicht ? 'zaehlt-nicht' : ''].filter(Boolean).join(' ') || undefined}>
     <td>{d.name}{zaehltNicht && <span className="klein"> (zählt in diesem Fall nicht)</span>}{' '}
       <button type="button" className="zweit klein hilfe-knopf" aria-expanded={auf} aria-controls={id} aria-label={`Erklärung: ${d.name}`}
-        title="Erklärung, Regeln und Quellen" onClick={() => umschalten(d.pfad)}>?</button>
+        title="Erklärung, Regeln und Quellen" onClick={() => umschalten(d.pfad)}>i</button>
       {bedarfText && <div className="klein feld-bedarf"><span aria-hidden="true">⚑</span> {bedarfText}</div>}</td>
     <td>{h.zustand === 'rechner' && <div className="klein rechner-anzeige">{h.text}</div>}
       <FeldEingabe d={feldFuerEbenen(d, blatt.ebenen.bern)} h={h} offen={offenSetzen}
@@ -682,7 +682,7 @@ function FragenListe({ b, fall, aendern, springe, fragen, leerFokus }: { b: Befu
       {f.art === 'text' ? <Frage feld={f.ziel} text={f.frage} /> : <span className="frage-text">{f.frage}</span>}{f.nach}{' '}
       {f.hilfe && <><button type="button" className="zweit klein hilfe-knopf" aria-expanded={hilfeAuf === f.ziel} aria-controls={`${id}-hilfe`}
         aria-label={`Erklärung: ${feldName(f.ziel)}`} title="Erklärung, Regeln und Quellen"
-        onClick={() => setHilfeAuf(hilfeAuf === f.ziel ? null : f.ziel)}>?</button>{' '}</>}
+        onClick={() => setHilfeAuf(hilfeAuf === f.ziel ? null : f.ziel)}>i</button>{' '}</>}
       {f.art === 'text' ? null : f.art === 'bestaetigen' && aendernAuf !== f.ziel
         ? <span className="frage-antworten"><button type="button" className="zweit klein" aria-label={`${f.frage} Vorschlag bestätigen`}
             onClick={() => { if (setze(f.ziel, h.vorbelegt!.wert, 'bestaetigt')) setFokus(true) }}>Vorschlag bestätigen</button>{' '}

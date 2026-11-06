@@ -2292,7 +2292,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
               'zur Startseite', onStartseite)} aria-label="Zur Startseite" title="Zur Startseite">
               <img className="logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={40} height={40} /></button>
           : <img className="logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={40} height={40} />}
-          fgsCheck <span className="marke">Prototyp v{__APP_VERSION__}</span></h1>
+          fgsCheck <span className="marke">Beta v{__APP_VERSION__}</span></h1>
         <Anleitung />
         <div className="knopfzeile">
           <label className="knopf">Fall laden<input type="file" accept=".json,application/json" hidden
@@ -2307,7 +2307,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             'unbekannt'}) aus dem Browser zurückholen. Der Browser merkt nur einen solchen Fall: ein anderer Fall ohne Übergang ` +
             'ersetzt ihn erst nach Rückfrage.'}>Letzten geplanten Fall wiederherstellen</button>}
           {fall && rechnung && !rechnet && <button onClick={() => setBericht(true)} title={'Druckansicht mit Kartenbild, Ergebnis, Eingaben ' +
-            'und Quellen; als PDF speichern über den Druckdialog des Browsers'}>Bericht drucken / als PDF</button>}
+            'und Quellen; als PDF speichern über den Druckdialog des Browsers'}>Bericht / PDF</button>}
           {rechnung && rechnung.streifen.length > 0 && <a className="knopf zweit streetview" href={streifenStreetView(rechnung.streifen[0])}
             target="_blank" rel="noopener noreferrer" title={'Google Street View an der Mitte des Streifens, Blick entlang des Streifens ' +
             '(öffnet Google Maps; die Koordinaten gehen dabei an Google)'}>Street View ↗</a>}
@@ -2315,7 +2315,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <label className="klein"><input type="checkbox" checked={nurMarkiert} onChange={e => setNurMarkiert(e.target.checked)} />
           {' '}nur markierte Übergänge zeigen (Fussgängerstreifen, vermutliche und Lichtsignal)</label>
         {speicherHinweis && <p className="hinweis" role="alert">{speicherHinweis}</p>}
-        {meldung && <p className="klein">{meldung}{ladeFehler && fall && !daten && <>{' '}
+        {meldung && <p className="hinweis">{meldung}{ladeFehler && fall && !daten && <>{' '}
           <button className="zweit klein" onClick={() => laden(fall.ort.lat, fall.ort.lon, fall.ort.uebergang, fall)}>erneut laden</button></>}</p>}
         {hilfeWo === 'oben' && werkzeugHilfe}
         {wechsel && (
