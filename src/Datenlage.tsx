@@ -113,7 +113,7 @@ export function BerichtQuellenTabelle({ ids, lage, qualitaet = {}, gruende }: { 
   if (!qs.length) return null
   /** Stand der Quelle; «Abruf beim Laden» mit der Abrufzeit, wenn sie bekannt ist */
   const stand = (q: Quelle) => { const z = (qualitaet[q.id] as { zeit?: string } | undefined)?.zeit
-    return z && q.stand === ABRUF_BEIM_LADEN ? `Abruf ${new Date(z).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })}` : q.stand ?? '–' }
+    return z && q.stand === ABRUF_BEIM_LADEN ? `Abruf ${new Date(z).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : q.stand ?? '–' }
   return (
     <table className="quellen-tabelle bericht-quellen">
       <thead><tr><th>Quelle</th><th>{gruende ? 'Grund' : 'Für'}</th><th>Anbieter</th><th>Stand</th><th>Lizenz</th></tr></thead>

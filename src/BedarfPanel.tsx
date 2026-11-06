@@ -1211,7 +1211,7 @@ const masseZeilen = (b: BefundBlatt): MassZeile[] => b.befund.masse.filter(mz =>
 function MasseTabelle({ b, druck }: { b: BefundBlatt; druck: boolean }) {
   return <table className={druck ? 'bericht-tabelle befund-masse' : 'befund-masse'}>
     <thead><tr><th>Mass</th><th>Soll</th><th>Ist</th><th>Stand</th></tr></thead>
-    <tbody>{masseZeilen(b).map(mz => <tr key={mz.groesse} className={mz.zustand}>
+    <tbody>{masseZeilen(b).map(mz => <tr key={mz.groesse} className={mz.zustand === 'hinweis' ? 'nur-hinweis' : mz.zustand}>
       <td>{mz.groesse}<div className="klein">{mz.regeln.map(regelName).join(', ')}</div></td>
       <td>{mz.soll ? T(mitEinheit(mz.soll, mz.einheit)) : '–'}</td>
       <td>{T(mitEinheit(mz.ist, mz.einheit))}{mz.zusatz && mz.zustand === 'vorbehalt' ? <div className="klein">{mz.zusatz}</div> : null}</td>

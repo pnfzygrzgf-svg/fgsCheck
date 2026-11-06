@@ -331,7 +331,7 @@ const GRUND: Record<GrundId, GrundFn> = {
     if (k.insBaulich()) return null
     const B = k.w('fahrbahnB'), W = K['B5-2a'].werte
     const markiert = k.inselMarkiert()
-    const x = { ist: `Fahrbahn ${fmt(B)} m${markiert ? ', Insel nur markiert' : ', keine Insel'}`, soll: `eine Insel macht das Queren sicherer (bfu: besonders über ${fmt(W.bMax)} m)`,
+    const x = { ist: `Fahrbahn ${fmt(B)} m${markiert ? ', Insel nur markiert' : ', keine Insel'}`, soll: `Insel erwünscht (bfu: besonders über ${fmt(W.bMax)} m)`,
       detail: markiert ? 'eine nur markierte Insel gilt nicht als Schutzinsel' : undefined,
       normHinweis: B >= W.bMax - EPS ? 'Norm: ab 8,50 m Fahrbahn bei Gegenverkehr und DTV ab 3000 verlangt VSS 40 241:2019 Z. 24 die Insel, Abweichung nur mit Bericht (D2).' : undefined }
     return B > W.bMax + EPS ? verletzt({ ...x, staerke: 'weich' }) : { zustand: 'hinweis', ...x }

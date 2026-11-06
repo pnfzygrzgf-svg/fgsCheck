@@ -854,9 +854,9 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
         <section className="bericht-block">
           <h2>Quellen</h2>
           <BerichtQuellenTabelle ids={quellenIds} lage={datenlage} qualitaet={quellenQualitaet} />
-          {quellenOhneTreffer.length > 0 && <><h3>Abgefragt, nicht verwendet</h3>
-            <BerichtQuellenTabelle ids={quellenOhneTreffer.map(q => q.id)} qualitaet={quellenQualitaet} gruende={Object.fromEntries(quellenOhneTreffer.map(q => [q.id, q.grund]))} /></>}
           {zusatzQuellen.length > 0 && <ul className="klein">{zusatzQuellen.map(q => <li key={q}>{datumText(q)}</li>)}</ul>}
+          {quellenOhneTreffer.length > 0 && <div className="druck-block"><h3>Abgefragt, nicht verwendet</h3>
+            <BerichtQuellenTabelle ids={quellenOhneTreffer.map(q => q.id)} qualitaet={quellenQualitaet} gruende={Object.fromEntries(quellenOhneTreffer.map(q => [q.id, q.grund]))} /></div>}
           <h3>Werke der Sichtprüfung</h3>
           <ul className="klein">
             <li>Sichtweiten: {LESENAME['40241']}, Tabelle 1 ({TAB1_TEXT}).</li>
