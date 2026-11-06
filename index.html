@@ -20,6 +20,8 @@
     <!-- Versionierte Datei mit Integritäts-Hash (SRI): Der Browser führt das Skript nur
          aus, wenn es unverändert ist. Bei einem Wechsel der Version Hash neu berechnen:
          curl -s https://gc.zgo.at/count.vN.js | openssl dgst -sha384 -binary | openssl base64 -A -->
+    <!-- Gezählt wird nur der Pfad, ohne Parameter in der Adresse -->
+    <script>window.goatcounter = { path: function () { return location.pathname } }</script>
     <script data-goatcounter="https://fgs.goatcounter.com/count"
             async src="https://gc.zgo.at/count.v4.js" crossorigin="anonymous"
             integrity="sha384-nRw6qfbWyJha9LhsOtSb2YJDyZdKvvCFh0fJYlkquSFjUxp9FVNugbfy8q1jdxI+"></script>

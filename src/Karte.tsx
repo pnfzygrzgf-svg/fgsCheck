@@ -432,6 +432,8 @@ export default function Karte(props: {
   onAusschnitt: () => void                           // nach jedem Verschieben bzw. Zoomen (moveend)
   hinweis: KartenHinweis | null
   kartenRef: React.MutableRefObject<L.Map | null>
+  /** erkannter Streifen aus dem Luftbild von Hand bestätigt (Tooltip) */
+  luftbildBestaetigt?: boolean
   /** gelesene Objekte der Vorbelegung je Quelle (quellenEbenen.ts), im Fenster «Kartenebenen» einzeln einblendbar */
   quellenEbenen?: EbenenDaten
   /** OSM-Tags der Strassen nach Weg-Id (geoVor.osmTags): Tooltip der Zufahrt nennt die für die Vorbelegung gelesenen Tags (F13) */
@@ -1177,7 +1179,7 @@ export default function Karte(props: {
         interactive: !cb.current.werkzeug })
         .bindTooltip(`${INSEL_TEXT}: Lücke zwischen den Balken ${z.breite.toFixed(1).replace('.', ',')} m quer zur Strasse; ` +
           'teilt den Streifen. Sonst Werkzeug «Insel» unter «Eingaben von Hand».', { sticky: true }).addTo(eb.sicht)
-    // Luftbild-Erkennung: Balken (erkannt durchgezogen, unsicher gestrichelt), «aus Luftbild, prüfen»
+    // Luftbild-Erkennung: Balken (erkannt durchgezogen, unsicher gestrichelt), mit der Frage, ob der Umriss stimmt
     const lb = rechnung.luftbild
     if (lb && lb.befund !== 'nicht_gefunden') {
       // gestrichelt: unsicher bzw. mit Flächen (Plan) nur Vorschlag
@@ -1185,10 +1187,11 @@ export default function Karte(props: {
         interactive: false }
       for (const b of lb.balken) L.polygon(b.map(ll), st).addTo(eb.sicht)
       for (const t of lb.teile) L.polygon(t.umriss.map(ll), { ...st, weight: 2, interactive: true })
-        .bindTooltip(`Streifen aus Luftbild (${lb.befund === 'erkannt' ? 'erkannt' : 'unsicher'}${lb.nurVorschlag ? ', mit Flächen (Plan) nur Vorschlag' : ''}), prüfen: ${t.nBalken} Balken, ` +
-          `Balkenlänge ${t.bw.toFixed(1).replace('.', ',')} m`, { sticky: true }).addTo(eb.sicht)
+        .bindTooltip(`Streifen aus Luftbild (${lb.befund === 'erkannt' ? 'erkannt' : 'unsicher'}${lb.nurVorschlag ? ', mit Flächen (Plan) nur Vorschlag' : ''}): ${t.nBalken} Balken, ` +
+          `je ${t.bw.toFixed(1).replace('.', ',')} m. ${props.luftbildBestaetigt ? 'Von Hand bestätigt.' : 'Liegt der Umriss auf dem Streifen im Bild?'} NCC ${lb.ncc.toFixed(2).replace('.', ',')}, ` +
+          `Gelb-Kontrast ${lb.kontrast.toFixed(1).replace('.', ',')}`, { sticky: true }).addTo(eb.sicht)
     }
-  }, [rechnung, werkzeug, props.zufahrtNamen, ksPhase, hindernisse, props.neigung, props.gelaende, sicht])
+  }, [rechnung, werkzeug, props.zufahrtNamen, ksPhase, hindernisse, props.neigung, props.gelaende, sicht, props.luftbildBestaetigt])
 
   // Nummernschilder der Zufahrten (benennung.ts) hinter dem letzten Sichtpunkt; Klick wählt die Zufahrt wie die Zeile im Panel
   // (auf der gewählten: Auswahl aufheben); gestrichene Zufahrten ohne Schild (keine Fahrlinie);

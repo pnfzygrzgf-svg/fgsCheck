@@ -78,6 +78,8 @@ export function Datenschutz() {
         keine Eingaben oder Ergebnisse. Die Anbieter sehen dabei wie bei den Datenabrufen die IP-Adresse und Browserangaben.</p>
       <ul>
         <li>Keine Anmeldung, kein eigener Server: gerechnet wird im Browser (Web Worker).</li>
+        <li>Die Links unter «In anderen Rechnern prüfen» öffnen einen anderen Rechner; dabei gehen nur Lage und OSM-Id mit, keine Eingaben. Die
+          Angaben stehen hinter dem # der Adresse und gehen nicht an den Webserver.</li>
         <li>Eingaben (Hindernisse, Tempo, Fahrlinien, Streifen, Bezeichnung) bleiben im Browser: je Übergang mit Eingaben ein Eintrag
           im lokalen Speicher (localStorage, Schlüssel «fgsCheck.fall.» und Nummer des Übergangs, mit den Koordinaten), sonst nur in
           der Fall-Datei, wenn du sie speicherst. Übergänge ohne Eingaben werden nicht gespeichert. Fälle ohne Übergang (z. B. ein

@@ -47,14 +47,14 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
         lassen sich im Luftbild messen.
       </p>
       <p>
-        <b>Daten:</b> Verwendet werden offene Daten: das Luftbild SWISSIMAGE von swisstopo, die Amtliche Vermessung über
-        geodienste.ch und OpenStreetMap, aus dem auch Tempo und Lichtsignale stammen. In Zürich fliessen amtliche Tempoabschnitte
-        und Verkehrszonen ein. In der Stadt Bern fliessen die öffentlichen Parkfelder automatisch ein, der Baumkataster auf Wunsch.
+        <b>Daten:</b> Die App nutzt offene Daten von Bund, Kantonen und Städten sowie OpenStreetMap, zum Beispiel das Luftbild
+        SWISSIMAGE, die Amtliche Vermessung und das Höhenmodell. Je nach Ort kommen weitere Quellen dazu, etwa amtliches Tempo,
+        Parkfelder oder der Baumkataster. Welche Quellen genutzt werden, steht in der App unter «Datenquellen und Ladezustand».
       </p>
       <p>
-        <b>Bewertungsgrundlage:</b> Die Sichtweiten rechnet die App nach VSS 40 241. Bedarf und Querungstyp folgen zuerst den fünf
-        Punkten der bfu, dann den Regeln der Normen, der Stadt Bern und des Kantons, in der Reihenfolge der Normen und mit
-        Fundstelle. Die Trottoirüberfahrt folgt der Prüfliste der VSS 40 242.
+        <b>Bewertungsgrundlage:</b> Die Sichtweiten rechnet die App nach VSS 40 241 «Querungen für den Fussgänger- und leichten
+        Zweiradverkehr; Fussgängerstreifen». Bedarf und Querungstyp folgen zuerst den fünf Punkten der bfu, dann den Regeln der Normen.
+        Die Trottoirüberfahrt folgt der Prüfliste der VSS 40 242 «Querungen für den Langsamverkehr; Trottoirüberfahrten».
       </p>
       <p><b>Die App ersetzt keine Beurteilung vor Ort.</b></p>
 
@@ -90,8 +90,8 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
           <li>Für Karte, Rechnung und Bericht fragt die App den Kartenausschnitt bei swisstopo, geodienste.ch, OpenStreetMap
             (Overpass), in Bern bei map.bern.ch und gisapp.bern.ch und in Zürich bei den Geodatendiensten der Stadt ab; gesendet
             werden nur Koordinaten. Den Suchbegriff der Ortssuche erhält swisstopo; der eigene Standort bleibt im Browser. Die Dienste sehen technisch die IP-Adresse.
-            Die Links «Street View ↗» öffnen Google Maps erst auf Klick; dabei gehen die Koordinaten an Google. Die vollständige Liste
-            der Dienste steht in der App unter «Datenschutz».</li>
+            Die Links «Street View ↗» öffnen Google Maps erst auf Klick; dabei gehen die Koordinaten an Google. Beim Wechsel zu einem anderen
+            Rechner gehen nur Lage und OSM-Id mit. Die vollständige Liste der Dienste steht in der App unter «Datenschutz».</li>
           <li>Nutzungsstatistik: Seitenaufrufe werden mit GoatCounter gezählt, ohne Cookies und ohne Speicherung der
             IP-Adresse. GitHub Pages protokolliert Zugriffe wie jeder Webserver.</li>
         </ul>

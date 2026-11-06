@@ -4,8 +4,11 @@
 
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Startseite from './Startseite'
+import { uebergabeUebernehmen } from './verknuepfung'
 
 const App = lazy(() => import('./App'))
+// Link aus einem anderen Rechner (#pruefen?…): Angaben lesen, in der Adresse bleibt nur der Anker
+uebergabeUebernehmen('pruefen')
 const istPruefen = () => location.hash === '#pruefen'
 // GoatCounter: das Skript lädt async; ist es beim Wechsel zur Prüfung noch nicht da, wiederholt prüfen (höchstens ZAEHLEN_MS)
 const ZAEHLEN_TAKT_MS = 500

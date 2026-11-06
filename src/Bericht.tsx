@@ -14,7 +14,7 @@ import { MassBild, useSichtWahl, sichtZeigen, sichtMassZeigen, fgsSichtId, tueSi
 
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { type Fall, type Fixpunkt, type StreifenHand, type FlaechePlan, PLAN_ARTEN, streifenHerkunftText, ortOhneUebergangText, inselStandard, istTrottoirueberfahrt } from './fall'
+import { luftbildGilt, type Fall, type Fixpunkt, type StreifenHand, type FlaechePlan, PLAN_ARTEN, streifenHerkunftText, ortOhneUebergangText, inselStandard, istTrottoirueberfahrt } from './fall'
 import { planTitel, planFlaecheM2, PLAN_NAME } from './rechner/planflaechen'
 import { standardGeometrie, standardAngepasst } from './rechner/standardinsel'
 import { planStandardText } from './rechner/seitenraum'
@@ -533,8 +533,10 @@ function hinweisListe(r: FallRechnung, fall: Fall, luftbildStand: LuftbildStand,
   if (ohne.length) aus.push(nichtAbgedecktText(ohne, t))
   aus.push(...r.meldungen)
   const lb = r.luftbild
-  if (lb) aus.push(lb.befund === 'erkannt' ? `Luftbild: Streifen erkannt (${lb.teile.map(t => `${t.nBalken} Balken`).join(' + ')}) – aus Luftbild, prüfen` +
-      (r.streifenQuelle === 'luftbild' ? '; die Rechnung nutzt ihn.' : r.streifenQuelle === 'hand' ? '; die Rechnung nutzt die Streifen von Hand.' :
+  if (lb) aus.push(lb.befund === 'erkannt' ? `Luftbild: Streifen erkannt (${lb.teile.map(t => `${t.nBalken} Balken`).join(' + ')})` +
+      (r.streifenQuelle === 'luftbild' ? `, ${luftbildGilt(fall, lb.teile) ? 'von Hand bestätigt' : 'nicht von Hand bestätigt'}; die Rechnung nutzt ihn.` :
+        r.streifenQuelle === 'hand' && fall.streifenHand.some(h => h.herkunft === 'luftbild') ? ', als Streifen von Hand übernommen.' :
+        r.streifenQuelle === 'hand' ? '; die Rechnung nutzt die Streifen von Hand.' :
         lb.nurVorschlag ? '; mit Flächen (Plan) nur Vorschlag, gerechnet mit OSM + AV nach Plan.' : '.')
     : lb.befund === 'unsicher' ? `Luftbild: Muster unsicher (${lb.gruende.join('; ')}); Streifen aus OSM + AV` +
       `${r.inselTeilt ? ', an der Insel aus dem Luftbild geteilt' : ''}.`

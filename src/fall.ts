@@ -165,6 +165,7 @@ export interface Fall {
   baumkataster: boolean
   parkkataster?: boolean                          // amtliche Parkfelder laden (Vorgabe: ja; false = abgeschaltet)
   luftbild?: boolean                              // Streifen im Luftbild suchen (Vorgabe: ja)
+  luftbildGeprueft?: P[]                          // Mitten der von Hand bestätigten Luftbild-Streifen (luftbildGilt); ältere Apps übergehen es
   fixpunkte?: Fixpunkt[]                          // Fixpunkte der Vermassung (fehlt, solange keiner gesetzt ist; ältere Apps übergehen das Feld)
   flaechenPlan?: FlaechePlan[]                    // Flächen (Plan) von Hand, spätere vor früheren (fehlt, solange keine gezeichnet ist)
   bedarf?: BedarfBlock                            // Bedarfsmodul E1: Handeingaben zu Bedarf und Querungstyp je Fall (fehlt ohne; Version 3)
@@ -436,6 +437,7 @@ export function fallLesen(text: string): [Fall, string[]] {
   fall.baumkataster = roh.baumkataster === true
   if (roh.parkkataster === false) fall.parkkataster = false
   if (roh.luftbild === false) fall.luftbild = false
+  if (istPs(roh.luftbildGeprueft, 1)) fall.luftbildGeprueft = roh.luftbildGeprueft
   if (roh.bedarf !== undefined) {
     const [b, hb] = bedarfLesen(roh.bedarf)
     hinweise.push(...hb)
@@ -526,8 +528,8 @@ export const inselMarkiert = (fall: Fall): boolean => fall.bedarf?.felder['insel
  * Gleicher Schlüssel: keine neue Rechnung nach einer Bedarf-Eingabe (App)
  */
 export function rechnungsSchluessel(f: Fall): string {
-  const { bedarf: _b, gespeichert: _g, ergebnis: _e, regional: _regional, ...rest0 } = f
-  void _b; void _g; void _e; void _regional
+  const { bedarf: _b, gespeichert: _g, ergebnis: _e, regional: _regional, luftbildGeprueft: _lg, ...rest0 } = f
+  void _b; void _g; void _e; void _regional; void _lg
   // Auge von Hand zählt nur an einer Trottoirüberfahrt (sonst ohne Wirkung auf die Rechnung)
   const ohneAuge = Object.values(f.streifen).some(e => (e.tueD || e.tueDtrottoir) && (e.typ !== 'trottoirueberfahrt' || e.keinFgs))
   const rest = ohneAuge ? { ...rest0, streifen: Object.fromEntries(Object.entries(f.streifen).map(([k, e]) => {
@@ -550,7 +552,7 @@ export function rechnungsSchluessel(f: Fall): string {
 function browserFall(f: Fall): Fall {
   return { app: f.app, version: f.version, ort: f.ort, quellen: {},
     streifenHand: f.streifenHand, hindernisse: f.hindernisse, zufahrten: f.zufahrten, streifen: f.streifen,
-    vorschlaege: f.vorschlaege, baumkataster: f.baumkataster, parkkataster: f.parkkataster, luftbild: f.luftbild,
+    vorschlaege: f.vorschlaege, baumkataster: f.baumkataster, parkkataster: f.parkkataster, luftbild: f.luftbild, luftbildGeprueft: f.luftbildGeprueft,
     fixpunkte: f.fixpunkte, flaechenPlan: f.flaechenPlan, bedarf: f.bedarf, signalEntscheide: f.signalEntscheide,
     gespeichert: f.gespeichert }
 }
@@ -614,7 +616,8 @@ export function eingabenSchluessel(f: Fall): string {
   // Bedarf ebenso nur, wenn vorhanden (Bedarfsmodul E1)
   return stabil([f.ort.bezeichnung ?? '', ...(f.ort.amtlich ? [f.ort.amtlich] : []), f.streifenHand, f.hindernisse, f.zufahrten, f.streifen, f.vorschlaege, f.baumkataster,
     f.parkkataster !== false, f.luftbild !== false, f.fixpunkte ?? [], ...(f.flaechenPlan?.length ? [f.flaechenPlan] : []),
-    ...(f.signalEntscheide?.length ? [f.signalEntscheide] : []), ...(!bedarfLeer(f.bedarf) ? [{ bedarf: f.bedarf }] : [])])
+    ...(f.signalEntscheide?.length ? [f.signalEntscheide] : []), ...(!bedarfLeer(f.bedarf) ? [{ bedarf: f.bedarf }] : []),
+    ...(f.luftbildGeprueft?.length ? [{ luftbildGeprueft: f.luftbildGeprueft }] : [])])
 }
 
 /**
@@ -638,7 +641,18 @@ export function ortMerkenEntscheid(fall: Fall, eigen: boolean, gemerkt: Fall | n
 export function eingabenZahl(f: Fall): number {
   return f.streifenHand.length + f.hindernisse.length + Object.keys(f.zufahrten).length + Object.keys(f.streifen).length +
     Object.keys(f.vorschlaege).length + (f.baumkataster ? 1 : 0) + (f.parkkataster === false ? 1 : 0) + (f.fixpunkte?.length ?? 0) +
-    (f.signalEntscheide?.length ?? 0) + (f.ort.amtlich ? 1 : 0) + (f.flaechenPlan?.length ?? 0) + Object.keys(f.bedarf?.felder ?? {}).length + Object.keys(f.bedarf?.ebenen ?? {}).length
+    (f.signalEntscheide?.length ?? 0) + (f.ort.amtlich ? 1 : 0) + (f.flaechenPlan?.length ?? 0) + (f.luftbildGeprueft?.length ? 1 : 0) + Object.keys(f.bedarf?.felder ?? {}).length + Object.keys(f.bedarf?.ebenen ?? {}).length
+}
+
+/** Luftbild-Streifen von Hand bestätigt: Die Bestätigung gilt nur für diese Lage. Liegt ein Streifen weiter als das (Annahme) von der
+ * bestätigten Mitte, etwa nach einem neuen Luftbild, ist er wieder offen */
+export const LUFTBILD_GEPRUEFT_M = 1.5
+type Achse = { p0: P; p1: P }
+export const luftbildMitten = (teile: readonly Achse[]): P[] => teile.map(t => [(t.p0[0] + t.p1[0]) / 2, (t.p0[1] + t.p1[1]) / 2])
+export function luftbildGilt(f: Pick<Fall, 'luftbildGeprueft'>, teile: readonly Achse[]): boolean {
+  const g = f.luftbildGeprueft
+  return !!g && teile.length > 0 && g.length === teile.length &&
+    luftbildMitten(teile).every(m => g.some(q => Math.hypot(q[0] - m[0], q[1] - m[1]) <= LUFTBILD_GEPRUEFT_M))
 }
 
 /** Hat der Fall etwas zu merken? Eingaben (eingabenZahl), Luftbild-Suche abgeschaltet oder eine Bezeichnung */

@@ -83,7 +83,7 @@ import { type Fall, type FallErgebnis, type StreifenHand, handGeplant, type Fixp
   naechsteFixId, FIXPUNKT_NAME_MAX, STREIFEN_NAME_MAX, leererFall, fallLesen, fallSchreiben, fallMerken, fallErinnern, fallVergessen,
   ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, streifenHandTeilen, teilungZuruecknehmbar,
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
-  streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, annHandSetzen, annHandText, type StreifenQuerung } from './fall'
+  luftbildGilt, luftbildMitten, streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, annHandSetzen, annHandText, type StreifenQuerung } from './fall'
 import { augenNachVerschieben, tueMasse, type KsPhase } from './tue/karte'
 import { LsaEinmuendung } from './tue/LsaEinmuendung'
 import { handSetzen } from './bedarf/fallBedarf'
@@ -120,6 +120,9 @@ import { ebenenVorgabe, ebenenWirksam } from './bedarf/fallBedarf'
 import { radstreifenAusRechnung, querungen } from './bedarf/vorbelegung'
 import { fusswegnetzKarte } from './fusswegnetzKarte'
 import { RichtplanLegende } from './RichtplanLegende'
+import { aktuelleUebergabe, uebergabeText } from './verknuepfung'
+import { AndereRechner, type Ziel } from './AndereRechner'
+import { knotenAmStreifen, netzAusRoh } from './tue/knotenAmStreifen'
 import { taktilGenutzt } from './taktilGenutzt'
 import { TaktilLegende } from './TaktilLegende'
 import { AUTO_C } from './bedarf/automatikC'
@@ -261,6 +264,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [rechnungZeit, setRechnungZeit] = useState<Date | null>(null)
   const [bericht, setBericht] = useState(false)                          // Druckansicht (Bericht) offen
   const [meldung, setMeldung] = useState<string>('')
+  const [uebergabeHinweis, setUebergabeHinweis] = useState<string | null>(() => uebergabeText(aktuelleUebergabe()))
   // Hinweis zum Laden des Falls (Fall-Datei, Browser-Speicher); bleibt stehen, bis ein anderer Ort geladen wird
   const [ladeHinweis, setLadeHinweis] = useState<{ text: string; verwerfen: boolean } | null>(null)
   // Planung (16.10.2026): Inhalt der Eingaben, wie zuletzt als Datei gespeichert bzw. aus einer Datei geladen (fall.eingabenSchluessel;
@@ -960,6 +964,36 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       laden(kn.lat, kn.lon, k.id, null, null, h)
     })
   }
+
+  // Link aus einem anderen Rechner: Übergang öffnen bzw. nur die Karte zeigen. Erst nach dem Effekt (setTimeout): im StrictMode der
+  // Entwicklung läuft er zweimal, sonst ginge dieselbe Abfrage zweimal an Overpass
+  // Links zu den anderen Rechnern: Knoten nahe der Querung für die Knotensicht
+  const knotenNetz = useMemo(() => (daten ? netzAusRoh(daten.osm) : null), [daten?.osm])   // eslint-disable-line react-hooks/exhaustive-deps
+  const knotenNah = useMemo(() => (knotenNetz && rechnung?.streifen.length ? knotenAmStreifen(knotenNetz, rechnung.streifen) : []), [knotenNetz, rechnung])
+  const ergaenzendZiele = useMemo<Ziel[]>(() => !fall ? [] : [
+    ...(knotenNah.length ? knotenNah.map(k => ({ text: knotenNah.length > 1 ? `Knotensicht prüfen: ${k.name}` : 'Knotensicht prüfen', rechner: 'swc' as const, knoten: k.id,
+      zusatz: knotenNah.length > 1 ? undefined : k.name })) :
+      [{ text: 'Knotensicht prüfen', rechner: 'swc' as const, ort: fall.ort, zusatz: 'Knoten im SichtweitenCheck auf der Karte wählen' }]),
+    { text: 'Veloinfrastruktur bewerten', rechner: 'vrc' as const, ort: fall.ort }], [fall, knotenNah])
+  const uebergabeId = useRef<number | null>(null)
+  useEffect(() => {
+    const u = aktuelleUebergabe()
+    if (!u?.ort) return
+    const { ort, uebergang } = u
+    const t = setTimeout(() => {
+      kartenRef.current?.setView([ort.lat, ort.lon], 18)
+      if (uebergang === null) return
+      uebergabeId.current = uebergang
+      pruefen({ id: uebergang, lat: ort.lat, lon: ort.lon, tags: {} })
+    }, 0)
+    return () => clearTimeout(t)
+  }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  // Die Id fehlt am Ort (veraltet oder verschoben): melden, kein anderer Übergang wird gewählt
+  useEffect(() => {
+    if (uebergabeId.current === null || !daten || daten.nid !== uebergabeId.current) return
+    if (!querungKnoten) setUebergabeHinweis(`Übergang ${uebergabeId.current} wurde an diesem Ort nicht gefunden. Bitte den Übergang auf der Karte wählen.`)
+    uebergabeId.current = null
+  }, [daten, querungKnoten])
 
   const pruefenAmtlich = (k: AmtlicherUebergang) => {
     if (werkzeug) return
@@ -2260,7 +2294,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
   return (
     <div className="app" style={{ '--panel-breite': `${panelBreite}px` } as CSSProperties}>
-      <Karte quellenEbenen={quellenEbenen} osmTags={geoVor.osmTags ?? null} mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
+      <Karte luftbildBestaetigt={!!(fall && rechnung?.luftbild && luftbildGilt(fall, rechnung.luftbild.teile))} quellenEbenen={quellenEbenen} osmTags={geoVor.osmTags ?? null} mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         amtlicheKandidaten={amtKandidaten} onAmtlicherKandidat={pruefenAmtlich} luftbildKandidaten={lbKandidaten} onLuftbildKandidat={pruefenLuftbild}
         fusswegnetz={fusswegnetz} richtplanVorhanden={richtplanVorhanden} onRichtplan={setRpStand}
         taktilGenutzt={taktilGen} taktilVorhanden={taktilVorhanden} onTaktil={setTkStand}
@@ -2314,6 +2348,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         </div>
         <label className="klein"><input type="checkbox" checked={nurMarkiert} onChange={e => setNurMarkiert(e.target.checked)} />
           {' '}nur markierte Übergänge zeigen (Fussgängerstreifen, vermutliche und Lichtsignal)</label>
+        {uebergabeHinweis && <p className="hinweis">{uebergabeHinweis}{' '}
+          <button className="zweit klein" onClick={() => setUebergabeHinweis(null)}>ausblenden</button></p>}
         {speicherHinweis && <p className="hinweis" role="alert">{speicherHinweis}</p>}
         {meldung && <p className="hinweis">{meldung}{ladeFehler && fall && !daten && <>{' '}
           <button className="zweit klein" onClick={() => laden(fall.ort.lat, fall.ort.lon, fall.ort.uebergang, fall)}>erneut laden</button></>}</p>}
@@ -2373,6 +2409,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             {ausserhalbOhne.map(x => <button key={x.id} className="zweit klein" onClick={() => umStreifenLaden(x.id)}>um {titel(x.id)} neu laden</button>)}</p>
         )}
         {rechnet && <p className="klein">Rechnung läuft …</p>}
+
+        {/* oben, damit die Links zu den anderen Rechnern gefunden werden; eingeklappt, damit die Arbeitsfläche nicht wegrückt */}
+        {ergaenzendZiele.length > 0 && <AndereRechner von="fgs" logos={['swc', 'vrc']} ziele={ergaenzendZiele}>
+          <p className="klein">Die Knotensicht prüft die Sicht aus der Zufahrt auf die Strasse, nicht die Sicht auf die Wartefläche.
+            {rechnung?.streifen.some(s => s.trottoirueberfahrt) ? ' An dieser Trottoirüberfahrt rechnet der fgsCheck die Knotensicht schon; der Link dient anderen Zufahrten.' : ''}</p>
+        </AndereRechner>}
 
         {/* Reiter (ReiterLeiste.tsx): davor die Gruppe Planen (in beiden Reitern); Sichtprüfung mit Teaser zum Bedarf, Eingaben von
             Hand und Streifen; Bedarf und Querungstyp */}
@@ -2918,6 +2960,11 @@ function LuftbildAnzeige({ rechnung, fall, flugjahr, hatBild, aendern, setMeldun
   if (fall.ort.uebergang === null || fall.streifenHand.length) return null
   const lb = rechnung?.luftbild ?? null
   const an = fall.luftbild !== false
+  // erkannter Streifen, den die Rechnung nutzt: offen, bis er bestätigt ist; die Bestätigung ändert nichts an der Rechnung
+  const genutzt = lb?.befund === 'erkannt' && !lb.nurVorschlag && rechnung?.streifenQuelle === 'luftbild'
+  const bestaetigt = !!genutzt && luftbildGilt(fall, lb!.teile)
+  const offen = genutzt && !bestaetigt
+  const balken = lb?.teile.map(t => `${t.nBalken} Balken, je ${t.bw.toFixed(1).replace('.', ',')} m`).join(' + ') ?? ''
   const f1_ = (x: number) => x.toFixed(2).replace('.', ',')
   return (
     <div className="klein luftbild">
@@ -2929,14 +2976,19 @@ function LuftbildAnzeige({ rechnung, fall, flugjahr, hatBild, aendern, setMeldun
         {' '}Streifen im Luftbild suchen ({LUFTBILD_QUELLE}{flugjahr ? `, Flugjahr ${flugjahr}` : ''})</label>
       {an && !hatBild && <div className="warnung">Luftbild noch nicht geladen bzw. nicht verfügbar: Streifen aus OSM + AV.</div>}
       {an && lb && (
-        <div className={lb.befund === 'erkannt' ? 'pruefen' : lb.befund === 'unsicher' ? 'hinweisbox' : ''}>
-          {lb.befund === 'erkannt' && <>Streifen aus dem Luftbild erkannt ({lb.teile.map(t => `${t.nBalken} Balken`).join(' + ')}, NCC {f1_(lb.ncc)},
-            Gelb-Kontrast {lb.kontrast.toFixed(1).replace('.', ',')}) – aus Luftbild, prüfen. {lb.nurVorschlag ? <>Mit Flächen (Plan): der
-            Streifen aus dem Luftbild (Bestand) ist nur Vorschlag (gestrichelt); gerechnet wird mit OSM + AV nach Plan bzw. mit den
-            Streifen von Hand.</> : 'Die Rechnung nutzt ihn.'}</>}
+        <div className={offen ? 'pruefen' : lb.befund === 'unsicher' ? 'hinweisbox' : ''}>
+          {bestaetigt && <>Streifen aus dem Luftbild, von Hand bestätigt: {balken}.{' '}
+            <button className="zweit klein" onClick={() => aendern(f => { delete f.luftbildGeprueft; return f })}>zurücknehmen</button></>}
+          {lb.befund === 'erkannt' && !bestaetigt && <span title={`NCC ${f1_(lb.ncc)}, Gelb-Kontrast ${lb.kontrast.toFixed(1).replace('.', ',')}`}>Streifen aus dem Luftbild erkannt: {balken}.{' '}
+            {lb.nurVorschlag ? <>Mit Flächen (Plan): der Streifen aus dem Luftbild (Bestand) ist nur Vorschlag (gestrichelt); gerechnet wird mit OSM + AV nach
+              Plan bzw. mit den Streifen von Hand.</> : offen ? 'Die Rechnung nutzt ihn. Liegt der gelbe Umriss auf dem Streifen im Bild?' : ''}</span>}
           {lb.befund === 'unsicher' && <>Muster im Luftbild unsicher ({lb.gruende.join('; ')}): gestrichelt als Vorschlag; die Rechnung
             nutzt den Streifen aus OSM + AV{rechnung?.inselTeilt ? ', an der Insel aus dem Luftbild geteilt' : ''}.</>}
           {lb.befund === 'nicht_gefunden' && <>Im Luftbild kein Streifen gefunden ({lb.gruende.join('; ')}): Streifen aus OSM + AV.</>}
+          {offen && <div><button className="zweit klein" title="Der Umriss stimmt: Die Rechnung bleibt gleich, im Bericht steht «von Hand bestätigt»"
+            onClick={() => aendern(f => { f.luftbildGeprueft = luftbildMitten(lb.teile); return f })}>Übernehmen</button>{' '}
+            <button className="zweit klein" title="Die Rechnung nimmt den Streifen aus OSM + AV; rückgängig mit dem Häkchen oben" onClick={() =>
+              aendern(f => { f.luftbild = false; delete f.quellen.luftbild; delete f.luftbildGeprueft; return f })}>Ablehnen</button></div>}
           {(lb.befund === 'unsicher' || lb.nurVorschlag) && lb.teile.length > 0 && <div><button className="zweit klein" onClick={() => {
             // die Insel, an der die Luftbild-Teile geteilt sind, als Insel von Hand mit (sonst ginge die Teilung verloren)
             const uebernehmen = (f: Fall) => streifenUebernehmen(f, lb.teile, rechnung?.streifen ?? [], lb.nurVorschlag ? 'luftbild' : 'luftbild_vorschlag', lb.insel ? [lb.insel] : [], true)
