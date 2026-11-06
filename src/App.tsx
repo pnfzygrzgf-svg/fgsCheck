@@ -33,7 +33,7 @@ import { AvVorschau } from './avVorschau'
 import { baumQuelleFuer, type BaumQuelle, type KatasterBaum } from './daten/baumkataster'
 import { parkQuelleFuer, istParkId, type ParkQuelle, type KatasterFeld } from './daten/parkkataster'
 import { bernZustaendig, bernErgebnis, geoCacheLeeren, GEODATEN_BERN, GEOPORTAL_BERN, type BernLaden } from './daten/geoportal'
-import { BERN_C_KEYS, BERN_DIENSTE_C, bernDienstName, bernDienstBericht, type BernDienstKey, type BernDatenC, type BernDienst } from './daten/bernDienste'
+import { BERN_C_KEYS, BERN_DIENSTE_C, bernDienstName, type BernDienstKey, type BernDatenC, type BernDienst } from './daten/bernDienste'
 import { schulenStand } from './daten/schulen'
 import { ladeHaltestellenBern, haltestellenMitBav, type BernHalte, type Bereich } from './daten/haltestellen'
 import { useAmtlicheOrtQuellen } from './amtlicheOrtQuellen'
@@ -42,7 +42,9 @@ import { quellenQualitaetText, type QuellenQualitaet } from './daten/anbieter/ge
 import { BAV_QUELLENANGABE, bavDatenstandText } from './daten/anbieter/gemeinsam/bav'
 import { ladeVerkehrsdatenBern, type VdLinie } from './daten/verkehrsdaten'
 import { datenlage, gemeindeAmOrt, quelle as registerQuelle, type Datenlage } from './daten/quellenregister'
-import { DatenlageZeile, QUELLE_JE_SCHLUESSEL, genutzteQuellen, quelleInfo, zustandJeQuelle, qualitaetJeQuelle } from './Datenlage'
+import { DatenlageZeile, QUELLE_JE_SCHLUESSEL, quelleInfo, zustandJeQuelle, qualitaetJeQuelle } from './Datenlage'
+import { herangezogeneQuellen } from './quellenHerangezogen'
+import { VD_QUELLE_ID } from './daten/verkehrsdaten'
 import type { GeoVorbelegung } from './bedarf/vorbelegung'
 import { lv95, wgs, dist, sub, add, dot, links, einheit as einheitP, imPolygon, type P } from './geo'
 import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, aufnehmen, vereinigen, vereinigenNamen } from './ausschnitt'
@@ -86,7 +88,9 @@ import { augenNachVerschieben, tueMasse, type KsPhase } from './tue/karte'
 import { LsaEinmuendung } from './tue/LsaEinmuendung'
 import { handSetzen } from './bedarf/fallBedarf'
 import { FARBE_HERAN, FARBE_WARTEND, FARBE_WARTEND_TROTTOIR, FARBE_VELO, VELO_SICHT_FARBE } from './fahrzeuge'
-import { inFeldSchreiben, inMetern, istZahlenfeld, messKlick, messLaenge, messPunkt, messText, messWert, type Messung } from './messen'
+import { inFeldSchreiben, inMetern, istZahlenfeld, messWert, messLeer, messStandKlick, messStandText, MESSART_NAME, MESSART_TEXT, type MessArt, type MessStand,
+  MESSEN_START_EVENT } from './messen'
+import { bordkanten } from './bordkanten'
 import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_M, ORT_TOL_M, streifenMitte, streifenAbstand, planEntscheid,
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
   querungAusserhalb, querungWegText, querungVerschobenText, type OrtEntscheid, type Ausserhalb } from './abdeckung'
@@ -125,7 +129,7 @@ import { fangen, fangRadiusM, FANG_PX, fixpunktVorschlaege, fixpunktName, fixMas
 
 interface QuellenStand extends QuellenQualitaet { kantone?: string[]; zeit?: string; name: string; objekte?: string; ms?: number; bytes?: number; server?: string; fehler?: string }
 /** Geoportal Stadt Bern für die Vorbelegung des Bedarfsmoduls (Haltestellen, Verkehrsdaten); nr = Ladevorgang (wie ParkStand) */
-/** V_sig-Linien für den Sichtrechner (Worker) */
+/** V_sig-Linien für die Sichtprüfung (Worker) */
 type VsigRechnung = import('./daten/vsig').VsigEingang & { bereich: Bereich }
 interface BernGeo { nr: number; halte: BernHalte; vd: { laedt: true } | { linien: VdLinie[] } | { fehler: string }
   /** weitere Dienste (daten/bernDienste.ts) */
@@ -299,8 +303,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [, setVorschauNr] = useState(0)
   const vorschau = useRef<AvVorschau | null>(null)
   if (!vorschau.current) vorschau.current = new AvVorschau(() => setVorschauNr(x => x + 1))
-  // Werkzeug «Messen» (27.10.2026): laufende Messung und das zuletzt angeklickte Zahlenfeld im Panel (nur Sitzung, nicht im Fall)
-  const [messung, setMessung] = useState<Messung | null>(null)
+  // Werkzeug «Messen» (27.10.2026; Kasten auf der Karte seit 06.11.2026): Stand der Messung und das zuletzt angeklickte Zahlenfeld im
+  // Panel als Zielfeld (nur Sitzung, nicht im Fall)
+  const [messung, setMessung] = useState<MessStand | null>(null)
   const zahlenfeld = useRef<HTMLInputElement | null>(null)
   const [zahlenfeldName, setZahlenfeldName] = useState<string | null>(null)
   useEffect(() => {
@@ -314,6 +319,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     }
     document.addEventListener('focusin', fokus)
     return () => document.removeEventListener('focusin', fokus)
+  }, [])
+  // Knopf «messen» an einem Meterfeld der Bedarfsmaske (messen.ts): Werkzeug mit der Messart des Felds starten, das Feld hat schon den Fokus
+  useEffect(() => {
+    const start = (e: Event) => { setMessung(messLeer((e as CustomEvent<MessArt>).detail ?? 'hand')); setWerkzeug('messen') }
+    window.addEventListener(MESSEN_START_EVENT, start)
+    return () => window.removeEventListener(MESSEN_START_EVENT, start)
   }, [])
   // Reiter im Panel (Sichtprüfung / Bedarf und Querungstyp, reiter.ts): Wahl im laufenden Fall, nur in der Sitzung; null = Vorgabe
   // nach dem Fall. Ein neuer Fall (Übergang, geplanter Streifen, Fall-Datei) beginnt wieder mit der Vorgabe
@@ -487,7 +498,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     return rechenRef.current.f
   }, [fall])
   // Tempo der Zufahrten in Bern aus V_sig (Geoportal Stadt Bern): sobald die Linien geladen sind und der
-  // Streifen auf einer AV-Fläche der Stadt Bern liegt (wie die übrige Vorbelegung), rechnet der Sichtrechner neu; OSM bleibt Rückfall
+  // Streifen auf einer AV-Fläche der Stadt Bern liegt (wie die übrige Vorbelegung), rechnet die Sichtprüfung neu; OSM bleibt Rückfall
   const vsigStand = bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.c.vsig : null
   const vsigBern = useMemo(() => bernZustaendig(rechnung?.streifen[0]?.m ?? daten?.ort, av ?? []), [rechnung, daten, av])
   const pruefPunkt = rechnung?.streifen[0]?.m ?? daten?.ort
@@ -1583,8 +1594,11 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   }, [srPruef, rechnung, rechnungFall])
   // Fangen der Ecken einer Fläche (Plan): AV-Stützpunkte und Ecken der übrigen Plan-Flächen (ohneId: die eben bearbeitete)
   const planFangen = (p: P, ohneId: string | null): P => fangen(p, [...(av ?? []), ...planAlsAv(fall?.flaechenPlan, ohneId)], fangRadius()).p
+  // Werkzeug «Messen»: Bordsteinkanten der AV samt Flächen (Plan) (bordkanten.ts), nur solange das Werkzeug läuft
+  const messKanten = useMemo(() => (werkzeug === 'messen' && av ? bordkanten(avMitPlan(av, fall?.flaechenPlan).av) : []),
+    [werkzeug, av, fall?.flaechenPlan])
   const klick = useCallback((p: P) => {
-    if (werkzeug === 'messen') { const q = messPunkt(p, av ?? [], fangRadius()); setMessung(m => messKlick(m, q)); return }
+    if (werkzeug === 'messen') { const r = fangRadius(); setMessung(m => messStandKlick(m ?? messLeer('hand'), p, av ?? [], messKanten, r)); return }
     if (werkzeug === 'eckeRunden') { eckeRundenBei(p); return }
     if (werkzeug === 'mittelinsel') { mittelinselBei(p); return }
     if (werkzeug === 'seitenraum') { seitenraumBei(p); return }
@@ -1596,7 +1610,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     zeichnungRef.current = neu
     if ((werkzeug === 'streifen' || werkzeug === 'tue') && neu.length === 2) { fertig(neu); return }
     setZeichnung(neu)
-  }, [werkzeug, fertig, av, fall, bearbeiten, rundenR, inselOrt, inselK, inselStreifen, inselNetz, inselFahrbahn, rechnung])
+  }, [werkzeug, fertig, av, fall, bearbeiten, rundenR, inselOrt, inselK, inselStreifen, inselNetz, inselFahrbahn, rechnung, messKanten])
 
   const doppelklick = useCallback(() => {
     if (werkzeug === 'eckeRunden' || werkzeug === 'mittelinsel' || werkzeug === 'seitenraum' || werkzeug === 'messen') return
@@ -2032,6 +2046,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // Reiter: Vorgabe nach dem Fall (bestehender Übergang mit Streifen → Sichtprüfung, Planung → Bedarf), sobald Bedarfsblätter da
   // sind; die Vorgabe der ersten Rechnung gilt im Fall weiter (kein Springen, wenn später ein Streifen von Hand dazukommt)
   const mitReitern = !!fall && blaetter.length > 0
+  // Quellen im Bericht (quellenHerangezogen.ts): nur, was in Sichtprüfung oder Bedarf dieses Falls eingeflossen ist
+  const berichtQuellen = useMemo(() => (fall ? herangezogeneQuellen(fall, blaetter, hoehenGenutzt.alle.map(d => d.id)) : []), [fall, blaetter, hoehenGenutzt])
+  const genutzt = useMemo(() => new Set(berichtQuellen), [berichtQuellen])
   const vorgabeReiter = reiterVorgabe({ uebergang: fall?.ort.uebergang ?? null, streifenQuelle: rechnung?.streifenQuelle ?? null,
     markierung: rechnung?.markierung ?? fall?.ort.markierung ?? null, herkunft: fall?.streifenHand.map(s => s.herkunft) })
   const reiter = reiterAktiv(reiterWahl, vorgabeReiter)
@@ -2170,21 +2187,32 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       <div><button className="zweit" onClick={() => setWerkzeug(null)}>Abbrechen</button></div>
     </div>
   )
-  // Messen: Länge mit «übernehmen» in das zuletzt angeklickte Zahlenfeld des Panels (auf 0,05 m gerundet)
-  const messM = messLaenge(messung)
-  const messHilfe = (
-    <div className="werkzeughilfe">
-      <b>Messen:</b> {messM !== null ? <>{messText(messM)} ({[messung!.a, messung!.b!].map(q => (q.art === 'frei' ? 'frei' : 'gefangen')).join(', ')}){' '}
-        {zahlenfeldName ? <button className="klein" title={`${messWert(messM)} m in «${zahlenfeldName}» schreiben`} onClick={() => {
-          const el = zahlenfeld.current
-          if (el && el.isConnected) inFeldSchreiben(el, messWert(messM)); else setZahlenfeldName(null)
-        }}>übernehmen</button> : <button className="klein" disabled>zuerst ein Zahlenfeld in Metern anklicken</button>}</>
-        : messung ? 'zweiten Punkt anklicken' : 'ersten Punkt anklicken'}
-      <div className="klein">Fang auf Vermessungspunkte der AV im Umkreis von {FANG_PX} Bildschirmpunkten, sonst freier Punkt; Esc beendet.</div>
-      <div><button className="zweit" onClick={() => { setMessung(null); setWerkzeug(null) }}>fertig</button></div>
+  // Messen (06.11.2026, nach VeloroutenCheck): Kasten über der Karte mit Messart, Anleitung, Wert, Zielfeld und «übernehmen»
+  // (schreibt den Wert, auf 0,05 m gerundet, in das Zielfeld); «Fertig» und Esc beenden
+  const mess = messung ?? messLeer('hand')
+  const messKasten = werkzeug === 'messen' ? (
+    <div className="messkasten" role="group" aria-label="Messen">
+      <div className="messkasten-kopf"><b>📏 Messen</b>
+        <button type="button" className="zweit klein" onClick={() => { setMessung(null); setWerkzeug(null) }} aria-label="Fertig (Esc)">Fertig</button></div>
+      <div className="messart" role="group" aria-label="Messart">
+        {(['kante', 'flaeche', 'hand'] as MessArt[]).map(a => <button key={a} type="button" aria-pressed={mess.art === a}
+          onClick={() => setMessung(messLeer(a))}>{MESSART_NAME[a]}</button>)}
+      </div>
+      <div className="klein">{MESSART_TEXT[mess.art]}{mess.art !== 'hand' && !messKanten.length ? ' Hier sind keine Bordsteinkanten der AV geladen.' : ''}</div>
+      <div className={'messwert' + (mess.fehler ? ' fehler' : '')} role="status">{messStandText(mess)}</div>
+      <div className="messziel">
+        {zahlenfeldName ? <>Ziel: «{zahlenfeldName}»{' '}
+          <button type="button" className="klein" disabled={!mess.ergebnis}
+            title={mess.ergebnis ? `${messWert(mess.ergebnis.breite)} m in «${zahlenfeldName}» schreiben` : 'zuerst messen'}
+            onClick={() => {
+              const el = zahlenfeld.current
+              if (el && el.isConnected && mess.ergebnis) inFeldSchreiben(el, messWert(mess.ergebnis.breite)); else setZahlenfeldName(null)
+            }}>übernehmen</button></>
+          : <span className="klein">Ziel: zuerst ein Zahlenfeld in Metern im Panel anklicken; dann schreibt «übernehmen» den Wert hinein.</span>}
+      </div>
     </div>
-  )
-  const werkzeugHilfe = werkzeug === 'messen' ? messHilfe : werkzeug === 'mittelinsel' ? inselHilfe : werkzeug === 'seitenraum' ? srHilfe : werkzeug === 'eckeRunden' ? (
+  ) : null
+  const werkzeugHilfe = werkzeug === 'messen' ? null : werkzeug === 'mittelinsel' ? inselHilfe : werkzeug === 'seitenraum' ? srHilfe : werkzeug === 'eckeRunden' ? (
     <div className="werkzeughilfe">
       <b>Ecke runden{rundenPlan ? ` (${planTitel(rundenPlan.id)})` : ''}:</b>{(fall?.flaechenPlan?.length ?? 0) > 1 && <>{' '}
         <label>Fläche <select value={bearbeiten ?? ''} onChange={e => { setBearbeiten(e.target.value || null); setRundenFehler(null)
@@ -2242,7 +2270,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null} gelaende={erkWerte}
         onRundenAngebot={ja => { if (ja) angebotAnnehmen(); else setRundenAngebot(null) }} fixpunkte={fall?.fixpunkte ?? LEER_FIX} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
         flaechenPlan={fall?.flaechenPlan ?? LEER_PLAN}
-        masslinien={masslinien} messung={werkzeug === 'messen' ? messung : null} zufahrtNamen={zNamen} streifenTitel={titel}
+        masslinien={masslinien} messung={werkzeug === 'messen' ? mess : null} messKanten={messKanten} messKasten={messKasten}
+        zufahrtNamen={zNamen} streifenTitel={titel}
         onUebergang={pruefen} onZufahrt={key => { setAuswahl(key); if (key) zurSicht() }}
         ksPhase={ksPhase} onKsPhase={setKsPhase}
         onTueAuge={(fid, phase, p) => aendern(f => {
@@ -2778,30 +2807,25 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <Fusszeile />
       </aside>
       {bericht && fall && rechnung && (
-        <Bericht neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null} fall={fall} rechnung={rechnung} gelaende={erkWerte} rechnungZeit={rechnungZeit} kantone={kantone} flugjahr={daten?.flugjahr ?? ''}
+        <Bericht neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null} fall={fall} rechnung={rechnung} gelaende={erkWerte} bruecke={bruecke} rechnungZeit={rechnungZeit}
           luftbildStand={daten?.luftbild ? 'da' : fall.luftbild !== false && quellen.luftbild && !quellen.luftbild.fehler ? 'laedt' : 'fehlt'}
-          zusatzQuellen={[...Object.values(hkQuellen).map(q => `${q.name} (nur Kartenkontext): ${q.datenstand}; Vollständigkeit unbekannt; abgerufen ${q.zeit ?? 'unbekannt'}`), ...(fall.baumkataster && kataster?.baeume ? [`Baumkataster: ${kataster.quelle.quellenangabe} (WFS map.bern.ch)`] : []),
-            ...(parkAn && parkKat?.felder ? [`Amtliche Parkfelder: ${parkKat.quelle.quellenangabe} (WFS map.bern.ch)`] : []),
-            ...(fall.quellen.haltestellen ? [`Haltestellen (Vorbelegung Bedarf): ${HALT_QUELLE} (${GEOPORTAL_BERN}, ArcGIS REST map.bern.ch)`] : []),
-            ...(fall.signalEntscheide ?? []).map(x => `Bestätigte amtliche Signalzuordnung: ${x.name}; ${x.art}; Knoten ${x.knoten}, Zufahrt ${x.zufahrt}; Datenstand ${x.datenstand}; abgerufen ${x.abgerufen}; ${x.objektId}`),
-            ...(fall.regional?.teile ?? []).map(regionaleQuelleMitStand),
-            ...(['tempo', 'zonen'] as const).flatMap(k => { const z = fall.zuerich?.[k]; return z ? [`${ZH_QUELLE}; ${k === 'tempo' ? 'Tempo' : 'Verkehrszonen'}: ${z.objekte.length} Objekte, Datenstand ${zhStandText(z)}, abgerufen ${z.abgerufen}`] : [] }),
-            ...(fall.npvm ? [`${NPVM_QUELLENANGABE}; ${fall.npvm.linien.length} Modellstrecken, Bezugsjahr ${fall.npvm.bezugsjahr ?? 'unbekannt'}, ` +
+          zusatzQuellen={[...(fall.signalEntscheide ?? []).map(x => `Bestätigte amtliche Signalzuordnung: ${x.name}; ${x.art}; Knoten ${x.knoten}, Zufahrt ${x.zufahrt}; Datenstand ${x.datenstand}; abgerufen ${x.abgerufen}; ${x.objektId}`),
+            ...(fall.regional?.teile ?? []).filter(t => genutzt.has(`regional.${t.id}`)).map(regionaleQuelleMitStand),
+            ...(['tempo', 'zonen'] as const).flatMap(k => { const z = fall.zuerich?.[k]; return z && genutzt.has(k === 'tempo' ? 'zh.tempo' : 'zh.zone') ? [`${ZH_QUELLE}; ${k === 'tempo' ? 'Tempo' : 'Verkehrszonen'}: ${z.objekte.length} Objekte, Datenstand ${zhStandText(z)}, abgerufen ${z.abgerufen}`] : [] }),
+            ...(fall.npvm && genutzt.has('are.npvm') ? [`${NPVM_QUELLENANGABE}; ${fall.npvm.linien.length} Modellstrecken, Bezugsjahr ${fall.npvm.bezugsjahr ?? 'unbekannt'}, ` +
               `Datenstand ${npvmStandText(fall.npvm)} (Ebene), abgerufen ${fall.npvm.abgerufen}; modelliert, keine Zählung; Zuordnung und Übernahme bestätigen`] : []),
-            ...(fall.amtlicheQuellen?.bav ? [`${BAV_QUELLENANGABE}; ${fall.amtlicheQuellen.bav.halte.length} Haltestellenpunkte, ` +
+            ...(fall.amtlicheQuellen?.bav && genutzt.has('bav.halt') ? [`${BAV_QUELLENANGABE}; ${fall.amtlicheQuellen.bav.halte.length} Haltestellenpunkte, ` +
               `abgerufen ${fall.amtlicheQuellen.bav.abgerufen}; Datenstand ${bavDatenstandText(fall.amtlicheQuellen.bav)} (Ebene); Vollständigkeit unbekannt; Zuordnung zur Querung als Vorschlag`] : []),
-            ...(fall.quellen.gebiet ? [fall.quellen.gebiet] : []),
-            ...(fall.quellen.verkehrsdaten ? [`Verkehrsmenge DTV (Vorbelegung Bedarf): ${VD_QUELLE}, DTV = 16·Nt + 8·Nn (${GEOPORTAL_BERN}, ` +
+            ...(genutzt.has(VD_QUELLE_ID) ? [`Verkehrsmenge DTV (Vorbelegung Bedarf): ${VD_QUELLE}, DTV = 16·Nt + 8·Nn (${GEOPORTAL_BERN}, ` +
               'ArcGIS REST map.bern.ch)'] : []),
-            ...BERN_C_KEYS.filter(k => fall.quellen[k]).map(bernDienstBericht),
             ...(fall.ort.amtlich ? [amtlicherText(fall.ort.amtlich)] : []),
             ...(fall.ort.herkunft ? [`Übergang aus dem Luftbild (nicht in OSM): ${ETH_MODELL_QUELLE}`] : []),
-            ...hoehenGenutzt.ks.map(d => `Längsneigung der Knotensicht: Höhenmodell ${d.kurz} ${d.anbieter} (Profile, ${d.host})`),
-            ...hoehenGenutzt.kurve.map(d => `Längsgefälle der Kurvenregel bzw. Sicht vom Velo: Höhenmodell ${d.kurz} ${d.anbieter} (Profil entlang der Fahrlinie, ${d.host})`),
-            ...hoehenGenutzt.erk.map(d => `Gelände der Erkennungsdistanz: Höhenmodell ${d.kurz} ${d.anbieter} (Profile entlang der Sichtlinien, ${d.host}; Toleranz ${String(d.tolM).replace('.', ',')} m, Annahme)`),
-            ...hoehenGenutzt.sicht.map(d => `Gelände der Sicht auf die Wartefläche: Höhenmodell ${d.kurz} ${d.anbieter} (Profile entlang der Sichtlinien, ${d.host}; Toleranz ${String(d.tolM).replace('.', ',')} m, Annahme)`)]}
+            ...hoehenGenutzt.ks.map(d => `Längsneigung der Knotensicht: Höhenmodell ${d.kurz}, ${d.anbieter} (Profile, ${d.host})`),
+            ...hoehenGenutzt.kurve.map(d => `Längsgefälle der Kurvenregel bzw. Sicht vom Velo: Höhenmodell ${d.kurz}, ${d.anbieter} (Profil entlang der Fahrlinie, ${d.host})`),
+            ...hoehenGenutzt.erk.map(d => `Gelände der Erkennungsdistanz: Höhenmodell ${d.kurz}, ${d.anbieter} (Profile entlang der Sichtlinien, ${d.host}; Toleranz ${String(d.tolM).replace('.', ',')} m, Annahme)`),
+            ...hoehenGenutzt.sicht.map(d => `Gelände der Sicht auf die Wartefläche: Höhenmodell ${d.kurz}, ${d.anbieter} (Profile entlang der Sichtlinien, ${d.host}; Toleranz ${String(d.tolM).replace('.', ',')} m, Annahme)`)]}
           ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} datenlage={ortLage} quellenQualitaet={qualitaetJeQuelle(quellenMitSnapshots)}
-          quellenIds={genutzteQuellen({ ...fall.quellen, ...hkQuellen, ...Object.fromEntries((fall.regional?.teile ?? []).map(t => [`regional.${t.id}`, true])), ...(fall.ort.amtlich ? { [`regional.${fall.ort.amtlich.quelleId}`]: true } : {}), ...(fall.bedarf?.felder.dtv?.npvmBeleg ? { npvm: NPVM_QUELLENANGABE } : {}) }, { herkunftP: fall.ort.herkunft?.p ?? null, hoehen: hoehenGenutzt.alle.map(d => d.id) })} />
+          quellenIds={berichtQuellen} />
       )}
     </div>
   )
@@ -3135,7 +3159,7 @@ function ZufahrtDetail({ z, name, nr, fall, aendern, spurZeichnen, gelaende = nu
         <tr><td>Sichtweite</td><td>{mText(z.sichtweite)} m ({z.sichtweiteQuelle}){z.geprueftBisM != null &&
           <span className="warnung">; geprüft bis {z.geprueftBisM} m (Reichweite der geladenen Daten), darüber nicht geprüft</span>}</td></tr>
         {z.kurvenradiusM != null && <tr><td>Radius</td><td>{f1(z.kurvenradiusM)} m ({z.radiusQuelle})</td></tr>}
-        {erk && <tr><td>Bodenmarkierung</td><td title={ERKENNUNG_TITEL}>{erkennungText(erk)}; Sichtrechner, {gelaendeText(erk)} (Annahme)
+        {erk && <tr><td>Bodenmarkierung</td><td title={ERKENNUNG_TITEL}>{erkennungText(erk)}; Sichtprüfung, {gelaendeText(erk)} (Annahme)
           {erkennungEmpfehlungText(erk, z.sichtweite) && <div><strong>{erkennungEmpfehlungText(erk, z.sichtweite)}</strong></div>}</td></tr>}
         {z.knotenM != null && <tr><td>Knoten</td><td>{f1(z.knotenM)} m vor dem Streifen</td></tr>}
         {z.deckung && <tr><td>Mitgeprüft</td><td title={GEDECKT_TITEL}>ab dem Knoten durch die gerade Zufahrt ({z.deckung}); zählt trotzdem</td></tr>}

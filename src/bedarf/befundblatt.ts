@@ -2,15 +2,15 @@
 //
 // Je Querung (Teilstreifen auf einer Achse): Vorbelegung aus der Rechnung (vorbelegung.ts) und Handeingaben des Falls
 // (fallBedarf.ts) bilden die Eingaben; der Entscheidbaum (entscheid.beurteile) liefert Querungstyp und Befunde, mit den Ebenen
-// Bern bzw. Kanton BE nach dem Ort (von Hand schaltbar). Die Sicht kommt aus dem Sichtrechner (Skizze: «Sicht bleibt der letzte
+// Bern bzw. Kanton BE nach dem Ort (von Hand schaltbar). Die Sicht kommt aus der Sichtprüfung (Skizze: «Sicht bleibt der letzte
 // Schritt»): ist keine vorhandene Sichtweite von Hand eingegeben, ersetzt sein Ergebnis die Regeln H1 (Fussgängerstreifen) bzw.
 // E3 (Querung ohne Vortritt, VSS 40 240 Z. 8.2) des Baums – je Zufahrt verdeckt = Befund, frei = erfüllt. Die Regeln H1/E3 des
 // Baums kennen weder «bis Knoten» noch Kurvenradien der Rechnung und würden deren Sichtweiten falsch werten.
 // Offene Einträge stehen nach fehlendem Feld und Block der Maske; Blöcke ganz ohne Eingaben als «nicht geprüft».
-// «Sichtweite je Zufahrt» ohne Handeingabe im Zustand «rechner» (Anzeige des Sichtrechners je
+// «Sichtweite je Zufahrt» ohne Handeingabe im Zustand «rechner» (Anzeige der Sichtprüfung je
 // Zufahrt, zählt nicht als offen); «frei bis» je gerade Zufahrt (ZufahrtErgebnis.freiBisM) in Sichtzeilen und Grundprüfung. H4
-// (Knotenradius unter 20 m) erscheint mit dem Radius aus dem Sichtrechner nur, wenn das Soll nach Radius strenger ist als das
-// nach Tempo (sonst prüft der Sichtrechner die Abbieger schon nach Radius); mit einem Radius von Hand wie bisher.
+// (Knotenradius unter 20 m) erscheint mit dem Radius aus der Sichtprüfung nur, wenn das Soll nach Radius strenger ist als das
+// nach Tempo (sonst prüft die Sichtprüfung die Abbieger schon nach Radius); mit einem Radius von Hand wie bisher.
 
 import { beurteile } from './entscheid'
 import { KATALOG, WERKE, quellText, type RegelId, type WerkId } from './katalog'
@@ -51,13 +51,13 @@ export interface BlattOptionen {
   alternative?: boolean
 }
 
-/** Sicht je Zufahrt aus dem Sichtrechner */
+/** Sicht je Zufahrt aus der Sichtprüfung */
 export interface SichtZeile {
   fgsId: string; zufahrt: string; name: string; regel: 'H1' | 'E3'
   tempo: number; soll: number; quelle: string; frei: boolean; status: string
   /** nur bis hier geprüft (Querung ohne Vortritt über der Reichweite der geladenen Daten) */
   bisM?: number
-  /** Sichtfeld frei bis (gerade Zufahrten, Sichtrechner) */
+  /** Sichtfeld frei bis (gerade Zufahrten, Sichtprüfung) */
   freiBisM?: number
   /** Soll durch eine Annahme der App unter dem Normwert (ohneVortritt.annahmeKurz), z. B. Abbieger bis Beginn des Abbiegens */
   annahme?: string
@@ -74,7 +74,7 @@ export interface BefundBlatt {
   gebildet: Gebildet
   vorbelegt: Vorbelegt
   ebenen: { bern: boolean; kantonBE: boolean; richtlinie: boolean }
-  /** Sicht aus dem Sichtrechner (leer, wenn sie von Hand eingegeben ist bzw. nicht passt) */
+  /** Sicht aus der Sichtprüfung (leer, wenn sie von Hand eingegeben ist bzw. nicht passt) */
   sicht: SichtZeile[]
   sichtVonHand: boolean
   /** Empfohlener Querungstyp mit Elementen als Text */
@@ -263,19 +263,19 @@ const TYP_TEXT: Record<string, string> = { fgs: 'Fussgängerstreifen', lsa: 'Fus
   ohne_vortritt: 'Querung ohne Vortritt', trottoirueberfahrt: 'Trottoirüberfahrt' }
 
 /**
- * Ist das Soll des Sichtrechners (nach dem Tempo der Zufahrt) das richtige? Fussgängerstreifen (H1, VSS 40 241 Z. 14):
+ * Ist das Soll der Sichtprüfung (nach dem Tempo der Zufahrt) das richtige? Fussgängerstreifen (H1, VSS 40 241 Z. 14):
  * Anzeichen für schnelleres Fahren unbekannt → offen; Anzeichen ohne V85 → offen (V85 messen); V85 über dem signalisierten Tempo mit
- * Anzeichen bzw. Messung → Soll nach V85, rechnet der Sichtrechner tiefer → offen. Ohne Vortritt (E3): V85 über dem Tempo der Zufahrt →
+ * Anzeichen bzw. Messung → Soll nach V85, rechnet die Sichtprüfung tiefer → offen. Ohne Vortritt (E3): V85 über dem Tempo der Zufahrt →
  * offen. null: Soll passt.
  */
 function tempoPruefen(e: Gebildet['eingaben'], regel: 'H1' | 'E3', tempo: number): { fehlend: string[]; grund: string } | null {
   const v85 = e.v85.wert, vSig = e.vSig.wert
-  // Signalisiertes Tempo (z. B. von Hand) höher als das Tempo im Sichtrechner → Sicht nach dem höheren Tempo neu rechnen
+  // Signalisiertes Tempo (z. B. von Hand) höher als das Tempo in der Sichtprüfung → Sicht nach dem höheren Tempo neu rechnen
   const hoeher = vSig !== null && vSig > tempo + 1e-9
-    ? { fehlend: ['sichtVorh'], grund: `signalisiert ${vSig} km/h, der Sichtrechner rechnet mit ${tempo} km/h: Sicht nach dem höheren Tempo ` +
+    ? { fehlend: ['sichtVorh'], grund: `signalisiert ${vSig} km/h, die Sichtprüfung rechnet mit ${tempo} km/h: Sicht nach dem höheren Tempo ` +
       'neu rechnen (Tempo der Zufahrt von Hand) bzw. Sichtweite von Hand eingeben' } : null
   if (regel === 'E3') {
-    if (v85 !== null && v85 > tempo) return { fehlend: ['sichtVorh'], grund: `Soll nach V85 ${v85} km/h nötig, der Sichtrechner rechnet mit ${tempo} km/h` }
+    if (v85 !== null && v85 > tempo) return { fehlend: ['sichtVorh'], grund: `Soll nach V85 ${v85} km/h nötig, die Sichtprüfung rechnet mit ${tempo} km/h` }
     return v85 === null ? hoeher : null
   }
   const anz = e.anzeichenSchneller.wert, nachweis = e.v85Nachweis.wert
@@ -284,9 +284,9 @@ function tempoPruefen(e: Gebildet['eingaben'], regel: 'H1' | 'E3', tempo: number
   if (v85 !== null && vSig !== null && v85 > vSig) {
     if (!anz && nachweis === null) return { fehlend: ['v85Nachweis'], grund: 'ob die V85 gemessen ist, ist offen' }
     if ((anz || nachweis) && tempo < v85) return { fehlend: ['sichtVorh'],
-      grund: `Soll nach V85 ${v85} km/h nötig (Sichtweite nach gefahrenem Tempo, H1b), der Sichtrechner rechnet mit ${tempo} km/h` }
+      grund: `Soll nach V85 ${v85} km/h nötig (Sichtweite nach gefahrenem Tempo, H1b), die Sichtprüfung rechnet mit ${tempo} km/h` }
   }
-  // gemessene tiefere V85 darf gelten (VSS 40 241 Z. 14): dann genügt das Tempo des Sichtrechners, wenn es mindestens die V85 ist
+  // gemessene tiefere V85 darf gelten (VSS 40 241 Z. 14): dann genügt das Tempo der Sichtprüfung, wenn es mindestens die V85 ist
   if (hoeher && !(v85 !== null && !anz && nachweis && v85 <= tempo + 1e-9)) return hoeher
   return null
 }
@@ -362,7 +362,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
   if (rS !== null && rS < 20) hinweise.push('Radius unter 20 m: kein Wert nach Tab. 2; Sicht nach dem Tempo (VSS 40 241 Z. 14, S. 7; Tab. 2, S. 7)')
   if (ein.kurve.wert?.vorschlag) hinweise.push('Kurvenregel möglich: alle fünf Voraussetzungen ja, aber mit Annahmen; bis zur Bestätigung ' +
     'gilt die Sichtweite nach dem Tempo (VSS 40 241 Z. 14, S. 7)')
-  // H4 mit dem Radius aus dem Sichtrechner nur, wenn das Soll nach Radius strenger ist als das nach Tempo
+  // H4 mit dem Radius aus der Sichtprüfung nur, wenn das Soll nach Radius strenger ist als das nach Tempo
   const rH = gebildet.herkunft.get('kurve.radius'), r = gebildet.eingaben.kurve.wert?.radius ?? null, vSig = gebildet.eingaben.vSig.wert
   if (rH?.zustand === 'vorbelegt' && r !== null && befund.alle.some(x => x.id === 'H4')) {
     const [swR] = sichtweiteKurve(r)
@@ -373,7 +373,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     }
   }
 
-  // Sicht aus dem Sichtrechner statt H1/E3, solange keine vorhandene Sichtweite von Hand eingegeben ist
+  // Sicht aus der Sichtprüfung statt H1/E3, solange keine vorhandene Sichtweite von Hand eingegeben ist
   const sichtVonHand = gebildet.eingaben.sichtVorh.wert !== null
   const sicht: SichtZeile[] = []
   if (!sichtVonHand) {
@@ -406,18 +406,18 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       }
       const ov = OHNE_VORTRITT.includes(st)
       const regel: 'H1' | 'E3' = ov ? 'E3' : 'H1'
-      // Fussgängerstreifen mit Lichtsignal: VSS 40 241 gilt nicht (kein H1), Sichtrechner nur zur Information
+      // Fussgängerstreifen mit Lichtsignal: VSS 40 241 gilt nicht (kein H1), Sichtprüfung nur zur Information
       if (!ov && s.lsa === 'ja') {
         const zu = s.zufahrten.filter(z => z.status !== 'frei').length
-        hinweise.push(`${titel(s.fgsId)}: mit Lichtsignal gilt die Sichtweite nach VSS 40 241 nicht (kein Befund H1); Sichtrechner zur ` +
+        hinweise.push(`${titel(s.fgsId)}: mit Lichtsignal gilt die Sichtweite nach VSS 40 241 nicht (kein Befund H1); Sichtprüfung zur ` +
           `Information: ${zu ? `${zu} von ${s.zufahrten.length} Zufahrten verdeckt` : 'alle Zufahrten frei'}`)
         continue
       }
-      // Querungstyp, den der Sichtrechner nicht prüft (Trottoirüberfahrt, Mehrzweckstreifen) bzw. der nicht zur Querungsart passt
+      // Querungstyp, den die Sichtprüfung nicht prüft (Trottoirüberfahrt, Mehrzweckstreifen) bzw. der nicht zur Querungsart passt
       if (typ !== null && (OHNE_VORTRITT.includes(typ) !== ov || ['trottoirueberfahrt', 'mehrzweck'].includes(typ))) {
         const r: 'H1' | 'E3' | null = erreichtR(regel) ? regel : erreichtR(ov ? 'H1' : 'E3') ? (ov ? 'H1' : 'E3') : null
         if (r && !neu.some(x => x.id === r && x.detail?.includes('gilt nicht für den Querungstyp'))) neu.push(eintrag(r, { staerke: 'hart', zustand: 'offen', fehlend: ['sichtVorh'],
-          detail: `${titel(s.fgsId)}: Sicht des Sichtrechners (${ov ? 'ohne Vortritt' : 'Fussgängerstreifen'}) gilt nicht für den Querungstyp ` +
+          detail: `${titel(s.fgsId)}: Ergebnis der Sichtprüfung (${ov ? 'ohne Vortritt' : 'Fussgängerstreifen'}) gilt nicht für den Querungstyp ` +
             'im Bedarf; vorhandene Sichtweite von Hand eingeben' }))
         continue
       }
@@ -439,7 +439,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
           ...(z.freiBisM !== undefined ? { freiBisM: z.freiBisM } : {}) })
         const soll = `${String(z.sichtweite).replace('.', ',')} m frei (${z.sichtweiteQuelle})`
         const wo = g.streifen.length > 1 ? `${titel(s.fgsId)}, ${zName(s.fgsId, z.zufahrt)}` : zName(s.fgsId, z.zufahrt)
-        // Sicht vom Velo (29.10.2026): Fussgängerstreifen, Zufahrt mit Radstreifen bzw. Radweg (Sichtrechner); verdeckt: Soll-Befund
+        // Sicht vom Velo (29.10.2026): Fussgängerstreifen, Zufahrt mit Radstreifen bzw. Radweg (Sichtprüfung); verdeckt: Soll-Befund
         if (!ov && z.velo && erreichtR('H1')) {
           const v = z.velo, vs = veloSoll(z, opt.geo?.kurveNeigung ?? null)!
           veloGeprueft = true
@@ -449,7 +449,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
               (vs.ebikeA !== null ? `; sind schnelle E-Bikes verboten, gilt ${vs.ebikeA} m` : '') }))
         }
         if (frei && bis === undefined) {
-          // abbiegende Zufahrten: das Tempo des Sichtrechners ist das der Querstrasse, das Soll kommt aus ihr bzw. dem Kurvenradius
+          // abbiegende Zufahrten: das Tempo der Sichtprüfung ist das der Querstrasse, das Soll kommt aus ihr bzw. dem Kurvenradius
           // (wie in der Grundprüfung); signalisiertes Tempo und V85 der Querung gelten dort nicht (Nachprüfung)
           const t = z.zufahrt.startsWith('a') ? null : tempoPruefen(gebildet.eingaben, regel, z.tempo)
           if (t) tempoOffen.push({ z: zName(s.fgsId, z.zufahrt), ...t })
@@ -461,7 +461,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
             detail: `${wo}: Sichtfeld bis ${bis} m frei, darüber nicht geprüft (Reichweite der geladenen Daten)` }))
           continue
         }
-        // verdeckt, ohne Vortritt (29.10.2026): nach der freien Länge des Sichtrechners (freiBisM) unter der Anhaltesichtweite hart, sonst
+        // verdeckt, ohne Vortritt (29.10.2026): nach der freien Länge der Sichtprüfung (freiBisM) unter der Anhaltesichtweite hart, sonst
         // weich bzw. Ausnahme E3a; nur ohne freie Länge (abbiegende Zufahrten) wie bisher: hart, wenn schon die geprüfte Strecke höchstens
         // die Anhaltesichtweite ist, sonst vorerst weich
         if (ov) {
@@ -485,7 +485,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
         const geprueft = Math.min(z.sichtweite, bis ?? Infinity)
         const hart = !ov || geprueft <= ahs(z.tempo) + 1e-9
         neu.push(eintrag(regel, { staerke: hart ? 'hart' : 'weich', zustand: 'verletzt', ist: statusKurz(z), soll,
-          detail: `${wo}: Sichtfeld ${bis !== undefined ? `bis ${bis} m ` : 'bis zur Soll-Sichtweite '}nicht frei (Sichtrechner)` +
+          detail: `${wo}: Sichtfeld ${bis !== undefined ? `bis ${bis} m ` : 'bis zur Soll-Sichtweite '}nicht frei (Sichtprüfung)` +
             (ov && !hart ? `; ob die Anhaltesichtweite (${ahs(z.tempo)} m) frei bleibt, ist nicht getrennt geprüft: Befund vorerst weich` : '') }))
       }
       if (tempoOffen.length) neu.push(eintrag(regel, { staerke: 'hart', zustand: 'offen',
@@ -500,11 +500,11 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       x.annahme = annahmeKurz(z.annahmeGrenze, s.querung?.typ === 'begegnungszone')
       befund.annahmen.push(`Sichtweite ${g.streifen.length > 1 ? `${titel(s.fgsId)}, ` : ''}${x.name}: ${String(x.soll).replace('.', ',')} m – ${x.annahme}`)
     }
-    // Nachprüfung: erreicht der Baum eine Sichtregel, für die der Sichtrechner keine Sicht hat (z. B. E3 bei Fussgängerstreifen, wenn
+    // Nachprüfung: erreicht der Baum eine Sichtregel, für die die Sichtprüfung keine Sicht hat (z. B. E3 bei Fussgängerstreifen, wenn
     // ein Streifen nicht angezeigt ist), bleibt sie offen: Sichtweite von Hand eingeben (wie bei Querungsarten, die er nicht prüft)
     for (const r of ['H1', 'E3'] as const) if (erreichtR(r) && !sicht.some(x => x.regel === r) && !neu.some(x => x.id === r))
       neu.push(eintrag(r, { staerke: 'hart', zustand: 'offen', fehlend: ['sichtVorh'],
-        detail: `der Sichtrechner prüft die Sicht hier ${r === 'E3' ? 'als Fussgängerstreifen, nicht ohne Vortritt' : 'nicht als Fussgängerstreifen'}; ` +
+        detail: `die Sichtprüfung rechnet die Sicht hier ${r === 'E3' ? 'als Fussgängerstreifen, nicht ohne Vortritt' : 'nicht als Fussgängerstreifen'}; ` +
           'vorhandene Sichtweite von Hand eingeben' }))
     befund.alle.push(...neu)
     // Zustand «rechner» nur, solange H1/E3 die Sichtweite nicht als fehlend führen; sonst offen mit dem Grund
@@ -512,7 +512,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     if (sichtFehlt.length && gebildet.herkunft.get('sichtVorh')?.zustand === 'rechner') {
       const grund = [...new Set(sichtFehlt.map(x => x.detail).filter(Boolean))].join('; ')
       gebildet.herkunft.set('sichtVorh', { zustand: 'offen', quelle: null, text: 'offen' })
-      vorbelegt.feldHinweise = { ...(vorbelegt.feldHinweise ?? {}), sichtVorh: `${rechnerAnzeige.sichtVorh ?? 'Sichtrechner'}; offen: ${grund}` }
+      vorbelegt.feldHinweise = { ...(vorbelegt.feldHinweise ?? {}), sichtVorh: `${rechnerAnzeige.sichtVorh ?? 'Sichtprüfung'}; offen: ${grund}` }
     }
     // D5-4: Hinweis bei verdeckter Sicht; offen, solange die Sicht offen ist; ohne erreichte Sichtregel nicht anwendbar
     const erreicht = (['H1', 'E3'] as const).filter(r => befund.ausgewertet.includes(r))
@@ -546,7 +546,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       const vSv = gebildet.eingaben.vSig.wert
       // nur Querungen in der Begegnungszone (30.10.2026): Sicht zur Information, die Sichtregeln gelten dort nicht (A2 beendet den Baum)
       const nurBgz = sicht.every(x => g.streifen.some(s => s.fgsId === x.fgsId && streifenTyp(s) === 'begegnungszone'))
-      const mz: MassZeile = { groesse: 'Sichtweite (Sichtrechner)', einheit: 'm',
+      const mz: MassZeile = { groesse: 'Sichtweite (Sichtprüfung)', einheit: 'm',
         soll: sG && sA ? `${sG} geradeaus${annVon(false)}, ${sA} für Abbiegende${annVon(true)}` : sG ? `${sG}${annVon(false)}` : `${sA} für Abbiegende${annVon(true)}`,
         ist: (zahl ? `verdeckt (${zahl} von ${n} Zufahrten)` : teil ? `frei, ${teil} von ${n} Zufahrten nur bis ` +
           `${sicht.find(x => x.bisM !== undefined)!.bisM} m geprüft` : `frei (${zf(n)})`) +
@@ -557,7 +557,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       befund.masse.push(mz)
     }
     neuOrdnen(befund)
-    // Prüfübersicht: H1/E3 erfüllt, wo der Sichtrechner Zufahrten geprüft hat und kein Eintrag bleibt; E3a gilt nur mit Sicht von
+    // Prüfübersicht: H1/E3 erfüllt, wo die Sichtprüfung Zufahrten geprüft hat und kein Eintrag bleibt; E3a gilt nur mit Sicht von
     // Hand; Regeln mit Eintrag (z. B. D5-4 nach verdeckter Sicht) sind nicht erfüllt
     // (nur wenn der Baum H1 bzw. E3 erreicht hat; D5-4 erfüllt, wenn eine erreichte Sichtregel erfüllt ist)
     const mitEintrag = new Set(befund.alle.map(x => x.id))
@@ -598,7 +598,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
   // Annahmen mit Wert und kurzer Herkunft (Stellen 18, 44, 45): Objekt-Felder je Unterfeld mit eigenem Namen
   const annahmen = [...new Set(befund.annahmen.flatMap(a => annahmeZeilen(a, gebildet)))]
 
-  // Grundprüfung bfu: Sicht des Sichtrechners je Zufahrt der Fussgängerstreifen (nicht ohne Vortritt, nicht mit Lichtsignal); ein
+  // Grundprüfung bfu: Sicht der Sichtprüfung je Zufahrt der Fussgängerstreifen (nicht ohne Vortritt, nicht mit Lichtsignal); ein
   // Fussgängerstreifen ohne geprüfte Zufahrt lässt die Sicht offen; Teilstreifen teils mit, teils ohne Vortritt: gilt nicht
   const arten = new Set(g.streifen.map(streifenTyp).filter(t => t !== 'kein'))
   const grund = grundpruefung(gebildet.eingaben, {
@@ -614,7 +614,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
 
   // Annahmen der Grundprüfung mit Wert und Herkunft
   grund.annahmen = [...new Set(grund.annahmen.flatMap(a => annahmeZeilen(a, gebildet)))]
-  // Rechnet der Sichtrechner an einer geraden Zufahrt mit einem anderen Tempo als dem signalisierten, steht das in der Zeile ①
+  // Rechnet die Sichtprüfung an einer geraden Zufahrt mit einem anderen Tempo als dem signalisierten, steht das in der Zeile ①
   const vS = gebildet.eingaben.vSig.wert, vSH = gebildet.herkunft.get('vSig')
   const anders = g.streifen.flatMap(s => s.zufahrten.filter(z => z.art !== 'abbiegend' && vS !== null && z.tempo > vS))
   if (grund.gilt && anders.length && vS !== null) {
@@ -636,7 +636,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
 /** Herkunft kurz: erste Aussage, ohne Belege und ohne das Schlusswort «… angenommen» */
 export function herkunftKurz(text: string): string {
   let t = lesetext(text).split('; ')[0]
-  t = t.replace(/:\s*[^:]*angenommen$/, '').replace(/^Sichtrechner: /, '')
+  t = t.replace(/:\s*[^:]*angenommen$/, '').replace(/^Sichtprüfung: /, '')
   if (t.split(/\s+/).length > 15 && t.includes(': ')) t = t.slice(0, t.indexOf(': '))
   return t
 }
@@ -677,7 +677,7 @@ const KONFLIKT_TEXT: Record<string, string> = { auto: 'Auto-Parkfeld', velo: 'Zw
   baum: 'Baum', hindernis: 'Hindernis' }
 const m1 = (x: number) => `${String(Math.round(x * 10) / 10).replace('.', ',')} m`
 /**
- * Anzeige des Sichtrechners im Feld «Sichtweite je Zufahrt» (Zustand «rechner»): je Zufahrt frei bis bzw. verdeckt
+ * Anzeige der Sichtprüfung im Feld «Sichtweite je Zufahrt» (Zustand «rechner»): je Zufahrt frei bis bzw. verdeckt
  * mit dem nächsten Konflikt und dem Soll, z. B. «Nord: frei bis 55 m, Soll 55 m (VSS Tab. 1) · Süd: verdeckt, Auto-Parkfeld 8 m vor
  * dem Streifen, frei bis 6 m, Soll 55 m». Leer ohne geprüfte Zufahrt.
  */
@@ -700,7 +700,7 @@ export function sichtAnzeige(g: QuerungGruppe, titel: (fgsId: string) => string,
         `${z.freiBisM !== undefined ? `, frei bis ${m1(z.freiBisM)}` : ''}, ${soll}`)
     }
   }
-  return teile.length ? `Sichtrechner: ${teile.join(' · ')}` : ''
+  return teile.length ? `Sichtprüfung: ${teile.join(' · ')}` : ''
 }
 
 /** Befundblätter aller Querungen einer Rechnung */

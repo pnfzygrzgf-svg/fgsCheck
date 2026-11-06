@@ -16,7 +16,7 @@
 // Der vorbelegte Wert steht im Feld (Klasse «vorbelegt»), daneben ein Quellen-Chip (Herkunft als
 // Tooltip). Eine Änderung wird nur zur Handeingabe, wenn sie vom vorbelegten Wert abweicht (Chip «von Hand» mit «zurück»); «offen»
 // verwirft die Vorbelegung bewusst. Felder im Zustand «rechner» (Sichtweite je Zufahrt, Kurvenradius ohne Abbieger) zeigen das
-// Ergebnis des Sichtrechners, darunter die Eingabe «von Hand überschreiben». Unter der Zusammenfassung stehen die offenen Fragen der
+// Ergebnis der Sichtprüfung, darunter die Eingabe «von Hand überschreiben». Unter der Zusammenfassung stehen die offenen Fragen der
 // Grundprüfung zum direkten Beantworten (Block «Offene Fragen», 23.10.2026).
 // Offene Felder nennen klein, wofür die Angabe fehlt (bedarf/feldbedarf.ts); «Vorschlag bestätigen» nur, wo ein Verbot an der
 // Annahme hängt; in den Details führt der Werkname zum Quellenverzeichnis der Hilfe (bedarf/quellen.ts), Begriffe in Feldhilfen und
@@ -28,7 +28,7 @@
 // Fragen mit Eingabe (dieselbe Liste wie der Block «Offene Fragen», FragenListe) und den übrigen Feldern des Themas; Masse und Annahmen
 // je ein Aufklapper am Ende. «Offene Angaben» und «Weitere Eingaben» als eigene Teile entfallen. Bericht: gleiche Gliederung, offen.
 
-import { Fragment, createContext, useContext, useEffect, useId, useState, type ReactNode } from 'react'
+import { Fragment, createContext, useContext, useEffect, useId, useState, type ReactNode, useRef } from 'react'
 import type { Fall } from './fall'
 import { FELD_DEF, FELD_DEFS, GRUPPEN, feldName, istGrundFeld, wertText, type FeldDef } from './bedarf/felder'
 import { ANNAHME_V85, type GrundPunkt, type GrundTeil, type GrundZustand, type Grundpruefung } from './bedarf/grundpruefung'
@@ -48,7 +48,8 @@ import { offeneFragen, zusammenfassung, zfEingabeBlatt, type OffeneFrage } from 
 import { lesetext, tooltipText } from './bedarf/lesetext'
 import type { MassZeile } from './bedarf/typen'
 import { bestaetigungsFelder, feldBedarf, feldBedarfText, type FeldBedarf } from './bedarf/feldbedarf'
-import { begriffeImFall, begriffeIn } from './bedarf/begriffe'
+import { begriffeIn } from './bedarf/begriffe'
+import { messArtFuerFeld, messenStarten } from './messen'
 import { LESENAME, WERK_INFO, abkLesbar, werkText, fundstelleLink, fundstelleText, werkBezug, werkeImFall, werkLinks, werkVoll } from './bedarf/quellen'
 import { FundstelleLink, VerweisText, WerkLinks, WerkVerweis, hilfeZeigen } from './Verweise'
 import { KATALOG, WERKE, type RegelId, type WerkId } from './bedarf/katalog'
@@ -135,7 +136,7 @@ export function BegriffVerweise({ texte, nur }: { texte: readonly (string | unde
 
 /** Bericht: Quellenverzeichnis und Begriffe am Ende des Bedarfsteils, nur was im Fall vorkommt */
 export function VerzeichnisBericht({ blaetter }: { blaetter: readonly BefundBlatt[] }) {
-  const werke = werkeImFall(blaetter), begriffe = begriffeImFall(blaetter)
+  const werke = werkeImFall(blaetter)
   return <>
     {werke.length > 0 && <><h3>Quellen der Beurteilung</h3>
       <ul className="klein">{werke.map(w => {
@@ -144,8 +145,6 @@ export function VerzeichnisBericht({ blaetter }: { blaetter: readonly BefundBlat
         return <li key={w}><b>{WERKE[w].name}</b> ({WERKE[w].ausgabe}): {werkVoll(w)}. {WERK_INFO[w].ebene}: {werkText(w)}{links.map(l => <Fragment key={l.url}> {l.text}: <span className="url-text">{decodeURI(l.url)}</span></Fragment>)}
           {bezug ? ` (${bezug})` : ''}</li>
       })}</ul></>}
-    {begriffe.length > 0 && <><h3>Begriffe</h3>
-      <ul className="klein">{begriffe.map(b => <li key={b.id}><b>{b.name}:</b> {b.text}</li>)}</ul></>}
   </>
 }
 
@@ -174,11 +173,19 @@ function TextEingabe({ d, wert, platzhalter, setze, vorbelegt = false, label }: 
     const x = zahlenLesen(t, d)
     if (x === undefined || !setze(x)) { setT(text(wert)); return }
   }
-  return <input type="text" inputMode="decimal" className={`zahl bedarf-zahl${vorbelegt ? ' vorbelegt' : ''}`} value={t} placeholder={platzhalter}
-    aria-label={label ?? d.name}
-    title={d.art.art === 'zahlen' ? 'mehrere Werte mit / trennen; leer = offen bzw. vorbelegt; Enter bzw. Feld verlassen übernimmt'
-      : 'leer = offen bzw. vorbelegt; Enter bzw. Feld verlassen übernimmt'}
-    onChange={e => setT(e.target.value)} onBlur={uebernehmen} onKeyDown={e => { if (e.key === 'Enter') uebernehmen() }} />
+  const feld = useRef<HTMLInputElement>(null)
+  // Meterfelder (06.11.2026): Knopf «messen» startet das Werkzeug auf der Karte mit diesem Feld als Ziel (messen.ts)
+  const messbar = d.art.art === 'zahl' && d.art.einheit === 'm'
+  return <>
+    <input ref={feld} type="text" inputMode="decimal" className={`zahl bedarf-zahl${vorbelegt ? ' vorbelegt' : ''}`} value={t} placeholder={platzhalter}
+      aria-label={label ?? d.name}
+      title={d.art.art === 'zahlen' ? 'mehrere Werte mit / trennen; leer = offen bzw. vorbelegt; Enter bzw. Feld verlassen übernimmt'
+        : 'leer = offen bzw. vorbelegt; Enter bzw. Feld verlassen übernimmt'}
+      onChange={e => setT(e.target.value)} onBlur={uebernehmen} onKeyDown={e => { if (e.key === 'Enter') uebernehmen() }} />
+    {messbar && <button type="button" className="zweit klein messen-knopf" aria-label={`${label ?? d.name} auf der Karte messen`}
+      title="Auf der Karte messen (ab Bordsteinkante der AV, ganze Fahrbahn oder zwei Punkte); «übernehmen» schreibt den Wert in dieses Feld"
+      onClick={() => messenStarten(feld.current, messArtFuerFeld(d.pfad))}>messen</button>}
+  </>
 }
 
 /** Auswahlwert «bewusst offen» (Handangabe, verwirft die Vorbelegung) */
@@ -279,7 +286,7 @@ function QuellenWahl({ d, h, waehlen }: { d: FeldDef; h: Herkunft; waehlen: (q: 
     const aktiv = h.zustand === 'hand' ? h.datenquelle?.id === q.id && gleicherWert(h.wert, q.wert) : !!q.vorgabe && !h.vorbelegt?.bestaetigungNoetig
     return <button type="button" key={`${q.id}:${JSON.stringify(q.wert)}`} className={`zweit quelle-chip${aktiv ? ' gewaehlt' : ''}`} aria-pressed={aktiv}
       disabled={q.wert == null} title={`${q.wert == null ? 'Kein übernehmbarer Wert' : 'Wert übernehmen und bestätigen'}: ${tooltipText(q.text)}`}
-      onClick={() => waehlen(q)}>{DATENQUELLEN[q.id]} · {q.wert == null ? 'offen' : wertText(d, q.wert)}{q.id === 'are.npvm' ? ' (modelliert)' : ''}{q.zusatz ? ` (${q.zusatz})` : ''}</button>
+      onClick={() => waehlen(q)}>{aktiv ? '✓ ' : ''}{DATENQUELLEN[q.id]} · {q.wert == null ? 'offen' : wertText(d, q.wert)}{q.id === 'are.npvm' ? ' (modelliert)' : ''}{q.zusatz ? ` (${q.zusatz})` : ''}</button>
   })}</div><div className="klein quellen-staende">{optionen.map(q=><div key={`${q.id}:${JSON.stringify(q.wert)}`}>{DATENQUELLEN[q.id]}: Datenstand {q.datenstand || 'unbekannt'}{q.zusatz ? `; ${q.zusatz}` : ''}</div>)}</div></>
 }
 
@@ -744,6 +751,12 @@ export function ZusammenfassungAnzeige({ b, titel, druck = false, imBlock }: { b
       {f.nachsatz && <> {f.nachsatz}</>}{f.block && <> {f.block}</>}</>}{z.hinweis && <> {z.hinweis}</>}</p>
 }
 
+/** Aussage zum Bedarf in einem Satz für «Ergebnis» im Bericht: Antwort und das Wichtigste, ohne die offenen Fragen */
+export function bedarfKurz(b: BefundBlatt): string {
+  const z = zusammenfassung({ ...zfEingabeBlatt(b, 'bericht'), imBlock: [] })
+  return [z.antwort, z.wichtig].filter(Boolean).join(' ')
+}
+
 /**
  * Empfohlener Querungstyp; Begründung mit Ziffern im Panel aufklappbar. Die fehlenden Angaben nennt die Zusammenfassung darüber
  * (keine Dopplung); ohneKopf: ohne die Zeile zum Typ (Panel und Bericht zeigen sie beide) */
@@ -1181,7 +1194,7 @@ function ThemaAnzeige({ t, blaetter, druck, eingabe, begriffe }: { t: ThemaTeil;
 
 /** Stand einer Masse-Zeile (Ausnahmen und Vorbehalte beim Wert) */
 const MASS_STAND: Record<MassZeile['zustand'], (m: MassZeile) => JSX.Element | string> = {
-  verletzt: () => 'nicht erfüllt', offen: () => 'offen', erfuellt: () => 'erfüllt', annahme: () => 'erfüllt (Annahme)',
+  verletzt: () => 'nicht erfüllt', hinweis: () => <><span className="grund-symbol" aria-hidden="true">i</span> Hinweis</>, offen: () => 'offen', erfuellt: () => 'erfüllt', annahme: () => 'erfüllt (Annahme)',
   vorbehalt: () => 'erfüllt unter Vorbehalt', ausnahme: m => m.zusatz ?? 'zulässig (Ausnahme)',
   nicht_anwendbar: () => <><span className="grund-symbol" aria-hidden="true">i</span> nicht anwendbar</>,
 }
@@ -1205,14 +1218,14 @@ export const annahmeInGrund = (b: BefundBlatt, a: string): boolean => b.grund.gi
 /** Annahme zu einem Feld, das die Tabelle «Eingaben und Quellen» des Berichts als Annahme mit Grund führt */
 export const annahmeInTabelle = (b: BefundBlatt, a: string): boolean => eingabenTabelle(b).some(z => z.annahme && a.startsWith(`${z.feld}:`))
 
-/** Annahmen und Hinweise einer Querung als Liste: Sicht des Sichtrechners, Annahmen, Hinweise der Vorbelegung, Ablauf, nicht geprüft */
+/** Annahmen und Hinweise einer Querung als Liste: Sicht der Sichtprüfung, Annahmen, Hinweise der Vorbelegung, Ablauf, nicht geprüft */
 function annahmenPunkte(b: BefundBlatt, ablauf: readonly Eintrag[], druck: boolean, begriffe: ReadonlyMap<Eintrag, string[]>): JSX.Element[] {
   const aus: JSX.Element[] = []
-  if (b.sicht.length) aus.push(<li key="sicht">Sicht (Sichtrechner, <VerweisText druck={druck}
+  if (b.sicht.length) aus.push(<li key="sicht">Sicht (<VerweisText druck={druck}
     text={b.sicht[0].regel === 'E3' ? fundstelleText({ werk: '40240', ziffer: 'Z. 8.2' }) : fundstelleText({ werk: '40241', ziffer: 'Tab. 1' })} />):
-    <ul>{b.sicht.map((x, i) => <li key={i}>{`${x.name} ${x.frei ? (x.bisM !== undefined ? `frei bis ${x.bisM} m, darüber nicht geprüft` : 'frei') : x.status} ` +
+    <ul>{[...b.sicht].sort((p, q) => p.name.localeCompare(q.name, 'de', { numeric: true })).map((x, i) => <li key={i}>{`${x.name} ${x.frei ? (x.bisM !== undefined ? `frei bis ${x.bisM} m, darüber nicht geprüft` : 'frei') : x.status} ` +
       `(Soll ${String(x.soll).replace('.', ',')} m)`}</li>)}</ul></li>)
-  if (b.sichtVonHand) aus.push(<li key="sichthand">{T('Sicht: vorhandene Sichtweite von Hand eingegeben (Regeln H1 bzw. E3 statt Sichtrechner).')}</li>)
+  if (b.sichtVonHand) aus.push(<li key="sichthand">{T('Sicht: vorhandene Sichtweite von Hand eingegeben (Regeln H1 bzw. E3 statt Sichtprüfung).')}</li>)
   // Annahmen nur einmal: im Panel ohne die der Grundprüfung, im Bericht auch ohne die der Tabelle «Eingaben und Quellen»
   const annahmen = b.annahmen.filter(a => !annahmeInGrund(b, a) && !(druck && annahmeInTabelle(b, a)))
   if (annahmen.length) aus.push(<li key="annahmen" className="warnung">Angenommen bzw. geschätzt:<ul>{annahmen.map(a => <li key={a}>{T(a)}</li>)}</ul></li>)
@@ -1348,7 +1361,7 @@ export function BefundblattAnzeige({ b, mehrere = false, druck = false, ohneTyp 
 
 /** Quelle in einem Wort (Bericht, Tabelle «Eingaben und Quellen») */
 const QUELLE_WORT: Record<string, string> = { av: 'AV', osm: 'OSM', geoportal: 'Geoportal', amtlich: 'amtliche Quelle', luftbild: 'Luftbild', hand: 'von Hand',
-  bestaetigt: 'bestätigt', annahme: 'Annahme', schaetzung: 'Schätzung', rechnung: 'Sichtrechner', vorschlag: 'Vorschlag' }
+  bestaetigt: 'bestätigt', annahme: 'Annahme', schaetzung: 'Schätzung', rechnung: 'Rechnung', vorschlag: 'Vorschlag' }
 export interface EingabeZeile { gruppe: string; feld: string; wert: string; quelle: string; annahme: boolean; grund?: string }
 /** Eingaben als Tabelle (Bericht): Feld, Wert, Quelle in einem Wort, Annahme ja/nein; eine Begründung nur bei Annahmen */
 export function eingabenTabelle(b: BefundBlatt): EingabeZeile[] {
@@ -1356,6 +1369,7 @@ export function eingabenTabelle(b: BefundBlatt): EingabeZeile[] {
   for (const g of GRUPPEN) for (const d of FELD_DEFS.filter(x => x.gruppe === g.id)) {
     const h = b.gebildet.herkunft.get(d.pfad)
     if (!h || h.zustand === 'offen') continue
+    if (d.pfad === 'sichtVorh' && h.zustand === 'rechner') continue    // keine Eingabe: die Sicht steht je Zufahrt in der Sichtprüfung
     const q = h.quelle ?? 'rechnung'
     const annahme = QUELLEN_ANNAHME.includes(q as Quelle)
     const wert = h.zustand === 'hand' ? wertText(d, h.wert) : h.zustand === 'vorbelegt' ? wertText(d, h.vorbelegt!.wert) : 'je Zufahrt'
@@ -1371,7 +1385,7 @@ export function eingabenText(b: BefundBlatt): { gruppe: string; hand: string[]; 
     for (const d of FELD_DEFS.filter(x => x.gruppe === g.id)) {
       const h = b.gebildet.herkunft.get(d.pfad)
       if (h?.zustand === 'hand') hand.push(`${d.name}: ${wertText(d, h.wert)} (${h.text})`)
-      else if (h?.zustand === 'vorbelegt') vorbelegt.push(`${d.name}: ${wertText(d, h.vorbelegt!.wert)} (${QUELLE_TEXT[h.quelle!]}: ${lesetext(h.text).replace(/^Sichtrechner: /, '')})`)
+      else if (h?.zustand === 'vorbelegt') vorbelegt.push(`${d.name}: ${wertText(d, h.vorbelegt!.wert)} (${QUELLE_TEXT[h.quelle!]}: ${lesetext(h.text).replace(/^Sichtprüfung: /, '')})`)
       else if (h?.zustand === 'rechner') vorbelegt.push(`${d.name}: kein Wert (${lesetext(h.text)})`)
     }
     return { gruppe: g.name, hand, vorbelegt }

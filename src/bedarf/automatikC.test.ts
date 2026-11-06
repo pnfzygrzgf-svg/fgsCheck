@@ -202,8 +202,8 @@ describe('Paket C: Tempo (V_sig) und Strecke/Zone (Strassenhierarchie)', () => {
   it('V_sig über der Achse hat Vorrang vor OSM; Abweichung mit Hinweis; leerer V_sig bzw. Ausfall: OSM bleibt', () => {
     const v = vor({ vsig: VS([30]) })
     expect(v.werte.vSig).toMatchObject({ wert: 30, quelle: 'geoportal' })
-    expect(v.werte.vSig.text).toContain('Sichtrechner 50 km/h (OSM bzw. Annahme)')
-    expect(v.hinweise.join(' ')).toContain('Signalisiertes Tempo über der Querung 30 km/h (Geoportal Stadt Bern), der Sichtrechner rechnet entlang der Zufahrten mit 50 km/h')
+    expect(v.werte.vSig.text).toContain('Sichtprüfung 50 km/h (OSM bzw. Annahme)')
+    expect(v.hinweise.join(' ')).toContain('Signalisiertes Tempo über der Querung 30 km/h (Geoportal Stadt Bern), die Sichtprüfung rechnet entlang der Zufahrten mit 50 km/h')
     expect(vor({ vsig: VS([50]) }).werte.vSig).toMatchObject({ wert: 50, quelle: 'geoportal' })
     expect(vor({ vsig: VS([50]) }).hinweise.join(' ')).not.toContain('nach OSM')
     const leer = vor({ vsig: VS([null]) })
@@ -751,7 +751,7 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
     const e2 = testfall({ tempoRegime: 'begegnungszone', vSig: 20 }); e2.vSig = { wert: 20, quelle: 'annahme' }
     expect(beurteile(e2, BERN).ende).toBe('begegnungszone')
   })
-  it('M3 und S1: V_sig 50 (Geoportal), Sichtrechner mit OSM 30: Grundprüfung ① offen (neu rechnen), Sichtweite offen statt «rechner»', () => {
+  it('M3 und S1: V_sig 50 (Geoportal), Sichtprüfung mit OSM 30: Grundprüfung ① offen (neu rechnen), Sichtweite offen statt «rechner»', () => {
     const o: OsmDaten = { ...OSM, wege: [weg(1, [[10, -300, 0], [12, 0, 0], [13, 300, 0]], { ...HAUPT, maxspeed: '30' })] }
     const gg = querungen(rechneFall(o, AV, [], 12, fallMit(), null).streifen)[0]
     const f = fallMit(); f.bedarf = { felder: { anzeichenSchneller: { wert: false, quelle: 'hand' } } }

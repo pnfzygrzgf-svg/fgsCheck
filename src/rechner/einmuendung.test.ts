@@ -82,7 +82,7 @@ describe('Querung ohne Vortritt an einer Einmündung: eine Zufahrt der Gegenseit
     const x = b.sicht.find(s => !s.zufahrt.startsWith('a'))!
     expect(x.annahme).toBe(`Annahme: bis zum nächsten Knoten; VSS 40 240 Z. 8.2: ${String(norm).replace('.', ',')} m`)
     const sw = String(gerade(ov)[0].sichtweite).replace('.', ',')
-    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')!.soll.startsWith(`${sw} geradeaus (Annahme: bis zum nächsten Knoten), `)).toBe(true)
+    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')!.soll.startsWith(`${sw} geradeaus (Annahme: bis zum nächsten Knoten), `)).toBe(true)
     expect(b.annahmen.some(a => a.includes(`${sw} m – Annahme: bis zum nächsten Knoten`))).toBe(true)
   })
   it('Begegnungszone an derselben Einmündung: Anhaltesichtweite 55 m (living_street, 50 km/h) bis zum Knoten gekürzt; 20 km/h: 15 m ohne Annahme', () => {

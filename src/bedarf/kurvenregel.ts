@@ -1,4 +1,4 @@
-// ── Kurvenregel (VSS 40 241 Z. 14, S. 7): Vorbelegung der fünf Voraussetzungen aus dem Sichtrechner ──
+// ── Kurvenregel (VSS 40 241 Z. 14, S. 7): Vorbelegung der fünf Voraussetzungen aus der Sichtprüfung ──
 //
 // Die Zufahrt mit der Kurve ist die mit dem kleinsten Radius (wie die Vorbelegung «Kurvenradius», automatik.ts A7). Aus ihrer Fahrlinie
 // (spur, beginnt am Streifen, gegen die Fahrtrichtung): Abstand vom Kurvenende bis zum Streifenrand und Richtungsänderung über die

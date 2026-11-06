@@ -80,7 +80,7 @@ describe('Kurvenregel: Vorbelegung der fünf Voraussetzungen', () => {
     expect(vor(zuf(spur(8, 20, 40))).w).toEqual({ innerorts: { wert: true, quelle: 'osm', text: '' } })
     const o = vor(z, true, null)
     expect(o.w['kurve.b3NachKurvenende']).toBeUndefined()
-    expect(o.h['kurve.b3NachKurvenende']).toMatch(/^Kurvenende 2\d m vor dem Streifen \(Fahrlinie des Sichtrechners\): von Hand beurteilen/)
+    expect(o.h['kurve.b3NachKurvenende']).toMatch(/^Kurvenende 2\d m vor dem Streifen \(Fahrlinie der Sichtprüfung\): von Hand beurteilen/)
     expect(o.h['kurve.b5Gefaelle5']).toMatch(/^Höhenmodell nicht verfügbar/)
     expect(vor(zuf(spur(40, 20, 70))).w['kurve.b3NachKurvenende']?.wert).toBe(false)
     // Fahrstreifen ohne OSM: aus der Fahrbahnbreite, Annahme

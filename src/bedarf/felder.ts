@@ -128,7 +128,7 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'kurve.b3NachKurvenende', gruppe: 'lage', name: 'Streifen gleich nach dem Kurvenende', art: B },
   { pfad: 'kurve.b4Winkel60', gruppe: 'lage', name: 'Richtungsänderung der Kurve mindestens 60°', art: B },
   { pfad: 'kurve.b5Gefaelle5', gruppe: 'lage', name: 'Längsgefälle höchstens 5 %', art: B },
-  { pfad: 'sichtVorh', gruppe: 'lage', name: 'Sichtweite je Zufahrt, von Hand (ersetzt den Sichtrechner)', art: ms(undefined, 500) },
+  { pfad: 'sichtVorh', gruppe: 'lage', name: 'Sichtweite je Zufahrt, von Hand (ersetzt die Sichtprüfung)', art: ms(undefined, 500) },
   { pfad: 'erkennungM', gruppe: 'lage', name: 'Ab welcher Distanz ist der Streifen erkennbar', art: m(0, 1000) },
 
   // ── Insel ──
@@ -166,7 +166,7 @@ export const FELD_DEFS: FeldDef[] = [
   { pfad: 'querungLang', gruppe: 'ausruestung', name: 'Lange Querung (eigene Einschätzung)', art: B },
   { pfad: 'absenkungBeidseits', gruppe: 'ausruestung', name: 'Trottoir beidseits abgesenkt', art: B },
   { pfad: 'aufstellflaeche', gruppe: 'ausruestung', name: 'Warteflächen auf beiden Seiten', art: B },
-  { pfad: 'parkierungSichtbehindernd', gruppe: 'ausruestung', name: 'Parkierte Autos verdecken die Sicht', art: B },
+  { pfad: 'parkierungSichtbehindernd', gruppe: 'ausruestung', name: 'Parkierte Autos verdecken das Sichtfeld', art: B },
 
   // LSA-Zeiten (Gruppe lsa, zwölf Felder) gestrichen 30.10.2026: Signalzeiten gehören in einen eigenen Rechner
 

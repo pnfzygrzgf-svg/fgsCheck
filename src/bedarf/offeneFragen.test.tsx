@@ -87,7 +87,7 @@ describe('Block «Offene Fragen»: nur Grundprüfung, ohne Nummern, festes Zeich
     expect(n).toBeGreaterThan(200)
   })
   it('Panel: ohne Nummern, Zeichen des Punkts vor der Frage; nach einer Antwort behalten die übrigen ihr Zeichen; ⑤ mit Zahl und Schätzung', () => {
-    // Erkennungsdistanz von Hand offen: sonst belegt sie der Sichtrechner auf der geraden, freien Strasse vor (Abschnitt 34)
+    // Erkennungsdistanz von Hand offen: sonst belegt sie die Sichtprüfung auf der geraden, freien Strasse vor (Abschnitt 34)
     const f0 = fallMit(x => { x.bedarf = { felder: { erkennungM: { wert: null, quelle: 'hand' } } } }), b0 = blatt(f0)
     const fr = offeneFragen(b0, new Set())
     const html = panel(f0, b0), bl = block(html)

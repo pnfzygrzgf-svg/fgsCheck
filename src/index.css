@@ -451,8 +451,30 @@ details.thema-angaben > summary { cursor: pointer; color: var(--bedarf); }
 .bericht-tabelle { font-size: 9.5pt; }
 .bericht-eingabe { width: 100%; font: inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; }
 .nur-drucken { display: none; }
-.bericht-karte { margin: 10px 0; break-inside: avoid; page-break-inside: avoid; }
+.bericht-karte { margin: 10px 0; }
+/* Bild und Legende je für sich ungeteilt: passt die Legende nicht mehr auf die Seite, folgt sie auf der nächsten, statt dass das
+   ganze Kartenbild auf Seite 2 rutscht */
+.bericht-bild, .bericht-karte figcaption { break-inside: avoid; page-break-inside: avoid; }
 .bericht-karte figcaption { margin-top: 4px; }
+.bericht-karte figcaption p { margin: 0 0 2px; }
+/* Legende unter dem Kartenbild (06.11.2026, nach SichtweitenCheck): Raster mit Farbprobe und kurzem Text je Zeile */
+.legende-satz { margin: 0 0 4px; }
+.bericht-seite .bericht-legende { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2px 16px; }
+.bericht-seite .bericht-legende li { display: flex; align-items: flex-start; gap: 7px; line-height: 1.35; margin: 0; }
+.bericht-legende li.breit { grid-column: 1 / -1; }   /* Schlüssel der Zufahrten: über beide Spalten, sonst macht er die Zeile hoch */
+.bericht-legende .proben { flex: none; display: inline-flex; gap: 3px; margin-top: 2px; }
+.messen-knopf { margin-left: 4px; }
+/* Werkzeug «Messen» (06.11.2026): Kasten über der Karte (im .kartenkopf unter der Ortssuche), nach dem VeloroutenCheck */
+.messkasten { font-size: 12.5px; line-height: 1.45; background: #ffffff; border: 1px solid var(--accent); border-radius: 10px; padding: 8px 10px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.25); color: var(--text); display: grid; gap: 6px; }
+.messkasten-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--text-strong); }
+.messart { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; width: max-content; max-width: 100%; }
+.messart button { border: none; border-radius: 0; padding: 5px 10px; font-size: 12.5px; font-weight: 600; background: #ffffff; color: var(--text); }
+.messart button[aria-pressed=true] { background: var(--accent); color: #ffffff; }
+.messwert { font-weight: 600; color: var(--text-strong); }
+.messwert.fehler { color: var(--fehler); }
+.messziel { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bericht-seite .status-farbe { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .bericht-bild { position: relative; width: 100%; background: #f1f5f9; border: 1px solid #000000; overflow: hidden; }
 .bericht-bild img, .bericht-bild svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .bericht-ohne-bild { position: absolute; left: 8px; top: 6px; color: #475569; }
@@ -460,6 +482,9 @@ details.thema-angaben > summary { cursor: pointer; color: var(--bedarf); }
 .bericht-block h2, .bericht-block h3 { break-after: avoid; page-break-after: avoid; }
 .bericht-tabelle tr { break-inside: avoid; page-break-inside: avoid; }
 .bericht-lage { break-inside: avoid; page-break-inside: avoid; margin-top: 6px; }
+.bericht-profil { break-inside: avoid; page-break-inside: avoid; margin: 6px 0 8px; }
+.bericht-profil svg { display: block; width: 100%; max-width: 125mm; background: #ffffff; border: 1px solid #cbd5e1; }
+.bericht-profil figcaption { margin-top: 3px; }
 .bericht-lage h4 { font-size: 10pt; margin: 6px 0 2px; }
 .bericht-lage td { font-variant-numeric: tabular-nums; }
 .bericht-fuss { margin-top: 14px; padding-top: 6px; border-top: 1px solid #000000; font-size: 8.5pt; }
@@ -483,6 +508,14 @@ details.thema-angaben > summary { cursor: pointer; color: var(--bedarf); }
   .bericht-rand-oben { height: 12mm; }
   .bericht-rand-unten { height: 14mm; }
   .bericht-neue-seite { break-before: page; page-break-before: always; }
+  /* Seite 1 (06.11.2026): Bildhöhe nach der Legende (berichtSeite1.ts; Bericht.tsx setzt --bild-max-breite aus dem Seitenverhältnis),
+     Legende und Ortstabelle kompakt, damit Ort, Ergebnis, Bild und Legende zusammen auf die erste Seite passen */
+  .bericht-bild { max-width: var(--bild-max-breite, none); margin-left: auto; margin-right: auto; }
+  .bericht-karte { margin: 6px 0; }
+  .bericht-seite .bericht-karte figcaption, .bericht-seite .bericht-karte figcaption .legende-satz { font-size: 8.5pt; }
+  .bericht-seite .bericht-legende { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px 12px; font-size: 8.5pt; }
+  .bericht-seite .bericht-legende li { line-height: 1.25; }
+  .bericht-seite .bericht-zahlen td { padding: 2px 4px; }
   .bericht-neue-seite > td > .bericht-block:first-child > h2 { margin-top: 0; }
 }
 
@@ -585,7 +618,9 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
 .feld-quellen { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0 5px; }
 .feld-quellen button.quelle-chip { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; min-height: 0; padding: 0 6px; border-radius: 9px; line-height: 1.4; }
 .feld-quellen button.quelle-chip:not(:disabled) { cursor: pointer; }
-.feld-quellen button.gewaehlt { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; }
+.feld-quellen button.gewaehlt { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; background: #fef3c7; }
+/* gewählter Chip (Datenquelle, amtliches Signal): Häkchen und gelber Grund, gleicher Zustand wie die Sichtfeld-Schalter (06.11.2026) */
+.amtliche-signale button.quelle-chip[aria-pressed=true] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; background: #fef3c7; }
 @media (pointer: coarse) { .q-knopf { padding: 9px 12px; } .q-ebene { padding: 9px 6px; } .q-ebene input { width: 18px; height: 18px; } }
 @media (max-width: 700px) { .q-ebene small, .q-legende, .q-fuss { font-size: 12px; } }
 /* Punkte der Quellen: Quadrate mit Zeichen (die Objekte der Prüfung sind Kreise); in der Legende gleich */
@@ -601,9 +636,12 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
 .sicht-befund { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 8px 0; }
 .sicht-taste { font: inherit; font-size: .85rem; padding: 3px 7px; border: 1px solid #94a3b8; border-radius: 4px;
   background: #f1f5f9; color: inherit; cursor: pointer; }
-.sicht-taste.ausgeblendet { border-style: dashed; background-image: repeating-linear-gradient(135deg, transparent, transparent 4px, #94a3b822 4px, #94a3b822 5px); }
+.sicht-taste.ausgeblendet { border-style: dashed; background-image: repeating-linear-gradient(135deg, transparent, transparent 4px, #94a3b822 4px, #94a3b822 5px);
+  opacity: .55; filter: grayscale(1); }
+/* Zustand als Auge wie im SichtweitenCheck (06.11.2026): offen = auf der Karte, rot durchgestrichen = ausgeblendet */
+.sicht-taste.ausgeblendet .sicht-auge { color: #b91c1c; }
+.sicht-auge { vertical-align: -3px; margin-left: 4px; }
 .sicht-taste:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
-.sicht-zeichen { font-size: .8em; }
 
 .sicht-mass { width: max-content !important; height: auto !important; padding: 1px 4px; border: 1px solid #475569;
   border-radius: 3px; background: #fffffff2; color: #111827; font: 600 12px/1.3 system-ui, sans-serif; white-space: nowrap; pointer-events: none; }

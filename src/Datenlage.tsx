@@ -93,6 +93,9 @@ export function DatenlageZeile({ lage, zustand, qualitaet = {} }: { lage: Datenl
   )
 }
 
+/** Produktnamen des Geoportals schreiben Umlaute aus; im Bericht stehen sie richtig */
+const produktNamen = (t: string): string => t.replace('Kindergaerten', 'Kindergärten').replace('Kindertagesstaetten', 'Kindertagesstätten').replace('Spitaeler', 'Spitäler')
+
 /** Bericht (Quellen): nur die genutzten Quellen, je Quelle Themen, Anbieter, Stand, Lizenz */
 export function BerichtQuellenTabelle({ ids, lage, qualitaet = {} }: { ids: readonly string[]; qualitaet?: Readonly<Record<string, QuellenQualitaet>>
   /** Datenlage am Ort: «Für» nennt nur die Themen, für die die Quelle dort massgebend ist */
@@ -104,7 +107,7 @@ export function BerichtQuellenTabelle({ ids, lage, qualitaet = {} }: { ids: read
       <thead><tr><th>Quelle</th><th>Für</th><th>Anbieter</th><th>Stand</th><th>Lizenz</th></tr></thead>
       <tbody>{qs.map(q => <tr key={q.id}><td>{q.name}</td>
         <td>{THEMEN.filter(t => q.themen.includes(t) && (!lage || lage[t]?.id === q.id)).map(t => THEMA_NAME[t]).join(', ') || (q.id.startsWith('regional.e6.') || q.id === 'hoehenkurven' ? 'nur Kartenkontext' : '–')}</td>
-        <td>{q.anbieter}</td><td>{q.stand ?? '–'}<div className="klein">{quellenQualitaetText(qualitaet[q.id])}</div></td><td>{q.lizenz}</td></tr>)}</tbody>
+        <td>{q.anbieter}</td><td>{q.stand ?? '–'}<div className="klein">{produktNamen(quellenQualitaetText(qualitaet[q.id]))}</div></td><td>{q.lizenz}</td></tr>)}</tbody>
     </table>
   )
 }

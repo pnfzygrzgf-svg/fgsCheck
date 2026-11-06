@@ -35,7 +35,7 @@ export function sichtKurveTab2(radius: number): { sicht: number; norm: number } 
 
 /** Tab. 1 von VSS 40 241 (Sichtweite FGS) für ein Tempo: Stufe nach tempo.ts */
 export const sichtFgs = (v: number): number => sichtweiteTab1(tempoStufe(v))
-/** Herkunft der Sichtweite nach Tempo für den Text (30.10.2026): «Tab. 1» bzw. die Annahme bei 20 km/h und über 60 km/h (wie der Sichtrechner) */
+/** Herkunft der Sichtweite nach Tempo für den Text (30.10.2026): «Tab. 1» bzw. die Annahme bei 20 km/h und über 60 km/h (wie die Sichtprüfung) */
 export function sichtFgsHerkunft(v: number): string {
   const s = tempoStufe(v)
   return s === 20 ? QUELLE_TAB1_20 : s > 60 ? QUELLE_TAB1_UEBER60 : 'Tab. 1'

@@ -38,8 +38,8 @@ export const WERKZEUGE: [W, string, string][] = [
     'anklicken), z. B. den geplanten Bordkantenradius an einer Einmündung'],
   ['fixpunkt', 'Fixpunkt', 'Gebäudeecke bzw. Punkt der AV anklicken: die App fängt den nächsten AV-Stützpunkt im Umkreis von ' +
     `${FANG_PX} Bildschirmpunkten, sonst freier Punkt. Für die Vermassung der Streifen von Hand, ohne Einfluss auf die Rechnung`],
-  // Messen (27.10.2026): Strecke zwischen zwei Punkten, nicht im Fall
-  ['messen', 'Messen', 'zwei Punkte anklicken; Fang auf Vermessungspunkte; Wert in ein Zahlenfeld übernehmen'],
+  // Messen (27.10.2026; Kasten auf der Karte seit 06.11.2026): nicht im Fall
+  ['messen', 'Messen', 'auf der Karte messen: ab Bordsteinkante der AV, ganze Fahrbahn oder zwei Punkte; Wert in ein Zahlenfeld übernehmen'],
 ]
 
 /** Gruppe Planen, in dieser Reihenfolge */
@@ -53,6 +53,8 @@ export const istPlanWerkzeug = (w: Werkzeug): boolean => w !== null && PLAN_WERK
  * Gruppe Planen bzw. unter «Eingaben von Hand» */
 export function hilfeOrt(w: Werkzeug, geladen: boolean, reiterBedarf: boolean): 'oben' | 'planen' | 'eingaben' {
   if (!geladen) return 'oben'
+  // Messen aus der Bedarfsmaske (06.11.2026): die Hilfe mit «übernehmen» muss im Reiter Bedarf sichtbar sein
+  if (w === 'messen' && reiterBedarf) return 'oben'
   if (istPlanWerkzeug(w)) return 'planen'
   return reiterBedarf ? 'oben' : 'eingaben'
 }

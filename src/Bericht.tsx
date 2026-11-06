@@ -1,6 +1,6 @@
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { fgsSichtMasse, massBildPunkte } from './sichtMasse'
-import { MassBild, useSichtWahl, sichtZeigen, sichtMassZeigen, fgsSichtId, tueSichtId, sichtBildText, type SichtArt } from './Sichtfelder'
+import { MassBild, useSichtWahl, sichtZeigen, sichtMassZeigen, fgsSichtId, tueSichtId, type SichtArt } from './Sichtfelder'
 // ── Bericht (E4): Druckansicht eines Falls, als PDF über den Druckdialog des Browsers ──
 //
 // Eigene Ansicht über der App (die Karte bleibt darunter bestehen), A4 hoch per @media print (index.css); als Portal direkt im body. Das Kartenbild ist
@@ -24,15 +24,20 @@ import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernis
 import type { Multi } from './rechner/poly'
 import { TAB1_TEXT, KURVE_SICHTWEITE } from './rechner/tempo'
 import { lv95, dist, type P } from './geo'
-import { wmsBildUrl, LUFTBILD_QUELLE } from './daten/luftbild'
+import { wmsBildUrl } from './daten/luftbild'
 import { STATUS_FARBE, STRICH_GEDECKT, UEBERGANG_TEXT, INSEL_FARBE, STRICH_INSEL, hindernisFarbe, hindernisText, INSEL_TEXT, AV_FARBEN, TUE_RAND,
-  STRICH_TUE } from './Karte'
+  STRICH_TUE, QUELLE_FARBE } from './Karte'
 import { tueGezeichnet, tueFlaeche } from './tue/karte'
 import { LESENAME } from './bedarf/quellen'
 import { ART, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, tempoHerkunft, f1, f2, mText, streifenStatus,
   erkennungText, erkennungEmpfehlungText } from './texte'
 import { erkennungAnzeige, gelaendeText, type GelaendeStand } from './erkennungGelaende'
 import { sichtGelaendeText } from './sichtGelaende'
+import { gelaendeProfile } from './gelaendeKarte'
+import { erkennungBaender, erkennungSichtlinien } from './erkennungKarte'
+import { ProfilBericht, profilWahlBericht } from './BerichtProfil'
+import { fgsFahrzeuge, tueFahrzeuge, fahrzeugFarbe, type FahrzeugForm } from './fahrzeuge'
+import type { EbenenObjekt } from './quellenEbenen'
 import { KnotensichtBericht } from './tue/KnotensichtBlock'
 import { koordText, vorzeichenText, fixpunktMasse } from './rechner/vermassung'
 import { fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT } from './fixpunkt'
@@ -45,10 +50,11 @@ type Namen = Map<string, ZufahrtNamen>
 import { ausserhalbText, nichtAbgedecktText, type Ausserhalb } from './abdeckung'
 import { amtlicherText } from './daten/amtlicheUebergaenge'
 import { LUFTBILD_UEBERGANG_TEXT, KEIN_STREIFEN_TEXT, NICHT_GEPRUEFT_TEXT, herkunftText } from './daten/luftbildFgs'
-import { BefundblattAnzeige, GrundpruefungAnzeige, VerzeichnisBericht, ZusammenfassungAnzeige, annahmeInTabelle, eingabenTabelle, querungTitel } from './BedarfPanel'
+import { BefundblattAnzeige, GrundpruefungAnzeige, VerzeichnisBericht, ZusammenfassungAnzeige, annahmeInTabelle, bedarfKurz, eingabenTabelle, querungTitel } from './BedarfPanel'
 import type { BefundBlatt } from './bedarf/befundblatt'
 import { AHS_40240 } from './bedarf/tabellen'
 import { BerichtQuellenTabelle } from './Datenlage'
+import { BILD_BREITE_MM, bildDruckHoeheMm, datumText, ergebnisZusatzMm, legendeZeilen, netzQuelleText } from './berichtSeite1'
 import type { Datenlage } from './daten/quellenregister'
 import type { QuellenQualitaet } from './daten/anbieter/gemeinsam/qualitaet'
 
@@ -64,6 +70,8 @@ const SCHILD_AB = 24                   // Mitte so weit hinter dem letzten Sicht
 
 type Box = [number, number, number, number]
 
+/** Farbe des Status im Text (06.11.2026): grün frei, rot verdeckt, grau übrige; wie die Sichtfelder im Kartenbild */
+const statusFarbe = (status: string): string => (status === 'frei' ? '#15803d' : STATUS_FARBE[status] ?? '#374151')
 /** Strichart je Status (zusätzlich zur Farbe, damit der Bericht schwarz-weiss lesbar bleibt) */
 const strich = (status: string) => (status === 'frei' ? undefined : status.startsWith('verdeckt') ? '14 7' : '3 6')
 
@@ -105,21 +113,73 @@ function masslinien(r: FallRechnung, fixpunkte: Fixpunkt[]): { von: P; bis: P; m
   })
 }
 
-function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, plan = [], neigung = null }: {
+/** Farbprobe in der Bildlegende (nach SichtweitenCheck): Fläche, Linie, Rand, Punkt und die Zeichen des fgsCheck (Schraffur, Fahrlinie mit
+ *  Sichtpunkten, Band der Erkennungsdistanz, Auto, Velo, Person, Nummernschild, Fixpunkt, Muster der Flächen (Plan)); dunkel: dunkler Grund */
+function Probe({ art, farbe, rand, strich, deckung = 1, dunkel = false, fein = false }: {
+  art: 'flaeche' | 'linie' | 'rand' | 'punkt' | 'schraffur' | 'fahrlinie' | 'band' | 'auto' | 'velo' | 'person' | 'schild' | 'fixpunkt' | 'muster'
+  farbe: string; rand?: string; strich?: string; deckung?: number; dunkel?: boolean; fein?: boolean }) {
+  return <svg className="probe" viewBox="0 0 30 14" width="30" height="14" aria-hidden="true">
+    {(dunkel || art === 'fahrlinie') && <rect x="0" y="0" width="30" height="14" rx="2" fill="#4b5563" />}
+    {art === 'flaeche' && <rect x="2" y="2" width="26" height="10" rx="2" fill={farbe} fillOpacity={deckung} stroke={rand ?? farbe} strokeWidth="1.5" strokeDasharray={strich} />}
+    {art === 'muster' && <rect x="2" y="2" width="26" height="10" rx="2" fill={farbe} stroke={rand} strokeWidth="1.5" strokeDasharray={strich} />}
+    {art === 'linie' && <line x1="2" y1="7" x2="28" y2="7" stroke={farbe} strokeWidth={fein ? 1.3 : 2.5} strokeDasharray={strich} />}
+    {art === 'rand' && <rect x="2" y="2" width="26" height="10" rx="2" fill={farbe} fillOpacity={deckung < 1 ? deckung : 0} stroke={farbe} strokeWidth="2.5" strokeDasharray={strich} />}
+    {art === 'punkt' && <circle cx="15" cy="7" r="5" fill={farbe} stroke={rand ?? '#111827'} strokeWidth="2" />}
+    {art === 'schraffur' && <rect x="2" y="2" width="26" height="10" rx="2" fill="url(#schraffur)" stroke="#000000" strokeWidth="1" />}
+    {art === 'fahrlinie' && <><line x1="2" y1="7" x2="28" y2="7" stroke="#ffffff" strokeWidth="1.5" strokeDasharray="4 4" />
+      <circle cx="10" cy="7" r="2" fill="#000000" stroke="#ffffff" strokeWidth="1" /><circle cx="22" cy="7" r="3.5" fill="#000000" stroke="#ffffff" strokeWidth="1" /></>}
+    {art === 'band' && <line x1="2" y1="7" x2="28" y2="7" stroke={farbe} strokeWidth="7" strokeOpacity="0.6" strokeDasharray={strich} />}
+    {art === 'auto' && <><rect x="3" y="2.5" width="24" height="9" rx="2" fill={farbe} fillOpacity="0.9" stroke="#111827" strokeWidth="1.5" /><rect x="8" y="4" width="4" height="6" fill="#ffffff" /></>}
+    {art === 'velo' && <g transform="translate(2 1.5) scale(0.43)"><rect x="2" y="7" width="20" height="6" rx="3" fill={farbe} stroke="#ffffff" strokeWidth="1.5" />
+      <rect x="38" y="7" width="20" height="6" rx="3" fill={farbe} stroke="#ffffff" strokeWidth="1.5" /><rect x="18" y="8.5" width="24" height="3" fill={farbe} />
+      <rect x="40" y="1" width="3" height="18" rx="1.5" fill={farbe} /><circle cx="27" cy="10" r="5" fill={farbe} stroke="#ffffff" strokeWidth="1.5" /></g>}
+    {art === 'person' && <><ellipse cx="14" cy="7" rx="4" ry="6" fill={AV_FARBEN.Trottoir} stroke="#334155" strokeWidth="1.5" /><circle cx="15" cy="7" r="3" fill="#475569" stroke="#ffffff" strokeWidth="1" /></>}
+    {art === 'schild' && <><circle cx="15" cy="7" r="6" fill={farbe} stroke={rand} strokeWidth="1.8" /><text x="15" y="9.5" fontSize="7.5" fontWeight="700" fill={rand} textAnchor="middle">1</text></>}
+    {art === 'fixpunkt' && <><rect x="9" y="1" width="12" height="12" fill="#ffffff" fillOpacity="0.85" stroke={farbe} strokeWidth="1.5" />
+      <path d="M11,3L19,11M19,3L11,11" stroke={farbe} strokeWidth="1.5" /></>}
+  </svg>
+}
+/** Hindernisart für die Legende: «Parkfeld Auto», «Baum», … */
+function hindernisArtText(h: Hindernis): string {
+  const klasse: Record<string, string> = { auto: 'Auto', velo: 'Velo', motorrad: 'Motorrad' }
+  const art: Record<string, string> = { laengsparkierung: 'Längsparkierung', baum: 'Baum', hecke: 'Hecke', mauer: 'Mauer', uebrige: 'übriges Hindernis', insel: 'Insel von Hand' }
+  const q = h.quelle === 'hand' ? ' (von Hand)' : h.quelle === 'osm' ? ' (OSM)' : ' (Kataster)'
+  return (h.art === 'parkfeld' ? `Parkfeld ${klasse[h.klasse] ?? h.klasse}` : art[h.art] ?? h.art) + (h.art === 'insel' ? '' : q)
+}
+/** Text je Fahrzeugsymbol in der Legende */
+function fahrzeugLegende(f: FahrzeugForm): string {
+  if (f.rolle === 'fb') return `Trottoirüberfahrt: wartendes Fahrzeug, Sicht ${f.phase === 'trottoir' ? 'aufs Trottoir' : 'auf die Fahrbahn'}`
+  if (f.rolle === 'fa') return 'Trottoirüberfahrt: Fahrzeug mit Vortritt am Ende der Sichtweite'
+  if (f.rolle === 'warte') return 'Wartende Person am Streifenende'
+  return f.art === 'velo' ? 'Velo am Ende seiner Sicht' : 'Auto am Ende der nötigen Sicht je Zufahrt'
+}
+
+function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, plan = [], neigung = null, gelaende = null, zusatzMm = 0 }: {
+  zusatzMm?: number              // Höhe der Zusatzzeilen unter «Ergebnis» (berichtSeite1.ts)
   neigung?: Readonly<Record<string, NeigungMessung>> | null
+  gelaende?: Readonly<Record<string, GelaendeStand>> | null   // Geländeprüfung der Erkennungsdistanz (Bänder, Sichtlinien)
   r: FallRechnung; hindernisse: Hindernis[]; fixpunkte: Fixpunkt[]; ort: P; onBereit: (s: 'laedt' | 'ok' | 'fehler') => void
   namen: Namen; hand: StreifenHand[]
   plan?: FlaechePlan[]           // Flächen (Plan) von Hand: schraffiert unter Sichtfeldern und Streifen
 }) {
   const [sicht] = useSichtWahl()
   const masse = useMemo(() => fgsSichtMasse(r, neigung), [r, neigung])
+  // Erkennungsdistanz (06.11.2026): Band je gerade Zufahrt bis zum Soll; Sichtlinien nur, wo die Erkennungsdistanz das Soll nicht erreicht
+  const erkBaender = useMemo(() => r.streifen.flatMap(st => erkennungBaender(st, gelaende)), [r, gelaende])
+  const sichtlinien = useMemo(() => r.streifen.flatMap(st => st.zufahrten
+    .filter(z => erkBaender.find(b => b.zufahrt === `${z.fgsId}|${z.zufahrt}`)?.fehlt)
+    .flatMap(z => erkennungSichtlinien(z, gelaende))), [r, gelaende, erkBaender])
+  const bandPunkte = useMemo(() => erkBaender.flatMap(b => [...b.gruen, ...(b.gelb ?? []), ...(b.fehlt?.linie ?? [])]), [erkBaender])
+  // Fahrzeuge und wartende Personen wie auf der Karte (fahrzeuge.ts; 06.11.2026 im Bericht nachgeführt): Knotensicht der
+  // Trottoirüberfahrt, je Zufahrt ein Auto am Ende der nötigen Sicht, Velo am Ende seiner Sicht, Personen an den Streifenenden
+  const fahrzeuge = useMemo<FahrzeugForm[]>(() => r.streifen.flatMap(st => [...tueFahrzeuge(st), ...fgsFahrzeuge(st, neigung)]), [r, neigung])
   const box = useMemo(() => {
-    const fix = fixpunkte.map(f => f.p)
+    const fix = [...fixpunkte.map(f => f.p), ...bandPunkte]
     let box = ausschnitt(r, ort, fix)
     if (sicht.masse) for (let i = 0; i < 3; i++) box = ausschnitt(r, ort, [...fix,
       ...massBildPunkte(masse.filter(m => sichtMassZeigen(sicht, m)), box[2] - box[0])])
     return box
-  }, [r, ort, fixpunkte, masse, sicht])
+  }, [r, ort, fixpunkte, masse, sicht, bandPunkte])
   const [e0, n0, e1, n1] = box
   const wM = e1 - e0, hM = n1 - n0
   // Breite in Pixeln: 0,1 m/px, begrenzt auf BILD_PX_MIN..BILD_PX_MAX; Höhe aus derselben m/px (gleiches Seitenverhältnis)
@@ -175,9 +235,81 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
       .sort((a, b) => (a.nr || Number.MAX_SAFE_INTEGER) - (b.nr || Number.MAX_SAFE_INTEGER))
     return teile.length ? `${mehrere ? `${streifenTitel(st.fgsId, hand, streifenArt(st))}: ` : ''}${teile.map(x => x.t).join(', ')}` : ''
   }).filter(Boolean)
+  // Legende (06.11.2026, nach SichtweitenCheck): je Zeile eine Farbprobe und ein kurzer Text; nur, was im Bild vorkommt
+  const zufahrten = r.streifen.flatMap(st => st.zufahrten)
+  const autoDa = zufahrten.filter(z => sichtZeigen(sicht, 'auto', fgsSichtId(z)))
+  const veloDa = zufahrten.filter(z => z.velo && sichtZeigen(sicht, 'velo', fgsSichtId(z)))
+  const tueArten = [...new Set(r.streifen.flatMap(st => (tueGezeichnet(st.knotensicht) ? st.knotensicht.karte.dreiecke
+    .filter(d => sichtZeigen(sicht, d.art, tueSichtId(st.fgsId, d.lage))).map(d => d.art) : [])))]
+  const statusGruppe = (st: string) => (st === 'frei' ? 'frei' : st === 'verdeckt_hindernis' ? 'hindernis' : st === 'verdeckt_baum' ? 'baum'
+    : st === 'verdeckt_zweirad' ? 'zweirad' : st.startsWith('verdeckt') ? 'verdeckt' : 'ungeprueft')
+  const STATUS_LEGENDE: Record<string, string> = { frei: 'Sichtfeld frei', verdeckt: 'Sichtfeld verdeckt (Gebäude bzw. Gelände)',
+    hindernis: 'Sichtfeld verdeckt durch ein Hindernis (Parkfeld, Hecke, Mauer)', baum: 'Sichtfeld verdeckt durch einen Baum',
+    zweirad: 'Sichtfeld verdeckt durch ein Zweirad-Parkfeld (Hinweis)', ungeprueft: 'Sichtfeld nicht geprüft' }
+  const statusZeilen = [...new Map(autoDa.map(z => [statusGruppe(z.status), z.status])).entries()]
+  const hindArten = [...new Map(hindernisse.filter(h => !r.seitenraumErsetzt?.some(x => x.id === h.id))
+    .map(h => [hindernisFarbe(h) + hindernisArtText(h), { farbe: hindernisFarbe(h), text: hindernisArtText(h) }])).values()]
+  const fzArten = [...new Map(fahrzeuge.map(f => { const k = fahrzeugLegende(f); return [k, { farbe: fahrzeugFarbe(f), art: f.art, text: k }] })).values()]
+  const bandArten = { gruen: erkBaender.some(b => b.gruen.length >= 2), gelb: erkBaender.some(b => b.gelb), rot: erkBaender.some(b => b.fehlt?.art === 'verdeckt'),
+    grau: erkBaender.some(b => b.fehlt && b.fehlt.art !== 'verdeckt') }
+  const linienArten = ([['frei', '#15803d', 'grün frei'], ['bewuchs', '#ca8a04', 'gelb nicht sicher'], ['verdeckt', '#dc2626', 'rot verdeckt']] as const)
+    .filter(([a]) => sichtlinien.some(l => l.art === a))
+  const legende: { probe: React.ReactNode; text: string; breit?: true }[] = [
+    ...(schluessel.length > 0 ? [{ probe: <Probe art="schild" farbe="#ffffff" rand="#0f172a" />, text: `${NUMMERN_TEXT} nach der Herkunft der Fahrzeuge` +
+      `${mehrere ? ', je Streifen (Streifen neben der Nummer)' : ''}: ${schluessel.join('; ')}. Abbieger heissen nach der Strasse, aus der sie abbiegen.`, breit: true as const }] : []),
+    ...(r.streifen.some(st => !st.querung && !st.trottoirueberfahrt) ? [{ probe: <Probe art="flaeche" farbe="#fde047" rand="#000000" />, text: 'Fussgängerstreifen' }] : []),
+    ...(r.streifen.some(st => st.querung) ? [{ probe: <Probe art="rand" farbe="#ffffff" strich="6 4" dunkel />, text: r.streifen.every(st =>
+      !st.querung || st.querung.typ === 'begegnungszone') ? 'Querung in der Begegnungszone (ohne Balken)' : 'Querung ohne Vortritt (ohne Balken)' }] : []),
+    ...(r.streifen.some(st => st.trottoirueberfahrt) ? [{ probe: <Probe art="flaeche" farbe={AV_FARBEN.Trottoir} rand={TUE_RAND} strich="6 4" />, text: 'Trottoirüberfahrt (nicht geprüft), Streifen von Hand als Achse' }] : []),
+    ...(r.streifen.some(st => !st.trottoirueberfahrt && st.ann.length) ? [{ probe: <Probe art="flaeche" farbe="#0ea5e9" rand="#0369a1" deckung={0.4} />, text: 'Annäherungsbereiche' }] : []),
+    ...statusZeilen.map(([g, st]) => ({ probe: <Probe art="rand" farbe={STATUS_FARBE[st] ?? '#10b981'} strich={strich(st)} deckung={0.15} />, text: STATUS_LEGENDE[g] })),
+    ...(autoDa.some(z => z.konflikte.length) ? [{ probe: <Probe art="schraffur" farbe="#dc2626" />, text: 'Hindernis im Sichtfeld (schraffiert)' }] : []),
+    ...(autoDa.length ? [{ probe: <Probe art="fahrlinie" farbe="#ffffff" />, text: 'Fahrlinie (weiss gestrichelt) mit Sichtpunkten; dahinter die Nummer der Zufahrt' }] : []),
+    ...(veloDa.length ? [{ probe: <Probe art="rand" farbe="#0f766e" strich="6 4" deckung={0.1} />, text: 'Sicht vom Velo: Sichtfeld und Sichtpunkte (fein gestrichelt)' }] : []),
+    ...tueArten.map(a => ({ probe: <><Probe art="rand" farbe={a === 'velo' ? '#0f766e' : '#16a34a'} strich={a === 'velo' ? '6 4' : a === 'trottoir' ? '2 4' : undefined} deckung={0.15} />
+      <Probe art="rand" farbe="#dc2626" strich={a === 'velo' ? '6 4' : a === 'trottoir' ? '2 4' : undefined} deckung={0.15} /></>,
+      text: `Knotensicht der Trottoirüberfahrt, ${a === 'velo' ? 'Velo' : a === 'trottoir' ? 'Trottoir' : 'Fahrbahn'}: frei, rot verdeckt` })),
+    ...fzArten.map(x => ({ probe: <Probe art={x.art === 'person' ? 'person' : x.art === 'velo' ? 'velo' : 'auto'} farbe={x.farbe} />, text: x.text })),
+    ...(erkBaender.length ? [{ probe: <>{bandArten.gruen && <Probe art="band" farbe="#16a34a" />}{bandArten.gelb && <Probe art="band" farbe="#eab308" />}
+      {bandArten.rot && <Probe art="band" farbe="#dc2626" />}{bandArten.grau && <Probe art="band" farbe="#9ca3af" strich="4 3" />}</>,
+      text: `Erkennungsdistanz auf der Fahrlinie bis zum Soll: ${[bandArten.gruen && 'grün frei', bandArten.gelb && 'gelb nicht sicher (Bewuchs)',
+        bandArten.rot && 'rot verdeckt', bandArten.grau && 'grau gestrichelt nicht geprüft'].filter(Boolean).join(', ')}` }] : []),
+    ...(sichtlinien.length ? [{ probe: <>{linienArten.map(([a, farbe]) => <Probe key={a} art="linie" farbe={farbe} fein />)}</>,
+      text: `Geprüfte Sichtlinien auf die Markierung, wo das Soll nicht erreicht ist: ${linienArten.map(x => x[2]).join(', ')}` }] : []),
+    ...hindArten.map(x => ({ probe: <Probe art="flaeche" farbe={x.farbe} rand={x.farbe} deckung={0.35} />, text: `Hindernis: ${x.text}` })),
+    ...((r.seitenraumErsetzt ?? []).length ? [{ probe: <Probe art="rand" farbe={QUELLE_FARBE.hand} strich="4 4" deckung={0.08} />, text: 'Parkierung gestrichelt: durch den vorgezogenen Seitenraum ersetzt' }] : []),
+    ...((r.inseln ?? []).length ? [{ probe: <Probe art="rand" farbe={INSEL_FARBE} strich="6 4" deckung={0.15} />, text: INSEL_TEXT }] : []),
+    ...[...new Set(plan.map(fp => fp.art))].map(a => ({ probe: <Probe art="muster" farbe={`url(#bericht-plan-${a})`} rand={PLAN_FARBEN[a].linie} strich="6 4" />,
+      text: `Fläche (Plan) von Hand: ${PLAN_NAME[a]}; ersetzt die AV-Bodenbedeckung darunter` })),
+    ...(masten.length ? [{ probe: <Probe art="punkt" farbe="#000000" rand="#ffffff" />, text: 'Signalmast einer Mittelinsel (nur Hinweis)' }] : []),
+    ...(fixpunkte.length ? [{ probe: <Probe art="fixpunkt" farbe={FIXPUNKT_FARBE} />, text: 'Fixpunkt; gestrichelt mit Länge: Mass bis zur Streifenkante' }] : []),
+    ...(gedeckte.length ? [{ probe: <Probe art="linie" farbe="#ffffff" strich={STRICH_GEDECKT} dunkel />, text: `Abbiegezufahrt${gedeckte.length > 1 ? 'en' : ''} ${gedeckte.join(', ')} mitgeprüft (Fahrlinie weiss gepunktet)` }] : []),
+  ]
+  const bildH = bildDruckHoeheMm(legendeZeilen(legende.filter(l => !l.breit).map(l => l.text), legende.filter(l => l.breit).map(l => l.text)), r.streifen.length, BILD_BREITE_MM * bh / bw, zusatzMm)
+  // Satz zu den Sichtfeldern: je Art die Zufahrtsnummern, dazu die ausgeblendeten (wie im SichtweitenCheck)
+  const sichtSatz = (() => {
+    const an: string[] = [], aus: string[] = []
+    const nr = (z: ZufahrtErgebnis) => `${mehrere ? `${streifenTitel(z.fgsId, hand, streifenArt(r.streifen.find(st => st.fgsId === z.fgsId)!))} ` : ''}${zufahrtNr(namen.get(z.fgsId), z.zufahrt) || zufahrtText(namen.get(z.fgsId), z.zufahrt)}`
+    const gruppe = (name: string, zs: ZufahrtErgebnis[], art: SichtArt) => {
+      const ja = zs.filter(z => sichtZeigen(sicht, art, fgsSichtId(z))), nein = zs.filter(z => !sichtZeigen(sicht, art, fgsSichtId(z)))
+      if (ja.length) an.push(`${name} ${ja.map(nr).join(', ')}`)
+      if (nein.length) aus.push(`${name} ${nein.map(nr).join(', ')}`)
+    }
+    const nachNummer = [...zufahrten].sort((a, b) => a.fgsId.localeCompare(b.fgsId) ||
+      (Number(zufahrtNr(namen.get(a.fgsId), a.zufahrt)) || 99) - (Number(zufahrtNr(namen.get(b.fgsId), b.zufahrt)) || 99))
+    gruppe('Auto', nachNummer, 'auto'); gruppe('Velo', nachNummer.filter(z => z.velo), 'velo')
+    for (const st of r.streifen) if (tueGezeichnet(st.knotensicht)) for (const d of st.knotensicht.karte.dreiecke) {
+      const t = `Trottoirüberfahrt ${d.art === 'velo' ? 'Velo' : d.art === 'trottoir' ? 'Trottoir' : 'Fahrbahn'}`
+      ;(sichtZeigen(sicht, d.art, tueSichtId(st.fgsId, d.lage)) ? an : aus).push(t)
+    }
+    if (!an.length && !aus.length) return ''
+    return `Sichtfelder im Bild: ${an.length ? [...new Set(an)].join('; ') : 'keine'}${aus.length ? `; ausgeblendet: ${[...new Set(aus)].join('; ')}` : ''}${sicht.masse ? '; mit Vermassung' : ''}.`
+  })()
   return (
     <figure className="bericht-karte">
-      <div className="bericht-bild" style={{ aspectRatio: `${bw} / ${bh}` }}>
+      {/* Druck: Bildhöhe nach der Länge der Legende (berichtSeite1.ts, index.css --bild-max-breite), damit Ort, Ergebnis, Kartenbild und
+          Legende zusammen auf Seite 1 bleiben; am Bildschirm volle Breite */}
+      <div className="bericht-bild" style={{ aspectRatio: `${bw} / ${bh}`, '--bild-max-breite': `calc(${bildH}mm * ${(bw / bh).toFixed(4)})` } as React.CSSProperties}>
         {(status === 'fehler' || status === 'zeit') && <div className="bericht-ohne-bild klein">ohne Luftbild</div>}
         {status !== 'fehler' && <img key={url} src={url} alt="Luftbild SWISSIMAGE des Ausschnitts"
           style={status === 'zeit' ? { visibility: 'hidden' } : undefined}
@@ -244,6 +376,15 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
                 : <path d={pfad([st.umriss])} fill="#fde047" fillOpacity={0.7} stroke="#000000" strokeWidth={2} />}
             </g>
           ))}
+          {/* Erkennungsdistanz (06.11.2026): Band entlang der Fahrlinie bis zum Soll, dünne Sichtlinien bei zu kurzer Erkennungsdistanz */}
+          {erkBaender.map(b => <g key={'eb' + b.zufahrt}>
+            {b.gruen.length >= 2 && <polyline points={b.gruen.map(xy).join(' ')} fill="none" stroke="#16a34a" strokeWidth={7} strokeOpacity={0.55} strokeLinecap="butt" />}
+            {b.gelb && <polyline points={b.gelb.map(xy).join(' ')} fill="none" stroke="#eab308" strokeWidth={7} strokeOpacity={0.6} strokeLinecap="butt" />}
+            {b.fehlt && <polyline points={b.fehlt.linie.map(xy).join(' ')} fill="none" stroke={b.fehlt.art === 'verdeckt' ? '#dc2626' : '#9ca3af'} strokeWidth={7}
+              strokeOpacity={0.6} strokeLinecap="butt" strokeDasharray={b.fehlt.art === 'verdeckt' ? undefined : '6 6'} />}
+          </g>)}
+          {sichtlinien.map((l, i) => <line key={'sl' + i} x1={xy(l.auge).split(',')[0]} y1={xy(l.auge).split(',')[1]} x2={xy(l.ziel).split(',')[0]} y2={xy(l.ziel).split(',')[1]}
+            stroke={l.art === 'frei' ? '#15803d' : l.art === 'bewuchs' ? '#ca8a04' : '#dc2626'} strokeWidth={1.2} strokeOpacity={0.85} />)}
           {r.streifen.flatMap(st => st.zufahrten).filter(z => sichtZeigen(sicht, 'auto', fgsSichtId(z))).map(z => (
             <g key={'p' + z.fgsId + z.zufahrt}>
               <polyline points={z.spur.map(xy).join(' ')} fill="none" stroke="#ffffff" strokeWidth={1.5} strokeDasharray={z.deckung ? STRICH_GEDECKT : '5 5'} />
@@ -254,6 +395,32 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
               })}
             </g>
           ))}
+          {/* Fahrzeuge: Autos als Umriss (LV95) mit weisser Scheibe, Velo und Person als Piktogramm fester Grösse, gedreht in Fahrtrichtung */}
+          {fahrzeuge.map((f, i) => {
+            const farbe = fahrzeugFarbe(f)
+            if (f.art === 'auto' && f.umriss && f.scheibe) return <g key={'fz' + i}>
+              <path d={pfad([f.umriss])} fill={farbe} fillOpacity={0.9} stroke="#111827" strokeWidth={1.5} />
+              <path d={pfad([f.scheibe])} fill="#ffffff" fillOpacity={0.9} stroke="#ffffff" strokeWidth={1} />
+            </g>
+            const n = Math.hypot(f.richtung[0], f.richtung[1]) || 1
+            const grad = Math.atan2(-f.richtung[1] / n, f.richtung[0] / n) * 180 / Math.PI
+            const [x, y] = xy(f.mitte).split(',').map(Number)
+            if (f.art === 'velo') {
+              const k = 26 / 60, rand = f.rolle === 'fb' ? '#111827' : '#ffffff', st = f.rolle === 'fa' ? '3 2' : undefined
+              return <g key={'fz' + i} transform={`translate(${x} ${y}) rotate(${grad.toFixed(1)}) scale(${k}) translate(-30 -10)`}>
+                <rect x={2} y={7} width={20} height={6} rx={3} fill={farbe} stroke={rand} strokeWidth={1.5} strokeDasharray={st} />
+                <rect x={38} y={7} width={20} height={6} rx={3} fill={farbe} stroke={rand} strokeWidth={1.5} strokeDasharray={st} />
+                <rect x={18} y={8.5} width={24} height={3} fill={farbe} stroke={rand} strokeWidth={1} />
+                <rect x={40} y={1} width={3} height={18} rx={1.5} fill={farbe} stroke={rand} strokeWidth={1} />
+                <circle cx={27} cy={10} r={5} fill={farbe} stroke={rand} strokeWidth={1.5} />
+              </g>
+            }
+            const k = 14 / 20
+            return <g key={'fz' + i} transform={`translate(${x} ${y}) rotate(${grad.toFixed(1)}) scale(${k}) translate(-10 -10)`}>
+              <ellipse cx={9} cy={10} rx={5} ry={8} fill={AV_FARBEN.Trottoir} stroke="#334155" strokeWidth={1.5} />
+              <circle cx={10} cy={10} r={4} fill="#475569" stroke="#ffffff" strokeWidth={1} />
+            </g>
+          })}
           {/* Nummernschilder wie auf der Karte: weisser Kreis, dunkler Rand und Zahl (im Bericht keine gewählte Zufahrt) */}
           {schilder.map(sc => <g key={'nr' + sc.key}>
             <circle cx={sc.x} cy={sc.y} r={SCHILD_R} fill="#ffffff" stroke="#0f172a" strokeWidth={2.5} />
@@ -292,36 +459,14 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
         </svg>
       </div>
       <figcaption className="klein">
-        {sichtBildText(sicht, (['auto', 'velo', 'trottoir'] as SichtArt[]).filter(a => r.streifen.some(st =>
-          (a === 'auto' && st.zufahrten.length > 0) || (a === 'velo' && st.zufahrten.some(z => z.velo)) ||
-          (tueGezeichnet(st.knotensicht) && st.knotensicht.karte.dreiecke.some(d => d.art === a)))))}{' '}
-
-        {status === 'laedt' && <span className="nicht-drucken">Luftbild wird geladen … </span>}
-        {(status === 'fehler' || status === 'zeit') && <span className="warnung">Luftbild nicht geladen: Kartenbild ohne Hintergrund. </span>}
-        {(status === 'fehler' || status === 'zeit') && <span className="nicht-drucken">
-          {status === 'zeit' ? `Noch keine Antwort nach ${BILD_ZEITGRENZE_MS / 1000} s; es erscheint, sobald es eintrifft. ` : ''}
-          <button className="zweit klein" onClick={() => setVersuch(v => v + 1)}>erneut versuchen</button>{' '}</span>}
-        Ausschnitt {Math.round(wM)} × {Math.round(hM)} m, Norden oben (LV95). Gelb: Streifen{r.streifen.some(st => st.querung) ?
-          `; weiss gestrichelt ohne Balken: ${r.streifen.every(st => !st.querung || st.querung.typ === 'begegnungszone') ? 'Querung in der Begegnungszone'
-            : 'Querung ohne Vortritt'}` : ''}{r.streifen.some(st => st.trottoirueberfahrt) ?
-          '; grau gestrichelt in Trottoirfarbe: Trottoirüberfahrt (nicht geprüft)' : ''}; blau: Annäherungsbereiche; Sichtfelder umrandet in
-        der Farbe des Status (durchgezogen: frei, gestrichelt: verdeckt, gepunktet: nicht geprüft); schraffiert: Hindernis im Sichtfeld;
-        schwarze Punkte: Sichtpunkte auf der Fahrlinie (weiss gestrichelt), hinter dem letzten Sichtpunkt die Nummer der Zufahrt; farbige
-        Flächen: Hindernisse (Parkfelder, Bäume, Hecken, Mauern).
-        {schluessel.length > 0 && <> {NUMMERN_TEXT} nach der Herkunft der Fahrzeuge, gerade und abbiegende
-          gemeinsam{mehrere ? ', je Streifen (Streifen neben der Nummer)' : ''}: {schluessel.join('; ')}.</>} Zufahrten heissen
-        nach der Strasse und der Herkunft der Fahrzeuge (Himmelsrichtung), Abbieger nach der Strasse, aus der sie abbiegen.
-        {(r.inseln ?? []).length > 0 && <> Grün gestrichelt: {INSEL_TEXT} (crossing:island in OSM und Lücke zwischen den Balken im
-          Luftbild).</>}
-        {hindernisse.some(h => h.art === 'insel') && <> Grün: Insel von Hand.</>}
-        {plan.length > 0 && <> Schraffiert mit gestricheltem Rand: Flächen (Plan) von Hand ({[...new Set(plan.map(fp => PLAN_NAME[fp.art]))].join(', ')});
-          sie ersetzen in der Rechnung die AV-Bodenbedeckung darunter.</>}
-        {(r.seitenraumErsetzt ?? []).length > 0 && <> Parkierung gestrichelt: durch vorgezogenen Seitenraum ersetzt.</>}
-        {masten.length > 0 && <> Schwarzer Punkt: Signalmast einer Mittelinsel (Standard E1, Hinweis, kein Hindernis).</>}
-        {fixpunkte.length > 0 && <> Kreuz im Quadrat: Fixpunkt; gestrichelt mit Länge: Mass vom Fixpunkt entlang der Balken bis zur
-          Streifenkante (Tabelle «Vermassung ab Fixpunkt»).</>}
-        {gedeckte.length > 0 && <> Abbiegezufahrt{gedeckte.length > 1 ? 'en' : ''} {gedeckte.join(', ')} (mitgeprüft): Weg ab dem Knoten durch die
-          gerade Zufahrt mitgeprüft, selbst geprüft und für den Status gezählt; Fahrlinie weiss gepunktet.</>}
+        <p className="legende-satz">{sichtSatz} Ausschnitt {Math.round(wM)} × {Math.round(hM)} m, Norden oben (LV95). Fahrzeuge und Personen nur zur
+          Darstellung; die Ergebnisse enthalten alle berechneten Sichtarten.
+          {status === 'laedt' && <span className="nicht-drucken"> Luftbild wird geladen …</span>}
+          {(status === 'fehler' || status === 'zeit') && <span className="warnung"> Luftbild nicht geladen: Kartenbild ohne Hintergrund.</span>}
+          {(status === 'fehler' || status === 'zeit') && <span className="nicht-drucken">
+            {status === 'zeit' ? ` Noch keine Antwort nach ${BILD_ZEITGRENZE_MS / 1000} s; es erscheint, sobald es eintrifft.` : ''}{' '}
+            <button className="zweit klein" onClick={() => setVersuch(v => v + 1)}>erneut versuchen</button></span>}</p>
+        <ul className="bericht-legende">{legende.map((l, i) => <li key={i} className={l.breit ? 'breit' : undefined}><span className="proben">{l.probe}</span><span>{l.text}</span></li>)}</ul>
       </figcaption>
     </figure>
   )
@@ -417,6 +562,13 @@ function hindernisseText(z: ZufahrtErgebnis): string {
   return z.konflikte.map(k => `${k.layer}${k.klasse === 'baum' ? '' : ` ${f1(k.flaeche)} m²`}, ${f1(k.abstand)} m vom Streifen`).join('; ')
 }
 
+/** Hindernis, das nur die Erkennungsdistanz begrenzt: Es liegt jenseits der nötigen Sicht und steht darum nicht unter «Hindernisse im Sichtfeld» */
+function erkennungHindernisText(z: ZufahrtErgebnis, gelaende?: Readonly<Record<string, GelaendeStand>> | null): string {
+  const e = z.erkennungM ? erkennungAnzeige(z, gelaende)?.e : null
+  if (!e || z.konflikte.length || e.bis !== 'verdeckt' || !e.hindernis || e.hindernis.klasse === 'gelaende' || e.wert < z.sichtweite) return ''
+  return `${e.hindernis.name}: begrenzt nur die Erkennungsdistanz (${mText(e.wert)} m), nicht die nötige Sicht`
+}
+
 /** Lage eines Streifens von Hand (LV95) und Masse für den Plan (rechner/vermassung.ts), Vermassung ab Fixpunkt */
 function LageTabelle({ s, fixpunkte, namen, plan = false }: { s: StreifenErgebnis; fixpunkte: Fixpunkt[]; namen: ZufahrtNamen | undefined
   plan?: boolean }) {
@@ -455,15 +607,18 @@ function LageTabelle({ s, fixpunkte, namen, plan = false }: { s: StreifenErgebni
   )
 }
 
-function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende }: { s: StreifenErgebnis; fall: Fall; ausserhalb: Ausserhalb | null
+function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende, profile }: { s: StreifenErgebnis; fall: Fall; ausserhalb: Ausserhalb | null
   namen: ZufahrtNamen | undefined; alle: StreifenErgebnis[]; alleNamen: Map<string, ZufahrtNamen>
-  gelaende: Readonly<Record<string, GelaendeStand>> | null }) {
+  gelaende: Readonly<Record<string, GelaendeStand>> | null
+  profile: readonly EbenenObjekt[]   // Geländeprofile der Sichtlinien (gelaendeKarte.gelaendeProfile), im Bericht nur die massgebenden
+}) {
+  const profilBilder = s.status === 'kein_fgs' || s.trottoirueberfahrt ? [] : nachNr(s.zufahrten, namen).flatMap(z => profilWahlBericht(profile, z, gelaende))
   return (
     <section className="bericht-block">
       <h3>{streifenKopf(streifenTitel(s.fgsId, fall.streifenHand, streifenArt(s)), s.strasse)}{s.trottoirueberfahrt ? '' : `: ${streifenStatus(s)}`}
         {s.querung ? (s.querung.typ === 'begegnungszone' ? ' (Querung in der Begegnungszone)' : ' (Querung ohne Vortritt)') : ''}</h3>
       <p className="klein">{s.trottoirueberfahrt ? `Achse der Überfahrt ${f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m`
-        : `Länge ${f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m, Breite ${f1(s.bw)} m`} · Zuordnung OSM: {s.netzQuelle} ·
+        : `${s.querung ? 'Länge' : 'Markierte Länge'} ${f1(Math.hypot(s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]))} m${s.randQuelle === 'AV' ? `, Bordkante bis Bordkante ${f1(Math.hypot(s.rand[1][0] - s.rand[0][0], s.rand[1][1] - s.rand[0][1]))} m` : ''}, Breite ${f1(s.bw)} m`} · Zuordnung OSM: {netzQuelleText(s.netzQuelle)} ·
         Bordkanten: {s.randQuelle === 'AV' ? 'AV' : 'angenommen'} · Lichtsignal: {s.lsa === 'ja' ? `ja (${s.lsaQuelle ?? 'OSM'})` : 'nein'}</p>
       {ausserhalb && <p className="klein"><b>Ausserhalb der geladenen Daten:</b> {ausserhalbText(ausserhalb)}</p>}
       {s.keinFgsHinweis && <p className="klein"><b>Kein Fussgängerstreifen: Prüfung sinngemäss nach den FGS-Regeln, ohne Normbezug.</b></p>}
@@ -489,20 +644,26 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
                 <td>{z.tempo} km/h<div className="klein">({z.tempoQuelle === 'Ersatz' ? 'Annahme, ohne Angabe' : z.tempoQuelle === 'Geoportal' ? 'Geoportal Stadt Bern' : tempoHerkunft(z.tempoQuelle)})</div></td>
                 <td>{mText(z.sichtweite)} m<div className="klein">({sichtQuelleKurz(z.sichtweiteQuelle)}{z.kurvenradiusM != null ? `, Kurvenradius ${f1(z.kurvenradiusM)} m` : ''})</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
-                <td><b>Wartefläche: {statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}
+                <td><b className="status-farbe" style={{ color: statusFarbe(z.status) }}>Wartefläche: {statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}
                   {z.sichtGelaende && <div className="klein">{sichtGelaendeText(z.sichtGelaende)}</div>}
                   {z.erkennungM && (() => {
                     const a = erkennungAnzeige(z, gelaende)!.e
                     return <><div className="klein">{erkennungText(a)}; {gelaendeText(a)}</div>
-                      {erkennungEmpfehlungText(a, z.sichtweite) && <div className="klein"><strong>{erkennungEmpfehlungText(a, z.sichtweite)}</strong></div>}</>
+                      {erkennungEmpfehlungText(a, z.sichtweite) && <div className="klein"><strong className="status-farbe" style={{ color: STATUS_FARBE.verdeckt }}>{erkennungEmpfehlungText(a, z.sichtweite)}</strong></div>}</>
                   })()}</td>
-                <td className="klein">{hindernisseText(z)}</td>
+                <td className="klein">{hindernisseText(z)}{erkennungHindernisText(z, gelaende) && <div>{erkennungHindernisText(z, gelaende)}</div>}</td>
               </tr>
             ))}
             {!s.zufahrten.length && <tr><td colSpan={6} className="klein">keine Zufahrt</td></tr>}
           </tbody>
         </table>
       )}
+      {profilBilder.length > 0 && <>
+        <h4>{profilBilder.length === 1 ? 'Geländeprofil der Sichtlinie, an der das Geländemodell die Sicht verdeckt' : 'Geländeprofile der Sichtlinien, an denen das Geländemodell die Sicht verdeckt'}</h4>
+        <p className="klein">Gezeigt wird nur, wo das Geländemodell zu «nicht erfüllt» führt: die Wartefläche ist verdeckt bzw. die
+          Erkennungsdistanz erreicht das Soll nicht. Alle geprüften Sichtlinien zeigt die App unter «Geländeprofile ansehen».</p>
+        {profilBilder.map(p => <ProfilBericht key={p.id} p={p} />)}
+      </>}
       {s.entfallen.length > 0 && (
         <p className="klein">{ENTFALLEN_TITEL}: {s.entfallen.map(e => {
           const g = entfallenGrund(e, s, alle, fid => titelImFall(fid, fall, alle), (fid, z) => zufahrtLang(alleNamen.get(fid), z))
@@ -514,16 +675,18 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
   )
 }
 
-export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjahr, luftbildStand, zusatzQuellen, ausserhalb = [], aendern,
-  schliessen, namen = new Map(), blaetter = [], quellenIds = [], datenlage = null, quellenQualitaet = {}, gelaende = null, neigung = null }: {
+export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, zusatzQuellen, ausserhalb = [], aendern,
+  schliessen, namen = new Map(), blaetter = [], quellenIds = [], datenlage = null, quellenQualitaet = {}, gelaende = null, neigung = null, bruecke = null }: {
   neigung?: Readonly<Record<string, NeigungMessung>> | null
+  /** Brückenumriss der AV (rechner/bruecke.ts): Geländeprofile, die eine Brücke berühren, gelten als unsicher */
+  bruecke?: { enthaelt(p: P): boolean } | null
   /** Geländeprüfung der Erkennungsdistanz je erkennungGelaende.gelaendeSchluessel */
   gelaende?: Readonly<Record<string, GelaendeStand>> | null
   /** genutzte Quellen (Kennungen im Quellenregister) und Datenlage am Ort für die Tabelle unter «Quellen» */
   quellenIds?: readonly string[]; datenlage?: Datenlage | null; quellenQualitaet?: Readonly<Record<string, QuellenQualitaet>>
   namen?: Namen                  // Zufahrten nach Strasse und Herkunft (benennung.ts), je Streifen
   blaetter?: BefundBlatt[]       // Bedarfsmodul: Befundblatt je Querung (gezeigt, sobald eine Beurteilung vorliegt)
-  fall: Fall; rechnung: FallRechnung; rechnungZeit: Date | null; kantone: string[]; flugjahr: string; luftbildStand: LuftbildStand
+  fall: Fall; rechnung: FallRechnung; rechnungZeit: Date | null; luftbildStand: LuftbildStand
   zusatzQuellen: string[]
   ausserhalb?: Ausserhalb[]      // Streifen von Hand ausserhalb der geladenen Daten (abdeckung.ts)
   aendern: (f: (x: Fall) => Fall) => void; schliessen: () => void
@@ -541,6 +704,15 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
   // der Bedarfsteil steht im Bericht, sobald eine Beurteilung vorliegt (die Vorbelegung genügt)
   const mitBedarf = blaetter.length > 0
   const hinweise = hinweisListe(rechnung, fall, luftbildStand, ausserhalb, namen)
+  // Ergebnis auf Seite 1: neben dem Status die verfehlte Erkennungsdistanz je Zufahrt und die Aussage zum Bedarf
+  const erkennungBefunde = (s: StreifenErgebnis): string[] => nachNr(s.zufahrten, namen.get(s.fgsId)).flatMap(z => {
+    const t = z.erkennungM ? erkennungEmpfehlungText(erkennungAnzeige(z, gelaende)!.e, z.sichtweite) : ''
+    return t ? [`${zufahrtText(namen.get(s.fgsId), z.zufahrt)}: ${t}`] : []
+  })
+  const bedarfZeilen = blaetter.map(b => `Bedarf${blaetter.length > 1 ? `, ${querungTitel(b)}` : ''}: ${bedarfKurz(b)}`)
+  // Geländeprofile der geprüften Sichtlinien (wie in der App, aus dem Abrufcache; keine neue Höhenabfrage)
+  const profile = useMemo(() => gelaendeProfile(rechnung.streifen, gelaende, undefined, z => zufahrtText(namen.get(z.fgsId), z.zufahrt), bruecke),
+    [rechnung, gelaende, namen, bruecke])
   // Bezeichnung: lokal tippen, erst beim Verlassen des Felds (bzw. Enter, Escape) in den Fall übernehmen – sonst lösten
   // jeder Tastendruck eine neue Rechnung und das Speichern im Browser aus. Der Bericht zeigt den lokalen Wert sofort.
   const [bez, setBez] = useState(fall.ort.bezeichnung ?? '')
@@ -613,50 +785,55 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
               ? 'bestehende Querung, Lage von Hand angepasst' : 'Eingabe von Hand') : rechnung.streifenQuelle === 'luftbild' ? 'Luftbild (erkannt, prüfen)' : fall.ort.amtlich ? 'amtlicher Suchpunkt, Strassennetz und AV (Geometrie prüfen)' : 'OSM und AV'}</td></tr>
             {(fall.flaechenPlan?.length ?? 0) > 0 && <tr><td>Bodenbedeckung</td><td>Rechnung mit geplanter Bodenbedeckung (von Hand):
               AV mit {fall.flaechenPlan!.length} Fläche(n) (Plan), siehe «Eingaben von Hand»</td></tr>}
-            <tr><td>Daten geladen</td><td>{fall.quellen.geladen ?? '–'}; Rechnung {rechnungZeit ? `${datum(rechnungZeit)} ${zeit(rechnungZeit)}` : '–'}</td></tr>
+            <tr><td>Daten geladen</td><td>{datumText(fall.quellen.geladen ?? '–')}; Rechnung {rechnungZeit ? `${datum(rechnungZeit)} ${zeit(rechnungZeit)}` : '–'}</td></tr>
           </tbody></table>
         </section>
 
-        {rechnung.streifen.length > 0 && <BerichtKarte neigung={neigung} r={rechnung} ort={ort} onBereit={setBild} fixpunkte={fall.fixpunkte ?? []}
-          namen={namen} hand={fall.streifenHand} plan={fall.flaechenPlan ?? []}
-          hindernisse={[...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)]} />}
-
-        </td></tr>
-        <tr className={rechnung.streifen.length > 0 ? 'bericht-neue-seite' : undefined}><td>
-        {/* Seite 1: Ort und Kartenbild; das Ergebnis beginnt im Druck oben auf Seite 2 (ohne Kartenbild ohne Umbruch). Liegt eine
-            Beurteilung zu Bedarf und Querungstyp vor (auch nur aus der Vorbelegung), steht sie davor (Skizze: oberhalb des Sichtbefunds) */}
-        {mitBedarf && <section className="bericht-block">
-          <h2>Bedarf und Querungstyp</h2>
-          {blaetter.map(b => <ZusammenfassungAnzeige key={`zf-${b.gruppe}`} b={b} druck titel={blaetter.length > 1 ? querungTitel(b) : undefined} />)}
-          <p className="klein">Zuerst fünf Grundfragen der bfu, dann alle Einzelprüfungen nach Normen und Berner Standards. «Muss» und
-            «Soll» stehen so in der Quelle; als Gesetz verbindlich ist nur, was mit «Recht» bezeichnet ist. «Offen» heisst: eine Angabe
-            fehlt, es zählt nie als erfüllt. Die Sicht stammt aus dem Sichtrechner (Abschnitt Ergebnis).</p>
-          {blaetter.map(b => <GrundpruefungAnzeige key={`grund-${b.gruppe}`} g={b.grund} titel={blaetter.length > 1 ? b.titel : undefined} druck
-            feldHinweise={b.vorbelegt.feldHinweise} ohneAnnahme={a => annahmeInTabelle(blaetter[0], a)} />)}
-          {blaetter.map(b => <BefundblattAnzeige key={b.gruppe} b={b} mehrere={blaetter.length > 1} druck />)}
-          <h3>Eingaben und Quellen{blaetter.length > 1 ? ` (vorbelegt nach ${blaetter[0].titel})` : ''}</h3>
-          {/* Tabelle Feld · Wert · Quelle · Annahme; eine Begründung nur bei Annahmen */}
-          <table className="bericht-tabelle klein"><thead><tr><th>Angabe</th><th>Wert</th><th>Quelle</th><th>Annahme</th></tr></thead>
-            <tbody>{eingabenTabelle(blaetter[0]).map(z => <tr key={z.feld}><td>{z.feld}</td><td>{z.wert}</td><td>{z.quelle}</td>
-              <td>{z.annahme ? <>ja{z.grund ? `: ${z.grund}` : ''}</> : 'nein'}</td></tr>)}</tbody></table>
-          <VerzeichnisBericht blaetter={blaetter} />
-        </section>}
         <section className="bericht-block">
           <h2>Ergebnis</h2>
           {rechnung.hinweis && <p><b>{rechnung.hinweis}</b></p>}
           {!rechnung.streifen.length && <p>Kein Streifen gebildet. {rechnung.meldungen.join(' ')}</p>}
           <ul className="bericht-status">
             {rechnung.streifen.map(s => <li key={s.fgsId}>{streifenTitel(s.fgsId, fall.streifenHand, streifenArt(s))}{s.strasse ? ` (${s.strasse})` : ''}{s.querung ?
-              (s.querung.typ === 'begegnungszone' ? ' – Querung in der Begegnungszone' : ' – Querung ohne Vortritt') : ''}: <b>{streifenStatus(s)}</b>
+              (s.querung.typ === 'begegnungszone' ? ' – Querung in der Begegnungszone' : ' – Querung ohne Vortritt') : ''}: <b className="status-farbe" style={{ color: statusFarbe(s.status) }}>{streifenStatus(s)}</b>
               {' '}– {s.trottoirueberfahrt ? 'Knotensicht mit dem SichtweitenCheck prüfen, Sicht auf die Wartefläche nicht geprüft'
                 : s.status === 'kein_fgs' ? 'von Hand als kein Fussgängerstreifen bezeichnet, Zufahrten nicht ausgewiesen'
                 : `${s.zufahrten.length} Zufahrt(en) geprüft, davon ${s.zufahrten.filter(z => z.status === 'frei').length} frei` +
                   (s.zufahrten.some(z => z.deckung) ? `; ${s.zufahrten.filter(z => z.deckung).length} durch die gerade Zufahrt ` +
-                    'mitgeprüfte Abbiegezufahrt(en) mitgezählt' : '')}</li>)}
+                    'mitgeprüfte Abbiegezufahrt(en) mitgezählt' : '')}
+              {erkennungBefunde(s).map(t => <div key={t} className="status-farbe" style={{ color: STATUS_FARBE.verdeckt }}>{t}</div>)}</li>)}
+            {bedarfZeilen.map(t => <li key={t}>{t}</li>)}
           </ul>
         </section>
-        {rechnung.streifen.map(s => <StreifenTabelle key={s.fgsId} s={s} fall={fall} gelaende={gelaende} ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null}
+        {rechnung.streifen.length > 0 && <BerichtKarte neigung={neigung} gelaende={gelaende} r={rechnung} ort={ort} onBereit={setBild} fixpunkte={fall.fixpunkte ?? []}
+          namen={namen} hand={fall.streifenHand} plan={fall.flaechenPlan ?? []} zusatzMm={ergebnisZusatzMm([...rechnung.streifen.flatMap(erkennungBefunde), ...bedarfZeilen])}
+          hindernisse={[...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)]} />}
+
+        </td></tr>
+        <tr className={rechnung.streifen.length > 0 ? 'bericht-neue-seite' : undefined}><td>
+        {/* Seite 1: Ort, Ergebnis und Kartenbild. Ab Seite 2 die Sichtprüfung je Streifen und Zufahrt mit den Geländeprofilen, danach
+            Bedarf und Querungstyp, Eingaben, Hinweise und Quellen (Umbau 06.11.2026: die Ergebnisse stehen vorne, keine Begriffsliste) */}
+        <section className="bericht-block">
+          <h2>Sichtprüfung je Streifen und Zufahrt</h2>
+          <p className="klein">Je Zufahrt die nötige und die vorhandene Sicht auf die Wartefläche, die Hindernisse im Sichtfeld und die
+            Erkennungsdistanz der Bodenmarkierung; Sichtfelder und Fahrlinien zeigt das Kartenbild auf Seite 1.</p>
+        </section>
+        {rechnung.streifen.map(s => <StreifenTabelle key={s.fgsId} s={s} fall={fall} gelaende={gelaende} profile={profile} ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null}
           namen={namen.get(s.fgsId)} alle={rechnung.streifen} alleNamen={namen} />)}
+        {hinweise.length > 0 && <section className="bericht-block">
+          <h3>Hinweise zur Sichtprüfung</h3>
+          <ul className="klein">{hinweise.map((x, i) => <li key={i}>{x}</li>)}</ul>
+        </section>}
+        {mitBedarf && <section className="bericht-block">
+          <h2>Bedarf und Querungstyp</h2>
+          {blaetter.map(b => <ZusammenfassungAnzeige key={`zf-${b.gruppe}`} b={b} druck titel={blaetter.length > 1 ? querungTitel(b) : undefined} />)}
+          <p className="klein">Zuerst fünf Grundfragen der bfu, dann alle Einzelprüfungen nach Normen und Berner Standards. «Muss» und
+            «Soll» stehen so in der Quelle; als Gesetz verbindlich ist nur, was mit «Recht» bezeichnet ist. «Offen» heisst: eine Angabe
+            fehlt, es zählt nie als erfüllt. Die Sicht stammt aus der Sichtprüfung (Abschnitte «Ergebnis» und «Sichtprüfung je Streifen und Zufahrt»).</p>
+          {blaetter.map(b => <GrundpruefungAnzeige key={`grund-${b.gruppe}`} g={b.grund} titel={blaetter.length > 1 ? b.titel : undefined} druck
+            feldHinweise={b.vorbelegt.feldHinweise} ohneAnnahme={a => annahmeInTabelle(blaetter[0], a)} />)}
+          {blaetter.map(b => <BefundblattAnzeige key={b.gruppe} b={b} mehrere={blaetter.length > 1} druck />)}
+        </section>}
 
         <section className="bericht-block">
           <h2>Eingaben von Hand</h2>
@@ -666,27 +843,11 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
             wiederherstellen.</p>
         </section>
 
-        {hinweise.length > 0 && (
-          <section className="bericht-block">
-            <h2>Annahmen und Hinweise</h2>
-            <ul className="klein">{hinweise.map((x, i) => <li key={i}>{x}</li>)}</ul>
-          </section>
-        )}
-
         <section className="bericht-block">
           <h2>Quellen</h2>
           <BerichtQuellenTabelle ids={quellenIds} lage={datenlage} qualitaet={quellenQualitaet} />
-          <ul className="klein">
-            <li>Luftbild: {LUFTBILD_QUELLE}{flugjahr ? `, Flugjahr ${flugjahr}` : ''} (wms.geo.admin.ch; Karte: WMTS geo.admin.ch)</li>
-            <li>Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '–'}, über geodienste.ch
-              {fall.quellen.av ? ` (${fall.quellen.av})` : ''}</li>
-            <li>Strassennetz und Übergänge: © OpenStreetMap-Mitwirkende, ODbL{fall.quellen.osm ? ` (Overpass, ${fall.quellen.osm})` : ''}</li>
-            {zusatzQuellen.map(q => <li key={q}>{q}</li>)}
-          </ul>
-        </section>
-
-        <section className="bericht-block">
-          <h2>Normbezüge</h2>
+          {zusatzQuellen.length > 0 && <ul className="klein">{zusatzQuellen.map(q => <li key={q}>{datumText(q)}</li>)}</ul>}
+          <h3>Werke der Sichtprüfung</h3>
           <ul className="klein">
             <li>Sichtweiten: {LESENAME['40241']}, Tabelle 1 ({TAB1_TEXT}).</li>
             <li>Im Knoten nach Kurvenradius: {LESENAME.BFU} bzw. {LESENAME['40241']}, Tabelle 2 ({KURVE_SICHTWEITE.map(([r, sw]) => `bis ${r} m: ${sw} m`).join(', ')}).</li>
@@ -698,12 +859,21 @@ export default function Bericht({ fall, rechnung, rechnungZeit, kantone, flugjah
             {mitBedarf && <li>Bedarf und Querungstyp: Regelkatalog des Bedarfsmoduls (Ziffer und Ausgabe je Befund); Grundprüfung nach
               bfu-Fachdokumentation «Fussgängerstreifen» (MS.013-2025, Bestellnummer 2.457), Ziffer 2.1 bis 2.3.</li>}
           </ul>
+          {mitBedarf && <VerzeichnisBericht blaetter={blaetter} />}
         </section>
+
+        {mitBedarf && <section className="bericht-block">
+          <h2>Anhang: Eingaben und Quellen{blaetter.length > 1 ? ` (vorbelegt nach ${blaetter[0].titel})` : ''}</h2>
+          {/* Tabelle Feld · Wert · Quelle · Annahme; eine Begründung nur bei Annahmen */}
+          <table className="bericht-tabelle klein"><thead><tr><th>Angabe</th><th>Wert</th><th>Quelle</th><th>Annahme</th></tr></thead>
+            <tbody>{eingabenTabelle(blaetter[0]).map(z => <tr key={z.feld}><td>{z.feld}</td><td>{z.wert}</td><td>{z.quelle}</td>
+              <td>{z.annahme ? <>ja{z.grund ? `: ${z.grund}` : ''}</> : 'nein'}</td></tr>)}</tbody></table>
+        </section>}
 
         <footer className="bericht-fuss">
           <p><b>Die App ersetzt keine Beurteilung vor Ort.</b> Daten aus offenen Quellen können veraltet oder unvollständig sein (z. B.
             Parkierung, Hecken, Mauerhöhen, Signalisation).</p>
-          <p>fgsCheck v{__APP_VERSION__} (Stand {__BUILD_DATUM__}) · {APP_URL} · Code unter MIT, eigene Inhalte unter CC BY 4.0 · eingebundene
+          <p>fgsCheck v{__APP_VERSION__} (Stand {datumText(__BUILD_DATUM__)}) · {APP_URL} · Code unter MIT, eigene Inhalte unter CC BY 4.0 · eingebundene
             Daten unter ihren eigenen Lizenzen (siehe Quellen).</p>
         </footer>
         </td></tr></tbody>

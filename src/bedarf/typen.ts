@@ -130,8 +130,9 @@ export interface MassZeile {
   ist: string
   /** nicht_anwendbar: Wert ohne Soll, die Regel greift nicht (Abstand bei ganzer Strasse); nie «erfüllt» ohne Soll.
    * Ausnahme = unter dem Soll, die Regel lässt es hier zu (Text in ausnahme); annahme = erfüllt nur nach einer Annahme;
-   * vorbehalt = erfüllt unter Vorbehalt einer offenen Frage (vorbehalt: Text) */
-  zustand: 'erfuellt' | 'verletzt' | 'offen' | 'nicht_anwendbar' | 'ausnahme' | 'annahme' | 'vorbehalt'
+   * vorbehalt = erfüllt unter Vorbehalt einer offenen Frage (vorbehalt: Text); hinweis = Wert unter dem Soll einer Regel, die nur Hinweis
+   * ist (kein Befund, z. B. Rückversatz G6) */
+  zustand: 'erfuellt' | 'verletzt' | 'hinweis' | 'offen' | 'nicht_anwendbar' | 'ausnahme' | 'annahme' | 'vorbehalt'
   /** Text zu ausnahme bzw. vorbehalt */
   zusatz?: string
   regeln: string[]

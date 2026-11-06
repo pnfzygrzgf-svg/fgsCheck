@@ -10,8 +10,8 @@ import { npvmBelegLesen } from '../daten/anbieter/npvmSpeicher'
 // Ein Feld ohne Wert ist «offen».
 // Eine Handeingabe kann ein Feld auch bewusst offen setzen ({ wert: null, quelle: 'hand' }): die
 // Vorbelegung gilt dann nicht. Ältere Apps übergehen solche Einträge still (wie bisher jeden Eintrag ohne Wert), darum bleibt die
-// Fall-Version. Zustand «rechner»: das Feld hat keinen Wert, der Sichtrechner rechnet es aber je Zufahrt (Sichtweite, Kurvenradius);
-// es zählt nicht als offen, die Maske zeigt das Ergebnis des Sichtrechners.
+// Fall-Version. Zustand «rechner»: das Feld hat keinen Wert, die Sichtprüfung rechnet es aber je Zufahrt (Sichtweite, Kurvenradius);
+// es zählt nicht als offen, die Maske zeigt das Ergebnis der Sichtprüfung.
 
 import { FELD_DEF, OBJEKTE, feldName, istObjektFeld, unterfelder, wertGueltig, bereichText, type ObjektFeld } from './felder'
 import { FELDNAMEN, KURVE_BEDINGUNGEN, QUELLEN_ANNAHME, leereEingaben, type BedarfEingaben, type Feld, type FeldName, type Quelle } from './eingaben'
@@ -55,7 +55,7 @@ export const HAND_QUELLEN: readonly Quelle[] = ['hand', 'bestaetigt', 'schaetzun
 export const QUELLE_TEXT: Record<Quelle, string> = {
   av: 'AV', osm: 'OSM', geoportal: 'Geoportal Stadt Bern', amtlich: 'amtliche Quelle', luftbild: 'Luftbild', hand: 'von Hand', bestaetigt: 'bestätigt', annahme: 'Annahme',
   schaetzung: 'Schätzung',
-  rechnung: 'Sichtrechner', vorschlag: 'Vorschlag',
+  rechnung: 'Rechnung', vorschlag: 'Vorschlag',
 }
 
 const istObjekt = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
@@ -160,7 +160,9 @@ export interface VorWert { datenstand?: string; wert: unknown; quelle: Quelle; t
   /** Neue Quellenableitung: wird erst nach ausdrücklicher Übernahme zur Eingabe der Regeln. */
   bestaetigungNoetig?: true
   /** Wert ist die Länge der ganzen Strasse (abstandFgsM, abstandLsaM; eingaben.Feld.ganzeStrasse) */
-  ganzeStrasse?: true }
+  ganzeStrasse?: true
+  /** Wert aus der Rechnung der geraden Zufahrten (erkennungM; eingaben.Feld.geradeZufahrt) */
+  geradeZufahrt?: true }
 export type Vorbelegung = Record<string, VorWert>
 
 /** Herkunft eines Pfads für die Anzeige: von Hand (überschreibt) bzw. vorbelegt bzw. offen */
@@ -193,13 +195,13 @@ export function eingabenBilden(vor: Vorbelegung, block: BedarfBlock | null | und
   const herkunft = new Map<string, Herkunft>()
   const hinweise: string[] = []
   const hand = block?.felder ?? {}
-  const wert = (pfad: string): { wert: unknown; quelle: Quelle; hand: boolean; ganzeStrasse?: true } | null => {
+  const wert = (pfad: string): { wert: unknown; quelle: Quelle; hand: boolean; ganzeStrasse?: true; geradeZufahrt?: true } | null => {
     const hf = hand[pfad]
     if (hf && hf.wert !== null && hf.wert !== undefined) return { wert: hf.wert, quelle: hf.quelle, hand: true }
     if (hf) return null                                   // bewusst offen von Hand: keine Vorbelegung
     const v = vor[pfad]
     if (v?.bestaetigungNoetig) return null
-    if (v && v.wert !== null && v.wert !== undefined) return { wert: v.wert, quelle: v.quelle, hand: false, ...(v.ganzeStrasse ? { ganzeStrasse: true as const } : {}) }
+    if (v && v.wert !== null && v.wert !== undefined) return { wert: v.wert, quelle: v.quelle, hand: false, ...(v.ganzeStrasse ? { ganzeStrasse: true as const } : {}), ...(v.geradeZufahrt ? { geradeZufahrt: true as const } : {}) }
     return null
   }
   for (const [pfad] of FELD_DEF) {
@@ -213,7 +215,7 @@ export function eingabenBilden(vor: Vorbelegung, block: BedarfBlock | null | und
     if (f === 'fgQuelle') continue
     if (!istObjektFeld(f)) {
       const x = wert(f)
-      if (x) e[f] = { wert: structuredClone(x.wert), quelle: x.quelle, ...(x.ganzeStrasse ? { ganzeStrasse: true as const } : {}) }
+      if (x) e[f] = { wert: structuredClone(x.wert), quelle: x.quelle, ...(x.ganzeStrasse ? { ganzeStrasse: true as const } : {}), ...(x.geradeZufahrt ? { geradeZufahrt: true as const } : {}) }
       continue
     }
     const us = unterfelder(f)

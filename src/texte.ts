@@ -123,7 +123,7 @@ export const streifenStatus = (s: Pick<StreifenErgebnis, 'status' | 'trottoirueb
 export const TUE_OPTION = 'Trottoirüberfahrt (über eine Einmündung)'
 export const TUE_NUR_EINMUENDUNG = 'nur an Einmündungen'
 
-// Erkennungsdistanz (Sichtrechner, 23.10.2026): Texte für Sicht-Reiter, Bericht und Vorbelegung
+// Erkennungsdistanz (Sichtprüfung, 23.10.2026): Texte für Sicht-Reiter, Bericht und Vorbelegung
 const ENDE_TEXT: Record<string, string> = { knoten: 'Fahrlinie endet am Knoten, weiter zurück nicht geprüft',
   wegende: 'Fahrlinie endet am Wegende, weiter zurück nicht geprüft', kreisel: 'Fahrlinie endet im Kreisel, weiter zurück nicht geprüft',
   gebaeude: 'weiter zurück nicht prüfbar' }
@@ -162,7 +162,7 @@ export function erkennungEmpfehlungText(e: Erkennung, sichtweite: number): strin
   return `${kopf} – ${befund}. Mindestdistanz ${mText(sichtweite)} m ${min}.`
 }
 /** Tooltip zur Erkennungsdistanz */
-export const ERKENNUNG_TITEL = 'Erkennungsdistanz aus dem Sichtrechner: Sicht von der Fahrlinie auf die Markierung im eigenen Fahrstreifen, ' +
+export const ERKENNUNG_TITEL = 'Erkennungsdistanz aus der Sichtprüfung: Sicht von der Fahrlinie auf die Markierung im eigenen Fahrstreifen, ' +
   'geprüft bis 110 m. Hindernisse: Gebäude, Hecken, Mauern, Bäume und Auto-Parkfelder; über Bewuchs der AV (Wald, bestockte Fläche, ' +
   'Gartenanlage) nicht sicher frei. Gelände (Kuppen, Senken, Böschungen): danach ' +
   'entlang einzelner Sichtlinien (alle 10 m) aus dem Höhenmodell (swissALTI3D, in der Stadt Bern DTM 2023), Auge 1,0 m über dem Boden (VSS 40 241 Ziffer 14, S. 6); ohne Antwort 2D («Gelände ' +

@@ -74,9 +74,9 @@ describe('Paket A: Wert im Feld, Handangabe «offen», Zustand «rechner» (Mode
       .toEqual({ vSig: { wert: 30, quelle: 'hand' } })
     expect(bedarfLesen({ felder: { dtv: { wert: null, quelle: 'hand' } } })).toEqual([{ felder: { dtv: { wert: null, quelle: 'hand' } } }, []])
   })
-  it('Zustand «rechner»: zählt nicht als offen, Text des Sichtrechners; Handeingabe geht vor', () => {
-    const g = eingabenBilden({}, null, { sichtVorh: 'Sichtrechner: Ost: frei bis 55 m' })
-    expect(g.herkunft.get('sichtVorh')).toEqual({ zustand: 'rechner', quelle: 'rechnung', text: 'Sichtrechner: Ost: frei bis 55 m' })
+  it('Zustand «rechner»: zählt nicht als offen, Text der Sichtprüfung; Handeingabe geht vor', () => {
+    const g = eingabenBilden({}, null, { sichtVorh: 'Sichtprüfung: Ost: frei bis 55 m' })
+    expect(g.herkunft.get('sichtVorh')).toEqual({ zustand: 'rechner', quelle: 'rechnung', text: 'Sichtprüfung: Ost: frei bis 55 m' })
     expect(g.eingaben.sichtVorh.wert).toBeNull()
     const h = eingabenBilden({}, { felder: { sichtVorh: { wert: [40], quelle: 'hand' } } }, { sichtVorh: 'x' })
     expect(h.herkunft.get('sichtVorh')!.zustand).toBe('hand')
@@ -108,9 +108,9 @@ describe('Paket A: Anzeige (renderToStaticMarkup)', () => {
     expect(html).toContain('quelle-chip q-annahme')
     expect(html).toContain('offen (Vorbelegung verwerfen)')
   })
-  it('Sichtweite im Zustand «rechner»: Ergebnis des Sichtrechners je Zufahrt, darunter «von Hand überschreiben»', () => {
+  it('Sichtweite im Zustand «rechner»: Ergebnis der Sichtprüfung je Zufahrt, darunter «von Hand überschreiben»', () => {
     // Herleitung in Worten statt Rohfundstelle (Nachprüfung 23.10.2026)
-    expect(html).toMatch(/class="klein rechner-anzeige">Sichtrechner: [^<]*frei bis 55 m, Soll 55 m \(nach Tempo\)/)
+    expect(html).toMatch(/class="klein rechner-anzeige">Sichtprüfung: [^<]*frei bis 55 m, Soll 55 m \(nach Tempo\)/)
     expect(html).toContain('placeholder="von Hand überschreiben"')
     expect(b.gebildet.herkunft.get('sichtVorh')!.zustand).toBe('rechner')
   })
@@ -159,7 +159,7 @@ describe('Paket A: Tempo-Regime, innerorts (A3)', () => {
     }
     expect(regime('40')).toMatchObject({ wert: 'strecke', quelle: 'osm' })
     expect(regime('30')).toBeUndefined()
-    // ohne OSM-Tags ist das Rohtempo unbekannt (der Sichtrechner rundet 5 bzw. 10 km/h auf die Stufe 20): kein Vorschlag
+    // ohne OSM-Tags ist das Rohtempo unbekannt (die Sichtprüfung rundet 5 bzw. 10 km/h auf die Stufe 20): kein Vorschlag
     expect(regime('20')).toBeUndefined()
   })
 })
@@ -452,7 +452,7 @@ describe('Paket B: Tram, Strassentyp, Übergangs-Tags, Einfahrt (B5, B6, B8)', (
   })
 })
 
-describe('Paket B: Sichtrechner frei bis, Kurvenradius, H4, Grundprüfung (B7, A7; Halteverbotslinie A9 gestrichen 30.10.2026)', () => {
+describe('Paket B: Sichtprüfung frei bis, Kurvenradius, H4, Grundprüfung (B7, A7; Halteverbotslinie A9 gestrichen 30.10.2026)', () => {
   const park = (x: Fall) => x.hindernisse.push({ id: 'p1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-12, 2, -7, 4), quelle: 'hand' })
   const fp = fallMit(park)
   const rp = rechneFall(OSM, AV, [], 12, fp, null)
@@ -474,7 +474,7 @@ describe('Paket B: Sichtrechner frei bis, Kurvenradius, H4, Grundprüfung (B7, A
     expect(b.vorbelegt.werte.parkierungSichtbehindernd).toMatchObject({ wert: true, quelle: 'rechnung' })
     expect(b.vorbelegt.rechner!.sichtVorh).toMatch(/verdeckt, Parkfeld \d+(,\d)? m vor dem Streifen, frei bis \d+ m, Soll 55 m/)
   })
-  it('Kurvenradius: ohne Abbieger Zustand «rechner»; H4 mit dem Radius des Sichtrechners nicht, mit Radius von Hand wie bisher', () => {
+  it('Kurvenradius: ohne Abbieger Zustand «rechner»; H4 mit dem Radius der Sichtprüfung nicht, mit Radius von Hand wie bisher', () => {
     const b0 = befundblaetter(r0, fallMit(), OHNE)[0]
     expect(b0.gebildet.herkunft.get('kurve.radius')!.zustand).toBe('rechner')
     const st = mitZufahrten(() => ({ kurvenradiusM: 8.5, radiusQuelle: 'AV-Bordkante r + Abstand', art: 'abbiegend', strasse: 'Querweg' }))

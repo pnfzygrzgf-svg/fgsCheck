@@ -1,6 +1,6 @@
 // Tests Grundprüfung nach bfu MS.013-2025 (Big Five, Katalog Gruppe B5): Schwellen jeder Regel an beiden Seiten, Aufrunden der
 // Tempo- und Radiusstufen, Knoten nach Tab. 1, Busstreifen, offene Fälle, Querungstypen ohne Grundprüfung, Sicht aus dem
-// Sichtrechner je Zufahrt. Grundfall S0 (testfaelle.ts): FGS innerorts, 50 km/h, V85 48, Sicht 70 m, ohne Insel auf 7,00 m.
+// Sichtprüfung je Zufahrt. Grundfall S0 (testfaelle.ts): FGS innerorts, 50 km/h, V85 48, Sicht 70 m, ohne Insel auf 7,00 m.
 import { describe, expect, it } from 'vitest'
 import { GRUND_IDS, NUR_FGS_TEXT, grundpruefung, sollKnoten, sollTempo, type GrundOptionen, type GrundSicht, type GrundTeil,
   type Grundpruefung } from './grundpruefung'
@@ -9,6 +9,7 @@ import { KATALOG, type GrundId } from './katalog'
 import { fall, INSEL_OK, type Abw } from './testfaelle'
 import { KURVE_SICHTWEITE, SICHTWEITE } from '../rechner/tempo'
 import { GRUND_FELDER, feldVon } from './felder'
+import { eingabenBilden } from './fallBedarf'
 
 /** gesehene Regeln mit Befund (verletzt bzw. Hinweis) für die Abdeckung */
 const gesehen = new Set<string>()
@@ -87,6 +88,21 @@ describe('Tempo (Vorbedingung, B5-T)', () => {
 })
 
 describe('① Sichtverhältnisse (B5-1, B5-1b)', () => {
+  it('B5-1b im Knoten: von Hand Spanne (Abbiegelinie oder gerade Zufahrt offen), gerechnete Erkennungsdistanz nur das Soll der geraden Zufahrten', () => {
+    const k = { kurve: { radius: 19.1, fuenfBedingungen: false }, v85: null, vSig: 30 }
+    const hand = gp({ ...k, erkennungM: 49 })
+    expect(z(hand, 'B5-1b')).toBe('offen')
+    expect(teil(hand, 'B5-1b')!.soll).toContain('48 bis 50')
+    const gerechnet = (m: number) => { const e = fall({ ...k, erkennungM: m }); e.erkennungM.geradeZufahrt = true; return grundpruefung(e) }
+    expect(z(gerechnet(49), 'B5-1b')).toBe('weich')
+    expect(teil(gerechnet(49), 'B5-1b')!.soll).toBe('≥ 50 m (2 · Sichtweite)')
+    expect(z(gerechnet(50), 'B5-1b')).toBe('erfuellt')
+  })
+  it('Kennzeichen «gerade Zufahrt» kommt aus der Vorbelegung; eine Handeingabe trägt es nicht', () => {
+    const vor = { erkennungM: { wert: 33, quelle: 'annahme' as const, text: 'gerechnet', geradeZufahrt: true as const } }
+    expect(eingabenBilden(vor, null).eingaben.erkennungM.geradeZufahrt).toBe(true)
+    expect(eingabenBilden(vor, { felder: { erkennungM: { wert: 60, quelle: 'hand' } } }).eingaben.erkennungM.geradeZufahrt).toBeUndefined()
+  })
   it('Stufen nach Tempo: Zwischenwerte auf die nächsthöhere Stufe; ausserorts 60 km/h 100 m; über 60 keine Stufe', () => {
     expect([20, 30, 31, 40, 41, 50, 51, 60].map(v => sollTempo(v)!.soll)).toEqual([25, 25, 40, 40, 55, 55, 75, 75])
     expect(sollTempo(61)).toBeNull()
@@ -148,7 +164,7 @@ describe('① Sichtverhältnisse (B5-1, B5-1b)', () => {
     expect(z(gp({ innerorts: null, vSig: 60, v85: 58, erkennungM: 149 }), 'B5-1b')).toBe('weich')
     expect(z(gp({ innerorts: null, vSig: 60, v85: 58, erkennungM: 150 }), 'B5-1b')).toBe('offen')
     expect(z(gp({ innerorts: null, vSig: 60, v85: 58, erkennungM: 200 }), 'B5-1b')).toBe('erfuellt')
-    // Sichtrechner: frei auf 75 m offen (fehlt innerorts), verdeckt auf 75 m verletzt
+    // Sichtprüfung: frei auf 75 m offen (fehlt innerorts), verdeckt auf 75 m verletzt
     const r = (frei: boolean) => gp({ innerorts: null, vSig: 60, v85: 58, sichtVorh: null }, { sicht: [sicht({ tempo: 60, soll: 75, frei, status: frei ? 'frei' : 'verdeckt' })] })
     expect(teil(r(true), 'B5-1')).toMatchObject({ zustand: 'offen', fehlend: ['innerorts'] })
     expect(z(r(false), 'B5-1')).toBe('hart')
@@ -162,7 +178,7 @@ describe('① Sichtverhältnisse (B5-1, B5-1b)', () => {
     expect(teil(gp({ kurve: { radius: 12, fuenfBedingungen: false }, v85: null, vSig: null, sichtVorh: [80] }), 'B5-1')!.soll)
       .toBe('≥ 20 m (gerade Zufahrten offen)')
   })
-  it('Sicht aus dem Sichtrechner je Zufahrt: frei erfüllt, verdeckt hart; Stufe nach V85 nur bei der Tempo-Sichtweite gerader Zufahrten', () => {
+  it('Sicht aus der Sichtprüfung je Zufahrt: frei erfüllt, verdeckt hart; Stufe nach V85 nur bei der Tempo-Sichtweite gerader Zufahrten', () => {
     const r = (abw: Abw, s: GrundSicht[]) => gp({ sichtVorh: null, ...abw }, { sicht: s })
     expect(teil(r({}, [sicht(), sicht({ name: 'Zufahrt West' })]), 'B5-1')).toMatchObject({ zustand: 'erfuellt', ist: '2 von 2 Zufahrten frei', soll: '≥ 55 m' })
     const v = r({}, [sicht(), sicht({ name: 'Zufahrt West', frei: false, status: 'verdeckt (Parkfeld)' })])
@@ -174,14 +190,14 @@ describe('① Sichtverhältnisse (B5-1, B5-1b)', () => {
     // V85 35 km/h → 40 m: frei erfüllt, verdeckt innerhalb 55 m offen (ob 40 m frei sind, nicht getrennt geprüft)
     expect(z(r({ v85: 35 }, [sicht()]), 'B5-1')).toBe('erfuellt')
     expect(z(r({ v85: 35 }, [sicht({ frei: false, status: 'verdeckt' })]), 'B5-1')).toBe('offen')
-    // Knoten (bfu-Kurvensichtweite) bzw. Abbieger: Soll des Sichtrechners bleibt, auch mit hoher V85
+    // Knoten (bfu-Kurvensichtweite) bzw. Abbieger: Soll der Sichtprüfung bleibt, auch mit hoher V85
     expect(z(r({ v85: 55 }, [sicht({ soll: 15, quelle: 'bfu' })]), 'B5-1')).toBe('erfuellt')
     expect(z(r({ v85: 55 }, [sicht({ soll: 55, abbiegend: true })]), 'B5-1')).toBe('erfuellt')
     // nur bis zur Reichweite der Daten geprüft
     expect(z(r({}, [sicht({ bisM: 40 })]), 'B5-1')).toBe('offen')
     // V85 fehlt: Tempo der Zufahrt, als Annahme
     expect(r({ v85: null }, [sicht()]).annahmen.join(' ')).toContain('V85 nicht gemessen')
-    // weder Sicht von Hand noch Sichtrechner: offen
+    // weder Sicht von Hand noch Sichtprüfung: offen
     expect(teil(gp({ sichtVorh: null }), 'B5-1')).toMatchObject({ zustand: 'offen', fehlend: ['sichtVorh'] })
   })
   it('Erkennungsdistanz: unter dem Doppelten weich, Schwelle an beiden Seiten; unter der Sichtweite mit Normhinweis H3a; fehlt: offen', () => {
@@ -273,7 +289,7 @@ describe('③ Zweistreifigkeit (B5-3)', () => {
   })
 })
 
-describe('① Sicht aus dem Sichtrechner: geometrische Grenzen, Streifen ohne Zufahrt, gemischte Querung', () => {
+describe('① Sicht aus der Sichtprüfung: geometrische Grenzen, Streifen ohne Zufahrt, gemischte Querung', () => {
   const r = (abw: Abw, s: GrundSicht[], o: GrundOptionen = {}) => gp({ sichtVorh: null, ...abw }, { sicht: s, ...o })
   it('geometrische Grenze: Soll = min(Tab. 1 nach V85, Grenze); verletzt nur sicher unterschritten, sonst offen', () => {
     const geb = (x: Partial<GrundSicht>) => sicht({ quelle: 'bis Gebäude', soll: 50, ...x })

@@ -86,7 +86,7 @@ const anzahl = (n: number, eins: string, mehr: string): string => `${n} ${n === 
  * erfüllt: «!» mit dem Satz der Soll-Regel. In der Zeile steht nur der Satz der Teilregel, die den Zustand bestimmt;
  * die übrigen offenen bzw. nicht erfüllten Teilregeln, Annahmen und Hinweise höchstens als kurzer Zusatz «(1 Punkt offen, 1 Annahme)»
  * (sonst las sich die erfüllte Inseltiefe wie der Grund für «!»). Ihre Sätze stehen in den Details des
- * Punkts (hinweise): Sicht (①) ohne V85 unter Vorbehalt (S2), Tempo des Sichtrechners, zusatzAussen (z. B. Hinweis der Vorbelegung
+ * Punkts (hinweise): Sicht (①) ohne V85 unter Vorbehalt (S2), Tempo der Sichtprüfung, zusatzAussen (z. B. Hinweis der Vorbelegung
  * zur Beleuchtung, S3; ohne Zahl im Zusatz).
  */
 export function punktZeile(p: GrundPunkt, annahmen: readonly string[] = [], zusatzAussen?: string, tempoHinweis?: string): GrundZeile {

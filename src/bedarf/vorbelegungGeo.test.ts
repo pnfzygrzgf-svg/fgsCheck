@@ -175,15 +175,15 @@ describe('Vorbelegung: DTV (Geoportal Stadt Bern)', () => {
   it('Linie auf der Strassenachse: DTV mit Quelle und Stand', () => {
     const v = vor(vd([linie('a', 0, 1461)]))
     expect(v.werte.dtv).toMatchObject({ wert: 1461, quelle: 'geoportal',
-      text: 'DTV 1 461 Hauptstrasse (Geoportal Stadt Bern, 16·Nt + 8·Nn, Stand 21.11.2025)' })
+      text: 'DTV 1461 Hauptstrasse (Geoportal Stadt Bern, 16·Nt + 8·Nn, Stand 21.11.2025)' })
   })
   it('Grenze zweier Abschnitte: höherer Wert; zwei Richtungsfahrbahnen: Summe', () => {
     const g2 = vor(vd([linie('a', 0, 1461, -200, 0), linie('b', 0, 1700, 0, 200)]))
     expect(g2.werte.dtv).toMatchObject({ wert: 1700 })
-    expect(g2.werte.dtv.text).toContain('Grenze zweier Abschnitte (1 461 bzw. 1 700)')
+    expect(g2.werte.dtv.text).toContain('Grenze zweier Abschnitte (1461 bzw. 1700)')
     const s2 = vor(vd([linie('a', 3, 3000), linie('b', -3, 2500)]))
     expect(s2.werte.dtv).toMatchObject({ wert: 5500 })
-    expect(s2.werte.dtv.text).toContain('Summe von 2 Fahrbahnen (2 500 + 3 000)')
+    expect(s2.werte.dtv.text).toContain('Summe von 2 Fahrbahnen (2500 + 3000)')
   })
   it('Teilung knapp vor dem Streifen (S5): Äste ohne gemeinsamen Punkt auf der Querungsachse werden summiert; Grenze bleibt Maximum', () => {
     // Hauptlinie (1000) bis 6 m vor dem Rand des Streifens, dort Teilung in zwei Äste (540 bzw. 460), die die Querung 1 m auseinander kreuzen
@@ -490,7 +490,7 @@ describe('Bern bleibt trotz zusätzlicher Quellen unverändert', () => {
 })
 
 
-it('der Innerortshinweis nennt auch die amtliche Quelle aus dem Sichtrechner',()=>{
+it('der Innerortshinweis nennt auch die amtliche Quelle aus der Sichtprüfung',()=>{
   const gruppe=structuredClone(g)
   for(const st of gruppe.streifen)for(const z of st.zufahrten)z.tempoQuelle='Geodaten Basel-Stadt'
   const v=vorbelegen(gruppe,fallMit(),[],{osm:OSM,osmTags:new Map([[1,TAGS]])})

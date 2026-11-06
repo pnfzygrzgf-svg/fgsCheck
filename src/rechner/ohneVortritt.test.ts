@@ -1,4 +1,4 @@
-// Tests Bedarfsmodul E1: Querung ohne Vortritt im Sichtrechner (VSS 40 240 Z. 8.2: Soll = max(v · L / 1,2; Anhaltesichtweite) je
+// Tests Bedarfsmodul E1: Querung ohne Vortritt in der Sichtprüfung (VSS 40 240 Z. 8.2: Soll = max(v · L / 1,2; Anhaltesichtweite) je
 // Teilquerung, bei nur markierter Insel L = ganze Fahrbahn). Künstliche Strassen (keine echten Daten): Hauptstrasse West–Ost,
 // Übergang bei x = 0. Fussgängerstreifen bleiben unverändert (Regression).
 import { describe, expect, it } from 'vitest'
@@ -50,7 +50,7 @@ describe('Soll-Sichtweite ohne Vortritt (Formel, Rundung)', () => {
   })
 })
 
-describe('Sichtrechner: Querung ohne Vortritt (Fahrbahn 6 m, Tempo 30)', () => {
+describe('Sichtprüfung: Querung ohne Vortritt (Fahrbahn 6 m, Tempo 30)', () => {
   const OSM = osm('30'), AV = avStrasse(3)
   const fgs = rechneFall(OSM, AV, [], 12, fallMit(), null)
   const fid = fgs.streifen[0].fgsId
@@ -75,7 +75,7 @@ describe('Sichtrechner: Querung ohne Vortritt (Fahrbahn 6 m, Tempo 30)', () => {
     expect(gerade(r).find(z => z.kennung === k)!.sichtweite).toBe(69.5)
     expect(r.streifen[0].querung!.typ).toBe('furt')
   })
-  it('Hindernisprüfung des Sichtrechners: Parkfeld 30 bis 35 m vor dem Streifen verdeckt nur die längere Sicht ohne Vortritt', () => {
+  it('Hindernisprüfung der Sichtprüfung: Parkfeld 30 bis 35 m vor dem Streifen verdeckt nur die längere Sicht ohne Vortritt', () => {
     const park = (x: Fall) => x.hindernisse.push({ id: 'p1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-35, -3, -30, -1), quelle: 'hand' })
     const f1 = rechneFall(OSM, AV, [], 12, fallMit(park), null)
     const o1 = rechneFall(OSM, AV, [], 12, fallMit(x => { park(x); x.streifen[fid] = { typ: 'ohne_vortritt' } }), null)
@@ -104,7 +104,7 @@ describe('Sichtrechner: Querung ohne Vortritt (Fahrbahn 6 m, Tempo 30)', () => {
   })
 })
 
-describe('Sichtrechner ohne Vortritt: abbiegende Zufahrt (Querweg Tempo 30, 40 m vor dem Streifen)', () => {
+describe('Sichtprüfung ohne Vortritt: abbiegende Zufahrt (Querweg Tempo 30, 40 m vor dem Streifen)', () => {
   const OSM: OsmDaten = { ...osm('50'), wege: [weg(1, [[10, -300, 0], [11, -40, 0], [12, 0, 0], [13, 300, 0]], { highway: 'tertiary', name: 'Hauptstrasse', maxspeed: '50' }),
     weg(2, [[11, -40, 0], [20, -40, -200]], { highway: 'residential', name: 'Querweg', maxspeed: '30' })] }
   const AV: AvFlaeche[] = [
@@ -124,7 +124,7 @@ describe('Sichtrechner ohne Vortritt: abbiegende Zufahrt (Querweg Tempo 30, 40 m
   })
 })
 
-describe('Sichtrechner ohne Vortritt an einer Mittelinsel (Fahrbahn 8 m, Tempo 50)', () => {
+describe('Sichtprüfung ohne Vortritt an einer Mittelinsel (Fahrbahn 8 m, Tempo 50)', () => {
   const OSM = osm('50'), AV = avStrasse(4)
   const lage = inselLage(lv(0, 0), [0, 1], [1, 0]), E1 = inselMasse(E1_TIEFE_M, E1_BREITE_M, E1_FURT_M, null, 'links')
   const geteilt = (f: (x: Fall) => void = () => {}) => fallMit(x => {

@@ -1,4 +1,4 @@
-// ── Erkennungsdistanz aus dem Sichtrechner ──
+// ── Erkennungsdistanz aus der Sichtprüfung ──
 //
 // Ab welcher Distanz sehen Fahrende einer geraden Zufahrt die Markierung des Streifens auf der Fahrbahn? Zusätzliches Ausgabefeld
 // (ZufahrtErgebnis.erkennungM), ohne Einfluss auf Status, Soll, Sichtfeld, «frei bis» und Konflikte der Sichtprüfung.
@@ -26,7 +26,7 @@
 //   der das gilt (wie die Erkennungsdistanz vom Streifen aus gesucht und halbierend verfeinert), solange sie unter der
 //   Erkennungsdistanz liegt. Das ist kein Befund «verdeckt»: wert bleibt; die Vorbelegung nimmt den sicher freien Teil.
 // Grenzen: 2D, ohne Kuppen und Senken; nur die Markierung, die blaue Tafel (Signal 4.11) nicht. Das Ergebnis ist eine Annahme
-// («Sichtrechner, ohne Gelände»). Das Gelände prüft die App danach entlang der Sichtlinien mit dem Höhenmodell (erkennungGelaende.ts:
+// («Sichtprüfung, ohne Gelände»). Das Gelände prüft die App danach entlang der Sichtlinien mit dem Höhenmodell (erkennungGelaende.ts:
 // Augpunkt AUGHOEHE_M über dem Gelände, Ziel die Markierung am Boden); Sichtlinien mit Augpunkt bzw. Ziel auf einer Brücke
 // (AV-Einzelobjekt) sind dort nicht prüfbar (bruecke), das Höhenmodell kennt keine Brücken.
 

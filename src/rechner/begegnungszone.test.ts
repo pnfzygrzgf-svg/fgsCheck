@@ -154,7 +154,7 @@ describe('Bedarf an der Querung in der Begegnungszone', () => {
   })
   it('Sicht zur Information (nicht anwendbar), keine Grundprüfung des Fussgängerstreifens; Zusammenfassung', () => {
     expect(b.sicht.map(x => [x.regel, x.soll, x.quelle])).toEqual([['E3', 15, QUELLE_BGZ], ['E3', 15, QUELLE_BGZ]])
-    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toMatchObject({ zustand: 'nicht_anwendbar',
+    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')).toMatchObject({ zustand: 'nicht_anwendbar',
       ist: `frei (2 Zufahrten); ${BGZ_SICHT_TEXT}` })
     expect(b.grund.gilt).toBe(false)
     expect(zusammenfassung({ ...zfEingabeBlatt(b, 'panel'), imBlock: [] }).antwort).toMatch(/Begegnungszone/)
@@ -196,7 +196,7 @@ describe('Abbieger in der Begegnungszone: höchstens bis zum Beginn des Abbiegen
     expect(b.sicht.filter(x => x.zufahrt.startsWith('a')).map(x => x.annahme)).toEqual([
       'Annahme: bis Beginn des Abbiegens; Anhaltesichtweite nach VSS 40 240 Z. 8.2: 55 m',
       'Annahme: bis Beginn des Abbiegens; Anhaltesichtweite nach VSS 40 240 Z. 8.2: 55 m'])
-    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toMatchObject({ zustand: 'nicht_anwendbar',
+    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')).toMatchObject({ zustand: 'nicht_anwendbar',
       soll: '15 geradeaus, 9,1; 16,3 für Abbiegende (Annahme: bis Beginn des Abbiegens)' })
     for (const z of r.streifen[0].zufahrten.filter(x => x.art !== 'abbiegend')) expect([z.sichtweite, z.sichtweiteQuelle]).toEqual([15, QUELLE_BGZ])
   })

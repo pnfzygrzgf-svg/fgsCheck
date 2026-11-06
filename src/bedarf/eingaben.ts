@@ -219,6 +219,9 @@ export interface Feld<T> { wert: T | null; quelle: Quelle | null
   /** Abstand entlang der Strasse ist die Länge der ganzen Strasse (sie endet beidseits ohne Fortsetzung; nur aus der
    * Vorbelegung, eine Handeingabe trägt es nicht): G1/G2 dann als Hinweis, kein weiterer Streifen bzw. kein Lichtsignal möglich */
   ganzeStrasse?: true
+  /** Wert stammt aus der Rechnung der geraden Zufahrten (erkennungM, nur aus der Vorbelegung, eine Handeingabe trägt es nicht): massgebend ist
+   * dann das Soll dieser Zufahrten, nicht das der Abbiegelinie (B5-1b) */
+  geradeZufahrt?: true
   /** 23.10.2026: Feld offen, weil Datenquellen sich widersprechen (bisher nur Strecke/Zone: Begegnungszone aus OSM gegen amtliches
    * Tempo ab 30 km/h); A2 bleibt dann offen statt nicht anwendbar */
   strittig?: true }

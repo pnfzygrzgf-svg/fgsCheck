@@ -52,7 +52,7 @@ describe('Werkzeuggruppe Planen', () => {
     expect(renderToStaticMarkup(<StreifenPlanenOben geladen werkzeug={null} waehlen={nichts} />)).toBe('')
     // Hilfe ohne Ort oben; mit Ort Planen-Werkzeuge in der Gruppe, Bestand unter «Eingaben von Hand» (im Reiter Bedarf oben)
     expect(hilfeOrt('streifen', false, false)).toBe('oben')
-    for (const w of PLAN_WERKZEUGE) { expect(hilfeOrt(w, true, false)).toBe('planen'); expect(hilfeOrt(w, true, true)).toBe('planen') }
+    for (const w of PLAN_WERKZEUGE) { expect(hilfeOrt(w, true, false)).toBe('planen'); expect(hilfeOrt(w, true, true)).toBe(w === 'messen' ? 'oben' : 'planen') }
     for (const w of [...BESTAND_WERKZEUGE, 'spurB'] as const) {
       expect(hilfeOrt(w, true, false)).toBe('eingaben'); expect(hilfeOrt(w, true, true)).toBe('oben')
     }

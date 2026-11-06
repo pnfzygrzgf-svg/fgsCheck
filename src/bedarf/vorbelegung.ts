@@ -30,8 +30,8 @@ import { npvmStandText, type NpvmSnapshot } from '../daten/anbieter/npvm'
 // Seit 21.10.2026 Automatik (automatik.ts, Abschnitt 22 der Regeln): innerorts und Strecke/Zone auch aus den OSM-Tags bzw.
 // dem Tempo, Insel aus der AV als gebaut (Tatsache) mit Kopfüberstand, Tramgleis eigentrassee/Fahrbahn, dazu die übrigen Felder der
 // Automatik (Lage, Abstände, Haltestelle, Annahmen mit Schwellen, Kopien in die Trottoirüberfahrt). rechner: Felder im
-// Zustand «rechner» (Sichtrechner rechnet je Zufahrt, z. B. Kurvenradius ohne Abbieger).
-// Seit 23.10.2026 die Erkennungsdistanz aus dem Sichtrechner (erkennungVorbelegen, Annahme; Abschnitt 34 der Regeln).
+// Zustand «rechner» (Sichtprüfung rechnet je Zufahrt, z. B. Kurvenradius ohne Abbieger).
+// Seit 23.10.2026 die Erkennungsdistanz aus der Sichtprüfung (erkennungVorbelegen, Annahme; Abschnitt 34 der Regeln).
 // Seit 21.10.2026 Automatik (automatikC.ts, Abschnitt 24 der Regeln): Tempo aus V_sig und Strecke/Zone aus der
 // Strassenhierarchie (Geoportal Stadt Bern), Strassentyp aus Hierarchie und Strassentypen (Vorrang vor OSM), besonderer Grund
 // (Schulen, Kindergärten, Heime), Fusswegnetz, taktile Markierungen, Nutzungszonen, ÖV-Linien; Vortrittsrolle in automatik.ts.
@@ -99,7 +99,7 @@ export const TUE_WAHL_TEXT = 'Wahl in der Sichtprüfung: Trottoirüberfahrt'
 /** Vorbelegung einer Querung: Werte; Hinweise zur Querung; feldHinweise: Hinweis ohne Wert je Feld (das Feld bleibt offen, z. B.
  * Haltestelle in der Nähe: Fahrbahn oder Bucht wählen). Die Hinweise ohne Wert stehen mit dem Feldnamen auch in hinweise. */
 export interface Vorbelegt { werte: Vorbelegung; hinweise: string[]; feldHinweise?: Record<string, string>
-  /** Anzeige je Pfad im Zustand «rechner» (Feld ohne Wert, Sichtrechner rechnet je Zufahrt) */
+  /** Anzeige je Pfad im Zustand «rechner» (Feld ohne Wert, Sichtprüfung rechnet je Zufahrt) */
   rechner?: Record<string, string>
   /** OSM-Knoten (Kreuzung bzw. Einmündung) bis 20 m von der Querung, wie für die Lage gefunden (automatik.ts); nur für Verweise */
   knoten?: number
@@ -197,7 +197,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
 
   // Tempo der geraden Zufahrten
   const gerade = st.flatMap(s => s.zufahrten.filter(z => z.art !== 'abbiegend'))
-  // (in Bern rechnet der Sichtrechner mit V_sig des Geoportals, Quelle «Geoportal»)
+  // (in Bern rechnet die Sichtprüfung mit V_sig des Geoportals, Quelle «Geoportal»)
   if (gerade.length) {
     const v = Math.max(...gerade.map(z => z.tempo))
     const tz = gerade.filter(z => z.tempo === v)
@@ -275,7 +275,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   const zuf = zufSicht(st)
   if (zuf.length) {
     const auto = zuf.flatMap(z => z.konflikte.filter(k => k.klasse === 'auto'))
-    setze('parkierungSichtbehindernd', auto.length > 0, 'rechnung', auto.length ? 'Auto-Parkfelder im Sichtfeld (Sichtrechner)' : 'keine Auto-Parkfelder im Sichtfeld')
+    setze('parkierungSichtbehindernd', auto.length > 0, 'rechnung', auto.length ? 'Auto-Parkfelder im Sichtfeld (Sichtprüfung)' : 'keine Auto-Parkfelder im Sichtfeld')
     // Halten weiter als 5 m vor dem Streifen gestrichen 30.10.2026 (G7, G7b)
   }
 
@@ -401,7 +401,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   // Beurteilung wie eine Tatsache (Tempo 20 auf einer Strecke ist sehr selten) und ist von Hand auf «Strecke» änderbar (Handeingabe geht
   // vor). Widerspricht eine Zonenangabe in OSM (Tempo-30-Zone, Strecke CH:urban …), bleibt Strecke/Zone offen mit Hinweis.
   // Massgebend ist das wirksame Tempo (eine Handeingabe im Bedarf geht vor; nicht 20: kein Vorschlag) und das
-  // Rohtempo genau 20 (V_sig des Geoportals bzw. OSM maxspeed; der Sichtrechner rundet OSM 5 bzw. 10 km/h auf die Stufe 20).
+  // Rohtempo genau 20 (V_sig des Geoportals bzw. OSM maxspeed; die Sichtprüfung rundet OSM 5 bzw. 10 km/h auf die Stufe 20).
   // maxspeed=20 mit maxspeed:type=CH:urban am selben Weg ist eine bewusst erfasste Strecke 20, kein Widerspruch.
   const hv = fall.bedarf?.felder.vSig
   const vEff = hv ? (typeof hv.wert === 'number' ? { wert: hv.wert, quelle: hv.quelle } : null) : vs
@@ -427,7 +427,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   // Zonenangabe hat (ein OSM-Zonentag geht immer vor, widersprüchliche Zufahrten bleiben offen)
   const hierText = wegTagsGerade.some(t => t && hatZonenangabe(t)) ? '' : tempoAusHierarchie(st, geo, w, setze)
   if (!w.tempoRegime && (zoneText || hierText)) feldHinweis('tempoRegime', [zoneText, hierText].filter(Boolean).join('; '))
-  // Erkennungsdistanz aus dem Sichtrechner: kleinster Wert der geraden Zufahrten, als Annahme (nach
+  // Erkennungsdistanz aus der Sichtprüfung: kleinster Wert der geraden Zufahrten, als Annahme (nach
   // dem Tempo aus V_sig: ein Wert «mindestens» bzw. «so weit geprüft» gilt nur, wenn er das Doppelte der Sichtweite erreicht)
   const tempoVorZuordnung = w.vSig
   if (geo.regional) regionalVorbelegen(st, geo.regional, zhStrassen(geo.osm?.wege ?? []), w)
@@ -580,7 +580,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
 }
 
 /**
- * Strecke oder Zone einer Querung für den Sichtrechner: dieselbe Bestimmung wie das Feld «Strecke oder
+ * Strecke oder Zone einer Querung für die Sichtprüfung: dieselbe Bestimmung wie das Feld «Strecke oder
  * Zone» im Bedarf (Vorbelegung aus OSM-Tags, V_sig des Geoportals, Tempo-20-Vorschlag und Widerspruchsregeln; eine Handeingabe im
  * Bedarf geht vor, auch «bewusst offen»; strittig bleibt offen). geo: wie die Vorbelegung (rechneFall: OSM-Tags und V_sig). text:
  * Herkunft kurz für den Hinweis am Streifen.
@@ -608,7 +608,7 @@ export function kurvenregelVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vor
   const z = sk.z
   const Z = '(VSS 40 241 Z. 14, S. 7)'
   setze('kurve.radiusStrasse', sk.radius, 'rechnung', `Strassenkurve vor dem Streifen: Radius rund ${sk.radius} m, Richtungsänderung rund ` +
-    `${sk.winkel}° (Fahrlinie des Sichtrechners, OSM-Weg)`)
+    `${sk.winkel}° (Fahrlinie der Sichtprüfung, OSM-Weg)`)
   // (1) innerorts (von Hand bzw. vorbelegt), Tempo der Zufahrt in der Kurve und Vortritt (30.10.2026: Lage «Kreuzung, über die Zufahrt ohne
   // Vortritt» von Hand bzw. vorbelegt: nein; sonst als Annahme vortrittsberechtigt, kein sechstes Feld)
   const hl = fall.bedarf?.felder.lage
@@ -632,13 +632,13 @@ export function kurvenregelVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vor
   const nFs = nOsm ?? (z.mehrstreifig === null ? null : z.mehrstreifig ? 2 : 1)
   if (nFs !== null) setze('kurve.b2EinFahrstreifen', nFs <= 1, nOsm !== null ? 'osm' : 'annahme',
     `${nFs} Fahrstreifen je Richtung in der Kurve (${nOsm !== null ? 'OSM, lanes' : 'aus der Fahrbahnbreite geschätzt'}) ${Z}`)
-  // (3) und (4) aus der Fahrlinie des Sichtrechners
-  const t = `Kurvenende ${ganz(sk.endeM)} m vor dem Streifen (Fahrlinie des Sichtrechners)`
+  // (3) und (4) aus der Fahrlinie der Sichtprüfung
+  const t = `Kurvenende ${ganz(sk.endeM)} m vor dem Streifen (Fahrlinie der Sichtprüfung)`
   if (sk.endeM <= KURVE_NAH_M) setze('kurve.b3NachKurvenende', true, 'rechnung', `${t} ${Z}`)
   else if (sk.endeM > KURVE_WEIT_M) setze('kurve.b3NachKurvenende', false, 'rechnung', `${t} ${Z}`)
   else feldHinweis('kurve.b3NachKurvenende', `${t}: von Hand beurteilen ${Z}`)
   setze('kurve.b4Winkel60', sk.winkel >= KURVE_WINKEL_MIN, 'rechnung', `Richtungsänderung der Fahrlinie über die Kurve rund ${sk.winkel}° ` +
-    `(Sichtrechner, OSM-Weg) ${Z}`)
+    `(Sichtprüfung, OSM-Weg) ${Z}`)
   // (5) Längsgefälle aus dem Höhenmodell entlang der Fahrlinie
   const m = neigung?.[kurveProfilSchluessel(z)]
   if (m && m.i !== null) setze('kurve.b5Gefaelle5', Math.abs(m.i) <= KURVE_GEFAELLE_MAX, 'rechnung',
@@ -745,7 +745,7 @@ const QUELLE_KURZ: Partial<Record<Quelle, string>> = { geoportal: 'Geoportal', o
 
 /**
  * Innerorts als Annahme: nicht schon aus den OSM-Tags der geraden Zufahrten bzw. widersprüchlich. Signalisiertes Tempo
- * der gequerten Strasse bis 50 km/h (Sichtrechner bzw. Geoportal); ohne es (nur Abbieger, z. B. Querung über die Seitenstrasse)
+ * der gequerten Strasse bis 50 km/h (Sichtprüfung bzw. Geoportal); ohne es (nur Abbieger, z. B. Querung über die Seitenstrasse)
  * OSM-Tags bzw. Tempo der einmündenden Strassen bis 50 km/h. Die Bauzone (Nutzungszonenplan, automatikC) stützt bzw. ergänzt das.
  */
 function innerortsAusTempo(st: StreifenErgebnis[], w: Vorbelegung, setze: Setze, feldHinweise: Record<string, string>,
@@ -773,7 +773,7 @@ function innerortsAusTempo(st: StreifenErgebnis[], w: Vorbelegung, setze: Setze,
 
 /**
  * Erkennungsdistanz (Abschnitt 34 der Regeln): kleinster Wert über die geprüften geraden Zufahrten der
- * Fussgängerstreifen (ZufahrtErgebnis.erkennungM; Abbieger rechnet der Sichtrechner nicht), Quelle «annahme» (ohne Signal 4.11). Mit
+ * Fussgängerstreifen (ZufahrtErgebnis.erkennungM; Abbieger rechnet die Sichtprüfung nicht), Quelle «annahme» (ohne Signal 4.11). Mit
  * der Geländeprüfung (30.10.2026, erkennungGelaende.ts) der Wert danach («mit Gelände (swissALTI3D)»), sonst 2D («ohne Gelände»). Endet die Fahrlinie vorher, ist der Wert ihre Länge («mindestens …»); bei gleichem Wert zählt ein gerechneter vor
  * einem «mindestens». Eine Handeingabe geht vor (fallBedarf.eingabenBilden).
  * Untergrenzen («mindestens» bzw. frei bis zur Prüfgrenze) belegen das Feld nur, wenn sie das Doppelte der Sichtweite nach dem höchsten
@@ -796,13 +796,16 @@ export function erkennungVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vorbe
   const sicher = (e: Erkennung) => e.bewuchsAb ?? e.wert
   const rang = (x: { e: Erkennung }) => sicher(x.e) + (x.e.bis === 'fahrlinie_endet' && x.e.bewuchsAb === undefined ? 0.5 : 0)
   const min = kand.reduce((a, b) => (rang(b) < rang(a) ? b : a))
-  const text = `Sichtrechner: ${erkennungText(min.e)} (${min.name}); ${gelaendeText(min.e)}; ` +
+  const text = `Sichtprüfung: ${erkennungText(min.e)} (${min.name}); ${gelaendeText(min.e)}; ` +
     'nur Bodenmarkierung geprüft; Signale hier nicht zusätzlich bewertet'
   const zahl = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? x : null)
   const hand = (p: string) => zahl(fall.bedarf?.felder[p]?.wert)
   const v = Math.max(...[zahl(w.vSig?.wert), hand('vSig'), hand('v85'), ...kand.map(k => k.tempo)].filter((x): x is number => x !== null))
   const noetig = ERKENNUNG_FAKTOR * sichtFgs(v)
-  if (min.e.bis === 'verdeckt' || min.e.bewuchsAb !== undefined || min.e.wert >= noetig - 1e-9) setze('erkennungM', sicher(min.e), 'annahme', text)
+  if (min.e.bis === 'verdeckt' || min.e.bewuchsAb !== undefined || min.e.wert >= noetig - 1e-9) {
+    setze('erkennungM', sicher(min.e), 'annahme', text)
+    w.erkennungM.geradeZufahrt = true
+  }
   else feldHinweis('erkennungM', `${text}; nötig ${noetig} m (doppelte Sichtweite bei ${v} km/h), so weit nicht geprüft: von Hand angeben`)
 }
 
@@ -813,7 +816,8 @@ const wegId = (x: string | null | undefined): number | null => {
   const n = Number(String(x ?? '').replace(/^w/, ''))
   return x && Number.isInteger(n) && n > 0 ? n : null
 }
-const ganz = (x: number) => String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')
+// vierstellig ohne Lücke wie die Regeltexte (3000), ab fünf Stellen mit
+const ganz = (x: number) => (Math.abs(x) < 9999.5 ? String(Math.round(x)) : String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0'))
 
 /** Abstand eines Punkts zum Streifen (Umriss; 0 innerhalb), ohne Umriss zur Achse */
 export function abstandZumStreifen(p: P, s: StreifenErgebnis): number {

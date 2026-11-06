@@ -126,13 +126,13 @@ describe('Befundblatt', () => {
     expect(b.offen.some(o => o.feld === 'tempoRegime' && o.gruppe === 'rahmen')).toBe(true)
     expect(b.ebenen).toEqual({ bern: false, kantonBE: false, richtlinie: true })
     expect(b.befund.lokal.empfehlungen).toEqual([])
-    // Sicht aus dem Sichtrechner: beide Zufahrten frei, kein H1-Befund; ob schneller gefahren wird, ist offen → H1 offen
+    // Sicht aus der Sichtprüfung: beide Zufahrten frei, kein H1-Befund; ob schneller gefahren wird, ist offen → H1 offen
     expect(b.sicht.map(s => [s.regel, s.frei, s.soll])).toEqual([['H1', true, 55], ['H1', true, 55]])
     expect(b.befund.alle.some(x => x.id === 'H1' && x.zustand === 'verletzt')).toBe(false)
     expect(b.befund.alle.find(x => x.id === 'H1')).toMatchObject({ zustand: 'offen', fehlend: ['anzeichenSchneller'] })
     // H1 offen → Masszeile nicht erfüllt; offen nur wegen der Frage nach schnellerem Fahren →
     // «erfüllt unter Vorbehalt» mit der Bedingung beim Wert
-    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toMatchObject({ zustand: 'vorbehalt', soll: '55',
+    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')).toMatchObject({ zustand: 'vorbehalt', soll: '55',
       zusatz: 'gilt, wenn nicht schneller als 50 km/h gefahren wird (Frage oben)' })
   })
   it('mit Handeingaben (DTV 8 000, Schätzklasse 100–500, Basisnetz): FGS zulässig, Typ Q1; Schätzung ausgewiesen; Bern gesondert', () => {
@@ -155,7 +155,7 @@ describe('Befundblatt', () => {
     const [vonHand] = befundblaetter(r, { ...f, bedarf: { ...HAND, ebenen: { bern: false } } }, BERN)
     expect(vonHand.ebenen.bern).toBe(false); expect(ids(vonHand.befund.lokal.empfehlungen)).not.toContain('D6-2')
   })
-  it('Sicht verdeckt (Parkfeld): Pflichtverletzung H1 aus dem Sichtrechner, LSA-Hinweis D5-4; Sicht von Hand ersetzt den Sichtrechner', () => {
+  it('Sicht verdeckt (Parkfeld): Pflichtverletzung H1 aus der Sichtprüfung, LSA-Hinweis D5-4; Sicht von Hand ersetzt die Sichtprüfung', () => {
     const park = (x: Fall) => x.hindernisse.push({ id: 'p1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-12, 2, -7, 4), quelle: 'hand' })
     const f = fallMit(x => { park(x); x.bedarf = HAND })
     const r = rechneFall(OSM, AV, [], 12, f, null)
@@ -164,16 +164,16 @@ describe('Befundblatt', () => {
     expect(h1.length).toBe(1)
     expect(h1[0].ist).toMatch(/^verdeckt/)
     expect(h1[0].soll).toBe('55 m frei (VSS Tab. 1)')
-    expect(h1[0].detail).toContain('Sichtfeld bis zur Soll-Sichtweite nicht frei (Sichtrechner)')
+    expect(h1[0].detail).toContain('Sichtfeld bis zur Soll-Sichtweite nicht frei (Sichtprüfung)')
     expect(ids(b.befund.norm.hinweise)).toContain('D5-4')
-    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toMatchObject({ zustand: 'verletzt', ist: 'verdeckt (1 von 2 Zufahrten)' })
+    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')).toMatchObject({ zustand: 'verletzt', ist: 'verdeckt (1 von 2 Zufahrten)' })
     expect(b.vorbelegt.werte.parkierungSichtbehindernd).toMatchObject({ wert: true })
     const hand = { ...f, bedarf: { felder: { ...HAND.felder, sichtVorh: { wert: [70, 70], quelle: 'hand' as const } } } }
     const [bh] = befundblaetter(r, hand, OHNE_EBENEN)
     expect(bh.sichtVonHand).toBe(true); expect(bh.sicht).toEqual([])
     expect(bh.befund.alle.some(x => x.id === 'H1' && x.zustand === 'verletzt')).toBe(false)   // 70 m genügen nach Tab. 1
   })
-  it('Prüfübersicht mit Sicht aus dem Sichtrechner (Korrektur A3): frei = ohne Befund nur mit erreichter Regel und richtigem Tempo', () => {
+  it('Prüfübersicht mit Sicht aus der Sichtprüfung (Korrektur A3): frei = ohne Befund nur mit erreichter Regel und richtigem Tempo', () => {
     const park = (x: Fall) => x.hindernisse.push({ id: 'p1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-12, 2, -7, 4), quelle: 'hand' })
     const mit = (felder: BedarfBlock['felder']): BedarfBlock => ({ felder: { ...HAND.felder, ...felder } })
     const ANZ_NEIN = { anzeichenSchneller: { wert: false, quelle: 'hand' as const } }
@@ -188,7 +188,7 @@ describe('Befundblatt', () => {
     expect(ua.stand.get('H1')).toBe('offen')
     expect(ba.befund.alle.find(x => x.id === 'H1')?.fehlend).toEqual(['v85'])
     expect(ua.stand.get('D5-4')).toBe('offen')
-    // V85 gemessen über dem signalisierten Tempo: Soll nach V85 nötig, der Sichtrechner rechnet tiefer → offen
+    // V85 gemessen über dem signalisierten Tempo: Soll nach V85 nötig, die Sichtprüfung rechnet tiefer → offen
     const { b: bv } = ue(fallMit(x => { x.bedarf = mit({ ...ANZ_NEIN, v85: { wert: 60, quelle: 'hand' }, v85Nachweis: { wert: true, quelle: 'hand' } }) }))
     expect(bv.befund.alle.find(x => x.id === 'H1')).toMatchObject({ zustand: 'offen' })
     expect(bv.befund.alle.find(x => x.id === 'H1')?.detail).toContain('Soll nach V85 60 km/h')
@@ -199,7 +199,7 @@ describe('Befundblatt', () => {
     expect(uz.stand.get('H1')).toBe('befund')
     expect(uz.stand.get('D5-4')).toBe('hinweis')
     for (const u of [uf, ua, uz]) expect(u.ohneBefund + u.offen + u.befunde + u.hinweise).toBe(u.geprueft)
-    // ohne Vortritt: E3 aus dem Sichtrechner, E3a nie
+    // ohne Vortritt: E3 aus der Sichtprüfung, E3a nie
     const fid = rechneFall(OSM, AV, [], 12, fallMit(), null).streifen[0].fgsId
     const { u: uo } = ue(fallMit(x => { x.streifen[fid] = { typ: 'furt' }; x.bedarf = mit(ANZ_NEIN) }))
     expect(uo.stand.get('E3')).toBe('ohne_befund')
@@ -221,7 +221,7 @@ describe('Befundblatt', () => {
     expect(h1).toMatchObject({ zustand: 'offen', fehlend: ['sichtVorh'] })
     expect(h1.detail).toContain('Sicht nach dem höheren Tempo neu rechnen')
     expect(b60.befund.alle.find(x => x.id === 'D5-4')).toMatchObject({ zustand: 'offen' })
-    expect(b60.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toMatchObject({ zustand: 'offen' })
+    expect(b60.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')).toMatchObject({ zustand: 'offen' })
     expect(pruefUebersicht(b60.befund).stand.get('H1')).toBe('offen')
     // Neue Sichtrechnung übernimmt die 60 tatsächlich; kein künstlicher Hinweis «neu rechnen» mehr.
     const neu = blatt(f60)
@@ -229,12 +229,12 @@ describe('Befundblatt', () => {
     expect(neu.sicht.every(s => s.soll === 75)).toBe(true)
     // gleiches Tempo: ohne Befund, Masszeile erfüllt
     const b50 = blatt(fallMit(x => { x.bedarf = mit({}) }))
-    expect(b50.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toMatchObject({ zustand: 'erfuellt' })
+    expect(b50.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')).toMatchObject({ zustand: 'erfuellt' })
     // S1: ausserorts endet der Baum vor H1 → kein H1-Befund, kein LSA-Hinweis, auch bei verdeckter Sicht; Masszeile offen
     const ba = blatt(fallMit(x => { park(x); x.bedarf = mit({ innerorts: { wert: false, quelle: 'hand' } }) }))
     expect(ba.befund.alle.filter(x => ['H1', 'D5-4'].includes(x.id))).toEqual([])
-    expect(ba.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toMatchObject({ zustand: 'offen' })
-    expect(ba.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')!.ist).toContain('Sichtregel hier nicht geprüft')
+    expect(ba.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')).toMatchObject({ zustand: 'offen' })
+    expect(ba.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')!.ist).toContain('Sichtregel hier nicht geprüft')
   })
   it('Nachprüfung: ohne eigene Tempovorgabe behalten Abbieger ihre Daten; veraltete gerade Sichtrechnung bleibt bis zum Neurechnen offen', () => {
     // T-Knoten: Hauptstrasse 50, Seitenstrasse 30 ab x = 15 nach Norden
@@ -256,12 +256,12 @@ describe('Befundblatt', () => {
     const [b] = befundblaetter(r, f, OHNE_EBENEN)
     expect(b.befund.alle.some(x => x.id === 'H1')).toBe(false)
     expect(pruefUebersicht(b.befund).stand.get('H1')).toBe('ohne_befund')
-    // gerade Zufahrt: 60 von Hand bei 50 im Sichtrechner → offen
+    // gerade Zufahrt: 60 von Hand bei 50 in der Sichtprüfung → offen
     const f60 = fallMit(x => { x.bedarf = { felder: { ...felder, vSig: { wert: 60, quelle: 'hand' }, innerorts: { wert: true, quelle: 'hand' } } } })
     const [b60] = befundblaetter(r0, f60, OHNE_EBENEN)
     expect(b60.befund.alle.find(x => x.id === 'H1' && x.zustand === 'offen')?.detail).toContain('neu rechnen')
   })
-  it('Nachprüfung: E3 erreicht (Streifen nicht angezeigt), Sichtrechner nur als Fussgängerstreifen → E3 offen, Sichtweite von Hand', () => {
+  it('Nachprüfung: E3 erreicht (Streifen nicht angezeigt), Sichtprüfung nur als Fussgängerstreifen → E3 offen, Sichtweite von Hand', () => {
     const f = fallMit(x => { x.bedarf = { felder: { ...HAND.felder, anzeichenSchneller: { wert: false, quelle: 'hand' }, vSig: { wert: 70, quelle: 'hand' },
       innerorts: { wert: true, quelle: 'hand' } } } })
     const [b] = befundblaetter(rechneFall(OSM, AV, [], 12, f, null), f, OHNE_EBENEN)
@@ -271,7 +271,7 @@ describe('Befundblatt', () => {
     expect(e3.detail).toContain('als Fussgängerstreifen, nicht ohne Vortritt')
     expect(pruefUebersicht(b.befund).stand.get('E3')).toBe('offen')
   })
-  it('Querung ohne Vortritt: Typ aus dem Streifen, Pfad E; Sicht nach Z. 8.2 (E3) aus dem Sichtrechner', () => {
+  it('Querung ohne Vortritt: Typ aus dem Streifen, Pfad E; Sicht nach Z. 8.2 (E3) aus der Sichtprüfung', () => {
     const r0 = rechneFall(OSM, AV, [], 12, fallMit(), null)
     const fid = r0.streifen[0].fgsId
     const f = fallMit(x => { x.streifen[fid] = { typ: 'furt' }; x.bedarf = HAND })
@@ -290,7 +290,7 @@ describe('Befundblatt', () => {
     const [t] = befundblaetter(r, { ...f, bedarf: { felder: { ...HAND.felder, typ: { wert: 'trottoirueberfahrt', quelle: 'hand' } } } }, OHNE_EBENEN)
     expect(t.gebildet.eingaben.typ.wert).toBe('trottoirueberfahrt')
     expect(t.befund.alle.filter(e => ['E3', 'H1', 'D5-4'].includes(e.id))).toEqual([])
-    expect(t.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toBeUndefined()
+    expect(t.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')).toBeUndefined()
   })
   it('ohne Vortritt verdeckt (29.10.2026): nach der freien Länge frei bis < Anhaltesichtweite hart, sonst weich bzw. Ausnahme E3a; eine Zeile je Zufahrt', () => {
     const blatt = (x0: number, hand: BedarfBlock = HAND) => {
@@ -310,7 +310,7 @@ describe('Befundblatt', () => {
     expect(fb).toBeLessThan(55)
     expect(nah.e.map(x => [x.id, x.staerke, x.zustand])).toEqual([['E3', 'hart', 'verletzt']])
     expect(nah.e[0].detail).toMatch(new RegExp(`: frei bis ${fb} m, Soll 69,5 m \\(VSS 40 240 Z\\. 8\\.2, L 6,0 m\\); verdeckt durch Parkfeld; unter der Anhaltesichtweite 55 m$`))
-    expect(nah.e[0].detail).not.toMatch(/Sichtrechner|vorerst weich/)
+    expect(nah.e[0].detail).not.toMatch(/Sichtprüfung|vorerst weich/)
     const fern = blatt(-45)
     const fb2 = fern.z.find(z => z.status !== 'frei')!.freiBisM!
     expect(fb2).toBeGreaterThanOrEqual(55)
@@ -323,7 +323,7 @@ describe('Befundblatt', () => {
     expect(blatt(-7, { felder: { ...HAND.felder, dtv: { wert: 2000, quelle: 'hand' }, fgKlasse: { wert: '<100', quelle: 'schaetzung' } } }).e
       .map(x => [x.id, x.staerke])).toEqual([['E3', 'hart']])
   })
-  it('Lichtsignal am Streifen: Typ «mit Lichtsignal», kein H1 aus dem Sichtrechner (40 241 gilt nicht), nur Hinweis', () => {
+  it('Lichtsignal am Streifen: Typ «mit Lichtsignal», kein H1 aus der Sichtprüfung (40 241 gilt nicht), nur Hinweis', () => {
     const r0 = rechneFall(OSM, AV, [], 12, fallMit(), null)
     const fid = r0.streifen[0].fgsId
     const f = fallMit(x => {
@@ -349,10 +349,10 @@ describe('Befundblatt', () => {
     const e3 = b.befund.alle.filter(e => e.id === 'E3')
     expect(e3.map(e => [e.zustand, e.ist])).toEqual([['offen', 'frei bis 110 m'], ['offen', 'frei bis 110 m']])
     expect(e3[0].detail).toContain('darüber nicht geprüft')
-    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')).toMatchObject({ zustand: 'offen' })
+    expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')).toMatchObject({ zustand: 'offen' })
     expect(b.offen.some(o => o.feld === 'sichtVorh')).toBe(true)
   })
-  it('Grundprüfung bfu im Befundblatt: Sicht aus dem Sichtrechner je Zufahrt, verdeckt hart; nicht bei Lichtsignal bzw. Furt; keine B5 im Befund', () => {
+  it('Grundprüfung bfu im Befundblatt: Sicht aus der Sichtprüfung je Zufahrt, verdeckt hart; nicht bei Lichtsignal bzw. Furt; keine B5 im Befund', () => {
     const r = rechneFall(OSM, AV, [], 12, fallMit(), null)
     const [b] = befundblaetter(r, fallMit(x => { x.bedarf = HAND }), OHNE_EBENEN)
     expect(b.grund.gilt).toBe(true)
@@ -422,7 +422,7 @@ describe('Befundblatt: Abbieger an einer Querung ohne Vortritt bis zum Beginn de
     // Herkunft Annahme (30.10.2026): Sichtzeile, Masse-Zeile «erfüllt (Annahme)», Liste der Annahmen
     expect(sichtAb.map(s => s.annahme)).toEqual(['Annahme: bis Beginn des Abbiegens; VSS 40 240 Z. 8.2: 57,9 m',
       'Annahme: bis Beginn des Abbiegens; VSS 40 240 Z. 8.2: 57,9 m'])
-    const mz = b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtrechner)')!
+    const mz = b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')!
     expect(mz.soll).toMatch(/für Abbiegende \(Annahme: bis Beginn des Abbiegens\)$/)
     expect(mz.zustand).toBe('annahme')
     expect(b.annahmen.filter(a => a.includes('Annahme: bis Beginn des Abbiegens; VSS 40 240 Z. 8.2: 57,9 m')).length).toBe(2)

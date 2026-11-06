@@ -354,7 +354,7 @@ describe('Zusammenfassung an Befundblättern mit Rechnung', () => {
     }
     expect(fehler).toEqual([])
   })
-  it('ohne Handeingaben: vorläufig, Fragen springen zum Feld; Sicht verdeckt: Muss aus dem Sichtrechner genannt', () => {
+  it('ohne Handeingaben: vorläufig, Fragen springen zum Feld; Sicht verdeckt: Muss aus der Sichtprüfung genannt', () => {
     const z0 = zusammenfassungBlatt(blatt(fallMit(x => { x.bedarf = { felder: { tempoRegime: { wert: null, quelle: 'hand' } } } })))
     // der Verweis auf die Frage unten fällt bei Platzmangel weg, wenn Satz 3 die entscheidende Frage nennt
     expect(z0.antwort).toMatch(/^Noch offen ist, ob hier ein Fussgängerstreifen zulässig ist( \(das entscheidet die erste Frage unten\))?; falls ja, passt ein Fussgängerstreifen\.$/)

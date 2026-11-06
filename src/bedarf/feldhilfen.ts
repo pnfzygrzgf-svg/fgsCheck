@@ -197,7 +197,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   mivKlasse: {
     was: 'Wie viel Autoverkehr an einer Nase bzw. Einengung durchfährt: wenig, mittel oder viel. Davon hängt in Bern die nötige ' +
       'Restbreite ab.',
-    vorschlag: 'als Annahme aus dem DTV: unter 3 000 wenig, bis 10 000 mittel, darüber viel.',
+    vorschlag: 'als Annahme aus dem DTV: unter 3000 wenig, bis 10 000 mittel, darüber viel.',
   },
   zweirichtung: {
     was: 'Ja, wenn in beide Richtungen gefahren wird; nein bei einer Einbahnstrasse.',
@@ -247,12 +247,12 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   },
   querdistanzL: {
     was: `Wie weit man ohne Halt über die Fahrbahn geht, je Teilquerung Bord bis Bord bzw. bis zur Insel (${MIT_SLASH}). Zählt nur ` +
-      'bei der Querung ohne Vortritt mit einer Sichtweite von Hand; sonst rechnet der Sichtrechner selbst.',
+      'bei der Querung ohne Vortritt mit einer Sichtweite von Hand; sonst rechnet die Sichtprüfung selbst.',
     vorschlag: 'aus den Bordkanten der Rechnung je Teilstreifen.',
   },
   abstandFgsM: { was: 'Entfernung bis zum nächsten Fussgängerstreifen über dieselbe Strasse, in Metern. Liegen Streifen zu dicht, wird der einzelne weniger beachtet.', vorschlag: 'aus OSM: nächster markierter Übergang entlang derselben Strasse, ohne die eigene Querung; ohne Fund die durchsuchte Länge (bis Namenswechsel bzw. Datenende) als Mindestwert (Annahme), nur ab 50 m.' },
   abstandLsaM: { was: 'Entfernung bis zum nächsten Lichtsignal für den Fahrverkehr, in Metern. Kurz nach einem Lichtsignal rechnen Fahrende kaum mit einem Streifen ohne Signal.', vorschlag: 'aus OSM: nächstes Lichtsignal entlang derselben Strasse, ohne die eigene Querung; ohne Fund die durchsuchte Länge (bis Namenswechsel bzw. Datenende) als Mindestwert (Annahme), nur ab 125 m.' },
-  verzweigung: { was: 'Ja, wenn die Querung an einer Kreuzung bzw. Einmündung liegt; dort sind kurze Abstände zwischen Streifen üblich.', vorschlag: 'aus dem Sichtrechner bzw. OSM-Netz: Knoten oder Kreisel bis 20 m vom Streifen «ja», sonst «nein».' },
+  verzweigung: { was: 'Ja, wenn die Querung an einer Kreuzung bzw. Einmündung liegt; dort sind kurze Abstände zwischen Streifen üblich.', vorschlag: 'aus der Sichtprüfung bzw. OSM-Netz: Knoten oder Kreisel bis 20 m vom Streifen «ja», sonst «nein».' },
   verzweigungErkennbar: { was: 'Ja, wenn die nahe Kreuzung mit Lichtsignal für die Fahrenden deutlich als Kreuzung erkennbar ist; dann ist ein kürzerer Abstand möglich.' },
   haltestelleAngrenzend: { was: 'Ja, wenn eine Bus- oder Tramhaltestelle direkt an die Querung grenzt; dann ist ein kurzer Abstand zum nächsten Streifen üblich.', vorschlag: '«ja», wenn eine Haltestelle höchstens 20 m vom Streifen liegt; «nein», wenn im Umkreis von 50 m keine liegt (Geoportal Stadt Bern bzw. OSM); dazwischen offen.' },
   'haltestelle.art': {
@@ -317,13 +317,13 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
       'die nötige Sichtweite richtet sich dann nach dem Radius.',
     leer: 'Leer: keine Kurve vor der Querung; die Sichtweite richtet sich nach dem Tempo. Gilt für Abbieger und Kreisel (bfu); ' +
       'die Kurvenregel der Norm betrifft nur eine Kurve der Strasse selbst.',
-    vorschlag: 'aus dem Sichtrechner: kleinster Abbiegeradius bzw. Kreiselring (geschätzt: Annahme); ohne Abbieger zeigt das Feld das Ergebnis des Sichtrechners.',
+    vorschlag: 'aus der Sichtprüfung: kleinster Abbiegeradius bzw. Kreiselring (geschätzt: Annahme); ohne Abbieger zeigt das Feld das Ergebnis der Sichtprüfung.',
   },
   // Kurvenregel (29.10.2026): nur an einer Kurve der Strasse selbst; gilt, wenn alle fünf ja sind (dann Sicht nach Kurvenradius, ohne V85)
   'kurve.radiusStrasse': {
     was: 'Radius der Kurve der Strasse selbst vor dem Streifen, in Metern (nicht das Abbiegen an einer Einmündung). Unter 20 m ' +
       'nennt VSS 40 241 Tab. 2, S. 7 keinen Wert; dann gilt die Sicht nach dem Tempo.',
-    vorschlag: 'aus der Fahrlinie des Sichtrechners (OSM-Weg) einer geraden Zufahrt, die vor dem Streifen um mindestens 60° dreht; sonst ausgeblendet.',
+    vorschlag: 'aus der Fahrlinie der Sichtprüfung (OSM-Weg) einer geraden Zufahrt, die vor dem Streifen um mindestens 60° dreht; sonst ausgeblendet.',
   },
   'kurve.b1Innerorts50': {
     was: 'Ja, wenn Kurve und Streifen innerorts auf einer vortrittsberechtigten Strasse liegen, mit 50 km/h als allgemeinem Tempo. Erste der ' +
@@ -337,11 +337,11 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   },
   'kurve.b3NachKurvenende': {
     was: 'Ja, wenn der Streifen gleich nach dem Ende der Kurve liegt (VSS 40 241 Z. 14, S. 7; Abb. 2, S. 8).',
-    vorschlag: 'aus der Fahrlinie des Sichtrechners: Abstand vom Ende der Kurve bis zum Streifen; bis 10 m ja, über 30 m nein, dazwischen offen.',
+    vorschlag: 'aus der Fahrlinie der Sichtprüfung: Abstand vom Ende der Kurve bis zum Streifen; bis 10 m ja, über 30 m nein, dazwischen offen.',
   },
   'kurve.b4Winkel60': {
     was: 'Ja, wenn die Kurve die Fahrtrichtung um 60° oder mehr ändert (VSS 40 241 Z. 14, S. 7).',
-    vorschlag: 'aus der Fahrlinie des Sichtrechners (OSM-Weg): Richtungsänderung über die Kurve.',
+    vorschlag: 'aus der Fahrlinie der Sichtprüfung (OSM-Weg): Richtungsänderung über die Kurve.',
   },
   'kurve.b5Gefaelle5': {
     was: 'Ja, wenn die Strasse vor dem Streifen höchstens 5 % Längsgefälle hat (VSS 40 241 Z. 14, S. 7).',
@@ -349,13 +349,13 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   },
   sichtVorh: {
     was: `Wie weit Fahrende je Zufahrt auf die Wartefläche am Streifen sehen, in Metern (${MIT_SLASH}). Nur nötig, wenn das ` +
-      'Ergebnis des Sichtrechners nicht passt.',
-    leer: 'Leer: der Befund übernimmt das Ergebnis des Sichtrechners je Zufahrt (frei bzw. verdeckt). Das ist der Normalfall.',
+      'Ergebnis der Sichtprüfung nicht passt.',
+    leer: 'Leer: der Befund übernimmt das Ergebnis der Sichtprüfung je Zufahrt (frei bzw. verdeckt). Das ist der Normalfall.',
   },
   erkennungM: {
     was: 'Aus welcher Entfernung Fahrende die Fussgängerstreifenanlage erkennen, in Metern. Pflicht ist mindestens die ' +
       'nötige Sichtweite, empfohlen das Doppelte (auch in der Grundprüfung).',
-    vorschlag: 'aus dem Sichtrechner als Annahme: kleinster Wert der geraden Zufahrten (Sicht von der Fahrlinie auf die Bodenmarkierung bis ' +
+    vorschlag: 'aus der Sichtprüfung als Annahme: kleinster Wert der geraden Zufahrten (Sicht von der Fahrlinie auf die Bodenmarkierung bis ' +
       '110 m; geladene Hindernisse und, sobald geladen, das Geländemodell). Signale werden dabei nicht zusätzlich bewertet. Ein ' +
       'Wert «mindestens …» gilt nur, wenn er das Doppelte erreicht; sonst bleibt das Feld offen (Hinweis).',
   },
@@ -453,7 +453,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   aufstellflaeche: { was: 'Ja, wenn es auf beiden Seiten genug Platz zum Warten gibt, ohne den Gehweg zu versperren.' },
   parkierungSichtbehindernd: {
     was: 'Ja, wenn parkierte Autos die Sicht zwischen Wartenden und Fahrenden verdecken.',
-    vorschlag: 'aus dem Sichtrechner: Auto-Parkfelder im Sichtfeld.',
+    vorschlag: 'aus der Sichtprüfung: Auto-Parkfelder im Sichtfeld.',
   },
 
 
@@ -465,7 +465,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
   'q3.anschlussGewerbe': { was: 'Ja, wenn die Seitenstrasse zu Betrieben mit Lieferverkehr oder zu landwirtschaftlich genutztem Land führt.' },
   'q3.ueber': { was: 'Welche Fahrbahn die Trottoirüberfahrt quert. Möglich ist sie nur über die einmündende Seitenstrasse, nie über die Hauptstrasse.', vorschlag: '«die Seitenstrasse» als Annahme, wenn die Lage eine Einmündung ist bzw. (Trottoirüberfahrt) eine Kreuzung über die Zufahrt ohne Vortritt; «die Hauptstrasse», wenn der Streifen nach OSM quer über die Hauptstrasse führt.' },
   'q3.vSigHaupt': { was: 'Signalisiertes Tempo auf der Strasse, entlang der das Trottoir durchläuft, in km/h.',
-    vorschlag: 'bei einer Querung über die Seitenstrasse das Tempo der abbiegenden Zufahrten aus dem Sichtrechner.' },
+    vorschlag: 'bei einer Querung über die Seitenstrasse das Tempo der abbiegenden Zufahrten aus der Sichtprüfung.' },
   'q3.vSigEinm': { was: 'Signalisiertes Tempo in der einmündenden Seitenstrasse, in km/h (für die Berner Tabelle).', vorschlag: 'wie das signalisierte Tempo.' },
   'q3.nEinm': { was: 'Wie viele Fahrstreifen die Seitenstrasse je Richtung hat.', vorschlag: 'an einer Trottoirüberfahrt aus OSM am Knoten ' +
     '(lanes, ohne Angabe 1 als Annahme; mehr als 1 als Vorschlag zum Bestätigen), sonst wie die Fahrstreifen je Richtung (grösster Wert).' },
@@ -1050,7 +1050,7 @@ export const FRAGEN: Readonly<Record<string, string>> = {
   randabschluss: 'Welcher Randstein liegt an der Querung?',
   kurve: 'Liegt vor der Querung eine Kurve?',
   q3: 'Wie ist die Einmündung beschaffen (Angaben im Thema «Trottoirüberfahrt»: Gebiet, Tempo, Fahrstreifen, Sicht beim Ausfahren …)?',
-  Zufahrten: 'Hinweis: im Sichtrechner ist für diesen Streifen keine Zufahrt geprüft (Zufahrten prüfen bzw. Sichtweite von Hand eingeben).',
+  Zufahrten: 'Hinweis: in der Sichtprüfung ist für diesen Streifen keine Zufahrt geprüft (Zufahrten prüfen bzw. Sichtweite von Hand eingeben).',
 }
 
 /** Frage zu einem Feld bzw. fehlenden Feld (unbekannt: Feldname mit Fragezeichen) */

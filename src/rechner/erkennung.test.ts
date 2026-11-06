@@ -1,4 +1,4 @@
-// Tests Erkennungsdistanz aus dem Sichtrechner (erkennung.ts): künstliche Strassen wie
+// Tests Erkennungsdistanz aus der Sichtprüfung (erkennung.ts): künstliche Strassen wie
 // automatik.test.tsx (Hauptstrasse West–Ost, Fahrbahn 8 m, Übergang bei x = 0), keine echten Daten.
 import { describe, expect, it } from 'vitest'
 import { wgs, type P } from '../geo'
@@ -44,7 +44,7 @@ const r0 = rechne()
 const AV_GEB = [...AV, av('Gebaeude', rechteck(-80, -4, -76, 0))]
 const rGeb = rechne(OSM, AV_GEB)
 
-describe('Erkennungsdistanz: Sichtrechner (gerade Zufahrten)', () => {
+describe('Erkennungsdistanz: Sichtprüfung (gerade Zufahrten)', () => {
   it('gerade Strasse frei: alle Zufahrten einheitlich bis 110 m (Reichweite der geladenen Daten), auch bei 30 km/h', () => {
     expect(ERKENNUNG_MAX_M).toBe(REICHWEITE_SICHT_M)
     for (const z of gerade(r0)) expect(z.erkennungM).toEqual({ wert: ERKENNUNG_MAX_M, bis: 'frei' })
@@ -93,8 +93,8 @@ describe('Erkennungsdistanz: Sichtrechner (gerade Zufahrten)', () => {
     expect(ohneErk(rG.streifen[0].zufahrten)).toEqual(ohneErk(r0.streifen[0].zufahrten))
     // Vorbelegung: der sicher freie Teil als Annahme mit Hinweis, auch unter dem Doppelten der Sichtweite
     const v = vorbelegen(querungen(rG.streifen)[0], fallMit())
-    expect(v.werte.erkennungM).toMatchObject({ wert: w.erkennungM!.bewuchsAb, quelle: 'annahme' })
-    expect(v.werte.erkennungM.text).toMatch(new RegExp(`^Sichtrechner: Bodenmarkierung in den Daten frei bis 110 m, ab ${w.erkennungM!.bewuchsAb} m nicht sicher \\(Bewuchs AV: Gartenanlage\\) – vor Ort oder in Street View prüfen \\(so weit geprüft\\) \\(Zufahrt \\d\\); Geländemodell nicht geprüft;`))
+    expect(v.werte.erkennungM).toMatchObject({ wert: w.erkennungM!.bewuchsAb, quelle: 'annahme', geradeZufahrt: true })
+    expect(v.werte.erkennungM.text).toMatch(new RegExp(`^Sichtprüfung: Bodenmarkierung in den Daten frei bis 110 m, ab ${w.erkennungM!.bewuchsAb} m nicht sicher \\(Bewuchs AV: Gartenanlage\\) – vor Ort oder in Street View prüfen \\(so weit geprüft\\) \\(Zufahrt \\d\\); Geländemodell nicht geprüft;`))
     // übrige humusierte Fläche (Wiese) ist kein Bewuchs; ein Gebäude davor geht vor (verdeckt, kein «nicht sicher» dahinter)
     expect(vonWesten(gerade(rechne(OSM, [...AV, av('uebrige_humusierte', rechteck(-70, -4, -66, 0))]))).erkennungM).toEqual({ wert: 110, bis: 'frei' })
     const wGeb = vonWesten(gerade(rechne(OSM, [...AV_GEB, av('Gartenanlage', rechteck(-95, -4, -91, 0))])))
@@ -132,7 +132,7 @@ describe('Erkennungsdistanz: Sichtrechner (gerade Zufahrten)', () => {
     // Vorbelegung: «mindestens 78 m» erreicht das Doppelte (110 m) nicht: Feld offen mit Hinweis statt einer Verletzung
     const v = vorbelegen(querungen(r.streifen)[0], fallMit())
     expect(v.werte.erkennungM).toBeUndefined()
-    expect(v.feldHinweise!.erkennungM).toMatch(/^Sichtrechner: Bodenmarkierung im Modell erkennbar auf mindestens \d+ m \(Fahrlinie endet am Knoten, weiter zurück nicht geprüft\) \(Zufahrt \d\); Geländemodell nicht geprüft; nur Bodenmarkierung geprüft; Signale hier nicht zusätzlich bewertet; nötig 110 m/)
+    expect(v.feldHinweise!.erkennungM).toMatch(/^Sichtprüfung: Bodenmarkierung im Modell erkennbar auf mindestens \d+ m \(Fahrlinie endet am Knoten, weiter zurück nicht geprüft\) \(Zufahrt \d\); Geländemodell nicht geprüft; nur Bodenmarkierung geprüft; Signale hier nicht zusätzlich bewertet; nötig 110 m/)
   })
   it('Abbieger: kein Wert (Einmündung 30 m westlich: Abbieger aus der Querstrasse statt der geraden Zufahrt)', () => {
     const o = osm([weg(1, [[20, -30, 0], [12, 0, 0], [13, 300, 0]], HAUPT), weg(2, [[21, -30, -300], [20, -30, 0], [22, -30, 300]], QUER)])
@@ -174,7 +174,7 @@ describe('Erkennungsdistanz: Vorbelegung (kleinster Wert, Annahme, Hand vor)', (
     const [b] = befundblaetter(rGeb, fall, OHNE)
     const wWest = vonWesten(gerade(rGeb)).erkennungM!.wert
     expect(b.vorbelegt.werte.erkennungM).toMatchObject({ wert: wWest, quelle: 'annahme' })
-    expect(b.vorbelegt.werte.erkennungM.text).toMatch(new RegExp(`^Sichtrechner: Bodenmarkierung im Modell erkennbar ab ${wWest} m \\(weiter entfernt verdeckt: Gebäude\\) \\(Zufahrt \\d\\); Geländemodell nicht geprüft; nur Bodenmarkierung geprüft; Signale hier nicht zusätzlich bewertet$`))
+    expect(b.vorbelegt.werte.erkennungM.text).toMatch(new RegExp(`^Sichtprüfung: Bodenmarkierung im Modell erkennbar ab ${wWest} m \\(weiter entfernt verdeckt: Gebäude\\) \\(Zufahrt \\d\\); Geländemodell nicht geprüft; nur Bodenmarkierung geprüft; Signale hier nicht zusätzlich bewertet$`))
     expect(offeneFragen(b, new Set()).map(f => f.ziel)).not.toContain('erkennungM')
     const t = b.grund.punkte.find(p => p.nr === '1')!.teile.find(x => x.id === 'B5-1b')!
     expect(t).toMatchObject({ zustand: 'verletzt', ist: `${wWest} m` })

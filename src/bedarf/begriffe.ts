@@ -99,7 +99,7 @@ export const BEGRIFFE: readonly Begriff[] = [
     text: 'Freie Weltkarte, von Freiwilligen erfasst. fgsCheck liest daraus Strassen, Übergänge und Tempoangaben; sie kann lückenhaft sein.' },
   { id: 'av', name: 'AV (amtliche Vermessung)', muster: ['AV', 'AV-\\p{L}+'],
     text: 'Amtlicher Plan der Kantone mit Fahrbahn, Trottoir, Inseln und Gebäuden. fgsCheck misst daraus Breiten und Bordkanten.' },
-  { id: 'sichtrechner', name: 'Sichtrechner', muster: ['Sichtrechners?'],
+  { id: 'sichtrechner', name: 'Sichtprüfung', muster: ['Sichtprüfung'],
     text: 'Teil von fgsCheck, der je Zufahrt prüft, ob man die Wartefläche weit genug sieht (Parkfelder, Bäume, Gebäude im Sichtfeld).' },
   { id: 'geoportal', name: 'Geoportal Stadt Bern', muster: ['Geoportals?'],
     text: 'Kartendienst der Stadt Bern; fgsCheck liest daraus u. a. Tempo, Verkehrsmengen, Schulen und das Fusswegnetz.' },

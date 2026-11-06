@@ -200,7 +200,7 @@ describe('Gelände: Vorbelegung «Ab welcher Distanz ist der Streifen erkennbar�
     expect(ohne.werte.erkennungM.text).toContain('Geländemodell nicht geprüft')
     const mit = vorbelegen(querungen(r.streifen)[0], fall, [], { erkennungGelaende: werte })
     expect(mit.werte.erkennungM).toMatchObject({ wert: g.abM, quelle: 'annahme' })
-    expect(mit.werte.erkennungM.text).toContain(`Sichtrechner: ${erkennungText(erkennungAnzeige(west, werte)!.e)}`)
+    expect(mit.werte.erkennungM.text).toContain(`Sichtprüfung: ${erkennungText(erkennungAnzeige(west, werte)!.e)}`)
     expect(mit.werte.erkennungM.text).toContain('letzte frei geprüfte Position')
     expect(mit.werte.erkennungM.text).toContain('nur Bodenmarkierung geprüft; Signale hier nicht zusätzlich bewertet')
   })

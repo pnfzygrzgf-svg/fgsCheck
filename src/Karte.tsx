@@ -31,7 +31,8 @@ import { schildLage, zufahrtNr, zufahrtText, type ZufahrtNamen } from './benennu
 import { ortZoom, type Ort } from './daten/ortssuche'
 import { KS_LAGE } from './tue/texte'
 import { ksDreieckSichtbar, ksFahrzeugStand, ksPhaseNach, tueFlaeche, tueGezeichnet, type KsPhase } from './tue/karte'
-import { messLaenge, messText, type Messung } from './messen'
+import { messText, type MessStand } from './messen'
+import type { Kante } from './bordkanten'
 import { FARBE_VELO, VELO_SICHT_FARBE, fahrzeugFarbe, fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
 import { erkennungBaender, erkennungSichtlinien, type SichtlinieKarte } from './erkennungKarte'
 import { sichtGelaendeLinieText } from './sichtGelaende'
@@ -402,7 +403,9 @@ export default function Karte(props: {
   fixVorschlaege: { p: P; text: string }[]           // vorgeschlagene Fixpunkte (blass; Tooltip, Klick übernimmt)
   onFixVorschlag?: (p: P) => void                    // Klick auf einen vorgeschlagenen Fixpunkt: übernehmen
   masslinien: Masslinie[]
-  messung?: Messung | null                             // Werkzeug «Messen»: Strecke mit Länge (messen.ts), nicht im Fall
+  messung?: MessStand | null                           // Werkzeug «Messen»: Stand (messen.ts), nicht im Fall
+  messKanten?: Kante[]                                 // Werkzeug «Messen»: Bordsteinkanten der AV (bordkanten.ts), orange
+  messKasten?: React.ReactNode                         // Werkzeug «Messen»: Kasten über der Karte (App.tsx)
   zufahrtNamen: Map<string, ZufahrtNamen>                  // Anzeige (benennung.ts) je Streifen: Nummer, Strasse und Herkunft
   streifenTitel: (fgsId: string) => string                 // Anzeige: Name bzw. «Streifen 1»
   /** Längsneigung der Fahrlinie je «fgsId|zufahrt» (Höhenprofil): Soll der Sicht vom Velo nach Tab. 3 */
@@ -1509,22 +1512,23 @@ export default function Karte(props: {
     }
   }, [fixpunkte, fixVorschlaege, masslinien, bearbeiten, werkzeug])
 
-  // Werkzeug «Messen»: Strecke mit Länge (zwei Nachkommastellen), gefangene Punkte als Quadrat, freie als Kreis
-  const messung = props.messung ?? null
+  const messung = props.messung ?? null, messKanten = props.messKanten ?? null
+  // Werkzeug «Messen» (06.11.2026, nach VeloroutenCheck): Bordsteinkanten der AV orange, gesetzte Punkte, Messstrecke mit Wert
   useEffect(() => {
     const eb = ebenenRef.current
     if (!eb) return
     eb.mess.clearLayers()
     if (!messung) return
-    for (const q of [messung.a, messung.b]) if (q) L.circleMarker(ll(q.p), { radius: q.art === 'frei' ? 4 : 5, color: MESS_FARBE, weight: 2,
-      fillColor: '#ffffff', fillOpacity: 1, interactive: false }).addTo(eb.mess)
-    const x = messLaenge(messung)
-    if (x === null || !messung.b) return
-    L.polyline([ll(messung.a.p), ll(messung.b.p)], { color: MESS_FARBE, weight: 2.5, interactive: false }).addTo(eb.mess)
-    const mitte: P = [(messung.a.p[0] + messung.b.p[0]) / 2, (messung.a.p[1] + messung.b.p[1]) / 2]
+    if (messKanten?.length) L.polyline(messKanten.map(k => [ll(k.a), ll(k.b)]), { color: '#f97316', weight: 2.5, opacity: .95, interactive: false }).addTo(eb.mess)
+    const punkte = messung.ergebnis ? [messung.ergebnis.von, messung.ergebnis.bis] : messung.hand ? [messung.hand.a.p] : []
+    for (const p of punkte) L.circleMarker(ll(p), { radius: 5, color: MESS_FARBE, weight: 2, fillColor: '#ffffff', fillOpacity: 1, interactive: false }).addTo(eb.mess)
+    if (!messung.ergebnis) return
+    const { von, bis, breite } = messung.ergebnis
+    L.polyline([ll(von), ll(bis)], { color: MESS_FARBE, weight: 2.5, interactive: false }).addTo(eb.mess)
+    const mitte: P = [(von[0] + bis[0]) / 2, (von[1] + bis[1]) / 2]
     L.marker(ll(mitte), { interactive: false, keyboard: false, icon: L.divIcon({ className: 'masstext messtext', iconSize: [0, 0],
-      html: `<span>${esc(messText(x))}</span>` }) }).addTo(eb.mess)
-  }, [messung])
+      html: `<span>${esc(messText(breite))}</span>` }) }).addTo(eb.mess)
+  }, [messung, messKanten])
 
   // Fahrzeuge und wartende Personen (27.10.2026, fahrzeuge.ts): Trottoirüberfahrt (Knotensicht) immer; am Fussgängerstreifen die Personen
   // immer, die Fahrzeuge der nicht gewählten Zufahrten blass erst ab Zoom FAHRZEUG_ZOOM (die gewählte kräftig in der Auswahl)
@@ -1738,6 +1742,7 @@ export default function Karte(props: {
       })()}
       <div className="kartenkopf">
         <Ortssuche onOrt={ortWaehlen} />
+        {props.messKasten}
         {hinweise.map(h => (
           <div key={h.text} className={'kartenhinweis' + (h.fehler ? ' fehler' : '')} role="status">
             {h.text}

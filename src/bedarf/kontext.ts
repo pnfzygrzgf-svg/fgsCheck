@@ -92,6 +92,8 @@ export class Kontext {
     return i.vorhanden && this.s('insel', 'art') === 'markiert'
   }
   /** Abstand ist die Länge der ganzen Strasse (Vorbelegung) */
+  /** Erkennungsdistanz aus der Rechnung der geraden Zufahrten (Feld.geradeZufahrt) */
+  erkennungGerade(): boolean { return this.e.erkennungM?.geradeZufahrt === true && this.e.erkennungM.wert !== null }
   ganzeStrasse(f: 'abstandFgsM' | 'abstandLsaM'): boolean { return this.e[f]?.ganzeStrasse === true && this.e[f].wert !== null }
   /** besonderes Vortrittsbedürfnis (Schule, Kindergarten, Heim, Haltestelle, Schulweg; Fusswegnetz nur mit der Ebene Bern, C2-B) */
   bed(): boolean { return this.w('beduerfnis').filter(b => b !== 'fusswegnetz' || this.an('Bern')).length > 0 }

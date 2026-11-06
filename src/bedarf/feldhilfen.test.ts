@@ -130,7 +130,7 @@ describe('Feldhilfen: Erklärung und Herkunft je Feld', () => {
     expect(bezuege('beleuchtung').find(b => b.id === 'B5-4')?.grund).toBe(true)
     expect(quelleKurz('D6-2')).toBe('Masterplan Fussverkehr Bern S. 64')
     expect(leerText('dtv')).toContain('offen')
-    expect(leerText('sichtVorh')).toContain('Sichtrechner')
+    expect(leerText('sichtVorh')).toContain('Sichtprüfung')
     // gestrichene Regeln und Verweise erscheinen nicht
     for (const d of FELD_DEFS) for (const b of bezuege(d.pfad)) expect(['befund', 'weiche']).toContain((KATALOG[b.id] as RegelDef).art)
   })
@@ -221,7 +221,7 @@ describe('Feldhilfen: Sichtbarkeit', () => {
     expect(sichtbar('beleuchtung', k({ typ: 'furt' }))).toBe(false)
   })
   it('ausgeblendete Felder ändern nichts: Befund, offen, Empfehlung, Masse, Grundprüfung (alle Testfälle und Varianten)', () => {
-    // wie das Befundblatt: ohne Sichtweite von Hand ersetzt der Sichtrechner H1, E3, E3a und D5-4
+    // wie das Befundblatt: ohne Sichtweite von Hand ersetzt die Sichtprüfung H1, E3, E3a und D5-4
     const sichtfrei = (b: ReturnType<typeof beurteile>, vonHand: boolean) => vonHand ? b : {
       ...b, alle: b.alle.filter(x => !['H1', 'E3', 'E3a', 'D5-4'].includes(x.id)),
       masse: b.masse.filter(m => !m.regeln.some(id => ['H1', 'E3'].includes(id))),

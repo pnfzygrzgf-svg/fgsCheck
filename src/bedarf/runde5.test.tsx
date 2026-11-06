@@ -1,4 +1,4 @@
-// Tests Sichtrechner mit amtlichem Tempo (V_sig), innerorts und Seitenstrasse (F1, F3), Teilstreifen
+// Tests Sichtprüfung mit amtlichem Tempo (V_sig), innerorts und Seitenstrasse (F1, F3), Teilstreifen
 // (F5), Fusswegnetz als Grund, Texte ohne Codes und Tags, Satz 1 und 4 der Zusammenfassung, Bericht.
 // Künstliche Strasse wie die übrigen Tests: Hauptstrasse West–Ost (y = 0), Fahrbahn 8 m, Tempo 50 (OSM), Übergang bei x = 0.
 
@@ -38,7 +38,7 @@ const vsig = (v: number, teile: P[][] = [[lv(-300, 0), lv(300, 0)]]): VsigLinie[
 const rechteckRing = (): P[] => [lv(-50, -50), lv(50, -50), lv(50, 50), lv(-50, 50)]
 const vw = (wert: unknown, quelle: VorWert['quelle'] = 'osm', text = 'Test'): VorWert => ({ wert, quelle, text })
 
-describe('Runde 5, Teil C: Sichtrechner mit amtlichem Tempo (V_sig)', () => {
+describe('Runde 5, Teil C: Sichtprüfung mit amtlichem Tempo (V_sig)', () => {
   it('V_sig der Achse gilt als Tempo der Zufahrt (Quelle «Geoportal»), Soll nach Tab. 1; Annahme nennt OSM', () => {
     const r = rechneFall(OSM, AV, [], 12, fallMit(), null, null, null, vsigTempo({ linien: vsig(30), bereich: BQ }))
     const zs = r.streifen.flatMap(s => s.zufahrten)
@@ -69,11 +69,11 @@ describe('Runde 5, Teil C: Sichtrechner mit amtlichem Tempo (V_sig)', () => {
     const g = querungen(r.streifen)[0]
     const v = vorbelegen(g, fallMit(), [], { vsig: { linien: vsig(30), bereich: BQ } })
     expect(v.werte.vSig).toMatchObject({ wert: 30, quelle: 'geoportal' })
-    expect(v.hinweise.join(' ')).not.toMatch(/Sichtrechner rechnet/)
+    expect(v.hinweise.join(' ')).not.toMatch(/Sichtprüfung rechnet/)
     expect(v.werte.innerorts).toMatchObject({ wert: true, quelle: 'annahme', text: 'Tempo 30 km/h (Geoportal): innerorts angenommen' })
     const [b] = befundblaetter(r, fallMit(), { vorgabe: { bern: true, kantonBE: true }, geo: { vsig: { linien: vsig(30), bereich: BQ } } })
     expect(b.grund.tempoHinweis).toBeUndefined()
-    // ohne V_sig im Sichtrechner, aber mit V_sig über der Querung: der Kasten nennt das Tempo der Rechnung (F2)
+    // ohne V_sig in der Sichtprüfung, aber mit V_sig über der Querung: der Kasten nennt das Tempo der Rechnung (F2)
     const r50 = rechneFall(OSM, AV, [], 12, fallMit(), null)
     const [b50] = befundblaetter(r50, fallMit(), { vorgabe: { bern: true, kantonBE: true }, geo: { vsig: { linien: vsig(30), bereich: BQ } } })
     expect(b50.grund.tempoHinweis).toContain('Soll gerechnet mit 50 km/h (OSM); signalisiert 30 km/h (Geoportal Stadt Bern)')

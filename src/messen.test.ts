@@ -63,7 +63,7 @@ describe('Messen', () => {
   })
   it('Werkzeug am Ende der Gruppe Planen, Tooltip kurz, Hilfe in der Gruppe', () => {
     expect(PLAN_WERKZEUGE[PLAN_WERKZEUGE.length - 1]).toBe('messen')
-    expect(WERKZEUGE.find(x => x[0] === 'messen')![2]).toBe('zwei Punkte anklicken; Fang auf Vermessungspunkte; Wert in ein Zahlenfeld übernehmen')
+    expect(WERKZEUGE.find(x => x[0] === 'messen')![2]).toBe('auf der Karte messen: ab Bordsteinkante der AV, ganze Fahrbahn oder zwei Punkte; Wert in ein Zahlenfeld übernehmen')
     expect(hilfeOrt('messen', true, false)).toBe('planen')
     expect(FANG_PX).toBe(12)
   })

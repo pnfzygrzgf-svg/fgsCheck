@@ -58,13 +58,22 @@ export function useSichtWahl(): [SichtWahl, (art: SichtArt | 'an' | 'masse', an:
     setzen(neu); window.dispatchEvent(new CustomEvent(EVENT, { detail: neu }))
   }]
 }
+/** Zustand der Taste als Auge wie im SichtweitenCheck (06.11.2026): offen = Sichtfeld auf der Karte, rot durchgestrichen = ausgeblendet
+ *  (statt ◉/○, die kaum zu unterscheiden waren); ausgeblendete Tasten zudem grau und blass (index.css) */
+function Auge({ an }: { an: boolean }) {
+  return <svg className="sicht-auge" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2"
+    strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" />
+    {an ? <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" /> : <path d="M4 20 20 4" strokeWidth="2.6" />}
+  </svg>
+}
 export function SichtTaste({ art, id, children, className = '', style }: { art: SichtArt; id?: string; children?: ReactNode; className?: string; style?: React.CSSProperties }) {
   const [wahl, setzen] = useSichtWahl()
   const an = sichtZeigen(wahl, art, id)
   return <button type="button" className={'sicht-taste ' + className + (an ? '' : ' ausgeblendet')} style={style} aria-pressed={an}
     title={`${SICHT_TEXT[art]}: ${id ? 'dieses Sichtfeld' : 'Sichtfelder dieser Art'} auf der Karte ${an ? 'ausblenden' : 'einblenden'}`}
     onClick={e => { e.stopPropagation(); setzen(art, !an, id) }}>
-    {children ?? SICHT_TEXT[art]}<span className="sicht-zeichen" aria-hidden="true"> {an ? '◉' : '○'}</span>
+    {children ?? SICHT_TEXT[art]}<Auge an={an} />
   </button>
 }
 export function MassWahl() {

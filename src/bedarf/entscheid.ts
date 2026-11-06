@@ -57,7 +57,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
     for (const [a, b] of k.ergebnisse) ks.ergebnisse.set(a, b)
     try { return REGELN[id](ks) !== null } catch (x) { if (x instanceof Offen) return true; throw x }
   }
-  const masse = new Map<string, { einheit: string; ist?: string; soll: string[]; verletzt: boolean; offen: boolean; nichtAnwendbar?: boolean
+  const masse = new Map<string, { einheit: string; ist?: string; soll: string[]; verletzt: boolean; hinweis?: boolean; offen: boolean; nichtAnwendbar?: boolean
     ausnahme?: string; annahme?: boolean; regeln: string[] }>()
 
   const typ = k.o('typ')
@@ -124,7 +124,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
       else {
         if (m.ist === undefined && r.ist !== undefined) m.ist = r.ist
         if (r.soll !== undefined && !m.soll.includes(r.soll)) m.soll.push(r.soll)
-        if (r.verletzt && !r.ohneMassBefund) m.verletzt = true
+        if (r.verletzt && !r.ohneMassBefund) { if ((r.staerke ?? def.staerke) === 'hinweis') m.hinweis = true; else m.verletzt = true }
         if (r.ohneMassBefund) m.nichtAnwendbar = true
         if (r.ausnahme && !r.verletzt) m.ausnahme = r.ausnahme
         if (r.annahme) m.annahme = true
@@ -289,7 +289,7 @@ export function beurteile(e: BedarfEingaben, opt: Optionen = {}): Befund {
   }
   const massZeilen: MassZeile[] = [...masse].filter(([, m]) => m.ist !== undefined || m.offen).map(([groesse, m]) => ({
     groesse, einheit: m.einheit, soll: m.soll.join('; '), ist: m.ist ?? '–',
-    zustand: m.verletzt ? 'verletzt' : m.offen ? 'offen' : m.nichtAnwendbar && !m.soll.length ? 'nicht_anwendbar' : m.ausnahme ? 'ausnahme'
+    zustand: m.verletzt ? 'verletzt' : m.hinweis ? 'hinweis' : m.offen ? 'offen' : m.nichtAnwendbar && !m.soll.length ? 'nicht_anwendbar' : m.ausnahme ? 'ausnahme'
       : m.annahme ? 'annahme' : 'erfuellt', regeln: m.regeln, ...(m.ausnahme && !m.verletzt && !m.offen ? { zusatz: m.ausnahme } : {}),
   }))
   const annahmen = [...k.annahmen]

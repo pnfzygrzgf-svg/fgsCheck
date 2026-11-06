@@ -79,7 +79,7 @@ describe('Regelkatalog', () => {
   it('jede Regel mit Befund ist im Baum erreichbar (Eintrag in mindestens einem Testfall) und hat einen eigenen Testfall', () => {
     const gesehen = new Set<string>()
     for (const t of TESTFAELLE) for (const x of beurteile(fall(t.abw), { ebenen: t.ebenen }).alle) gesehen.add(x.id)
-    // nur aus dem Sichtrechner (befundblatt.ts, eigene Tests): Sicht vom Velo
+    // nur aus der Sichtprüfung (befundblatt.ts, eigene Tests): Sicht vom Velo
     const NUR_SICHTRECHNER = ['H1-V']
     const fehlt = mitBefund.filter(id => !gesehen.has(id) && !NUR_SICHTRECHNER.includes(id))
     expect(fehlt).toEqual([])

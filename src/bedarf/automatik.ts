@@ -1,6 +1,6 @@
 // ── Bedarfsmodul: Automatik (21.10.2026) ──
 //
-// Vorbelegung weiterer Felder aus Daten, die die App schon geladen hat: Rechnung (Sichtrechner), OSM-Antwort (Wege mit Tags,
+// Vorbelegung weiterer Felder aus Daten, die die App schon geladen hat: Rechnung (Sichtprüfung), OSM-Antwort (Wege mit Tags,
 // Übergänge, Ampeln, Tramgleise), AV-Bodenbedeckung, Haltestellen. Aufgerufen am Schluss von vorbelegung.vorbelegen (die dort
 // gesetzten Werte, z. B. Tempo, DTV, Fahrbahnbreite, sind dann bekannt). Jeder Wert trägt Quelle und Herkunft als Text; Annahmen
 // tragen die Quelle «annahme» und erscheinen damit im Befund unter «Annahmen». «Erfüllt» entsteht nie ohne Grundlage: fehlen die
@@ -96,7 +96,8 @@ type FeldHinweis = (pfad: string, text: string) => void
 
 const r1 = (x: number) => Math.round(x * 10) / 10 || 0
 const f1 = (x: number) => r1(x).toFixed(1).replace('.', ',')
-const ganz = (x: number) => String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+// vierstellig ohne Lücke wie die Regeltexte (3000), ab fünf Stellen mit
+const ganz = (x: number) => (Math.abs(x) < 9999.5 ? String(Math.round(x)) : String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '))
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2 }
 const wegId = (x: string | null | undefined): number | null => {
   const n = Number(String(x ?? '').replace(/^w/, ''))
@@ -245,7 +246,7 @@ export interface AutoEingang {
   setze: Setze
   feldHinweis: FeldHinweis
   hinweise: string[]
-  /** Anzeige je Pfad im Zustand «rechner» (Feld ohne Wert, Sichtrechner rechnet je Zufahrt) */
+  /** Anzeige je Pfad im Zustand «rechner» (Feld ohne Wert, Sichtprüfung rechnet je Zufahrt) */
   rechner: Record<string, string>
   /** Ausgabe ohne Feld: OSM-Knoten der Lage (Kreuzung bzw. Einmündung, nicht am Kreisel), für den Verweis auf den SichtweitenCheck */
   aus?: { knoten?: number }
@@ -329,7 +330,7 @@ export function automatik(x: AutoEingang): void {
       const endet = endetR || (!weiter && armeStrasse === 1)
       if (endet) {
         setze('lage', 'einmuendung', 'osm', `Einmündung: Knoten ${ganz(k.d)} m vom Streifen, die gequerte Strasse endet dort ` +
-          `(OSM-Netz${endetR ? ', Sichtrechner' : ''}; ${k.arme.length} Arme)`)
+          `(OSM-Netz${endetR ? ', Sichtprüfung' : ''}; ${k.arme.length} Arme)`)
         setze('q3.ueber', 'einmuendend', 'annahme', 'Querung über die einmündende Strasse (Lage Einmündung)')
         setze('q3.kreisel', false, 'osm', `kein Kreisel innerhalb ${AUTO.knotenM} m (OSM)`)
       } else {
@@ -350,17 +351,17 @@ export function automatik(x: AutoEingang): void {
       setze('lage', 'strecke', 'osm', `kein Knoten und kein Kreisel innerhalb ${AUTO.knotenM} m vom Streifen (OSM-Netz)`)
     }
   }
-  // A7 Verzweigung: Knoten bis 20 m (OSM-Netz bzw. Sichtrechner)
+  // A7 Verzweigung: Knoten bis 20 m (OSM-Netz bzw. Sichtprüfung)
   if (n) {
     const d = kreiselD ?? knoten?.d ?? null
     if (d !== null) setze('verzweigung', true, 'rechnung', `${kreiselD !== null ? 'Kreisel' : 'Knoten'} ${ganz(d)} m vom Streifen (OSM-Netz)`)
     else setze('verzweigung', false, 'rechnung', `kein Knoten innerhalb ${AUTO.knotenM} m vom Streifen (OSM-Netz)`)
   } else if (zuf.length || einmRechnung.length) {
     const d = knotenRechnungM()
-    if (d !== null && d <= AUTO.knotenM + 1e-9) setze('verzweigung', true, 'rechnung', `Sichtrechner: Knoten ${ganz(d)} m vom Streifen`)
+    if (d !== null && d <= AUTO.knotenM + 1e-9) setze('verzweigung', true, 'rechnung', `Sichtprüfung: Knoten ${ganz(d)} m vom Streifen`)
     else if (gerade.length && gerade.every(z => z.ersterKnotenM === null || z.ersterKnotenM > AUTO.knotenM) && !einmRechnung.length &&
       zuf.every(z => z.art !== 'abbiegend' || (z.knotenM ?? Infinity) > AUTO.knotenM))
-      setze('verzweigung', false, 'rechnung', `Sichtrechner: kein Knoten innerhalb ${AUTO.knotenM} m an den Zufahrten`)
+      setze('verzweigung', false, 'rechnung', `Sichtprüfung: kein Knoten innerhalb ${AUTO.knotenM} m an den Zufahrten`)
   }
 
   // ── B2 Abstände zum nächsten Fussgängerstreifen bzw. Lichtsignal (entlang derselben Strasse), Knoten mit LSA, Arme ──
@@ -555,7 +556,7 @@ export function automatik(x: AutoEingang): void {
     setze('neuanlage', true, 'annahme', eigenId === null ? 'Streifen von Hand ohne OSM-Übergang: neue Anlage angenommen'
       : 'Streifen von Hand an einem OSM-Übergang ohne Markierung: neue Anlage angenommen')
 
-  // ── A7 Kurvenradius aus dem Sichtrechner ──
+  // ── A7 Kurvenradius aus der Sichtprüfung ──
   const zs = zufSicht(st)
   const radien = zs.filter(z => z.kurvenradiusM !== null && z.kurvenradiusM > 0)
   if (radien.length) {
@@ -563,8 +564,8 @@ export function automatik(x: AutoEingang): void {
     const geschaetzt = /geschätzt/.test(z.radiusQuelle ?? '')
     const was = z.art === 'abbiegend' ? `Abbiegeradius${z.strasse ? ` aus der ${z.strasse}` : ''}` : 'Radius im Kreisel'
     const wie = geschaetzt ? 'aus den Fahrbahnbreiten geschätzt' : `aus ${(z.radiusQuelle ?? 'der Rechnung').replace(/^geschätzt \((.*)\)$/, '$1 geschätzt')}`
-    setze('kurve.radius', z.kurvenradiusM, geschaetzt ? 'annahme' : 'rechnung', `${was} ${f1(z.kurvenradiusM!)} m, ${wie} (Sichtrechner)`)
-  } else if (zs.length) rechner['kurve.radius'] = 'Sichtrechner: keine abbiegende Zufahrt und kein Kreisel; gerade Zufahrten nach Tempo'
+    setze('kurve.radius', z.kurvenradiusM, geschaetzt ? 'annahme' : 'rechnung', `${was} ${f1(z.kurvenradiusM!)} m, ${wie} (Sichtprüfung)`)
+  } else if (zs.length) rechner['kurve.radius'] = 'Sichtprüfung: keine abbiegende Zufahrt und kein Kreisel; gerade Zufahrten nach Tempo'
 
   // A9 Halteverbotslinie nach Sichtbedarf gestrichen 30.10.2026 (G7, G7b)
 
@@ -642,7 +643,7 @@ export function automatik(x: AutoEingang): void {
 
   // ── A4 Kopien ── (Kopien in die LSA-Zeiten gestrichen 30.10.2026 mit Block I)
   // Werte der gequerten Strasse sind nur dann die der Seitenstrasse, wenn die Querung über die einmündende Strasse führt
-  // (Lage Einmündung); die Hauptstrasse ist dann die Querstrasse der abbiegenden Zufahrten (Tempo des Sichtrechners)
+  // (Lage Einmündung); die Hauptstrasse ist dann die Querstrasse der abbiegenden Zufahrten (Tempo der Sichtprüfung)
   const ueberSeite = w['q3.ueber']?.wert === 'einmuendend'
   const vs = w.vSig
   if (vs && ueberSeite) setze('q3.vSigEinm', vs.wert, vs.quelle, `wie signalisiertes Tempo (${vs.text})`)
@@ -651,7 +652,7 @@ export function automatik(x: AutoEingang): void {
     const vH = Math.max(...abb.map(z => z.tempo))
     const q: Quelle = tempoQuelleArt(abb.map(z=>z.tempoQuelle))
     const namen = [...new Set(abb.map(z => z.strasse).filter(Boolean))].join(', ')
-    setze('q3.vSigHaupt', vH, q, `Tempo der Hauptstrasse${namen ? ` (${namen})` : ''} ${vH} km/h (Sichtrechner, ${tempoQuellenName(abb.map(z=>z.tempoQuelle))})`)
+    setze('q3.vSigHaupt', vH, q, `Tempo der Hauptstrasse${namen ? ` (${namen})` : ''} ${vH} km/h (Sichtprüfung, ${tempoQuellenName(abb.map(z=>z.tempoQuelle))})`)
   }
   // Trottoirüberfahrt mit Knotensicht (27.10.2026): Fahrstreifen der Seiten- und der Hauptstrasse aus OSM am Knoten (die des Streifens
   // gehören zur gequerten Strasse und passen nur, wenn er über die Seitenstrasse führt); sonst wie bisher

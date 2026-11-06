@@ -298,7 +298,7 @@ describe('Bedarf: der Übergang aus dem Luftbild ist kein OSM-Beleg', () => {
     expect(v.werte.typ.text).toContain('ETH-Modell')
     expect(v.werte.abstandFgsM).toMatchObject({ wert: 60, quelle: 'osm' })
     expect(JSON.stringify(v)).not.toContain(String(k.id))
-    // derselbe Ort als OSM-Übergang (Knoten 12 auf dem Weg): Quellen wie bisher OSM bzw. Sichtrechner
+    // derselbe Ort als OSM-Übergang (Knoten 12 auf dem Weg): Quellen wie bisher OSM bzw. Sichtprüfung
     const roh2 = rohMit()
     roh2.elements[0].nodes = [10, 12, 50, 13] as never
     ;(roh2.elements[0] as { geometry: unknown[] }).geometry = [ll(-300, 0), ll(0, 0), ll(60, 0), ll(300, 0)]

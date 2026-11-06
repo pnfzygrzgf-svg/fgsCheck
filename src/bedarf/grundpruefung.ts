@@ -6,13 +6,13 @@
 // Schaltern, nicht im Entscheidbaum (keine Doppelungen im Befundblatt). Gilt nur für Fussgängerstreifen ohne Lichtsignalanlage.
 //
 // Sicht (Punkt 1): mit vorhandener Sichtweite von Hand die kleinste gegen das Soll der Querung; sonst je Zufahrt das Ergebnis des
-// Sichtrechners (frei bzw. verdeckt). Der Sichtrechner prüft nach dem signalisierten Tempo (VSS 40 241 Tab. 1, gleiche Werte wie die
+// Sichtprüfung (frei bzw. verdeckt). Die Sichtprüfung prüft nach dem signalisierten Tempo (VSS 40 241 Tab. 1, gleiche Werte wie die
 // bfu) bzw. im Knoten nach Kurvenradius (bfu Tab. 1) und geometrischen Grenzen (bis Knoten, Wegende, Gebäude). Für gerade Zufahrten
 // setzt die Grundprüfung die Stufe nach V85 (bei geometrischer Grenze höchstens deren Länge); Abbieger behalten das Soll des
-// Sichtrechners. Frei auf einer kürzeren Strecke als nötig bzw. verdeckt auf einer längeren Strecke ist offen, nicht erfüllt bzw.
+// Sichtprüfung. Frei auf einer kürzeren Strecke als nötig bzw. verdeckt auf einer längeren Strecke ist offen, nicht erfüllt bzw.
 // verletzt. Unsichere Soll-Werte (Stufe 60 ohne Angabe innerorts, Kurvenradius von Hand ohne Zuordnung der Zufahrt) als Bereich:
 // verletzt nur unter der unteren, erfüllt nur ab der oberen Grenze, dazwischen offen.
-// Verdeckte gerade Zufahrten mit «frei bis» (Sichtrechner) gelten als erfüllt, wenn die freie Länge
+// Verdeckte gerade Zufahrten mit «frei bis» (Sichtprüfung) gelten als erfüllt, wenn die freie Länge
 // das nötige Soll erreicht, als verletzt, wenn sie darunter liegt; dazwischen offen.
 
 import { KATALOG, quellText, type GrundId } from './katalog'
@@ -64,32 +64,32 @@ export interface Grundpruefung {
   /** weitere bfu-Punkte (DTV, Annäherungsbereich, Fahrbahnhaltestelle) */
   weitere: GrundTeil[]
   annahmen: string[]
-  /** Tempo des Sichtrechners weicht vom signalisierten Tempo ab (F2, Befundblatt): Hinweis in der Zeile ① */
+  /** Tempo der Sichtprüfung weicht vom signalisierten Tempo ab (F2, Befundblatt): Hinweis in der Zeile ① */
   tempoHinweis?: string
   /** Begegnungszone nur vorgeschlagen (Tempo 20): Anzeige mit Sprung zum Feld «Strecke oder Zone» */
   zoneVorschlag?: true
 }
 
-/** Sicht je Zufahrt aus dem Sichtrechner (Befundblatt, nur Fussgängerstreifen ohne Lichtsignal) */
+/** Sicht je Zufahrt aus der Sichtprüfung (Befundblatt, nur Fussgängerstreifen ohne Lichtsignal) */
 export interface GrundSicht {
   name: string
-  /** Tempo der Zufahrt im Sichtrechner [km/h] */
+  /** Tempo der Zufahrt in der Sichtprüfung [km/h] */
   tempo: number
-  /** geprüfte Sichtweite (Soll des Sichtrechners) [m] */
+  /** geprüfte Sichtweite (Soll der Sichtprüfung) [m] */
   soll: number
-  /** Herkunft des Solls im Sichtrechner, z. B. VSS Tab. 1, bfu, bis Knoten */
+  /** Herkunft des Solls in der Sichtprüfung, z. B. VSS Tab. 1, bfu, bis Knoten */
   quelle: string
   frei: boolean
   status: string
   bisM?: number
-  /** Sichtfeld frei bis hier (gerade Zufahrten, Sichtrechner; bei verdeckt die freie Länge) */
+  /** Sichtfeld frei bis hier (gerade Zufahrten, Sichtprüfung; bei verdeckt die freie Länge) */
   freiBisM?: number
-  /** Abbiegezufahrt: Soll des Sichtrechners gilt (Kurvenradius bzw. Tempo der Querstrasse), V85 der Querung nicht */
+  /** Abbiegezufahrt: Soll der Sichtprüfung gilt (Kurvenradius bzw. Tempo der Querstrasse), V85 der Querung nicht */
   abbiegend?: boolean
 }
 
 export interface GrundOptionen {
-  /** Sicht je Zufahrt aus dem Sichtrechner; leer bzw. fehlt: nur vorhandene Sichtweite von Hand */
+  /** Sicht je Zufahrt aus der Sichtprüfung; leer bzw. fehlt: nur vorhandene Sichtweite von Hand */
   sicht?: GrundSicht[]
   /** Fussgängerstreifen der Querung ohne geprüfte Zufahrt (Name): Sicht offen */
   ohneZufahrt?: string[]
@@ -163,9 +163,10 @@ interface SollQ { unten: number; oben: number | null; text: string; grund?: stri
  * Soll der Querung (Sichtweite von Hand, Erkennungsdistanz): Stufe nach V85 (fehlt: signalisiertes Tempo als Annahme). Mit
  * Kurvenradius bis 20 m (Knoten, bfu Tab. 1) gilt der Radius nur für die Abbiegelinie; welche Zufahrt von Hand das ist, ist offen:
  * unter dem Knoten-Soll verletzt, ab dem Soll nach V85 erfüllt, dazwischen offen. null: über 60 km/h keine Stufe und kein Knoten.
+ * nurGerade: der Wert gehört sicher zu einer geraden Zufahrt (gerechnete Erkennungsdistanz), der Knoten zählt nicht, das Soll ist eindeutig.
  */
-function sollQuerung(k: Kontext): SollQ | null {
-  const r = k.o('kurve')?.radius ?? null
+function sollQuerung(k: Kontext, nurGerade = false): SollQ | null {
+  const r = nurGerade ? null : k.o('kurve')?.radius ?? null
   const kn = r !== null ? sollKnoten(r) : null
   const v85 = k.o('v85'), io = k.o('innerorts')
   let t: Bereich | null = null, tText = '', normHinweis: string | undefined, vFehlt = false
@@ -195,20 +196,20 @@ function sollQuerung(k: Kontext): SollQ | null {
   return { unten: t.unten, oben: t.oben, text: tText, grund: t.offenWegen ? OFFEN_INNERORTS : undefined, fehlend: fehltIo, normHinweis }
 }
 
-/** Sicht je Zufahrt aus dem Sichtrechner gegen das Soll nach bfu */
+/** Sicht je Zufahrt aus der Sichtprüfung gegen das Soll nach bfu */
 function sichtRechner(k: Kontext, zs: GrundSicht[], ohneZufahrt: string[]): Roh {
   const v85 = k.o('v85'), io = k.o('innerorts'), vSigQ = k.o('vSig')
   type Z = { z: GrundSicht; unten: number | null; oben: number | null; zustand: GrundZustand; text: string; kurz?: number; v85?: boolean; fehlt?: string }
   const liste: Z[] = zs.map(z => {
     let unten = z.soll, oben = z.soll, nachV85 = false, fehlt: string | undefined, hoeher = ''
     if (!z.abbiegend) {
-      // gerade Zufahrt: Stufe nach V85, ohne V85 nach max(signalisiert, Tempo des Sichtrechners) (liegt das
+      // gerade Zufahrt: Stufe nach V85, ohne V85 nach max(signalisiert, Tempo der Sichtprüfung) (liegt das
       // signalisierte Tempo höher, z. B. Geoportal bzw. von Hand, nie «erfüllt» mit dem tieferen); geometrische Grenze bzw. Kurvenregel
-      // des Sichtrechners (bis Knoten, Wegende, Gebäude, Kreiselring) bleibt Obergrenze, das Soll ist dann min(Tab. 1, Soll des Sichtrechners)
+      // der Sichtprüfung (bis Knoten, Wegende, Gebäude, Kreiselring) bleibt Obergrenze, das Soll ist dann min(Tab. 1, Soll der Sichtprüfung)
       if (v85 === null) k.annahmen.add(ANNAHME_V85)
       else nachV85 = true
       const tempo = v85 ?? Math.max(z.tempo, vSigQ ?? 0)
-      if (v85 === null && tempo > z.tempo + 1e-9) hoeher = `; signalisiert ${tempo} km/h, der Sichtrechner rechnet mit ${z.tempo} km/h: Sicht nach dem höheren Tempo neu rechnen`
+      if (v85 === null && tempo > z.tempo + 1e-9) hoeher = `; signalisiert ${tempo} km/h, die Sichtprüfung rechnet mit ${z.tempo} km/h: Sicht nach dem höheren Tempo neu rechnen`
       const t = sollBereich(tempo, io)
       if (!t) return { z, unten: null, oben: null, zustand: 'offen', text: `${z.name}: über 60 km/h keine Sichtweite` }
       if (istQuelleTab1(z.quelle)) { unten = t.unten; oben = t.oben } else { unten = Math.min(t.unten, z.soll); oben = Math.min(t.oben, z.soll) }
@@ -250,7 +251,7 @@ function sichtRechner(k: Kontext, zs: GrundSicht[], ohneZufahrt: string[]): Roh 
   const detail = [...liste.filter(x => x.zustand !== 'erfuellt').map(x => x.text), ...leer].join('; ') || undefined
   const quellen = [...new Set(liste.map(x => x.z.quelle))].join(', ')
   const mitV85 = liste.some(x => x.v85)
-  const det = [detail, quellen ? `Sichtrechner: ${quellen}${mitV85 ? `, Tempo-Stufe nach V85 ${zahl(v85!)} km/h` : ''}` : ''].filter(Boolean).join('; ')
+  const det = [detail, quellen ? `Sichtprüfung: ${quellen}${mitV85 ? `, Tempo-Stufe nach V85 ${zahl(v85!)} km/h` : ''}` : ''].filter(Boolean).join('; ')
   const tabTempo = liste.some(x => istQuelleTab1(x.z.quelle) && !x.z.abbiegend)
   const vSig = k.o('vSig')
   const sig = v85 !== null && vSig !== null && tabTempo && io !== null ? sollTempo(vSig, io) : null
@@ -311,7 +312,7 @@ const GRUND: Record<GrundId, GrundFn> = {
   },
   'B5-1b': k => {
     const E = k.w('erkennungM')
-    const s = sollQuerung(k)
+    const s = sollQuerung(k, k.erkennungGerade())
     if (!s) return null
     const f = K['B5-1b'].werte.faktor
     const x = { ist: m0(E), soll: `${bereichText(f * s.unten, s.oben === null ? null : f * s.oben)} (${f} · Sichtweite)`, detail: s.text }

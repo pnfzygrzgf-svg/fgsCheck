@@ -56,7 +56,8 @@ type FeldHinweis = (pfad: string, text: string) => void
 
 const r1 = (x: number) => Math.round(x * 10) / 10 || 0
 const f1 = (x: number) => r1(x).toFixed(1).replace('.', ',')
-const ganz = (x: number) => String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+// vierstellig ohne Lücke wie die Regeltexte (3000), ab fünf Stellen mit
+const ganz = (x: number) => (Math.abs(x) < 9999.5 ? String(Math.round(x)) : String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '))
 const uniq = <T>(xs: T[]): T[] => [...new Set(xs)]
 type Geladen<T> = T & { bereich: Bereich; hinweis?: string }
 const geladen = <T>(x: BernErgebnis<T> | null | undefined): Geladen<T> | null => (x && !('fehler' in x) ? x as Geladen<T> : null)
@@ -176,10 +177,10 @@ export function vsigVorbelegen(st: StreifenErgebnis[], vsig: GeoVorbelegung['vsi
     return
   }
   if (alt && alt.wert !== v) {
-    // Der Sichtrechner rechnet in Bern selbst mit V_sig; eine Abweichung bleibt nur, wo die
+    // Die Sichtprüfung rechnet in Bern selbst mit V_sig; eine Abweichung bleibt nur, wo die
     // Linien entlang der Zufahrten ein anderes Tempo tragen als über der Querung bzw. wo sie fehlen
-    text += `; Sichtrechner ${alt.wert} km/h (${alt.quelle === 'geoportal' ? 'Geoportal entlang der Zufahrten' : 'OSM bzw. Annahme'})`
-    hinweise.push(`Signalisiertes Tempo über der Querung ${v} km/h (${GEOPORTAL_BERN}), der Sichtrechner rechnet entlang der Zufahrten mit ` +
+    text += `; Sichtprüfung ${alt.wert} km/h (${alt.quelle === 'geoportal' ? 'Geoportal entlang der Zufahrten' : 'OSM bzw. Annahme'})`
+    hinweise.push(`Signalisiertes Tempo über der Querung ${v} km/h (${GEOPORTAL_BERN}), die Sichtprüfung rechnet entlang der Zufahrten mit ` +
       `${alt.wert} km/h: Tempo der Zufahrten prüfen`)
   }
   setze('vSig', v, 'geoportal', text)

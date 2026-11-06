@@ -1,4 +1,4 @@
-// ── Sichtrechner: Querung ohne Vortritt (Bedarfsmodul E1) ──
+// ── Sichtprüfung: Querung ohne Vortritt (Bedarfsmodul E1) ──
 //
 // Für einen Streifen, den der Fall als «Querung ohne Vortritt» führt (Furt bzw. Nase, Einengung, ohne bauliche Massnahme), gilt
 // statt Tab. 1 von VSS 40 241 die Sichtweite nach VSS 40 240 Z. 8.2: Soll = max(v [m/s] · L / 1,2 m/s; Anhaltesichtweite(v)) je
@@ -13,7 +13,7 @@
 // Streifen bis NACHLADEN_M (30 m) vom Ladeort liegen darf – also ebenfalls 120 m um den Umriss (abdeckung.ts). Um die Sichtpunkte
 // sucht die Rechnung zudem einige Meter (1,5 m Abstand zu Parkfeldern, Sichtpunkt am Umriss, Sichtfeld zum Wartebereich): davon
 // SICHT_RESERVE_M (10 m) ab. Belegt ist die Sicht darum bis REICHWEITE_SICHT_M = 110 m ab dem Streifenrand. Liegt das Soll
-// darüber, prüft der Sichtrechner bis dort («geprüft bis 110 m, darüber nicht geprüft», ZufahrtErgebnis.geprueftBisM); ein
+// darüber, prüft die Sichtprüfung bis dort («geprüft bis 110 m, darüber nicht geprüft», ZufahrtErgebnis.geprueftBisM); ein
 // Wegende bzw. Knoten jenseits davon gilt nicht als Grenze (er kann an der Grenze der OSM-Daten liegen). Das Befundblatt führt
 // die Sicht dann als offen, nicht als erfüllt.
 //

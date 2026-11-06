@@ -110,7 +110,7 @@ describe('Trottoirüberfahrt: Bedarf vorbelegt aus der Wahl am Streifen', () => 
     }
     expect(b.vorbelegt.rechner?.['kurve.radius']).toBeUndefined(); expect(b.vorbelegt.werte['kurve.radius']).toBeUndefined()
   })
-  it('keine Sicht aus dem Sichtrechner, keine Sichtbefunde, Grundprüfung gilt nicht, Thema Trottoirüberfahrt im Befund', () => {
+  it('keine Sicht aus der Sichtprüfung, keine Sichtbefunde, Grundprüfung gilt nicht, Thema Trottoirüberfahrt im Befund', () => {
     expect(b.befund.ausgewertet.filter(id => id.startsWith('Q3-')).length).toBeGreaterThan(5)
     expect(b.befund.alle.some(x => ['H1', 'E3'].includes(x.id))).toBe(false)
     expect(b.vorbelegt.rechner?.sichtVorh).toBeUndefined()

@@ -26,7 +26,7 @@ export const vsigAusGeoportal = (gj: ArcgisGeoJson): VsigLinie[] => anbieter.umw
 export const vsigUrl = anbieter.url
 export const ladeVsigBern = anbieter.laden
 
-// ── Tempo der Zufahrten im Sichtrechner (in Bern gilt V_sig als Tempo der Zufahrt, OSM nur Rückfall) ──
+// ── Tempo der Zufahrten in der Sichtprüfung (in Bern gilt V_sig als Tempo der Zufahrt, OSM nur Rückfall) ──
 
 /** Suchradius um einen Punkt der Spur (m): die Linien liegen auf der Strassenachse, die Spur in der Fahrstreifenmitte */
 export const VSIG_SUCH_M = 8
@@ -34,7 +34,7 @@ export const VSIG_SUCH_M = 8
 export const VSIG_WINKEL = 35
 
 /**
- * Amtliches Tempo für den Sichtrechner (rechner/tempo.TempoAmtlich): V_sig der nächsten Linie bis VSIG_SUCH_M, die etwa parallel zur
+ * Amtliches Tempo für die Sichtprüfung (rechner/tempo.TempoAmtlich): V_sig der nächsten Linie bis VSIG_SUCH_M, die etwa parallel zur
  * Fahrtrichtung liegt (höchstens VSIG_WINKEL); ausserhalb des geladenen Bereichs null (dort OSM). Linien ohne Wert nehmen am Vergleich
  * teil: ist die nächste Linie ohne Wert, gilt null (OSM-Rückfall), nicht der Wert einer weiter entfernten Linie (
  * z. B. 177/211: Schwarzenburgstrasse ohne Wert neben einem kurzen Knotenstück mit 50 km/h). */
