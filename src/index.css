@@ -302,7 +302,6 @@ span.zufahrt-nr { display: inline-block; width: 18px; height: 18px; font-size: 1
 .streetview-link { white-space: nowrap; }
 a.knopf.streetview { text-decoration: none; }
 .werk-extern:hover { text-decoration: underline; }
-.url-text { overflow-wrap: anywhere; word-break: break-all; }
 .begriff-verweise { color: var(--text-muted); }
 .begriff-knopf { background: none; border: none; padding: 0 1px; color: var(--text-muted); font: inherit; font-size: 11px;
   text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; }
@@ -351,7 +350,7 @@ a.knopf.streetview { text-decoration: none; }
 .grundpruefung li.grau > .grund-symbol { color: var(--text-muted); }
 .bedarf-erweitert, .bedarf-grund-eingaben { margin: 8px 0; border-top: 1px dashed var(--border); padding-top: 4px; }
 .bedarf-maske tr.bedarf-block th { text-align: left; padding-top: 6px; color: var(--text-muted); }
-.grundpruefung.druck { border: 1px solid #9ca3af; font-size: 9.5pt; break-inside: avoid; }
+.grundpruefung.druck { border: 1px solid #9ca3af; font-size: 9.5pt; }
 .grundpruefung.druck, .grundpruefung.druck * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 /* Einträge nach Thema; Symbol und Verbindlichkeitswort tragen die Bedeutung, Farbe nur zusätzlich */
 .befund-thema { margin: 6px 0; font-size: 12px; }
@@ -428,7 +427,9 @@ details.thema-angaben > summary { cursor: pointer; color: var(--bedarf); }
 .befundblatt.druck .thema-fragen { background: #ffffff; font-size: 9.5pt; }
 @media (max-width: 480px) { .grund-tabelle th { white-space: normal; } }
 /* Druck: Einträge nicht trennen, Themenkopf beim Eintrag halten */
-.befundblatt.druck .befund-thema > ul > li, .grund-tabelle tr { break-inside: avoid; page-break-inside: avoid; }
+/* Druckumbrüche (Probe in Firefox 159, 06.11.2026): break-after: avoid wirkt dort nicht, break-inside: avoid auf einem umschliessenden
+   Block schon, auch auf tbody. Was zusammenbleiben soll, steht darum in einem Block; ist er höher als eine Seite, wird er trotzdem geteilt */
+.befundblatt.druck .befund-thema > ul > li, .grund-tabelle tr, .grund-einheit, .druck-block, .befundblatt.druck .befund-thema, .befundblatt.druck .thema-teil { break-inside: avoid; page-break-inside: avoid; }
 .befundblatt.druck .thema-kopf { display: block; break-after: avoid; page-break-after: avoid; }
 
 /* E4: Bericht (Druckansicht) – auf dem Bildschirm über der App, gedruckt allein (A4 hoch) */
@@ -451,6 +452,7 @@ details.thema-angaben > summary { cursor: pointer; color: var(--bedarf); }
 .bericht-tabelle { font-size: 9.5pt; }
 .bericht-eingabe { width: 100%; font: inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; }
 .nur-drucken { display: none; }
+.bericht-kennung { display: none; }
 .bericht-karte { margin: 10px 0; }
 /* Bild und Legende je für sich ungeteilt: passt die Legende nicht mehr auf die Seite, folgt sie auf der nächsten, statt dass das
    ganze Kartenbild auf Seite 2 rutscht */
@@ -506,6 +508,7 @@ details.thema-angaben > summary { cursor: pointer; color: var(--bedarf); }
   .bericht { position: static; overflow: visible; background: #ffffff; }
   .bericht-seite { max-width: none; margin: 0; padding: 0 12mm; box-shadow: none; }
   .bericht-rand-oben { height: 12mm; }
+  .bericht-kennung { display: block; padding-top: 5mm; font-size: 7.5pt; color: #64748b; text-align: right; }
   .bericht-rand-unten { height: 14mm; }
   .bericht-neue-seite { break-before: page; page-break-before: always; }
   /* Seite 1 (06.11.2026): Bildhöhe nach der Legende (berichtSeite1.ts; Bericht.tsx setzt --bild-max-breite aus dem Seitenverhältnis),

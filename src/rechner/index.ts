@@ -111,8 +111,7 @@ export function luftbildStreifen(osm: OsmDaten, kx: Kontext, nid: number, bild: 
   const streifen = li.teile.map((t, i) => {
     const s = neuerStreifen(n > 1 ? `${nid}-${i + 1}` : `${nid}`, `${nid}`, t.p0, t.p1, t.bw, 'luftbild', t.umriss,
       -erkennung.schraegGrad, nid)
-    s.annahmen.push(`Streifen aus dem Luftbild (${befund}, ${t.nBalken} Balken, Balkenlänge ${t.bw.toFixed(1).replace('.', ',')} m, ` +
-      `NCC ${erkennung.ncc.toFixed(2).replace('.', ',')}) – prüfen`)
+    s.annahmen.push(`Streifen aus dem Luftbild (${befund}, ${t.nBalken} Balken, Balkenlänge ${t.bw.toFixed(1).replace('.', ',')} m) – prüfen`)
     if (n > 1) s.annahmen.push(`Teilstreifen ${i + 1} von ${n} (${teilGrundText(li.grund)})`)
     if (li.insel) s.annahmen.push(inselLuftbildText(li.insel.breite))
     if (li.hinweis) s.annahmen.push(li.hinweis)

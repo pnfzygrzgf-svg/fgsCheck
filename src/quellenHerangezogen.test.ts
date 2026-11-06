@@ -36,11 +36,30 @@ describe('herangezogene Quellen eines Falls', () => {
   it('Sichtprüfung: AV, OSM, Luftbild immer; Kataster nur mit übernommenem Hindernis; Höhen, amtlicher Übergang; ungenutzte Dienste nicht', () => {
     const f = leererFall(46.95, 7.44, 1)
     f.quellen = { av: 'a', osm: 'o', luftbild: 'l', vsig: 'v', richtplan: 'r', schulen: 's', gebiet: 'g', baumkataster: 'b', parkkataster: 'p' }
-    expect(herangezogeneQuellen(f, [], [])).toEqual(['av', 'osm', 'swissimage'])
+    expect(herangezogeneQuellen(f, null, [], []).ids).toEqual(['av', 'osm', 'swissimage'])
     f.hindernisse.push({ id: 'b1', art: 'baum', p: [0, 0], stamm: 0.5, quelle: 'kataster' })
     f.hindernisse.push({ id: 'p1', art: 'parkfeld', klasse: 'auto', ring: [[0, 0], [1, 0], [1, 1]], quelle: 'hand' })
-    expect(herangezogeneQuellen(f, [], ['bern.dtm'])).toEqual(['av', 'osm', 'swissimage', 'bern.baum', 'bern.dtm'])
+    expect(herangezogeneQuellen(f, null, [], ['bern.dtm']).ids).toEqual(['av', 'osm', 'swissimage', 'bern.baum', 'bern.dtm'])
     const b = blatt({ vSig: vor('geoportal') })
-    expect(herangezogeneQuellen(f, [b], [])).toEqual(['av', 'osm', 'swissimage', 'bern.baum', 'bern.vsig'])
+    expect(herangezogeneQuellen(f, null, [b], []).ids).toEqual(['av', 'osm', 'swissimage', 'bern.baum', 'bern.vsig'])
+  })
+  it('Parkfelder aus den Vorschlägen der Rechnung zählen als herangezogen', () => {
+    const f = leererFall(46.95, 7.44, 1)
+    f.quellen = { av: 'a', osm: 'o', parkkataster: 'p' }
+    const r = { vorschlaege: [{ hindernis: { id: 'p1', art: 'parkfeld', klasse: 'auto', ring: [], quelle: 'kataster' } }] } as never
+    expect(herangezogeneQuellen(f, r, [], []).ids).toContain('bern.park')
+    expect(herangezogeneQuellen(f, null, [], []).ids).not.toContain('bern.park')
+  })
+  it('DTV-Ersatzwert: Verkehrsdaten und NPVM abgefragt, nicht verwendet, mit Grund', () => {
+    const dtv = (optionen: unknown[]) => ({ zustand: 'vorbelegt', quelle: 'annahme', text: '', vorbelegt: { wert: 500, quelle: 'annahme', text: '', quellenOptionen: optionen } }) as unknown as Herkunft
+    const ersatz = { id: 'app.dtv', wert: 500, vorgabe: true, text: 'DTV 500 angenommen: keine Verkehrsdaten im Geoportal Stadt Bern (nur Strassen über 2000 Fz/Tag erfasst)' }
+    const f = leererFall(46.95, 7.44, 1)
+    const o = herangezogeneQuellen(f, null, [blatt({ dtv: dtv([ersatz, { id: 'are.npvm', wert: null, text: 'NPVM: keine eindeutig passende Modellstrecke; fehlender Eintrag bedeutet nicht keinen Verkehr' }]) })], [])
+    expect(o.ohneTreffer).toEqual([{ id: 'bern.dtv', grund: 'keine Verkehrsdaten im Geoportal Stadt Bern (nur Strassen über 2000 Fz/Tag erfasst)' },
+      { id: 'are.npvm', grund: 'keine eindeutig passende Modellstrecke' }])
+    expect(o.ids).not.toContain('bern.dtv')
+    // Modell nur als Vergleich; noch nicht geladen: kein Eintrag
+    expect(herangezogeneQuellen(f, null, [blatt({ dtv: dtv([{ id: 'are.npvm', wert: 417, text: 'x' }]) })], []).ohneTreffer[0].grund).toContain('Vergleichswert')
+    expect(herangezogeneQuellen(f, null, [blatt({ dtv: dtv([{ id: 'are.npvm', wert: null, text: 'Noch kein verwendbarer NPVM-Ausschnitt' }]) })], []).ohneTreffer).toEqual([])
   })
 })

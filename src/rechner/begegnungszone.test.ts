@@ -197,7 +197,7 @@ describe('Abbieger in der Begegnungszone: höchstens bis zum Beginn des Abbiegen
       'Annahme: bis Beginn des Abbiegens; Anhaltesichtweite nach VSS 40 240 Z. 8.2: 55 m',
       'Annahme: bis Beginn des Abbiegens; Anhaltesichtweite nach VSS 40 240 Z. 8.2: 55 m'])
     expect(b.befund.masse.find(m => m.groesse === 'Sichtweite (Sichtprüfung)')).toMatchObject({ zustand: 'nicht_anwendbar',
-      soll: '15 geradeaus, 9,1; 16,3 für Abbiegende (Annahme: bis Beginn des Abbiegens)' })
+      soll: '15 geradeaus, 9,1 bis 16,3 für Abbiegende (Annahme: bis Beginn des Abbiegens)' })
     for (const z of r.streifen[0].zufahrten.filter(x => x.art !== 'abbiegend')) expect([z.sichtweite, z.sichtweiteQuelle]).toEqual([15, QUELLE_BGZ])
   })
   it('Tempo von Hand 20 km/h am Abbieger mit dem längeren Bogen: Anhaltesichtweite 15 m vor dem Beginn des Abbiegens, ohne Zusatz', () => {

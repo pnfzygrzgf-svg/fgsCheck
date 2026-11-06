@@ -672,11 +672,12 @@ export function naechsteFixId(f: Fall): string {
  * INSEL_UEBERNOMMEN) in den Fall, damit die Streifen von Hand an der Insel geteilt bleiben (Zufahrten Inselteil, Einspur);
  * nicht, wenn schon eine Insel von Hand dieselbe Fläche deckt (inselnUebernehmen). bestand («Lage der Querung anpassen», 30.10.2026):
  * die neuen Streifen sind die Lage der bestehenden Querung (StreifenHand.bestand = Kennung des Streifens der Querung, fgsId der neuen):
- * Querungsart, Bestand und Name bleiben wie an der Querung. Rückgabe: übertragene Eingaben.
+ * Querungsart, Bestand und Name bleiben wie an der Querung. Rückgabe: übertragene Eingaben; konflikte: Ziele, für die mehrere alte Streifen
+ * widersprüchliche Eingaben haben (sie bleiben unter der alten Kennung stehen, das Ergebnis hängt nicht von der Reihenfolge ab).
  */
 const ZUORDNUNG_M = 3.0
 export function streifenUebernehmen(f: Fall, neue: { p0: P; p1: P; bw: number; q0?: P; q1?: P; richtung?: P; fgsId?: string }[],
-  alte: { fgsId: string; p0: P; p1: P }[], herkunft?: StreifenHerkunft, inseln: { ring: P[] }[] = [], bestand = false): number {
+  alte: { fgsId: string; p0: P; p1: P }[], herkunft?: StreifenHerkunft, inseln: { ring: P[] }[] = [], bestand = false): { n: number; konflikte: number } {
   const mitte = (a: P, b: P): P => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
   f.streifenHand = []
   const neuM: [string, P][] = []
@@ -696,22 +697,27 @@ export function streifenUebernehmen(f: Fall, neue: { p0: P; p1: P; bw: number; q
     for (const [id, q] of neuM) { const d = Math.hypot(q[0] - m[0], q[1] - m[1]); if (d <= ZUORDNUNG_M && (!best || d < best[1])) best = [id, d] }
     if (best) neu.set(a.fgsId, best[0])
   }
-  let n = 0
-  const zuf: Record<string, ZufahrtHand> = {}
-  for (const [k, v] of Object.entries(f.zufahrten)) {
-    const i = k.indexOf('|'), alt = k.slice(0, i), kennung = k.slice(i + 1)
-    const id = neu.get(alt)
-    if (id) { zuf[zufahrtSchluessel(id, kennung.replace(`s${alt}:`, `s${id}:`))] = v; n++ } else zuf[k] = v
+  // Treffen mehrere alte Einträge dasselbe Ziel: gleiche Werte werden einer, widersprüchliche bleiben unter der alten Kennung stehen
+  let n = 0, konflikte = 0
+  const uebertragen = <T>(quelle: Record<string, T>, ziel: (k: string) => string | null): Record<string, T> => {
+    const aus: Record<string, T> = {}, gruppen = new Map<string, [string, T][]>()
+    for (const [k, v] of Object.entries(quelle)) {
+      const z = ziel(k)
+      if (z === null) aus[k] = v; else gruppen.set(z, [...(gruppen.get(z) ?? []), [k, v]])
+    }
+    for (const [z, xs] of gruppen) {
+      if (xs.every(x => JSON.stringify(x[1]) === JSON.stringify(xs[0][1]))) { aus[z] = xs[0][1]; n++ }
+      else { for (const [k, v] of xs) aus[k] = v; konflikte++ }
+    }
+    return aus
   }
-  f.zufahrten = zuf
-  const str: Record<string, StreifenEingabe> = {}
-  for (const [k, v] of Object.entries(f.streifen)) {
-    const id = neu.get(k)
-    if (id) { str[id] = v; n++ } else str[k] = v
-  }
-  f.streifen = str
+  f.zufahrten = uebertragen(f.zufahrten, k => {
+    const i = k.indexOf('|'), alt = k.slice(0, i), id = neu.get(alt)
+    return id ? zufahrtSchluessel(id, k.slice(i + 1).replace(`s${alt}:`, `s${id}:`)) : null
+  })
+  f.streifen = uebertragen(f.streifen, k => neu.get(k) ?? null)
   inselnUebernehmen(f, inseln)
-  return n
+  return { n, konflikte }
 }
 
 /**
@@ -728,6 +734,12 @@ export interface TeilungRueck {
   teil1: StreifenHand; teil2: StreifenHand  // die Teilstreifen direkt nach dem Teilen (Vergleich: seither geändert?)
   zufahrten: Record<string, ZufahrtHand>    // Eingaben je Zufahrt des ungeteilten Streifens (Schlüssel «id|Kennung»)
   streifen: StreifenEingabe | null          // Streifen-Eingabe des ungeteilten Streifens
+  eingabenNachher: string                   // Eingaben beider Teile direkt nach dem Teilen (Vergleich: seither geändert?)
+}
+/** Eingaben je Zufahrt und je Streifen der beiden Teilstreifen, unabhängig von der Reihenfolge, zum Vergleich */
+function teilEingaben(f: Fall, ids: readonly string[]): string {
+  const zuf = Object.entries(f.zufahrten).filter(([k]) => ids.includes(k.slice(0, k.indexOf('|')))).sort(([a], [b]) => (a < b ? -1 : 1))
+  return JSON.stringify([zuf, ids.map(id => f.streifen[id] ?? null)])
 }
 export function streifenHandTeilen(f: Fall, id: string, teile: [[P, P], [P, P]], teilVon: (kennung: string) => 1 | 2):
   { neuId: string; verschoben: number; rueck: TeilungRueck } | null {
@@ -763,17 +775,18 @@ export function streifenHandTeilen(f: Fall, id: string, teile: [[P, P], [P, P]],
     verschoben++
   }
   return { neuId, verschoben, rueck: { id, neuId, vorher, teil1: structuredClone(s), teil2: structuredClone(zweiter), zufahrten: zufVorher,
-    streifen: strVorher } }
+    streifen: strVorher, eingabenNachher: teilEingaben(f, [id, neuId]) } }
 }
 
-/** Sind die Teilstreifen einer Teilung seither unverändert (Lage, Breite, Name, Richtung)? Dann lässt sie sich zurücknehmen */
+/** Sind die Teilstreifen einer Teilung und ihre Eingaben seither unverändert? Nur dann lässt sie sich zurücknehmen: Die Rücknahme stellt den
+ *  Stand vor dem Teilen her, spätere Eingaben gingen sonst verloren */
 export function teilungZuruecknehmbar(f: Fall, r: TeilungRueck): boolean {
   const a = f.streifenHand.find(y => y.id === r.id), b = f.streifenHand.find(y => y.id === r.neuId)
-  return !!a && !!b && stabil(a) === stabil(r.teil1) && stabil(b) === stabil(r.teil2)
+  return !!a && !!b && stabil(a) === stabil(r.teil1) && stabil(b) === stabil(r.teil2) && teilEingaben(f, [r.id, r.neuId]) === r.eingabenNachher
 }
 
-/** Teilung zurücknehmen: den ungeteilten Streifen samt seinen Eingaben wie vor dem Teilen; Eingaben, die seither an den
- * Teilstreifen gesetzt wurden, entfallen. -> false, wenn die Teilstreifen seither geändert wurden (dann bleibt alles) */
+/** Teilung zurücknehmen: den ungeteilten Streifen samt seinen Eingaben wie vor dem Teilen. -> false, wenn die Teilstreifen oder ihre
+ * Eingaben seither geändert wurden (dann bleibt alles) */
 export function teilungZuruecknehmen(f: Fall, r: TeilungRueck): boolean {
   if (!teilungZuruecknehmbar(f, r)) return false
   const i = f.streifenHand.findIndex(y => y.id === r.id)

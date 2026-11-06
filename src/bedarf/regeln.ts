@@ -204,9 +204,10 @@ export const REGELN: Record<BefundId, RegelFn> = {
   D2: k => {
     if (!k.w('zweirichtung')) return null
     const B = k.w('fahrbahnB'), W = K.D2.werte
-    const x = { ist: fmt(B), soll: `Insel ab ${fmt(W.bMin)} (Gegenverkehr)` }
+    const x = { ist: fmt(B), soll: `Insel ab ${fmt(W.bMin)} (Gegenverkehr, DTV ab ${W.dtvMin})` }
     if (B < W.bMin || k.insBaulich()) return ja(false, x)
-    return ja(k.w('dtv') >= W.dtvMin, x)
+    const dtv = k.w('dtv')
+    return ja(dtv >= W.dtvMin, dtv >= W.dtvMin ? x : { ...x, ausnahme: `DTV unter ${W.dtvMin}: keine Insel gefordert, sie bleibt erwünscht` })
   },
   D2a: k => {
     if (!k.w('zweirichtung')) return null

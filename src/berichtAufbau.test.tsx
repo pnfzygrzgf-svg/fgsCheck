@@ -17,7 +17,7 @@ describe('Bericht: Reihenfolge der Abschnitte', () => {
     const lage = (s: string) => { const i = src.indexOf(s); expect(i, s).toBeGreaterThan(0); return i }
     const reihe = ['<h2>Ort</h2>', '<h2>Ergebnis</h2>', '<BerichtKarte ', 'bericht-neue-seite', '<h2>Sichtprüfung je Streifen und Zufahrt</h2>',
       '<StreifenTabelle ', '<h3>Hinweise zur Sichtprüfung</h3>', '<h2>Bedarf und Querungstyp</h2>', '<h2>Eingaben von Hand</h2>', '<h2>Quellen</h2>',
-      '<h3>Werke der Sichtprüfung</h3>', '<VerzeichnisBericht blaetter={blaetter} />', '<h2>Anhang: Eingaben und Quellen'].map(lage)
+      '<h3>Werke der Sichtprüfung</h3>', '<VerzeichnisBericht blaetter={blaetter} />', '<footer className="bericht-fuss">', '<h2>Anhang: Eingaben und Quellen'].map(lage)
     expect([...reihe].sort((a, b) => a - b)).toEqual(reihe)
     expect(src).not.toContain('<h2>Normbezüge</h2>')
     expect(src).not.toContain('<h2>Annahmen und Hinweise</h2>')   // die Überschrift steht nur noch im Bedarf
@@ -39,7 +39,22 @@ describe('Bericht: Reihenfolge der Abschnitte', () => {
     for (const bedingt of ['statusZeilen.map', 'hindArten.map', 'fzArten.map', 'erkBaender.length ?', 'plan.map(fp => fp.art)', 'fixpunkte.length ?', 'masten.length ?'])
       expect(src).toContain(bedingt)
     expect(src).not.toContain('<b>Streifen und Sicht:</b>')
+    // Ursache der Verdeckung je Status; «verdeckt» heisst Auto-Parkfeld (rechner/pruefen.konfliktFelder)
+    expect(src).toContain("verdeckt: 'Sichtfeld verdeckt durch ein Auto-Parkfeld'")
+    expect(src).not.toContain('Gebäude bzw. Gelände')
     expect(quelle('index.css')).toContain('.bericht-seite .bericht-legende { list-style: none;')
+  })
+})
+
+describe('Bericht: Druck in Firefox', () => {
+  it('keine Abhängigkeit von break-after: was zusammenbleiben soll, steht in einem Block; Fallkennung im wiederholten Kopf', () => {
+    const css = quelle('index.css'), panel = quelle('BedarfPanel.tsx')
+    expect(css).toMatch(/\.grund-einheit, \.druck-block[^{]*\{ break-inside: avoid/)
+    expect(panel).toContain('<tbody className="grund-einheit">')
+    expect(panel).toContain('className="druck-block"')
+    expect(quelle('Bericht.tsx')).toContain('<span className="bericht-kennung">')
+    expect(panel).toContain('<a href={l.url}>{l.text}</a>')
+    expect(panel).not.toContain('url-text')
   })
 })
 

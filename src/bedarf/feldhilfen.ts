@@ -519,7 +519,7 @@ type Wert = string | number | boolean | null
 export type Bedingung =
   | { feld: string; ist: readonly Wert[] }
   | { feld: string; gesetzt: true }
-  /** Zahl über der Schwelle; offen zählt als möglich (nur GELTUNG) */
+  /** Zahl (bzw. eine Zahl der Liste) über der Schwelle; offen zählt als möglich */
   | { feld: string; ueber: number }
   | { ebene: 'bern' | 'kantonBE' | 'richtlinie' }
   | { alle: readonly Bedingung[] }
@@ -570,7 +570,8 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   tramHaltestellenbereich: { feld: 'tram', ist: ['eigentrassee', 'fahrbahn'] },
   balkenAufGleis: alle({ feld: 'tram', ist: ['eigentrassee'] }, FGS_ARTIG),
   // Lage
-  alleZufahrtsstreifenBelastet: { feld: 'lage', ist: ['knoten_belastet'] },
+  // nur bei mehreren Fahrstreifen je Richtung: D1 liest das Feld sonst nicht
+  alleZufahrtsstreifenBelastet: alle({ feld: 'lage', ist: ['knoten_belastet'] }, { feld: 'nRichtung', ueber: 1 }),
   querdistanzL: { feld: 'sichtVorh', gesetzt: true },
   abstandFgsM: FGS, verzweigung: FGS, haltestelleAngrenzend: FGS,
   abstandLsaM: alle(FGS, { feld: 'fgsMitLsa', ist: [false, null] }),
@@ -634,7 +635,7 @@ export function erfuellt(b: Bedingung, k: SichtKontext): boolean {
   if ('ebene' in b) return b.ebene === 'richtlinie' ? k.ebenen.richtlinie !== false : k.ebenen[b.ebene]
   const w = wertVon(k.e, b.feld)
   if ('gesetzt' in b) return w !== null
-  if ('ueber' in b) return w === null || (typeof w === 'number' && w > b.ueber)
+  if ('ueber' in b) return w === null || (typeof w === 'number' && w > b.ueber) || (Array.isArray(w) && w.some(x => x > b.ueber))
   // Trottoirüberfahrt mit geprüfter Alternative: gilt auch, wo ein Fussgängerstreifen verlangt ist
   if (b.feld === 'typ' && w === 'trottoirueberfahrt' && k.alternative && b.ist.includes('fgs')) return true
   return b.ist.includes(w as Wert)

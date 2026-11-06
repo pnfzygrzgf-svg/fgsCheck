@@ -333,11 +333,9 @@ describe('Eingaben je Zufahrt beim Teilen (Prüfbefund M1 20.10.2026)', () => {
   }
   it('Teilung zurücknehmen: ungeteilter Streifen samt Eingaben; nicht mehr, wenn ein Teil seither geändert wurde', () => {
     const { f, g, erg } = teilen(lv(0, -3.7), lv(0, 3.7), { ...OSM, uebergaenge: [] }, null)
-    f.streifen['hand-1'] = { lsa: 'ja' }
-    const h = structuredClone(g); h.streifen = { 'hand-1': { lsa: 'ja' }, 'hand-2': { lsa: 'ja' } }
-    const r = { ...erg.rueck, streifen: { lsa: 'ja' as const } }
-    expect(teilungZuruecknehmbar(h, r)).toBe(true)
-    expect(teilungZuruecknehmen(h, r)).toBe(true)
+    const h = structuredClone(g)
+    expect(teilungZuruecknehmbar(h, erg.rueck)).toBe(true)
+    expect(teilungZuruecknehmen(h, erg.rueck)).toBe(true)
     expect(h.streifenHand).toEqual(f.streifenHand); expect(h.zufahrten).toEqual(f.zufahrten); expect(h.streifen).toEqual(f.streifen)
     expect(h.flaechenPlan).toEqual(g.flaechenPlan)                                   // die Mittelinsel bleibt
     const v = structuredClone(g); v.streifenHand[1].p1 = lv(0, 4)
@@ -478,5 +476,45 @@ describe('Fall-Datei: Kennzeichnung der Mittelinsel (Standard)', () => {
       'Kennzeichnung «Mittelinsel (Standard)» von plan-2 ungültig, übergangen (Fläche bleibt)'])
     expect(planStandardPruefen({ ...pl[0].standard, achse: [0, 2] })).toBeNull()
     expect(planStandardPruefen(pl[0].standard)).toEqual(pl[0].standard)
+  })
+})
+
+describe('Teilung zurücknehmen: spätere Eingaben bleiben erhalten', () => {
+  const P = (x: number, y: number): [number, number] => [2600000 + x, 1200000 + y]
+  const basis = () => {
+    const f = leererFall(46.95, 7.44, null)
+    f.streifenHand = [{ id: 'h1', p0: P(0, 0), p1: P(0, 10), breite: 4 }]
+    f.zufahrten = { 'h1|a': { tempo: 30 }, 'h1|b': { tempo: 40 } }
+    f.streifen = { h1: { lsa: 'nein' } }
+    const t = streifenHandTeilen(f, 'h1', [[P(0, 0), P(0, 4)], [P(0, 6), P(0, 10)]], k => (k === 'b' ? 2 : 1))!
+    return { f, r: t.rueck }
+  }
+  it('ohne Änderung stellt die Rücknahme den Stand vor dem Teilen her', () => {
+    const { f, r } = basis()
+    expect(teilungZuruecknehmen(f, r)).toBe(true)
+    expect(f.zufahrten).toEqual({ 'h1|a': { tempo: 30 }, 'h1|b': { tempo: 40 } })
+    expect(f.streifen).toEqual({ h1: { lsa: 'nein' } })
+  })
+  it('geänderte, neue und gelöschte Eingaben sperren die Rücknahme und bleiben stehen', () => {
+    const faelle: ((f: ReturnType<typeof basis>['f'], neuId: string) => void)[] = [
+      f => { f.streifen.h1 = { lsa: 'ja' } },
+      (f, neuId) => { f.zufahrten[`${neuId}|neu`] = { tempo: 60 } },
+      f => { delete f.zufahrten['h1|a'] },
+    ]
+    for (const aendern of faelle) {
+      const { f, r } = basis()
+      aendern(f, r.neuId)
+      const vorher = structuredClone({ z: f.zufahrten, s: f.streifen, h: f.streifenHand })
+      expect(teilungZuruecknehmbar(f, r)).toBe(false)
+      expect(teilungZuruecknehmen(f, r)).toBe(false)
+      expect({ z: f.zufahrten, s: f.streifen, h: f.streifenHand }).toEqual(vorher)
+    }
+  })
+  it('Änderungen an anderen Streifen sperren nicht', () => {
+    const { f, r } = basis()
+    f.streifen.anderer = { lsa: 'ja' }; f.zufahrten['anderer|x'] = { tempo: 60 }
+    expect(teilungZuruecknehmen(f, r)).toBe(true)
+    expect(f.streifen.anderer).toEqual({ lsa: 'ja' })
+    expect(f.zufahrten['anderer|x']).toEqual({ tempo: 60 })
   })
 })

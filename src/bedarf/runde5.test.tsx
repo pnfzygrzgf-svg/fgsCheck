@@ -283,6 +283,8 @@ describe('Runde 5, Korrekturen nach Prüfung', () => {
     const [b] = befundblaetter(r, fallMit(), { vorgabe: { bern: false, kantonBE: false }, titel: () => 'Streifen 1' })
     expect(querungTitel(b)).toBe('Querung, Streifen von Hand')
     const html = renderToStaticMarkup(<BedarfAbschnitt fall={fallMit()} blaetter={[b]} vorgabe={{ bern: false, kantonBE: false }} aendern={() => {}} />)
-    expect(html).not.toContain('Fusswegnetz (Bern)')
+    // das Feld ist ausgeblendet: sein Name steht nur im Satz beim Schalter, keine Eingabezeile
+    expect(html).not.toContain('id="feld-netz"')
+    expect(html.match(/Fusswegnetz \(Bern\)/g)?.length ?? 0).toBeLessThanOrEqual(1)
   })
 })

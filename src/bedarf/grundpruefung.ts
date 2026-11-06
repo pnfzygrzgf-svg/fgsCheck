@@ -239,7 +239,11 @@ function sichtRechner(k: Kontext, zs: GrundSicht[], ohneZufahrt: string[]): Roh 
   const leer = ohneZufahrt.map(n => `${n}: keine Zufahrt geprüft`)
   const mit = liste.filter(x => x.unten !== null)
   // Soll getrennt nach geraden und abbiegenden Zufahrten
-  const sollVon = (ab: boolean) => [...new Set(mit.filter(x => !!x.z.abbiegend === ab).map(x => bereichText(x.unten!, x.oben)))].join('; ')
+  const sollVon = (ab: boolean) => {
+    const xs = mit.filter(x => !!x.z.abbiegend === ab), texte = [...new Set(xs.map(x => bereichText(x.unten!, x.oben)))]
+    if (texte.length < 2 || xs.some(x => x.oben === null)) return texte.join('; ')
+    return bereichText(Math.min(...xs.map(x => x.unten!)), Math.max(...xs.map(x => x.oben!)))
+  }
   const sG = sollVon(false), sA = sollVon(true)
   const sollText = sG && sA ? `${sG} geradeaus, ${sA} für Abbiegende` : sG || (sA ? `${sA} für Abbiegende` : '') || undefined
   const frei = liste.filter(x => x.zustand === 'erfuellt').length

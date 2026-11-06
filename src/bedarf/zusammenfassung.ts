@@ -618,7 +618,7 @@ export function zfEingabeBlatt(b: BefundBlatt, ort: ZfOrt = 'panel'): ZfEingabe 
 }
 
 /** Annahmen für Satz 4: Reihenfolge und Kurzform mit Wert */
-const ANNAHME_KURZ_REIHE = ['tempoRegime', 'innerorts', 'beduerfnis', 'vSig', 'strassentyp', 'fgsMitLsa', 'nachfrage', 'dtv'] as const
+const ANNAHME_KURZ_REIHE = ['dtv', 'tempoRegime', 'innerorts', 'beduerfnis', 'vSig', 'strassentyp', 'fgsMitLsa', 'nachfrage'] as const
 const ANNAHME_KURZ: Record<(typeof ANNAHME_KURZ_REIHE)[number], (w: unknown) => string> = {
   tempoRegime: w => (w === 't30_zone' ? 'Tempo-30-Zone' : w === 'begegnungszone' ? 'Begegnungszone' : w === 'strecke' ? 'keine Zone (Strecke)' : ''),
   innerorts: w => (w === true ? 'innerorts' : w === false ? 'ausserorts' : ''),

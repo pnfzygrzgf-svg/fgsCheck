@@ -49,12 +49,15 @@ export async function ladeProfil(linie: P[], signal?: AbortSignal): Promise<Abru
   return { ...r, daten: profilLesen(r.daten) }
 }
 
+/** Länge der angefragten Linie [m] */
+export const linieLaenge = (l: P[]): number => l.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - l[i][0], p[1] - l[i][1]), 0)
+
 /** Längsneigung zum Knoten hin aus dem Profil der Linie; Fehler des Dienstes ergeben i = null mit Hinweis (Neigung unbekannt).
  *  Ein Abbruch (anderer Ort geladen) wird weitergereicht. -> [Messung, Abruf bzw. Fehlertext] */
 export async function ladeNeigung(linie: P[], signal?: AbortSignal): Promise<[NeigungMessung, Abruf<ProfilPunkt[]> | string]> {
   try {
     const r = await ladeProfil(linie, signal)
-    return [neigungMessung(r.daten), r]
+    return [neigungMessung(r.daten, linieLaenge(linie)), r]
   } catch (e) {
     if (signal?.aborted || (e as Error)?.name === 'AbortError') throw e
     const f = e instanceof Error ? e : new Error(String(e))

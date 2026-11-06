@@ -10,7 +10,7 @@ import { HALT_QUELLE_ID } from './daten/haltestellen'
 import { VD_QUELLE_ID } from './daten/verkehrsdaten'
 import { PARKKATASTER } from './daten/parkkataster'
 import { BAUMKATASTER } from './daten/baumkataster'
-import { datenlageSatz, datenlageZeilen, quelle, quellenFuer, THEMA_NAME, THEMEN, type Datenlage, type Quelle } from './daten/quellenregister'
+import { ABRUF_BEIM_LADEN, datenlageSatz, datenlageZeilen, quelle, quellenFuer, THEMA_NAME, THEMEN, type Datenlage, type Quelle } from './daten/quellenregister'
 import { wgs } from './geo'
 import { quellenQualitaetText, type QuellenQualitaet } from './daten/anbieter/gemeinsam/qualitaet'
 
@@ -96,18 +96,30 @@ export function DatenlageZeile({ lage, zustand, qualitaet = {} }: { lage: Datenl
 /** Produktnamen des Geoportals schreiben Umlaute aus; im Bericht stehen sie richtig */
 const produktNamen = (t: string): string => t.replace('Kindergaerten', 'Kindergärten').replace('Kindertagesstaetten', 'Kindertagesstätten').replace('Spitaeler', 'Spitäler')
 
+/** Adresse einer Quelle für den Link im Bericht (Firefox übernimmt ihn ins PDF) */
+const quelleUrl = (q: Quelle): string | undefined => ({ av: 'https://www.geodienste.ch/', osm: 'https://www.openstreetmap.org/',
+  swissimage: 'https://www.swisstopo.admin.ch/de/orthobilder-swissimage-10-cm', swissalti: 'https://www.swisstopo.admin.ch/de/hoehenmodell-swissalti3d' } as Record<string, string>)[q.id] ??
+  (q.anbieter.includes('Stadt Bern') ? 'https://map.bern.ch/' : undefined)
+
 /** Bericht (Quellen): nur die genutzten Quellen, je Quelle Themen, Anbieter, Stand, Lizenz */
-export function BerichtQuellenTabelle({ ids, lage, qualitaet = {} }: { ids: readonly string[]; qualitaet?: Readonly<Record<string, QuellenQualitaet>>
+export function BerichtQuellenTabelle({ ids, lage, qualitaet = {}, gruende }: { ids: readonly string[]; qualitaet?: Readonly<Record<string, QuellenQualitaet>>
+  /** Quellen ohne verwendbaren Treffer: je Kennung der Grund (Spalte «Grund» statt «Für») */
+  gruende?: Readonly<Record<string, string>>
   /** Datenlage am Ort: «Für» nennt nur die Themen, für die die Quelle dort massgebend ist */
   lage?: Datenlage | null }) {
-  const qs = ids.map(quelle).filter((q): q is Quelle => !!q)
+  const fuer = (q: Quelle) => THEMEN.filter(t => q.themen.includes(t) && (!lage || lage[t]?.id === q.id)).map(t => THEMA_NAME[t]).join(', ') ||
+    (q.id.startsWith('regional.e6.') || q.id === 'hoehenkurven' ? 'nur Kartenkontext' : '–')
+  const qs = ids.map(quelle).filter((q): q is Quelle => !!q).sort((a, b) => alphabetisch(fuer(a), fuer(b)))
   if (!qs.length) return null
+  /** Stand der Quelle; «Abruf beim Laden» mit der Abrufzeit, wenn sie bekannt ist */
+  const stand = (q: Quelle) => { const z = (qualitaet[q.id] as { zeit?: string } | undefined)?.zeit
+    return z && q.stand === ABRUF_BEIM_LADEN ? `Abruf ${new Date(z).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })}` : q.stand ?? '–' }
   return (
     <table className="quellen-tabelle bericht-quellen">
-      <thead><tr><th>Quelle</th><th>Für</th><th>Anbieter</th><th>Stand</th><th>Lizenz</th></tr></thead>
-      <tbody>{qs.map(q => <tr key={q.id}><td>{q.name}</td>
-        <td>{THEMEN.filter(t => q.themen.includes(t) && (!lage || lage[t]?.id === q.id)).map(t => THEMA_NAME[t]).join(', ') || (q.id.startsWith('regional.e6.') || q.id === 'hoehenkurven' ? 'nur Kartenkontext' : '–')}</td>
-        <td>{q.anbieter}</td><td>{q.stand ?? '–'}<div className="klein">{produktNamen(quellenQualitaetText(qualitaet[q.id]))}</div></td><td>{q.lizenz}</td></tr>)}</tbody>
+      <thead><tr><th>Quelle</th><th>{gruende ? 'Grund' : 'Für'}</th><th>Anbieter</th><th>Stand</th><th>Lizenz</th></tr></thead>
+      <tbody>{qs.map(q => <tr key={q.id}><td>{quelleUrl(q) ? <a href={quelleUrl(q)}>{q.name}</a> : q.name}</td>
+        <td>{gruende ? gruende[q.id] : fuer(q)}</td>
+        <td>{q.anbieter}</td><td>{stand(q)}<div className="klein">{produktNamen(quellenQualitaetText(qualitaet[q.id]))}</div></td><td>{q.lizenz}</td></tr>)}</tbody>
     </table>
   )
 }

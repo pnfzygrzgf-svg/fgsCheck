@@ -317,7 +317,12 @@ export function armEndeText(a: Pick<ArmInfo, 'nr' | 'name' | 'hw' | 'himmel'>, e
 /** Strassentyp und ungünstige Verhältnisse der vortrittsberechtigten Strasse: Eingabe, sonst Vorgabe aus OSM highway und lanes
  *  bzw. aus der Neigung (|i| > 5 % in einer Richtung; neigung: wie gerechnet, von Hand bzw. aus dem Höhenmodell) und dem
  *  Schwerverkehrsanteil (> 8 %; Masse nach Kanton Solothurn, Annahme). Fahrstreifen (Block 5): mehr als ein Fahrstreifen je
- *  Richtung; je Arm lanes:forward bzw. lanes:backward, wenn vorhanden (> 1), sonst lanes (Einbahn > 1, sonst > 2) */
+ *  Richtung; je Arm lanes:forward bzw. lanes:backward, wenn vorhanden (> 1), sonst lanes (Einbahn > 1, sonst > 2). fahrstreifenJe: gilt je
+ *  Richtung für den Verkehr zum Knoten (arme[0] links, arme[1] rechts); von Hand für beide */
+/** Ungünstige Verhältnisse einer Richtung: die Fahrstreifen gelten je Richtung zum Knoten, die übrigen für die Strasse */
+const ungunstRichtung = (s: StrasseErgebnis, r: Richtung): Ungunst => ({ ...s.ungunst, fahrstreifen: s.fahrstreifenJe?.[r].mehr ?? s.ungunst.fahrstreifen })
+const hatUngunst = (u: Ungunst) => u.fahrstreifen || u.neigung || u.schwerverkehr
+
 export function strasseBestimmen(netz: OsmNetz, arme: ArmInfo[], eg: SichtEingaben,
   neigung: Record<Richtung, number> = { links: eg.neigung.links ?? 0, rechts: eg.neigung.rechts ?? 0 }): StrasseErgebnis {
   const hws = [...new Set(arme.map(a => a.hw))]
@@ -335,6 +340,19 @@ export function strasseBestimmen(netz: OsmNetz, arme: ArmInfo[], eg: SichtEingab
     return { mehr: max > (einbahn ? 1 : 2), lanes: max, text: `lanes=${String(max).replace('.', ',')}${einbahn ? ', Einbahn' : ''}` }
   }).filter((x): x is NonNullable<typeof x> => x !== null)
   const fsMass = fs.find(x => x.mehr) ?? [...fs].sort((a, b) => b.lanes - a.lanes)[0] ?? null
+  /** Fahrstreifen des Verkehrs zum Knoten: der Arm läuft vom Knoten weg, also zählt bei sd > 0 lanes:backward, sonst lanes:forward */
+  const zumKnoten = (a: ArmInfo | undefined): { mehr: boolean; text: string | null } => {
+    if (eg.fahrstreifen !== null) return { mehr: eg.fahrstreifen, text: null }
+    if (!a || a.wid < 0 || !netz.W.has(a.wid)) return { mehr: false, text: null }
+    const t = netz.w(a.wid).t, tag = a.sd > 0 ? 'lanes:backward' : 'lanes:forward', gegen = a.sd > 0 ? 'lanes:forward' : 'lanes:backward'
+    const hier = zahlen(t[tag]), dort = zahlen(t[gegen]), alle = zahlen(t.lanes)
+    if (hier.length) return { mehr: Math.max(...hier) > 1, text: `${tag}=${t[tag]}` }
+    if (dort.length && alle.length) { const n = Math.max(...alle) - Math.max(...dort); return { mehr: n > 1, text: `lanes=${t.lanes}, ${gegen}=${t[gegen]}` } }
+    if (dort.length) return { mehr: false, text: null }
+    if (!alle.length) return { mehr: false, text: null }
+    const max = Math.max(...alle), einbahn = a.einbahn !== 0
+    return { mehr: max > (einbahn ? 1 : 2), text: `lanes=${String(max).replace('.', ',')}${einbahn ? ', Einbahn' : ''}` }
+  }
   const anteil = eg.schwerverkehrAnteil ?? null
   const ungunstVorgabe = {
     fahrstreifen: fs.some(x => x.mehr),
@@ -345,7 +363,8 @@ export function strasseBestimmen(netz: OsmNetz, arme: ArmInfo[], eg: SichtEingab
   const ungunst: Ungunst = { fahrstreifen: eg.fahrstreifen ?? ungunstVorgabe.fahrstreifen, neigung: eg.neigungGross ?? ungunstVorgabe.neigung,
     schwerverkehr: eg.schwerverkehr || ungunstVorgabe.schwerverkehr }
   return { typ: eg.typ ?? typVorgabe, typVorgabe, typQuelle: `OSM highway=${hws.join(' / ')}`, typGewaehlt: eg.typ !== null, ungunst,
-    ungunstVorgabe, fahrstreifenQuelle: fsMass ? `OSM ${fsMass.text}` : 'ohne OSM lanes', schwerverkehrAnteil: anteil }
+    ungunstVorgabe, fahrstreifenQuelle: fsMass ? `OSM ${fsMass.text}` : 'ohne OSM lanes', schwerverkehrAnteil: anteil,
+    fahrstreifenJe: { links: zumKnoten(arme[0]), rechts: zumKnoten(arme[1]) } }
 }
 
 /** Abstand über den weitesten Zielpunkt hinaus, bis zu dem amtliche Parkfelder und Bäume angezeigt werden [m] */
@@ -534,7 +553,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   if (!rv) {
     if (durchgehend) hinweise.push('Die gewählte Zufahrt gehört nach OSM zur durchgehenden Strasse; als vortrittsberechtigt gelten hier ' +
       'die übrigen Arme. Vortrittsregelung vor Ort prüfen.')
-    an.vortritt.push(`Vortritt haben ${paar.map(armText).join(' und ')} (${grund}).`)
+    an.vortritt.push(`Vortritt haben ${paar.map(armText).join(' und ')}: ${grund}.`)
     if (vorgeschlagen) an.vortritt.push(`Die App schlägt ${armText(zArm)} als Zufahrt vor, weil nur dieser Arm nicht zur Vortrittsstrasse gehört.`)
   } else {
     // Festgelegter Wortlaut; dazu Tempo und Richtungen der Prüfung
@@ -956,16 +975,20 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   const strasse = strasseBestimmen(netz, [aL, aR], eg, { links: ns.links.i, rechts: ns.rechts.i })
   if (eg.bundesbelege?.typ?.wert === eg.typ) herleitung.push(bundBelegText(eg.bundesbelege.typ))
   if (eg.innerorts != null) herleitung.push(`Ortslage ${eg.innerorts ? 'innerorts' : 'ausserorts'} nach ${ao.grund}.`)
+  const ungJe = { links: hatUngunst(ungunstRichtung(strasse, 'links')), rechts: hatUngunst(ungunstRichtung(strasse, 'rechts')) }
   if (!strasse.typGewaehlt && !rv) {
     an.verkehr.push(`Die Vortrittsstrasse gilt als ${STRASSENTYP_TEXT[strasse.typ]} (nach ${strasse.typQuelle}): ` +
       `massgebend ist ${strasse.typ === 'es' ? 'der untere Wert der Tab. 1 (S. 8)' :
-      `der Zwischenwert der Tab. 1 (S. 8; ${ZWISCHENWERT_TEXT})`}.`)
+      ungJe.links && ungJe.rechts ? 'wegen ungünstiger Verhältnisse der obere Wert der Tab. 1 (S. 8)' :
+      `der Zwischenwert der Tab. 1 (S. 8; ${ZWISCHENWERT_TEXT})${ungJe.links !== ungJe.rechts ?
+        `, ${lageKurz({ lage: lageLR[ungJe.links ? 0 : 1] })} wegen ungünstiger Verhältnisse der obere Wert` : ''}`}.`)
     herleitung.push(`Strassentyp aus ${strasse.typQuelle}: trunk, primary, secondary, tertiary und deren links gelten als Hauptverkehrsstrasse ` +
       '(tertiary damit auf der sicheren Seite), sonst Erschliessungsstrasse (Annahme der App).')
   }
   // ungünstige Verhältnisse als Vorgabe: ein Satz mit allen Gründen
   const ungGruende = [
-    ...(eg.fahrstreifen === null && strasse.ungunst.fahrstreifen && !rv ? [`mehr als ein Fahrstreifen je Richtung (${strasse.fahrstreifenQuelle})`] : []),
+    ...(eg.fahrstreifen === null && strasse.ungunst.fahrstreifen && !rv ? (['links', 'rechts'] as Richtung[]).filter(r => strasse.fahrstreifenJe?.[r].mehr).map(r =>
+      `mehr als ein Fahrstreifen ${lageKurz({ lage: lageLR[r === 'links' ? 0 : 1] })} (OSM ${strasse.fahrstreifenJe?.[r].text})`) : []),
     ...(eg.neigungGross === null && strasse.ungunst.neigung && !rv ? [`Gefälle über ${NEIGUNG_GROSS_PROZENT} % in einer Richtung`] : []),
     ...(!eg.schwerverkehr && strasse.ungunstVorgabe.schwerverkehr && !rv ? [`Schwerverkehrsanteil ${f1(strasse.schwerverkehrAnteil!)} %, ` +
       `über ${SCHWERVERKEHR_PROZENT} %`] : []),
@@ -1061,7 +1084,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   const autoR = richtungen.filter(r => r.status !== 'keine_zufahrt')
   if (autoR.length) an.verkehr.unshift(`Fahrzeuge fahren ${f2(D_MFZ_M)} m vom rechten Rand (Ziffer 10, S. 7), neben parkierten Autos ` +
     `${f2(D_MFZ_M)} m daneben${autoR.some(r => r.veloFuehrung === 'radstreifen') ? `, neben einem Radstreifen ${f2(D_MFZ_M)} m daneben` : ''}; ` +
-    `${autoR.map(r => `${vonSatz(r)} ${r.parkStreifen.abzug ? 'Parkierung' : 'keine Parkierung'}`).join(', ')}.`)
+    `${autoR.every(r => !r.parkStreifen.abzug) ? 'keine Parkierung' : autoR.map(r => `${vonSatz(r)} ${r.parkStreifen.abzug ? 'Parkierung' : 'keine Parkierung'}`).join(', ')}.`)
   // Beispiel Knoten 282773328: Teilung der Fahrbahn in zwei Einbahnen, die Fahrlinie folgt der zuführenden (Annahme gleich
   // nach dem Satz zur Fahrlinie, Herleitung nach der Lage der Fahrlinie)
   let nachFahrlinie = autoR.length ? 1 : 0
@@ -1385,7 +1408,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     // Velo gegen die Einbahn (E4): von dieser Seite nur Velos
     if (r.status === 'keine_zufahrt')
       return { richtung: r.richtung, lage: r.lage, vorhanden: velo!.vorhanden, massgebend: velo!.massgebend, reicht: velo!.reicht, tempo: t, velo, nurVelo: true }
-    const sw = t === r.tempo ? null : sichtweiteA(t, strasse.typ, strasse.ungunst, r.neigung, r.neigungUnbekannt)
+    const sw = t === r.tempo ? null : sichtweiteA(t, strasse.typ, ungunstRichtung(strasse, r.richtung), r.neigung, r.neigungUnbekannt)
     const A = sw ? sw.massgebend : r.massgebend
     const si = sichtEntlang(v.D ?? D, r.achse, r.sMax, fl, A)
     // Überholfall (Block 5): dieselbe Variante auf der Achse des Gegenfahrstreifens, mit derselben erforderlichen Sichtweite
@@ -1610,7 +1633,7 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
   const tempoQuelle = te ? `von Hand: ${TEMPO_ART_TEXT[te.art]}${te.begruendung.trim() ? ` (${te.begruendung.trim()})` : ''}` : tempoVorgabeQuelle
   if (te && te.art === 'signalisiert' && te.wert !== tempoVorgabe && !vorgabeAnnahme)
     hinweise.push(`Signalisiertes Tempo von Hand ${te.wert} km/h, ${trefferA ? amtlich!.quelle : 'OSM'} ${tempoVorgabe} km/h: Signalisation vor Ort prüfen.`)
-  const sw0 = sichtweiteA(tempo, strasse.typ, strasse.ungunst, ns.i, ns.unbekannt)
+  const sw0 = sichtweiteA(tempo, strasse.typ, ungunstRichtung(strasse, richtung), ns.i, ns.unbekannt)
   // Rechtsvortritt: massgebend die kleinste Sichtweite, die nach Abb. 6 nicht «zu sanieren» ist (sehr schlecht: keine, 25 m gezeigt),
   // oberer Wert die grösste Stufe der Abb. 6; Zielpunkte bis RV_ZIEL_M
   const rvMin = rvWahr ? rvMindest(rvWahr) : null

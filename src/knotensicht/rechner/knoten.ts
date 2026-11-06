@@ -345,7 +345,7 @@ export function knotenInfo(netz: OsmNetz, n: number, signaleNah: VortrittsHinwei
     const sp = vortrittPaar(ohneSignal)!
     const s0 = signale.find(s => armVon(s) === mitSignal[0])!
     vortrittSicher = `Signal «${s0.art === 'stop' ? 'Stop' : 'Kein Vortritt'}» an ${armText(mitSignal[0])} (${s0.quelle ?? `OSM highway=${s0.art}`})`
-    vp = [sp[0], `${vortrittSicher}; ${sp[1]}`]
+    vp = [sp[0], ohneSignal.length === 2 ? vortrittSicher : `${vortrittSicher}; ${sp[1]}`]
   } else if (prio.length >= 2) {
     const sp = vortrittPaar(prio)!
     vortrittSicher = 'Hauptstrasse (OSM priority_road)'

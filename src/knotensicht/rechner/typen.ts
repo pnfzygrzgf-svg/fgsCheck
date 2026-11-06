@@ -140,6 +140,7 @@ export interface StrasseErgebnis {
   ungunst: Ungunst
   ungunstVorgabe: Pick<Ungunst, 'fahrstreifen' | 'neigung'> & { schwerverkehr?: boolean }   // schwerverkehr: aus dem Anteil (Block 5)
   fahrstreifenQuelle: string  // z. B. «OSM lanes=4» bzw. «ohne OSM lanes»
+  fahrstreifenJe?: Record<Richtung, { mehr: boolean; text: string | null }>   // je Richtung zum Knoten: mehr als ein Fahrstreifen, Quelle
   schwerverkehrAnteil?: number | null   // Block 5: Eingabe [%] (null: ohne Angabe)
 }
 

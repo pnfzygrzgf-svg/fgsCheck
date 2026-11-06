@@ -59,7 +59,8 @@ export const BERN_BFS = 351
 const BERN: Gebiet = { art: 'gemeinden', bfs: [BERN_BFS], name: 'Stadt Bern' }
 const BERN_LIZENZ = 'Open Data Stadt Bern: freie Nutzung, Quellenangabe Pflicht'
 const SWISSTOPO_LIZENZ = 'frei, Quellenangabe «© swisstopo»'
-const LIVE = 'Abruf beim Laden'
+export const ABRUF_BEIM_LADEN = 'Abruf beim Laden'
+const LIVE = ABRUF_BEIM_LADEN
 
 /** Kantone mit freier AV über geodienste.ch (19 ganz, Wallis teilweise) und Liechtenstein */
 export const AV_KANTONE = ['ZH', 'BE', 'UR', 'SZ', 'GL', 'ZG', 'FR', 'SO', 'BS', 'BL', 'SH', 'AR', 'AI', 'SG', 'GR', 'AG', 'TG', 'TI', 'GE',

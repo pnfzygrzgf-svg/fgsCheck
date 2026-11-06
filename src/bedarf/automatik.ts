@@ -90,6 +90,8 @@ export interface AutoGeo {
   kurveNeigung?: Readonly<Record<string, NeigungMessung>> | null
 }
 
+/** Messart der Abstände zu Streifen und Lichtsignal */
+const ABSTAND_ANNAHME = 'gemessen entlang der gequerten Strasse (Annahme der App)'
 /** ganzeStrasse: Wert ist die Länge der ganzen Strasse (Abstände bei beidseitigem Strassenende) */
 type Setze = (pfad: string, wert: unknown, quelle: Quelle, text: string, ganzeStrasse?: true) => void
 type FeldHinweis = (pfad: string, text: string) => void
@@ -374,7 +376,7 @@ export function automatik(x: AutoEingang): void {
       const fgs = osm.uebergaenge.filter(u => u.id !== eigenId && istFgs(markierung(u.tags)) && abstandQuerung(ll2p(u), st) > AUTO.eigenFgsM)
       const lsa = [...osm.ampeln, ...osm.uebergaenge.filter(u => istLsaUebergang(u.tags))]
         .filter(u => u.id !== eigenId && abstandQuerung(ll2p(u), st) > AUTO.eigenLsaM)
-      const naechst = (ks: OsmKnoten[]) => ks.map(k => ab.get(k.id)).filter((v): v is number => v !== undefined).sort((a, b) => a - b)[0] ?? null
+      const naechst = (ks: OsmKnoten[]) => ks.flatMap(k => { const d = ab.get(k.id); return d === undefined ? [] : [{ d, id: k.id }] }).sort((a, b) => a.d - b.d)[0] ?? null
       // endet die Strasse an einem Knoten ohne Fortsetzung, zählt ohne Fund entlang der Strasse ein Lichtsignal bis
       // 30 m von diesem Knoten als Lichtsignal am Knoten (Ampel highway=traffic_signals wie knotenLsa, keine Fussgänger-LSA einer
       // anderen Querung); bis 50 m ist es unklar, die Suche endet dort
@@ -384,7 +386,7 @@ export function automatik(x: AutoEingang): void {
       const lsaEnde = endenOhne.filter(e => lsaAm(e.k, AUTO.knotenLsaJaM)).map(e => e.d).sort((a, b) => a - b)[0] ?? null
       const dF = naechst(fgs), dL0 = naechst(lsa)
       // nur ohne Fund entlang der Strasse (ein gefundenes Lichtsignal bleibt wie bisher)
-      const dL = dL0 ?? lsaEnde
+      const dL = dL0?.d ?? lsaEnde
       // Ohne Fund «mindestens» nur die tatsächlich durchsuchte Länge (gleichnamige Wege bis zum Namenswechsel, höchstens
       // die Reichweite der Daten) als Annahme, und nur, wenn sie die Schwelle von G1 bzw. G2 erreicht; sonst offen. Endet die
       // Strasse in einer Richtung ohne Fortsetzung (Querstrasse, Sackgasse), ist diese Richtung ganz durchsucht und begrenzt nicht
@@ -414,10 +416,11 @@ export function automatik(x: AutoEingang): void {
           'durchsucht). Abstand bei Bedarf von Hand eingeben')
         else feldHinweis(pfad, `${bis} ${was} gefunden (OSM), weniger als ${schwelle} m durchsucht: Abstand von Hand eingeben`)
       }
-      if (dF !== null) setze('abstandFgsM', Math.round(dF), 'osm', `nächster markierter Übergang ${ganz(dF)} m entlang der Strasse (OSM)`)
+      // Messart: entlang der gequerten Strasse (Annahme der App; VSS 40 241 Z. 19 und 20 sagen nicht, wie gemessen wird)
+      if (dF !== null) setze('abstandFgsM', Math.round(dF.d), 'osm', `nächster markierter Übergang ${ganz(dF.d)} m entlang der Strasse (OSM, Knoten ${dF.id}); ${ABSTAND_ANNAHME}`)
       else ohneFund('abstandFgsM', 'kein markierter Übergang', KATALOG.G1.werte!.min, 'kein weiterer Fussgängerstreifen möglich')
-      if (dL !== null) setze('abstandLsaM', Math.round(dL), 'osm', dL === dL0 ? `nächstes Lichtsignal ${ganz(dL)} m entlang der Strasse (OSM)`
-        : `Lichtsignal am Knoten, an dem die Strasse endet: ${ganz(dL)} m entlang der Strasse (OSM, Lichtsignal bis ${AUTO.knotenLsaJaM} m vom Knoten)`)
+      if (dL !== null) setze('abstandLsaM', Math.round(dL), 'osm', dL0 ? `nächstes Lichtsignal ${ganz(dL)} m entlang der Strasse (OSM, Knoten ${dL0.id}); ${ABSTAND_ANNAHME}`
+        : `Lichtsignal am Knoten, an dem die Strasse endet: ${ganz(dL)} m entlang der Strasse bis zum Knoten (OSM, Lichtsignal bis ${AUTO.knotenLsaJaM} m vom Knoten); ${ABSTAND_ANNAHME}`)
       else ohneFund('abstandLsaM', 'kein Lichtsignal', KATALOG.G2.werte!.min, 'Abstand zu einem Lichtsignal nicht anwendbar', k => lsaAm(k, AUTO.knotenLsaNeinM))
     }
     if (knoten) {

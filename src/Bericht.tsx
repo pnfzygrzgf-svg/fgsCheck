@@ -54,6 +54,7 @@ import { BefundblattAnzeige, GrundpruefungAnzeige, VerzeichnisBericht, Zusammenf
 import type { BefundBlatt } from './bedarf/befundblatt'
 import { AHS_40240 } from './bedarf/tabellen'
 import { BerichtQuellenTabelle } from './Datenlage'
+import type { OhneTreffer } from './quellenHerangezogen'
 import { BILD_BREITE_MM, bildDruckHoeheMm, datumText, ergebnisZusatzMm, legendeZeilen, netzQuelleText } from './berichtSeite1'
 import type { Datenlage } from './daten/quellenregister'
 import type { QuellenQualitaet } from './daten/anbieter/gemeinsam/qualitaet'
@@ -241,12 +242,12 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
   const veloDa = zufahrten.filter(z => z.velo && sichtZeigen(sicht, 'velo', fgsSichtId(z)))
   const tueArten = [...new Set(r.streifen.flatMap(st => (tueGezeichnet(st.knotensicht) ? st.knotensicht.karte.dreiecke
     .filter(d => sichtZeigen(sicht, d.art, tueSichtId(st.fgsId, d.lage))).map(d => d.art) : [])))]
-  const statusGruppe = (st: string) => (st === 'frei' ? 'frei' : st === 'verdeckt_hindernis' ? 'hindernis' : st === 'verdeckt_baum' ? 'baum'
-    : st === 'verdeckt_zweirad' ? 'zweirad' : st.startsWith('verdeckt') ? 'verdeckt' : 'ungeprueft')
-  const STATUS_LEGENDE: Record<string, string> = { frei: 'Sichtfeld frei', verdeckt: 'Sichtfeld verdeckt (Gebäude bzw. Gelände)',
-    hindernis: 'Sichtfeld verdeckt durch ein Hindernis (Parkfeld, Hecke, Mauer)', baum: 'Sichtfeld verdeckt durch einen Baum',
-    zweirad: 'Sichtfeld verdeckt durch ein Zweirad-Parkfeld (Hinweis)', ungeprueft: 'Sichtfeld nicht geprüft' }
-  const statusZeilen = [...new Map(autoDa.map(z => [statusGruppe(z.status), z.status])).entries()]
+  // je Status der gezeigten Sichtfelder ein Eintrag (rechner/pruefen.konfliktFelder: «verdeckt» heisst Auto-Parkfeld)
+  const STATUS_LEGENDE: Record<string, string> = { frei: 'Sichtfeld frei', verdeckt: 'Sichtfeld verdeckt durch ein Auto-Parkfeld',
+    verdeckt_gebaeude: 'Sichtfeld verdeckt durch ein Gebäude', verdeckt_gelaende: 'Sichtfeld verdeckt durch das Gelände',
+    verdeckt_hindernis: 'Sichtfeld verdeckt durch ein Hindernis (Hecke, Mauer, Fläche von Hand)', verdeckt_baum: 'Sichtfeld verdeckt durch einen Baum',
+    verdeckt_zweirad: 'Sichtfeld verdeckt durch ein Zweirad-Parkfeld (Hinweis)' }
+  const statusZeilen = [...new Set(autoDa.map(z => z.status))]
   const hindArten = [...new Map(hindernisse.filter(h => !r.seitenraumErsetzt?.some(x => x.id === h.id))
     .map(h => [hindernisFarbe(h) + hindernisArtText(h), { farbe: hindernisFarbe(h), text: hindernisArtText(h) }])).values()]
   const fzArten = [...new Map(fahrzeuge.map(f => { const k = fahrzeugLegende(f); return [k, { farbe: fahrzeugFarbe(f), art: f.art, text: k }] })).values()]
@@ -262,7 +263,7 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
       !st.querung || st.querung.typ === 'begegnungszone') ? 'Querung in der Begegnungszone (ohne Balken)' : 'Querung ohne Vortritt (ohne Balken)' }] : []),
     ...(r.streifen.some(st => st.trottoirueberfahrt) ? [{ probe: <Probe art="flaeche" farbe={AV_FARBEN.Trottoir} rand={TUE_RAND} strich="6 4" />, text: 'Trottoirüberfahrt (nicht geprüft), Streifen von Hand als Achse' }] : []),
     ...(r.streifen.some(st => !st.trottoirueberfahrt && st.ann.length) ? [{ probe: <Probe art="flaeche" farbe="#0ea5e9" rand="#0369a1" deckung={0.4} />, text: 'Annäherungsbereiche' }] : []),
-    ...statusZeilen.map(([g, st]) => ({ probe: <Probe art="rand" farbe={STATUS_FARBE[st] ?? '#10b981'} strich={strich(st)} deckung={0.15} />, text: STATUS_LEGENDE[g] })),
+    ...statusZeilen.map(st => ({ probe: <Probe art="rand" farbe={STATUS_FARBE[st] ?? '#10b981'} strich={strich(st)} deckung={0.15} />, text: STATUS_LEGENDE[st] ?? 'Sichtfeld nicht geprüft' })),
     ...(autoDa.some(z => z.konflikte.length) ? [{ probe: <Probe art="schraffur" farbe="#dc2626" />, text: 'Hindernis im Sichtfeld (schraffiert)' }] : []),
     ...(autoDa.length ? [{ probe: <Probe art="fahrlinie" farbe="#ffffff" />, text: 'Fahrlinie (weiss gestrichelt) mit Sichtpunkten; dahinter die Nummer der Zufahrt' }] : []),
     ...(veloDa.length ? [{ probe: <Probe art="rand" farbe="#0f766e" strich="6 4" deckung={0.1} />, text: 'Sicht vom Velo: Sichtfeld und Sichtpunkte (fein gestrichelt)' }] : []),
@@ -557,6 +558,12 @@ function hinweisListe(r: FallRechnung, fall: Fall, luftbildStand: LuftbildStand,
 /** Ladezustand des Luftbilds für die Streifen-Suche (App): noch unterwegs, fehlgeschlagen bzw. nicht angefragt, vorhanden */
 export type LuftbildStand = 'laedt' | 'fehlt' | 'da'
 
+/** vorhandene Sicht je Zufahrt: bei freier Sicht das Soll bzw. so weit wie geprüft, sonst bis zum ersten Hindernis */
+function vorhandeneSichtText(z: ZufahrtErgebnis): string {
+  if (z.freiBisM == null) return '–'
+  return z.status === 'frei' ? `mindestens ${mText(z.freiBisM)} m` : `${mText(z.freiBisM)} m`
+}
+
 function hindernisseText(z: ZufahrtErgebnis): string {
   if (!z.konflikte.length) return 'keine'
   return z.konflikte.map(k => `${k.layer}${k.klasse === 'baum' ? '' : ` ${f1(k.flaeche)} m²`}, ${f1(k.abstand)} m vom Streifen`).join('; ')
@@ -634,16 +641,16 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
         Anhaltesichtweite), L = {f1(s.querung.L)} m{s.querung.ganzeFahrbahn ? ' (Insel nur markiert: ganze Fahrbahn)' : ''}.</p>}
       {s.status !== 'kein_fgs' && (
         <table className="bericht-tabelle">
-          <thead><tr><th>Zufahrt</th><th>Art</th><th>Tempo</th><th>nötige Sicht</th><th>Ergebnis</th><th>Hindernisse im Sichtfeld</th></tr></thead>
+          <thead><tr><th>Zufahrt</th><th>Tempo</th><th>nötige Sicht</th><th>vorhandene Sicht</th><th>Ergebnis</th><th>Hindernisse im Sichtfeld</th></tr></thead>
           <tbody>
             {nachNr(s.zufahrten, namen).map(z => (
               <tr key={z.zufahrt}>
                 <td><NrMarke nr={zufahrtNr(namen, z.zufahrt)} /><b>{zufahrtLang(namen, z.zufahrt)}</b>{z.deckung && <span className="klein"> (mitgeprüft)</span>}
-                  {z.art === 'abbiegend' && z.ueberStrasse ? <div className="klein">weiter auf {z.ueberStrasse}</div> : null}</td>
-                <td>{ART[z.art] ?? z.art}</td>
+                  <div className="klein">{ART[z.art] ?? z.art}{z.art === 'abbiegend' && z.ueberStrasse ? `, weiter auf ${z.ueberStrasse}` : ''}</div></td>
                 <td>{z.tempo} km/h<div className="klein">({z.tempoQuelle === 'Ersatz' ? 'Annahme, ohne Angabe' : z.tempoQuelle === 'Geoportal' ? 'Geoportal Stadt Bern' : tempoHerkunft(z.tempoQuelle)})</div></td>
                 <td>{mText(z.sichtweite)} m<div className="klein">({sichtQuelleKurz(z.sichtweiteQuelle)}{z.kurvenradiusM != null ? `, Kurvenradius ${f1(z.kurvenradiusM)} m` : ''})</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
+                <td>{vorhandeneSichtText(z)}</td>
                 <td><b className="status-farbe" style={{ color: statusFarbe(z.status) }}>Wartefläche: {statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}
                   {z.sichtGelaende && <div className="klein">{sichtGelaendeText(z.sichtGelaende)}</div>}
                   {z.erkennungM && (() => {
@@ -676,14 +683,14 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
 }
 
 export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, zusatzQuellen, ausserhalb = [], aendern,
-  schliessen, namen = new Map(), blaetter = [], quellenIds = [], datenlage = null, quellenQualitaet = {}, gelaende = null, neigung = null, bruecke = null }: {
+  schliessen, namen = new Map(), blaetter = [], quellenIds = [], quellenOhneTreffer = [], datenlage = null, quellenQualitaet = {}, gelaende = null, neigung = null, bruecke = null }: {
   neigung?: Readonly<Record<string, NeigungMessung>> | null
   /** Brückenumriss der AV (rechner/bruecke.ts): Geländeprofile, die eine Brücke berühren, gelten als unsicher */
   bruecke?: { enthaelt(p: P): boolean } | null
   /** Geländeprüfung der Erkennungsdistanz je erkennungGelaende.gelaendeSchluessel */
   gelaende?: Readonly<Record<string, GelaendeStand>> | null
   /** genutzte Quellen (Kennungen im Quellenregister) und Datenlage am Ort für die Tabelle unter «Quellen» */
-  quellenIds?: readonly string[]; datenlage?: Datenlage | null; quellenQualitaet?: Readonly<Record<string, QuellenQualitaet>>
+  quellenIds?: readonly string[]; quellenOhneTreffer?: readonly OhneTreffer[]; datenlage?: Datenlage | null; quellenQualitaet?: Readonly<Record<string, QuellenQualitaet>>
   namen?: Namen                  // Zufahrten nach Strasse und Herkunft (benennung.ts), je Streifen
   blaetter?: BefundBlatt[]       // Bedarfsmodul: Befundblatt je Querung (gezeigt, sobald eine Beurteilung vorliegt)
   fall: Fall; rechnung: FallRechnung; rechnungZeit: Date | null; luftbildStand: LuftbildStand
@@ -756,18 +763,19 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
             Kopf- und Fusszeile (Titel, Adresse, Seitenzahl, Datum) dazu. Zwei Zeilen: Seite 1 Ort und Kartenbild, ab Seite 2 das
             Ergebnis (Seitenumbruch zwischen den Zeilen; innerhalb einer Zelle greift er nicht in allen Browsern). */}
         <table className="bericht-rahmen">
-        <thead><tr><td><div className="bericht-rand-oben" /></td></tr></thead>
+        {/* Fallkennung auf jeder Seite (lose Blätter); Seitenzahlen kennt der Kopf nicht: der Zähler bleibt dort in Firefox auf 0 */}
+        <thead><tr><td><div className="bericht-rand-oben"><span className="bericht-kennung">fgsCheck v{__APP_VERSION__} · {fall.ort.bezeichnung?.trim() || strassen[0] || 'Querung'} · {datum(heute)}</span></div></td></tr></thead>
         <tfoot><tr><td><div className="bericht-rand-unten" /></td></tr></tfoot>
         <tbody><tr><td>
         <header>
           <h1><img className="logo" src={import.meta.env.BASE_URL + 'logo.svg'} alt="" width={36} height={36} />Sichtprüfung Fussgängerstreifen</h1>
-          <p className="klein">fgsCheck · Bericht vom {datum(heute)}</p>
+          <p className="klein">fgsCheck · {mitBedarf ? 'Sichtprüfung, Bedarf und Querungstyp' : 'Sichtprüfung'} · Bericht vom {datum(heute)}</p>
         </header>
 
         <section className="bericht-block">
           <h2>Ort</h2>
           <table className="bericht-zahlen"><tbody>
-            <tr><td>Bezeichnung</td><td>
+            <tr className={bez.trim() ? undefined : 'nicht-drucken'}><td>Bezeichnung</td><td>
               <input className="nicht-drucken bericht-eingabe" type="text" placeholder="z. B. Adresse, Knoten (erscheint im Bericht)"
                 value={bez} onChange={ev => setBez(ev.target.value)} onBlur={bezUebernehmen}
                 onKeyDown={ev => { if (ev.key === 'Enter') ev.currentTarget.blur(); else if (ev.key === 'Escape') bezUebernehmen() }} />
@@ -798,9 +806,9 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
               (s.querung.typ === 'begegnungszone' ? ' – Querung in der Begegnungszone' : ' – Querung ohne Vortritt') : ''}: <b className="status-farbe" style={{ color: statusFarbe(s.status) }}>{streifenStatus(s)}</b>
               {' '}– {s.trottoirueberfahrt ? 'Knotensicht mit dem SichtweitenCheck prüfen, Sicht auf die Wartefläche nicht geprüft'
                 : s.status === 'kein_fgs' ? 'von Hand als kein Fussgängerstreifen bezeichnet, Zufahrten nicht ausgewiesen'
-                : `${s.zufahrten.length} Zufahrt(en) geprüft, davon ${s.zufahrten.filter(z => z.status === 'frei').length} frei` +
+                : `${s.zufahrten.length} ${s.zufahrten.length === 1 ? 'Zufahrt' : 'Zufahrten'} geprüft, davon ${s.zufahrten.filter(z => z.status === 'frei').length} frei` +
                   (s.zufahrten.some(z => z.deckung) ? `; ${s.zufahrten.filter(z => z.deckung).length} durch die gerade Zufahrt ` +
-                    'mitgeprüfte Abbiegezufahrt(en) mitgezählt' : '')}
+                    `mitgeprüfte ${s.zufahrten.filter(z => z.deckung).length === 1 ? 'Abbiegezufahrt' : 'Abbiegezufahrten'} mitgezählt` : '')}
               {erkennungBefunde(s).map(t => <div key={t} className="status-farbe" style={{ color: STATUS_FARBE.verdeckt }}>{t}</div>)}</li>)}
             {bedarfZeilen.map(t => <li key={t}>{t}</li>)}
           </ul>
@@ -820,7 +828,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
         </section>
         {rechnung.streifen.map(s => <StreifenTabelle key={s.fgsId} s={s} fall={fall} gelaende={gelaende} profile={profile} ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null}
           namen={namen.get(s.fgsId)} alle={rechnung.streifen} alleNamen={namen} />)}
-        {hinweise.length > 0 && <section className="bericht-block">
+        {hinweise.length > 0 && <section className="bericht-block druck-block">
           <h3>Hinweise zur Sichtprüfung</h3>
           <ul className="klein">{hinweise.map((x, i) => <li key={i}>{x}</li>)}</ul>
         </section>}
@@ -835,10 +843,10 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
           {blaetter.map(b => <BefundblattAnzeige key={b.gruppe} b={b} mehrere={blaetter.length > 1} druck />)}
         </section>}
 
-        <section className="bericht-block">
+        <section className="bericht-block druck-block">
           <h2>Eingaben von Hand</h2>
           {eingaben.length ? <ul className="klein">{eingaben.map((x, i) => <li key={i}>{x}</li>)}</ul> :
-            <p className="klein">Keine. Ergebnis allein aus den geladenen Daten.</p>}
+            <p className="klein">Keine. Ergebnis aus den geladenen Daten, Rechenregeln und ausgewiesenen Annahmen.</p>}
           <p className="klein">Die Eingaben lassen sich in der App mit «Fall speichern» als Fall-Datei (JSON) sichern und mit «Fall laden»
             wiederherstellen.</p>
         </section>
@@ -846,6 +854,8 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
         <section className="bericht-block">
           <h2>Quellen</h2>
           <BerichtQuellenTabelle ids={quellenIds} lage={datenlage} qualitaet={quellenQualitaet} />
+          {quellenOhneTreffer.length > 0 && <><h3>Abgefragt, nicht verwendet</h3>
+            <BerichtQuellenTabelle ids={quellenOhneTreffer.map(q => q.id)} qualitaet={quellenQualitaet} gruende={Object.fromEntries(quellenOhneTreffer.map(q => [q.id, q.grund]))} /></>}
           {zusatzQuellen.length > 0 && <ul className="klein">{zusatzQuellen.map(q => <li key={q}>{datumText(q)}</li>)}</ul>}
           <h3>Werke der Sichtprüfung</h3>
           <ul className="klein">
@@ -862,21 +872,24 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
           {mitBedarf && <VerzeichnisBericht blaetter={blaetter} />}
         </section>
 
-        {mitBedarf && <section className="bericht-block">
-          <h2>Anhang: Eingaben und Quellen{blaetter.length > 1 ? ` (vorbelegt nach ${blaetter[0].titel})` : ''}</h2>
-          {/* Tabelle Feld · Wert · Quelle · Annahme; eine Begründung nur bei Annahmen */}
-          <table className="bericht-tabelle klein"><thead><tr><th>Angabe</th><th>Wert</th><th>Quelle</th><th>Annahme</th></tr></thead>
-            <tbody>{eingabenTabelle(blaetter[0]).map(z => <tr key={z.feld}><td>{z.feld}</td><td>{z.wert}</td><td>{z.quelle}</td>
-              <td>{z.annahme ? <>ja{z.grund ? `: ${z.grund}` : ''}</> : 'nein'}</td></tr>)}</tbody></table>
-        </section>}
-
         <footer className="bericht-fuss">
           <p><b>Die App ersetzt keine Beurteilung vor Ort.</b> Daten aus offenen Quellen können veraltet oder unvollständig sein (z. B.
             Parkierung, Hecken, Mauerhöhen, Signalisation).</p>
           <p>fgsCheck v{__APP_VERSION__} (Stand {datumText(__BUILD_DATUM__)}) · {APP_URL} · Code unter MIT, eigene Inhalte unter CC BY 4.0 · eingebundene
             Daten unter ihren eigenen Lizenzen (siehe Quellen).</p>
         </footer>
-        </td></tr></tbody>
+        </td></tr>
+        {/* Anhang auf eigener Seite: Überschrift und Tabelle bleiben zusammen */}
+        {mitBedarf && <tr className="bericht-neue-seite"><td>
+        <section className="bericht-block">
+          <h2>Anhang: Eingaben und Quellen{blaetter.length > 1 ? ` (vorbelegt nach ${blaetter[0].titel})` : ''}</h2>
+          {/* Tabelle Feld · Wert · Quelle · Herleitung; eine Annahme zeigt die Spalte Quelle */}
+          <table className="bericht-tabelle klein"><thead><tr><th>Angabe</th><th>Wert</th><th>Quelle</th><th>Herleitung</th></tr></thead>
+            <tbody>{eingabenTabelle(blaetter[0]).map(z => <tr key={z.feld}><td>{z.feld}</td><td>{z.wert}</td><td>{z.quelle}</td>
+              <td>{z.grund}</td></tr>)}</tbody></table>
+        </section>
+        </td></tr>}
+        </tbody>
         </table>
       </article>
     </div>,

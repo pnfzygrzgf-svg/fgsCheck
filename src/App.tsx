@@ -1500,7 +1500,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const teilungZurueck = () => {
     const t = teilung
     if (!t || !fall) return
-    if (!teilungZuruecknehmbar(fall, t)) { setTeilung(null); setMeldung('Die Teilstreifen wurden seither geändert: Teilung nicht zurückgenommen.'); return }
+    if (!teilungZuruecknehmbar(fall, t)) { setTeilung(null); setMeldung('Die Teilstreifen oder ihre Eingaben wurden seither geändert: Teilung nicht zurückgenommen.'); return }
     aendern(f => { teilungZuruecknehmen(f, t); return f })
     setTeilung(null)
     setMeldung(`Teilung zurückgenommen: ${titel(t.id)} wieder ungeteilt, mit den Eingaben wie vor dem Teilen; ${titel(t.neuId)} entfernt.`)
@@ -2047,8 +2047,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // sind; die Vorgabe der ersten Rechnung gilt im Fall weiter (kein Springen, wenn später ein Streifen von Hand dazukommt)
   const mitReitern = !!fall && blaetter.length > 0
   // Quellen im Bericht (quellenHerangezogen.ts): nur, was in Sichtprüfung oder Bedarf dieses Falls eingeflossen ist
-  const berichtQuellen = useMemo(() => (fall ? herangezogeneQuellen(fall, blaetter, hoehenGenutzt.alle.map(d => d.id)) : []), [fall, blaetter, hoehenGenutzt])
-  const genutzt = useMemo(() => new Set(berichtQuellen), [berichtQuellen])
+  const berichtQuellen = useMemo(() => (fall ? herangezogeneQuellen(fall, rechnung, blaetter, hoehenGenutzt.alle.map(d => d.id)) : { ids: [], ohneTreffer: [] }),
+    [fall, rechnung, blaetter, hoehenGenutzt])
+  const genutzt = useMemo(() => new Set(berichtQuellen.ids), [berichtQuellen])
   const vorgabeReiter = reiterVorgabe({ uebergang: fall?.ort.uebergang ?? null, streifenQuelle: rechnung?.streifenQuelle ?? null,
     markierung: rechnung?.markierung ?? fall?.ort.markierung ?? null, herkunft: fall?.streifenHand.map(s => s.herkunft) })
   const reiter = reiterAktiv(reiterWahl, vorgabeReiter)
@@ -2414,6 +2415,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                         Teilstreifen geteilt ({titel(teilung.id)} und {titel(teilung.neuId)}).{' '}
                         <button className="zweit klein" title="den ungeteilten Streifen samt seinen Eingaben wie vor dem Teilen (die Mittelinsel bleibt)"
                           onClick={teilungZurueck}>Teilung zurücknehmen</button></div>}
+                      {teilung?.id === s.id && !teilungZuruecknehmbar(fall, teilung) && <div className="klein">Teilung nicht mehr zurücknehmbar: Lage oder
+                        Eingaben der Teilstreifen wurden seither geändert, sie blieben sonst nicht erhalten.</div>}
                       <MasseAnzeige s={s} e={rechnung?.streifen.find(x => x.fgsId === s.id) ?? null} kopieren={kopieren} namen={zNamen.get(s.id)}
                         fixpunkte={fall.fixpunkte ?? []} vorschlaege={fixVorschlag.get(s.id) ?? []}
                         setzen={() => werkzeugWaehlen('fixpunkt')} uebernehmen={v => fixpunktSetzen(v.p, 'gebaeudeecke')}
@@ -2549,15 +2552,15 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                 'verschieben. Querungsart (auch die Annahme an einer unmarkierten OSM-Querung), Lichtsignal, Bestand und Name bleiben wie an ' +
                 'der Querung; für einen geplanten Fussgängerstreifen danach unter «Querung» «Fussgängerstreifen (geplant bzw. zu prüfen)» wählen'}
                 onClick={() => {
-                let n = 0, ni = 0
                 // angenommene Inseln (nach OSM und Luftbild) als Insel von Hand mit, sonst ginge die Teilung verloren; die Streifen
                 // bleiben die bestehende Querung (StreifenHand.bestand, 30.10.2026): Querungsart, Bestand und Name wie bisher
-                aendern(f => { const vor = f.hindernisse.length
-                  n = streifenUebernehmen(f, rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? rechnung.luftbild.teile : rechnung.streifen, rechnung.streifen,
-                    rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? 'luftbild' : 'osm', rechnung.inseln ?? [], true)
-                  ni = f.hindernisse.length - vor; return f })
+                const uebernehmen = (f: Fall) => streifenUebernehmen(f, rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? rechnung.luftbild.teile : rechnung.streifen, rechnung.streifen,
+                  rechnung.streifenQuelle === 'luftbild' && rechnung.luftbild ? 'luftbild' : 'osm', rechnung.inseln ?? [], true)
+                // für die Meldung einmal auf einer Kopie (der Updater kann später laufen)
+                const kopie = structuredClone(fall), { n, konflikte } = uebernehmen(kopie), ni = kopie.hindernisse.length - fall.hindernisse.length
+                aendern(f => { uebernehmen(f); return f })
                 setMeldung('Lage der Querung zum Anpassen übernommen: Enden verschieben bzw. Breite anpassen; Querungsart und Bestand bleiben.' +
-                  (n ? ` ${n} Eingaben (Tempo, Spur, Streichen, Lichtsignal, Querung) übertragen – bitte prüfen.` : '') +
+                  (n ? ` ${n} Eingaben (Tempo, Spur, Streichen, Lichtsignal, Querung) übertragen – bitte prüfen.` : '') + konfliktText(konflikte) +
                   (ni ? ' Die Insel aus dem Luftbild steht jetzt als Insel von Hand unter den Hindernissen.' : ''))
               }}>Lage der Querung anpassen</button> (Enden verschieben; Querungsart und Bestand bleiben)</p>
             )}
@@ -2825,7 +2828,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
             ...hoehenGenutzt.erk.map(d => `Gelände der Erkennungsdistanz: Höhenmodell ${d.kurz}, ${d.anbieter} (Profile entlang der Sichtlinien, ${d.host}; Toleranz ${String(d.tolM).replace('.', ',')} m, Annahme)`),
             ...hoehenGenutzt.sicht.map(d => `Gelände der Sicht auf die Wartefläche: Höhenmodell ${d.kurz}, ${d.anbieter} (Profile entlang der Sichtlinien, ${d.host}; Toleranz ${String(d.tolM).replace('.', ',')} m, Annahme)`)]}
           ausserhalb={ausserhalb} aendern={aendern} schliessen={schliessenBericht} namen={zNamen} blaetter={blaetter} datenlage={ortLage} quellenQualitaet={qualitaetJeQuelle(quellenMitSnapshots)}
-          quellenIds={berichtQuellen} />
+          quellenIds={berichtQuellen.ids} quellenOhneTreffer={berichtQuellen.ohneTreffer} />
       )}
     </div>
   )
@@ -2935,13 +2938,13 @@ function LuftbildAnzeige({ rechnung, fall, flugjahr, hatBild, aendern, setMeldun
             nutzt den Streifen aus OSM + AV{rechnung?.inselTeilt ? ', an der Insel aus dem Luftbild geteilt' : ''}.</>}
           {lb.befund === 'nicht_gefunden' && <>Im Luftbild kein Streifen gefunden ({lb.gruende.join('; ')}): Streifen aus OSM + AV.</>}
           {(lb.befund === 'unsicher' || lb.nurVorschlag) && lb.teile.length > 0 && <div><button className="zweit klein" onClick={() => {
-            let n = 0, ni = 0
             // die Insel, an der die Luftbild-Teile geteilt sind, als Insel von Hand mit (sonst ginge die Teilung verloren)
-            aendern(f => { const vor = f.hindernisse.length
-              n = streifenUebernehmen(f, lb.teile, rechnung?.streifen ?? [], lb.nurVorschlag ? 'luftbild' : 'luftbild_vorschlag', lb.insel ? [lb.insel] : [], true)
-              ni = f.hindernisse.length - vor; return f })
+            const uebernehmen = (f: Fall) => streifenUebernehmen(f, lb.teile, rechnung?.streifen ?? [], lb.nurVorschlag ? 'luftbild' : 'luftbild_vorschlag', lb.insel ? [lb.insel] : [], true)
+            // für die Meldung einmal auf einer Kopie (der Updater kann später laufen)
+            const kopie = structuredClone(fall), { n, konflikte } = uebernehmen(kopie), ni = kopie.hindernisse.length - fall.hindernisse.length
+            aendern(f => { uebernehmen(f); return f })
             setMeldung(`Streifen aus dem Luftbild als Streifen von Hand übernommen${n ? `; ${n} Eingaben übertragen – bitte prüfen` : ''}` +
-              `${ni ? '; die Insel aus dem Luftbild steht jetzt als Insel von Hand unter den Hindernissen' : ''}.`)
+              `${ni ? '; die Insel aus dem Luftbild steht jetzt als Insel von Hand unter den Hindernissen' : ''}.${konfliktText(konflikte)}`)
           }}>Luftbild-Streifen übernehmen und anpassen</button></div>}
           <div>Erkennung {Math.round(lb.ms)} ms.</div>
         </div>
@@ -2949,6 +2952,9 @@ function LuftbildAnzeige({ rechnung, fall, flugjahr, hatBild, aendern, setMeldun
     </div>
   )
 }
+
+/** Meldung zu widersprüchlichen Eingaben beim Übernehmen als Streifen von Hand (fall.streifenUebernehmen) */
+const konfliktText = (n: number): string => (n ? ` ${n === 1 ? '1 Eingabe' : `${n} Eingaben`} nicht übertragen: Die bisherigen Streifen widersprechen sich, bitte von Hand setzen.` : '')
 
 /** Link «Street View ↗» je Zufahrt (Blick der Fahrenden vom Sichtpunkt in Soll-Distanz auf die Wartefläche); der Klick wählt die
  * Zeile nicht */

@@ -127,7 +127,7 @@ describe('Erweiterte Prüfung nach Thema: Felder, Fragen, Sprünge (Panel)', () 
   })
   it('Kreuzung mit Insel (Zieglerstrasse): Kopf mit Zählung, Thema Insel mit Fragen samt Eingabe und «für:», Masse und Annahmen am Ende', () => {
     const f = fallMit(FAELLE[1][1]), b = blattR(f), html = panel(f, b), t = text(html)
-    expect(t).toMatch(/Erweiterte Prüfung \d+ Regeln · \d+ Befunde? (· \d+ Hinweise? )?· \d+ Angaben offen/)
+    expect(t).toMatch(/Erweiterte Prüfung \d+ Regeln · \d+ Befunde? (· \d+ Hinweise? )?· \d+ Punkte offen \(ohne Grundprüfung\)/)
     expect(t).toMatch(/Welche Vorgaben gelten: Stadt Bern Kanton Bern Richtlinien/)
     expect(t).toMatch(/Insel \? \d+ offen/)
     expect(t).toContain('Steht auf der Insel ein Pfosten oder Signal? – für: Pfosten und erhöhte Inselspitzen')

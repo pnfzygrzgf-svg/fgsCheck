@@ -43,14 +43,14 @@ import { ABSCHNITTE, EBENE_WORT, LEGENDE, THEMEN, abschnittVon, gruppeVonThema, 
 import { BLOCK_GRUENDE, hatInhalt, ohneBefundZeile, themaGliederung, themenAnsicht, type ThemaFrage, type ThemaTeil, type ThemenAnsicht } from './bedarf/themenansicht'
 import { FELD_HILFEN, SICHTBAR, bedingungText, bezuegeImFall, feldZiel, frageVon, leerText, regelPfade, schalter, schalterText, sichtbar,
   wozuTeilen, type SichtKontext } from './bedarf/feldhilfen'
-import { A2_OFFEN_TEXT, OHNE_ORTSLAGE_TEXT, typText, herkunftKurz, herkunftSichtbar } from './bedarf/befundblatt'
+import { A2_OFFEN_TEXT, OHNE_ORTSLAGE_TEXT, typText, herkunftSichtbar } from './bedarf/befundblatt'
 import { offeneFragen, zusammenfassung, zfEingabeBlatt, type OffeneFrage } from './bedarf/zusammenfassung'
 import { lesetext, tooltipText } from './bedarf/lesetext'
 import type { MassZeile } from './bedarf/typen'
 import { bestaetigungsFelder, feldBedarf, feldBedarfText, type FeldBedarf } from './bedarf/feldbedarf'
 import { begriffeIn } from './bedarf/begriffe'
 import { messArtFuerFeld, messenStarten } from './messen'
-import { LESENAME, WERK_INFO, abkLesbar, werkText, fundstelleLink, fundstelleText, werkBezug, werkeImFall, werkLinks, werkVoll } from './bedarf/quellen'
+import { LESENAME, WERK_INFO, abkLesbar, fundstelleLink, fundstelleText, werkBezug, werkeImFall, werkLinks, werkVoll } from './bedarf/quellen'
 import { FundstelleLink, VerweisText, WerkLinks, WerkVerweis, hilfeZeigen } from './Verweise'
 import { KATALOG, WERKE, type RegelId, type WerkId } from './bedarf/katalog'
 import { reiterZeigen } from './reiter'
@@ -140,9 +140,9 @@ export function VerzeichnisBericht({ blaetter }: { blaetter: readonly BefundBlat
   return <>
     {werke.length > 0 && <><h3>Quellen der Beurteilung</h3>
       <ul className="klein">{werke.map(w => {
-        // Bericht (druckbar): voller Titel und die Adresse als Text (lesbar, Umlaute statt %-Kodierung)
+        // Bericht: voller Titel und kurze Links (Firefox übernimmt sie ins PDF); die Beschreibung des Werks steht in der App
         const links = werkLinks(w), bezug = werkBezug(w)
-        return <li key={w}><b>{WERKE[w].name}</b> ({WERKE[w].ausgabe}): {werkVoll(w)}. {WERK_INFO[w].ebene}: {werkText(w)}{links.map(l => <Fragment key={l.url}> {l.text}: <span className="url-text">{decodeURI(l.url)}</span></Fragment>)}
+        return <li key={w}><b>{WERKE[w].name}</b> ({WERKE[w].ausgabe}): {werkVoll(w)}. {WERK_INFO[w].ebene}.{links.map(l => <Fragment key={l.url}> <a href={l.url}>{l.text}</a></Fragment>)}
           {bezug ? ` (${bezug})` : ''}</li>
       })}</ul></>}
   </>
@@ -188,6 +188,8 @@ function TextEingabe({ d, wert, platzhalter, setze, vorbelegt = false, label }: 
   </>
 }
 
+/** ausgeblendete Felder: so viele Namen stehen beim Schalter */
+const AUSGEBLENDET_NAMEN = 8
 /** Auswahlwert «bewusst offen» (Handangabe, verwirft die Vorbelegung) */
 const OFFEN_WAHL = '__offen'
 /** Handangabe «offen» (ohne Wert) */
@@ -509,13 +511,14 @@ export function BedarfAbschnitt({ fall, blaetter, vorgabe, aendern, zeigen, sich
     if (!zaehlt(pfad)) { if (istGrundFeld(pfad)) setAlleGrund(true); else setAlleErw(true) }
     setSprungZiel(pfad)
   }
-  /** Satz und Schalter zu den ausgeblendeten Feldern einer Maske; beim Einschalten zum ersten eingeblendeten Feld */
+  /** Satz mit den Feldnamen und Schalter zu den ausgeblendeten Feldern einer Maske; die Felder erscheinen an ihrem Platz, die Ansicht bleibt */
   const ausgeblendet = (defs: FeldDef[], an: boolean, setzen: (x: boolean) => void) => {
     if (!defs.length) return null
     const hand = defs.filter(d => fall.bedarf?.felder[d.pfad]).length
     return <p className="klein feld-ausgeblendet">{defs.length === 1 ? '1 Feld zählt in diesem Fall nicht und ist ausgeblendet'
-      : `${defs.length} Felder zählen in diesem Fall nicht und sind ausgeblendet`}{hand ? ` (${hand} davon mit Eingabe von Hand, sie bleiben gespeichert)` : ''}.{' '}
-      <label><input type="checkbox" checked={an} onChange={e => { setzen(e.target.checked); if (e.target.checked) setSprungZiel(defs[0].pfad) }} />
+      : `${defs.length} Felder zählen in diesem Fall nicht und sind ausgeblendet`}{hand ? ` (${hand} davon mit Eingabe von Hand, sie bleiben gespeichert)` : ''}: {defs.slice(0, AUSGEBLENDET_NAMEN).map(d => d.name).join(', ')}
+      {defs.length > AUSGEBLENDET_NAMEN ? ` und ${defs.length - AUSGEBLENDET_NAMEN} weitere` : ''}.{' '}
+      <label><input type="checkbox" checked={an} onChange={e => setzen(e.target.checked)} />
         {' '}trotzdem zeigen</label></p>
   }
   // Sprung aus der Regelübersicht (Ereignis «fgs-feld», regeluebersicht.feldSpringen)
@@ -589,12 +592,14 @@ export function erweitertKopf(a: ThemenAnsicht): string {
   const z = a.themen.reduce((s, t) => ({ befunde: s.befunde + t.zahl.muss + t.zahl.soll, hinweise: s.hinweise + t.zahl.hinweise, offen: s.offen + t.zahl.offen }),
     { befunde: 0, hinweise: 0, offen: 0 })
   return [zahlWort(a.regeln, 'Regel', 'Regeln'), zahlWort(z.befunde, 'Befund', 'Befunde'), z.hinweise ? zahlWort(z.hinweise, 'Hinweis', 'Hinweise') : '',
-    z.offen ? zahlWort(z.offen, 'Angabe offen', 'Angaben offen') : ''].filter(Boolean).join(' · ')
+    z.offen ? `${zahlWort(z.offen, 'Punkt offen', 'Punkte offen')} (ohne Grundprüfung)` : ''].filter(Boolean).join(' · ')
 }
 /** Zählung im Kopf eines Themas: Symbol (für Sehende) und Wort (trägt die Bedeutung, auch vorgelesen), z. B. «! 1 Soll-Befund · ? 3 offen» */
 export function themaZahl(t: ThemaTeil): [string, string][] {
   const z = t.zahl, aus: [string, string][] = []
-  if (z.muss) aus.push(['✗', zahlWort(z.muss, 'Muss-Befund', 'Muss-Befunde')])
+  // eine Regel kann mehrere Zufahrten treffen: gezählt wird je Regel, die Einträge stehen dahinter
+  const mussEintraege = t.eintraege.flatMap(e => e.xs).filter(x => x.staerke === 'hart' || x.staerke === 'hart_bericht').length
+  if (z.muss) aus.push(['✗', `${zahlWort(z.muss, 'Muss-Befund', 'Muss-Befunde')}${mussEintraege > z.muss ? ` (${mussEintraege} Zufahrten)` : ''}`])
   if (z.soll) aus.push(['!', zahlWort(z.soll, 'Soll-Befund', 'Soll-Befunde')])
   if (z.hinweise) aus.push(['i', zahlWort(z.hinweise, 'Hinweis', 'Hinweise')])
   if (z.offen) aus.push(['?', `${z.offen} offen`])
@@ -751,10 +756,12 @@ export function ZusammenfassungAnzeige({ b, titel, druck = false, imBlock }: { b
       {f.nachsatz && <> {f.nachsatz}</>}{f.block && <> {f.block}</>}</>}{z.hinweis && <> {z.hinweis}</>}</p>
 }
 
-/** Aussage zum Bedarf in einem Satz für «Ergebnis» im Bericht: Antwort und das Wichtigste, ohne die offenen Fragen */
+/** Kurzfassung des Bedarfs für «Ergebnis» im Bericht: Zulässigkeit, Empfehlung, Befunde und die entscheidenden Annahmen. Die ausführliche
+ *  Begründung steht einmal unter «Bedarf und Querungstyp» */
 export function bedarfKurz(b: BefundBlatt): string {
-  const z = zusammenfassung({ ...zfEingabeBlatt(b, 'bericht'), imBlock: [] })
-  return [z.antwort, z.wichtig].filter(Boolean).join(' ')
+  const x = zfEingabeBlatt(b, 'bericht'), z = zusammenfassung({ ...x, imBlock: [] }), a = (x.annahmen ?? []).slice(0, 3)
+  return [[b.zulText, `empfohlen: ${typText(b.befund, false)}`].filter(Boolean).join('; ') + '.', z.wichtig,
+    a.length ? `Unter den Annahmen: ${a.join(', ')}.` : ''].filter(Boolean).join(' ')
 }
 
 /**
@@ -939,7 +946,7 @@ function GrundZeileAnzeige({ z, name, thema, details, druck }: { z: GrundZeile; 
   const [auf, setAuf] = useState(false)
   const id = useId()
   const a = ZUSTAND_ANZEIGE[z.zustand]
-  return <>
+  return <tbody className="grund-einheit">
     {/* ganze Zeile klickbar; Knöpfe in der Zeile (Fragen, Details) halten den Klick selbst */}
     <tr className={`${a.klasse}${druck ? '' : ' grund-zeile-klick'}`} onClick={druck ? undefined : () => setAuf(!auf)}>
       <th scope="row">{name}{thema && <span className="klein"> ({thema})</span>}</th>
@@ -951,7 +958,7 @@ function GrundZeileAnzeige({ z, name, thema, details, druck }: { z: GrundZeile; 
         onClick={e => { e.stopPropagation(); setAuf(!auf) }}>Details <span aria-hidden="true">{auf ? '▴' : '▾'}</span></button></td>}
     </tr>
     {(druck || auf) && <tr className={`grund-detail rand-${a.klasse}`} id={id}><td colSpan={druck ? 3 : 4} className="klein">{details}</td></tr>}
-  </>
+  </tbody>
 }
 
 /** Kasten «Grundprüfung bfu (Big Five)» einer Querung (Panel und Bericht): eine Zeile je Punkt, Details je Punkt aufklappbar (im
@@ -975,14 +982,14 @@ export function GrundpruefungAnzeige({ g: g0, titel, druck = false, feldHinweise
   return (
     <div className={druck ? 'grundpruefung druck' : 'grundpruefung'}>
       <div className="grund-kopf"><b>{kopfText}</b> <span className="grund-zaehlung">{k.zaehlung}</span></div>
-      <table className="grund-tabelle"><tbody>
+      <table className="grund-tabelle">
         {g.punkte.map((p, i) => <GrundZeileAnzeige key={p.nr} z={k.zeilen[i]} druck={druck} name={p.nr === 'T' ? 'Tempo' : `${NR[p.nr]} ${p.titel}`}
           thema={p.nr !== 'T' && themaName(p.thema) !== p.titel ? themaName(p.thema) : undefined}
           details={<GrundPunktDetails teile={p.teile} notizen={p.notizen} hinweise={k.zeilen[i].hinweise} annahmen={an.je.get(p.nr) ?? []}
             druck={druck} links={p.nr === '1' && !druck ? sichtLinks : undefined} />} />)}
         {k.weitere && <GrundZeileAnzeige z={k.weitere} name="Ergänzend (bfu)" druck={druck}
           details={<GrundPunktDetails teile={g.weitere} hinweise={[]} annahmen={an.je.get('W') ?? []} druck={druck} />} />}
-      </tbody></table>
+      </table>
       {an.allgemein.length > 0 && <p className="klein warnung">Angenommen: {T(an.allgemein.join('; '))}.</p>}
       <p className="klein grund-fuss">{quelle}; unabhängig von den Ebenen. ✓ erfüllt, ✗ Muss nicht erfüllt, ! Soll nicht erfüllt,
         ? offen (Angabe fehlt), i Hinweis.{druck ? '' : ' Details je Punkt mit «Details».'}</p>
@@ -1276,11 +1283,13 @@ function ErweiterteAnzeige({ blaetter, ansicht, druck = false, eingabe }: { blae
     {/* Gruppen nach der Gliederung der Normen (27.10.2026): Überschrift mit Kapitel und Seite vor dem ersten Thema der Gruppe */}
     {themen.map((t, i) => {
       const g = gruppeVonThema(t.thema.id), neu = !i || gruppeVonThema(themen[i - 1].thema.id) !== g
-      return <Fragment key={t.thema.id}>{neu && <p className="themen-gruppe"><b>{T(g)}</b></p>}
-        {mitInhalt(t) ? <ThemaAnzeige t={t} blaetter={blaetter} druck={druck} eingabe={eingabe} begriffe={begriffe} />
-          : t.geprueft > 0 ? <ThemaOhneBefund t={t} blaetter={blaetter} eingabe={eingabe!} />
-          : <ThemaNichtGeprueft t={t} blaetter={blaetter} eingabe={eingabe!} grund={ngZeile(t)?.grund}
-            regeln={[...(uebersicht?.nichtGeprueftWegen.keys() ?? [])].filter(id => themaVon(id) === t.thema.id)} />}</Fragment>
+      const kopf = neu && <p className="themen-gruppe"><b>{T(g)}</b></p>
+      const inhalt = mitInhalt(t) ? <ThemaAnzeige t={t} blaetter={blaetter} druck={druck} eingabe={eingabe} begriffe={begriffe} />
+        : t.geprueft > 0 ? <ThemaOhneBefund t={t} blaetter={blaetter} eingabe={eingabe!} />
+        : <ThemaNichtGeprueft t={t} blaetter={blaetter} eingabe={eingabe!} grund={ngZeile(t)?.grund}
+          regeln={[...(uebersicht?.nichtGeprueftWegen.keys() ?? [])].filter(id => themaVon(id) === t.thema.id)} />
+      // Druck: Gruppenüberschrift und erstes Thema in einem ungeteilten Block (Firefox beachtet break-after nicht)
+      return druck ? <div key={t.thema.id} className="druck-block">{kopf}{inhalt}</div> : <Fragment key={t.thema.id}>{kopf}{inhalt}</Fragment>
     })}
     {ohne.length > 0 && <p className="klein thema-ohne">Ohne Befund: {ohne.map((t, i) => <Fragment key={t.thema.id}>{i ? ', ' : ''}<span
       title={t.ohneBefund.map(regelTitel).join(', ')}>{t.thema.name}</span></Fragment>)}{ohne.some(t => Object.keys(t.erfuelltGrund).length)
@@ -1363,7 +1372,7 @@ export function BefundblattAnzeige({ b, mehrere = false, druck = false, ohneTyp 
 const QUELLE_WORT: Record<string, string> = { av: 'AV', osm: 'OSM', geoportal: 'Geoportal', amtlich: 'amtliche Quelle', luftbild: 'Luftbild', hand: 'von Hand',
   bestaetigt: 'bestätigt', annahme: 'Annahme', schaetzung: 'Schätzung', rechnung: 'Rechnung', vorschlag: 'Vorschlag' }
 export interface EingabeZeile { gruppe: string; feld: string; wert: string; quelle: string; annahme: boolean; grund?: string }
-/** Eingaben als Tabelle (Bericht): Feld, Wert, Quelle in einem Wort, Annahme ja/nein; eine Begründung nur bei Annahmen */
+/** Eingaben als Tabelle (Bericht): Feld, Wert, Quelle in einem Wort und die ungekürzte Herleitung jedes vorbelegten Werts */
 export function eingabenTabelle(b: BefundBlatt): EingabeZeile[] {
   const aus: EingabeZeile[] = []
   for (const g of GRUPPEN) for (const d of FELD_DEFS.filter(x => x.gruppe === g.id)) {
@@ -1373,7 +1382,7 @@ export function eingabenTabelle(b: BefundBlatt): EingabeZeile[] {
     const q = h.quelle ?? 'rechnung'
     const annahme = QUELLEN_ANNAHME.includes(q as Quelle)
     const wert = h.zustand === 'hand' ? wertText(d, h.wert) : h.zustand === 'vorbelegt' ? wertText(d, h.vorbelegt!.wert) : 'je Zufahrt'
-    aus.push({ gruppe: g.name, feld: d.name, wert, quelle: QUELLE_WORT[q] ?? q, annahme, ...(annahme && h.zustand !== 'hand' ? { grund: herkunftKurz(h.text) } : {}) })
+    aus.push({ gruppe: g.name, feld: d.name, wert, quelle: QUELLE_WORT[q] ?? q, annahme, ...(h.zustand !== 'hand' ? { grund: lesetext(h.text).replace(/^Sichtprüfung: /, '') } : {}) })
   }
   return aus
 }

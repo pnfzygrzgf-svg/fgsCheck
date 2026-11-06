@@ -410,7 +410,7 @@ describe('Korrekturen nach Prüfung E2', () => {
       x.zufahrten[zufahrtSchluessel(s0.fgsId, z0.kennung)] = { tempo: 30 }
       x.streifen[s0.fgsId] = { lsa: 'nein' }
     })
-    expect(streifenUebernehmen(f, r.streifen, r.streifen)).toBe(2)
+    expect(streifenUebernehmen(f, r.streifen, r.streifen).n).toBe(2)
     const r2 = rechneFall(daten(), AV, [], 12, f, null)
     expect(r2.streifenQuelle).toBe('hand')
     const z = r2.streifen[0].zufahrten.find(x => x.kennung === z0.kennung)!
@@ -1022,5 +1022,28 @@ describe('Sicht vom Velo mit gemessener Längsneigung (29.10.2026)', () => {
       .befund.alle.find(x => x.id === 'H1-V')
     expect(h1v(m(-5))?.detail).toContain('Soll 55 m (VSS 40 273 Tab. 3, über 30 km/h, Spalte ≤ −4 %; Längsneigung −5 % (swissALTI3D))')
     expect(h1v(m(3))).toBeUndefined()
+  })
+})
+
+describe('Übernahme als Streifen von Hand: mehrere alte Streifen, ein neuer', () => {
+  const P = (x: number, y: number): [number, number] => [2600000 + x, 1200000 + y]
+  const alte = [{ fgsId: 'A', p0: P(0, 0), p1: P(0, 4) }, { fgsId: 'B', p0: P(1, 0), p1: P(1, 4) }]
+  const neue = [{ p0: P(0.5, 0), p1: P(0.5, 4), bw: 4 }]
+  const lauf = (streifen: [string, unknown][], zufahrten: [string, unknown][]) => {
+    const f = leererFall(46.95, 7.44, null)
+    f.streifen = Object.fromEntries(streifen) as never; f.zufahrten = Object.fromEntries(zufahrten) as never
+    return { ...streifenUebernehmen(f, neue, alte), streifen: f.streifen, zufahrten: f.zufahrten }
+  }
+  it('widersprüchliche Eingaben bleiben stehen, unabhängig von der Reihenfolge', () => {
+    const s: [string, unknown][] = [['A', { lsa: 'ja' }], ['B', { lsa: 'nein' }]], z: [string, unknown][] = [['A|w1', { tempo: 30 }], ['B|w1', { tempo: 50 }]]
+    const a = lauf(s, z), b = lauf([...s].reverse(), [...z].reverse())
+    expect(a).toEqual(b)
+    expect(a).toMatchObject({ n: 0, konflikte: 2 })
+    expect(a.streifen).toEqual({ A: { lsa: 'ja' }, B: { lsa: 'nein' } })
+  })
+  it('gleiche Werte werden zu einer Eingabe, die Zahl stimmt', () => {
+    const a = lauf([['A', { lsa: 'ja' }], ['B', { lsa: 'ja' }]], [])
+    expect(a).toMatchObject({ n: 1, konflikte: 0 })
+    expect(Object.values(a.streifen)).toEqual([{ lsa: 'ja' }])
   })
 })

@@ -122,7 +122,7 @@ describe('Wächter: keine Regelnummer ohne Titel in der Oberfläche', () => {
       expect(t).toMatch(/Ohne Befund: Zulässigkeit ?, Nachfrage ?, Sicht/)
       expect(t).not.toContain('Ohne Vortritt und Mehrzweckstreifen')
       expect(t).toContain('Insel nach Berner Tabelle · Soll (Standard Stadt Bern), Abweichung begründen · Schutzinsel vorgesehen (Tabelle Tempo × DTV) (Ist Tempo 50 km/h, DTV 8000 Fz/Tag: Ja)')
-      expect(t).toContain('Insel wünschenswert · Hinweis (Norm) · Eine Insel macht das Queren sicherer; hier ist sie nicht verlangt')
+      expect(t).toContain('Insel wünschenswert · Hinweis (Norm) · Eine Insel macht das Queren sicherer, unabhängig von der Breite; hier ist sie nicht verlangt')
       expect(t).not.toMatch(/Soll –|Pflicht|In Ordnung/)
     }
     // ohne Befund geprüfte Regeln im Thema gezählt, aufklappbar mit Verweis in die Regelübersicht (Panel); im Bericht nicht

@@ -192,7 +192,7 @@ describe('Runde 4: Begriffe', () => {
     expect(nummernOhneTitel(text(bericht))).toEqual([])
     // Bericht: voller Titel und Adresse als Text (druckbar)
     expect(text(bericht)).toContain(`${WERKE.VOT30.name} (${WERKE.VOT30.ausgabe}): ${WERKE.VOT30.voll}.`)
-    expect(text(bericht)).toContain(`Seite: ${WERKE.VOT30.seite}`)
+    expect(bericht).toContain(`<a href="${WERKE.VOT30.seite}">Seite</a>`)
     expect(bericht).not.toContain('target="_blank"')
     const panel = renderToStaticMarkup(<BedarfAbschnitt fall={fOffen} blaetter={[bOffen]} vorgabe={BERN.vorgabe} aendern={() => {}} />)
     expect(panel).toContain('class="begriff-knopf"')

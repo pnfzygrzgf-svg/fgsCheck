@@ -532,7 +532,10 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       const verletztR = neu.some(x => x.zustand === 'verletzt')
       // gerade und abbiegende Zufahrten getrennt; frei, aber offen nur wegen der Frage nach schnellerem
       // Fahren: «erfüllt unter Vorbehalt» (wie Kasten und Befundblatt)
-      const sollVon = (ab: boolean) => [...new Set(sicht.filter(x => x.zufahrt.startsWith('a') === ab).map(x => String(x.soll).replace('.', ',')))].join('; ')
+      const sollVon = (ab: boolean) => {
+        const v = [...new Set(sicht.filter(x => x.zufahrt.startsWith('a') === ab).map(x => x.soll))].sort((p, q) => p - q).map(x => String(x).replace('.', ','))
+        return v.length > 1 ? `${v[0]} bis ${v[v.length - 1]}` : v.join('')
+      }
       // Soll durch eine Annahme der App gekürzt (30.10.2026): Grenze hinter der Gruppe
       const annVon = (ab: boolean) => {
         const gr = [...new Set(sicht.filter(x => x.zufahrt.startsWith('a') === ab && x.annahme).map(x =>

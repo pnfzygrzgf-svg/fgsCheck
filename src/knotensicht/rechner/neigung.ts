@@ -21,6 +21,8 @@ export const STREUUNG_M = 0.3
 export const PROFIL_MIN_PUNKTE = 3
 /** Profil mindestens so lang [m] (Plan E3a) */
 export const PROFIL_MIN_M = 20
+/** Anteil der Mindestlänge, den die Höhenpunkte abdecken müssen (Rundung der Dienste; die Punkte treffen die Enden nicht immer genau) */
+export const PROFIL_ABDECKUNG = 0.9
 /** Zufahrt: Hinweis «steile Zufahrt» ab |i| über diesem Wert [%] (noch ohne Wirkung auf B; Tab. 2 folgt in E3b) */
 export const ZUFAHRT_STEIL_PROZENT = 6
 export const HOEHEN_QUELLE = 'swissALTI3D (swisstopo)'
@@ -61,7 +63,8 @@ export function neigungAusProfil(profil: ProfilPunkt[]): { i: number; punkte: nu
   const gut = pkt.filter((_, k) => abw[k] <= grenze)
   const g = gut.length >= PROFIL_MIN_PUNKTE ? ausgleichsgerade(gut) ?? g0 : g0
   const genutzt = gut.length >= PROFIL_MIN_PUNKTE ? gut : pkt
-  const laenge = Math.max(...pkt.map(p => p.dist)) - Math.min(...pkt.map(p => p.dist))
+  // Länge der Punkte, auf denen die Gerade wirklich liegt
+  const laenge = Math.max(...genutzt.map(p => p.dist)) - Math.min(...genutzt.map(p => p.dist))
   const streuung = Math.sqrt(genutzt.reduce((s, p) => s + (p.h - (g.a + g.b * p.dist)) ** 2, 0) / genutzt.length)
   // Steigung vom Knoten weg (b) -> Neigung zum Knoten hin: −b
   return { i: -g.b * 100, punkte: genutzt.length, ausreisser: pkt.length - genutzt.length, laenge, streuung }
@@ -73,15 +76,19 @@ const f1 = (x: number) => x.toFixed(1).replace('.', ',')
 export const neigungRunden = (i: number): number => Math.round(i * 10) / 10 || 0
 
 /** Messung aus einem geladenen Profil bzw. einem Fehler des Dienstes (dann i = null: Neigung unbekannt, die Rechnung nimmt den
- *  strengsten Tabellenwert; mit Hinweis) */
-export function neigungMessung(profil: ProfilPunkt[] | Error): NeigungMessung {
+ *  strengsten Tabellenwert; mit Hinweis). geplantM: Länge der angefragten Linie. Decken die Höhenpunkte sie nicht ab (Mindestlänge
+ *  PROFIL_MIN_M), fehlen Daten: Neigung unbekannt. Ist die Linie selbst kürzer (kurzer Arm), bleibt der Messwert mit Hinweis */
+export function neigungMessung(profil: ProfilPunkt[] | Error, geplantM = PROFIL_MIN_M): NeigungMessung {
   if (profil instanceof Error) return { i: null, quelle: `${HOEHEN_QUELLE} nicht verfügbar`, laenge: 0, punkte: 0,
     hinweis: `Höhenmodell nicht verfügbar (${profil.message}): Längsneigung unbekannt, strengster Wert angenommen; von Hand eingeben.` }
   const r = neigungAusProfil(profil)
   if (!r) return { i: null, quelle: `${HOEHEN_QUELLE}: zu wenige Punkte`, laenge: 0, punkte: profil.length,
     hinweis: `Höhenprofil mit ${profil.length} Punkten: keine Neigung bestimmbar, strengster Wert angenommen; von Hand eingeben.` }
+  if (r.laenge < PROFIL_ABDECKUNG * Math.min(PROFIL_MIN_M, geplantM)) return { i: null, quelle: `${HOEHEN_QUELLE}: Profil zu kurz`, laenge: r.laenge, punkte: r.punkte,
+    hinweis: `Höhenprofil deckt nur ${f0(r.laenge)} m ab: keine Neigung bestimmbar, strengster Wert angenommen; von Hand eingeben.` }
   return { i: neigungRunden(r.i), quelle: `${HOEHEN_QUELLE}, Profil ${f0(r.laenge)} m, ${r.punkte} Punkte`, laenge: r.laenge, punkte: r.punkte,
-    hinweis: [r.ausreisser ? `Höhenprofil: ${r.ausreisser} Punkt${r.ausreisser > 1 ? 'e' : ''} weit neben der Ausgleichsgeraden ` +
+    hinweis: [r.laenge < PROFIL_ABDECKUNG * PROFIL_MIN_M ? `Höhenprofil nur ${f0(r.laenge)} m lang (kurze Achse): Längsneigung vor Ort bzw. von Hand prüfen.` : '',
+      r.ausreisser ? `Höhenprofil: ${r.ausreisser} Punkt${r.ausreisser > 1 ? 'e' : ''} weit neben der Ausgleichsgeraden ` +
       '(Mauer, Brücke, Böschung?) nicht gerechnet.' : '', r.streuung > STREUUNG_M ? `Höhenprofil uneben (Streuung ${f1(r.streuung)} m um ` +
       'die Ausgleichsgerade; Kuppe, Wanne, Brücke?): Längsneigung vor Ort bzw. von Hand prüfen.' : ''].filter(x => x).join(' ') || null }
 }
