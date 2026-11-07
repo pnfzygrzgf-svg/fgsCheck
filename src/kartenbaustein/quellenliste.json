@@ -32,6 +32,34 @@
   }
  },
  {
+  "id": "swisstopo-3d",
+  "name": "3D-Daten swisstopo (Gelände, Gebäude, Bäume)",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "3d.geo.admin.ch"
+  ],
+  "wofuer": "fgs: 3D-Ansicht (Zweig ansicht3d), nur Darstellung, keine Prüfung",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "A"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
   "id": "flugjahr-swissimage-metadaten",
   "name": "Flugjahr SWISSIMAGE (Metadaten)",
   "anbieter": "swisstopo",
