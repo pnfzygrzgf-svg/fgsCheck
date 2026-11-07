@@ -9,6 +9,16 @@ export interface Kachel { id:string; jahr:string; e:number; n:number; url:string
 export interface Raster { links:number; oben:number; breite:number; hoehe:number; werte:Float32Array }
 export interface Kurve { h:number; punkte:Punkt[] }
 export interface Ergebnis { kurven:Kurve[]; kacheln:Kachel[]; box:Box; abgerufen:string; ms:number; bytes:number }
+/** Höhe der nächsten Kurve im Umkreis tolM (Meter, LV95); null ohne Treffer */
+export function kurveBei(e:Ergebnis,p:Punkt,tolM:number):number|null {
+  let beste:{h:number;d:number}|null=null
+  for(const k of e.kurven)for(let i=1;i<k.punkte.length;i++){
+    const [ax,ay]=k.punkte[i-1],[bx,by]=k.punkte[i],dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy
+    const t=l?Math.max(0,Math.min(1,((p[0]-ax)*dx+(p[1]-ay)*dy)/l)):0,d=Math.hypot(ax+t*dx-p[0],ay+t*dy-p[1])
+    if(d<=tolM&&(!beste||d<beste.d))beste={h:k.h,d}
+  }
+  return beste?.h??null
+}
 export interface Stand { phase:'aus'|'zoom'|'laedt'|'bereit'|'fehler'; text:string; ergebnis?:Ergebnis }
 export const AUS:Stand = {phase:'aus',text:'Ausgeschaltet; lädt ab Zoom 18.'}
 

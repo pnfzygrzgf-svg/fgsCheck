@@ -4,6 +4,16 @@ import type { OsmWeg } from './daten/osm'
 import { regionalLesen, type RegionalSnapshot } from './daten/anbieter/gemeinsam/regional'
 import { regionalDienst } from './daten/anbieter/gemeinsam/regionalDienste'
 import { e6Stand } from './daten/anbieter/gemeinsam/e6'
+import { UNFALL_EBENE, objektQuelleUrl } from './kartenbaustein/quellenLink'
+
+// Die Unfall-Ebenen stehen immer in der Liste: Ihr Kartenbild gilt überall, nicht nur um den Prüfpunkt
+const ohneUnfaelle = <T extends { id: string }>(l: T[]) => l.filter(e => !UNFALL_EBENE[e.id])
+
+// Fehlt ein Vorsatz in quellenLink.tsx, landet das Objekt still auf dem Kartenausschnitt statt beim Objekt
+const ohneObjektlink = (d: object) => Object.entries(d).flatMap(([ebene, liste]) => (Array.isArray(liste) ? liste as { id: string; text: string; quelle?: string; profil?: true }[] : [])
+  .filter(o => `${o.quelle ?? ''} ${o.text}`.includes('OpenStreetMap') && !o.profil)
+  .filter(o => !/openstreetmap\.org\/(node|way|relation)\/\d+/.test(objektQuelleUrl(o, ebene, 'https://www.openstreetmap.org/', { lat: 47, lon: 7, e: 2600000, n: 1200000 }) ?? ''))
+  .map(o => o.id))
 import { readFileSync } from 'node:fs'
 
 const weg = (id: number, tags: Record<string, string>): OsmWeg => ({ id, tags, knoten: [1, 2], geom: [[46.95, 7.44], [46.95, 7.441]] })
@@ -32,6 +42,15 @@ describe('quellenEbenen', () => {
     expect([20, 30, 50, 80].map(tempoKlasse)).toEqual(['t20', 't30', 't50', 't60'])
     expect([1500, 4000, 25000].map(dtvKlasse)).toEqual(['d2', 'd5', 'd99'])
   })
+  it('jedes OSM-Objekt führt zu seinem Objekt in OpenStreetMap', () => {
+    const bereich = { mitte: [0, 0], radiusM: 100, form: 'kreis' }
+    const d = ebenenAusGeo({ lampen: { punkte: [[0, 0]], ids: [7], bereich }, vortritt: { zeichen: [{ id: 8, art: 'stop', p: [0, 0], richtung: null }] },
+      haltestellen: { quelle: 'osm', herkunft: 'OSM', halte: [{ id: 'osm:9', name: 'Halt', p: [0, 0], art: 'bus' }], bereich },
+      schulen: { osm: { orte: [{ id: 'osm:way/10', art: 'schule', name: 'Schule', p: [0, 0], quelle: 'osm' }] } } } as never,
+    [weg(1, { highway: 'residential', maxspeed: '30', lit: 'yes' })])
+    for (const ebene of ['beleuchtung', 'vortritt', 'haltestellen', 'schulen', 'tempo', 'strassentyp'] as const) expect(d[ebene]!.length).toBeGreaterThan(0)
+    expect(ohneObjektlink(d)).toEqual([])
+  })
   it('Tempo: amtlich vor OSM; ohne amtliche Linien OSM maxspeed gestrichelt', () => {
     const osm = ebenenAusGeo({}, [weg(1, { highway: 'residential', maxspeed: '30' }), weg(2, { highway: 'service' })])
     expect(osm.tempo!.map(o => [o.klasse, o.gestrichelt])).toEqual([['t30', true]])
@@ -44,7 +63,8 @@ describe('quellenEbenen', () => {
     expect(d.strassentyp!.map(o => o.klasse)).toEqual(['verbindung'])
     expect(d.beleuchtung!.map(o => o.klasse)).toEqual(['lit'])
     const { zeigen, ohne } = ebenenSichtbar(d)
-    expect(zeigen.map(e => e.id)).toEqual(['beleuchtung', 'strassentyp'])
+    expect(ohneUnfaelle(zeigen).map(e => e.id)).toEqual(['beleuchtung', 'strassentyp'])
+    expect(zeigen.map(e => e.id)).toEqual(expect.arrayContaining(['unfaelleFuss', 'unfaelleVelo']))
     expect(ohne.map(e => e.id)).toContain('dtv')
   })
   it('Profile der Längsneigung mit Wert, Brücken als Fläche', () => {
@@ -59,7 +79,7 @@ describe('Baumkataster im Quellenfenster', () => {
   it('zeigt geladene Bäume mit Lage und Herkunft; Einträge sind alphabetisch sortiert', () => {
     const d = ebenenAusGeo({}, [weg(1, { highway: 'tertiary' })], [], [], [{ id: 'bern:1', p: [2600000, 1200000], name: 'Ahorn' }])
     expect(d.baeume?.[0]).toMatchObject({ id: 'bern:1', punkt: [2600000, 1200000], text: expect.stringContaining('Baumkataster') })
-    expect(ebenenSichtbar(d).zeigen.map(e => e.titel)).toEqual(['Bäume', 'Strassentyp'])
+    expect(ohneUnfaelle(ebenenSichtbar(d).zeigen).map(e => e.titel)).toEqual(['Bäume', 'Strassentyp'])
     expect(ebenenSichtbar(ebenenAusGeo({}, [])).zeigen.some(e => e.id === 'baeume')).toBe(false)
   })
 })

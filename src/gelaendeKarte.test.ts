@@ -55,7 +55,7 @@ describe('Gelände als Kartenebene', () => {
       metadaten: { hoehenSicht: { datenstand: 'Stand der Sichtprofile' }, hoehen: { datenstand: 'Stand der Erkennungsprofile' } },
     })
     const e = ebenenSichtbar(daten).zeigen.find(e => e.id === 'gelaende')!
-    expect(e.titel).toBe('Gelände (Höhenmodell, Sichtprofile)')
+    expect(e.titel).toBe('Gelände (Höhenmodell, Profile)')
     expect(e.quelle).toContain('swisstopo')
     expect(e.quelle).toContain('Stand der Sichtprofile')
     expect(e.quelle).toContain('Stand der Erkennungsprofile')

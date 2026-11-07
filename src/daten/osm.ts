@@ -306,15 +306,16 @@ export function wegTags(roh: unknown): Map<number, Record<string, string>> {
 }
 
 /** Strassenlampen (highway=street_lamp) aus der Rohantwort in LV95, ohne Doppel */
-export function strassenlampen(roh: unknown): P[] {
-  const aus: P[] = [], gesehen = new Set<number>()
+export function strassenlampenMitId(roh: unknown): { id: number; p: P }[] {
+  const aus: { id: number; p: P }[] = [], gesehen = new Set<number>()
   for (const e of (roh as { elements?: RohElement[] } | null)?.elements ?? []) {
     if (e.type !== 'node' || e.tags?.highway !== 'street_lamp' || e.lat == null || e.lon == null || gesehen.has(e.id)) continue
     gesehen.add(e.id)
-    aus.push(lv95(e.lat, e.lon))
+    aus.push({ id: e.id, p: lv95(e.lat, e.lon) })
   }
   return aus
 }
+export const strassenlampen = (roh: unknown): P[] => strassenlampenMitId(roh).map(l => l.p)
 
 /** Vortrittszeichen bzw. Verkehrsschild nach OSM: give_way (Kein Vortritt), stop, sonst nur traffic_sign (schild) */
 export interface VortrittZeichen {

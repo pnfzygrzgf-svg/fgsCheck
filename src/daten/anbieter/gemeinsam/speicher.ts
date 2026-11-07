@@ -1,10 +1,15 @@
 import { istLv95 } from './geoAdmin'
-import type { AmtlicheQuellen, AmtlicherHalt, BavSnapshot, Gemeinde, GebietSnapshot } from './typen'
+import type { AmtlicheKante, AmtlicheQuellen, AmtlicherHalt, BavSnapshot, Gemeinde, GebietSnapshot } from './typen'
 import { BAV_METADATEN_URL } from './bav'
 
 const objekt = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x)
 const text = (x: unknown, max = 500): x is string => typeof x === 'string' && x.length > 0 && x.length <= max
 const zeit = (x: unknown): x is string => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(x) && Number.isFinite(Date.parse(x))
+/** Haltekanten sind nur Kartenbild: Ungültige Einträge fallen weg, der Rest der Datei bleibt gültig */
+const kantenLesen = (xs: unknown[]): AmtlicheKante[] => xs.flatMap(k => {
+  if (!objekt(k) || !text(k.id, 120) || !text(k.sloid, 120) || !text(k.name) || !istLv95(k.p)) return []
+  return [{ id: k.id, sloid: k.sloid, name: k.name, bezeichnung: typeof k.bezeichnung === 'string' ? k.bezeichnung : '', p: [k.p[0], k.p[1]] as [number, number] }]
+})
 const basis = (x: Record<string, unknown>) => x.version === 1 && zeit(x.abgerufen) && istLv95(x.mitte) &&
   typeof x.radiusM === 'number' && x.radiusM > 0 && x.radiusM <= 1000
 
@@ -29,7 +34,7 @@ export function bavLesen(x: unknown): BavSnapshot | null {
   return { version: 1, quelleId: 'bav.halt', abgerufen: x.abgerufen as string, datenstand: x.datenstand as string | null,
     ...(x.datenstandQuelle === BAV_METADATEN_URL ? { datenstandQuelle: BAV_METADATEN_URL } : {}),
     ...(text(x.datenstandHinweis) ? { datenstandHinweis: x.datenstandHinweis } : {}), mitte: [...mitte], radiusM,
-    url: x.url, vollstaendigkeit: 'unbekannt', halte }
+    url: x.url, vollstaendigkeit: 'unbekannt', halte, ...(Array.isArray(x.kanten) ? { kanten: kantenLesen(x.kanten) } : {}) }
 }
 function gemeinden(x: unknown): Gemeinde[] | null {
   if (!Array.isArray(x) || x.length > 100) return null

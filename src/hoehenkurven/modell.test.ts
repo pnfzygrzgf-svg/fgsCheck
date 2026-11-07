@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ableiten } from './ableiten'
-import { kachelSchluessel, kachelnWaehlen, schneiden, type Raster } from './modell'
+import { kachelSchluessel, kachelnWaehlen, kurveBei, schneiden, type Raster } from './modell'
 import { lv95, wgs } from './projektion'
 export function feature(jahr=2025,e=2602,n=1199,version='v1'){
  const id=`swissalti3d_${jahr}_${e}-${n}`,name=`${id}_2_2056_5728.tif`
@@ -41,4 +41,13 @@ describe('Höhenkurven: fachliche Geometrie und Quellenwahl',()=>{
    const ll=wgs(p[0],p[1]),q=lv95(ll[0],ll[1]);expect(Math.hypot(q[0]-p[0],q[1]-p[1])).toBeLessThan(.002)
   }
  })
+})
+
+describe('kurveBei', () => {
+  const e = { kurven: [{ h: 555, punkte: [[0, 0], [100, 0]] as [number, number][] }, { h: 556, punkte: [[0, 5], [100, 5]] as [number, number][] }], kacheln: [], box: [0, 0, 1, 1] as [number, number, number, number], abgerufen: '', ms: 0, bytes: 0 }
+  it('nennt die nächste Kurve im Umkreis', () => {
+    expect(kurveBei(e, [50, 1], 3)).toBe(555)
+    expect(kurveBei(e, [50, 4], 3)).toBe(556)
+    expect(kurveBei(e, [50, 50], 3)).toBeNull()
+  })
 })

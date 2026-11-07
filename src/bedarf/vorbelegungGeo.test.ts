@@ -4,6 +4,7 @@ import { zhUrl, zhMetadatenUrl, type ZuerichSnapshot } from '../daten/anbieter/g
 import { zhStrassen } from '../daten/anbieter/gemeinsam/zuerichZuordnung'
 import { vsigTempo } from '../daten/vsig'
 import { npvmUrl, NPVM_METADATEN_URL, type NpvmSnapshot } from '../daten/anbieter/npvm'
+import type { ZaehlSnapshot } from '../daten/zaehlstellen'
 // Tests Vorbelegung aus Geodaten (Abschnitt 18 der Regeln): Bushaltestelle (Umkreis 50 m), besonderer Grund «Haltestelle»,
 // Strecke oder Zone (OSM-Tags), DTV (Geoportal Stadt Bern, Annahme 500), Beleuchtung (Hinweis ohne Wert), Fall-Datei.
 // Künstliche Strasse wie befundblatt.test.ts: Hauptstrasse West–Ost, Fahrbahn 8 m, Tempo 50, Übergang bei x = 0.
@@ -272,6 +273,55 @@ describe('Fall-Datei: neue Quellen', () => {
   })
 })
 
+
+describe('Zählstelle: DTV vor dem Modell, erst nach Bestätigung', () => {
+  const stellen = (dtv = 8000, y = 6): ZaehlSnapshot => ({ quelleId: 'zh.dtv', abgerufen: '2026-11-07', stellen: [{ id: 'zh:0', p: lv(30, y), dtv, jahr: 2025, name: 'Messstelle 7' }] })
+  const modell: NpvmSnapshot = { version: 1, quelleId: 'are.npvm', bezugsjahr: 2023, datenstand: '2023-06-30', datenstandQuelle: NPVM_METADATEN_URL, abgerufen: '2026-11-01T20:00:00.000Z',
+    mitte: O, radiusM: 200, url: npvmUrl(...ll(0, 0)), vollstaendigkeit: 'unbekannt', linien: [{ id: 'npvm:1', nr: 1, dtv: 1234, teile: [[lv(-100, 0), lv(100, 0)]] }] }
+  it('ohne Bestätigung ändert sich kein Eingang der Regeln', () => {
+    const ohne = vor({ osm: OSM }), mit = vor({ zaehlstellen: stellen(), osm: OSM })
+    expect(mit.werte.dtv).toMatchObject({ wert: 8000, quelle: 'vorschlag', bestaetigungNoetig: true })
+    expect(eingabenBilden(mit.werte, undefined).eingaben).toEqual(eingabenBilden(ohne.werte, undefined).eingaben)
+    expect(mit.werte.mivKlasse).toBeUndefined()
+    expect(mit.werte.starkBelastet).toBeUndefined()
+    expect(mit.werte['q3.dtvEinm']).toBeUndefined()
+  })
+  it('liegt vor dem Modell; beide bleiben wählbar, bestätigt wirkt der gewählte Wert', () => {
+    const v = vor({ zaehlstellen: stellen(), npvm: modell, osm: OSM })
+    const o = v.werte.dtv.quellenOptionen!
+    expect(o.map(x => [x.id, x.wert, !!x.vorgabe])).toEqual([['zh.dtv', 8000, true], ['are.npvm', 1234, false]])
+    expect(v.werte.dtv.wert).toBe(8000)
+    expect(v.werte.dtv.npvmBeleg).toBeUndefined()
+    expect(v.feldHinweise?.dtv).toContain('gilt aber nur für ihren Standort')
+    expect(o[0].datenstand).toBe('Zähljahr 2025')
+    const block = quellenWahlSetzen(undefined, 'dtv', o[0])!
+    expect(block.felder.dtv).toMatchObject({ wert: 8000, quelle: 'bestaetigt', datenquelle: { id: 'zh.dtv' } })
+    expect(eingabenBilden(v.werte, block).eingaben.dtv.wert).toBe(8000)
+    const f = fallMit(x => { x.bedarf = block })
+    expect(vor({ zaehlstellen: stellen(), npvm: modell, osm: OSM }, f).werte.mivKlasse?.wert).toBe('mittel')
+    expect(bedarfLesen(JSON.parse(JSON.stringify(block)))[0]?.felder.dtv.datenquelle?.id).toBe('zh.dtv')
+  })
+  it('eigener Wert bleibt, ohne Modell steht das Modell offen in der Auswahl', () => {
+    const f = fallMit(x => { x.bedarf = { felder: { dtv: { wert: 2400, quelle: 'bestaetigt' } } } })
+    const v = vor({ zaehlstellen: stellen(), osm: OSM }, f)
+    expect(eingabenBilden(v.werte, f.bedarf).eingaben.dtv.wert).toBe(2400)
+    expect(v.feldHinweise?.dtv).toContain('bleibt erhalten')
+    expect(v.werte.dtv.quellenOptionen?.map(o => o.id)).toEqual(['zh.dtv', 'are.npvm'])
+  })
+  it('zu weit neben der Fahrlinie: kein Vorschlag, das Modell bleibt Vorgabe', () => {
+    expect(vor({ zaehlstellen: stellen(8000, 40), osm: OSM }).werte.dtv).toBeUndefined()
+    expect(vor({ zaehlstellen: stellen(8000, 40), npvm: modell, osm: OSM }).werte.dtv.quellenOptionen?.find(o => o.vorgabe)?.id).toBe('are.npvm')
+  })
+  it('Brücke oder Tunnel: keine Zuordnung', () => {
+    const hoch: OsmDaten = { ...OSM, wege: [weg(1, [[10, -300, 0], [12, 0, 0], [13, 300, 0]], { ...TAGS, bridge: 'yes' })] }
+    expect(vor({ zaehlstellen: stellen(), osm: hoch }).werte.dtv).toBeUndefined()
+  })
+  it('die Stadt Bern bleibt vorne', () => {
+    const v = vor({ zaehlstellen: stellen(), osm: OSM, verkehrsdaten: { linien: [{ id: 'bern:1', strasse: 'Hauptstrasse', dtv: 5000, stand: null, teile: [[lv(-100, 0), lv(100, 0)]] }], bereich: BEREICH } })
+    expect(v.werte.dtv).toMatchObject({ wert: 5000, quelle: 'geoportal' })
+    expect(v.werte.dtv.bestaetigungNoetig).toBeUndefined()
+  })
+})
 
 describe('E1b: Modell-DTV erst nach Bestätigung', () => {
   const modell = (dtv = 1234): NpvmSnapshot => ({ version: 1, quelleId: 'are.npvm', bezugsjahr: 2023, datenstand: '2023-06-30',

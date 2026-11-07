@@ -1,9 +1,20 @@
+import { REGIONAL_DIENSTE } from './daten/anbieter/gemeinsam/regionalDienste'
+import { QuelleLink, UNFALL_EBENE, UnfallLegende, ebenenQuelleUrl, objektFenster, objektHtml, objektQuelleUrl, unfallKacheln, type Stelle } from './kartenbaustein/quellenLink'
+import { UNFALL_HINWEIS, unfallEbenen, unfallHtml } from './kartenbaustein/unfaelle'
+import { useUnfaelle } from './kartenbaustein/unfaelleKarte'
+import { EbenenFenster, EbenenZeile, Legende, useFensterLage } from './kartenbaustein/EbenenFenster'
+import { orthofotoBern } from './kartenbaustein/hintergrund'
+import { kartenHover } from './kartenbaustein/hover'
+import { trefferObjekt } from './kartenbaustein/treffer'
+import { avErsatz, LUZERN_NAME } from './daten/ersatzLuzern'
+import type { EbeneDef } from './quellenEbenen'
 import { useHoehenkurven } from './hoehenkurven/Karte'
 import { HoehenkurvenWahl } from './hoehenkurven/Wahl'
-import { AvEbenenWahl } from './AvEbenenWahl'
+import { AvEbenenWahl } from './kartenbaustein/AvEbenenWahl'
+import { PruefGruppe } from './kartenbaustein/PruefGruppe'
 import { EbenenGruppe, HoehenprofilAnsicht } from './hoehenprofil/Ansicht'
 import { profilGeometrie, profilLage, profilObjekteWaehlen, standardProfil } from './hoehenprofil/modell'
-import { AV_FARBEN, avKartenStil, avArtSichtbar, avArtenLesen } from './daten/anbieter/gemeinsam/avKarte'
+import { AV_FARBEN, AV_LEGENDE, avKartenStil, avArtSichtbar, avArtenLesen } from './daten/anbieter/gemeinsam/avKarte'
 import { fgsSichtMasse } from './sichtMasse'
 import { useSichtWahl, sichtZeigen, sichtMassZeigen, fgsSichtId, tueSichtId } from './Sichtfelder'
 import { alphabetisch } from './daten/anbieter/gemeinsam/sortierung'
@@ -11,6 +22,7 @@ import { QuellenMetadaten } from './daten/anbieter/gemeinsam/metadaten'
 import { quellenQualitaetText, type QuellenQualitaet } from './daten/anbieter/gemeinsam/qualitaet'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import L from 'leaflet'
+import './kartenbaustein/tooltipRand'
 import 'leaflet/dist/leaflet.css'
 import type { AvFlaeche } from './daten/av'
 import type { OsmKnoten, Strassenname } from './daten/osm'
@@ -18,6 +30,8 @@ import { markierung } from './daten/osm'
 import type { AnnHand, ZufahrtErgebnis } from './rechner/typen'
 import { annGleich, annGriffX, annGriffZiehen, type AnnGriff, type FangTreffer } from './annGriff'
 import type { FallRechnung } from './rechner'
+import type { Vorschlag } from './rechner/vorschlaege'
+import { istZhParkId, ZH_PARK_FLAECHE } from './daten/anbieter/gemeinsam/parkZuerich'
 import type { Multi } from './rechner/poly'
 import { type Hindernis, laengsPolygon, stammPolygon } from './rechner/hindernisse'
 import { type StreifenHand, type Fixpunkt, type FlaechePlan, type PlanArt, PLAN_ARTEN, inselStandard } from './fall'
@@ -268,7 +282,7 @@ function hindernisEbene(h: Hindernis, stil: L.PathOptions): L.Layer {
 }
 
 export function hindernisText(h: Hindernis): string {
-  const q = h.quelle === 'hand' ? 'von Hand' : h.quelle === 'osm' ? 'aus OSM' : h.art === 'baum' ? 'aus Baumkataster' :
+  const q = h.quelle === 'hand' ? 'von Hand' : h.quelle === 'osm' ? 'aus OSM' : h.art === 'baum' ? 'aus Baumkataster' : istZhParkId(h.id) ? ZH_PARK_FLAECHE :
     h.art === 'parkfeld' ? 'amtlich, aus dem Kataster der Stadt' : 'aus Kataster der Stadt'
   const art = { parkfeld: 'Parkfeld', laengsparkierung: 'Längsparkierung', baum: 'Baum', hecke: 'Hecke', mauer: 'Mauer', uebrige: 'Hindernis',
     insel: 'Insel' }[h.art]
@@ -380,6 +394,8 @@ export default function Karte(props: {
   strassennamen: Strassenname[]                      // aus der Übergangssuche und den OSM-Daten des gewählten Übergangs (daten/osm.namenKarte)
   gewaehlt: number | null
   rechnung: FallRechnung | null
+  /** Parkfelder als Vorschlag ausserhalb der Rechnung (Stadt Zürich): gestrichelt, zählen erst bestätigt */
+  parkVorschlaege?: readonly Vorschlag[]
   auswahl: string | null
   hindernisse: Hindernis[]
   streifenHand: StreifenHand[]
@@ -466,6 +482,7 @@ export default function Karte(props: {
     try { const v = JSON.parse(localStorage.getItem('fgs.quellen') ?? 'null'); if (Array.isArray(v)) return new Set(v as EbeneId[]) } catch { /* ohne Speicher */ }
     return new Set<EbeneId>()
   })
+  const unfaelle = useUnfaelle(hkMap, unfallEbenen(qAn), lv95)
   const qSchalten = (id: EbeneId, an: boolean) => setQAn(prev => {
     const n = new Set(prev); if (an) n.add(id); else n.delete(id)
     try { localStorage.setItem('fgs.quellen', JSON.stringify([...n])) } catch { /* nur für diese Sitzung */ }
@@ -487,34 +504,12 @@ export default function Karte(props: {
     return () => { aktiv = false }
   }, [qOffen, rpDa, tkDa, rpZahl, tkZahl, props.richtplanVorhanden, props.taktilVorhanden])
 
-  const [qPos, setQPos] = useState<{ x: number; y: number } | null>(() => {
-    try { const v = JSON.parse(localStorage.getItem('fgs.quellenPos') ?? 'null'); return v && Number.isFinite(v.x) && Number.isFinite(v.y) ? v : null } catch { return null }
-  })
-  const qFensterRef = useRef<HTMLDivElement>(null)
+  const qLage = useFensterLage('fgs.quellenPos', qOffen)
   const quellenRef = useRef<L.LayerGroup | null>(null)
   // Treffertest der eingeschalteten Quellen (Tooltip beim Überfahren, im mousemove der Karte)
-  const qTrefferRef = useRef<((p: P, tolM: number) => string | null) | null>(null)
-  const qZiehen = (e: React.PointerEvent<HTMLDivElement>) => {
-    const fenster = qFensterRef.current, rahmen = fenster?.parentElement
-    if (!fenster || !rahmen || (e.target as HTMLElement).closest('button')) return
-    e.preventDefault()
-    const r = rahmen.getBoundingClientRect(), f = fenster.getBoundingClientRect(), dx = e.clientX - f.left, dy = e.clientY - f.top
-    let zuletzt: { x: number; y: number } | null = null
-    const bewegen = (ev: PointerEvent) => {
-      zuletzt = { x: Math.round(Math.min(Math.max(0, ev.clientX - r.left - dx), Math.max(0, r.width - f.width))),
-        y: Math.round(Math.min(Math.max(0, ev.clientY - r.top - dy), Math.max(0, r.height - 40))) }
-      setQPos(zuletzt)
-    }
-    const los = () => {
-      window.removeEventListener('pointermove', bewegen); window.removeEventListener('pointerup', los); window.removeEventListener('pointercancel', los)
-      if (zuletzt) try { localStorage.setItem('fgs.quellenPos', JSON.stringify(zuletzt)) } catch { /* nur für diese Sitzung */ }
-    }
-    window.addEventListener('pointermove', bewegen); window.addEventListener('pointerup', los); window.addEventListener('pointercancel', los)
-  }
-  useEffect(() => {
-    const fenster = qFensterRef.current, rahmen = fenster?.parentElement
-    if (qOffen && qPos && fenster && rahmen && (qPos.x + 60 > rahmen.clientWidth || qPos.y + 60 > rahmen.clientHeight)) setQPos(null)
-  }, [qOffen])   // eslint-disable-line react-hooks/exhaustive-deps
+  const qObjekteRef = useRef<EbenenObjekt[]>([])
+  const qDefRef = useRef(new Map<EbenenObjekt, EbeneDef>())
+  const kartenMitte = (): Stelle | null => { const c = kartenRef.current?.getCenter(); if (!c) return null; const [e, n] = lv95(c.lat, c.lng); return { lat: c.lat, lon: c.lng, e, n } }
   const ksPhase: KsPhase = props.ksPhase ?? 'beide'
   // Zoomstufe (Fahrzeuge der nicht gewählten Zufahrten erst ab FAHRZEUG_ZOOM)
   const [zoom, setZoom] = useState(19)
@@ -686,14 +681,13 @@ export default function Karte(props: {
       const b = map.getBounds(), da = rpVerfuegbar({ s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() })
       if (da === rpDa) return
       rpDa = da
-      // Laden ohne geöffneten Fall über die normale Ebenenwahl; im Quellenfenster nur mit Daten.
-      if (da) { ebenenWahlRef.current?.addOverlay(rpGruppe, RP_KARTE_NAME); if (rpWahl) rpGruppe.addTo(map) }
-      else { ebenenWahlRef.current?.removeLayer(rpGruppe); rpWahl = map.hasLayer(rpGruppe); map.removeLayer(rpGruppe) }
+      // Im Fenster «Kartenebenen», solange die Karte die Stadt Bern zeigt, auch ohne geöffneten Fall
+      if (da) { if (rpWahl) rpGruppe.addTo(map) }
+      else { rpWahl = map.hasLayer(rpGruppe); map.removeLayer(rpGruppe) }
       setRpDa(da)
     }
-    const rpTip = L.tooltip({ direction: 'top', offset: [0, -12], className: 'rp-tip' })
     rpGruppe.on('add', () => { rp.laden(); rpMelden(false); setRpAn(true) })
-      .on('remove', () => { rpCtrl?.abort(); rpCtrl = null; window.clearTimeout(rpZeit); map.closeTooltip(rpTip); rpMelden(false); setRpAn(false) })
+      .on('remove', () => { rpCtrl?.abort(); rpCtrl = null; window.clearTimeout(rpZeit); rpMelden(false); setRpAn(false) })
     // Taktile Markierungen (Vektordaten des Geoportals, 30.10.2026; daten/taktilKarte.ts): wie der Richtplan nur in der Ebenenwahl,
     // solange die Karte die Stadt Bern zeigt; anfangs aus; lädt eingeschaltet ab TK_KARTE_ZOOM den Ausschnitt mit Rand. Felder als
     // Quadrate (divIcon), Linien weiss mit dunkler Kontur, alles im eigenen Pane ohne Mausereignisse (Tooltip über den Treffertest)
@@ -754,61 +748,49 @@ export default function Karte(props: {
       const b = map.getBounds(), da = tkVerfuegbar({ s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() })
       if (da === tkDa) return
       tkDa = da
-      if (da) { ebenenWahlRef.current?.addOverlay(tkGruppe, TK_KARTE_NAME); if (tkWahl) tkGruppe.addTo(map) }
-      else { ebenenWahlRef.current?.removeLayer(tkGruppe); tkWahl = map.hasLayer(tkGruppe); map.removeLayer(tkGruppe) }
+      if (da) { if (tkWahl) tkGruppe.addTo(map) }
+      else { tkWahl = map.hasLayer(tkGruppe); map.removeLayer(tkGruppe) }
       setTkDa(da)
     }
     tkGruppe.on('add', () => { tk.laden(); tkMelden(false); setTkAn(true) })
-      .on('remove', () => { tkCtrl?.abort(); tkCtrl = null; window.clearTimeout(tkZeit); map.closeTooltip(rpTip); tkMelden(false); setTkAn(false) })
+      .on('remove', () => { tkCtrl?.abort(); tkCtrl = null; window.clearTimeout(tkZeit); tkMelden(false); setTkAn(false) })
     // Treffertest beim Bewegen der Maus (höchstens einmal je Bild); nicht über anklickbaren Objekten und Markern (deren Tooltip gilt)
-    let rpRaf = 0
-    map.on('mousemove', (e: L.LeafletMouseEvent) => {
-      if (rpRaf) return
-      rpRaf = requestAnimationFrame(() => {
-        rpRaf = 0
-        const ziel = e.originalEvent.target as Element | null
-        const frei = !ziel?.closest?.('.leaflet-interactive, .leaflet-marker-icon, .leaflet-control')
-        const p = lv95(e.latlng.lat, e.latlng.lng)
-        // Kartenebenen zuerst (Punkte vor Linien vor Flächen)
-        if (frei && qTrefferRef.current) {
-          const x = qTrefferRef.current(p, rpToleranzM(7, map.getZoom(), e.latlng.lat))
-          if (x) {
-            rpTip.setContent(esc(x))
-            rpTip.setLatLng(e.latlng)
-            if (!map.hasLayer(rpTip)) map.openTooltip(rpTip)
-            return
-          }
-        }
-        // taktile Markierungen zuerst (klein, über dem Richtplan)
-        if (frei && map.hasLayer(tkGruppe) && map.getZoom() >= TK_KARTE_ZOOM) {
-          const { objekte, genutzt } = tkAlle()
-          const x = tkTreffer(objekte, p, rpToleranzM(6, map.getZoom(), e.latlng.lat))
-          if (x) {
-            const t = tkTooltip(x, genutzt.has(x.id))
-            rpTip.setContent(`<b>${esc(t.titel)}</b><br>${esc(t.quelle)}`)
-            rpTip.setLatLng(e.latlng)
-            if (!map.hasLayer(rpTip)) map.openTooltip(rpTip)
-            return
-          }
-        }
-        const auf = map.hasLayer(rpGruppe) && map.getZoom() >= RP_KARTE_ZOOM && frei
-        const o = auf ? rpTreffer([...rp.objekte, ...(cb.current.fusswegnetz?.linien ?? []).filter(l => !rp.objekte.some(x => x.id === l.id))
-          .map(l => ({ id: l.id, art: 'basisnetz' as const, geom: l.teile, name: null, box: boxAus(l.teile) }))],
-          p, rpToleranzM(6, map.getZoom(), e.latlng.lat)) : null
-        if (!o) { map.closeTooltip(rpTip); return }
-        const g = cb.current.fusswegnetz?.linien.find(l => l.id === o.id)
-        const t = rpTooltip(o, g ? g.abstandM : null)
-        rpTip.setContent(`<b>${esc(t.titel)}</b><br>${esc(t.quelle)}`)
-        rpTip.setLatLng(e.latlng)
-        if (!map.hasLayer(rpTip)) map.openTooltip(rpTip)
-      })
+    // Klick auf ein Objekt einer Kartenebene: Kurzinfo mit Link zur Quelle (die Tooltips lassen sich nicht anklicken); Werkzeuge gehen vor
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      const ziel = e.originalEvent.target as Element | null
+      if (cb.current.werkzeug || ziel?.closest?.('.leaflet-interactive, .leaflet-marker-icon, .leaflet-control')) return
+      const hier = unfaelle.bei(map, e.containerPoint)
+      if (hier.length) { L.popup({ maxWidth: 280, maxHeight: 300 }).setLatLng(e.latlng).setContent(unfallHtml(hier, true)).openOn(map); return }
+      const [ost, nord] = lv95(e.latlng.lat, e.latlng.lng), m = 7 * 40075016 * Math.cos(e.latlng.lat * Math.PI / 180) / (256 * 2 ** map.getZoom())
+      const o = trefferObjekt(qObjekteRef.current, [ost, nord], m), def = o && qDefRef.current.get(o)
+      if (!o || !def) return
+      const url = objektQuelleUrl(o, def.id, ebenenQuelleUrl(def.id, `${o.quelle ?? ''} ${def.quelle} ${o.text}`, REGIONAL_DIENSTE.find(d => `regional.${d.id}` === def.id)?.url), { lat: e.latlng.lat, lon: e.latlng.lng, e: ost, n: nord })
+      if (url) L.popup({ maxWidth: 280 }).setLatLng(e.latlng).setContent(objektFenster(o.text, url)).openOn(map)
     })
-    map.on('mouseout', () => map.closeTooltip(rpTip))
-    ebenenWahlRef.current = L.control.layers({ 'Luftbild (SWISSIMAGE)': luftbild, 'Landeskarte (swisstopo)': landeskarte }, {
-      'Flächen (Plan)': eb.plan,
-      'OSM-Übergänge': eb.osm, [LUFTBILD_FGS_NAME]: eb.lbfgs, 'Strassennamen (OSM)': eb.namen, 'Nummern der Zufahrten': eb.nr, 'Fahrzeuge': eb.fahrzeug, 'Hindernisse': eb.hind,
-      'Fixpunkte und Masse': eb.fix },
-    { collapsed: true }).addTo(map)
+    kartenHover(map, [
+      s => { const hier = unfaelle.bei(map, s.bild); return hier.length ? { schluessel: `u:${hier.map(u => u.id).join()}`, html: unfallHtml(hier, false) } : null },
+      s => { const o = trefferObjekt(qObjekteRef.current, s.p, s.tolM, s.ueberObjekt); return o ? { schluessel: `e:${o.id}`, html: objektHtml(o.text) } : null },
+      s => {
+        if (s.ueberObjekt || !map.hasLayer(tkGruppe) || map.getZoom() < TK_KARTE_ZOOM) return null
+        const { objekte, genutzt } = tkAlle()
+        const x = tkTreffer(objekte, s.p, rpToleranzM(6, map.getZoom(), s.ort.lat))
+        if (!x) return null
+        const t = tkTooltip(x, genutzt.has(x.id))
+        return { schluessel: `t:${x.id}`, html: `<b>${esc(t.titel)}</b><br>${esc(t.quelle)}` }
+      },
+      s => {
+        if (s.ueberObjekt || !map.hasLayer(rpGruppe) || map.getZoom() < RP_KARTE_ZOOM) return null
+        const o = rpTreffer([...rp.objekte, ...(cb.current.fusswegnetz?.linien ?? []).filter(l => !rp.objekte.some(x => x.id === l.id))
+          .map(l => ({ id: l.id, art: 'basisnetz' as const, geom: l.teile, name: null, box: boxAus(l.teile) }))],
+          s.p, rpToleranzM(6, map.getZoom(), s.ort.lat))
+        if (!o) return null
+        const g = cb.current.fusswegnetz?.linien.find(l => l.id === o.id), t = rpTooltip(o, g ? g.abstandM : null)
+        return { schluessel: `r:${o.id}`, html: `<b>${esc(t.titel)}</b><br>${esc(t.quelle)}` }
+      },
+      s => { const k = hk.bei(s.ort.lat, s.ort.lng, s.tolM); return k ? { schluessel: `k:${k}`, html: objektHtml(k) } : null },
+    ])
+    ebenenWahlRef.current = L.control.layers({ 'Luftbild (SWISSIMAGE)': luftbild, 'Landeskarte (swisstopo)': landeskarte }, {}, { collapsed: true }).addTo(map)
+    orthofotoBern(map, ebenenWahlRef.current, luftbild)
     rpAbgleich(); tkAbgleich()
     map.on('moveend', () => { rpAbgleich(); rp.laden(); tkAbgleich(); tk.laden() })
     L.control.scale({ imperial: false }).addTo(map)
@@ -897,7 +879,7 @@ export default function Karte(props: {
       L.polygon(f.ringe.map(r => r.map(ll)), { color: farbe, weight: 1, fillColor: farbe, fillOpacity: deckkraft, interactive: false })
         .addTo(eb.av)
     }
-    const text = `Amtliche Vermessung, Kanton ${kantone.join(', ') || '?'}, geodienste.ch`
+    const text = avErsatz(av) ? LUZERN_NAME : `Amtliche Vermessung, Kanton ${kantone.join(', ') || '?'}, geodienste.ch`
     map.attributionControl.addAttribution(text)
     return () => { map.attributionControl.removeAttribution(text) }
   }, [av, kantone, kartenRef, avAn, avArten])
@@ -914,12 +896,14 @@ export default function Karte(props: {
     g.clearLayers()
     const daten = props.quellenEbenen ?? {}
     const profilId = standardProfil((daten.gelaende ?? []).flatMap(o => o.hoehenprofil ? [o.hoehenprofil] : []), profilAuswahl)?.id
-    const aktiv: { o: EbenenObjekt; farbe: string; symbol: string }[] = []
+    const aktiv: { o: EbenenObjekt; farbe: string; symbol: string; def: EbeneDef }[] = []
     for (const def of EBENEN) {
-      if (def.id === 'av' || !qAn.has(def.id)) continue
+      if (def.id === 'av' || UNFALL_EBENE[def.id] || !qAn.has(def.id)) continue
       for (const o of def.id === 'gelaende' ? profilObjekteWaehlen(daten.gelaende ?? [], profilAuswahl, alleGelaendeProfile) : daten[def.id] ?? [])
-        aktiv.push({ o, farbe: ebenenFarbe(def, o.klasse), symbol: ebenenSymbol(def, o.klasse) })
+        aktiv.push({ o, farbe: ebenenFarbe(def, o.klasse), symbol: ebenenSymbol(def, o.klasse), def })
     }
+    for (const [id, layer] of Object.entries(UNFALL_EBENE)) if (qAn.has(id as EbeneId))
+      L.tileLayer(unfallKacheln(layer), { pane: Q_PANE, maxZoom: 22, maxNativeZoom: 18, attribution: '© ASTRA' }).addTo(g)
     const beschriftet: { x: number; y: number; b: number }[] = []
     const marke = (p: P, text: string, farbe: string) => {
       const punkt = map.latLngToLayerPoint(ll(p)), b = text.length * 7.5 + 16
@@ -958,32 +942,17 @@ export default function Karte(props: {
       }
       if (o.punkt) {
         L.marker(ll(o.punkt), { pane: Q_PANE, interactive: false, keyboard: false,
-          icon: L.divIcon({ className: 'q-punkt', iconSize: [18, 18], html: `<span style="background:${farbe}">${esc(symbol)}</span>` }) }).addTo(g)
+          icon: L.divIcon({ className: 'q-punkt', iconSize: [18, 18], html: `<span style="background:${farbe}">${esc(o.symbol ?? symbol)}</span>` }) }).addTo(g)
         if (zoom >= BESCHRIFT_ZOOM && o.wert) marke(o.punkt, o.wert, farbe)
       }
     }
     // Treffertest: Punkte vor Linien vor Flächen, das nächste Objekt innerhalb der Toleranz
-    const abst = (p: P, l: P[]) => {
-      let d = Infinity
-      for (let i = 1; i < l.length; i++) {
-        const a = l[i - 1], b = l[i], vx = b[0] - a[0], vy = b[1] - a[1], q = vx * vx + vy * vy
-        const t = q ? Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / q)) : 0
-        d = Math.min(d, Math.hypot(p[0] - a[0] - t * vx, p[1] - a[1] - t * vy))
-      }
-      return d
-    }
-    const innen = (p: P, r: P[]) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, yi] = r[i], [xj, yj] = r[j]; if ((yi > p[1]) !== (yj > p[1]) && p[0] < (xj - xi) * (p[1] - yi) / (yj - yi) + xi) c = !c } return c }
-    qTrefferRef.current = aktiv.length ? (p, tol) => {
-      let best: { d: number; t: string } | null = null
-      const nimm = (d: number, t: string) => { if (d <= tol && (!best || d < best.d)) best = { d, t } }
-      for (const { o } of aktiv) if (o.punkt) nimm(Math.hypot(p[0] - o.punkt[0], p[1] - o.punkt[1]) * 0.7, o.text)
-      if (best) return (best as { t: string }).t
-      for (const { o } of aktiv) for (const l of o.linien ?? []) nimm(abst(p, l), o.text)
-      if (best) return (best as { t: string }).t
-      for (const { o } of aktiv) if (o.ringe?.[0] && innen(p, o.ringe[0])) return o.text
-      return null
-    } : null
-  }, [props.quellenEbenen, qAn, zoom, profilAuswahl, alleGelaendeProfile])
+    // Die amtliche Vermessung zeichnet ein eigener Effekt; im Treffertest zählt sie wie jede Ebene, wenn ihre Art sichtbar ist
+    const avDef = EBENEN.find(e => e.id === 'av')!
+    const avObjekte = (daten.av ?? []).filter(o => avArtSichtbar(o.id.slice(o.id.lastIndexOf(':') + 1), avAn, avArten))
+    qObjekteRef.current = [...aktiv.map(x => x.o), ...avObjekte]
+    qDefRef.current = new Map([...aktiv.map(x => [x.o, x.def] as const), ...avObjekte.map(o => [o, avDef] as const)])
+  }, [props.quellenEbenen, qAn, zoom, profilAuswahl, alleGelaendeProfile, avAn, avArten])
   useEffect(() => { rpRef.current?.laden() }, [rpVorhanden])
   // Taktile Markierungen: ebenso (genutztes Feld bzw. Leitlinie, geladene Daten des Falls)
   const tkGen = props.taktilGenutzt ?? null, tkVorhanden = props.taktilVorhanden ?? null
@@ -1243,6 +1212,13 @@ export default function Karte(props: {
         .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(v.id) })
       ebene.addTo(eb.hind)
     }
+    for (const v of props.parkVorschlaege ?? []) {
+      const farbe = hindernisFarbe(v.hindernis)
+      ;(hindernisEbene(v.hindernis, { color: farbe, weight: v.id === bearbeiten ? 4 : 1.5, dashArray: '5 4', fillColor: farbe, fillOpacity: 0.12 }) as L.Path)
+        .bindTooltip(`Vorschlag: ${esc(v.hindernis.name ?? 'Parkfeld')}<br>${esc(v.grund)}<br><i>Klick: wählen, im Panel bestätigen oder verwerfen</i>`, { sticky: true })
+        .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(v.id) })
+        .addTo(eb.hind)
+    }
     // verworfene amtliche Parkfelder: gestrichelt, gedimmt; Klick wählt, im Panel «wieder zählen»
     for (const v of rechnung?.parkVerworfen ?? []) {
       const farbe = hindernisFarbe(v.hindernis)
@@ -1320,7 +1296,7 @@ export default function Karte(props: {
     if (fp) ecken(fp.id, [fp.p])
     const pl = flaechenPlan.find(x => x.id === bearbeiten)
     if (pl && werkzeug !== 'eckeRunden') ecken(pl.id, pl.ring)      // beim «Ecke runden»: eigene Ebene (unten)
-  }, [hindernisse, rechnung, streifenHand, fixpunkte, flaechenPlan, bearbeiten, werkzeug, props.annFang])
+  }, [hindernisse, rechnung, props.parkVorschlaege, streifenHand, fixpunkte, flaechenPlan, bearbeiten, werkzeug, props.annFang])
 
   // «Ecke runden»: Ecken der gewählten Fläche (Plan) als anklickbare Kreise im eigenen Pane über allem (nicht in der Ebene
   // «Hindernisse», die sich ausschalten lässt); Klick wählt genau diese Ecke (als Kartenklick auf ihre Lage, App fängt sie).
@@ -1691,45 +1667,36 @@ export default function Karte(props: {
       </button>
       {qOffen && (() => {
         const { zeigen, ohne, laedt, fehler } = ebenenSichtbar(props.quellenEbenen ?? {})
-        const map = kartenRef.current
+        const map = kartenRef.current, pruefEbenen = ebenenRef.current
         const gruppeSchalten = (g: L.LayerGroup | undefined, an: boolean) => { if (map && g) { if (an) g.addTo(map); else map.removeLayer(g) } }
         return (
-          <div className="q-fenster" role="group" aria-label="Kartenebenen" ref={qFensterRef}
-               style={qPos ? { left: qPos.x, top: qPos.y, bottom: 'auto', maxHeight: `calc(100% - ${qPos.y + 10}px)` } : undefined}>
-            <div className="q-kopf" onPointerDown={qZiehen} title="An dieser Zeile ziehen, um das Fenster zu verschieben (Doppelklick: zurück an den Ursprung)"
-                 onDoubleClick={() => { setQPos(null); try { localStorage.removeItem('fgs.quellenPos') } catch { /* egal */ } }}>
-              <span><span className="griff" aria-hidden="true">⠿</span> Kartenebenen</span>
-              <button type="button" onClick={() => setQOffen(false)} aria-label="Schliessen">×</button>
-            </div>
+          <EbenenFenster lage={qLage} schliessen={() => setQOffen(false)}>
+            {pruefEbenen && <PruefGruppe map={map} gruppen={[
+              { name: 'Flächen (Plan)', ebene: pruefEbenen.plan }, { name: 'OSM-Übergänge', ebene: pruefEbenen.osm }, { name: LUFTBILD_FGS_NAME, ebene: pruefEbenen.lbfgs },
+              { name: 'Strassennamen (OSM)', ebene: pruefEbenen.namen }, { name: 'Nummern der Zufahrten', ebene: pruefEbenen.nr }, { name: 'Fahrzeuge', ebene: pruefEbenen.fahrzeug },
+              { name: 'Hindernisse', ebene: pruefEbenen.hind }, { name: 'Fixpunkte und Masse', ebene: pruefEbenen.fix }]} />}
             {[...zeigen.map(e => ({ id: e.id as string, titel: e.titel })), { id: 'hoehenkurven', titel: hk.titel },
-              ...(rpDa && rpZahl > 0 ? [{ id: 'rp', titel: RP_KARTE_NAME }] : []),
-              ...(tkDa && tkZahl > 0 ? [{ id: 'tk', titel: TK_KARTE_NAME }] : [])]
+              ...(rpDa ? [{ id: 'rp', titel: RP_KARTE_NAME }] : []),
+              ...(tkDa ? [{ id: 'tk', titel: TK_KARTE_NAME }] : [])]
               .sort((a, b) => alphabetisch(a.titel, b.titel)).map(({ id }) => {
-              if (id === 'hoehenkurven') return <HoehenkurvenWahl key={id} an={hk.an} setzen={hk.setzen} stand={hk.stand} klasse="q-ebene" />
+              if (id === 'hoehenkurven') return <HoehenkurvenWahl key={id} an={hk.an} setzen={hk.setzen} stand={hk.stand} klasse="q-ebene" link={<QuelleLink url={ebenenQuelleUrl('hoehenkurven', 'swisstopo')} mitte={kartenMitte} />} />
               if (id === 'rp') return (
-              <label key="rp" className="q-ebene" title={RP_KARTE_QUELLE}>
-                <input type="checkbox" checked={rpAn} onChange={x => gruppeSchalten(rpRef.current?.gruppe, x.target.checked)} />
-                <span><b>{RP_KARTE_NAME}</b> <small className="zahl">{rpZahl} im Ausschnitt</small><small>{RP_KARTE_QUELLE}; lädt den Kartenausschnitt ab Zoomstufe {RP_KARTE_ZOOM}; {quellenQualitaetText(kartenStaende.richtplan)}</small></span>
-              </label>
+              <EbenenZeile key="rp" titel={RP_KARTE_NAME} zahl={`${rpZahl} im Ausschnitt`} hinweis={RP_KARTE_QUELLE} an={rpAn} setzen={an => gruppeSchalten(rpRef.current?.gruppe, an)}><small>{RP_KARTE_QUELLE}; lädt den Kartenausschnitt ab Zoomstufe {RP_KARTE_ZOOM}; {quellenQualitaetText(kartenStaende.richtplan)}</small><QuelleLink url={ebenenQuelleUrl('rp', RP_KARTE_QUELLE)} mitte={kartenMitte} /></EbenenZeile>
               )
               if (id === 'tk') return (
-              <label key="tk" className="q-ebene" title={TK_KARTE_QUELLE}>
-                <input type="checkbox" checked={tkAn} onChange={x => gruppeSchalten(tkRef.current?.gruppe, x.target.checked)} />
-                <span><b>{TK_KARTE_NAME}</b> <small className="zahl">{tkZahl} im Ausschnitt</small><small>{TK_KARTE_QUELLE}; lädt den Kartenausschnitt ab Zoomstufe {TK_KARTE_ZOOM}; {quellenQualitaetText(kartenStaende.taktil)}</small></span>
-              </label>
+              <EbenenZeile key="tk" titel={TK_KARTE_NAME} zahl={`${tkZahl} im Ausschnitt`} hinweis={TK_KARTE_QUELLE} an={tkAn} setzen={an => gruppeSchalten(tkRef.current?.gruppe, an)}><small>{TK_KARTE_QUELLE}; lädt den Kartenausschnitt ab Zoomstufe {TK_KARTE_ZOOM}; {quellenQualitaetText(kartenStaende.taktil)}</small><QuelleLink url={ebenenQuelleUrl('tk', TK_KARTE_QUELLE)} mitte={kartenMitte} /></EbenenZeile>
               )
               const e = zeigen.find(x => x.id === id)!
               const n = (props.quellenEbenen?.[e.id] ?? []).length
-              if (e.id === 'av') return <AvEbenenWahl key={e.id} quelle={e.quelle} objekte={props.quellenEbenen?.av ?? []}
-                an={avAn} setzen={setAvAn} arten={avArten} artSetzen={avArtSetzen} />
+              if (e.id === 'av') return <AvEbenenWahl key={e.id} link={<QuelleLink url={ebenenQuelleUrl('av', e.quelle)} mitte={kartenMitte} />} quelle={e.quelle} objekte={props.quellenEbenen?.av ?? []}
+                an={avAn} setzen={setAvAn} arten={avArten} artSetzen={avArtSetzen} legende={AV_LEGENDE} />
               return (
-                <EbenenGruppe key={e.id} mitProfil={e.id === 'gelaende'} titel={e.titel}><label className="q-ebene" title={e.quelle}>
-                  <input type="checkbox" checked={qAn.has(e.id)} onChange={x => qSchalten(e.id, x.target.checked)} />
-                  <span><b>{e.titel}</b> <small className="zahl">{n} {e.id === 'gelaende' ? 'Sichtlinien' : 'im Ausschnitt'}</small><small>{e.quelle}</small>
-                    {qAn.has(e.id) && <span className="q-legende">{e.legende.map(([k, farbe, text, symbol]) => <span key={k}>{symbol ? <i className="sym" style={{ background: farbe }}>{symbol}</i> : <i style={{ background: farbe }} />}{text}</span>)}</span>}
+                <EbenenGruppe key={e.id} mitProfil={e.id === 'gelaende'} titel={e.titel}><EbenenZeile titel={e.titel} hinweis={e.quelle} an={qAn.has(e.id)} setzen={an => qSchalten(e.id, an)}
+                  zahl={UNFALL_EBENE[e.id] ? undefined : `${n} ${e.id === 'gelaende' ? 'Sichtlinien' : 'im Ausschnitt'}`}><small>{UNFALL_EBENE[e.id] && unfaelle.datenstand ? e.quelle.replace(/Datenstand [^;]*/, `Datenstand ${unfaelle.datenstand}`) : e.quelle}</small>{UNFALL_EBENE[e.id] && <small>{(qAn.has(e.id) && unfaelle.stand) || UNFALL_HINWEIS}</small>}<QuelleLink url={ebenenQuelleUrl(e.id, e.quelle, REGIONAL_DIENSTE.find(d => `regional.${d.id}` === e.id)?.url)} mitte={kartenMitte} />
+                    {Object.keys(UNFALL_EBENE).find(id => qAn.has(id as EbeneId)) === e.id && <UnfallLegende />}
+                    {qAn.has(e.id) && !UNFALL_EBENE[e.id] && <Legende eintraege={e.legende} />}
                     {e.id === 'gelaende' && <small>Ein-/Ausblenden betrifft die Darstellung. Die Geländeprüfung bleibt aktiv.</small>}
-                  </span>
-                </label>
+                </EbenenZeile>
                 {e.id === 'gelaende' && <HoehenprofilAnsicht profile={(props.quellenEbenen?.gelaende ?? []).flatMap(o => o.hoehenprofil ? [o.hoehenprofil] : [])}
                   onAuswahl={id => { setProfilAuswahl(id); if (id) qSchalten('gelaende', true) }} kartenAlle={alleGelaendeProfile}
                   onKartenAlle={an => { setAlleGelaendeProfile(an); if (an) qSchalten('gelaende', true) }} />}
@@ -1739,8 +1706,8 @@ export default function Karte(props: {
             {laedt.length > 0 && <p className="q-fuss" role="status">Lädt: {laedt.map(e => e.titel).join(', ')}.</p>}
             {fehler.length > 0 && <p className="q-fuss" role="status">Fehler beim Laden: {fehler.map(e => e.titel).join(', ')}. Einzelheiten unter «Datenquellen und Ladezustand».</p>}
             {ohne.length > 0 && <p className="q-fuss">Ohne Daten im Ausschnitt: {ohne.map(e => e.titel).join(', ')}.</p>}
-            <p className="q-fuss">Gezeigt wird, was beim Laden gelesen wurde; ab Zoomstufe {BESCHRIFT_ZOOM} mit dem Wert. Überfahren zeigt die Angaben.</p>
-          </div>
+            <p className="q-fuss">Gezeigt wird, was beim Laden gelesen wurde; ab Zoomstufe {BESCHRIFT_ZOOM} mit dem Wert. Kurz stillhalten zeigt die Angaben, ein Klick die Quelle.</p>
+          </EbenenFenster>
         )
       })()}
       <div className="kartenkopf">

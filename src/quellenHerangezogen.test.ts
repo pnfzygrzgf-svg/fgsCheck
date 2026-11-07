@@ -11,6 +11,14 @@ const vor = (quelle: Herkunft['quelle'], optionen?: { id: string; vorgabe?: true
 
 describe('Bedarf: Quellen, die ein Feld gefüllt haben', () => {
   const quellen = { vsig: 'x', richtplan: 'x', schulen: 'x', haltestellen: 'x', verkehrsdaten: 'x', taktil: 'x' }
+  it('Zählstelle und NPVM erscheinen erst nach Bestätigung als Quelle', () => {
+    const vorschlag = (id: string): Herkunft => ({ ...vor('vorschlag', [{ id, vorgabe: true }]), vorbelegt: { ...vor('vorschlag', [{ id, vorgabe: true }]).vorbelegt!, bestaetigungNoetig: true } })
+    expect([...bedarfQuellenIds([blatt({ dtv: vorschlag('zh.dtv') })], {})]).toEqual([])
+    expect([...bedarfQuellenIds([blatt({ dtv: vorschlag('are.npvm') })], {})]).toEqual([])
+    const bestaetigt = (id: string): Herkunft => ({ zustand: 'hand', quelle: 'bestaetigt', text: '', wert: 9000, datenquelle: { id: id as never, text: 'x' } })
+    expect([...bedarfQuellenIds([blatt({ dtv: bestaetigt('zh.dtv') })], {})]).toEqual(['zh.dtv'])
+    expect([...bedarfQuellenIds([blatt({ dtv: bestaetigt('are.npvm') })], {})]).toEqual(['are.npvm'])
+  })
   it('Geoportal-Vorbelegung über den Dienst des Felds; nur geladene Dienste', () => {
     const b = blatt({ vSig: vor('geoportal'), netz: vor('geoportal'), beduerfnis: vor('geoportal'), 'q3.gewerbe': vor('geoportal'), 'haltestelle.art': vor('geoportal') })
     expect([...bedarfQuellenIds([b], quellen)].sort()).toEqual(['bern.halt', 'bern.richtplan', 'bern.schulen', 'bern.vsig'])

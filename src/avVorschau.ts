@@ -7,7 +7,8 @@
 // nimmt die Vorschau als AV (keine zweite Abfrage); sonst wie bisher. Ohne OSM und Kataster; nichts davon kommt in den Fall.
 
 import { dist, type P } from './geo'
-import { avParsen, ladeAvRoh, type AvFlaeche, type GeoJson } from './daten/av'
+import { avParsen, type AvFlaeche, type GeoJson } from './daten/av'
+import { ladeBodenbedeckungRoh } from './daten/ersatzLuzern'
 import type { Abruf } from './daten/holen'
 import { AV_RADIUS_M, NACHLADEN_M } from './abdeckung'
 
@@ -28,7 +29,7 @@ export class AvVorschau {
   laedt = false
   private ctrl: AbortController | null = null
   private ziel: P | null = null
-  constructor(private readonly melden: () => void, private readonly laden: Lader = ladeAvRoh) {}
+  constructor(private readonly melden: () => void, private readonly laden: Lader = ladeBodenbedeckungRoh) {}
 
   /** Werkzeug an (aktiv) bzw. aus; Kartenmitte (LV95) und Zoom nach dem Verschieben */
   async aktualisieren(aktiv: boolean, mitte: P, zoom: number): Promise<void> {

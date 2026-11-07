@@ -5,7 +5,8 @@
 // - immer: amtliche Vermessung, OpenStreetMap, Luftbild SWISSIMAGE (Kartenbild);
 // - Baum- bzw. Parkfeldkataster, wenn ein Hindernis daraus im Fall liegt oder die Rechnung es als Vorschlag mitnimmt;
 // - Höhenmodelle nur, wenn ein Profil gerechnet wurde (App.hoehenGenutzt), Übergang aus dem Luftbild und amtlicher Übergang, wenn gesetzt;
-// - Bedarf: je Feld die Quelle, die den Wert liefert, also die gewählte Datenquelle einer Handeingabe, die Vorgabe unter den Quellenoptionen
+// - Bedarf: je Feld die Quelle, die den Wert liefert, also die gewählte Datenquelle einer Handeingabe, die Vorgabe unter den Quellenoptionen,
+//   ausser sie wartet noch auf die Bestätigung (Zählstelle, NPVM: erst bestätigt tragen sie das Resultat)
 //   oder, bei einer Vorbelegung aus dem Geoportal, der Dienst, der das Feld füllt (GEOPORTAL_FELD_KEYS), auch bei einer Annahme, die sich
 //   auf das Geoportal stützt (ANNAHME_FELD_KEYS); «app.*» ist keine Quelle, «osm.*» ist OpenStreetMap.
 // Nicht genannt: Dienste, die nur dem Kartenkontext dienen (Höhenkurven, E6-Kontext), die Gebietsbestimmung und Dienste, deren Daten
@@ -17,6 +18,7 @@ import { VD_QUELLE_ID } from './daten/verkehrsdaten'
 import { lesetext } from './bedarf/lesetext'
 import type { BefundBlatt } from './bedarf/befundblatt'
 import { QUELLE_JE_SCHLUESSEL, genutzteQuellen } from './Datenlage'
+import { istZhParkId, ZH_PARK_SCHLUESSEL } from './daten/anbieter/gemeinsam/parkZuerich'
 
 /** Feld der Bedarfsmaske -> Schlüssel in Fall.quellen der Geoportal-Dienste, die es vorbelegen (Quelle «geoportal»). «beduerfnis» kommt
  *  aus Schulen bzw. Haltestellen, Haltestellenfelder aus dem Haltestellendienst */
@@ -44,6 +46,8 @@ export function bedarfQuellenIds(blaetter: readonly BefundBlatt[], quellen: Read
     if (h.zustand === 'hand') { add(h.datenquelle?.id); continue }
     if (h.zustand !== 'vorbelegt' || !h.vorbelegt) continue
     const v = h.vorbelegt
+    // Vorschlag ohne Bestätigung (Zählstelle, NPVM): trägt kein Resultat, also auch keine Quelle
+    if (v.bestaetigungNoetig) continue
     const vorgabe = v.quellenOptionen?.find(q => q.vorgabe)
     if (vorgabe) { add(vorgabe.id); continue }
     if (v.quelle === 'geoportal') { for (const k of geoportalKeys(pfad)) if (quellen[k]) add(QUELLE_JE_SCHLUESSEL[k]) }
@@ -69,7 +73,8 @@ export function quellenOhneTreffer(blaetter: readonly BefundBlatt[], genutzt: Re
     const ersatz = optionen.find(q => q.id === 'app.dtv')
     if (ersatz?.text.includes('Geoportal')) aus.set(VD_QUELLE_ID, lesetext(ersatz.text).replace(/^.*?angenommen: /, ''))
     const modell = optionen.find(q => q.id === 'are.npvm' && !q.vorgabe)
-    if (modell && !modell.text.startsWith('Noch kein')) aus.set('are.npvm', modell.wert === null || modell.wert === undefined
+    const ohneWert = modell?.wert === null || modell?.wert === undefined
+    if (modell && !modell.text.startsWith('Noch kein') && (ohneWert || !h.vorbelegt.bestaetigungNoetig)) aus.set('are.npvm', ohneWert
       ? lesetext(modell.text).split(';')[0].replace(/^NPVM: /, '') : 'modellierter Vergleichswert, der örtliche DTV hat Vorrang')
   }
   return [...aus].filter(([id]) => !genutzt.has(id)).map(([id, grund]) => ({ id, grund }))
@@ -83,7 +88,8 @@ export function herangezogeneQuellen(fall: Fall, rechnung: Pick<FallRechnung, 'v
   for (const k of ['av', 'osm', 'luftbild'] as const) if (fall.quellen[k]) basis[k] = fall.quellen[k]
   const kataster = [...fall.hindernisse, ...(rechnung?.vorschlaege ?? []).map(v => v.hindernis)].filter(h => h.quelle === 'kataster')
   if (kataster.some(h => h.art === 'baum')) basis.baumkataster = true
-  if (kataster.some(h => h.art === 'parkfeld')) basis.parkkataster = true
+  if (kataster.some(h => h.art === 'parkfeld' && !istZhParkId(h.id))) basis.parkkataster = fall.quellen.parkkataster ?? true
+  if (kataster.some(h => istZhParkId(h.id))) basis[ZH_PARK_SCHLUESSEL] = true
   if (fall.ort.amtlich) basis[`regional.${fall.ort.amtlich.quelleId}`] = true
   const ids = [...new Set([...genutzteQuellen(basis, { herkunftP: fall.ort.herkunft?.p ?? null, hoehen }), ...bedarfQuellenIds(blaetter, fall.quellen)])]
   return { ids, ohneTreffer: quellenOhneTreffer(blaetter, new Set(ids)) }

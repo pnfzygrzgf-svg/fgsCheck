@@ -170,7 +170,6 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 /* Legende der WMS-Ebene Richtplan Fussverkehr (App.tsx): Bilder des Geoportals klein */
 .rp-legende ul { list-style: none; padding-left: 0; margin: 2px 0; }
 .rp-marke { vertical-align: middle; margin-right: 4px; }
-.rp-tip { max-width: 320px; white-space: normal; }
 /* Werkzeugmodus (Karte.tsx): Objekte der Karte lassen Klicks an die Karte durch (Punkt setzen, Ecke fangen); nur die Ecken beim
    «Ecke runden» bleiben anklickbar */
 .karte-werkzeug .leaflet-interactive:not(.ecke-runden) { pointer-events: none !important; }
@@ -186,7 +185,6 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .leaflet-tooltip.insel-hinweis { white-space: normal; max-width: 260px; font-size: 12px; }
 /* lange Tooltips (Luftbild-Kandidaten, Knotensicht, Fahrzeuge …) umbrechen statt über den Kartenrand zu laufen (29.10.2026) */
 /* höhere Spezifität: leaflet.css wird nach dieser Datei geladen und setzt sonst white-space: nowrap */
-.leaflet-container .leaflet-tooltip { white-space: normal; overflow-wrap: break-word; width: max-content; max-width: min(320px, 80vw); }
 .runden-knoepfe { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
 /* Strassennamen (OSM) auf der Karte: weiss mit dunklem Halo, mittig über dem Punkt, nicht anklickbar (Pane ohne pointer-events) */
 .strassenname { pointer-events: none; }
@@ -610,41 +608,15 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
 
 /* ── Geladene Quellen auf der Karte (seit 01.11.2026, quellenEbenen.ts; wie VeloroutenCheck): Knopf unten links über dem Massstab,
    Fenster an der Kopfzeile verschiebbar, Legende je Quelle, Wert-Beschriftung ── */
-.q-knopf { position: absolute; left: 10px; bottom: 34px; z-index: 950; border: 2px solid rgba(0,0,0,.2); border-radius: 6px; background: #ffffff;
-  color: var(--text-strong); font-size: 12px; font-weight: 600; padding: 5px 10px; min-height: 0; cursor: pointer; }
-.q-knopf:hover { filter: none; background: #f4f4f4; }
-.q-knopf.offen { color: var(--accent); border-color: var(--accent); }
 /* Höhe: unten verankert, darum höchstens bis 10 px unter den oberen Rand (100 % − 72 px unten − 10 px), sonst ragt die Kopfzeile
    hinaus und das Fenster lässt sich nicht mehr ziehen */
-.q-fenster { position: absolute; left: 10px; bottom: 72px; z-index: 1010;   /* über den Leaflet-Knöpfen (1000), damit die Kopfzeile frei bleibt */
-  width: min(330px, calc(100% - 20px)); max-height: calc(100% - 82px);
-  overflow-y: auto; background: #ffffff; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.25); padding: 6px; font-size: 12px; }
-.q-kopf { display: flex; justify-content: space-between; align-items: center; font-weight: 700; padding: 2px 6px 6px; cursor: move;
-  user-select: none; touch-action: none; color: var(--text-strong); }
-.q-kopf .griff { color: var(--text-muted); margin-right: 4px; }
-.q-kopf button { border: none; background: none; font-size: 18px; line-height: 1; cursor: pointer; color: var(--text-muted); min-height: 0; padding: 0 4px; }
-.q-ebene { display: flex; gap: 8px; align-items: flex-start; padding: 6px; border-radius: 6px; cursor: pointer; }
-.q-ebene:hover { background: var(--bg); }
-.q-ebene input { margin: 2px 0 0; min-height: 0; accent-color: var(--accent); flex-shrink: 0; }
-.q-ebene small { display: block; color: var(--text-muted); font-size: 12px; line-height: 1.3; }
-.q-ebene small.zahl { display: inline; }
-.q-legende { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px; font-size: 12px; color: var(--text); }
-.q-legende i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
-.q-fuss { margin: 6px 6px 2px; font-size: 12px; color: var(--text-muted); }
-.q-wert span { position: absolute; transform: translate(-50%, -50%); background: #ffffff; border: 2px solid; border-radius: 6px;
-  padding: 1px 5px; font: 700 12px/17px system-ui, sans-serif; color: #111827; white-space: nowrap; box-shadow: 0 1px 3px #0005; }
 .feld-quellen { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0 5px; }
 .feld-quellen button.quelle-chip { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; min-height: 0; padding: 0 6px; border-radius: 9px; line-height: 1.4; }
 .feld-quellen button.quelle-chip:not(:disabled) { cursor: pointer; }
 .feld-quellen button.gewaehlt { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; background: var(--accent-mittel); }
 /* gewählter Chip (Datenquelle, amtliches Signal): Häkchen und gelber Grund, gleicher Zustand wie die Sichtfeld-Schalter (06.11.2026) */
 .amtliche-signale button.quelle-chip[aria-pressed=true] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; background: var(--accent-mittel); }
-@media (pointer: coarse) { .q-knopf { padding: 9px 12px; } .q-ebene { padding: 9px 6px; } .q-ebene input { width: 18px; height: 18px; } }
 /* Punkte der Quellen: Quadrate mit Zeichen (die Objekte der Prüfung sind Kreise); in der Legende gleich */
-.q-punkt span { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; box-sizing: border-box; border-radius: 4px;
-  border: 2px solid #ffffff; box-shadow: 0 0 0 1px #111827; color: #ffffff; font: 700 11px/1 system-ui, sans-serif; }
-.q-legende i.sym { width: 14px; height: 14px; border-radius: 3px; color: #ffffff; font: 700 9px/14px system-ui, sans-serif; text-align: center;
-  font-style: normal; vertical-align: middle; }
 
 /* Amtliche Quellenwahl: gleiche Höhe wie Quellenchips, vollständige Herkunft im Titel und darunter. */
 .amtliche-signale button.quelle-chip { font-size: 12px; line-height: 1.4; padding: 0 6px; border-radius: 9px; min-height: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -663,10 +635,6 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
 .sicht-mass { width: max-content !important; height: auto !important; padding: 1px 4px; border: 1px solid #475569;
   border-radius: 3px; background: #fffffff2; color: #111827; font: 600 12px/1.3 system-ui, sans-serif; white-space: nowrap; pointer-events: none; }
 
-.q-av-arten { display: grid; gap: 3px; margin: 0 8px 8px 30px; }
-.q-av-arten label { display: flex; align-items: center; gap: 5px; font-size: 12px; margin: 0; }
-.q-av-arten i { width: 12px; height: 12px; border: 1px solid #0003; border-radius: 2px; flex: none; }
-.q-av-arten small { color: #64748b; }
 
 /* Kacheln wie im VeloroutenCheck: weisse Flächen auf grauem Grund. Innere Blöcke bleiben durch Linien getrennt, keine Kachel in der Kachel. */
 .panel { background: var(--bg); }
@@ -692,3 +660,6 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
 .ziele li .rechner-logo { flex-shrink: 0; margin: 2px 0 0; }
 .ziele a { color: var(--accent); }
 .ziele-kopf { margin: 8px 0 2px; font-size: 14px; }
+
+/* Link zur Quelle je Kartenebene */
+

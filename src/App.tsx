@@ -21,17 +21,23 @@ import type L from 'leaflet'
 import Karte, { AV_FARBEN, STATUS_FARBE, ERKENNUNG_UNGEPRUEFT, ERKENNUNG_BEWUCHS, QUELLE_FARBE, PARK_FARBE, UEBERGANG_FARBE, LUFTBILD_FARBE, INSEL_FARBE, INSEL_TEXT, zufahrtKey,
   OHNE_VORTRITT_FARBE, TUE_RAND, FAHRZEUG_ZOOM, type RichtplanStand, type TaktilStand,
   hindernisText, hindernisFarbe, FIXPUNKT_FARBE, PLAN_FARBEN, planMarke, NrMarke, type Werkzeug, type KartenHinweis, type Masslinie } from './Karte'
-import { ladeAvRoh, ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
+import { ladeSosfRoh, avParsen, type AvFlaeche, type GeoJson } from './daten/av'
+import { avErsatz, ladeBodenbedeckungRoh, LUZERN_HINWEIS, LUZERN_NAME, LUZERN_SERVER } from './daten/ersatzLuzern'
+import { parkQuelleAmOrt } from './daten/parkLuzern'
+import { istZhParkId, ZH_PARK_ANNAHME, ZH_PARK_QUELLE, ZH_PARK_SCHLUESSEL, zhParkVorschlaege } from './daten/anbieter/gemeinsam/parkZuerich'
+import { useParkZuerich } from './parkZuerichQuelle'
+import { useZaehlstellen } from './zaehlstellenQuelle'
+import { ZAEHLQUELLEN, zaehlQuelleAmOrt } from './daten/zaehlstellen'
 import { ladeLuftbild, ladeFlugjahr, luftbildLaden, LUFTBILD_QUELLE, LUFTBILD_NAME, type LuftbildRoh } from './daten/luftbild'
 import { ladeOsmRoh, osmParsen, ladeUebergaenge, markierung, istFgs, overpassSperre, strassennamen, namenKarte, knotenLage, type OsmKnoten,
-  type StrassenMitte, wegTags, strassenlampen, vortrittsZeichen, LAMPEN_RADIUS_M } from './daten/osm'
+  type StrassenMitte, wegTags, strassenlampen, strassenlampenMitId, vortrittsZeichen, LAMPEN_RADIUS_M } from './daten/osm'
 import { istAbbruch, type Abruf } from './daten/holen'
 import { dateienImAusschnitt, ladeLuftbildFgs, kandidatenAnzeigen, herkunftAus, kandidatKnoten, osmMitLuftbildUebergang, ETH_MODELL_QUELLE, flugText,
   ETH_MODELL_URL, ETH_MODELL_CODE, herkunftText,
   type LuftbildFgsSnapshot, type LuftbildHerkunft, type LuftbildKandidat } from './daten/luftbildFgs'
 import { AvVorschau } from './avVorschau'
 import { baumQuelleFuer, type BaumQuelle, type KatasterBaum } from './daten/baumkataster'
-import { parkQuelleFuer, istParkId, type ParkQuelle, type KatasterFeld } from './daten/parkkataster'
+import { istParkId, type ParkQuelle, type KatasterFeld } from './daten/parkkataster'
 import { bernZustaendig, bernErgebnis, geoCacheLeeren, GEODATEN_BERN, GEOPORTAL_BERN, type BernLaden } from './daten/geoportal'
 import { BERN_C_KEYS, BERN_DIENSTE_C, bernDienstName, type BernDienstKey, type BernDatenC, type BernDienst } from './daten/bernDienste'
 import { schulenStand } from './daten/schulen'
@@ -51,7 +57,7 @@ import { type Box, type CacheEintrag, enthaelt, abfrageBox, zuGross, imCache, au
 import { ANN_HAND_BREITE, ANN_HAND_VERSATZ_MAX, type AnnHand, type ZufahrtErgebnis, type StreifenErgebnis } from './rechner/typen'
 import { annEingabe, annGleich, fangenMitZielen, fangZiele, type FangTreffer } from './annGriff'
 import type { FallRechnung } from './rechner'
-import { KATASTER_PARK_M } from './rechner/vorschlaege'
+import { KATASTER_PARK_M, parkKatasterFelder } from './rechner/vorschlaege'
 import { abzugTeile } from './rechner/fahrstreifen'
 import { type Hindernis, BAUM_STAMM_M, LAENGS_BREITE_M } from './rechner/hindernisse'
 import { linieKreis, RADIUS_HAND_M } from './rechner/spurhand'
@@ -64,7 +70,7 @@ import { hoehenDienst, hoehenDienstFuer, ladeNeigungMit, mitRueckfall, rueckfall
 import { ausHoehenmodell, modellName } from './hoehenModell'
 import { hoehenNichtVerfuegbar } from './tue/knotensicht'
 import { kurveProfilLinie, kurveProfilSchluessel, strassenKurve } from './bedarf/kurvenregel'
-import { ebenenBeschriften, ebenenAusGeo, type ProfilAnzeige } from './quellenEbenen'
+import { ebenenBeschriften, ebenenAusGeo, parkZuerichObjekte, type ProfilAnzeige } from './quellenEbenen'
 import { gelaendeProfile } from './gelaendeKarte'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { veloSoll } from './veloSicht'
@@ -405,6 +411,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const bund = useAmtlicheOrtQuellen(setFall, setzeQuelle)
   const npvm = useNpvmQuelle(setFall, setzeQuelle)
   const zh = useZuerichQuellen(setFall, setzeQuelle)
+  const parkZh = useParkZuerich(setzeQuelle)
+  const zaehl = useZaehlstellen(setzeQuelle)
+  const zhFelder = parkZh.stand?.felder ?? null
   const regional = useRegionalQuellen(setFall, setzeQuelle)
   // Eingabe der Rechnung: nur die geladenen Felder und die Quellenangabe. Der Ladezustand (laedt, fehler) löst keine Rechnung
   // aus; nach erfolgreichem Laden ändern sich felder (und im selben Schritt fall.quellen) -> genau eine neue Rechnung.
@@ -819,7 +828,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     workerRef.current?.beenden()
     setRechnet(false)
     setRechnung(null); setAuswahl(null); setAv(null); setDaten(null); setWerkzeug(null); setZeichnung([]); setBearbeiten(null)
-    bund.zurueck(); npvm.zurueck()
+    bund.zurueck(); npvm.zurueck(); zaehl.zurueck()
     setAlternative(false); setKsPhase('beide'); setKataster(null); setParkKat(null); setBernGeo(null); setWechsel(null); setLadeFehler(false)
     const nr = ++ladeNr.current
     const erinnert = !fallNeu && nid !== null ? fallErinnern(nid) : null
@@ -833,6 +842,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const lbHerkunft = nid !== null && nid < 0 ? herkunft ?? start.ort.herkunft ?? null : null
     setFall(lbHerkunft && !start.ort.herkunft ? { ...start, ort: { ...start.ort, herkunft: lbHerkunft } } : start)
     zh.zurueck()
+    parkZh.zurueck()
     regional.zurueck()
     setLadeHinweis(erinnert && eingabenZahl(erinnert) ? { text: `Eingaben zu diesem Übergang aus dem Browser übernommen ` +
       `(${eingabenZahl(erinnert)} Einträge, Stand ${erinnert.gespeichert?.slice(0, 10) ?? 'unbekannt'}).`, verwerfen: true } : null)
@@ -850,7 +860,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     try {
       const [ra, ro, rs] = await Promise.all([
         // Vorschau der AV am selben Ort (Planen ohne Ort): keine zweite Abfrage
-        (avVorab ? Promise.resolve(avVorab) : ladeAvRoh(e, n, AV_RADIUS_M, ctrl.signal)).then(r => { setzeQuelle('av', { name: AV_NAME,
+        (avVorab ? Promise.resolve(avVorab) : ladeBodenbedeckungRoh(e, n, AV_RADIUS_M, ctrl.signal)).then(r => { setzeQuelle('av', { name: r.quelle === LUZERN_SERVER ? LUZERN_NAME : AV_NAME,
           objekte: `${r.daten.features?.length ?? 0} Flächen`, kantone: [...new Set((r.daten.features ?? []).map(f => String(f.properties?.Kanton ?? '')).filter(k => /^[A-Z]{2}$/.test(k)))], ms: r.ms, bytes: r.bytes, server: r.quelle }); return r }, quelleFehler('av', AV_NAME)),
         ladeOsmRoh(lat, lon, OSM_RADIUS_M, ctrl.signal).then(r => { setzeQuelle('osm', { name: OSM_NAME, datenstand: r.datenstand, ms: r.ms, bytes: r.bytes,
           server: r.quelle }); return r }, quelleFehler('osm', OSM_NAME)),
@@ -863,15 +873,17 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       const avF = avParsen(ra.daten)
       setAv(avF)
       if (!avF.length) {
-        setMeldung('Keine AV-Daten an diesem Ort: Kanton bzw. Gemeinde ohne freie AV über geodienste.ch (JU, LU, NE, NW, OW, VD ' +
+        setMeldung('Keine AV-Daten an diesem Ort: Kanton bzw. Gemeinde ohne freie AV über geodienste.ch (JU, LU ausser der Stadt Luzern, NE, NW, OW, VD ' +
           'nur mit Freigabe; im Wallis fehlen einzelne Gemeinden, z. B. Sitten, Brig) bzw. ausserhalb der Schweiz. Rechnung nicht möglich.')
         return
       }
       const bfs = [...new Set(avF.map(f => f.bfs))]
       const bq = baumQuelleFuer(bfs)
       if (bq) setKataster({ quelle: bq, baeume: null, lat, lon })
-      const pq = parkQuelleFuer(bfs)
+      const pq = parkQuelleAmOrt(bfs)
       if (pq) setParkKat({ quelle: pq, nr, lat, lon, felder: null })
+      const zq = zaehlQuelleAmOrt(bfs, avF.map(f => f.kanton))
+      if (zq) zaehl.starten(zq, [e, n], ctrl.signal)
       // Berner Dienste nur, wenn die AV-Fläche am Ladeort in der Stadt Bern liegt (nicht jede Gemeinde im Ausschnitt)
       const bernHier = bernZustaendig([e, n], avF)
       if (bernHier) setBernGeo({ nr, halte: { laedt: true }, vd: { laedt: true }, c: Object.fromEntries(BERN_C_KEYS.map(k => [k, { laedt: true }])) })
@@ -880,7 +892,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       // Übergang aus dem Luftbild: als Knoten (mit Fussweg für die Richtung) in die OSM-Antwort, dann rechnet alles wie an einem OSM-Übergang
       const osmRoh = start.ort.amtlich && nid !== null ? osmMitLuftbildUebergang(ro.daten, nid, { p: start.ort.amtlich.p, richtung: null }, { highway: 'crossing', crossing: 'uncontrolled', 'crossing:markings': 'zebra', source: `amtlich:${start.ort.amtlich.quelleId}` }) : lbHerkunft && nid !== null ? osmMitLuftbildUebergang(ro.daten, nid, lbHerkunft) : ro.daten
       setDaten({ osm: osmRoh, av: ra.daten, sosf: rs ? rs.daten : null, nid, bfs, luftbild: null, flugjahr: '', ort: [e, n] })
-      setFall(f => f ? { ...f, quellen: { ...f.quellen, osm: ro.quelle, av: `${ra.quelle}, Kanton ${[...new Set(avF.map(x => x.kanton))].join(', ')}`,
+      setFall(f => f ? { ...f, quellen: { ...f.quellen, osm: ro.quelle, av: avErsatz(avF) ? LUZERN_NAME : `${ra.quelle}, Kanton ${[...new Set(avF.map(x => x.kanton))].join(', ')}`,
         geladen: new Date().toISOString().slice(0, 10) } } : f)
       // Bedarfsmodul (Vorbelegung): Haltestellen und Verkehrsdaten aus dem Geoportal der Stadt Bern, nicht blockierend (ohne sie
       // bleiben die Felder offen bzw. die Haltestellen kommen aus OSM)
@@ -974,7 +986,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     ...(knotenNah.length ? knotenNah.map(k => ({ text: knotenNah.length > 1 ? `Knotensicht prüfen: ${k.name}` : 'Knotensicht prüfen', rechner: 'swc' as const, knoten: k.id,
       zusatz: knotenNah.length > 1 ? undefined : k.name })) :
       [{ text: 'Knotensicht prüfen', rechner: 'swc' as const, ort: fall.ort, zusatz: 'Knoten im SichtweitenCheck auf der Karte wählen' }]),
-    { text: 'Veloinfrastruktur bewerten', rechner: 'vrc' as const, ort: fall.ort }], [fall, knotenNah])
+    { text: 'Veloinfrastruktur bewerten', rechner: 'vrc' as const, ort: fall.ort },
+    ...(knotenNah.length ? knotenNah.map(k => ({ text: knotenNah.length > 1 ? `Leistungsfähigkeit prüfen: ${k.name}` : 'Leistungsfähigkeit prüfen', rechner: 'knc' as const,
+      ort: fall.ort, knoten: k.id, zusatz: knotenNah.length > 1 ? undefined : k.name })) :
+      [{ text: 'Leistungsfähigkeit prüfen', rechner: 'knc' as const, ort: fall.ort, zusatz: 'Knoten im KnotenCheck auf der Karte wählen' }])], [fall, knotenNah])
   const uebergabeId = useRef<number | null>(null)
   useEffect(() => {
     const u = aktuelleUebergabe()
@@ -1986,18 +2001,18 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const geoVor = useMemo<GeoVorbelegung>(() => {
     const bav = 'daten' in bund.stand.bav ? bund.stand.bav.daten : null
     const modell = 'daten' in npvm.stand ? npvm.stand.daten : null
-    if (!daten) return { bav, npvm: modell, regional: regional.daten, zuerich: zhAmOrt ? zh.daten : null }
+    if (!daten) return { bav, npvm: modell, zaehlstellen: zaehl.daten, regional: regional.daten, zuerich: zhAmOrt ? zh.daten : null }
     const halte = streifenBern && bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.halte : null
     const vd = streifenBern && bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.vd : null
     const c = streifenBern && bernGeo && bernGeo.nr === ladeNr.current ? bernGeo.c : null
     const bq = { mitte: daten.ort, radiusM: PARK_RADIUS_M, form: 'quadrat' as const }
     return {
-      bav, npvm: modell, regional: regional.daten, zuerich: zhAmOrt ? zh.daten : null, signalEntscheide: fall?.signalEntscheide,
+      bav, npvm: modell, zaehlstellen: zaehl.daten, regional: regional.daten, zuerich: zhAmOrt ? zh.daten : null, signalEntscheide: fall?.signalEntscheide,
       haltestellen: haltestellenMitBav(halte, bund.stand.bav, daten.osm, daten.ort, PARK_RADIUS_M),
       verkehrsdaten: vd && 'linien' in vd ? { linien: vd.linien, bereich: { mitte: daten.ort, radiusM: PARK_RADIUS_M, form: 'quadrat' } }
         : vd && 'fehler' in vd ? { fehler: vd.fehler } : null,
       osmTags: wegTags(daten.osm),
-      lampen: { punkte: strassenlampen(daten.osm), bereich: { mitte: daten.ort, radiusM: LAMPEN_RADIUS_M, form: 'kreis' } },
+      lampen: { punkte: strassenlampen(daten.osm), ids: strassenlampenMitId(daten.osm).map(l => l.id), bereich: { mitte: daten.ort, radiusM: LAMPEN_RADIUS_M, form: 'kreis' } },
       // Automatik (bedarf/automatik.ts): geparstes OSM-Netz, AV, Ladeort und Umkreis der OSM-Abfrage
       osm: daten.osm ? osmParsen(daten.osm as Parameters<typeof osmParsen>[0]) : null,
       av: av ?? null, ladeort: daten.ort, osmRadiusM: OSM_RADIUS_M,
@@ -2013,7 +2028,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       kurveNeigung: kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null,
       erkennungGelaende: erkGelaende && erkGelaende.nr === ladeNr.current ? erkGelaende.werte : null,
     }
-  }, [daten, bernGeo, streifenBern, av, kurveNeigung, erkGelaende, bund.stand.bav, npvm.stand, zh.daten, zhAmOrt, regional.daten, fall?.signalEntscheide])
+  }, [daten, bernGeo, streifenBern, av, kurveNeigung, erkGelaende, bund.stand.bav, npvm.stand, zaehl.daten, zh.daten, zhAmOrt, regional.daten, fall?.signalEntscheide])
   const standVor = useRef<NonNullable<GeoVorbelegung['quellenMetadaten']>>({})
   standVor.current = quellenStaende(quellen, standVor.current)
   const geoMitStaenden = useMemo(() => ({ ...geoVor, quellenMetadaten: standVor.current }), [geoVor, standVor.current])
@@ -2027,6 +2042,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       ...(pruefGebiet.hinweis && !pruefGebiet.amOrt.length ? { fehler: pruefGebiet.hinweis } :
         { objekte: `${pruefGebiet.amOrt.map(gemeindeText).join(' / ')}${pruefGebiet.hinweis ? `; ${pruefGebiet.hinweis}` : ''}` }) })
   }, [bund.stand.gebiet, daten, av, zh.starten, regional.starten, pruefGebiet, zhAmOrt, setzeQuelle])
+  // Parkfelder der Stadt Zürich: wie Tempo und Zonen je Ladevorgang, nach einem Fehler auf Wunsch neu
+  useEffect(() => {
+    const g = 'daten' in bund.stand.gebiet ? bund.stand.gebiet.daten : null
+    const p = daten?.ort ?? g?.mitte, ctrl = abbruchRef.current
+    if (p && ctrl && !ctrl.signal.aborted && zhAmOrt) parkZh.starten(p, PARK_RADIUS_M, ladeNr.current, ctrl.signal)
+  }, [bund.stand.gebiet, daten, zhAmOrt, parkZh.starten, parkZh.stand])
   // «Datenquellen und Ladezustand» auf der Karte (quellenEbenen.ts, seit 01.11.2026): die gelesenen Objekte der Vorbelegung je Quelle, dazu die
   // Profile der Längsneigung (Fahrlinien) und die Brücken aus den AV-Einzelobjekten
   const ebenenGeometrie = useMemo(() => {
@@ -2042,12 +2063,13 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     })
     const bruecken = sosfRoh ? avParsen(sosfRoh).filter(f => f.art === 'Bruecke_Passerelle').map(f => f.ringe[0]).filter(Boolean) : []
     const d = ebenenAusGeo(geoVor, geoVor.osm?.wege ?? [], profile, bruecken, kataster?.baeume ?? [], avKarte ?? [])
+    if (zhFelder) d.parkZuerich = parkZuerichObjekte(zhFelder)
     if (erkWerte || sichtWerte) d.gelaende = gelaendeProfile(rechnung?.streifen ?? [], erkWerte, undefined, z => zufahrtText(zNamen.get(z.fgsId), z.zufahrt), bruecke)
     return d
-  }, [geoVor, kurveNeigung, rechnungRoh, rechnung, erkWerte, sichtWerte, sosfRoh, kataster, avKarte, zNamen, bruecke])
+  }, [geoVor, kurveNeigung, rechnungRoh, rechnung, erkWerte, sichtWerte, sosfRoh, kataster, avKarte, zNamen, bruecke, zhFelder])
   const quellenEbenen = useMemo(() => {
     const d = { ...ebenenGeometrie }
-    d.qualitaet = { av: quellen.av, ...Object.fromEntries((regional.daten?.teile ?? []).map(t => [`regional.${t.id}`, { datenstand: t.datenstand }])), zhTempo: quellen.zhTempo, zhZonen: quellen.zhZonen, npvm: quellen.npvm, baeume: quellen.kataster, tempo: d.tempo?.some(o => !o.gestrichelt) ? quellen.vsig : quellen.osm, strassentyp: d.strassentyp?.some(o => !o.gestrichelt) ? { datenstand: quellen.strassenhierarchie?.datenstaende?.Strassentypen } : quellen.osm, schulen: quellen.schulen, dtv: quellen.verkehrsdaten, oev: quellen.oevLinien, hierarchie: {},
+    d.qualitaet = { av: quellen.av, ...Object.fromEntries((regional.daten?.teile ?? []).map(t => [`regional.${t.id}`, { datenstand: t.datenstand }])), zhTempo: quellen.zhTempo, zhZonen: quellen.zhZonen, parkZuerich: quellen[ZH_PARK_SCHLUESSEL], npvm: quellen.npvm, baeume: quellen.kataster, tempo: d.tempo?.some(o => !o.gestrichelt) ? quellen.vsig : quellen.osm, strassentyp: d.strassentyp?.some(o => !o.gestrichelt) ? { datenstand: quellen.strassenhierarchie?.datenstaende?.Strassentypen } : quellen.osm, schulen: quellen.schulen, dtv: quellen.verkehrsdaten, oev: quellen.oevLinien, hierarchie: {},
       nutzungszonen: quellen.nutzungszonen, steigung: quellen.hoehen, gelaende: quellen.hoehenSicht ?? quellen.hoehen, bruecken: quellen.sosf ?? quellen.av,
       vortritt: quellen.osm, beleuchtung: quellen.osm,
       haltestellen: geoVor.haltestellen && !('fehler' in geoVor.haltestellen) && geoVor.haltestellen.quelle === 'osm' ? quellen.osm : quellen.haltestellen }
@@ -2107,6 +2129,17 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const parkVerworfen = fall && parkKat ? Object.keys(fall.vorschlaege).filter(id => istParkId(id, parkKat.quelle)) : []
   const parkAn = !!fall && fall.parkkataster !== false
   const parkGewaehlt = bearbeiten ? katPark.find(v => v.id === bearbeiten) ?? null : null
+  // Parkfelder der Stadt Zürich: Die Rechnung kennt sie nicht, sie wirken erst als bestätigte Hindernisse im Fall. Gleiche Reichweite wie die amtlichen Felder
+  const fHindernisse = fall?.hindernisse, fVerworfen = fall?.vorschlaege
+  const zhVorschlaege = useMemo(() => {
+    if (!zhFelder || !rechnung || !fHindernisse || !fVerworfen) return []
+    const s0 = rechnung.streifen[0], mitte: P = s0 ? s0.m : lv95(fall!.ort.lat, fall!.ort.lon)
+    return zhParkVorschlaege(parkKatasterFelder(zhFelder, rechnung.streifen.map(s => s.umriss), mitte, ZH_PARK_QUELLE), fHindernisse, fVerworfen)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zhFelder, rechnung, fHindernisse, fVerworfen])
+  const zhGewaehlt = bearbeiten ? zhVorschlaege.find(v => v.id === bearbeiten) ?? null : null
+  const zhVerworfen = fall ? Object.keys(fall.vorschlaege).filter(istZhParkId) : []
+  const zhBestaetigen = (vs: typeof zhVorschlaege) => { aendern(f => { for (const v of vs) if (!f.hindernisse.some(h => h.id === v.id)) f.hindernisse.push({ ...v.hindernis, name: `${v.hindernis.name ?? 'Parkfeld'} – bestätigt` }); return f }); setBearbeiten(null) }
   const parkZurueck = bearbeiten ? rechnung?.parkVerworfen.find(v => v.id === bearbeiten) ?? null : null
   // Parkierung im Fall, die sich mit amtlichen Feldern deckt (im Worker gerechnet, rechner/vorschlaege.doppeltAmtlich)
   const doppelt = useMemo(() => new Set(rechnung?.doppelt ?? []), [rechnung])
@@ -2298,7 +2331,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         amtlicheKandidaten={amtKandidaten} onAmtlicherKandidat={pruefenAmtlich} luftbildKandidaten={lbKandidaten} onLuftbildKandidat={pruefenLuftbild}
         fusswegnetz={fusswegnetz} richtplanVorhanden={richtplanVorhanden} onRichtplan={setRpStand}
         taktilGenutzt={taktilGen} taktilVorhanden={taktilVorhanden} onTaktil={setTkStand}
-        rechnung={rechnung} auswahl={auswahl} hindernisse={fall?.hindernisse ?? LEER_HIND} streifenHand={fall?.streifenHand ?? LEER_HAND}
+        rechnung={rechnung} parkVorschlaege={zhVorschlaege} auswahl={auswahl} hindernisse={fall?.hindernisse ?? LEER_HIND} streifenHand={fall?.streifenHand ?? LEER_HAND}
         werkzeug={werkzeug} zeichnung={zeichnung} bearbeiten={bearbeiten} rundenR={rundenR}
         rundenAngebot={angebotKarte} rundenVorschau={rundenVorschau} inselVorschau={inselVorschau}
         inselGriffe={alleGriffe} onInselZug={griffZug} onInselLos={griffLos}
@@ -2351,6 +2384,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         {uebergabeHinweis && <p className="hinweis">{uebergabeHinweis}{' '}
           <button className="zweit klein" onClick={() => setUebergabeHinweis(null)}>ausblenden</button></p>}
         {speicherHinweis && <p className="hinweis" role="alert">{speicherHinweis}</p>}
+        {avErsatz(av) && <p className="hinweis">{LUZERN_HINWEIS}</p>}
         {meldung && <p className="hinweis">{meldung}{ladeFehler && fall && !daten && <>{' '}
           <button className="zweit klein" onClick={() => laden(fall.ort.lat, fall.ort.lon, fall.ort.uebergang, fall)}>erneut laden</button></>}</p>}
         {hilfeWo === 'oben' && werkzeugHilfe}
@@ -2411,7 +2445,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         {rechnet && <p className="klein">Rechnung läuft …</p>}
 
         {/* oben, damit die Links zu den anderen Rechnern gefunden werden; eingeklappt, damit die Arbeitsfläche nicht wegrückt */}
-        {ergaenzendZiele.length > 0 && <AndereRechner von="fgs" logos={['swc', 'vrc']} ziele={ergaenzendZiele}>
+        {ergaenzendZiele.length > 0 && <AndereRechner von="fgs" logos={['swc', 'vrc', 'knc']} ziele={ergaenzendZiele}>
           <p className="klein">Die Knotensicht prüft die Sicht aus der Zufahrt auf die Strasse, nicht die Sicht auf die Wartefläche.
             {rechnung?.streifen.some(s => s.trottoirueberfahrt) ? ' An dieser Trottoirüberfahrt rechnet der fgsCheck die Knotensicht schon; der Link dient anderen Zufahrten.' : ''}</p>
         </AndereRechner>}
@@ -2705,6 +2739,22 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                   verworfene wieder einblenden ({parkVerworfen.length})</button></div>}
               </div>
             )}
+            {parkZh.stand && (
+              <div className="klein parkkataster">
+                <div title={`${ZH_PARK_QUELLE}; CC0, Stadt Zürich; WFS ogd.stadt-zuerich.ch, Ausschnitt ±${PARK_RADIUS_M} m um den Ort. ${ZH_PARK_ANNAHME}.`}>
+                  <b>Parkfelder Stadt Zürich: Vorschläge</b></div>
+                {!parkZh.stand.felder && !parkZh.stand.fehler && <div>werden geladen …</div>}
+                {parkZh.stand.fehler && <div className="fehler">Nicht geladen: {parkZh.stand.fehler}{' '}
+                  <button className="zweit klein" onClick={parkZh.erneut}>erneut laden</button></div>}
+                {parkZh.stand.felder && <div>{zhVorschlaege.length} Felder in Reichweite der Rechnung ({KATASTER_PARK_M} m um den Streifen) zählen erst nach
+                  «bestätigen»; einzelne auf der Karte anklicken. {ZH_PARK_ANNAHME}.
+                  {zhVorschlaege.length > 0 && <>{' '}<button className="klein" onClick={() => zhBestaetigen(zhVorschlaege)}>alle bestätigen ({zhVorschlaege.length})</button></>}</div>}
+                {zhGewaehlt && <div>{zhGewaehlt.hindernis.name}:{' '}<button className="klein" onClick={() => zhBestaetigen([zhGewaehlt])}>bestätigen</button>{' '}
+                  <button className="zweit klein" onClick={() => { aendern(f => { f.vorschlaege[zhGewaehlt.id] = 'verworfen'; return f }); setBearbeiten(null) }}>verwerfen</button></div>}
+                {zhVerworfen.length > 0 && <div><button className="zweit klein" onClick={() => aendern(f => { for (const id of zhVerworfen) delete f.vorschlaege[id]; return f })}>
+                  verworfene wieder einblenden ({zhVerworfen.length})</button></div>}
+              </div>
+            )}
           </section>
         )}
 
@@ -2802,6 +2852,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           <li>Amtliche Parkfelder (zählen, einzeln verwerfbar): <span className="farbe" style={{ background: PARK_FARBE.auto }} />Auto,
             <span className="farbe" style={{ background: PARK_FARBE.velo }} />Velo, <span className="farbe" style={{ background: PARK_FARBE.motorrad }} />Motorrad,
             <span className="farbe gestrichelt" style={{ borderColor: PARK_FARBE.auto, opacity: 0.6 }} />verworfen (gestrichelt, anklicken: wieder zählen)</li>
+          {zhVorschlaege.length > 0 && <li><span className="farbe gestrichelt" style={{ borderColor: PARK_FARBE.auto }} />Parkfelder Stadt Zürich: Vorschlag, zählt erst nach «bestätigen»</li>}
           <li><FixLegende />Fixpunkt, <FixLegende blass />Vorschlag Fixpunkt (nächste Gebäudeecke der AV; Klick übernimmt), gestrichelte
             Masslinie bis zur Streifenkante</li>
           {Object.entries(AV_FARBEN).map(([art, farbe]) => <li key={art}><span className="farbe" style={{ background: farbe }} />AV {AV_NAME[art] ?? art}</li>)}
@@ -2825,8 +2876,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <RechnungGrundlagen />
         <h3>Daten</h3>
         <p className="klein">
-          Luftbild und Streifen-Erkennung {LUFTBILD_QUELLE}{daten?.flugjahr ? ` (Flugjahr ${daten.flugjahr})` : ''} · Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '…'}, geodienste.ch ·
-          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.bav ? ` · ${BAV_QUELLENANGABE}` : ''}{fall?.quellen.npvm ? ` · ${NPVM_QUELLENANGABE}` : ''}{fall?.zuerich ? ` · ${ZH_QUELLE}` : ''}{(fall?.regional?.teile ?? []).map(t => ` · ${regionaleQuellenAngabe(t.id)}`).join('')}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}{hoehenGenutzt.alle.map(d => ` · Höhenmodell ${d.kurz} (${d.anbieter})`).join('')}.
+          Luftbild und Streifen-Erkennung {LUFTBILD_QUELLE}{daten?.flugjahr ? ` (Flugjahr ${daten.flugjahr})` : ''} · {avErsatz(av) ? `Bodenbedeckung: ${LUZERN_NAME}` : <>Bodenbedeckung und Einzelobjekte: Amtliche Vermessung, Kanton {kantone.join(', ') || '…'}, geodienste.ch</>} ·
+          Strassennetz und Übergänge © OpenStreetMap-Mitwirkende (ODbL){fall?.baumkataster && kataster ? ` · ${kataster.quelle.quellenangabe}` : ''}{parkAn && parkKat?.felder ? ` · ${parkKat.quelle.quellenangabe}` : ''}{zhFelder ? ` · ${ZH_PARK_QUELLE}` : ''}{fall?.quellen.haltestellen ? ` · ${HALT_QUELLE}` : ''}{fall?.quellen.bav ? ` · ${BAV_QUELLENANGABE}` : ''}{fall?.quellen.npvm ? ` · ${NPVM_QUELLENANGABE}` : ''}{fall?.zuerich ? ` · ${ZH_QUELLE}` : ''}{(fall?.regional?.teile ?? []).map(t => ` · ${regionaleQuellenAngabe(t.id)}`).join('')}{fall?.quellen.verkehrsdaten ? ` · ${VD_QUELLE}` : ''}{BERN_C_KEYS.filter(k => fall?.quellen[k]).map(k => ` · ${BERN_DIENSTE_C[k].quelle}`).join('')}{hoehenGenutzt.alle.map(d => ` · Höhenmodell ${d.kurz} (${d.anbieter})`).join('')}.
         </p>
         <p className="klein">
           Streifen aus dem Luftbild, die in OSM fehlen: {ETH_MODELL_QUELLE} (<a href={ETH_MODELL_URL} target="_blank" rel="noopener noreferrer">Artikel ↗</a>,{' '}
@@ -2852,13 +2903,14 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         <Fusszeile />
       </aside>
       {bericht && fall && rechnung && (
-        <Bericht neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null} fall={fall} rechnung={rechnung} gelaende={erkWerte} bruecke={bruecke} rechnungZeit={rechnungZeit}
+        <Bericht parkVorschlaegeOffen={zhVorschlaege.length} neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null} fall={fall} rechnung={rechnung} gelaende={erkWerte} bruecke={bruecke} rechnungZeit={rechnungZeit}
           luftbildStand={daten?.luftbild ? 'da' : fall.luftbild !== false && quellen.luftbild && !quellen.luftbild.fehler ? 'laedt' : 'fehlt'}
           zusatzQuellen={[...(fall.signalEntscheide ?? []).map(x => `Bestätigte amtliche Signalzuordnung: ${x.name}; ${x.art}; Knoten ${x.knoten}, Zufahrt ${x.zufahrt}; Datenstand ${x.datenstand}; abgerufen ${x.abgerufen}; ${x.objektId}`),
             ...(fall.regional?.teile ?? []).filter(t => genutzt.has(`regional.${t.id}`)).map(regionaleQuelleMitStand),
             ...(['tempo', 'zonen'] as const).flatMap(k => { const z = fall.zuerich?.[k]; return z && genutzt.has(k === 'tempo' ? 'zh.tempo' : 'zh.zone') ? [`${ZH_QUELLE}; ${k === 'tempo' ? 'Tempo' : 'Verkehrszonen'}: ${z.objekte.length} Objekte, Datenstand ${zhStandText(z)}, abgerufen ${z.abgerufen}`] : [] }),
             ...(fall.npvm && genutzt.has('are.npvm') ? [`${NPVM_QUELLENANGABE}; ${fall.npvm.linien.length} Modellstrecken, Bezugsjahr ${fall.npvm.bezugsjahr ?? 'unbekannt'}, ` +
               `Datenstand ${npvmStandText(fall.npvm)} (Ebene), abgerufen ${fall.npvm.abgerufen}; modelliert, keine Zählung; Zuordnung und Übernahme bestätigen`] : []),
+            ...Object.values(ZAEHLQUELLEN).filter(q => genutzt.has(q.id)).map(q => `Verkehrsmenge (Vorschlag Bedarf): ${q.quellenangabe}, ${q.masszahl} der nächsten Zählstelle; misst nur ihren Standort; Zuordnung und Übernahme bestätigen`),
             ...(fall.amtlicheQuellen?.bav && genutzt.has('bav.halt') ? [`${BAV_QUELLENANGABE}; ${fall.amtlicheQuellen.bav.halte.length} Haltestellenpunkte, ` +
               `abgerufen ${fall.amtlicheQuellen.bav.abgerufen}; Datenstand ${bavDatenstandText(fall.amtlicheQuellen.bav)} (Ebene); Vollständigkeit unbekannt; Zuordnung zur Querung als Vorschlag`] : []),
             ...(genutzt.has(VD_QUELLE_ID) ? [`Verkehrsmenge DTV (Vorbelegung Bedarf): ${VD_QUELLE}, DTV = 16·Nt + 8·Nn (${GEOPORTAL_BERN}, ` +

@@ -193,6 +193,7 @@ export interface KreiselArm extends ArmInfo {
   linien: P[][]               // OSM-Linien der Ein- und Ausfahrt ab dem Ring (Karte), ohne Bypass
   bypass: KreiselBypass[]     // E10: zweite Einfahrt kurz vor der Ausfahrt des nächsten Arms
   velobypass: KreiselVelobypass[]   // Velobypass ab diesem Arm (01.11.2026)
+  nurAusfahrt: number[]       // OSM-Wege ohne Einbahn, zu denen von aussen kein Weg für Motorfahrzeuge führt: nur Ausfahrt
 }
 /** Velobypass: Rad- bzw. Fuss- und Radweg, der den Ring nicht berührt und zwei Arme verbindet; kein Arm */
 export interface KreiselVelobypass { wege: number[]; linien: P[][]; zu: string; einbahn: boolean }
@@ -322,7 +323,7 @@ export interface VerdeckerEintrag {
   id: string
   name: string
   art: string                 // z. B. «Gebäude», «Parkfeld Auto», «Baum»
-  quelle: string              // z. B. «AV», «amtlich (Parkkataster)», «von Hand»
+  quelle: string              // z. B. «AV», «amtlich (Parkkataster)», «Stadt Zürich, Fläche angenommen», «von Hand»
   wirkung: Wirkung            // voll, Palisade, nur Hinweis
   sErst: number               // erster verdeckter Zielpunkt [m ab K]
   strecke: number             // verdeckte Strecke entlang der Achse bis A [m]

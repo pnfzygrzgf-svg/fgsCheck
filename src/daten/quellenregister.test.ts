@@ -99,12 +99,13 @@ describe('quellenFuer und datenlage', () => {
   })
   it('Zürich: schweizweite Quellen, amtliches Tempo und LSA sowie ETH-Snapshot', () => {
     const qs = quellenFuer(ZUERICH)
-    expect(qs.filter(q => !q.id.startsWith('regional.bedarf.') && q.gebiet.art !== 'schweiz' && q.gebiet.art !== 'kantone').map(q => q.id)).toEqual(['regional.e6.zh.licht', 'regional.e6.zh.taktil', 'regional.e6.zh.netz', 'regional.stadtzh.lsa', 'zh.tempo', 'zh.zone', 'eth.fgs.zurich'])
+    expect(qs.filter(q => !q.id.startsWith('regional.bedarf.') && q.gebiet.art !== 'schweiz' && q.gebiet.art !== 'kantone').map(q => q.id)).toEqual(['regional.e6.zh.licht', 'regional.e6.zh.taktil', 'regional.e6.zh.netz', 'regional.stadtzh.lsa', 'zh.tempo', 'zh.zone', 'zh.park', 'eth.fgs.zurich'])
     const d = datenlage(ZUERICH)
     expect(d.vermessung?.id).toBe('av')
     expect(d.tempo?.id).toBe('zh.tempo')
-    expect(d.dtv?.id).toBe('are.npvm')
-    expect([d.parkfelder, d.baeume, d.fusswegnetz, d.taktil, d.oevLinien]).toEqual(Array(5).fill(null))
+    expect(d.dtv?.id).toBe('zh.dtv')
+    expect(d.parkfelder?.id).toBe('zh.park')
+    expect([d.baeume, d.fusswegnetz, d.taktil, d.oevLinien]).toEqual(Array(4).fill(null))
     expect(d.zonen?.id).toBe('regional.bund.bauzone')
     expect(d.strassentyp?.id).toBe('regional.bund.strasse')
     expect(d.schulen?.id).toBe('regional.bedarf.zh.volksschule')
@@ -125,7 +126,7 @@ describe('Satz «Datenlage hier»', () => {
       'ÖV-Linien.')
   })
   it('Zürich', () => {
-    expect(datenlageSatz(datenlage(ZUERICH))).toBe('Datenlage hier: Vermessung, Luftbild, OSM, Luftbild-Streifen (ETH); dazu Stadt Zürich: Tempo-Signalisation, Schulen. Aus Bundesamt für Verkehr (BAV): Haltestellen; Aus Bundesamt für Raumentwicklung (ARE): Verkehrsmengen (modelliert); Aus © swisstopo: Strassentyp (Hinweise, bestätigen); Aus © ARE und Kantone: Bauzonen (Nutzungszonenplan) (Hinweise, bestätigen); keine Quelle für Parkfelder, Bäume, Fusswegnetz, taktile Markierungen, ÖV-Linien: Angaben von Hand.')
+    expect(datenlageSatz(datenlage(ZUERICH))).toBe('Datenlage hier: Vermessung, Luftbild, OSM, Luftbild-Streifen (ETH); dazu Stadt Zürich: Parkfelder (Vorschlag, bestätigen), Tempo-Signalisation, Schulen. Aus Bundesamt für Verkehr (BAV): Haltestellen; Aus Kanton Zürich: Verkehrsmengen (Vorschlag, bestätigen); Aus © swisstopo: Strassentyp (Hinweise, bestätigen); Aus © ARE und Kantone: Bauzonen (Nutzungszonenplan) (Hinweise, bestätigen); keine Quelle für Bäume, Fusswegnetz, taktile Markierungen, ÖV-Linien: Angaben von Hand.')
   })
   it('Lausanne (AV nicht frei)', () => {
     expect(datenlageSatz(datenlage(LAUSANNE))).toBe('Datenlage hier: Luftbild, OSM. Amtliche Vermessung hier nicht frei verfügbar: ' +
@@ -155,8 +156,8 @@ describe('Datenschutz aus dem Register', () => {
       'Die Kartenebene «Richtplan Fussverkehr (Geoportal Bern)» sendet den sichtbaren ' +
       'Kartenausschnitt mit Rand (Rechteck in LV95, je Layer eine Abfrage) nur, wenn sie eingeschaltet ist. Die Kartenebene «Taktile ' +
       'Markierungen (Stadt Bern)» sendet den sichtbaren Kartenausschnitt mit Rand (Rechteck in LV95, je Layer eine Abfrage, zwei Layer) ' +
-      'nur, wenn sie eingeschaltet ist, und erst ab Zoomstufe 15.')
-    expect(eigen).toEqual(['Die Streifen aus dem Luftbild (ETH-Modell) liegen als Datei je Stadt auf dieser Seite: dafür geht keine ' +
-      'Anfrage an einen anderen Dienst.'])
+      'nur, wenn sie eingeschaltet ist, und erst ab Zoomstufe 15. Wird der Hintergrund «Luftbild Stadt Bern 2026» gewählt, holt der Browser die Kartenbilder des sichtbaren Ausschnitts bei map.bern.ch.')
+    expect(eigen).toEqual(['Die Datei dtv_basel.json (Zählstellen Basel-Stadt) kommt von dieser Seite selbst, dafür geht keine Abfrage an einen anderen Dienst.',
+      'Die Streifen aus dem Luftbild (ETH-Modell) liegen als Datei je Stadt auf dieser Seite: dafür geht keine Anfrage an einen anderen Dienst.'])
   })
 })

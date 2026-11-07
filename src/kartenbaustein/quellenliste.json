@@ -1,0 +1,3726 @@
+[
+ {
+  "id": "luftbild-swissimage",
+  "name": "Luftbild SWISSIMAGE",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Hintergrund; fgs: Erkennung gelber Streifen als Vorschlag; VRC: Messen und Bericht",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "vrc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "kc": {
+    "ist": "H",
+    "soll": "H"
+   }
+  }
+ },
+ {
+  "id": "flugjahr-swissimage-metadaten",
+  "name": "Flugjahr SWISSIMAGE (Metadaten)",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Alter des Luftbilds",
+  "rechner": {
+   "fgs": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "swc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "vrc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "landeskarte-farbig",
+  "name": "Landeskarte farbig",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Hintergrund",
+  "rechner": {
+   "fgs": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "swc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "H",
+    "soll": "H"
+   }
+  }
+ },
+ {
+  "id": "landeskarte-grau",
+  "name": "Landeskarte grau",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Hintergrund «Karte»",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "ortssuche-searchserver",
+  "name": "Ortssuche (SearchServer)",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Suche",
+  "rechner": {
+   "fgs": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "swc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "vrc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "kc": {
+    "ist": "H",
+    "soll": "H"
+   }
+  }
+ },
+ {
+  "id": "amtliches-strassenverzeichnis",
+  "name": "Amtliches Strassenverzeichnis",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Vorschläge der Strassensuche",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "gemeindegrenzen-swissboundaries3d",
+  "name": "Gemeindegrenzen swissBOUNDARIES3D",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Wer ist am Ort zuständig",
+  "rechner": {
+   "fgs": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "swc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "vrc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "hoehenprofile-swissalti3d",
+  "name": "Höhenprofile swissALTI3D",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "fgs, SWC: Gelände und Neigung (in Bern Rückfall hinter DTM 2023); VRC: Steigung als Hinweis; KC: Neigungsklasse je Arm",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "hoehenkurven-aus-swissalti3d",
+  "name": "Höhenkurven aus swissALTI3D",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Kartenebene ab Zoom 18",
+  "rechner": {
+   "fgs": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "swc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "reliefschattierung-swissalti3d",
+  "name": "Reliefschattierung swissALTI3D",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Kartenüberblick",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "tramgleise-swisstlm3d",
+  "name": "Tramgleise swissTLM3D",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "fgs: Vorschlag Tram am Streifen",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "strassenklassen-swisstlm3d",
+  "name": "Strassenklassen swissTLM3D",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Vorschlag Strassentyp",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "bauzonen",
+  "name": "Bauzonen",
+  "anbieter": "ARE und Kantone",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Vorschlag Innerorts und Umfeld",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "verkehrsmodell-npvm",
+  "name": "Verkehrsmodell NPVM",
+  "anbieter": "ARE",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "fgs, VRC: wählbare Modellalternative; KC: Vergleichswert je Arm",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "vrc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "haltestellen-des-oev",
+  "name": "Haltestellen des öV",
+  "anbieter": "BAV",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "fgs: Vorbelegung nur ohne Berner Daten; sonst Kartenkontext; VRC: bediente Haltekanten vor OSM in Zürich, Basel, Luzern",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "unfaelle-mit-personenschaden-alle-fuss-velo",
+  "name": "Unfälle mit Personenschaden (alle, Fuss, Velo)",
+  "anbieter": "ASTRA",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Kartenbild und Angaben ab Zoom 17",
+  "rechner": {
+   "fgs": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "swc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "gebaeudenutzung-gwr",
+  "name": "Gebäudenutzung GWR",
+  "anbieter": "BFS",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Hinweis auf Einrichtungen",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "einrichtungen-basiskarten-poi",
+  "name": "Einrichtungen (Basiskarten-POI)",
+  "anbieter": "swisstopo",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "api3.geo.admin.ch",
+   "wmts.geo.admin.ch",
+   "wms.geo.admin.ch",
+   "data.geo.admin.ch",
+   "vectortiles.geo.admin.ch"
+  ],
+  "wofuer": "Hinweis auf Einrichtungen",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "amtliche-vermessung",
+  "name": "Amtliche Vermessung",
+  "anbieter": "Kantone über geodienste.ch",
+  "gruppe": "Bund und landesweit",
+  "hosts": [
+   "geodienste.ch",
+   "www.geodienste.ch"
+  ],
+  "wofuer": "fgs, SWC: Hindernisse und Geometrie; VRC: Breiten messen, Flächen in der Planung. LU, VD, NE, NW, OW, JU nur mit Freigabe",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "openstreetmap-overpass-vier-server",
+  "name": "OpenStreetMap (Overpass, vier Server)",
+  "anbieter": "OSM-Mitwirkende, ODbL",
+  "gruppe": "OpenStreetMap",
+  "hosts": [
+   "overpass.osm.ch",
+   "overpass-api.de",
+   "overpass.kumi.systems",
+   "overpass.private.coffee"
+  ],
+  "wofuer": "Strassennetz, Übergänge, Knoten. KC: Knoten, Arme, Fahrstreifen als Vorschlag. VRC zusätzlich Führung, Breite, Wartehallen",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "kartenhintergrund-cyclosm",
+  "name": "Kartenhintergrund CyclOSM",
+  "anbieter": "OSM-Mitwirkende, ODbL",
+  "gruppe": "OpenStreetMap",
+  "hosts": [
+   "tile-cyclosm.openstreetmap.fr"
+  ],
+  "wofuer": "Hintergrund",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "flaechendeckende-verkehrsdaten-dtv",
+  "name": "Flächendeckende Verkehrsdaten (DTV)",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Verkehrsmenge; KC: Vergleichswert",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "verkehrsdaten-tram",
+  "name": "Verkehrsdaten Tram",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Tram in der Fahrbahn",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "signalisierte-hoechstgeschwindigkeit",
+  "name": "Signalisierte Höchstgeschwindigkeit",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Tempo",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "parkplaetze-oeffentlich",
+  "name": "Parkplätze öffentlich",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "fgs, SWC: Sichthindernis; VRC: Parkierung und Platzbedarf",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "baumkataster",
+  "name": "Baumkataster",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "fgs: zählt als Hindernis; SWC: zuschaltbar, Bäume als Vorschlag",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "haltestellen",
+  "name": "Haltestellen",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Mit Haltekanten",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "oev-linien",
+  "name": "ÖV-Linien",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Verkehrsmittel an der Stelle",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "strassenhierarchie",
+  "name": "Strassenhierarchie",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "fgs: Vorbelegung; VRC: Bedingung der Velostrasse im Vorschlag",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "strassentypen",
+  "name": "Strassentypen",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Strassentyp",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "nutzungszonenplan",
+  "name": "Nutzungszonenplan",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Bauzone, Gewerbe",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "richtplan-fussverkehr",
+  "name": "Richtplan Fussverkehr",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "fgs: Netz und Kartenebene; VRC: Trottoirbreite in der Planung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "volksschulen-kindergaerten-kitas-kinderangebote",
+  "name": "Volksschulen, Kindergärten, Kitas, Kinderangebote",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Bedarf",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "heime-und-spitaeler-dienst-stadtplan",
+  "name": "Heime und Spitäler (Dienst stadtplan)",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Bedarf",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "taktil-visuelle-markierungen",
+  "name": "Taktil-visuelle Markierungen",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Prüfung und Kartenebene",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "veloroutennetz-masterplan",
+  "name": "Veloroutennetz Masterplan",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Routentyp, Kartenebene",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "velostrassen",
+  "name": "Velostrassen",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Ist-Führungsform",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "hoehenlinien-2023",
+  "name": "Höhenlinien 2023",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Kartenüberblick",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "orthofoto-2026",
+  "name": "Orthofoto 2026",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Hintergrund, Markierungserkennung als Hinweis",
+  "rechner": {
+   "fgs": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "swc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "vrc": {
+    "ist": "H",
+    "soll": "H"
+   },
+   "kc": {
+    "ist": "H",
+    "soll": "H"
+   }
+  }
+ },
+ {
+  "id": "gelaendemodell-dtm-2023-25-cm",
+  "name": "Geländemodell DTM 2023 (25 cm)",
+  "anbieter": "Geodaten Stadt Bern",
+  "gruppe": "Stadt Bern",
+  "hosts": [
+   "map.bern.ch",
+   "gisapp.bern.ch"
+  ],
+  "wofuer": "Höhenprofile in der Stadt Bern; VRC: Hinweis zur Steigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "oeffentliche-volksschulstandorte-kanton-bern",
+  "name": "Öffentliche Volksschulstandorte (Kanton Bern)",
+  "anbieter": "Geoportal Kanton Bern",
+  "gruppe": "Kanton Bern",
+  "hosts": [
+   "www.geoservice.apps.be.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "kitas-im-betreuungsgutscheinsystem-kanton-bern",
+  "name": "Kitas im Betreuungsgutscheinsystem (Kanton Bern)",
+  "anbieter": "Geoportal Kanton Bern",
+  "gruppe": "Kanton Bern",
+  "hosts": [
+   "www.geoservice.apps.be.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "spitaeler-und-kliniken-kanton-bern",
+  "name": "Spitäler und Kliniken (Kanton Bern)",
+  "anbieter": "Geoportal Kanton Bern",
+  "gruppe": "Kanton Bern",
+  "hosts": [
+   "www.geoservice.apps.be.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "angebote-fuer-menschen-im-alter-kanton-bern",
+  "name": "Angebote für Menschen im Alter (Kanton Bern)",
+  "anbieter": "Geoportal Kanton Bern",
+  "gruppe": "Kanton Bern",
+  "hosts": [
+   "www.geoservice.apps.be.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "angebote-fuer-menschen-mit-behinderung-kanton-bern",
+  "name": "Angebote für Menschen mit Behinderung (Kanton Bern)",
+  "anbieter": "Geoportal Kanton Bern",
+  "gruppe": "Kanton Bern",
+  "hosts": [
+   "www.geoservice.apps.be.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "signalisierte-geschwindigkeiten",
+  "name": "Signalisierte Geschwindigkeiten",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch",
+   "data.stadt-zuerich.ch"
+  ],
+  "wofuer": "Tempo, nur bei passender Strasse und Richtung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "verkehrszonen",
+  "name": "Verkehrszonen",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch",
+   "data.stadt-zuerich.ch"
+  ],
+  "wofuer": "Tempo-Regime",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "velonetzplanung",
+  "name": "Velonetzplanung",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch",
+   "data.stadt-zuerich.ch"
+  ],
+  "wofuer": "Routentyp, Kartenebene",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "oeffentlich-zugaengliche-parkplaetze",
+  "name": "Öffentlich zugängliche Parkplätze",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch",
+   "data.stadt-zuerich.ch"
+  ],
+  "wofuer": "Parkierung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "strassenklassierung",
+  "name": "Strassenklassierung",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch",
+   "data.stadt-zuerich.ch"
+  ],
+  "wofuer": "Strassenhierarchie im Vorschlag",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "velozaehlungen-standorte-und-werte",
+  "name": "Velozählungen (Standorte und Werte)",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch",
+   "data.stadt-zuerich.ch"
+  ],
+  "wofuer": "Kartenebene, keine Notenwirkung",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "beleuchtung-stadt-zuerich",
+  "name": "Beleuchtung (Stadt Zürich)",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch"
+  ],
+  "wofuer": "Nur Kartenkontext",
+  "rechner": {
+   "fgs": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "taktile-rillen-an-vbz-haltestellen-zuerich",
+  "name": "Taktile Rillen an VBZ-Haltestellen (Zürich)",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch"
+  ],
+  "wofuer": "Nur Kartenkontext",
+  "rechner": {
+   "fgs": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "fuss-und-velowegnetz-stadt-zuerich",
+  "name": "Fuss- und Velowegnetz (Stadt Zürich)",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch"
+  ],
+  "wofuer": "Nur Kartenkontext, auch im VRC",
+  "rechner": {
+   "fgs": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "volksschulen-stadt-zuerich",
+  "name": "Volksschulen (Stadt Zürich)",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "kindergaerten-stadt-zuerich",
+  "name": "Kindergärten (Stadt Zürich)",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "kinderhorte-stadt-zuerich",
+  "name": "Kinderhorte (Stadt Zürich)",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "sonderschulen-stadt-zuerich",
+  "name": "Sonderschulen (Stadt Zürich)",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "kindertagesstaetten-stadt-zuerich",
+  "name": "Kindertagesstätten (Stadt Zürich)",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "spitalstandorte-und-abteilungen-stadt-zuerich",
+  "name": "Spitalstandorte und Abteilungen (Stadt Zürich)",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "gesundheitszentren-fuer-das-alter-stadt-zuerich",
+  "name": "Gesundheitszentren für das Alter (Stadt Zürich)",
+  "anbieter": "Stadt Zürich",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "lichtsignalanlagen-stadt-zuerich",
+  "name": "Lichtsignalanlagen (Stadt Zürich)",
+  "anbieter": "Stadt Zürich, Dienstabteilung Verkehr",
+  "gruppe": "Stadt Zürich",
+  "hosts": [
+   "www.ogd.stadt-zuerich.ch"
+  ],
+  "wofuer": "Lichtsignale; wirkt erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "verkehrsmessstellen",
+  "name": "Verkehrsmessstellen",
+  "anbieter": "Kanton Zürich",
+  "gruppe": "Kanton Zürich und Winterthur",
+  "hosts": [
+   "maps.zh.ch",
+   "stadtplan.winterthur.ch"
+  ],
+  "wofuer": "DTV der nächsten Zählstelle; KC: Vergleichswert",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "beleuchtung-staatsstrassen-kanton-zuerich",
+  "name": "Beleuchtung Staatsstrassen (Kanton Zürich)",
+  "anbieter": "Kanton Zürich",
+  "gruppe": "Kanton Zürich und Winterthur",
+  "hosts": [
+   "maps.zh.ch"
+  ],
+  "wofuer": "Nur Kartenkontext",
+  "rechner": {
+   "fgs": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "schulen-betreuung-heime-und-spitaeler-winterthur",
+  "name": "Schulen, Betreuung, Heime und Spitäler (Winterthur)",
+  "anbieter": "Stadt Winterthur",
+  "gruppe": "Kanton Zürich und Winterthur",
+  "hosts": [
+   "stadtplan.winterthur.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "tempo-auf-staatsstrassen-kanton-zuerich",
+  "name": "Tempo auf Staatsstrassen (Kanton Zürich)",
+  "anbieter": "Kanton ZH",
+  "gruppe": "Kanton Zürich und Winterthur",
+  "hosts": [
+   "maps.zh.ch"
+  ],
+  "wofuer": "Tempo; nur bei passender Strasse, sonst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "verkehrszonen-kanton-zuerich-verfuegt",
+  "name": "Verkehrszonen (Kanton Zürich, verfügt)",
+  "anbieter": "Kanton ZH",
+  "gruppe": "Kanton Zürich und Winterthur",
+  "hosts": [
+   "maps.zh.ch"
+  ],
+  "wofuer": "Verkehrszonen; wirken erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "fussgaengerstreifen-staatsstrassen-kanton-zuerich",
+  "name": "Fussgängerstreifen Staatsstrassen (Kanton Zürich)",
+  "anbieter": "Kanton ZH",
+  "gruppe": "Kanton Zürich und Winterthur",
+  "hosts": [
+   "maps.zh.ch"
+  ],
+  "wofuer": "Streifeninventar; fgs: Kandidat zum Prüfen",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "lichtsignalanlagen-staatsstrassen-kanton-zuerich",
+  "name": "Lichtsignalanlagen Staatsstrassen (Kanton Zürich)",
+  "anbieter": "Kanton ZH",
+  "gruppe": "Kanton Zürich und Winterthur",
+  "hosts": [
+   "maps.zh.ch"
+  ],
+  "wofuer": "Lichtsignale; wirkt erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "velostadtplan-eignung-100426",
+  "name": "Velostadtplan: Eignung (100426)",
+  "anbieter": "Kanton Basel-Stadt",
+  "gruppe": "Basel-Stadt",
+  "hosts": [
+   "data.bs.ch",
+   "wfs.geo.bs.ch",
+   "wms.geo.bs.ch"
+  ],
+  "wofuer": "Velostrassen",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "teilrichtplan-velo",
+  "name": "Teilrichtplan Velo",
+  "anbieter": "Kanton Basel-Stadt",
+  "gruppe": "Basel-Stadt",
+  "hosts": [
+   "data.bs.ch",
+   "wfs.geo.bs.ch",
+   "wms.geo.bs.ch"
+  ],
+  "wofuer": "Routentyp, Kartenebene",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "teilrichtplan-fuss-und-wanderwege",
+  "name": "Teilrichtplan Fuss- und Wanderwege",
+  "anbieter": "Kanton Basel-Stadt",
+  "gruppe": "Basel-Stadt",
+  "hosts": [
+   "data.bs.ch",
+   "wfs.geo.bs.ch",
+   "wms.geo.bs.ch"
+  ],
+  "wofuer": "Trottoirvorgabe in der Planung",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "hoehenkurven-wms",
+  "name": "Höhenkurven (WMS)",
+  "anbieter": "Kanton Basel-Stadt",
+  "gruppe": "Basel-Stadt",
+  "hosts": [
+   "data.bs.ch",
+   "wfs.geo.bs.ch",
+   "wms.geo.bs.ch"
+  ],
+  "wofuer": "Kartenüberblick",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "velozaehlungen-100038-100013",
+  "name": "Velozählungen (100038, 100013)",
+  "anbieter": "Kanton Basel-Stadt",
+  "gruppe": "Basel-Stadt",
+  "hosts": [
+   "data.bs.ch",
+   "wfs.geo.bs.ch",
+   "wms.geo.bs.ch"
+  ],
+  "wofuer": "Kartenebene, keine Notenwirkung",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "verkehrszaehlung-datei-dtv-basel-json",
+  "name": "Verkehrszählung (Datei dtv_basel.json)",
+  "anbieter": "Kanton Basel-Stadt",
+  "gruppe": "Basel-Stadt",
+  "hosts": [
+   "data.bs.ch",
+   "wfs.geo.bs.ch",
+   "wms.geo.bs.ch"
+  ],
+  "wofuer": "DTV der nächsten Zählstelle; je eine Kopie in fgs, VRC und KC",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "tempo-basel-stadt",
+  "name": "Tempo (Basel-Stadt)",
+  "anbieter": "Geodaten Basel-Stadt",
+  "gruppe": "Basel-Stadt",
+  "hosts": [
+   "data.bs.ch"
+  ],
+  "wofuer": "Tempo; nur bei passender Strasse, sonst nach Bestätigung; VRC: Tempo und Strassentyp",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "tempo-30-zonen-basel-stadt",
+  "name": "Tempo-30-Zonen (Basel-Stadt)",
+  "anbieter": "Geodaten Basel-Stadt",
+  "gruppe": "Basel-Stadt",
+  "hosts": [
+   "data.bs.ch"
+  ],
+  "wofuer": "Verkehrszonen; wirken erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "begegnungszonen-basel-stadt",
+  "name": "Begegnungszonen (Basel-Stadt)",
+  "anbieter": "Geodaten Basel-Stadt",
+  "gruppe": "Basel-Stadt",
+  "hosts": [
+   "data.bs.ch"
+  ],
+  "wofuer": "Verkehrszonen; wirken erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "fussgaengerzonen-basel-stadt",
+  "name": "Fussgängerzonen (Basel-Stadt)",
+  "anbieter": "Geodaten Basel-Stadt",
+  "gruppe": "Basel-Stadt",
+  "hosts": [
+   "data.bs.ch"
+  ],
+  "wofuer": "Verkehrszonen; wirken erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "kernzone-basel-stadt",
+  "name": "Kernzone (Basel-Stadt)",
+  "anbieter": "Geodaten Basel-Stadt",
+  "gruppe": "Basel-Stadt",
+  "hosts": [
+   "data.bs.ch"
+  ],
+  "wofuer": "Verkehrszonen; wirken erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "lichtsignalanlagen-basel-stadt",
+  "name": "Lichtsignalanlagen (Basel-Stadt)",
+  "anbieter": "Geodaten Basel-Stadt",
+  "gruppe": "Basel-Stadt",
+  "hosts": [
+   "data.bs.ch"
+  ],
+  "wofuer": "Lichtsignale; wirkt erst nach Bestätigung; VRC: Kartenebene",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "velonetz",
+  "name": "Velonetz",
+  "anbieter": "Stadt Luzern",
+  "gruppe": "Luzern",
+  "hosts": [
+   "map.stadtluzern.ch",
+   "public.geo.lu.ch"
+  ],
+  "wofuer": "Routentyp, Kartenebene",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "verkehrszaehldaten",
+  "name": "Verkehrszähldaten",
+  "anbieter": "Stadt Luzern",
+  "gruppe": "Luzern",
+  "hosts": [
+   "map.stadtluzern.ch",
+   "public.geo.lu.ch"
+  ],
+  "wofuer": "DTV der nächsten Zählstelle; KC: Vergleichswert",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "oeffentliche-parkplaetze",
+  "name": "Öffentliche Parkplätze",
+  "anbieter": "Stadt Luzern",
+  "gruppe": "Luzern",
+  "hosts": [
+   "map.stadtluzern.ch",
+   "public.geo.lu.ch"
+  ],
+  "wofuer": "Parkierung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "strassenachsen-hierarchie",
+  "name": "Strassenachsen (Hierarchie)",
+  "anbieter": "Stadt Luzern",
+  "gruppe": "Luzern",
+  "hosts": [
+   "map.stadtluzern.ch",
+   "public.geo.lu.ch"
+  ],
+  "wofuer": "Strassenhierarchie im Vorschlag",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "strassenflaechen",
+  "name": "Strassenflächen",
+  "anbieter": "Stadt Luzern",
+  "gruppe": "Luzern",
+  "hosts": [
+   "map.stadtluzern.ch",
+   "public.geo.lu.ch"
+  ],
+  "wofuer": "Ersatz für die dort gesperrte amtliche Vermessung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "velozaehlstellen",
+  "name": "Velozählstellen",
+  "anbieter": "Kanton Luzern",
+  "gruppe": "Luzern",
+  "hosts": [
+   "map.stadtluzern.ch",
+   "public.geo.lu.ch"
+  ],
+  "wofuer": "Kartenebene",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "blockmodelle-gebaeude-gebhohen",
+  "name": "Blockmodelle Gebäude (GEBHOHEN)",
+  "anbieter": "Kanton Luzern",
+  "gruppe": "Luzern",
+  "hosts": [
+   "public.geo.lu.ch"
+  ],
+  "wofuer": "Neu gefunden 07.11.2026: Gebäudeumrisse mit EGID und relativer Höhe, ganzer Kanton. Im VRC als Probe der Lage; fgs und SWC offen",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "verkehrszonen-stadt-luzern",
+  "name": "Verkehrszonen (Stadt Luzern)",
+  "anbieter": "Stadt Luzern",
+  "gruppe": "Luzern",
+  "hosts": [
+   "map.stadtluzern.ch"
+  ],
+  "wofuer": "Verkehrszonen; wirken erst nach Bestätigung; VRC: Verkehrszone",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "fussgaengerstreifen-kanton-luzern",
+  "name": "Fussgängerstreifen (Kanton Luzern)",
+  "anbieter": "Kanton Luzern",
+  "gruppe": "Luzern",
+  "hosts": [
+   "public.geo.lu.ch"
+  ],
+  "wofuer": "Streifeninventar; fgs: Kandidat zum Prüfen",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "lichtsignalanlagen-stadt-luzern",
+  "name": "Lichtsignalanlagen (Stadt Luzern)",
+  "anbieter": "Stadt Luzern",
+  "gruppe": "Luzern",
+  "hosts": [
+   "map.stadtluzern.ch"
+  ],
+  "wofuer": "Lichtsignale; wirkt erst nach Bestätigung; VRC: Kartenebene",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "veloplan",
+  "name": "Veloplan",
+  "anbieter": "Stadt St. Gallen",
+  "gruppe": "St. Gallen",
+  "hosts": [
+   "daten.stadt.sg.ch"
+  ],
+  "wofuer": "Routentyp",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "beleuchtung-stadt-st-gallen",
+  "name": "Beleuchtung (Stadt St. Gallen)",
+  "anbieter": "St.Galler Stadtwerke (sgsw)",
+  "gruppe": "St. Gallen",
+  "hosts": [
+   "daten.stadt.sg.ch"
+  ],
+  "wofuer": "Nur Kartenkontext",
+  "rechner": {
+   "fgs": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "tempo-30-zonen-stadt-st-gallen",
+  "name": "Tempo-30-Zonen (Stadt St. Gallen)",
+  "anbieter": "Stadt St. Gallen",
+  "gruppe": "St. Gallen",
+  "hosts": [
+   "daten.stadt.sg.ch"
+  ],
+  "wofuer": "Verkehrszonen; wirken erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "begegnungszonen-stadt-st-gallen",
+  "name": "Begegnungszonen (Stadt St. Gallen)",
+  "anbieter": "Stadt St. Gallen",
+  "gruppe": "St. Gallen",
+  "hosts": [
+   "daten.stadt.sg.ch"
+  ],
+  "wofuer": "Verkehrszonen; wirken erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "fussgaengerzonen-stadt-st-gallen",
+  "name": "Fussgängerzonen (Stadt St. Gallen)",
+  "anbieter": "Stadt St. Gallen",
+  "gruppe": "St. Gallen",
+  "hosts": [
+   "daten.stadt.sg.ch"
+  ],
+  "wofuer": "Verkehrszonen; wirken erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "fussgaengerstreifen-stadt-st-gallen",
+  "name": "Fussgängerstreifen (Stadt St. Gallen)",
+  "anbieter": "Stadt St. Gallen",
+  "gruppe": "St. Gallen",
+  "hosts": [
+   "daten.stadt.sg.ch"
+  ],
+  "wofuer": "Streifeninventar; fgs: Kandidat zum Prüfen",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "primarschulen-geneve",
+  "name": "Primarschulen (Genève)",
+  "anbieter": "SITG, Canton de Genève",
+  "gruppe": "Genève",
+  "hosts": [
+   "vector.sitg.ge.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "sekundarstufe-i-geneve",
+  "name": "Sekundarstufe I (Genève)",
+  "anbieter": "SITG, Canton de Genève",
+  "gruppe": "Genève",
+  "hosts": [
+   "vector.sitg.ge.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "sonderschulen-geneve",
+  "name": "Sonderschulen (Genève)",
+  "anbieter": "SITG, Canton de Genève",
+  "gruppe": "Genève",
+  "hosts": [
+   "vector.sitg.ge.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "alters-und-pflegeheime-geneve",
+  "name": "Alters- und Pflegeheime (Genève)",
+  "anbieter": "SITG, Canton de Genève",
+  "gruppe": "Genève",
+  "hosts": [
+   "vector.sitg.ge.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "spitaeler-und-kliniken-geneve",
+  "name": "Spitäler und Kliniken (Genève)",
+  "anbieter": "SITG, Canton de Genève",
+  "gruppe": "Genève",
+  "hosts": [
+   "vector.sitg.ge.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "einrichtungen-fuer-menschen-mit-behinderung-geneve",
+  "name": "Einrichtungen für Menschen mit Behinderung (Genève)",
+  "anbieter": "SITG, Canton de Genève",
+  "gruppe": "Genève",
+  "hosts": [
+   "vector.sitg.ge.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "tempo-geneve",
+  "name": "Tempo (Genève)",
+  "anbieter": "SITG, Canton de Genève",
+  "gruppe": "Genève",
+  "hosts": [
+   "vector.sitg.ge.ch"
+  ],
+  "wofuer": "Tempo; nur bei passender Strasse, sonst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "verkehrszonen-geneve",
+  "name": "Verkehrszonen (Genève)",
+  "anbieter": "SITG, Canton de Genève",
+  "gruppe": "Genève",
+  "hosts": [
+   "vector.sitg.ge.ch"
+  ],
+  "wofuer": "Verkehrszonen; wirken erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "vortritt-und-streifensignale-geneve",
+  "name": "Vortritt und Streifensignale (Genève)",
+  "anbieter": "SITG, Canton de Genève",
+  "gruppe": "Genève",
+  "hosts": [
+   "vector.sitg.ge.ch"
+  ],
+  "wofuer": "Signale; wirkt erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "lichtsignalanlagen-geneve",
+  "name": "Lichtsignalanlagen (Genève)",
+  "anbieter": "SITG, Canton de Genève",
+  "gruppe": "Genève",
+  "hosts": [
+   "vector.sitg.ge.ch"
+  ],
+  "wofuer": "Lichtsignale; wirkt erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "fussgaengermarkierungen-geneve",
+  "name": "Fussgängermarkierungen (Genève)",
+  "anbieter": "SITG, Canton de Genève",
+  "gruppe": "Genève",
+  "hosts": [
+   "vector.sitg.ge.ch"
+  ],
+  "wofuer": "Markierung; fgs: Suchpunkt zum Prüfen",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "primarschulen-fribourg",
+  "name": "Primarschulen (Fribourg)",
+  "anbieter": "Etat de Fribourg",
+  "gruppe": "Fribourg",
+  "hosts": [
+   "maps.fr.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "sekundarstufe-i-fribourg",
+  "name": "Sekundarstufe I (Fribourg)",
+  "anbieter": "Etat de Fribourg",
+  "gruppe": "Fribourg",
+  "hosts": [
+   "maps.fr.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "betreuungsstrukturen-fribourg",
+  "name": "Betreuungsstrukturen (Fribourg)",
+  "anbieter": "Etat de Fribourg",
+  "gruppe": "Fribourg",
+  "hosts": [
+   "maps.fr.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "tempo-kantonsstrassen-fribourg",
+  "name": "Tempo Kantonsstrassen (Fribourg)",
+  "anbieter": "Etat de Fribourg",
+  "gruppe": "Fribourg",
+  "hosts": [
+   "maps.fr.ch"
+  ],
+  "wofuer": "Tempo; nur bei passender Strasse, sonst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "schulen-jura",
+  "name": "Schulen (Jura)",
+  "anbieter": "République et Canton du Jura",
+  "gruppe": "Jura",
+  "hosts": [
+   "geo.jura.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "kinderbetreuung-jura",
+  "name": "Kinderbetreuung (Jura)",
+  "anbieter": "République et Canton du Jura",
+  "gruppe": "Jura",
+  "hosts": [
+   "geo.jura.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "gesundheitseinrichtungen-jura",
+  "name": "Gesundheitseinrichtungen (Jura)",
+  "anbieter": "République et Canton du Jura",
+  "gruppe": "Jura",
+  "hosts": [
+   "geo.jura.ch"
+  ],
+  "wofuer": "Bedarf; unsichere Typen erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "tempo-kantonsstrassen-jura",
+  "name": "Tempo Kantonsstrassen (Jura)",
+  "anbieter": "République et Canton du Jura",
+  "gruppe": "Jura",
+  "hosts": [
+   "geo.jura.ch"
+  ],
+  "wofuer": "Tempo; nur bei passender Strasse, sonst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "tempo-kantonsstrassen-uri",
+  "name": "Tempo Kantonsstrassen (Uri)",
+  "anbieter": "LISAG, Kanton Uri",
+  "gruppe": "Uri",
+  "hosts": [
+   "geo.ur.ch"
+  ],
+  "wofuer": "Tempo; nur bei passender Strasse, sonst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "tempo-gemeindestrassen-uri",
+  "name": "Tempo Gemeindestrassen (Uri)",
+  "anbieter": "LISAG, Kanton Uri",
+  "gruppe": "Uri",
+  "hosts": [
+   "geo.ur.ch"
+  ],
+  "wofuer": "Tempo; nur bei passender Strasse, sonst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "tempo-uebrige-strassen-uri",
+  "name": "Tempo übrige Strassen (Uri)",
+  "anbieter": "LISAG, Kanton Uri",
+  "gruppe": "Uri",
+  "hosts": [
+   "geo.ur.ch"
+  ],
+  "wofuer": "Tempo; nur bei passender Strasse, sonst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "tempo-kantonsstrassen-solothurn",
+  "name": "Tempo Kantonsstrassen (Solothurn)",
+  "anbieter": "Kanton Solothurn",
+  "gruppe": "Solothurn",
+  "hosts": [
+   "geo.so.ch"
+  ],
+  "wofuer": "Tempo; nur bei passender Strasse, sonst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "tempo-schwyz",
+  "name": "Tempo (Schwyz)",
+  "anbieter": "Kanton Schwyz",
+  "gruppe": "Schwyz",
+  "hosts": [
+   "map.geo.sz.ch"
+  ],
+  "wofuer": "Tempo; nur bei passender Strasse, sonst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "B",
+    "soll": "B"
+   }
+  }
+ },
+ {
+  "id": "vortrittssignale-schwyz",
+  "name": "Vortrittssignale (Schwyz)",
+  "anbieter": "Kanton SZ",
+  "gruppe": "Schwyz",
+  "hosts": [
+   "map.geo.sz.ch"
+  ],
+  "wofuer": "Signale; wirkt erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "streifensignale-4-11-schwyz",
+  "name": "Streifensignale 4.11 (Schwyz)",
+  "anbieter": "Kanton SZ",
+  "gruppe": "Schwyz",
+  "hosts": [
+   "map.geo.sz.ch"
+  ],
+  "wofuer": "Signale; wirkt erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "fussgaengerstreifen-kantonsstrassen-zug",
+  "name": "Fussgängerstreifen Kantonsstrassen (Zug)",
+  "anbieter": "Kanton Zug",
+  "gruppe": "Zug",
+  "hosts": [
+   "services.geo.zg.ch"
+  ],
+  "wofuer": "Streifeninventar; fgs: Kandidat zum Prüfen",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "A",
+    "soll": "A"
+   }
+  }
+ },
+ {
+  "id": "verkehrszonen-lausanne",
+  "name": "Verkehrszonen (Lausanne)",
+  "anbieter": "Ville de Lausanne",
+  "gruppe": "Lausanne",
+  "hosts": [
+   "map.lausanne.ch"
+  ],
+  "wofuer": "Verkehrszonen; wirken erst nach Bestätigung",
+  "rechner": {
+   "fgs": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "swc": {
+    "ist": "B",
+    "soll": "B"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "streifen-aus-dem-luftbild-bern-zuerich-basel",
+  "name": "Streifen aus dem Luftbild, Bern, Zürich, Basel",
+  "anbieter": "ETH-Modell, eigene Läufe",
+  "gruppe": "Eigene Dateien (Stand fest in der App)",
+  "hosts": [],
+  "wofuer": "Klasse «crosswalk»; Hinweis zum Prüfen",
+  "rechner": {
+   "fgs": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "velostreifen-aus-dem-luftbild-bern-zuerich-basel",
+  "name": "Velostreifen aus dem Luftbild, Bern, Zürich, Basel",
+  "anbieter": "ETH-Modell, eigene Läufe",
+  "gruppe": "Eigene Dateien (Stand fest in der App)",
+  "hosts": [],
+  "wofuer": "Gleiches Modell, Radstreifen; nicht in der Note",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "bus-takt-aus-dem-gtfs-fahrplan-bern-zuerich-basel-luzern",
+  "name": "Bus-Takt aus dem GTFS-Fahrplan, Bern, Zürich, Basel, Luzern",
+  "anbieter": "opentransportdata.swiss",
+  "gruppe": "Eigene Dateien (Stand fest in der App)",
+  "hosts": [],
+  "wofuer": "ÖV-Angebot; St. Gallen von Hand",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "ueberholabstaende-openbikesensor-bern-zuerich",
+  "name": "Überholabstände OpenBikeSensor, Bern, Zürich",
+  "anbieter": "OBS-Mitwirkende",
+  "gruppe": "Eigene Dateien (Stand fest in der App)",
+  "hosts": [],
+  "wofuer": "Hinweis, nicht in der Note",
+  "rechner": {
+   "fgs": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "swc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "vrc": {
+    "ist": "A",
+    "soll": "A"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ }
+]

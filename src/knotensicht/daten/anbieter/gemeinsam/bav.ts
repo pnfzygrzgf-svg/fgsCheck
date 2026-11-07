@@ -2,7 +2,7 @@ import { holeBundText as holeText } from './bundesAbruf'
 import { lv95 } from '../../../geo'
 import { AbrufFehler, type Abruf } from '../../holen'
 import { eigenschaften, geoAdminUrl, istLv95, ladeGeoAdmin, type GeoAdminRoh } from './geoAdmin'
-import type { AmtlicherHalt, BavSnapshot } from './typen'
+import type { AmtlicheKante, AmtlicherHalt, BavSnapshot } from './typen'
 
 export const BAV_LAYER = 'ch.bav.haltestellen-oev'
 export const BAV_HERKUNFT = 'BAV, Haltestellen des öV'
@@ -31,7 +31,7 @@ export const BAV_QUELLE = {
   stand: 'Datenstand der Ebene aus offiziellen Metadaten; Abrufzeit je Fall', cors: true as const, empfaenger: 'swisstopo' as const,
   datenschutz: 'Rechteck ±200 m um den geladenen Ort für BAV-Haltestellen (api3.geo.admin.ch)',
   module: ['daten/anbieter/gemeinsam/bav.ts'],
-  hinweis: 'Aktive Bus-/Tramhaltestellen; Haltestellenpunkte, keine Haltekanten. Zuordnung zur Querung bestätigen; Vollständigkeit unbekannt.',
+  hinweis: 'Aktive Bus-/Tramhaltestellen als Punkte, Haltekanten nur auf der Karte. Zuordnung zur Querung bestätigen; Vollständigkeit unbekannt.',
 }
 
 /** Haltekanten ohne Verkehrsmittel, Betriebspunkte und stillgelegte Haltestellen werden nicht als aktive Bus-/Tramhalte übernommen. */
@@ -61,6 +61,20 @@ export function bavUmwandeln(roh: GeoAdminRoh): { halte: AmtlicherHalt[] } {
   return { halte: [...halte.values()].sort((a, b) => a.id.localeCompare(b.id)) }
 }
 
+/** Haltekanten des Layers. Sie tragen keinen Betriebspunkttyp und kein Verkehrsmittel, darum stehen sie getrennt von den Haltestellen und nur auf der Karte */
+export function bavKanten(roh: GeoAdminRoh): AmtlicheKante[] {
+  const aus = new Map<string, AmtlicheKante>()
+  for (const f of roh.results ?? []) {
+    const pr = eigenschaften(f), g = f.geometry
+    if (typeof pr.haltestelle !== 'string' || typeof pr.nummer_text !== 'string') continue
+    const p = (g?.type === 'Point' ? [g.coordinates] : g?.type === 'MultiPoint' && Array.isArray(g.coordinates) ? g.coordinates : []).find(istLv95)
+    if (!p) continue
+    const id = `bav:k:${String(f.featureId ?? f.id ?? pr.nummer_text)}`
+    aus.set(id, { id, sloid: pr.nummer_text, name: pr.haltestelle, bezeichnung: typeof pr.bezeichnung_de === 'string' ? pr.bezeichnung_de : '', p: [p[0], p[1]] })
+  }
+  return [...aus.values()].sort((a, b) => a.id.localeCompare(b.id))
+}
+
 export function bavUrl(lat: number, lon: number, radiusM: number): string {
   const [e, n] = lv95(lat, lon)
   return geoAdminUrl(BAV_LAYER, [e - radiusM, n - radiusM, e + radiusM, n + radiusM].map(x => x.toFixed(2)).join(','), 'esriGeometryEnvelope')
@@ -75,11 +89,12 @@ export async function ladeBav(lat: number, lon: number, radiusM = BAV_RADIUS_M, 
   if (signal?.aborted) throw new DOMException('abgebrochen', 'AbortError')
   if (datenAbruf.status === 'rejected') throw datenAbruf.reason
   const r = datenAbruf.value
-  const halte = bavUmwandeln(r.daten).halte.filter(h => Math.abs(h.p[0] - mitte[0]) <= radiusM && Math.abs(h.p[1] - mitte[1]) <= radiusM)
+  const imRechteck = (h: { p: readonly [number, number] }) => Math.abs(h.p[0] - mitte[0]) <= radiusM && Math.abs(h.p[1] - mitte[1]) <= radiusM
+  const halte = bavUmwandeln(r.daten).halte.filter(imRechteck), kanten = bavKanten(r.daten).filter(imRechteck)
   const daten: BavSnapshot = { version: 1, quelleId: 'bav.halt', abgerufen: new Date().toISOString(),
     datenstand: metadaten.status === 'fulfilled' ? metadaten.value.stand : null,
     ...(metadaten.status === 'fulfilled' ? { datenstandQuelle: BAV_METADATEN_URL } : { datenstandHinweis: (metadaten.reason as Error).message }),
-    mitte, radiusM, url, vollstaendigkeit: 'unbekannt', halte }
+    mitte, radiusM, url, vollstaendigkeit: 'unbekannt', halte, kanten }
   const aus = { ...r, daten, ms: Math.max(r.ms, metadaten.status === 'fulfilled' ? metadaten.value.ms : 0),
     bytes: r.bytes + (metadaten.status === 'fulfilled' ? metadaten.value.bytes : 0) }
   cache.set(url, aus); while (cache.size > 40) cache.delete(cache.keys().next().value!)
@@ -87,6 +102,6 @@ export async function ladeBav(lat: number, lon: number, radiusM = BAV_RADIUS_M, 
 }
 export const BAV_ANBIETER = {
   quelle: BAV_QUELLE, thema: 'haltestellen' as const, format: 'geojson' as const, datenart: 'erfasst' as const, datenstand: null,
-  abdeckung: { inhalt: 'Aktive Bus-/Tramhaltestellen', einschraenkungen: ['Keine Haltekanten und Fahrtrichtungen', 'Zuordnung zur Querung bestätigen'],
+  abdeckung: { inhalt: 'Aktive Bus-/Tramhaltestellen', einschraenkungen: ['Haltekanten ohne Verkehrsmittel und Fahrtrichtung', 'Zuordnung zur Querung bestätigen'],
     vollstaendigkeit: 'unbekannt' as const }, url: bavUrl, umwandeln: bavUmwandeln, laden: ladeBav,
 }

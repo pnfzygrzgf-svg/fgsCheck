@@ -5,7 +5,8 @@
 // Arme: Strassenwege an den Ringpunkten (wie strassenArme: ohne service), die nicht selbst zum Ring gehören. Getrennte Wege derselben
 // Strasse (Einfahrt und Ausfahrt um eine Leitinsel, zusätzliche Einfahrt) bilden einen Kreiselarm, wenn sie aussen in dieselbe Richtung
 // führen (KREISEL_ARM_GRAD, Annahme). Wege, die den Ring nicht berühren, und Tramgleise sind keine Arme. Nummern im Uhrzeigersinn ab
-// Norden. E10: eine zweite Einfahrt, die kurz vor der Ausfahrt des nächsten Arms in den Ring mündet (BYPASS_M), ist ein Bypass.
+// Norden. Ein Weg mit Gegenverkehr, zu dem von aussen kein Weg für Motorfahrzeuge führt, ist nur Ausfahrt (vonAussen; Beispiel Dalmazibrücke).
+// E10: eine zweite Einfahrt, die kurz vor der Ausfahrt des nächsten Arms in den Ring mündet (BYPASS_M), ist ein Bypass.
 // Velobypass (01.11.2026): Rad- bzw. Fuss- und Radweg ausserhalb des Rings zwischen zwei Armen (velobypaesse); Velos auf dem Ring wie bisher.
 // Vermessung (E9, Form statt Kreis): Strahlen aus der Mitte je 1°; auf jedem Strahl zählt das Fahrbahnstück der AV (Strasse_Weg), auf
 // dem die OSM-Linie des Rings liegt: es beginnt am Rand der Mittelinsel (Fläche ohne Fahrbahn um die Mitte, gleich welche AV-Art) und
@@ -315,12 +316,34 @@ export function kreiselAusOsm(ring: P[], osm: { m: P; r: number }): KreiselVerme
   return vermessungAus('osm', mitte, linie.map(x => x + h), linie.map(x => Math.max(0, x - h)), 0, 0)
 }
 
+/** Kommt ein Motorfahrzeug von aussen auf den Arm a (Weg mit Gegenverkehr, ab dem Ring)? Nein nur, wenn weiter aussen Wege für
+ *  Motorfahrzeuge anschliessen und alle vom Ring weg führen (Annahme; z. B. kurzes Stück ohne Einbahn für Velos von einem Radweg, dahinter
+ *  nur eine Einbahn weg vom Ring). Ohne Anschluss (Sackgasse) oder am nächsten Ring: ja. Wege mit Gegenverkehr werden weiterverfolgt */
+function vonAussen(netz: OsmNetz, a: Arm, gesehen = new Set<string>()): boolean {
+  const [wid, i, sd] = a, w = netz.w(wid), schluessel = `${wid}:${sd}`
+  if (gesehen.has(schluessel)) return false
+  gesehen.add(schluessel)
+  let anschluesse = 0
+  for (let k = i + sd; k >= 0 && k < w.nds.length; k += sd) for (const [v, j] of netz.an.get(w.nds[k]) ?? []) {
+    const x = netz.w(v)
+    if (v === wid || !x.mfz || x.ring) continue
+    for (const r of [-1, 1]) {
+      if (j + r < 0 || j + r >= x.nds.length) continue
+      anschluesse++
+      const weiter: Arm = [v, j, r]
+      if (netz.zufluss(weiter) && (x.ow !== 0 || vonAussen(netz, weiter, gesehen))) return true
+    }
+  }
+  return anschluesse === 0
+}
+
 /** Arme des Kreisels an den Ringpunkten (ohne Ringwege, ohne service), Ein- und Ausfahrt je Strasse zusammengefasst, nummeriert.
  *  folge: Ringpunkte in Fahrtrichtung (geschlossen, für den Bypass); ohne folge kein Bypass */
 export function kreiselArme(netz: OsmNetz, ringKnoten: number[], mitte: P, folge: number[] = []): KreiselArm[] {
   const roh = ringKnoten.flatMap(n => strassenArme(netz, n).filter(a => !netz.w(a[0]).ring).map(a => {
     const aussen = netz.armPunkt(a, KREISEL_ARM_M)
-    return { a, info: armInfo(netz, a), n, r: einheit(sub(aussen, mitte)) }
+    const info = armInfo(netz, a), nurAusfahrt = info.einbahn === 0 && !vonAussen(netz, a)
+    return { a, info: nurAusfahrt ? { ...info, zufluss: false, einbahn: a[2] } : info, n, r: einheit(sub(aussen, mitte)), nurAusfahrt }
   }))
   type Roh = typeof roh[number]
   // zusammen gehören zwei OSM-Arme in derselben Richtung (KREISEL_ARM_GRAD) mit gleichem Namen (z. B. Einfahrt und Ausfahrt um eine
@@ -371,7 +394,7 @@ export function kreiselArme(netz: OsmNetz, ringKnoten: number[], mitte: P, folge
     const hw = g.map(y => y.info.hw).sort((a, b) => (HW_RANG[a] ?? 9) - (HW_RANG[b] ?? 9))[0]
     return { ...haupt.info, name, hw, richtung, himmel: himmelsrichtung(richtung), ein: e?.info.key ?? null, aus: x?.info.key ?? null,
       getrennt: ohne.length > 1, anschluss: ohne.map(y => netz.p(y.n)), linien: ohne.map(y => linie(y.a)), bypass: [] as KreiselBypass[],
-      velobypass: [] as KreiselVelobypass[],
+      velobypass: [] as KreiselVelobypass[], nurAusfahrt: g.filter(y => y.nurAusfahrt).map(y => y.a[0]),
       bpRoh: bp, gruppe: g }
   })
   // Bypass erst nach dem Nummerieren beschriften (Ausfahrt des nächsten Arms mit Nummer)
@@ -450,6 +473,8 @@ export function kreiselKnoten(netz: OsmNetz, fahrbahn: Fahrbahn | null, n: numbe
     'Kleinkreisel.')
   if (arme.some(a => a.getrennt)) annahmen.push(`Getrennte OSM-Wege derselben Strasse (z. B. Einfahrt und Ausfahrt um eine Leitinsel) ` +
     `bilden einen Arm, wenn sie ${KREISEL_ARM_M} m vom Ring höchstens ${KREISEL_ARM_GRAD}° auseinander liegen (von der Mitte aus gesehen).`)
+  for (const a of nachNr(arme)) for (const w of a.nurAusfahrt) annahmen.push(`Arm ${armText(a)}: Der OSM-Weg ${w} ist ohne Einbahn erfasst, ` +
+    'aber von aussen führt kein Weg für Motorfahrzeuge zu ihm. Er zählt nur als Ausfahrt.')
   const ausserhalb = kreiselAusserhalb(v.durchmesser)
   if (v.dMax / v.dMin >= NICHT_RUND_AB) hinweise.push(`Nicht kreisrund: Aussendurchmesser ${f1(v.dMin)} bis ${f1(v.dMax)} m; der Typ ` +
     `richtet sich nach dem mittleren (${f1(v.durchmesser)} m). Als nicht kreisrund gilt ein Verhältnis ab ${f1(NICHT_RUND_AB)} (Annahme).`)

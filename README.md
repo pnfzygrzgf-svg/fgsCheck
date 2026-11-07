@@ -31,10 +31,11 @@ React, TypeScript und Vite, Karte mit Leaflet. Es gibt keinen eigenen Server; ge
 | `src/knotensicht/` | Rechenkern des SichtweitenCheck, wortgleiche Kopie |
 | `src/daten/` | Abruf und Einlesen der Quellen, Quellenregister in `quellenregister.ts` |
 | `src/daten/anbieter/gemeinsam/`, `src/hoehenkurven/`, `src/hoehenprofil/` | gemeinsame Module, hier führend |
+| `src/kartenbaustein/` | Hover, Ebenenfenster, Unfälle, Quellen-Links und Quellenliste aller vier Rechner, hier führend |
 | `src/fall.ts` | Fall-Datei und Speicherung im Browser |
 
 Die gemeinsamen Module werden hier geändert und mit `scripts/anbieter_uebernehmen.mjs`, `hoehenkurven_uebernehmen.mjs` und
-`hoehenprofil_uebernehmen.mjs` in die anderen Rechner übernommen. Den Rechenkern holt `scripts/knotensicht_holen.mjs` aus dem
+`hoehenprofil_uebernehmen.mjs` in die anderen Rechner übernommen, der Kartenbaustein mit `kartenbaustein_uebernehmen.mjs`. Den Rechenkern holt `scripts/knotensicht_holen.mjs` aus dem
 SichtweitenCheck; in `src/knotensicht/` wird nichts von Hand geändert. Manifeste und Tests prüfen alle Kopien.
 
 ## Datenquellen
@@ -45,9 +46,10 @@ Ort gelten, zeigt die App unter «Datenlage hier».
 
 - Luftbild, Landeskarte, Höhenmodell swissALTI3D (Profile; ausserhalb der Stadt Bern), swissTLM3D, Gemeindegrenzen: © swisstopo
 - Haltestellen, Verkehrsmodell NPVM, Bauzonen, Unfälle: BAV, ARE und ASTRA über geo.admin.ch
-- Bodenbedeckung: Amtliche Vermessung der Kantone über geodienste.ch
+- Bodenbedeckung: Amtliche Vermessung der Kantone über geodienste.ch; Stadt Luzern: Strassenflächen der Stadt, Blockmodelle Gebäude des Kantons
 - Strassennetz und Übergänge: © OpenStreetMap-Mitwirkende, ODbL (Overpass API)
 - Parkfelder, Bäume, Tempo, Haltestellen, Verkehrsdaten, Geländemodell DTM 2023 (Höhenprofile) Stadt Bern: Geodaten Stadt Bern
+- Parkfelder Stadt Luzern: Geoinformationszentrum Stadt Luzern
 - Tempo, Zonen, Signale, Einrichtungen und Kartenkontext weiterer Kantone und Städte: je nach Ort, Anbieter und Lizenz nennt die App
 
 Normen erscheinen nur als Nummern, Ziffern, Seiten und Zahlenwerte, nie als Normtext. Lizenzen der eingebundenen Bibliotheken und
@@ -63,11 +65,12 @@ Liste der Dienste steht in der App unter «Datenschutz».
 ## Grenzen
 
 - Amtliche Vermessung frei über geodienste.ch: 19 Kantone ganz, Wallis teilweise (ohne einzelne Gemeinden, z. B. Sitten,
-  Brig), Liechtenstein. LU, VD, NE, NW, OW und JU geben die AV nur mit Freigabe ab; dort rechnet die App nicht.
+  Brig), Liechtenstein. LU, VD, NE, NW, OW und JU geben die AV nur mit Freigabe ab; dort rechnet die App nicht. Ausnahme: In der Stadt
+  Luzern rechnet sie mit den Strassenflächen der Stadt und den Gebäudegrundrissen des Kantons; Einzelobjekte fehlen.
 - Luftbild-Erkennung: nur gelbe Streifen mit Balken bis rund 6 m; weisse Streifen erkennt die App nicht.
 - Mehrere Streifen an einem Knoten und sehr breite Streifen bildet die App nicht immer richtig (offen); dann
   «Streifen von Hand».
-- Amtliche Parkfelder nur in der Stadt Bern; sonst von Hand bzw. aus OSM-Vorschlägen (bestätigen). Private Parkplätze,
+- Amtliche Parkfelder nur in den Städten Bern und Luzern; sonst von Hand bzw. aus OSM-Vorschlägen (bestätigen). Private Parkplätze,
   Hecken und Mauern (Höhe) fehlen in den Daten.
 - Knotensicht der Trottoirüberfahrt nur an Einmündungen und an Kreuzungen über die Zufahrt ohne Vortritt; an
   Grundstückzufahrten nur ein Hinweis. Bäume aus dem Baumkataster zählen (anders als im SichtweitenCheck).

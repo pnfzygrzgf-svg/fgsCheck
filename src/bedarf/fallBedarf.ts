@@ -20,6 +20,7 @@ import { FELDNAMEN, KURVE_BEDINGUNGEN, QUELLEN_ANNAHME, leereEingaben, type Beda
 export const DATENQUELLEN = {
   ...Object.fromEntries(REGIONAL_DIENSTE.map(d => [`regional.${d.id}`, d.anbieter])) as Record<`regional.${string}`, string>,
   'bern.dtv': 'Geoportal Stadt Bern', 'are.npvm': 'ARE; NPVM', 'app.dtv': 'App-Annahme',
+  'zh.dtv': 'Kanton Zürich; Zählstelle', 'lu.dtv': 'Stadt Luzern; Zählstelle', 'bs.dtv': 'Basel-Stadt; Zählstelle',
   'zh.tempo': 'Stadt Zürich', 'zh.zone': 'Stadt Zürich; Verkehrszonen', 'osm.zone': 'OpenStreetMap (OSM)',
   'bern.vsig': 'Geoportal Stadt Bern', 'osm.tempo': 'OpenStreetMap (OSM)',
   'bern.halt': 'Geoportal Stadt Bern', 'bav.halt': 'BAV; Haltestellenpunkte', 'osm.halt': 'OpenStreetMap (OSM)',
@@ -36,7 +37,7 @@ const quellPfad = (pfad: string, id: string): boolean => {
         : d.id === 'bund.tram' ? ['tram', 'tramHaltestellenbereich'].includes(pfad)
           : d.id === 'bund.bauzone' ? ['innerorts','q3.bebaut','q3.gewerbe'].includes(pfad)
             : ['bund.gwr','bund.poi'].includes(d.id) && pfad === 'beduerfnis'
-  return pfad === 'dtv' ? ['bern.dtv', 'are.npvm', 'app.dtv'].includes(id)
+  return pfad === 'dtv' ? ['bern.dtv', 'zh.dtv', 'lu.dtv', 'bs.dtv', 'are.npvm', 'app.dtv'].includes(id)
     : pfad === 'vSig' ? ['bern.vsig', 'osm.tempo', 'zh.tempo'].includes(id)
       : pfad === 'tempoRegime' ? ['zh.zone', 'osm.zone'].includes(id)
         : ['beduerfnis', 'haltestelleAngrenzend', 'tramHaltestellenbereich'].includes(pfad) && ['bern.halt', 'bav.halt', 'osm.halt'].includes(id)

@@ -161,10 +161,16 @@ export function artText(h: Hindernis): string {
   }
 }
 
+/** Bestätigte Parkfelder der Stadt Zürich (Kennung und Text wie daten/anbieter/gemeinsam/parkZuerich.ts): Der Dienst führt nur Punkte und Linien.
+ *  Nur der Text unterscheidet sie, die Rechnung behandelt sie wie jedes Parkfeld */
+export const ZH_PARK_QUELLE_TEXT = 'Stadt Zürich, Fläche angenommen'
+const istZhPark = (h: Hindernis) => h.id.startsWith('zhpark:')
+
 /** Quelle eines Hindernisses als Text */
 export function quelleText(h: Hindernis): string {
   if (h.quelle === 'hand') return 'von Hand'
   if (h.quelle === 'osm') return 'aus OSM (bestätigt)'
+  if (istZhPark(h)) return ZH_PARK_QUELLE_TEXT
   return h.art === 'baum' ? 'Baumkataster' : 'amtlich (Parkkataster)'
 }
 

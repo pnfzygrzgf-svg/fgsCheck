@@ -18,6 +18,7 @@ import { OVERPASS_ENDPOINTS } from './osm'
 import { LUFTBILD_FGS_STAEDTE } from './luftbildFgs'
 import { NPVM_QUELLE } from './anbieter/npvm'
 import { BAV_QUELLE } from './anbieter/gemeinsam/bav'
+import { ZH_PARK_LIZENZ } from './anbieter/gemeinsam/parkZuerich'
 
 /** Bedarf der App, den eine Quelle deckt */
 export type Thema = 'vermessung' | 'luftbild' | 'hoehen' | 'strassennetz' | 'uebergaenge' | 'parkfelder' | 'baeume' | 'haltestellen' |
@@ -57,8 +58,11 @@ export interface Quelle {
 /** BFS-Nummer der Stadt Bern */
 export const BERN_BFS = 351
 const BERN: Gebiet = { art: 'gemeinden', bfs: [BERN_BFS], name: 'Stadt Bern' }
+const LUZERN: Gebiet = { art: 'gemeinden', bfs: [1061], name: 'Stadt Luzern' }
+const LUZERN_LIZENZ = 'Open Government Data, Quellenangabe Pflicht'
 const BERN_LIZENZ = 'Open Data Stadt Bern: freie Nutzung, Quellenangabe Pflicht'
 const SWISSTOPO_LIZENZ = 'frei, Quellenangabe «© swisstopo»'
+const ZAEHL_HINWEIS = 'Nur der Standort der Zählstelle ist gemessen. Vorschlag: zählt erst nach Bestätigung.'
 export const ABRUF_BEIM_LADEN = 'Abruf beim Laden'
 const LIVE = ABRUF_BEIM_LADEN
 
@@ -94,11 +98,15 @@ export const QUELLEN: readonly Quelle[] = [
     stand: 'Katalogaktualisierung dynamisch; Umsetzung je Objekt getrennt', cors: true, empfaenger: 'zuerich',
     datenschutz: 'Rechteck ±200 m um den Ladeort für heutigen Tempo-/Zonenbestand und Trefferzahl; öffentliche Katalogmetadaten',
     module: ['daten/anbieter/gemeinsam/zuerich.ts'], hinweis: 'Fahrverbot ist kein Tempo 0; Zuordnung mit Strasse, Richtung und Zone prüfen.' })),
+  { id: 'zh.park', themen: ['parkfelder'], name: 'Öffentlich zugängliche Parkplätze', anbieter: 'Stadt Zürich, Dienstabteilung Verkehr',
+    gebiet: { art: 'gemeinden', bfs: [261], name: 'Stadt Zürich' }, dienst: 'wfs', lizenz: ZH_PARK_LIZENZ, stand: LIVE, cors: true, empfaenger: 'zuerich',
+    datenschutz: 'Rechteck ±150 m um den Ladeort für die Parkfelder', module: ['daten/anbieter/gemeinsam/parkZuerich.ts'],
+    hinweis: 'Nur Punkte und Linien, Flächen angenommen. Vorschlag: zählt erst nach Bestätigung.' },
   { id: 'av', themen: ['vermessung'], name: 'Amtliche Vermessung (Bodenbedeckung, Einzelobjekte)', anbieter: 'Kantone über geodienste.ch',
     gebiet: { art: 'kantone', kantone: AV_KANTONE }, dienst: 'wfs', lizenz: 'frei mit Quellenangabe (Bedingungen je Kanton)', stand: LIVE,
     cors: true, datenschutz: 'Rechteck ±150 m um den Übergang bzw. die geplanten Streifen', empfaenger: 'geodienste',
     module: ['daten/av.ts', 'avVorschau.ts'],
-    hinweis: `Wallis teilweise (ohne einzelne Gemeinden, z. B. Sitten, Brig); ${AV_NICHT_FREI.join(', ')} nur mit Freigabe: dort keine Rechnung` },
+    hinweis: `Wallis teilweise (ohne einzelne Gemeinden, z. B. Sitten, Brig); ${AV_NICHT_FREI.join(', ')} nur mit Freigabe: dort keine Rechnung, ausser in der Stadt Luzern mit Ersatz` },
   { id: 'swisstopo.karte', themen: [], name: 'Hintergrundkarte (Luftbild bzw. Landeskarte)', anbieter: 'swisstopo', gebiet: { art: 'schweiz' },
     dienst: 'wmts', lizenz: SWISSTOPO_LIZENZ, cors: true,
     datenschutz: 'Kartenkacheln (Luftbild bzw. Landeskarte) des sichtbaren Ausschnitts (wmts.geo.admin.ch)', empfaenger: 'swisstopo',
@@ -148,6 +156,15 @@ export const QUELLEN: readonly Quelle[] = [
     stand: LIVE, cors: true, datenschutz: 'Baumkataster', empfaenger: 'bern', module: ['daten/baumkataster.ts'] },
   bernDienst('bern.halt', ['haltestellen'], 'Haltestellen', 'Haltestellen', 'daten/haltestellen.ts'),
   bernDienst('bern.dtv', ['dtv'], 'Flächendeckende Verkehrsdaten (DTV)', 'Verkehrsdaten', 'daten/verkehrsdaten.ts', 'DTV des Vorjahres'),
+  { id: 'zh.dtv', themen: ['dtv'], name: 'Verkehrsmessstellen', anbieter: 'Kanton Zürich', gebiet: { art: 'kantone', kantone: ['ZH'] }, dienst: 'wfs', lizenz: 'CC0, Kanton Zürich',
+    stand: 'Zähljahr je Messstelle', cors: true, empfaenger: 'regional', datenschutz: 'maps.zh.ch: alle Messstellen auf einmal, ohne Ortsangabe', module: ['daten/zaehlstellen.ts'],
+    hinweis: ZAEHL_HINWEIS },
+  { id: 'lu.dtv', themen: ['dtv'], name: 'Verkehrszähldaten', anbieter: 'Stadt Luzern', gebiet: LUZERN, dienst: 'arcgis', lizenz: LUZERN_LIZENZ, stand: 'Zähljahr je Stelle', cors: true,
+    empfaenger: 'regional', datenschutz: 'map.stadtluzern.ch: alle Zählstellen auf einmal, ohne Ortsangabe', module: ['daten/zaehlstellen.ts'], hinweis: ZAEHL_HINWEIS },
+  { id: 'bs.dtv', themen: ['dtv'], name: 'Verkehrszählung (Datei dtv_basel.json)', anbieter: 'Kanton Basel-Stadt', gebiet: { art: 'kantone', kantone: ['BS'] }, dienst: 'datei',
+    lizenz: 'Open Government Data Kanton Basel-Stadt, Quellenangabe Pflicht', stand: 'unbekannt (Datei ohne Zähljahr)', cors: true, empfaenger: 'eigen',
+    datenschutz: 'Die Datei dtv_basel.json (Zählstellen Basel-Stadt) kommt von dieser Seite selbst, dafür geht keine Abfrage an einen anderen Dienst.',
+    module: ['daten/zaehlstellen.ts'], hinweis: `Werktagsmittel, kein DTV. ${ZAEHL_HINWEIS}` },
   bernDienst('bern.richtplan', ['fusswegnetz'], 'Richtplan Fussverkehr', 'Richtplan Fussverkehr', 'daten/richtplanFussverkehr.ts'),
   bernDienst('bern.strassen', ['strassentyp'], 'Strassenhierarchie und Strassentypen', 'Strassenhierarchie und Strassentypen',
     'daten/strassenhierarchie.ts'),
@@ -166,6 +183,17 @@ export const QUELLEN: readonly Quelle[] = [
     'Die Kartenebene «Taktile Markierungen (Stadt Bern)» sendet den sichtbaren Kartenausschnitt mit Rand (Rechteck in LV95, je Layer ' +
     'eine Abfrage, zwei Layer) nur, wenn sie eingeschaltet ist, und erst ab Zoomstufe 15.', 'daten/taktilKarte.ts'), datenschutzSatz: true,
     hinweis: 'nur Anzeige, anfangs aus, ab Zoomstufe 15' },
+  { ...bernDienst('bern.ortho', [], 'Orthofoto 2026 (Kartenhintergrund)', 'Wird der Hintergrund «Luftbild Stadt Bern 2026» gewählt, holt der Browser die Kartenbilder des sichtbaren Ausschnitts bei map.bern.ch.', 'kartenbaustein/hintergrund.ts', 'Flug 19. März 2026'), datenschutzSatz: true,
+    hinweis: 'nur Hintergrund, wählbar im Gemeindegebiet' },
+  // Stadt Luzern: Ersatz der AV (seit 07.11.2026), siehe daten/ersatzLuzern.ts
+  { id: 'lu.boden', themen: ['vermessung'], name: 'Strassenflächen (Ersatz der AV)', anbieter: 'Stadt Luzern', gebiet: LUZERN, dienst: 'arcgis', lizenz: LUZERN_LIZENZ, stand: LIVE, cors: true,
+    datenschutz: 'Strassenflächen (map.stadtluzern.ch, Rechteck ±150 m)', empfaenger: 'regional', module: ['daten/ersatzLuzern.ts'],
+    hinweis: 'Fahrbahn, Trottoir und Inseln; endet an der Stadtgrenze' },
+  { id: 'lu.gebaeude', themen: ['vermessung'], name: 'Blockmodelle Gebäude (Ersatz der AV)', anbieter: 'Kanton Luzern', gebiet: LUZERN, dienst: 'arcgis', lizenz: 'Freie Nutzung (opendata.swiss)', stand: LIVE, cors: true,
+    datenschutz: 'Gebäudegrundrisse (public.geo.lu.ch, Rechteck ±150 m)', empfaenger: 'regional', module: ['daten/ersatzLuzern.ts'],
+    hinweis: 'Grundrisse der AV mit relativer Höhe; Einzelobjekte wie Mauern fehlen' },
+  { id: 'lu.park', themen: ['parkfelder'], name: 'Öffentliche Parkplätze', anbieter: 'Stadt Luzern', gebiet: LUZERN, dienst: 'arcgis', lizenz: LUZERN_LIZENZ, stand: LIVE, cors: true,
+    datenschutz: 'öffentliche Parkfelder (map.stadtluzern.ch)', empfaenger: 'regional', module: ['daten/parkLuzern.ts'], hinweis: 'ohne private Parkplätze' },
   ...LUFTBILD_FGS_STAEDTE.map(({ stadt, bbox }): Quelle => {
     const k = ETH_KURZ[stadt] ?? stadt.toLowerCase()
     return { id: `eth.fgs.${k}`, themen: ['fgsLuftbild'], name: `Streifen aus dem Luftbild, ${stadt} (ETH-Modell)`,
@@ -232,6 +260,9 @@ export function datenlage(o: Ort, liste: readonly Quelle[] = QUELLEN): Datenlage
 const ORTS_THEMEN: readonly Thema[] = ['parkfelder', 'baeume', 'haltestellen', 'dtv', 'fusswegnetz', 'strassentyp', 'tempo', 'schulen', 'taktil',
   'zonen', 'oevLinien']
 
+/** Quellen, deren Werte erst nach Bestätigung wirken */
+const QUELLEN_MIT_BESTAETIGUNG: readonly string[] = ['zh.park', 'zh.dtv', 'lu.dtv', 'bs.dtv']
+
 const gebietName = (g: Gebiet) => (g.art === 'gemeinden' || g.art === 'bbox' ? g.name : '')
 
 /**
@@ -255,10 +286,12 @@ export function datenlageSatz(d: Datenlage): string {
     else if (q.id === 'osm') osm.push(t)
     else weitere.set(q.anbieter, [...(weitere.get(q.anbieter) ?? []), t])
   }
-  const teile = [...ort].map(([n, ts]) => `dazu ${n}: ${ts.map(t => THEMA_NAME[t] + (d[t]?.id === 'are.npvm' ? ' (modelliert)' : d[t]?.id.startsWith('regional.bund.') ? ' (Hinweise, bestätigen)' : '')).join(', ')}`)
+  const zusatz = (t: Thema) => { const id = d[t]?.id ?? ''
+    return id === 'are.npvm' ? ' (modelliert)' : id.startsWith('regional.bund.') ? ' (Hinweise, bestätigen)' : QUELLEN_MIT_BESTAETIGUNG.includes(id) ? ' (Vorschlag, bestätigen)' : '' }
+  const teile = [...ort].map(([n, ts]) => `dazu ${n}: ${ts.map(t => THEMA_NAME[t] + zusatz(t)).join(', ')}`)
   let s = teile.length ? `${kopf}; ${teile.join('; ')}.` : `${kopf}.`
   const rest: string[] = []
-  for (const [anbieter, ts] of weitere) rest.push(`Aus ${anbieter}: ${ts.map(t => THEMA_NAME[t] + (d[t]?.id === 'are.npvm' ? ' (modelliert)' : d[t]?.id.startsWith('regional.bund.') ? ' (Hinweise, bestätigen)' : '')).join(', ')}`)
+  for (const [anbieter, ts] of weitere) rest.push(`Aus ${anbieter}: ${ts.map(t => THEMA_NAME[t] + zusatz(t)).join(', ')}`)
   if (osm.length) rest.push(`Aus OSM: ${osm.map(t => THEMA_OSM[t] ?? THEMA_NAME[t]).join(', ')}`)
   if (ohne.length) rest.push(`${rest.length ? 'keine' : 'Keine'} Quelle für ${ohne.map(t => THEMA_NAME[t]).join(', ')}: Angaben von Hand`)
   if (rest.length) s += ` ${rest.join('; ')}.`

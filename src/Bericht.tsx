@@ -524,7 +524,7 @@ function eingabenListe(fall: Fall, r: FallRechnung | null, namen: Namen): string
   return aus
 }
 
-function hinweisListe(r: FallRechnung, fall: Fall, luftbildStand: LuftbildStand, ausserhalb: Ausserhalb[], namen: Namen): string[] {
+function hinweisListe(r: FallRechnung, fall: Fall, luftbildStand: LuftbildStand, ausserhalb: Ausserhalb[], namen: Namen, parkOffen = 0): string[] {
   const t = (id: string) => titelImFall(id, fall, r.streifen)
   const aus: string[] = []
   if (r.hinweis) aus.push(r.hinweis)
@@ -547,6 +547,7 @@ function hinweisListe(r: FallRechnung, fall: Fall, luftbildStand: LuftbildStand,
   }
   const offen = r.vorschlaege.filter(v => v.hindernis.quelle === 'osm').length
   if (offen) aus.push(`${offen} Vorschläge «aus OSM, prüfen» (Parkierung) nicht bestätigt: zählen nicht.`)
+  if (parkOffen) aus.push(`${parkOffen} Parkfelder der Stadt Zürich nicht bestätigt: zählen nicht.`)
   if (r.doppelt.length) aus.push(`${r.doppelt.length} Parkierung(en) von Hand decken sich mit amtlichen Parkfeldern (zählen doppelt?).`)
   for (const s of r.streifen) {
     for (const a of s.annahmen) aus.push(`${t(s.fgsId)}: ${a}`)
@@ -684,7 +685,7 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
   )
 }
 
-export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, zusatzQuellen, ausserhalb = [], aendern,
+export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, zusatzQuellen, ausserhalb = [], parkVorschlaegeOffen = 0, aendern,
   schliessen, namen = new Map(), blaetter = [], quellenIds = [], quellenOhneTreffer = [], datenlage = null, quellenQualitaet = {}, gelaende = null, neigung = null, bruecke = null }: {
   neigung?: Readonly<Record<string, NeigungMessung>> | null
   /** Brückenumriss der AV (rechner/bruecke.ts): Geländeprofile, die eine Brücke berühren, gelten als unsicher */
@@ -696,6 +697,8 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
   namen?: Namen                  // Zufahrten nach Strasse und Herkunft (benennung.ts), je Streifen
   blaetter?: BefundBlatt[]       // Bedarfsmodul: Befundblatt je Querung (gezeigt, sobald eine Beurteilung vorliegt)
   fall: Fall; rechnung: FallRechnung; rechnungZeit: Date | null; luftbildStand: LuftbildStand
+  /** Parkfelder als Vorschlag, die noch nicht bestätigt sind (Stadt Zürich) */
+  parkVorschlaegeOffen?: number
   zusatzQuellen: string[]
   ausserhalb?: Ausserhalb[]      // Streifen von Hand ausserhalb der geladenen Daten (abdeckung.ts)
   aendern: (f: (x: Fall) => Fall) => void; schliessen: () => void
@@ -712,7 +715,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
   const eingaben = eingabenListe(fall, rechnung, namen)
   // der Bedarfsteil steht im Bericht, sobald eine Beurteilung vorliegt (die Vorbelegung genügt)
   const mitBedarf = blaetter.length > 0
-  const hinweise = hinweisListe(rechnung, fall, luftbildStand, ausserhalb, namen)
+  const hinweise = hinweisListe(rechnung, fall, luftbildStand, ausserhalb, namen, parkVorschlaegeOffen)
   // Ergebnis auf Seite 1: neben dem Status die verfehlte Erkennungsdistanz je Zufahrt und die Aussage zum Bedarf
   const erkennungBefunde = (s: StreifenErgebnis): string[] => nachNr(s.zufahrten, namen.get(s.fgsId)).flatMap(z => {
     const t = z.erkennungM ? erkennungEmpfehlungText(erkennungAnzeige(z, gelaende)!.e, z.sichtweite) : ''

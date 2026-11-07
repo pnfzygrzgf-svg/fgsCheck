@@ -6,7 +6,7 @@
 import type { ReactNode } from 'react'
 import { RECHNER_NAME, zielAdresse, type Ort, type Rechner } from './verknuepfung'
 
-const BILD: Record<Rechner, string> = { fgs: 'fgscheck.svg', swc: 'sichtweitencheck.svg', vrc: 'veloroutencheck.svg' }
+const BILD: Record<Rechner, string> = { fgs: 'fgscheck.svg', swc: 'sichtweitencheck.svg', vrc: 'veloroutencheck.svg', knc: 'knotencheck.png' }
 export const RechnerLogo = ({ r, px = 20 }: { r: Rechner; px?: number }) =>
   <img className="rechner-logo" src={import.meta.env.BASE_URL + BILD[r]} alt="" width={px} height={px} />
 

@@ -114,7 +114,7 @@ export function haltestellenMitBav(bern: BernHalte | null, bav: Stand<BavSnapsho
   if ('daten' in bav) return { quelle: 'bav', herkunft: BAV_HERKUNFT, halte: bav.daten.halte,
     bereich: { mitte: bav.daten.mitte, radiusM: bav.daten.radiusM, form: 'quadrat' }, vollstaendig: false,
     zusatz: `${bern && 'fehler' in bern ? `Geoportal Stadt Bern nicht erreichbar (${bern.fehler}); ` : ''}` +
-      `Haltestellenpunkte, keine Haltekanten; abgerufen ${bav.daten.abgerufen}; Datenstand ${bavDatenstandText(bav.daten)} (Ebene); Vollständigkeit unbekannt` }
+      `Haltestellenpunkte; abgerufen ${bav.daten.abgerufen}; Datenstand ${bavDatenstandText(bav.daten)} (Ebene); Vollständigkeit unbekannt` }
   const alt = haltestellenStand(bern, osmRoh, ladeort, bernRadiusM)
   if ('fehler' in bav && alt && !('fehler' in alt)) return { ...alt, vollstaendig: false,
     zusatz: [alt.zusatz, `BAV nicht erreichbar (${bav.fehler}); OSM als Rückfall`].filter(Boolean).join('; ') }

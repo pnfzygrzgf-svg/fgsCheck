@@ -14,7 +14,10 @@ export const NPVM_QUELLE = {
   empfaenger: 'swisstopo' as const, datenschutz: 'Rechteck ±200 m um den geladenen Ort für modellierte Verkehrsmengen sowie öffentliche Layer-Metadaten (api3.geo.admin.ch)',
   module: ['daten/anbieter/npvm.ts'], hinweis: 'Modellwerte, keine Zählung; kleine Strassen teilweise nicht im Netz. Zuordnung und Übernahme bestätigen.',
 }
-export interface NpvmLinie { id: string; nr: number; dtv: number | null; teile: P[][] }
+export interface NpvmLinie { id: string; nr: number; dtv: number | null; teile: P[][]
+  /** nur zur Anzeige; ältere Fälle haben sie nicht */
+  dwv?: number | null; msp?: number | null; asp?: number | null; lw?: number | null; lz?: number | null
+}
 export interface NpvmSnapshot {
   version: 1; quelleId: 'are.npvm'; abgerufen: string; datenstand: string | null; bezugsjahr: number | null
   datenstandQuelle: string; mitte: P; radiusM: number; url: string; vollstaendigkeit: 'unbekannt'; linien: NpvmLinie[]
@@ -42,8 +45,11 @@ export function npvmUmwandeln(roh: GeoAdminRoh): NpvmLinie[] {
     const teile = g?.type === 'LineString' ? [g.coordinates] : g?.type === 'MultiLineString' && Array.isArray(g.coordinates) ? g.coordinates : []
     if (!teile.length || !teile.every(z => Array.isArray(z) && z.length >= 2 && z.length <= 10000 && z.every(istLv95)))
       throw new AbrufFehler('NPVM: Liniengeometrie fehlt oder ist nicht in LV95')
-    const dtv = typeof p.dtv_fzg === 'number' && Number.isFinite(p.dtv_fzg) && p.dtv_fzg >= 0 && p.dtv_fzg <= 500000 ? p.dtv_fzg : null
-    const l: NpvmLinie = { id: `npvm:${id}`, nr: p.nr as number, dtv,
+    const menge = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 500000 ? x : null)
+    const dtv = menge(p.dtv_fzg)
+    // Fehlende Anzeigewerte bleiben weg: Gespeicherte Fälle ohne sie bleiben beim Lesen unverändert
+    const anzeige = Object.fromEntries(Object.entries({ dwv: menge(p.dwv_fzg), msp: menge(p.msp_fzg), asp: menge(p.asp_fzg), lw: menge(p.dtv_lw), lz: menge(p.dtv_lz) }).filter(([, v]) => v !== null))
+    const l: NpvmLinie = { id: `npvm:${id}`, nr: p.nr as number, dtv, ...anzeige,
       teile: (teile as number[][][]).map(z => z.map(c => [c[0], c[1]] as P)) }
     const alt = aus.get(l.id)
     if (alt && JSON.stringify(alt) !== JSON.stringify(l)) throw new AbrufFehler('NPVM: widersprüchliche Strecken mit gleicher Kennung')

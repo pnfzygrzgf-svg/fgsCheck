@@ -187,7 +187,7 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     was: 'Durchschnittlicher täglicher Verkehr: Motorfahrzeuge pro Tag in beiden Richtungen im Jahresmittel, z. B. aus einer ' +
       'Verkehrszählung von Kanton oder Stadt.',
     ablauf: 'Unter 3000 Fahrzeugen nennt die Empfehlung auch die Querung ohne bauliche Massnahme.',
-    vorschlag: 'aus Geoportal Stadt Bern und ARE; NPVM, neben dem Feld wählbar. Lokale Daten haben Vorrang. NPVM: modellierter DTV beider Richtungen je Modellstrecke, nur bei eindeutiger Zuordnung und nach ausdrücklicher Übernahme. Ohne lokalen Eintrag: 500 als Annahme, soweit kein passender Modellwert vorliegt; sonst offen.',
+    vorschlag: 'aus Geoportal Stadt Bern, Zählstellen (Kanton Zürich, Stadt Luzern, Basel-Stadt) und ARE; NPVM, neben dem Feld wählbar. Lokale Daten haben Vorrang. Zählstelle (Annahme: bis 25 m neben der Fahrlinie) und NPVM gelten erst nach ausdrücklicher Übernahme. Ohne lokalen Eintrag: 500 als Annahme, soweit kein passender Modellwert vorliegt; sonst offen.',
   },
   starkBelastet: {
     was: 'Ja, wenn die Strasse nach eigener Einschätzung stark befahren ist (die Norm nennt keine Zahl). Dann ist ein Lichtsignal ' +

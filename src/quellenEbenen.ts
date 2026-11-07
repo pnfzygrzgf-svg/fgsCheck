@@ -1,3 +1,7 @@
+import { UNFALL_EBENE } from './kartenbaustein/quellenLink'
+import { npvmWerteText } from './kartenbaustein/ebenenAusschnitt'
+import type { KartenObjekt } from './kartenbaustein/modell'
+import { LUZERN_NAME, LUZERN_QUALITAET } from './daten/ersatzLuzern'
 import { AV_LEGENDE, avKlasse } from './daten/anbieter/gemeinsam/avKarte'
 import { regionalLegende } from './daten/anbieter/gemeinsam/regionalLegende'
 import { ebenenQuellenText, objektQuellenText, regionalEbenenZustand, type QuellenLadeinfo } from './daten/anbieter/gemeinsam/ebenenQualitaet'
@@ -15,6 +19,9 @@ import { type QuellenQualitaet } from './daten/anbieter/gemeinsam/qualitaet'
 // Geometrie in LV95 (P); die Karte rechnet um. Nur Daten, keine Regeln.
 
 import type { KatasterBaum } from './daten/baumkataster'
+import type { KatasterFeld } from './daten/parkkataster'
+import { ZH_PARK_ANNAHME, ZH_PARK_LIZENZ, ZH_PARK_QUELLE } from './daten/anbieter/gemeinsam/parkZuerich'
+import { ZAEHLQUELLEN } from './daten/zaehlstellen'
 import { alphabetisch } from './daten/anbieter/gemeinsam/sortierung'
 import type { P } from './geo'
 import type { GeoVorbelegung } from './bedarf/vorbelegung'
@@ -23,24 +30,9 @@ import { lv95 } from './geo'
 import { modellName } from './hoehenModell'
 
 export type EbeneId = 'av' | 'unfaelleFuss' | 'unfaelleVelo' | `regional.${string}` | 'tempo' | 'dtv' | 'haltestellen' | 'bav' | 'oev' | 'hierarchie' | 'strassentyp' | 'nutzungszonen' | 'schulen'
-  | 'zhTempo' | 'zhZonen' | 'npvm' | 'baeume' | 'beleuchtung' | 'vortritt' | 'steigung' | 'bruecken' | 'gelaende'
+  | 'zhTempo' | 'zhZonen' | 'parkZuerich' | 'npvm' | 'baeume' | 'beleuchtung' | 'vortritt' | 'steigung' | 'bruecken' | 'gelaende'
 
-export interface EbenenObjekt {
-  id: string
-  linien?: P[][]
-  punkt?: P
-  ringe?: P[][]
-  klasse: string
-  wert?: string             // kurze Beschriftung (Tempo, DTV, Neigung)
-  text: string              // Tooltip (Punkte) bzw. Beschreibung
-  profil?: true
-  hoehenprofil?: import('./hoehenprofil/modell').HoehenProfil
-  quelle?: string
-  quellenSchluessel?: string
-  datenstand?: string       // BAV: Stand der Ebene aus dem zugehörigen gespeicherten Ausschnitt
-  gestrichelt?: boolean     // Ersatzquelle (OSM statt amtlich)
-  deckkraft?: number        // Füllung einer Fläche (Standard 0,3)
-}
+export type EbenenObjekt = KartenObjekt<import('./hoehenprofil/modell').HoehenProfil>
 export type EbenenDaten = Partial<Record<EbeneId, EbenenObjekt[]>> & { metadaten?: Readonly<Record<string, QuellenLadeinfo>>; qualitaet?: Partial<Record<EbeneId, QuellenQualitaet>> }
 
 export interface EbeneDef {
@@ -73,16 +65,18 @@ export const EBENEN: readonly EbeneDef[] = [
   ...REGIONAL_DIENSTE.map((d): EbeneDef => ({ id: `regional.${d.id}`, titel: d.name, quellenHinweis: d.hinweis, quelle: `${d.anbieter}; ${d.lizenz}; ${d.hinweis}`, legende: regionalLegende(d.art) })),
   { id: 'zhTempo', titel: 'Tempo (Stadt Zürich)', quelle: 'Stadt Zürich, signalisierte Geschwindigkeiten; heutiger Zustand, CC0', legende: [...TEMPO_FARBEN, ['verbot', '#7f1d1d', 'Fahrverbot / ungeklärtes Regime']] },
   { id: 'zhZonen', titel: 'Verkehrszonen (Stadt Zürich)', quelle: 'Stadt Zürich, bestehende Verkehrszonen; CC0', legende: [['t30_zone', '#eab308', 'Tempo-30-Zone'], ['begegnungszone', '#16a34a', 'Begegnungszone'], ['fussgaengerzone', '#7c3aed', 'Fussgängerzone'], ['offen', '#64748b', 'ungeklärt']] },
+  { id: 'parkZuerich', titel: 'Parkfelder Stadt Zürich (Vorschlag)', quelle: `${ZH_PARK_QUELLE}; ${ZH_PARK_LIZENZ}; ganzer geladener Ausschnitt, zählt erst nach Bestätigung`,
+    legende: [['auto', '#1e40af', 'Auto'], ['velo', '#0f766e', 'Velo'], ['motorrad', '#ec4899', 'Motorrad']] },
   { id: 'baeume', titel: 'Bäume', quelle: 'Geoportal Stadt Bern, Baumkataster; gesamter geladener Ausschnitt',
     legende: [['baum', '#166534', 'Baum', 'B']] },
   { id: 'tempo', titel: 'Tempo', legende: TEMPO_FARBEN,
     quelle: 'Tempoquelle nicht geladen' },
   { id: 'npvm', titel: 'Verkehrsmenge (NPVM, modelliert)', legende: DTV_FARBEN, quelle: '© ARE; NPVM/AMG, modelliert, keine Zählung; Summe der Fahrtrichtungen je Modellstrecke; Übernahme bestätigen' },
-  { id: 'dtv', titel: 'Verkehrsmenge (DTV)', legende: DTV_FARBEN, quelle: 'Geoportal Stadt Bern, Flächendeckende Verkehrsdaten' },
+  { id: 'dtv', titel: 'Verkehrsmenge (DTV)', legende: [...DTV_FARBEN, ['zaehlstelle', '#475569', 'Z: Zählstelle, Farbe nach dem Wert', 'Z']], quelle: 'Geoportal Stadt Bern, Flächendeckende Verkehrsdaten' },
   { id: 'haltestellen', titel: 'ÖV-Haltestellen', quelle: 'Haltestellenquelle nicht geladen',
     legende: [['tram', '#b91c1c', 'Tram (auch mit Bus)', 'T'], ['bus', '#1d4ed8', 'Bus', 'B'], ['oev', '#475569', 'Haltestelle', 'H']] },
-  { id: 'bav', titel: 'Haltestellen BAV', quelle: '© BAV; Haltestellenpunkte, keine Haltekanten',
-    legende: [['tram', '#b91c1c', 'Tram (auch mit Bus)', 'T'], ['bus', '#1d4ed8', 'Bus', 'B']] },
+  { id: 'bav', titel: 'Haltestellen BAV', quelle: '© BAV; Haltestellen und Haltekanten',
+    legende: [['tram', '#b91c1c', 'Tram (auch mit Bus)', 'T'], ['bus', '#1d4ed8', 'Bus', 'B'], ['kante', '#475569', 'Haltekante, auch Bahn', 'K']] },
   { id: 'oev', titel: 'ÖV-Linien', quelle: 'Geoportal Stadt Bern, ÖV-Linien',
     legende: [['tram', '#dc2626', 'Tram'], ['bus', '#7c3aed', 'Bus, Trolleybus'], ['andere', '#64748b', 'Zug, Drahtseilbahn']] },
   { id: 'hierarchie', titel: 'Strassenhierarchie', quelle: 'Geoportal Stadt Bern, Strassenhierarchie',
@@ -102,7 +96,7 @@ export const EBENEN: readonly EbeneDef[] = [
     legende: [['give_way', '#b91c1c', 'Kein Vortritt', '▽'], ['stop', '#7f1d1d', 'Stop', '■'], ['schild', '#475569', 'übriges Vortrittssignal', '◇']] },
   { id: 'steigung', titel: 'Längsneigung (Profile)', quelle: 'Höhenmodell (swissALTI3D © swisstopo; in der Stadt Bern DTM 2023, Geodaten Stadt Bern), Profile der Fahrlinien',
     legende: [['n0', '#16a34a', 'bis 2 %'], ['n2', '#ca8a04', 'über 2 %'], ['n6', '#dc2626', 'über 6 %'], ['n?', '#64748b', 'nicht bestimmbar']] },
-  { id: 'gelaende', titel: 'Gelände (Höhenmodell, Sichtprofile)',
+  { id: 'gelaende', titel: 'Gelände (Höhenmodell, Profile)',
     quelle: 'Höhenmodell (swissALTI3D © swisstopo; in der Stadt Bern DTM 2023, Geodaten Stadt Bern), Geländeprüfung entlang der Sichtlinien; keine flächige Geländekarte',
     legende: [['frei', '#16a34a', 'im Geländemodell frei'], ['verdeckt', '#dc2626', 'im Geländemodell verdeckt'], ['bruecke', '#b45309', 'Brückenbereich: Aussage unsicher']] },
   { id: 'bruecken', titel: 'Brücken (AV-Einzelobjekte)', quelle: 'Amtliche Vermessung, Einzelobjekte (Brücke)',
@@ -121,9 +115,10 @@ export function ebenenSichtbar(daten: EbenenDaten): { zeigen: EbeneDef[]; ohne: 
     const objekte = daten[e.id] ?? []
     // Gebietsfremde Quellen sind kein leerer örtlicher Bestand. Ein Metadateneintrag allein belegt nur den Ladestart.
     const regional = e.id.startsWith('regional.')
-    const zh = e.id === 'zhTempo' || e.id === 'zhZonen'
+    const zh = e.id === 'zhTempo' || e.id === 'zhZonen' || e.id === 'parkZuerich'
     if (!objekte.length && zh && !daten.metadaten?.[e.id] && !daten.qualitaet?.[e.id]) continue
-    const zustand = regional ? regionalEbenenZustand(vorhanden, objekte.length, daten.metadaten?.[e.id]) : objekte.length ? 'zeigen' : 'ohne'
+    // Das Kartenbild der Unfälle gilt überall, nicht nur um den Prüfpunkt
+    const zustand = UNFALL_EBENE[e.id] ? 'zeigen' : regional ? regionalEbenenZustand(vorhanden, objekte.length, daten.metadaten?.[e.id]) : objekte.length ? 'zeigen' : 'ohne'
     if (zustand === null) continue
     const def = { ...e, quelle: ebenenQuellenText(objekte, e.quelle, daten.qualitaet?.[e.id], daten.metadaten) }
     gruppen[zustand].push(def)
@@ -146,8 +141,8 @@ export interface ProfilAnzeige { key: string; linie: P[]; i: number | null; laen
 /** Alle Ebenen aus den Geodaten der Vorbelegung (geoVor), den OSM-Wegen, den Profilen und den Brückenumrissen */
 export function ebenenAusGeo(geo: GeoVorbelegung, wege: OsmWeg[], profile: ProfilAnzeige[] = [], bruecken: P[][] = [], baeume: readonly KatasterBaum[] = [], av: readonly import('./daten/av').AvFlaeche[] = []): EbenenDaten {
   const d: EbenenDaten = { baeume: baeume.map(b => ({ id: b.id, punkt: b.p, klasse: 'baum', text: `${b.name}; Geodaten Stadt Bern, Baumkataster` })) }
-  d.av = av.filter(f => f.ringe[0]?.length >= 3).map((f,k) => ({ id: `av:${k}:${f.art}`, quelle: `Amtliche Vermessung Kanton ${f.kanton || 'unbekannt'} über geodienste.ch`, quellenSchluessel: 'av',
-    ringe: f.ringe, klasse: avKlasse(f.art), text: `${f.art}; amtliche Vermessung Kanton ${f.kanton || 'unbekannt'}` }))
+  d.av = av.filter(f => f.ringe[0]?.length >= 3).map((f,k) => ({ id: `av:${k}:${f.art}`, quelle: f.qualitaet === LUZERN_QUALITAET ? LUZERN_NAME : `Amtliche Vermessung Kanton ${f.kanton || 'unbekannt'} über geodienste.ch`, quellenSchluessel: 'av',
+    ringe: f.ringe, klasse: avKlasse(f.art), text: `${f.art}; ${f.qualitaet === LUZERN_QUALITAET ? 'Ersatz der amtlichen Vermessung, Stadt Luzern' : `amtliche Vermessung Kanton ${f.kanton || 'unbekannt'}`}` }))
   for (const t of geo.regional?.teile ?? []) d[`regional.${t.id}`] = t.objekte.filter(o => ['tempo','zone'].includes(REGIONAL_DIENSTE.find(d => d.id === t.id)?.art ?? '') || !!o.kontext || !!o.verkehr || !!o.bund || !!o.bedarf).flatMap<EbenenObjekt>(o => {
     const v = o.tempo ?? (o.zone === 't30_zone' ? 30 : o.zone === 'begegnungszone' ? 20 : null)
     const basis = { id: o.id, ...(o.bund?.typ === 'unfall' ? { quelle: '© ASTRA' } : {}), klasse: o.kontext ?? (o.bedarf ? o.bedarf.art ?? 'einrichtung' : o.bund ? o.bund.typ === 'strasse' && [200, 300].includes(o.bund.code ?? 0) ? `strasse${o.bund.code}` : o.bund.typ : o.verkehr ?? (v === null ? 'offen' : tempoKlasse(v))), wert: v === null ? undefined : String(v), text: o.bund?.typ === 'unfall' ? `${o.name}; ${o.hinweis}` : `${o.name}${o.kontext || o.bund || o.bedarf ? '' : `: ${o.tempo ?? o.zone ?? 'unbekannt'}`}; ${o.hinweis}; ${o.bestaetigen ? 'Übernahme bestätigen; ' : ''}Datenstand ${t.datenstand}`, datenstand: o.stand ? `${o.stand.split('-').reverse().join('.')} (Objekt-/Exportstand)` : t.datenstand }
@@ -163,8 +158,7 @@ export function ebenenAusGeo(geo: GeoVorbelegung, wege: OsmWeg[], profile: Profi
     text: `${z.regime} «${z.name}»; Stadt Zürich; umgesetzt ${z.umgesetzt ?? 'unbekannt'}; Datenstand ${zhStandText(zh!.zonen!)}` })))
   d.npvm = (geo.npvm?.linien ?? []).filter(l => l.dtv !== null).map(l => ({ id: l.id, linien: l.teile,
     klasse: dtvKlasse(l.dtv!), wert: tausender(l.dtv!), gestrichelt: true,
-    text: `DTV ${tausender(l.dtv!)} Fz/Tag, modelliert (NPVM ${geo.npvm?.bezugsjahr ?? '?'}), Strecke ${l.nr}; ` +
-      `Summe beider Fahrtrichtungen je Modellstrecke; Datenstand ${npvmStandText(geo.npvm!)} (Ebene), abgerufen ${geo.npvm?.abgerufen}; Zuordnung und Übernahme bestätigen` }))
+    text: `${npvmWerteText(l)}; Bezugsjahr ${geo.npvm?.bezugsjahr ?? '?'}, Strecke ${l.nr}; Datenstand ${npvmStandText(geo.npvm!)} (Ebene), abgerufen ${geo.npvm?.abgerufen}; Zuordnung und Übernahme bestätigen` }))
   // Tempo: amtlich (Bern), dazu OSM maxspeed gestrichelt, wo keine amtliche Linie gelesen ist
   const vsig = ohneFehler(geo.vsig)
   d.tempo = [
@@ -179,14 +173,18 @@ export function ebenenAusGeo(geo: GeoVorbelegung, wege: OsmWeg[], profile: Profi
   const vd = ohneFehler(geo.verkehrsdaten)
   d.dtv = (vd?.linien ?? []).filter(l => l.dtv != null).map(l => ({ id: `vd:${l.id}`, linien: l.teile, klasse: dtvKlasse(l.dtv!),
     wert: tausender(l.dtv!), text: `DTV ≈ ${tausender(l.dtv!)}${l.strasse ? `, ${l.strasse}` : ''} (Geoportal Stadt Bern${l.stand ? `, Stand ${l.stand}` : ''})` }))
+  if (geo.zaehlstellen) { const z = geo.zaehlstellen, q = ZAEHLQUELLEN[z.quelleId]
+    d.dtv.push(...z.stellen.map(s => ({ id: s.id, quelle: q.quellenangabe, quellenSchluessel: q.id, punkt: s.p, klasse: dtvKlasse(s.dtv), wert: tausender(s.dtv), symbol: 'Z',
+      text: `Zählstelle${s.name ? ` ${s.name}` : ''}: ${q.masszahl} ${tausender(s.dtv)}${s.jahr ? ` (${s.jahr})` : ''}; misst nur den Standort, Übernahme bestätigen` }))) }
   const halt = ohneFehler(geo.haltestellen)
   d.haltestellen = (halt?.quelle === 'bav' ? [] : halt?.halte ?? []).map(h => ({ id: `h:${h.id}`, quelle: halt!.quelle === 'osm' ? 'OpenStreetMap · © OpenStreetMap-Mitwirkende, ODbL' : halt!.herkunft, quellenSchluessel: halt!.quelle === 'osm' ? 'osm' : 'haltestellen', punkt: h.p,
     klasse: h.art === 'tram' || h.art === 'bus_tram' ? 'tram' : h.art === 'bus' ? 'bus' : 'oev',
     text: `${h.art === 'tram' ? 'Tramhaltestelle' : h.art === 'bus_tram' ? 'Tram- und Bushaltestelle' : h.art === 'bus' ? 'Bushaltestelle' : 'Haltestelle'} ${h.name} (${halt!.herkunft})` }))
   const oev = ohneFehler(geo.oevLinien)
-  d.bav = (geo.bav?.halte ?? []).map(h => ({ id: h.id, punkt: h.p, klasse: h.art === 'bus' ? 'bus' : 'tram', datenstand: bavDatenstandText(geo.bav!),
+  d.bav = [...(geo.bav?.halte ?? []).map(h => ({ id: h.id, punkt: h.p, klasse: h.art === 'bus' ? 'bus' : 'tram', datenstand: bavDatenstandText(geo.bav!),
     text: `${h.name} (${h.art === 'bus_tram' ? 'Bus / Tram' : h.art === 'bus' ? 'Bus' : 'Tram'}; BAV ${h.nummer}); ` +
-      `Haltestellenpunkt, keine Haltekante; abgerufen ${geo.bav!.abgerufen}; Datenstand ${bavDatenstandText(geo.bav!)} (Ebene)` }))
+      `Haltestellenpunkt; abgerufen ${geo.bav!.abgerufen}; Datenstand ${bavDatenstandText(geo.bav!)} (Ebene)` })),
+    ...(geo.bav?.kanten ?? []).map(k => ({ id: k.id, punkt: k.p, klasse: 'kante', datenstand: bavDatenstandText(geo.bav!), text: `${k.name}${k.bezeichnung ? `, Kante ${k.bezeichnung}` : ''}: BAV ${k.sloid}` }))]
   d.oev = (oev?.linien ?? []).map(l => ({ id: `oev:${l.id}`, linien: l.teile,
     klasse: l.typ === 'tram' ? 'tram' : l.typ === 'bus' || l.typ === 'trolleybus' ? 'bus' : 'andere',
     text: `${l.typText}${l.nummer ? ` ${l.nummer}` : ''} (Geoportal Stadt Bern, ÖV-Linien)` }))
@@ -208,7 +206,7 @@ export function ebenenAusGeo(geo: GeoVorbelegung, wege: OsmWeg[], profile: Profi
     id: `sch:${o.id}`, quelle: o.quelle === 'geoportal' ? 'Geoportal Stadt Bern, Schulen und Einrichtungen' : 'OpenStreetMap · © OpenStreetMap-Mitwirkende, ODbL', quellenSchluessel: o.quelle === 'geoportal' ? 'schulen' : 'osm', punkt: o.p, klasse: o.art, ...(o.umriss && !o.grenzrechteck ? { ringe: [o.umriss] } : {}),
     text: `${o.wort ? `${o.wort} ` : ''}${o.name || { schule: 'Schule', kindergarten: 'Kindergarten', heim: 'Heim', sozial: 'Soziale Einrichtung' }[o.art]} (${o.quelle === 'geoportal' ? 'Geoportal Stadt Bern' : `OpenStreetMap${o.tag ? ` ${o.tag}` : ''}`}; zählt als ${{ schule: 'Schule', kindergarten: 'Kindergarten', heim: 'Heim', sozial: 'soziale Einrichtung' }[o.art]})` }))
   d.beleuchtung = [
-    ...(geo.lampen?.punkte ?? []).map((p, k) => ({ id: `lampe:${k}:${Math.round(p[0])},${Math.round(p[1])}`, punkt: p, klasse: 'lampe', text: 'Strassenlampe (OpenStreetMap)' })),
+    ...(geo.lampen?.punkte ?? []).map((p, k) => ({ id: `lampe:${geo.lampen?.ids?.[k] ?? `ohne:${k}`}`, punkt: p, klasse: 'lampe', text: 'Strassenlampe (OpenStreetMap)' })),
     ...wege.filter(w => w.tags.lit === 'yes' || w.tags.lit === 'no').map(w => ({ id: `lit:${w.id}`, linien: [wegLinie(w)],
       klasse: w.tags.lit === 'yes' ? 'lit' : 'dunkel', text: `lit=${w.tags.lit}${w.tags.name ? `, ${w.tags.name}` : ''} (OpenStreetMap)` })),
   ]
@@ -221,6 +219,10 @@ export function ebenenAusGeo(geo: GeoVorbelegung, wege: OsmWeg[], profile: Profi
     text: 'Brücke (amtliche Vermessung, Einzelobjekt)' }))
   return d
 }
+
+/** Parkfelder der Stadt Zürich des geladenen Ausschnitts als Ebene, Lage und Grösse angenommen */
+export const parkZuerichObjekte = (felder: readonly KatasterFeld[]): EbenenObjekt[] =>
+  felder.map(f => ({ id: f.id, ringe: [f.ring], klasse: f.klasse, deckkraft: 0.2, text: `${f.name}; ${ZH_PARK_ANNAHME}` }))
 
 /** Quellen und Stand auch im Objekt-Tooltip, passend zum tatsächlichen Anbieter. */
 export function ebenenBeschriften(d: EbenenDaten): EbenenDaten {

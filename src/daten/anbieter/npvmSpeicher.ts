@@ -31,7 +31,7 @@ export function npvmSnapshotLesen(x: unknown): NpvmSnapshot | null {
     for (const l of x.linien) if (!objekt(l) || !(l.dtv === null || typeof l.dtv === 'number' && Number.isFinite(l.dtv) && l.dtv >= 0 && l.dtv <= 500000) || typeof l.id !== 'string' || !/^npvm:\d{1,15}$/.test(l.id) || ids.has(l.id)) return null
       else ids.add(l.id)
     const linien = npvmUmwandeln({ results: x.linien.map(l => ({ layerBodId: NPVM_LAYER, featureId: l.id.slice(5),
-      properties: { nr: l.nr, dtv_fzg: l.dtv }, geometry: { type: 'MultiLineString', coordinates: l.teile } })) })
+      properties: { nr: l.nr, dtv_fzg: l.dtv, dwv_fzg: l.dwv, msp_fzg: l.msp, asp_fzg: l.asp, dtv_lw: l.lw, dtv_lz: l.lz }, geometry: { type: 'MultiLineString', coordinates: l.teile } })) })
     return { version: 1, quelleId: 'are.npvm', abgerufen: x.abgerufen, datenstand: x.datenstand as string | null,
       bezugsjahr: x.bezugsjahr as number | null, datenstandQuelle: NPVM_METADATEN_URL, mitte: [...x.mitte], radiusM: x.radiusM,
       url: x.url, vollstaendigkeit: 'unbekannt', linien }

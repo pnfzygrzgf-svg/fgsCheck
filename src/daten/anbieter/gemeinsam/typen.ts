@@ -7,6 +7,8 @@ export interface AmtlicherHalt {
   p: P
   art: 'bus' | 'tram' | 'bus_tram'
 }
+/** Haltekante laut BAV: Lage und Bezeichnung; Verkehrsmittel und Bedienung kennt der Layer dort nicht */
+export interface AmtlicheKante { id: string; sloid: string; name: string; bezeichnung: string; p: P }
 export interface BavSnapshot {
   version: 1
   quelleId: 'bav.halt'
@@ -21,6 +23,7 @@ export interface BavSnapshot {
   /** Abfrage vollständig abgearbeitet; die fachliche Vollständigkeit des Inventars ist nicht belegt. */
   vollstaendigkeit: 'unbekannt'
   halte: AmtlicherHalt[]
+  kanten?: AmtlicheKante[]
 }
 export interface Gemeinde { bfs: number; kanton: string; name: string }
 export interface GebietSnapshot {

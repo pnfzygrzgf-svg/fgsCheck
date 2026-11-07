@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
-import { AUS, TITEL, ZOOM, kachelSchluessel, laenge, type Box, type Ergebnis, type Stand } from './modell'
+import { AUS, TITEL, ZOOM, kachelSchluessel, kurveBei, laenge, type Box, type Ergebnis, type Stand } from './modell'
 import { lv95, wgs } from './projektion'
 import { standSetzen } from './stand'
 import type { HoehenLader } from './holen'
@@ -33,7 +33,12 @@ function zeichnen(map:L.Map,e:Ergebnis):L.LayerGroup {
 }
 export function useHoehenkurven(map:L.Map|null,kontext:unknown){
   const [an,setAn]=useState(false),[stand,setStand]=useState<Stand>(AUS)
-  const lader=useRef<Promise<HoehenLader>|null>(null),alterKontext=useRef(kontext)
+  const lader=useRef<Promise<HoehenLader>|null>(null),alterKontext=useRef(kontext),gezeigt=useRef<Ergebnis|null>(null)
+  // Text für den Tooltip; ändert sich nie und taugt darum für Ereignisse der Karte
+  const bei=useRef((lat:number,lon:number,tolM:number):string|null=>{
+    const h=gezeigt.current?kurveBei(gezeigt.current,lv95(lat,lon),tolM):null
+    return h===null?null:`Höhenkurve ${h} m ü. M. (swissALTI3D, © swisstopo)`
+  }).current
   useEffect(()=>{
     if(alterKontext.current!==kontext){lader.current=null;alterKontext.current=kontext}
     const melden=(s:Stand)=>{setStand(s);standSetzen(s)}
@@ -41,7 +46,7 @@ export function useHoehenkurven(map:L.Map|null,kontext:unknown){
     if(lader.current)lader.current=lader.current.then(l=>{l.aktualisieren();return l})
     let angezeigt:Ergebnis|null=null
     let aktiv=true,ctrl:AbortController|null=null,gruppe:L.LayerGroup|null=null,debounce:ReturnType<typeof setTimeout>|undefined,frist:ReturnType<typeof setTimeout>|undefined
-    const entfernen=()=>{gruppe?.remove();gruppe=null}
+    const entfernen=()=>{gruppe?.remove();gruppe=null;gezeigt.current=null}
     const stoppen=()=>{ctrl?.abort();ctrl=null;clearTimeout(frist);clearTimeout(debounce)}
     const laden=()=>{
       stoppen()
@@ -55,7 +60,7 @@ export function useHoehenkurven(map:L.Map|null,kontext:unknown){
       lader.current??=import('./holen').then(m=>new m.HoehenLader())
       void lader.current.then(l=>{if(!aktiv||c.signal.aborted)throw new DOMException('Abgebrochen','AbortError');return l.laden(box,c.signal)}).then(e=>{
         if(!aktiv||ctrl!==c||c.signal.aborted)return
-        clearTimeout(frist);const ersatz=zeichnen(map,e);entfernen();gruppe=ersatz;angezeigt=e
+        clearTimeout(frist);const ersatz=zeichnen(map,e);entfernen();gruppe=ersatz;angezeigt=e;gezeigt.current=e
         melden({phase:'bereit',text:`${e.kurven.length} Linienabschnitte im Ausschnitt`,ergebnis:e})
       }).catch(err=>{if(aktiv&&ctrl===c&&!c.signal.aborted){clearTimeout(frist);melden({phase:'fehler',text:`Höhenkurven nicht verfügbar: ${(err as Error).message}`+(angezeigt?' Bisheriger Ausschnitt bleibt sichtbar.':''),...(angezeigt?{ergebnis:angezeigt}:{})})}})
     }
@@ -64,5 +69,5 @@ export function useHoehenkurven(map:L.Map|null,kontext:unknown){
     map.attributionControl.addAttribution('© swisstopo (Höhenkurven aus swissALTI3D)')
     return()=>{aktiv=false;stoppen();entfernen();map.off('movestart',stoppen);map.off('moveend',bewegen);map.attributionControl.removeAttribution('© swisstopo (Höhenkurven aus swissALTI3D)')}
   },[map,an,kontext])
-  return {an,setzen:setAn,stand,titel:TITEL}
+  return {an,setzen:setAn,stand,titel:TITEL,bei}
 }

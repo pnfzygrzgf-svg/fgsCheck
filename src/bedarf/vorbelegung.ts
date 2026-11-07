@@ -11,6 +11,7 @@ import type { ZuerichSnapshot } from '../daten/anbieter/gemeinsam/zuerich'
 import { zhStrassen } from '../daten/anbieter/gemeinsam/zuerichZuordnung'
 import { npvmZuordnen } from '../daten/anbieter/npvmZuordnung'
 import { npvmStandText, type NpvmSnapshot } from '../daten/anbieter/npvm'
+import { ZAEHLQUELLEN, zaehlstelleZuordnen, zaehlText, type ZaehlSnapshot } from '../daten/zaehlstellen'
 // ── Bedarfsmodul E1: Vorbelegung der Eingaben aus der vorhandenen Rechnung ──
 //
 // Keine neuen Datenquellen (E2): nur, was die Sichtprüfung ohnehin rechnet bzw. der Fall schon enthält. Jeder Wert trägt seine
@@ -113,6 +114,8 @@ export interface GeoVorbelegung extends AutoGeo {
   zuerich?: ZuerichSnapshot | null
   bav?: BavSnapshot | null
   npvm?: NpvmSnapshot | null
+  /** Zählstellen um den Ladeort (Kanton Zürich, Stadt Luzern, Basel-Stadt) */
+  zaehlstellen?: ZaehlSnapshot | null
   /** Herkunft der gerechneten Streifen (FallRechnung.streifenQuelle); diente der Lücke zum Rand (nur bei «luftbild»), seit dieses Feld am
    * 30.10.2026 gestrichen ist ohne Wirkung in der Vorbelegung */
   streifenQuelle?: 'osm' | 'hand' | 'luftbild'
@@ -123,7 +126,7 @@ export interface GeoVorbelegung extends AutoGeo {
   /** Tags der OSM-Strassen nach Weg-Id (osm.wegTags) */
   osmTags?: ReadonlyMap<number, Record<string, string>> | null
   /** Strassenlampen nach OSM (LV95) mit abgedecktem Bereich */
-  lampen?: { punkte: P[]; bereich: Bereich } | null
+  lampen?: { punkte: P[]; ids?: number[]; bereich: Bereich } | null
   // Weitere Dienste des Geoportals Stadt Bern (nur Bern; null: ausserhalb Berns bzw. noch nicht
   // geladen; { fehler }: Dienst nicht erreichbar; hinweis: ein Layer des Diensts fehlt) und OSM-Erweiterungen; Hilfen in daten/geoHilfen.ts
   /** Richtplan Fussverkehr: Basisnetz (Linien) und publikumsattraktive Bereiche (Flächen) */
@@ -449,20 +452,34 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   dtvVorbelegen(st, gerade.map(z => z.spur), geo.verkehrsdaten ?? null, setze, feldHinweis)
   const dtvLokal = w.dtv ? { ...w.dtv } : null
   const dtvOptionen: QuellenOption[] = dtvLokal ? [{ id: dtvLokal.quelle === 'geoportal' ? 'bern.dtv' : 'app.dtv', ...dtvLokal, vorgabe: true }] : []
+  const ids = new Set(gerade.map(z => wegId(z.osmWeg))), wege = geo.osm?.wege.filter(z => ids.has(z.id)) ?? []
+  const hoehe = wege.some(z => z.tags.bridge && z.tags.bridge !== 'no' || z.tags.tunnel && z.tags.tunnel !== 'no' ||
+    z.tags.layer && z.tags.layer !== '0')
+  // Zählstelle: Messung vor dem Modell, gilt aber nur für ihren Standort: Vorschlag, wirkt erst nach Bestätigung; der örtliche Wert der Stadt Bern bleibt vorne
+  const zaehl = geo.zaehlstellen && w.dtv?.quelle !== 'geoportal' && !hoehe ? zaehlstelleZuordnen(geo.zaehlstellen.stellen, gerade.map(z => z.spur), st[0].m) : null
+  if (zaehl) {
+    const q = ZAEHLQUELLEN[geo.zaehlstellen!.quelleId], text = zaehlText(q, zaehl, geo.zaehlstellen!.abgerufen)
+    for (const o of dtvOptionen) delete o.vorgabe
+    dtvOptionen.push({ id: q.id, wert: zaehl.stelle.dtv, quelle: 'vorschlag', text, vorgabe: true,
+      datenstand: zaehl.stelle.jahr ? `Zähljahr ${zaehl.stelle.jahr}` : 'unbekannt', ...(q.masszahl !== 'DTV' ? { zusatz: q.masszahl } : {}) })
+    setze('dtv', zaehl.stelle.dtv, 'vorschlag', text)
+    w.dtv.bestaetigungNoetig = true
+    const hand = fall.bedarf?.felder.dtv
+    if (hand?.wert != null && hand.wert !== zaehl.stelle.dtv) feldHinweis('dtv', `Eigener bzw. bestätigter DTV bleibt erhalten; die Zählstelle zeigt ${ganz(zaehl.stelle.dtv)} Fz/Tag`)
+  }
   if (geo.npvm) {
     const a = st[0].p0, n = einheit(sub(st[0].p1, a)), ts = st.flatMap(s => [s.p0, s.p1, ...s.rand]).map(p => dot(sub(p, a), n))
     const achse: [P, P] = [add(a, n, Math.min(...ts)), add(a, n, Math.max(...ts))]
-    const ids = new Set(gerade.map(z => wegId(z.osmWeg))), wege = geo.osm?.wege.filter(z => ids.has(z.id)) ?? []
-    const hoehe = wege.some(z => z.tags.bridge && z.tags.bridge !== 'no' || z.tags.tunnel && z.tags.tunnel !== 'no' ||
-      z.tags.layer && z.tags.layer !== '0')
     const v = npvmZuordnen(geo.npvm, achse, gerade.map(z => z.spur), hoehe)
     const modellText = v.beleg ? `DTV ${ganz(v.beleg.wert)} Fz/Tag, modelliert (NPVM ${geo.npvm.bezugsjahr}); ` +
       `Summe beider Fahrtrichtungen der Modellstrecke ${v.beleg.nr}; Datenstand ${npvmStandText(geo.npvm)} (Ebene), ` +
       `abgerufen ${geo.npvm.abgerufen}. ${v.hinweis}. Erst nach Bestätigung verwenden.` : v.hinweis
     dtvOptionen.push({ id: 'are.npvm', wert: v.beleg?.wert ?? null, quelle: 'vorschlag', text: modellText,
-      ...(v.beleg ? { npvmBeleg: v.beleg } : {}), ...(v.beleg && dtvLokal?.quelle !== 'geoportal' ? { vorgabe: true } : {}) })
+      ...(v.beleg ? { npvmBeleg: v.beleg } : {}), ...(v.beleg && dtvLokal?.quelle !== 'geoportal' && !zaehl ? { vorgabe: true } : {}) })
     if (!v.beleg) feldHinweis('dtv', v.hinweis)
-    else if (w.dtv?.quelle === 'geoportal') {
+    else if (zaehl) {
+      if (zaehl.stelle.dtv !== v.beleg.wert) feldHinweis('dtv', `Die Zählstelle hat Vorrang, gilt aber nur für ihren Standort; NPVM ${geo.npvm.bezugsjahr} modelliert ${ganz(v.beleg.wert)} Fz/Tag auf Strecke ${v.beleg.nr}`)
+    } else if (w.dtv?.quelle === 'geoportal') {
       if (w.dtv.wert !== v.beleg.wert) feldHinweis('dtv', `Örtlicher DTV hat Vorrang; NPVM ${geo.npvm.bezugsjahr} modelliert ${ganz(v.beleg.wert)} Fz/Tag auf Strecke ${v.beleg.nr} (abweichender Bezugsstand)`)
     } else {
       for (const o of dtvOptionen) if (o.id !== 'are.npvm') delete o.vorgabe
@@ -472,7 +489,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
       if (hand?.wert != null && hand.wert !== v.beleg.wert) feldHinweis('dtv', `Eigener bzw. bestätigter DTV bleibt erhalten; neu geladenes NPVM-Modell schlägt ${ganz(v.beleg.wert)} Fz/Tag vor`)
     }
   }
-  if (!geo.npvm && dtvLokal) dtvOptionen.push({ id: 'are.npvm', wert: null, quelle: 'vorschlag',
+  if (!geo.npvm && (dtvLokal || zaehl)) dtvOptionen.push({ id: 'are.npvm', wert: null, quelle: 'vorschlag',
     text: 'Noch kein verwendbarer NPVM-Ausschnitt geladen. Ladezustand unter «Datenquellen und Ladezustand» prüfen.' })
   if (w.dtv && dtvOptionen.length) w.dtv.quellenOptionen = dtvOptionen
   const licht = beleuchtungHinweis(st, gerade.map(z => wegId(z.osmWeg)), tags, geo.lampen ?? null)
@@ -562,7 +579,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
   if (ampelWahl) setze('q3.lsaKnoten', true, 'bestaetigt', signalText(ampelWahl))
   if (st.some(s => s.tram === true) && !w.tram && !feldHinweise.tram)
     hinweise.push('Ein Tramgleis nach OSM quert die Querung: Art (Fahrbahn bzw. Eigentrassee) von Hand wählen')
-  const keys:Record<string,string>={'bern.vsig':'vsig','bern.dtv':'verkehrsdaten','bern.halt':'haltestellen','bav.halt':'bav','are.npvm':'npvm','zh.tempo':'zhTempo','zh.zone':'zhZonen'}
+  const keys:Record<string,string>={'bern.vsig':'vsig','bern.dtv':'verkehrsdaten','zh.dtv':'zh.dtv','lu.dtv':'lu.dtv','bs.dtv':'bs.dtv','bern.halt':'haltestellen','bav.halt':'bav','are.npvm':'npvm','zh.tempo':'zhTempo','zh.zone':'zhZonen'}
   const feldKeys:Record<string,string>={vSig:'vsig',tempoRegime:'vsig',dtv:'verkehrsdaten',netz:'richtplan',netzQualifiziert:'richtplan',taktil:'taktil',leitlinie:'taktil','q3.gewerbe':'nutzungszonen','q3.linienbus':'oevLinien',strassentyp:'strassenhierarchie'}
   for (const [pfad,v] of Object.entries(w)) {
     for (const q of v.quellenOptionen ?? []) {

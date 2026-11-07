@@ -13,6 +13,8 @@ import { BAUMKATASTER } from './daten/baumkataster'
 import { ABRUF_BEIM_LADEN, datenlageSatz, datenlageZeilen, quelle, quellenFuer, THEMA_NAME, THEMEN, type Datenlage, type Quelle } from './daten/quellenregister'
 import { wgs } from './geo'
 import { quellenQualitaetText, type QuellenQualitaet } from './daten/anbieter/gemeinsam/qualitaet'
+import { LUZERN_NAME } from './daten/ersatzLuzern'
+import { ZH_PARK_SCHLUESSEL } from './daten/anbieter/gemeinsam/parkZuerich'
 
 /** Schlüssel in Fall.quellen bzw. in «Geladene Quellen» -> Kennung im Register */
 export const QUELLE_JE_SCHLUESSEL: Readonly<Record<string, string>> = {
@@ -21,13 +23,20 @@ export const QUELLE_JE_SCHLUESSEL: Readonly<Record<string, string>> = {
   hoehenBern: 'bern.dtm', hoehenSichtBern: 'bern.dtm',
   kataster: BAUMKATASTER[0].quelleId, baumkataster: BAUMKATASTER[0].quelleId, parkkataster: PARKKATASTER[0].quelleId,
   haltestellen: HALT_QUELLE_ID, verkehrsdaten: VD_QUELLE_ID,
-  zhTempo: 'zh.tempo', zhZonen: 'zh.zone', npvm: 'are.npvm', bav: 'bav.halt', gebiet: 'swisstopo.gebiet',
+  zhTempo: 'zh.tempo', zhZonen: 'zh.zone', [ZH_PARK_SCHLUESSEL]: 'zh.park', 'zh.dtv': 'zh.dtv', 'lu.dtv': 'lu.dtv', 'bs.dtv': 'bs.dtv', npvm: 'are.npvm', bav: 'bav.halt', gebiet: 'swisstopo.gebiet',
   ...Object.fromEntries(BERN_C_KEYS.map(k => [k, BERN_DIENSTE_C[k].quelleId])),
+}
+
+/** Kennung im Register; in der Stadt Luzern stehen unter denselben Schlüsseln die Ersatzquellen */
+const kennung = (k: string, wert: unknown): string | undefined => {
+  const t = typeof wert === 'string' ? wert : String((wert as { name?: unknown } | null)?.name ?? '')
+  return k === 'av' && t.startsWith(LUZERN_NAME) ? 'lu.boden' : k === 'parkkataster' && t.includes('Luzern') ? 'lu.park' : QUELLE_JE_SCHLUESSEL[k]
 }
 
 /** Kennungen der genutzten Quellen eines Falls (Fall.quellen, Übergang aus dem Luftbild, Höhendienste der Profile), ohne Doppel */
 export function genutzteQuellen(quellen: Readonly<Record<string, unknown>>, zusatz: { herkunftP?: [number, number] | null; hoehen?: readonly string[] } = {}): string[] {
-  const ids = Object.keys(quellen).map(k => QUELLE_JE_SCHLUESSEL[k]).filter((x): x is string => !!x)
+  const ids = Object.entries(quellen).map(([k, v]) => kennung(k, v)).filter((x): x is string => !!x)
+  if (ids.includes('lu.boden')) ids.push('lu.gebaeude')
   if (zusatz.herkunftP) {
     // Snapshot der Stadt, deren Rechteck die Lage des Übergangs enthält
     const [lat, lon] = wgs(zusatz.herkunftP[0], zusatz.herkunftP[1])
@@ -44,7 +53,7 @@ export function zustandJeQuelle(stand: Readonly<Record<string, { objekte?: strin
   const aus: Record<string, QuellZustand> = {}
   const rang: Record<QuellZustand, number> = { Fehler: 0, 'lädt': 1, geladen: 2 }
   for (const [k, q] of Object.entries(stand)) {
-    const id = QUELLE_JE_SCHLUESSEL[k]
+    const id = kennung(k, q)
     if (!id) continue
     const z: QuellZustand = q.fehler ? 'Fehler' : q.objekte !== undefined || q.ms !== undefined ? 'geladen' : 'lädt'
     if (!aus[id] || rang[z] < rang[aus[id]]) aus[id] = z
@@ -56,7 +65,7 @@ export function zustandJeQuelle(stand: Readonly<Record<string, { objekte?: strin
 export function qualitaetJeQuelle(stand: Readonly<Record<string, QuellenQualitaet>>): Record<string, QuellenQualitaet> {
   const aus: Record<string, QuellenQualitaet> = {}
   for (const [k, q] of Object.entries(stand)) {
-    const id = QUELLE_JE_SCHLUESSEL[k] ?? (k.startsWith('eth.fgs.') ? k : undefined)
+    const id = kennung(k, q) ?? (k.startsWith('eth.fgs.') ? k : undefined)
     if (id && (q.datenstand || q.vollstaendigkeit) && (k !== 'suche' || !aus[id])) aus[id] = q
   }
   return aus
@@ -97,7 +106,8 @@ export function DatenlageZeile({ lage, zustand, qualitaet = {} }: { lage: Datenl
 const produktNamen = (t: string): string => t.replace('Kindergaerten', 'Kindergärten').replace('Kindertagesstaetten', 'Kindertagesstätten').replace('Spitaeler', 'Spitäler')
 
 /** Adresse einer Quelle für den Link im Bericht (Firefox übernimmt ihn ins PDF) */
-const quelleUrl = (q: Quelle): string | undefined => ({ av: 'https://www.geodienste.ch/', osm: 'https://www.openstreetmap.org/',
+const quelleUrl = (q: Quelle): string | undefined => ({ 'zh.park': 'https://data.stadt-zuerich.ch/dataset/geo_oeffentlich_zugaengliche_parkplaetze_dav', 'zh.dtv': 'https://maps.zh.ch/',
+  'lu.dtv': 'https://map.stadtluzern.ch/', 'bs.dtv': 'https://data.bs.ch/', 'lu.boden': 'https://map.stadtluzern.ch/', 'lu.park': 'https://map.stadtluzern.ch/', 'lu.gebaeude': 'https://public.geo.lu.ch/ogd/rest/services/managed/GEBHOHEN_DS_V5_MP/MapServer', av: 'https://www.geodienste.ch/', osm: 'https://www.openstreetmap.org/',
   swissimage: 'https://www.swisstopo.admin.ch/de/orthobilder-swissimage-10-cm', swissalti: 'https://www.swisstopo.admin.ch/de/hoehenmodell-swissalti3d' } as Record<string, string>)[q.id] ??
   (q.anbieter.includes('Stadt Bern') ? 'https://map.bern.ch/' : undefined)
 

@@ -50,6 +50,23 @@ describe('zielAdresse', () => {
     expect(zielAdresse('vrc', 'fgs', { ort }, false)).toBe('https://veloroutencheck.ch/#rechner?von=fgs&lat=46.942059&lon=7.432262')
     expect(zielAdresse('fgs', 'vrc', { uebergang: 5 }, false)).toBe('https://fgscheck.ch/#pruefen?von=vrc')
   })
+  it('KnotenCheck: Knoten und Ort hinter dem Anker, von dort wieder lesbar', () => {
+    const a = zielAdresse('knc', 'swc', { ort, knoten: 77 }, false)
+    expect(a).toBe('https://knotencheck.ch/#karte?von=swc&lat=46.942059&lon=7.432262&knoten=77')
+    expect(uebergabeLesen(a.slice(a.indexOf('#')), 'karte')).toMatchObject({ von: 'swc', knoten: 77, fehler: false })
+  })
+  it('aus KnotenCheck: Herkunft lesbar, Knoten zum SichtweitenCheck im bestehenden Parameter', () => {
+    expect(uebergabeLesen('#pruefen?von=knc', 'pruefen')).toMatchObject({ von: 'knc', fehler: false })
+    expect(zielAdresse('swc', 'knc', { knoten: 77 }, false)).toBe('https://sichtweitencheck.ch/?knoten=77#pruefen?von=knc')
+  })
+  it('ungültiger Knoten wird verworfen und gemeldet', () => {
+    const u = uebergabeLesen('#karte?knoten=abc', 'karte')!
+    expect(u.fehler).toBe(true)
+    expect(u.knoten).toBeUndefined()
+  })
+  it('Knoten zählt als Objekt im Hinweis', () => {
+    expect(uebergabeText({ von: 'swc', ort: { lat: 47, lon: 8 }, uebergang: null, knoten: 5, fehler: false })).toContain('nur Ort und Objekt übernommen')
+  })
   it('in der Entwicklung die lokalen Server', () => {
     expect(zielAdresse('swc', 'vrc', {}, true)).toBe('http://localhost:5177/#pruefen?von=vrc')
   })
