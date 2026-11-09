@@ -97,7 +97,7 @@ export function baumVorschlaege(baeume: KatasterBaum[], mitte: P, reichweite: nu
 export function parkKatasterFelder(felder: KatasterFeld[], mitte: P, reichweite: number, quellenangabe: string): Vorschlag[] {
   return felder.filter(f => f.ring.length >= 3 && abstandPunkt([[f.ring]], mitte) <= reichweite)
     .map(f => ({ id: f.id, grund: `${quellenangabe} – zählt als Hindernis, verwerfen, wenn nicht mehr vorhanden`,
-      hindernis: { id: f.id, art: 'parkfeld', klasse: f.klasse, ring: f.ring, quelle: 'kataster', name: f.name } }))
+      hindernis: { id: f.id, art: 'parkfeld', klasse: f.klasse, ring: f.ring, quelle: 'kataster', name: f.name, ...(f.katasterTyp ? { katasterTyp: f.katasterTyp } : {}) } }))
 }
 
 /**

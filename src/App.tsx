@@ -1,3 +1,5 @@
+import { BAUM_ANNAHME } from './rechner/baumAnnahme'
+import { ParkAnnahmen } from './ParkAnnahmen'
 import { regionaleQuellenAngabe, regionaleQuelleMitStand } from './regionaleQuellenTexte'
 import { beginneBundesAbrufe } from './daten/anbieter/gemeinsam/bundesBudget'
 import { quellenStaende } from './quellenStaende'
@@ -2641,6 +2643,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
               }}>Lage der Querung anpassen</button> (Enden verschieben; Querungsart und Bestand bleiben)</p>
             )}
             <h3>Hindernisse ({fall.hindernisse.length})</h3>
+            <ParkAnnahmen felder={rechnung?.parkAnnahmen} anordnungSetzen={h => aendern(f => ({ ...f, hindernisse: [...f.hindernisse.filter(x => x.id !== h.id), h] }))} />
             <p className="klein">Höhe von Hecken und Mauern vor Ort prüfen: sichtbehindernd sind sie nur, wenn sie die Sicht
               zwischen Fahrzeug und wartender Person verdecken.</p>
             {!fall.hindernisse.length && <p className="klein">Noch keine. Werkzeug wählen und auf dem Luftbild zeichnen.</p>}
@@ -2698,6 +2701,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                   return f
                 })} />
                   {' '}{kataster.quelle.name} laden ({kataster.quelle.quellenangabe})</label>
+                <p className="klein">{BAUM_ANNAHME}</p>
                 {kataster.fehler && <div className="fehler">Nicht geladen: {kataster.fehler}{' '}
                   <button className="zweit klein" onClick={() => setKataster(k => (k ? { quelle: k.quelle, baeume: null, lat: k.lat, lon: k.lon } : k))}>erneut laden</button></div>}
                 {fall.baumkataster && kataster.baeume && <div>{katBaeume.length} Bäume in Reichweite der Rechnung ({KATASTER_PARK_M} m um den Streifen) zählen als Hindernis (Stamm {f1(BAUM_STAMM_M)} m);
@@ -3275,7 +3279,7 @@ function ZufahrtDetail({ z, name, nr, fall, aendern, spurZeichnen, gelaende = nu
         {z.deckung && <tr><td>Mitgeprüft</td><td title={GEDECKT_TITEL}>ab dem Knoten durch die gerade Zufahrt ({z.deckung}); zählt trotzdem</td></tr>}
         <tr><td>Fahrbahn</td><td>{z.fahrbahnM != null ? `${f2(z.fahrbahnM)} m` : '–'}, Fahrstreifen
           {z.fahrstreifenM != null ? ` ${f2(z.fahrstreifenM)} m` : ' –'}{z.mehrstreifig ? ' (mehrstreifig)' : ''}</td></tr>
-        <tr><td>Sichtpunkt vom Rand</td><td>{z.sichtpunktVomRandM != null ? `${f2(z.sichtpunktVomRandM)} m` : '–'} (Lage {z.lageQuelle}){z.abzugQuelle ? `; von der Fahrbahn abgezogen: ${abzugTeile(z.abzugQuelle)}` : ''}</td></tr>
+        <tr><td>Sichtpunkt vom Rand</td><td>{z.sichtpunktVomRandM != null ? `${f2(z.sichtpunktVomRandM)} m` : '–'} (Lage {z.lageQuelle}){z.abzugQuelle ? `; von der Fahrbahn abgezogen: ${abzugTeile(z.abzugQuelle, z.parkstreifenBreiteM)}` : ''}</td></tr>
         <tr><td>Sichtfeld</td><td>{z.konflikte.length ? z.konflikte.map(k => `${k.layer}${k.klasse === 'baum' ? '' : ` ${f1(k.flaeche)} m²`}`).join('; ') : 'kein Hindernis'}
           {z.minAbstandAutoM != null && <div className="klein">Auto-Parkfeld {f1(z.minAbstandAutoM)} m vom Streifen{z.unter5m ? ' (unter 5 m)' : ''}</div>}</td></tr>
         {z.netzHinweis.length > 0 && <tr><td>Hinweise Netz</td><td className="klein">{z.netzHinweis.join(', ')}</td></tr>}

@@ -548,7 +548,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   const abzugQ: AbzugQuelle | null = abzugHand ? () => abzugHand :
     netz ? abzugAusOsm(netz, punkteAufSpur(wegRoh, messGut.map(i => abst[i]))) : null
   const park = kx.hindernisse?.park ?? null, parkAlle = kx.hindernisse?.parkAlle ?? null
-  let fs: Fs | null = fahrstreifenmitte(mess, art, fahrbahn, abzugQ, s.breite, null, null, !!abzugHand, park)
+  let fs: Fs | null = fahrstreifenmitte(mess, art, fahrbahn, abzugQ, s.breite, null, null, !!abzugHand, parkAlle)
   if (messBr.some(x => x) && netz) {
     const widBr = messBr.find(x => x)!
     if (fs === null && ref.length && osmBreite(netz.w(widBr).t)[0] !== null) {
@@ -638,7 +638,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   let lageQuelle = fs ? 'AV' : 'Annahme'
   let r2 = false, r2Ende = 0, nKopf = 0
   if (!fs && hatGerade) annahmen.push('Fahrbahn entlang der Fahrlinie in der AV nicht gemessen: Lage der Fahrlinie aus den Bordkanten am Streifen')
-  if (fs?.abzugQuelle) annahmen.push(abzugAnnahme(fs.abzugQuelle))
+  if (fs?.abzugQuelle) annahmen.push(abzugAnnahme(fs.abzugQuelle, false, Math.max(fs.abzugParkR, fs.abzugParkL)))
   if (hatGerade) {
     let quer_ab: number | null = null
     if (zf.g !== null && netz && netz.w(zf.g.wid).ow) {
@@ -658,7 +658,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       const fsoZ = fahrstreifenOsm(netz, zf.g, zf.sd!, su, kbe, wegRoh, lagenZ.filter((_, i) => i < refZ.length &&
         knotenM.filter(km => Math.abs(km - quer_ab!) > 1.0).every(km => Math.abs(lagenZ[i] - km) > KNOTEN_SPERRE)), 'beide')
       const fsZ = fahrstreifenmitte(messZ, 'beide', fahrbahn, abzugHand ? () => abzugHand :
-        abzugAusOsm(netz, punkteAufSpur(wegRoh, zIdx.map(i => lagenZ[i]))), s.breite, fsoZ, null, !!abzugHand, park)
+        abzugAusOsm(netz, punkteAufSpur(wegRoh, zIdx.map(i => lagenZ[i]))), s.breite, fsoZ, null, !!abzugHand, parkAlle)
       let vomRandZwei: number | null = null
       if (fsZ && fsZ.osm) {
         if (fsZ.osm.widerspruch) netzHinweis.push('fahrstreifen_widerspruch')
@@ -950,7 +950,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       ...konfliktFelder(konflikte), konflikte,
       spurHinweis: hinweis, spurHinweisM: hinweisM === null ? null : Math.round(Math.max(0, hinweisM - h) * 10) / 10,
       fahrbahnM: fs ? Math.round(fs.breite * 100) / 100 : null, parkRechts: fs ? fs.parkR : null, parkLinks: fs ? fs.parkL : null,
-      velostreifenRechtsM: fs ? fs.veloR : null, velostreifenLinksM: fs ? fs.veloL : null, abzugQuelle: fs?.abzugQuelle ?? null, abzugRechtsM: fs ? Math.max(fs.parkR ? fs.abzugParkR : 0, fs.veloR) : null,
+      velostreifenRechtsM: fs ? fs.veloR : null, velostreifenLinksM: fs ? fs.veloL : null, abzugQuelle: fs?.abzugQuelle ?? null, parkstreifenBreiteM: fs ? Math.max(fs.abzugParkR, fs.abzugParkL) : undefined, abzugRechtsM: fs ? Math.max(fs.parkR ? fs.abzugParkR : 0, fs.veloR) : null,
       fahrstreifenM: fs ? Math.round(fs.jeRichtung * 100) / 100 : null, mehrstreifig: fs ? fs.mehrstreifig : null,
       sichtpunktVomRandM: fs ? Math.round(fs.vomRand * 100) / 100 : null, lageQuelle, randQuelle: s.randQuelle,
       einbahnQuelle: zf.einbahnQuelle, netzQuelle: zf.netzQuelle, osmWeg: zf.g ? String(zf.g.wid) : null,

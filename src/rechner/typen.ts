@@ -41,6 +41,7 @@ export interface ZufahrtErgebnis {
   parkLinks: boolean | null
   velostreifenRechtsM: number | null
   velostreifenLinksM: number | null
+  parkstreifenBreiteM?: number
   abzugQuelle: string | null
   abzugRechtsM: number | null    // Abzug rechts (Parkierung bzw. Velostreifen-Linie ab der Bordkante)
   fahrstreifenM: number | null

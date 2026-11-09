@@ -372,8 +372,8 @@ export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Fahrba
   const rechtsM = median(er), linksM = median(el), breite = rechtsM + linksM
   const zweiRichtungen = art === 'beide' || art === 'einbahn' || breite > INSEL_UNGETEILT * teilbreite
   const parkFeldR = trefferR >= PARK_MIN_TREFFER, parkFeldL = zweiRichtungen && trefferL >= PARK_MIN_TREFFER
-  const pr = parkFeldR ? PARKSTREIFEN : parkR.length >= PARK_MIN_TREFFER ? median(parkR) : 0
-  const pl = parkFeldL ? PARKSTREIFEN : zweiRichtungen && parkL.length >= PARK_MIN_TREFFER ? median(parkL) : 0
+  const pr = parkFeldR ? park!.streifenBreiteM : parkR.length >= PARK_MIN_TREFFER ? median(parkR) : 0
+  const pl = parkFeldL ? park!.streifenBreiteM : zweiRichtungen && parkL.length >= PARK_MIN_TREFFER ? median(parkL) : 0
   let vr = veloR.length >= PARK_MIN_TREFFER ? median(veloR) : 0
   let vl = zweiRichtungen && veloL.length >= PARK_MIN_TREFFER ? median(veloL) : 0
   // Velostreifen aus OSM (Breite ab Rand bzw. Parkierung): die Linie liegt hinter der Parkierung

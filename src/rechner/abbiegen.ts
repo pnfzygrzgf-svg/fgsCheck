@@ -362,7 +362,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const abzugHandB = k.vonHand?.abzug?.(fid, 'abbiegend', grad) ?? null
   const abzugB = abzugHandB ? () => abzugHandB : abzugAusOsm(netz, punkteAufSpur(arm, ARM_MESSUNG))
   const park = k.hindernisse?.park ?? null, parkAlle = k.hindernisse?.parkAlle ?? null
-  let fsB: Fs | null = fahrstreifenmitte(messFb, 'beide', fahrbahn, abzugB, 99.0, fsoB, messIdx, !!abzugHandB, park)
+  let fsB: Fs | null = fahrstreifenmitte(messFb, 'beide', fahrbahn, abzugB, 99.0, fsoB, messIdx, !!abzugHandB, parkAlle)
   let armOsm: number | null = null
   if (messHoch.some(x => x) && (fsB === null || 2 * messHoch.filter(x => x).length >= messHoch.length)) {
     armOsm = messHoch.find(x => x)!
@@ -407,7 +407,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const linksAb = gr[4] > 0
   // Linksabbieger: Fahrbahn des Arms am Knoten (querschnitt_am_knoten)
   if (linksAb && fsB && LINKS_ARM_AM_KNOTEN && armOsm === null) {
-    const fsK = fahrstreifenmitte(querschnittAmKnoten(fahrbahn, messFb), 'beide', fahrbahn, abzugB, 99.0, fsoB, null, !!abzugHandB, park)
+    const fsK = fahrstreifenmitte(querschnittAmKnoten(fahrbahn, messFb), 'beide', fahrbahn, abzugB, 99.0, fsoB, null, !!abzugHandB, parkAlle)
     const lageAvB = fsB.lage + (fsDvB ?? 0)
     if (fsK && ((lageAvB > fsK.rechts - RAND_RECHTS_MIN_M && fsB.rechts - fsK.rechts > KNOTEN_QUER_TOL_M) ||
       (KNOTEN_QUER_LINKS && fsB.links - fsK.links > KNOTEN_QUER_TOL_M)) &&
@@ -1159,7 +1159,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   }
   const plF = eckFrage ? planEcke() : null
   if (eckFrage) annahmen.push(plF ? `Ecke nach ${plF} prüfen: ${eckFrage}` : `AV-Ecke prüfen: ${eckFrage}`)
-  if (fsB?.abzugQuelle) annahmen.push(abzugAnnahme(fsB.abzugQuelle, true))
+  if (fsB?.abzugQuelle) annahmen.push(abzugAnnahme(fsB.abzugQuelle, true, Math.max(fsB.abzugParkR, fsB.abzugParkL)))
   const konflikte = k.konflikte(feldB, sichtpunkteB)
   // frei bis (29.10.2026, wie bei geraden Zufahrten): Grundprüfung und Querung ohne Vortritt entscheiden Muss bzw. Soll danach
   const freiBisM = freiBis(sichtpunkteB, konflikte, k.sichtfeld, k.konflikte, geprueftB ? geprueftB.bis : swB)
@@ -1174,7 +1174,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     kurvenradiusM: radiusHand !== null ? radiusRunden(radiusHand) : radiusOut, radiusQuelle: radiusText ?? radiusQuelleB, ...konfliktFelder(konflikte), konflikte,
     spurHinweis: hinweisB, spurHinweisM: null, fahrbahnM: fsB ? Math.round(fsB.breite * 100) / 100 : null,
     parkRechts: fsB ? fsB.parkR : null, parkLinks: fsB ? fsB.parkL : null, velostreifenRechtsM: fsB ? fsB.veloR : null,
-    velostreifenLinksM: fsB ? fsB.veloL : null, abzugQuelle: fsB?.abzugQuelle ?? null,
+    velostreifenLinksM: fsB ? fsB.veloL : null, abzugQuelle: fsB?.abzugQuelle ?? null, parkstreifenBreiteM: fsB ? Math.max(fsB.abzugParkR, fsB.abzugParkL) : undefined,
     abzugRechtsM: fsB ? Math.max(fsB.parkR ? fsB.abzugParkR : 0, fsB.veloR) : null,
     fahrstreifenM: fsB ? Math.round(fsB.jeRichtung * 100) / 100 : null, mehrstreifig: fsB ? fsB.mehrstreifig : null,
     sichtpunktVomRandM: fsB ? Math.round(fsB.vomRand * 100) / 100 : null, lageQuelle: lageHand ? 'Hand' : armOsm !== null ? 'OSM' : fsB ? 'AV' : 'Annahme',

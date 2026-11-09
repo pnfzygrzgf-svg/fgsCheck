@@ -1,5 +1,7 @@
 import { tueSichtId } from '../SichtKennung'
 import { massAchse, massGerade, massPunkt, type SichtMass } from '../sichtMasse'
+import { parkPruefflaechen } from '../rechner/parkgeometrie'
+import { OsmNetz } from '../rechner/netz'
 import type { VsigEingang } from '../daten/vsig'
 // ── Knotensicht an einer Trottoirüberfahrt (K2, 23.10.2026): Adapter fgsCheck → Kern des SichtweitenCheck (src/knotensicht) ──
 //
@@ -195,9 +197,9 @@ function zaehlend(d: KsDaten): OhneInsel[] {
   const weg = new Set(d.verworfen), da = new Set(d.hindernisse.map(h => h.id))
   const baeume: Hindernis[] = (d.baeume?.baeume ?? []).filter(b => !weg.has(b.id) && !da.has(b.id))
     .map(b => ({ id: b.id, art: 'baum', p: b.p, stamm: BAUM_STAMM_M, quelle: 'kataster', name: b.name }))
-  const amtlich: Hindernis[] = (d.park?.felder ?? []).filter(f => !weg.has(f.id) && f.ring.length >= 3)
-    .map(f => ({ id: f.id, art: 'parkfeld', klasse: f.klasse, ring: f.ring, quelle: 'kataster', name: f.name }))
-  const alle = [...d.hindernisse, ...baeume, ...amtlich].filter(ohneInsel)
+  const amtlich: Hindernis[] = (d.park?.felder ?? []).filter(f => !weg.has(f.id) && !da.has(f.id) && f.ring.length >= 3)
+    .map(f => ({ id: f.id, art: 'parkfeld', klasse: f.klasse, ring: f.ring, quelle: 'kataster', name: f.name, ...(f.katasterTyp ? { katasterTyp: f.katasterTyp } : {}) }))
+  const alle = parkPruefflaechen([...d.hindernisse, ...baeume, ...amtlich], d.av, d.osm ? new OsmNetz(d.osm) : null).filter(ohneInsel)
   return d.seitenraum?.length ? parkOhneSeitenraum(alle, d.seitenraum).hindernisse.filter(ohneInsel) : alle
 }
 

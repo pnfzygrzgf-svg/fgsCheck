@@ -1,3 +1,6 @@
+import { BAUM_ANNAHME, baumStammText } from './rechner/baumAnnahme'
+import { ParkAnnahmen, ParkQuellen } from './ParkAnnahmen'
+import { parkDarstellung } from './rechner/parkgeometrie'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { fgsSichtMasse, massBildPunkte } from './sichtMasse'
 import { MassBild, useSichtWahl, sichtZeigen, sichtMassZeigen, fgsSichtId, tueSichtId, type SichtArt } from './Sichtfelder'
@@ -145,7 +148,7 @@ function hindernisArtText(h: Hindernis): string {
   const klasse: Record<string, string> = { auto: 'Auto', velo: 'Velo', motorrad: 'Motorrad' }
   const art: Record<string, string> = { laengsparkierung: 'Längsparkierung', baum: 'Baum', hecke: 'Hecke', mauer: 'Mauer', uebrige: 'übriges Hindernis', insel: 'Insel von Hand' }
   const q = h.quelle === 'hand' ? ' (von Hand)' : h.quelle === 'osm' ? ' (OSM)' : ' (Kataster)'
-  return (h.art === 'parkfeld' ? `Parkfeld ${klasse[h.klasse] ?? h.klasse}` : art[h.art] ?? h.art) + (h.art === 'insel' ? '' : q)
+  return (h.art === 'parkfeld' ? `Parkfeld ${klasse[h.klasse] ?? h.klasse}` : art[h.art] ?? h.art) + (h.art === 'insel' ? '' : q) + (h.art === 'baum' ? `; ${baumStammText(h)}` : '')
 }
 /** Text je Fahrzeugsymbol in der Legende */
 function fahrzeugLegende(f: FahrzeugForm): string {
@@ -349,12 +352,14 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
             <g key={'ks' + st.fgsId + i}>{[[d.frei, d.art === 'velo' ? '#0f766e' : '#16a34a'], [d.verdeckt, '#dc2626']].map(([ring, farbe], k) =>
               <path key={k} d={pfad([ring as P[]])} fill={farbe as string} fillOpacity={0.15} stroke={farbe as string} strokeWidth={2}
                 strokeDasharray={d.art === 'velo' ? '6 4' : d.art === 'trottoir' ? '2 4' : undefined} />)}</g>))}
-          {hindernisse.map(h => {
+          {(r.parkAnnahmen ?? []).map(h => h.art === 'parkfeld' && h.parkPruefung?.status === 'ergaenzt' &&
+            <path key={'kataster' + h.id} d={pfad([h.parkPruefung.original])} fill="none" stroke="#64748b" strokeWidth={2} strokeDasharray="3 4" />)}
+          {hindernisse.map((h, hi) => {
             const { ringe, linie } = hindernisRinge(h)
             const farbe = hindernisFarbe(h)
             // Parkierung unter einem vorgezogenen Seitenraum: gestrichelt, blass (entfällt in der Rechnung)
             const ersetzt = r.seitenraumErsetzt?.some(x => x.id === h.id)
-            return <path key={'h' + h.id} d={pfad(ringe, !linie)} fill={linie ? 'none' : farbe} fillOpacity={ersetzt ? 0.08 : 0.35} stroke={farbe}
+            return <path key={'h' + h.id + hi} d={pfad(ringe, !linie)} fill={linie ? 'none' : farbe} fillOpacity={ersetzt ? 0.08 : 0.35} stroke={farbe}
               strokeWidth={linie ? 5 : 2} strokeDasharray={ersetzt ? '4 4' : undefined} strokeOpacity={ersetzt ? 0.6 : undefined} />
           })}
           {(r.inseln ?? []).map((z, i) => (
@@ -820,7 +825,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
         </section>
         {rechnung.streifen.length > 0 && <BerichtKarte neigung={neigung} gelaende={gelaende} r={rechnung} ort={ort} onBereit={setBild} fixpunkte={fall.fixpunkte ?? []}
           namen={namen} hand={fall.streifenHand} plan={fall.flaechenPlan ?? []} zusatzMm={ergebnisZusatzMm([...rechnung.streifen.flatMap(erkennungBefunde), ...bedarfZeilen])}
-          hindernisse={[...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)]} />}
+          hindernisse={parkDarstellung([...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)], rechnung.parkPruefflaechen)} />}
 
         </td></tr>
         <tr className={rechnung.streifen.length > 0 ? 'bericht-neue-seite' : undefined}><td>
@@ -849,6 +854,11 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
         </section>}
 
         <section className="bericht-block druck-block">
+          {((rechnung.parkAnnahmen?.length ?? 0) > 0 || [...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)].some(h => h.art === 'baum')) && <>
+          <h2>Annahmen und Hinweise</h2>
+          {[...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)].some(h => h.art === 'baum') && <p className="klein">{BAUM_ANNAHME}</p>}
+          <ParkAnnahmen felder={rechnung.parkAnnahmen} bericht />
+          </>}
           <h2>Eingaben von Hand</h2>
           {eingaben.length ? <ul className="klein">{eingaben.map((x, i) => <li key={i}>{x}</li>)}</ul> :
             <p className="klein">Keine. Ergebnis aus den geladenen Daten, Rechenregeln und ausgewiesenen Annahmen.</p>}
@@ -859,6 +869,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
         <section className="bericht-block">
           <h2>Quellen</h2>
           <BerichtQuellenTabelle ids={quellenIds} lage={datenlage} qualitaet={quellenQualitaet} />
+          <ParkQuellen />
           {zusatzQuellen.length > 0 && <ul className="klein">{zusatzQuellen.map(q => <li key={q}>{datumText(q)}</li>)}</ul>}
           {quellenOhneTreffer.length > 0 && <div className="druck-block"><h3>Abgefragt, nicht verwendet</h3>
             <BerichtQuellenTabelle ids={quellenOhneTreffer.map(q => q.id)} qualitaet={quellenQualitaet} gruende={Object.fromEntries(quellenOhneTreffer.map(q => [q.id, q.grund]))} /></div>}

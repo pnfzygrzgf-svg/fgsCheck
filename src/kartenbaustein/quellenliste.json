@@ -3750,5 +3750,109 @@
     "soll": "–"
    }
   }
+ },
+ {
+  "id": "sn640291a",
+  "name": "SN 640 291a – Parkieren, Anordnung und Geometrie der Parkierungsanlagen",
+  "anbieter": "VSS",
+  "gruppe": "Fachliche Grundlagen",
+  "hosts": [],
+  "wofuer": "Tab. 2, Längsparkfelder A/B: 1,90 m; dokumentierte Mindestbreite für Prüffläche und Parkstreifenabzug",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "zh-parkieren-staatsstrassen",
+  "name": "Richtlinie Parkieren entlang von Staatsstrassen, 601.14.01",
+  "anbieter": "Kanton Zürich, Tiefbauamt",
+  "gruppe": "Fachliche Grundlagen",
+  "hosts": [],
+  "wofuer": "Kap. 4.1: 2,00 m auf Staatsstrassen; kantonsweite Modellannahme in fgsCheck und SichtweitenCheck",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "bern-baut-c-2-10-22",
+  "name": "Bern baut C 2.10.22 – Parkfelder 1/2 (Auto), März 2019",
+  "anbieter": "Stadt Bern",
+  "gruppe": "Fachliche Grundlagen",
+  "hosts": [],
+  "wofuer": "Längspark- und Parkverbotsfelder in Bern: 1,90 m",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
+ },
+ {
+  "id": "bern-baut-c-2-10-23",
+  "name": "Bern baut C 2.10.23 – Parkfelder 2/2, April 2011",
+  "anbieter": "Stadt Bern",
+  "gruppe": "Fachliche Grundlagen",
+  "hosts": [],
+  "wofuer": "Velo/Mofa: 1,90 m Tiefe; Motorrad je gewählter Anordnung längs 1,20 m, senkrecht 2,30 m, schräg 45° 1,90 m; ausserhalb Berns als Modellannahme",
+  "rechner": {
+   "fgs": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "swc": {
+    "ist": "R",
+    "soll": "R"
+   },
+   "vrc": {
+    "ist": "–",
+    "soll": "–"
+   },
+   "kc": {
+    "ist": "–",
+    "soll": "–"
+   }
+  }
  }
 ]

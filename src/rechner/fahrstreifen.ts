@@ -330,11 +330,12 @@ const ABZUG_TEXT: Record<string, string> = {
   'Velostreifen von Hand': 'Velostreifen (Breite aus der Eingabe von Hand)',
 }
 /** Abzüge als Text («Velostreifen laut OSM (Tag cycleway, Breite 1,50 m angenommen)», mehrere mit «und») */
-export const abzugTeile = (abzugQuelle: string): string => abzugQuelle.split(', ').map(q => ABZUG_TEXT[q] ?? q).join(' und ')
+export const abzugTeile = (abzugQuelle: string, parkBreite = PARKSTREIFEN): string => abzugQuelle.split(', ').map(q => q === 'Parkfelder'
+  ? `Parkfelder am Fahrbahnrand als Parkstreifen (Breite ${f2_(parkBreite)} m angenommen; anhand der Prüfflächen erkannt)` : ABZUG_TEXT[q] ?? q).join(' und ')
 /** «Fahrlinie: Velostreifen laut OSM (…) von der Fahrbahnbreite abgezogen; die Fahrlinie liegt in der Mitte der übrigen Fahrbahn …»;
  * arm: an der Querstrasse einer Abbiegezufahrt */
-export function abzugAnnahme(abzugQuelle: string, arm = false): string {
-  return `Fahrlinie${arm ? ' in der Querstrasse' : ''}: ${abzugTeile(abzugQuelle)} von der gemessenen Fahrbahnbreite abgezogen; die ` +
+export function abzugAnnahme(abzugQuelle: string, arm = false, parkBreite = PARKSTREIFEN): string {
+  return `Fahrlinie${arm ? ' in der Querstrasse' : ''}: ${abzugTeile(abzugQuelle, parkBreite)} von der gemessenen Fahrbahnbreite abgezogen; die ` +
     'Fahrlinie liegt in der Mitte der übrigen Fahrbahn bzw. des Fahrstreifens.'
 }
 
@@ -385,8 +386,8 @@ export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Fahrba
   const rechtsM = median(er), linksM = median(el), breite = rechtsM + linksM
   const zweiRichtungen = art === 'beide' || art === 'einbahn' || breite > INSEL_UNGETEILT * teilbreite
   const parkFeldR = trefferR >= PARK_MIN_TREFFER, parkFeldL = zweiRichtungen && trefferL >= PARK_MIN_TREFFER
-  const pr = parkFeldR ? PARKSTREIFEN : parkR.length >= PARK_MIN_TREFFER ? median(parkR) : 0
-  const pl = parkFeldL ? PARKSTREIFEN : zweiRichtungen && parkL.length >= PARK_MIN_TREFFER ? median(parkL) : 0
+  const pr = parkFeldR ? park!.streifenBreiteM : parkR.length >= PARK_MIN_TREFFER ? median(parkR) : 0
+  const pl = parkFeldL ? park!.streifenBreiteM : zweiRichtungen && parkL.length >= PARK_MIN_TREFFER ? median(parkL) : 0
   let vr = veloR.length >= PARK_MIN_TREFFER ? median(veloR) : 0
   let vl = zweiRichtungen && veloL.length >= PARK_MIN_TREFFER ? median(veloL) : 0
   // Velostreifen aus OSM (Breite ab Rand bzw. Parkierung): die Linie liegt hinter der Parkierung
