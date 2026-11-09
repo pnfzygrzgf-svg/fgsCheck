@@ -1,6 +1,6 @@
 // Tests 3D-Ansicht, Ladezustand (stand.ts): Zeile für «Datenquellen und Ladezustand»
 import { describe, expect, it } from 'vitest'
-import { TITEL, quelleZeile } from './stand'
+import { TITEL, quelleZeile, einzelQuellenZeilen } from './stand'
 
 describe('quelleZeile', () => {
   it('leer, solange die Ansicht geschlossen ist oder lädt', () => {
@@ -29,5 +29,32 @@ describe('quelleZeile', () => {
     expect(z.objekte).toBe('Gelände und Karte swissTLM, Gebäude, Brücken')
     expect(z.datenstand).toBe('Brücken 20.05.2026 (Datum der Kachelpfade)')
     expect(quelleZeile({ phase: 'bereit', text: 'Bereit.', bruecken: 'fehlt' }).ansicht3d.objekte).toContain('Brücken nicht verfügbar')
+  })
+})
+
+describe('Einzelquellen für die bestehende Liste', () => {
+  it('trennt Laden, Fehler und ausgeschaltete Ebenen; ein Kacheldatum belegt keinen Ladevorgang', () => {
+    const z = einzelQuellenZeilen({ phase: 'laedt', text: '', stand: { gebaeude: '20260520' }, kunstbauten: 0,
+      quellen: { gelaende: { aktiv: true, zustand: 'geladen', geladen: true }, grundkarte: { aktiv: true, zustand: 'lädt' },
+        luftbild: { aktiv: false, zustand: 'aus' }, gebaeude: { aktiv: false, zustand: 'geladen', geladen: true },
+        bruecken: { aktiv: true, zustand: 'Fehler', fehler: 'HTTP 503' }, kunstbauten: { aktiv: true, zustand: 'geladen', geladen: true } } })
+    expect(z.ansicht3dGelaende.zustand).toBe('geladen')
+    expect(z.ansicht3dGrundkarte.zustand).toBe('lädt')
+    expect(z.ansicht3dLuftbild.zustand).toBe('aus')
+    expect(z.ansicht3dGebaeude.zustand).toBe('geladen (Ebene aus)')
+    expect(z.ansicht3dGebaeude.datenstand).toBe('20.05.2026 (Datum der Kachelpfade)')
+    expect(z.ansicht3dBruecken.fehler).toBe('HTTP 503')
+    expect(z.ansicht3dKunstbauten.objekte).toContain('0 Bauwerke')
+    expect(einzelQuellenZeilen({ phase: 'aus', text: '', quellen: { gelaende: { aktiv: true, zustand: 'geladen' } } })).toEqual({})
+  })
+  it('unterscheidet bei Berner Kunstbauten den Katalogstand von der Abrufzeit und unbekannten Objektständen', () => {
+    const zeit = '2026-11-09T20:54:05.000Z'
+    const z = einzelQuellenZeilen({ phase: 'bereit', text: '', kunstbauten: 2,
+      quellen: { kunstbauten: { aktiv: true, zustand: 'geladen', geladen: true, zeit } } }).ansicht3dKunstbauten
+    expect(z.name).toBe('3D-Stadtmodell Stadt Bern – Ebene Kunstbauten')
+    expect(z.datenstand).toBe('30.05.2023 (Katalogstand; Erfassungsstand einzelner Bauwerke unbekannt)')
+    expect(z.zeit).toBe(zeit)
+    expect(z.vollstaendigkeit).toBe('unbekannt')
+    expect(z.objekte).toContain('2 Bauwerke')
   })
 })

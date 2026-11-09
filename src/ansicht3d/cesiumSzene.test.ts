@@ -121,6 +121,17 @@ describe('3D-Szene ohne WebGL', () => {
     await s.kamera('uebersicht'); await s.zeigen(m)
     expect(huellen().every((e: any) => e.show)).toBe(true)
   })
+  it('meldet Dienste getrennt: aus ist kein Laden; nach Aktivieren und Abschalten bleibt der Abruf nachvollziehbar', async () => {
+    const { s, staende } = await oeffnen()
+    const aktuell = () => staende[staende.length-1].quellen!
+    expect(aktuell().gelaende).toMatchObject({ aktiv: true, zustand: 'geladen', geladen: true })
+    expect(aktuell().luftbild).toMatchObject({ aktiv: false, zustand: 'aus' })
+    expect(aktuell().gebaeude?.geladen).not.toBe(true)
+    await s.gebaeude(true)
+    expect(aktuell().gebaeude).toMatchObject({ aktiv: true, geladen: true })
+    await s.gebaeude(false)
+    expect(aktuell().gebaeude).toMatchObject({ aktiv: false, geladen: true })
+  })
   it.each(['undefined', 'abgelehnt'])('fehlendes Gelände (%s) lässt keine Nullhöhen oder NaN in Geometrie und Kamera gelangen', async art => {
     test.terrain = undefined; test.terrainFehler = art === 'abgelehnt'
     const { s, w, staende } = await oeffnen(), m = modell()

@@ -377,6 +377,8 @@ function augeGriff(ebene: L.LayerGroup, f: FahrzeugForm, teile: L.Layer[], los: 
 const KARTE_STUFEN = [30, 45, 70]   // Kartenhöhe auf dem Smartphone in % der Fensterhöhe
 
 export default function Karte(props: {
+  /** Vorwahl der Modellbäume beim Öffnen der 3D-Ansicht; folgt dem Kataster-Schalter der 2D-Ansicht. */
+  baumkatasterAn?: boolean
   mitte: [number, number]
   av: AvFlaeche[] | null
   /** 3D-Ansicht: Brückenumrisse (AV-Einzelobjekte Bruecke_Passerelle, LV95) */
@@ -504,6 +506,16 @@ export default function Karte(props: {
   const [alleGelaendeProfile, setAlleGelaendeProfile] = useState(false)
   // 3D-Ansicht (ansicht3d/): ersetzt die Karte im Kartenbereich, solange sie offen ist; die Szene folgt Rechnung und Auswahl
   const [dreiD, setDreiD] = useState(false)
+  useEffect(() => {
+    if (!dreiD) return
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || document.body.classList.contains('bericht-offen')) return
+      e.preventDefault()
+      setDreiD(false)
+    }
+    window.addEventListener('keydown', esc, true)
+    return () => window.removeEventListener('keydown', esc, true)
+  }, [dreiD])
   const szene3D = useMemo(() => {
     if (!dreiD) return null
     const optionen: SzeneOptionen = { feldZeigen: (art, z) => sichtZeigen(sicht, art, fgsSichtId(z)), profil: profilAuswahl, bruecken: props.bruecken }
@@ -1686,7 +1698,7 @@ export default function Karte(props: {
     <div className={'kartenrahmen' + (dreiD ? ' dreid' : '')} style={{ '--karte-h': `${stufe}dvh` } as CSSProperties}>
       <PlanMuster />
       <div ref={elRef} className="karte" aria-hidden={dreiD || undefined} />
-      {dreiD && szene3D && <Ansicht3D szene={szene3D} profil={profilAuswahl} setProfil={setProfilAuswahl} />}
+      {dreiD && szene3D && <Ansicht3D szene={szene3D} baumkatasterAn={props.baumkatasterAn} profil={profilAuswahl} setProfil={setProfilAuswahl} />}
       <AnsichtSchalter dreiD={dreiD} setzen={setDreiD} moeglich={!!rechnung?.streifen.length} />
       <button type="button" className="karte-hoehe" onClick={stufeWeiter}
               aria-label={`Kartenhöhe ${stufe} % – ${stufe === 70 ? 'kleiner' : 'grösser'}`}

@@ -15,7 +15,7 @@
 
 import type { KameraModus, Koerper3D, Szene3D, LL } from './modell'
 import { BAUM_KRONE_MASSE, BAUM_KRONE_MITTE_M, EBENE, aufBruecke, linieBeruehrtBruecke, kameraHeadingPitch, koerperHeading, uebersichtKamera, verdichten, versatz, type Flaeche3D } from './modell'
-import type { Stand3D } from './stand'
+import type { Stand3D, Dienst3D, DienstStand3D } from './stand'
 import { lv95, wgs } from '../geo'
 import { ladeBodenProfil, type BodenProfil } from './bodenprofil'
 import { anschlussFlaechen, anschlussProben, naheUmriss, tragendeFlaechen, ANSCHLUSS_NAEHE_M, ANSCHLUSS_TEXT, type AnschlussFlaeche } from './anschluss'
@@ -113,8 +113,20 @@ const kachelDatum = (t: string): string | undefined => t.match(/(?:^|\/)(20\d{6}
 export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden: (s: Stand3D) => void, signal: AbortSignal,
   start: { gebaeude: boolean; baeume: boolean; bruecken?: boolean; fahrzeuge?: boolean; personen?: boolean; luftbild?: boolean; schatten?: boolean; pruefung?: boolean }): Promise<Szene> {
   const t0 = performance.now(), zeit = new Date().toISOString()
-  let stand: Stand3D = { phase: 'laedt', text: '3D-Bibliothek wird geladen …', zeit }
+  let stand: Stand3D = { phase: 'laedt', text: '3D-Bibliothek wird geladen …', zeit, quellen: {
+    gelaende: { aktiv: true, zustand: 'lädt' }, grundkarte: { aktiv: true, zustand: 'lädt' },
+    luftbild: { aktiv: start.luftbild ?? false, zustand: start.luftbild ? 'lädt' : 'aus' },
+    gebaeude: { aktiv: start.gebaeude, zustand: start.gebaeude ? 'lädt' : 'aus' },
+    bruecken: { aktiv: start.bruecken ?? true, zustand: (start.bruecken ?? true) ? 'lädt' : 'aus' },
+  } }
   const setzen = (s: Partial<Stand3D>) => { if (signal.aborted) return; stand = { ...stand, ...s }; melden(stand) }
+  const quelleSetzen = (key: Dienst3D, neu: Partial<DienstStand3D>) => {
+    const alt = stand.quellen?.[key] ?? { aktiv: false, zustand: 'aus' as const }
+    const z = { ...alt, ...neu, ...(neu.zustand === 'geladen' ? { geladen: true, fehler: undefined } : {}) }
+    if (neu.zustand === 'lädt' && !z.zeit) z.zeit = new Date().toISOString()
+    if (JSON.stringify(z) !== JSON.stringify(alt)) setzen({ quellen: { ...stand.quellen, [key]: z } })
+  }
+  const quellFehler = (key: Dienst3D, e: unknown) => quelleSetzen(key, { zustand: 'Fehler', fehler: e instanceof Error ? e.message : String(e) })
   const pruefen = () => { if (signal.aborted) throw abbruch() }
   setzen({})
   // Cesium sucht seine Dateien unter dieser Adresse (buildModuleUrl prüft die globale Variable CESIUM_BASE_URL)
@@ -129,7 +141,10 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
   }))
   pruefen()
   setzen({ text: 'Gelände wird geladen …' })
+  quelleSetzen('gelaende', { zustand: 'lädt' })
   const terrainProvider = await C.CesiumTerrainProvider.fromUrl(TERRAIN_URL, { credit: new C.Credit('© swisstopo', true) })
+    .catch(e => { quellFehler('gelaende', e); throw e })
+  quelleSetzen('gelaende', { zustand: 'geladen' })
   pruefen()
   const w = new C.CesiumWidget(el, {
     baseLayer: false, terrainProvider, scene3DOnly: true, requestRenderMode: true, maximumRenderTimeChange: Infinity,
@@ -148,12 +163,26 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
   try {
     const scene = w.scene, globe = scene.globe
     // Grundkarte (immer) und darüber das Luftbild (zuschaltbar); fester Sonnenstand für Licht und Schatten
-    const kachelEbene = (url: string, layer: string, tileMatrixSetID: string, maximumLevel: number) =>
-      w.imageryLayers.addImageryProvider(new C.WebMapTileServiceImageryProvider({
+    const kachelEbene = (key: 'grundkarte' | 'luftbild', url: string, layer: string, tileMatrixSetID: string, maximumLevel: number) => {
+      const provider = new C.WebMapTileServiceImageryProvider({
         url, layer, style: 'default', format: 'image/jpeg', tileMatrixSetID, tilingScheme: new C.GeographicTilingScheme(), maximumLevel,
-        minimumLevel: BILD_MIN_STUFE, rectangle: C.Rectangle.fromDegrees(...BILD_RECHTECK), credit: new C.Credit('© swisstopo', true) }))
-    kachelEbene(KARTE_URL, 'ch.swisstopo.swisstlm3d-karte-grau.3d', '4326_18', KARTE_MAX_STUFE)
-    const luftbildEbene = kachelEbene(BILD_URL, 'ch.swisstopo.swissimage', '4326_19', BILD_MAX_STUFE)
+        minimumLevel: BILD_MIN_STUFE, rectangle: C.Rectangle.fromDegrees(...BILD_RECHTECK), credit: new C.Credit('© swisstopo', true) })
+      // Nur beobachten: die ursprüngliche Anfrage samt Rückgabewert und Fehlerverhalten bleibt erhalten.
+      if (provider.requestImage) {
+        const abruf = provider.requestImage.bind(provider)
+        provider.requestImage = (...args) => {
+          const antwort = abruf(...args)
+          if (antwort) {
+            quelleSetzen(key, { zustand: 'lädt' })
+            void antwort.then(() => quelleSetzen(key, { zustand: 'geladen' }), e => quellFehler(key, e))
+          }
+          return antwort
+        }
+      }
+      return w.imageryLayers.addImageryProvider(provider)
+    }
+    kachelEbene('grundkarte', KARTE_URL, 'ch.swisstopo.swisstlm3d-karte-grau.3d', '4326_18', KARTE_MAX_STUFE)
+    const luftbildEbene = kachelEbene('luftbild', BILD_URL, 'ch.swisstopo.swissimage', '4326_19', BILD_MAX_STUFE)
     let luftbildAn = start.luftbild ?? false
     luftbildEbene.show = luftbildAn
     w.clock.currentTime = C.JulianDate.fromIso8601(SONNE_ZEIT)
@@ -198,6 +227,11 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
       setzen({ phase: fertig ? 'bereit' : 'laedt', text: fertig ? 'Bereit.' : `Lädt … (${offen} Kacheln offen)`, ms: geladenMs, offen,
         gpuBytes: gpu || undefined })
     }
+    if (terrainProvider.errorEvent) {
+      const fehler = (e: { message?: string }) => quellFehler('gelaende', e.message ?? 'Geländekachel nicht verfügbar')
+      terrainProvider.errorEvent.addEventListener(fehler)
+      listener.push(() => terrainProvider.errorEvent.removeEventListener(fehler))
+    }
     const globeFortschritt = (n: number) => { offenGlobe = n; melde() }
     globe.tileLoadProgressEvent.addEventListener(globeFortschritt)
     listener.push(() => globe.tileLoadProgressEvent.removeEventListener(globeFortschritt))
@@ -226,12 +260,14 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
         if (kunstbau?.prim) scene.primitives.remove(kunstbau.prim)
         kunstbau = null
         tlmStilSetzen()
-        setzen({ kunstbauten: undefined })
+        const quellen = { ...stand.quellen }; delete quellen.kunstbauten
+        setzen({ kunstbauten: undefined, quellen })
       }
       if (!p || !inBern(p)) { leeren(); return }
       const schluessel = `${Math.round(p[0] / 50)}|${Math.round(p[1] / 50)}`
       if (kunstbau?.schluessel === schluessel) return
       leeren()
+      quelleSetzen('kunstbauten', { aktiv: brueckenAn, zustand: 'lädt', geladen: false, zeit: new Date().toISOString() })
       let liste: Kunstbaute[]
       try {
         const r = await fetch(kunstbautenUrl(p), { signal })
@@ -239,6 +275,7 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
         liste = await kunstbautenLesen(await r.json())
       } catch (e) {
         if (signal.aborted || tot || !kunstFolge.aktuell(nr)) return
+        quellFehler('kunstbauten', e)
         setzen({ kunstbauten: 'fehlt', text: `Kunstbauten Stadt Bern nicht verfügbar (swissTLM3D bleibt): ${e instanceof Error ? e.message : String(e)}` })
         return
       }
@@ -269,6 +306,7 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
       }
       kunstbau = { schluessel, prim, grenzen: liste.map(grenzenLv95), grundriss: grundriss(liste) }
       tlmStilSetzen()
+      quelleSetzen('kunstbauten', { zustand: 'geladen', aktiv: brueckenAn })
       setzen({ kunstbauten: liste.length })
       scene.requestRender()
     }
@@ -276,14 +314,21 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
     const lader: Partial<Record<TilesetSchluessel, (an: boolean) => Promise<void>>> = {}
     const tilesetLaden = async (schluessel: TilesetSchluessel, url: string, an: boolean) => {
       if (tot || signal.aborted) return
-      if (schluessel === 'bruecken') { brueckenAn = an; if (kunstbau?.prim) kunstbau.prim.show = an }
+      quelleSetzen(schluessel, { aktiv: an })
+      if (schluessel === 'bruecken') {
+        brueckenAn = an; if (kunstbau?.prim) kunstbau.prim.show = an
+        if (stand.quellen?.kunstbauten) quelleSetzen('kunstbauten', { aktiv: an })
+      }
       lader[schluessel] ??= ebenenLader(async () => {
+        quelleSetzen(schluessel, { zustand: 'lädt' })
         const ts = await C.Cesium3DTileset.fromUrl(url, { maximumScreenSpaceError: GEBAEUDE_FEHLER_PX, showCreditsOnScreen: true })
         if (!tot && !signal.aborted) {
           scene.primitives.add(ts)
           tilesets[schluessel] = ts
+          quelleSetzen(schluessel, { zustand: 'geladen' })
           if (schluessel === 'bruecken') tlmStilSetzen()
-          const fortschritt = (pending: number, processing: number) => { offenTiles[schluessel] = pending + processing; melde() }
+          const fortschritt = (pending: number, processing: number) => { offenTiles[schluessel] = pending + processing;
+            quelleSetzen(schluessel, { zustand: pending + processing > 0 ? 'lädt' : 'geladen' }); melde() }
           ts.loadProgress.addEventListener(fortschritt)
           listener.push(() => { if (!ts.isDestroyed()) ts.loadProgress.removeEventListener(fortschritt) })
           void tilesetStand(url, schluessel)
@@ -291,12 +336,14 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
         return ts
       }, (ts, sichtbar) => {
         ts.show = sichtbar
+        quelleSetzen(schluessel, { aktiv: sichtbar })
         setzen({ [schluessel]: sichtbar ? 'an' : 'aus' })
         melde(); scene.requestRender()
       }, ts => ts.destroy(), () => tot || signal.aborted)
       if (!an) setzen({ [schluessel]: 'aus' })
       try { await lader[schluessel]!(an) } catch (e) {
         if (signal.aborted || tot) return
+        quellFehler(schluessel, e)
         setzen({ [schluessel]: 'fehlt', text: `${TILESET_NAME[schluessel]} nicht verfügbar: ${e instanceof Error ? e.message : String(e)}` })
       }
     }
@@ -696,7 +743,7 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
       baeume: async an => { baeumeAn = an; for (const e of baumKronen) e.show = an; setzen({ baeume: an ? 'an' : 'aus' }); scene.requestRender() },
       bruecken: an => tilesetLaden('bruecken', BRUECKEN_URL, an),
       kategorie: (kat, an) => { kategorieAn[kat] = an; eigenesZeigen(); scene.requestRender() },
-      luftbild: an => { luftbildAn = an; luftbildEbene.show = an; setzen({ luftbild: an }); if (aktuell) bodenSetzen(aktuell.flaechen.filter(f => f.art === 'av').map(f => ({ ringe: f.ringe, fuellung: avFuellung(f.farbe, f.alpha, BODEN_FARBE, an, AV_UEBER_LUFTBILD), rand: !an }))); scene.requestRender() },
+      luftbild: an => { luftbildAn = an; luftbildEbene.show = an; quelleSetzen('luftbild', { aktiv: an, ...(an ? { zustand: stand.quellen?.luftbild?.geladen ? 'geladen' as const : 'lädt' as const } : {}) }); setzen({ luftbild: an }); if (aktuell) bodenSetzen(aktuell.flaechen.filter(f => f.art === 'av').map(f => ({ ringe: f.ringe, fuellung: avFuellung(f.farbe, f.alpha, BODEN_FARBE, an, AV_UEBER_LUFTBILD), rand: !an }))); scene.requestRender() },
       pruefung: an => { pruefungAn = an; eigenesZeigen(); scene.requestRender() },
       schatten: an => { scene.shadowMap.enabled = an; scene.requestRender() },
       groesse: () => { if (!tot) { w.resize(); scene.requestRender() } },

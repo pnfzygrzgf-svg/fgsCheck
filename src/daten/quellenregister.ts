@@ -23,7 +23,18 @@ import { ZH_PARK_LIZENZ } from './anbieter/gemeinsam/parkZuerich'
 
 /** Bedarf der App, den eine Quelle deckt */
 export type Thema = 'vermessung' | 'luftbild' | 'hoehen' | 'strassennetz' | 'uebergaenge' | 'parkfelder' | 'baeume' | 'haltestellen' |
-  'dtv' | 'fusswegnetz' | 'strassentyp' | 'tempo' | 'schulen' | 'taktil' | 'zonen' | 'oevLinien' | 'fgsLuftbild'
+  'dtv' | 'fusswegnetz' | 'strassentyp' | 'tempo' | 'schulen' | 'taktil' | 'zonen' | 'oevLinien' | 'fgsLuftbild' | Thema3D
+
+export type Thema3D = 'gelaende3d' | 'grundkarte3d' | 'luftbild3d' | 'gebaeude3d' | 'bruecken3d' | 'kunstbauten3d'
+/** Dieselben Kennungen für Register, Ladezustand und vorhandene Quellentabelle. */
+export const QUELLEN_3D = {
+  gelaende: { schluessel: 'ansicht3dGelaende', id: 'swisstopo.3d.gelaende', thema: 'gelaende3d' },
+  grundkarte: { schluessel: 'ansicht3dGrundkarte', id: 'swisstopo.3d.grundkarte', thema: 'grundkarte3d' },
+  luftbild: { schluessel: 'ansicht3dLuftbild', id: 'swisstopo.3d.luftbild', thema: 'luftbild3d' },
+  gebaeude: { schluessel: 'ansicht3dGebaeude', id: 'swisstopo.3d.gebaeude', thema: 'gebaeude3d' },
+  bruecken: { schluessel: 'ansicht3dBruecken', id: 'swisstopo.3d.bruecken', thema: 'bruecken3d' },
+  kunstbauten: { schluessel: 'ansicht3dKunstbauten', id: 'bern.kunstbauten', thema: 'kunstbauten3d' },
+} as const
 
 export type Gebiet =
   | { art: 'schweiz' }
@@ -46,10 +57,15 @@ export interface Quelle {
   dienst: 'wfs' | 'wms' | 'wmts' | 'arcgis' | 'overpass' | 'api' | 'datei'
   lizenz: string
   stand?: string
+  /** Produktbeschreibung und konkret verwendeter Dienst, sofern im Register hinterlegt. */
+  url?: string
+  dienstUrl?: string
   /** Zugriff aus dem Browser: true = CORS erlaubt; 'proxy' = nur über einen Zwischenserver; false = nicht möglich */
   cors: true | 'proxy' | false
   /** was an den Dienst geht (Datenschutz) */
   datenschutz: string
+  /** Gemeinsamer Datenschutzhinweis steht unter dieser übergeordneten Quelle. */
+  datenschutzWie?: string
   /** Satz nach der Aufzählung der Gruppe (statt in der Aufzählung) */
   datenschutzSatz?: boolean
   empfaenger: Empfaenger
@@ -157,10 +173,15 @@ export const QUELLEN: readonly Quelle[] = [
     'Befliegung 2. Juni 2023; Produktstand aus den Metadaten'), datenschutzSatz: true,
     module: ['daten/bernDtm.ts', 'ansicht3d/bodenprofil.ts'],
     hinweis: 'Gelände verdeckt erst ab 0,15 m über der Sichtlinie (Annahme nach der Genauigkeit ca. 10 cm); ausserhalb der Stadt und bei Ausfall swissALTI3D. Höhen LN02; in der 3D-Ansicht −0,04 m als lokaler Versatz zur LHN95-Szenenkonvention (Annahme für Bern).' },
-  { ...bernDienst('bern.kunstbauten', [], '3D-Ansicht: Kunstbauten (Brücken, Überführungen, Lärmschutzwände als 3D-Netz)',
+  { ...bernDienst('bern.kunstbauten', ['kunstbauten3d'], '3D-Stadtmodell Stadt Bern – Ebene Kunstbauten',
     'Öffnet man im Stadtgebiet die 3D-Ansicht, geht ein Rechteck von ±150 m um den Streifen (nur Koordinaten) an gisapp.bern.ch; ' +
-    'zurück kommen die Bauwerke darin. Ausserhalb der Stadt und bei Ausfall bleiben die Brücken aus swissTLM3D.', 'ansicht3d/kunstbauten.ts'),
-    datenschutzSatz: true, hinweis: 'nur Anzeige; Höhen LN02 wie die Landeshöhen der swisstopo-Kacheln, −0,04 m nach LHN95 (Annahme: in der Stadt konstant, REFRAME am Klösterlistutz)' },
+    'zurück kommen die 3D-Netze aus der Ebene Kunstbauten des 3D-Stadtmodells. Ausserhalb der Stadt und bei Ausfall bleiben die Brücken aus swissTLM3D.',
+    'ansicht3d/kunstbauten.ts', '30.05.2023 (Katalogstand; Erfassungsstand einzelner Bauwerke unbekannt)'),
+    url: 'https://map.bern.ch/geoportal/#/produkt/3D_Stadtmodell',
+    dienstUrl: 'https://gisapp.bern.ch/server/rest/services/StadtBern_Kunstbauten/FeatureServer/0',
+    lizenz: 'Zugangsstufe A (3D-Stadtmodell): freie Nutzung, Quellenangabe «Geodaten Stadt Bern» Pflicht',
+    datenschutzSatz: true, hinweis: 'Wichtigste Brücken und einzelne Spezialbauten; Vollständigkeit unbekannt. Nur Anzeige; ' +
+      'Höhen LN02, −0,04 m nach LHN95 (Annahme: in der Stadt konstant, REFRAME am Klösterlistutz).' },
   { id: 'swisstopo.3d', themen: [], name: '3D-Ansicht: Gelände, Karte swissTLM für 3D (grau), Luftbild SWISSIMAGE, swissBUILDINGS3D, Brücken aus swissTLM3D', anbieter: 'swisstopo',
     gebiet: { art: 'schweiz' }, dienst: 'api', lizenz: SWISSTOPO_LIZENZ, stand: 'Datum der Kachelpfade (Gelände, Gebäude, Brücken); Karte und Luftbild «current»',
     cors: true, empfaenger: 'swisstopo', datenschutzSatz: true,
@@ -169,6 +190,17 @@ export const QUELLEN: readonly Quelle[] = [
       'Luftbildkacheln (SWISSIMAGE), beide im Raster WGS84, von wmts.geo.admin.ch; ' +
       'welche Kacheln das sind, bestimmt die Kamera. Es gehen nur Kachelnummern, keine Eingaben oder Ergebnisse.',
     module: ['ansicht3d/cesiumSzene.ts'], hinweis: 'nur Anzeige, keine Änderung der Rechnung; Bibliothek CesiumJS (Apache-2.0)' },
+  ...([
+    { art: 'gelaende', name: '3D-Gelände (ch.swisstopo.terrain.3d)', dienst: 'api', stand: 'Datum der Kachelpfade, kein amtlicher Datenstand' },
+    { art: 'grundkarte', name: 'Karte swissTLM für 3D (grau)', dienst: 'wmts', stand: 'Kacheldienst «current»; Ausgabejahr nicht ausgewiesen' },
+    { art: 'luftbild', name: 'Luftbild SWISSIMAGE für 3D', dienst: 'wmts', stand: 'Kacheldienst «current»; Flugjahr hier nicht bestimmt' },
+    { art: 'gebaeude', name: 'Gebäude swissBUILDINGS3D', dienst: 'api', stand: 'Datum der Kachelpfade, kein amtlicher Datenstand' },
+    { art: 'bruecken', name: 'Brücken aus swissTLM3D', dienst: 'api', stand: 'Datum der Kachelpfade, kein amtlicher Datenstand' },
+  ] as const).map(q => ({ id: QUELLEN_3D[q.art].id, themen: [QUELLEN_3D[q.art].thema], name: q.name, stand: q.stand,
+    anbieter: 'swisstopo', gebiet: { art: 'schweiz' as const }, dienst: q.dienst, lizenz: SWISSTOPO_LIZENZ,
+    cors: true as const, empfaenger: 'swisstopo' as const, datenschutzWie: 'swisstopo.3d', datenschutzSatz: true,
+    datenschutz: 'Nur in der geöffneten 3D-Ansicht: Kachelnummern nach Kameraausschnitt; keine Eingaben oder Ergebnisse.',
+    module: ['ansicht3d/cesiumSzene.ts'], hinweis: '3D-Darstellung; Kacheln werden nach Kameraposition geladen. «aus» bezeichnet eine ausgeschaltete Ebene.' })),
   BAV_QUELLE,
   NPVM_QUELLE,
   { id: 'swisstopo.gebiet', themen: [], name: 'Gebietsbestimmung (Gemeindegrenzen)', anbieter: 'swisstopo',
@@ -268,13 +300,15 @@ export const quellenFuer = (o: Ort, liste: readonly Quelle[] = QUELLEN): Quelle[
 const RANG: Record<Gebiet['art'], number> = { gemeinden: 0, bbox: 1, kantone: 2, schweiz: 3 }
 
 export const THEMEN: readonly Thema[] = ['vermessung', 'luftbild', 'hoehen', 'strassennetz', 'uebergaenge', 'fgsLuftbild', 'parkfelder', 'baeume',
-  'haltestellen', 'dtv', 'fusswegnetz', 'strassentyp', 'tempo', 'schulen', 'taktil', 'zonen', 'oevLinien']
+  'haltestellen', 'dtv', 'fusswegnetz', 'strassentyp', 'tempo', 'schulen', 'taktil', 'zonen', 'oevLinien', ...Object.values(QUELLEN_3D).map(q => q.thema)]
 
 export const THEMA_NAME: Record<Thema, string> = {
   vermessung: 'Vermessung', luftbild: 'Luftbild', hoehen: 'Höhen', strassennetz: 'Strassennetz', uebergaenge: 'Übergänge',
   fgsLuftbild: 'Streifen aus dem Luftbild (ETH)', parkfelder: 'Parkfelder', baeume: 'Bäume', haltestellen: 'Haltestellen', dtv: 'Verkehrsmengen',
   fusswegnetz: 'Fusswegnetz', strassentyp: 'Strassentyp', tempo: 'Tempo-Signalisation', schulen: 'Schulen', taktil: 'taktile Markierungen',
   zonen: 'Bauzonen (Nutzungszonenplan)', oevLinien: 'ÖV-Linien',
+  gelaende3d: '3D-Gelände', grundkarte3d: '3D-Grundkarte', luftbild3d: '3D-Luftbild', gebaeude3d: '3D-Gebäude',
+  bruecken3d: '3D-Brücken', kunstbauten3d: '3D-Kunstbauten Stadt Bern',
 }
 /** Name eines Themas, wenn es nur OSM deckt */
 const THEMA_OSM: Partial<Record<Thema, string>> = { tempo: 'Tempo' }
@@ -333,7 +367,7 @@ export function datenlageSatz(d: Datenlage): string {
 
 /** Zeilen der Tabelle je Thema: Thema, Quelle (null: keine) */
 export const datenlageZeilen = (d: Datenlage): { thema: Thema; quelle: Quelle | null }[] =>
-  THEMEN.map(t => ({ thema: t, quelle: d[t] }))
+  THEMEN.filter(t => !t.endsWith('3d') || d[t] !== null).map(t => ({ thema: t, quelle: d[t] }))
 
 // ── Datenschutz (Hilfe): je Empfänger die Angaben der Quellen ──
 
@@ -348,7 +382,8 @@ const und = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} un
 /** Zeilen der Datenschutz-Liste je Empfänger (Reihenfolge wie EMPFAENGER_NAME) und die Sätze zu eigenen Dateien */
 export function datenschutzGruppen(liste: readonly Quelle[] = QUELLEN): { gruppen: { name: string; text: string }[]; eigen: string[] } {
   const gruppen = (Object.keys(EMPFAENGER_NAME) as (keyof typeof EMPFAENGER_NAME)[]).flatMap(e => {
-    const qs = liste.filter(q => q.empfaenger === e && q.netzabfrage !== false)
+    const qs = liste.filter(q => q.empfaenger === e && q.netzabfrage !== false &&
+      !(q.datenschutzWie && liste.some(x => x.id === q.datenschutzWie)))
     if (!qs.length) return []
     const auf = qs.filter(q => !q.datenschutzSatz).map(q => q.datenschutz), saetze = qs.filter(q => q.datenschutzSatz).map(q => q.datenschutz)
     const kern = e === 'bern' ? `Rechteck ±150 m für ${und(auf)}` : auf.join('; ')

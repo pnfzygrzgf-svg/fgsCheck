@@ -10,7 +10,7 @@ import { HALT_QUELLE_ID } from './daten/haltestellen'
 import { VD_QUELLE_ID } from './daten/verkehrsdaten'
 import { PARKKATASTER } from './daten/parkkataster'
 import { BAUMKATASTER } from './daten/baumkataster'
-import { ABRUF_BEIM_LADEN, datenlageSatz, datenlageZeilen, quelle, quellenFuer, THEMA_NAME, THEMEN, type Datenlage, type Quelle } from './daten/quellenregister'
+import { ABRUF_BEIM_LADEN, QUELLEN_3D, datenlageSatz, datenlageZeilen, quelle, quellenFuer, THEMA_NAME, THEMEN, type Datenlage, type Quelle } from './daten/quellenregister'
 import { wgs } from './geo'
 import { quellenQualitaetText, type QuellenQualitaet } from './daten/anbieter/gemeinsam/qualitaet'
 import { LUZERN_NAME } from './daten/ersatzLuzern'
@@ -19,6 +19,7 @@ import { ZH_PARK_SCHLUESSEL } from './daten/anbieter/gemeinsam/parkZuerich'
 /** Schlüssel in Fall.quellen bzw. in «Geladene Quellen» -> Kennung im Register */
 export const QUELLE_JE_SCHLUESSEL: Readonly<Record<string, string>> = {
   ...Object.fromEntries(REGIONAL_DIENSTE.map(d => [`regional.${d.id}`, `regional.${d.id}`])),
+  ...Object.fromEntries(Object.values(QUELLEN_3D).map(q => [q.schluessel, q.id])),
   hoehenkurven: 'hoehenkurven', ansicht3d: 'swisstopo.3d', av: 'av', sosf: 'av', osm: 'osm', suche: 'osm', luftbild: 'swissimage', hoehen: 'swissalti', hoehenSicht: 'swissalti',
   hoehenBern: 'bern.dtm', hoehenSichtBern: 'bern.dtm',
   kataster: BAUMKATASTER[0].quelleId, baumkataster: BAUMKATASTER[0].quelleId, parkkataster: PARKKATASTER[0].quelleId,
@@ -47,15 +48,15 @@ export function genutzteQuellen(quellen: Readonly<Record<string, unknown>>, zusa
   return [...new Set(ids)]
 }
 
-export type QuellZustand = 'geladen' | 'Fehler' | 'lädt'
+export type QuellZustand = 'geladen' | 'Fehler' | 'lädt' | 'aus' | 'geladen (Ebene aus)'
 /** Ladezustand je Kennung aus den Zeilen von «Geladene Quellen» (Fehler vor lädt vor geladen) */
-export function zustandJeQuelle(stand: Readonly<Record<string, { objekte?: string; ms?: number; fehler?: string }>>): Record<string, QuellZustand> {
+export function zustandJeQuelle(stand: Readonly<Record<string, { objekte?: string; ms?: number; fehler?: string; zustand?: QuellZustand }>>): Record<string, QuellZustand> {
   const aus: Record<string, QuellZustand> = {}
-  const rang: Record<QuellZustand, number> = { Fehler: 0, 'lädt': 1, geladen: 2 }
+  const rang: Record<QuellZustand, number> = { Fehler: 0, 'lädt': 1, geladen: 2, 'geladen (Ebene aus)': 3, aus: 4 }
   for (const [k, q] of Object.entries(stand)) {
     const id = kennung(k, q)
     if (!id) continue
-    const z: QuellZustand = q.fehler ? 'Fehler' : q.objekte !== undefined || q.ms !== undefined ? 'geladen' : 'lädt'
+    const z: QuellZustand = q.zustand ?? (q.fehler ? 'Fehler' : q.objekte !== undefined || q.ms !== undefined ? 'geladen' : 'lädt')
     if (!aus[id] || rang[z] < rang[aus[id]]) aus[id] = z
   }
   return aus
@@ -74,6 +75,14 @@ export function qualitaetJeQuelle(stand: Readonly<Record<string, QuellenQualitae
 /** Kurzzeile Anbieter · Lizenz · Stand eines Eintrags */
 export const quelleInfo = (q: Quelle): string => [q.anbieter, q.lizenz, q.stand].filter(Boolean).join(' · ')
 
+/** Verweise aus demselben Register für Datenlage, Ladezustand und Bericht. */
+export function QuelleLinks({ quelle: q, produkt = true }: { quelle: Quelle; produkt?: boolean }) {
+  const produktUrl = produkt ? q.url : undefined
+  if (!produktUrl && !q.dienstUrl) return null
+  return <div className="klein">{produktUrl && <a href={produktUrl}>Produktseite</a>}
+    {produktUrl && q.dienstUrl && ' · '}{q.dienstUrl && <a href={q.dienstUrl}>Verwendeter Dienst</a>}</div>
+}
+
 /** Tabelle je Thema: Quelle, Anbieter, Stand, Lizenz (mit Ladezustand, wenn gegeben) */
 export function DatenlageTabelle({ lage, zustand, qualitaet = {} }: { lage: Datenlage; zustand?: Readonly<Record<string, QuellZustand>>; qualitaet?: Readonly<Record<string, QuellenQualitaet>> }) {
   return (
@@ -81,7 +90,7 @@ export function DatenlageTabelle({ lage, zustand, qualitaet = {} }: { lage: Date
       <thead><tr><th>Thema</th><th>Quelle</th><th>Anbieter</th><th>Stand</th><th>Lizenz</th>{zustand && <th>Zustand</th>}</tr></thead>
       <tbody>{datenlageZeilen(lage).sort((a, b) => alphabetisch(THEMA_NAME[a.thema], THEMA_NAME[b.thema])).map(({ thema, quelle: q }) => <tr key={thema}>
         <td>{THEMA_NAME[thema]}</td>
-        {q ? <><td>{q.name}{q.hinweis && <div className="klein">{q.hinweis}</div>}</td><td>{q.anbieter}</td><td>{q.stand ?? '–'}<div className="klein">{quellenQualitaetText(qualitaet[q.id])}</div></td><td>{q.lizenz}</td></>
+        {q ? <><td>{q.name}<QuelleLinks quelle={q} />{q.hinweis && <div className="klein">{q.hinweis}</div>}</td><td>{q.anbieter}</td><td>{q.stand ?? '–'}<div className="klein">{quellenQualitaetText(qualitaet[q.id])}</div></td><td>{q.lizenz}</td></>
           : <td colSpan={4}>keine Quelle: Angabe von Hand</td>}
         {zustand && <td className={q && zustand[q.id] === 'Fehler' ? 'fehler' : undefined}>{q ? zustand[q.id] ?? '–' : '–'}</td>}
       </tr>)}</tbody>
@@ -106,7 +115,7 @@ export function DatenlageZeile({ lage, zustand, qualitaet = {} }: { lage: Datenl
 const produktNamen = (t: string): string => t.replace('Kindergaerten', 'Kindergärten').replace('Kindertagesstaetten', 'Kindertagesstätten').replace('Spitaeler', 'Spitäler')
 
 /** Adresse einer Quelle für den Link im Bericht (Firefox übernimmt ihn ins PDF) */
-const quelleUrl = (q: Quelle): string | undefined => ({ 'zh.park': 'https://data.stadt-zuerich.ch/dataset/geo_oeffentlich_zugaengliche_parkplaetze_dav', 'zh.dtv': 'https://maps.zh.ch/',
+const quelleUrl = (q: Quelle): string | undefined => q.url ?? ({ 'zh.park': 'https://data.stadt-zuerich.ch/dataset/geo_oeffentlich_zugaengliche_parkplaetze_dav', 'zh.dtv': 'https://maps.zh.ch/',
   'lu.dtv': 'https://map.stadtluzern.ch/', 'bs.dtv': 'https://data.bs.ch/', 'lu.boden': 'https://map.stadtluzern.ch/', 'lu.park': 'https://map.stadtluzern.ch/', 'lu.gebaeude': 'https://public.geo.lu.ch/ogd/rest/services/managed/GEBHOHEN_DS_V5_MP/MapServer', av: 'https://www.geodienste.ch/', osm: 'https://www.openstreetmap.org/',
   swissimage: 'https://www.swisstopo.admin.ch/de/orthobilder-swissimage-10-cm', swissalti: 'https://www.swisstopo.admin.ch/de/hoehenmodell-swissalti3d' } as Record<string, string>)[q.id] ??
   (q.anbieter.includes('Stadt Bern') ? 'https://map.bern.ch/' : undefined)
@@ -127,7 +136,7 @@ export function BerichtQuellenTabelle({ ids, lage, qualitaet = {}, gruende }: { 
   return (
     <table className="quellen-tabelle bericht-quellen">
       <thead><tr><th>Quelle</th><th>{gruende ? 'Grund' : 'Für'}</th><th>Anbieter</th><th>Stand</th><th>Lizenz</th></tr></thead>
-      <tbody>{qs.map(q => <tr key={q.id}><td>{quelleUrl(q) ? <a href={quelleUrl(q)}>{q.name}</a> : q.name}</td>
+      <tbody>{qs.map(q => <tr key={q.id}><td>{quelleUrl(q) ? <a href={quelleUrl(q)}>{q.name}</a> : q.name}<QuelleLinks quelle={q} produkt={false} /></td>
         <td>{gruende ? gruende[q.id] : fuer(q)}</td>
         <td>{q.anbieter}</td><td>{stand(q)}<div className="klein">{produktNamen(quellenQualitaetText(qualitaet[q.id]))}</div></td><td>{q.lizenz}</td></tr>)}</tbody>
     </table>

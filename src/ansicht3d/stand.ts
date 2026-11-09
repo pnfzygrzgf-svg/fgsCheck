@@ -1,3 +1,4 @@
+import { QUELLEN_3D, quelle } from '../daten/quellenregister'
 // ── 3D-Ansicht: Ladezustand (Speicher ausserhalb von React, wie hoehenkurven/stand.ts) ──
 //
 // Die Szene (cesiumSzene.ts) meldet ihren Stand hierher; die Ansicht zeigt ihn in der Statuszeile, App.tsx als Zeile in «Datenquellen
@@ -7,7 +8,16 @@
 
 import { useMemo, useSyncExternalStore } from 'react'
 
+export type Dienst3D = keyof typeof QUELLEN_3D
+export interface DienstStand3D {
+  aktiv: boolean
+  zustand: 'lädt' | 'geladen' | 'Fehler' | 'aus'
+  geladen?: boolean
+  fehler?: string
+  zeit?: string
+}
 export interface Stand3D {
+  quellen?: Partial<Record<Dienst3D, DienstStand3D>>
   phase: 'aus' | 'laedt' | 'bereit' | 'fehler'
   text: string
   /** Bleibender Hinweis zu fehlenden bzw. mehrdeutigen Fahrbahnhöhen. */
@@ -40,7 +50,7 @@ export function standSetzen(s: Stand3D) { wert = s; for (const f of listener) f(
 export const useAnsicht3dStand = () => useSyncExternalStore(standAbonnieren, standLesen, standLesen)
 
 interface QuellenInfo { name: string; server: string; datenstand: string; vollstaendigkeit: string; objekte?: string; zeit?: string; ms?: number
-  bytes?: number; fehler?: string }
+  bytes?: number; fehler?: string; zustand?: DienstStand3D['zustand'] | 'geladen (Ebene aus)' }
 
 const datum = (t?: string) => (t && /^\d{8}$/.test(t) ? `${t.slice(6, 8)}.${t.slice(4, 6)}.${t.slice(0, 4)}` : null)
 /** Zeile für «Datenquellen und Ladezustand»; leer, solange die Ansicht geschlossen ist oder noch lädt */
@@ -63,7 +73,24 @@ export function quelleZeile(s: Stand3D): Record<string, QuellenInfo> {
     datenstand: st.length ? `${st.join(', ')} (Datum der Kachelpfade)` : 'unbekannt', vollstaendigkeit: 'unbekannt',
     objekte, zeit: s.zeit, ms: s.ms, ...(s.phase === 'fehler' ? { fehler: s.text } : {}) } }
 }
+/** Einträge für die vorhandene Themenliste, getrennt von der bisherigen 3D-Zusammenfassung. */
+export function einzelQuellenZeilen(s: Stand3D): Record<string, QuellenInfo> {
+  if (s.phase === 'aus') return {}
+  const aus: Record<string, QuellenInfo> = {}
+  for (const [key, z] of Object.entries(s.quellen ?? {}) as [Dienst3D, DienstStand3D][]) {
+    const ref = QUELLEN_3D[key], q = quelle(ref.id)!
+    const zustand = z.aktiv ? z.zustand : z.geladen ? 'geladen (Ebene aus)' : 'aus'
+    const d = key === 'gelaende' || key === 'gebaeude' || key === 'bruecken' ? datum(s.stand?.[key]) : null
+    aus[ref.schluessel] = { name: q.name, server: key === 'kunstbauten' ? 'gisapp.bern.ch' :
+      key === 'grundkarte' || key === 'luftbild' ? 'wmts.geo.admin.ch' : '3d.geo.admin.ch',
+      zustand, objekte: zustand + (key === 'kunstbauten' && typeof s.kunstbauten === 'number' ? `; ${s.kunstbauten} Bauwerke im Abrufbereich` : ''),
+      datenstand: key === 'kunstbauten' ? q.stand ?? 'unbekannt' : d ? `${d} (Datum der Kachelpfade)` : key === 'grundkarte' || key === 'luftbild' ? 'current (Kacheldienst; Aufnahmejahr nicht bestimmt)' : 'unbekannt',
+      vollstaendigkeit: 'unbekannt', ...(z.zeit ? { zeit: z.zeit } : {}),
+      ...(z.aktiv && z.zustand === 'Fehler' ? { fehler: z.fehler ?? 'Quelle nicht verfügbar' } : {}) }
+  }
+  return aus
+}
 export function useAnsicht3dQuelle(): Record<string, QuellenInfo> {
   const s = useAnsicht3dStand()
-  return useMemo(() => quelleZeile(s), [s])
+  return useMemo(() => ({ ...quelleZeile(s), ...einzelQuellenZeilen(s) }), [s])
 }

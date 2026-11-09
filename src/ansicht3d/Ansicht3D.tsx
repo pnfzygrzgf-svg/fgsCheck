@@ -26,14 +26,14 @@ export const KEIN_WEBGL = 'Dieser Browser bietet kein WebGL; die 3D-Ansicht ist 
 export function AnsichtSchalter({ dreiD, setzen, moeglich }: { dreiD: boolean; setzen: (an: boolean) => void; moeglich: boolean }) {
   return (
     <div className="ansicht-wahl" role="group" aria-label="Ansicht">
-      <button type="button" aria-pressed={!dreiD} onClick={() => setzen(false)}>2D-Karte</button>
+      <button type="button" aria-pressed={!dreiD} title="Zur 2D-Karte zurück (Esc)" onClick={() => setzen(false)}>2D-Karte</button>
       <button type="button" aria-pressed={dreiD} disabled={!moeglich} onClick={() => setzen(true)}
               title={moeglich ? 'Streifen, Zufahrten und Umgebung räumlich zeigen (nur Darstellung)' : 'Erst einen Übergang prüfen'}>3D-Ansicht</button>
     </div>
   )
 }
 
-export default function Ansicht3D({ szene, profil = null, setProfil }: { szene: Szene3D; profil?: string | null; setProfil?: (id: string | null) => void }) {
+export default function Ansicht3D({ szene, profil = null, setProfil, baumkatasterAn = false }: { szene: Szene3D; profil?: string | null; setProfil?: (id: string | null) => void; baumkatasterAn?: boolean }) {
   const elRef = useRef<HTMLDivElement>(null), creditRef = useRef<HTMLDivElement>(null)
   const szeneRef = useRef<Szene | null>(null)
   const [bereit, setBereit] = useState(0)
@@ -41,7 +41,7 @@ export default function Ansicht3D({ szene, profil = null, setProfil }: { szene: 
   const abgleich = useRef(ansichtAbgleich())
   const [modus, setModus] = useState<KameraModus>(() => kameraModusVorgabe(szene, modusLesen()))
   const [gebaeude, setGebaeude] = useState(true)
-  const [baeume, setBaeume] = useState(false)
+  const [baeume, setBaeume] = useState(baumkatasterAn)
   const [bruecken, setBruecken] = useState(true)
   const [fahrzeuge, setFahrzeuge] = useState(true)
   const [personen, setPersonen] = useState(true)

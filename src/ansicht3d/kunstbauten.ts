@@ -1,5 +1,7 @@
-// ── 3D-Ansicht: Kunstbauten der Stadt Bern (Brücken, Überführungen, Lärmschutzwände) als Dreiecksnetz, ohne Cesium ──
+// ── 3D-Ansicht: Ebene Kunstbauten des 3D-Stadtmodells Stadt Bern als Dreiecksnetz, ohne Cesium ──
 //
+// Produkt: https://map.bern.ch/geoportal/#/produkt/3D_Stadtmodell (Zugangsstufe A; wichtigste Brücken und einzelne Spezialbauten).
+// Katalogstand 30.05.2023; Erfassungsstand einzelner Bauwerke unbekannt. Gleichnamiger Bauwerkskataster «Kunstbauten»: anderes Produkt (Stufe B).
 // Quelle: Geodaten Stadt Bern, gisapp.bern.ch …/StadtBern_Kunstbauten/FeatureServer/0 (MultiPatch, 42 Bauwerke, LV95, Höhen LN02).
 // Der Szenendienst derselben Daten (I3S) liegt in LV95 und ist darum in Cesium nicht ladbar (Cesium-I3S nimmt nur WGS84); die
 // Abfrage des FeatureServers mit multipatchOption=stripMaterials liefert je Bauwerk «binaryPatches»: Base64, 12 Byte Kopf (Typ,

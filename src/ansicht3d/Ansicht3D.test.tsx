@@ -14,7 +14,7 @@ afterEach(() => { vi.unstubAllGlobals(); standSetzen(AUS) })
 describe('Umschalter 2D/3D', () => {
   it('zeigt die gewählte Ansicht mit aria-pressed; 3D nur mit gerechnetem Streifen', () => {
     const h = renderToStaticMarkup(<AnsichtSchalter dreiD={false} setzen={() => undefined} moeglich={false} />)
-    expect(h).toContain('aria-pressed="true">2D-Karte'); expect(h).toContain('aria-pressed="false" disabled')
+    expect(h).toMatch(/aria-pressed="true"[^>]*>2D-Karte/); expect(h).toContain('aria-pressed="false" disabled')
     const h2 = renderToStaticMarkup(<AnsichtSchalter dreiD setzen={() => undefined} moeglich />)
     expect(h2).toContain('aria-pressed="true"'); expect(h2).toContain('3D-Ansicht'); expect(h2).not.toContain('disabled')
   })

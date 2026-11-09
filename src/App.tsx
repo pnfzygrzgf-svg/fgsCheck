@@ -51,7 +51,7 @@ import { quellenQualitaetText, type QuellenQualitaet } from './daten/anbieter/ge
 import { BAV_QUELLENANGABE, bavDatenstandText } from './daten/anbieter/gemeinsam/bav'
 import { ladeVerkehrsdatenBern, type VdLinie } from './daten/verkehrsdaten'
 import { datenlage, gemeindeAmOrt, quelle as registerQuelle, type Datenlage } from './daten/quellenregister'
-import { DatenlageZeile, QUELLE_JE_SCHLUESSEL, quelleInfo, zustandJeQuelle, qualitaetJeQuelle } from './Datenlage'
+import { DatenlageZeile, QUELLE_JE_SCHLUESSEL, QuelleLinks, quelleInfo, zustandJeQuelle, qualitaetJeQuelle } from './Datenlage'
 import { herangezogeneQuellen } from './quellenHerangezogen'
 import { VD_QUELLE_ID } from './daten/verkehrsdaten'
 import type { GeoVorbelegung } from './bedarf/vorbelegung'
@@ -2003,7 +2003,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const kanton = g?.kanton ?? av?.find(f => f.kanton)?.kanton
     return datenlage({ lat, lon, bfs: g?.bfs ?? null, ...(kanton ? { kanton } : {}) })
   }, [av, fall, rechnung, daten, bund.stand.gebiet])
-  const quellZustand = useMemo(() => zustandJeQuelle(quellen), [quellen])
+  const quellZustand = useMemo(() => zustandJeQuelle(quellenMitSnapshots), [quellenMitSnapshots])
   const geoVor = useMemo<GeoVorbelegung>(() => {
     const bav = 'daten' in bund.stand.bav ? bund.stand.bav.daten : null
     const modell = 'daten' in npvm.stand ? npvm.stand.daten : null
@@ -2333,7 +2333,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
   return (
     <div className="app" style={{ '--panel-breite': `${panelBreite}px` } as CSSProperties}>
-      <Karte bruecken={brueckenUmrisse} luftbildBestaetigt={!!(fall && rechnung?.luftbild && luftbildGilt(fall, rechnung.luftbild.teile))} quellenEbenen={quellenEbenen} osmTags={geoVor.osmTags ?? null} mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
+      <Karte baumkatasterAn={!!fall?.baumkataster} bruecken={brueckenUmrisse} luftbildBestaetigt={!!(fall && rechnung?.luftbild && luftbildGilt(fall, rechnung.luftbild.teile))} quellenEbenen={quellenEbenen} osmTags={geoVor.osmTags ?? null} mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         amtlicheKandidaten={amtKandidaten} onAmtlicherKandidat={pruefenAmtlich} luftbildKandidaten={lbKandidaten} onLuftbildKandidat={pruefenLuftbild}
         fusswegnetz={fusswegnetz} richtplanVorhanden={richtplanVorhanden} onRichtplan={setRpStand}
         taktilGenutzt={taktilGen} taktilVorhanden={taktilVorhanden} onTaktil={setTkStand}
@@ -2789,17 +2789,19 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           Datenstand; bestätigte Eingaben bleiben erhalten. Das Abrufdatum ist kein Datenstand.</p>
         <table>
           <tbody>
-            {quellenSortiert(quellenMitSnapshots).map(([k, q]) => (
+            {quellenSortiert(quellenMitSnapshots).map(([k, q]) => {
+              const registerEintrag = registerQuelle(QUELLE_JE_SCHLUESSEL[k] ?? '')
+              return (
               <tr key={k}><td><b>{quellenThema(k, q.name)}</b><br />{q.name}{q.server && <div className="klein">{q.server}</div>}
                 <div className="klein quelle-info">{quellenQualitaetText(q)}{q.zeit && <><br />Abgerufen {new Date(q.zeit).toLocaleString('de-CH')}</>}</div>
-                {registerQuelle(QUELLE_JE_SCHLUESSEL[k] ?? '') && <div className="klein quelle-info">{quelleInfo(registerQuelle(QUELLE_JE_SCHLUESSEL[k])!)}</div>}</td>
+                {registerEintrag && <><div className="klein quelle-info">{quelleInfo(registerEintrag)}</div><QuelleLinks quelle={registerEintrag} /></>}</td>
                 {q.fehler ? <td className="fehler">{q.fehler}{k === 'parkkataster' && parkKat?.fehler && <>{' '}
                   <button className="zweit klein" onClick={() => setParkKat(x => (x ? { ...x, felder: null, fehler: undefined, laedt: false } : x))}>
                     erneut laden</button></>}</td> :
                   <td className="klein">{[q.objekte, q.ms != null ? `${Math.round(q.ms)} ms` : '', q.bytes != null ? `${Math.round(q.bytes / 1024)} kB` : '']
                     .filter(Boolean).join(', ') || 'lädt …'}</td>}
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
         </details>

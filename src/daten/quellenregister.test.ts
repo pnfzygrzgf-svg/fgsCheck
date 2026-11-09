@@ -157,7 +157,7 @@ describe('Datenschutz aus dem Register', () => {
       'nur Koordinaten) an gisapp.bern.ch (DTM 2023, 25 cm) statt an swisstopo; antwortet der Dienst nicht, an swisstopo (swissALTI3D). Bei geöffneter 3D-Ansicht wird je Zufahrt die vollständige ' +
       'Fahrlinie (Koordinaten, auch von Hand korrigierte) für ein Bodenprofil abgefragt; fehlende Messwerte bleiben Lücken. ' +
       'Öffnet man im Stadtgebiet die 3D-Ansicht, geht ein Rechteck von ±150 m um den Streifen (nur Koordinaten) an gisapp.bern.ch; ' +
-      'zurück kommen die Bauwerke darin. Ausserhalb der Stadt und bei Ausfall bleiben die Brücken aus swissTLM3D. ' +
+      'zurück kommen die 3D-Netze aus der Ebene Kunstbauten des 3D-Stadtmodells. Ausserhalb der Stadt und bei Ausfall bleiben die Brücken aus swissTLM3D. ' +
       'Die Kartenebene «Richtplan Fussverkehr (Geoportal Bern)» sendet den sichtbaren ' +
       'Kartenausschnitt mit Rand (Rechteck in LV95, je Layer eine Abfrage) nur, wenn sie eingeschaltet ist. Die Kartenebene «Taktile ' +
       'Markierungen (Stadt Bern)» sendet den sichtbaren Kartenausschnitt mit Rand (Rechteck in LV95, je Layer eine Abfrage, zwei Layer) ' +
