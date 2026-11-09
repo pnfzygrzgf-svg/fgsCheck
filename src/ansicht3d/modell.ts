@@ -1,3 +1,5 @@
+import { BAUM_ANNAHME, baumStammText } from '../rechner/baumAnnahme'
+import { parkDarstellung, parkPruefText } from '../rechner/parkgeometrie'
 // ── 3D-Ansicht: Datenmodell der Szene (reine Funktionen, ohne Cesium, DOM oder Leaflet) ──
 //
 // Bildet die Geometrie eines gerechneten Falls (LV95) auf eine Szene in WGS84 ab: Flächen und Linien, die auf das Gelände gelegt
@@ -42,7 +44,7 @@ export const VELO_MASSE: readonly [number, number, number] = [1.8, 0.6, 1.2]
 export const PERSON_MASSE: readonly [number, number, number] = [0.5, 0.5, 1.7]
 export const PARK_HOEHE_M = 1.5
 export const PARKRAND_FARBE = '#2563eb'
-export const PARK_HINWEIS = 'Parkquader zeigen die ganze Parkfläche, die auch die Rechnung berücksichtigt. Belegung und Höhe sind angenommen.'
+export const PARK_HINWEIS = 'Parkquader zeigen die ganze Parkfläche, die auch die Rechnung berücksichtigt. Belegung und Höhe sind angenommen. Prüffläche und Mindestbreiten entsprechen der Rechnung und der 2D-Ansicht; grau gestrichelt ist der ursprüngliche Katasterumriss ergänzter Flächen.'
 /** Velo- und Motorradfelder zählen in der Rechnung nur als Hinweis: niedriger und blasser */
 export const PARK_ZWEIRAD_HOEHE_M = 1.0
 export const SICHTBEHINDERND_M = 1.5
@@ -155,7 +157,7 @@ const m1 = (v: number) => v.toFixed(1).replace('.', ',')
 export const LEGENDE = `Höhen angenommen: Auge ${m1(AUGHOEHE)} m über der Fahrbahn, Ziel auf der Wartefläche ${m1(ZIELHOEHE_WARTE_M)} m; Autos ${m1(AUTO_MASSE[2])} m, ` +
   `Personen ${m1(PERSON_MASSE[2])} m; Prüfhüllen der Auto-Parkflächen ${m1(PARK_HOEHE_M)} m (Velo- und Motorradflächen ${m1(PARK_ZWEIRAD_HOEHE_M)} m); Hecken und Mauern ${m1(SICHTBEHINDERND_M)} m (sichtbehindernd) bzw. ` +
   `${m1(NICHT_SICHTBEHINDERND_M)} m; Bäume als Stamm ${BAUM_HOEHE_M} m. Zuschaltbare Baumkronen direkt an diesen Standorten: Form angenommen, 5 m breit, Gesamthöhe 8 m; keine gemessenen Kronen. Boden: Flächen der Amtlichen Vermessung auf dem Gelände von swisstopo; Gebäude aus swissBUILDINGS3D, Brücken aus swissTLM3D, in der Stadt Bern aus den Kunstbauten der Stadt. ` +
-  'Fahrbahnhöhen folgen den Zufahrten mit Bodenprofilen aus dem DTM 2023 der Stadt Bern bzw. swissALTI3D. Ergänzte Fahrbahnanschlüsse: Darstellung, keine gemessene Fläche; Breite aus der AV, ersatzweise 6 m innerhalb der AV-Strassenfläche. Mehrdeutige Höhen werden nicht dargestellt. ' + PARK_HINWEIS + ' Die Ansicht prüft nichts und ändert kein Ergebnis.'
+  'Fahrbahnhöhen folgen den Zufahrten mit Bodenprofilen aus dem DTM 2023 der Stadt Bern bzw. swissALTI3D. Ergänzte Fahrbahnanschlüsse: Darstellung, keine gemessene Fläche; Breite aus der AV, ersatzweise 6 m innerhalb der AV-Strassenfläche. Mehrdeutige Höhen werden nicht dargestellt. ' + PARK_HINWEIS + ' ' + BAUM_ANNAHME + ' Die Ansicht prüft nichts und ändert kein Ergebnis.'
 
 /** Flächen eines Polygons mit Löchern (rechner/poly: Ring[0] aussen) */
 const polyRinge = (poly: Poly): LL[][] => poly.filter(r => r.length >= 3).map(ring)
@@ -190,14 +192,20 @@ export function szene3d(rechnung: FallRechnung | null, auswahl: string | null, h
   const zielStreifen = streifen.find(s => s.zufahrten.some(z => zufahrtKey(z) === auswahl)) ?? streifen[0]
   if (zielStreifen) kamera.uebersicht = { ziel: ll(zielStreifen.m), peilung: kamera.fahrzeug?.peilung ?? 0, distanzM: UEBERSICHT_DISTANZ_M,
     neigungGrad: UEBERSICHT_NEIGUNG_GRAD }
-  for (const h of hindernisse) hindernisEinfuegen(h, farben, flaechen, linien, waende, koerper)
+  const amtlich = (rechnung?.vorschlaege ?? []).filter(v => v.hindernis.quelle === 'kataster' && !hindernisse.some(h => h.id === v.hindernis.id)).map(v => v.hindernis)
+  const effektiv = parkDarstellung([...hindernisse, ...amtlich], rechnung?.parkPruefflaechen)
+  const teile = new Map<string, number>()
+  for (const h of effektiv) {
+    const n = teile.get(h.id) ?? 0; teile.set(h.id, n + 1)
+    hindernisEinfuegen(n ? { ...h, id: `${h.id}:teil:${n}` } : h, farben, flaechen, linien, waende, koerper)
+  }
+  for (const h of rechnung?.parkAnnahmen ?? effektiv) if (h.art === 'parkfeld' && h.parkPruefung?.status === 'ergaenzt')
+    linien.push({ id: `katasterRand:${h.id}`, art: 'umriss', punkte: geschlossen(h.parkPruefung.original), farbe: '#64748b', breite: 1.5,
+      gestrichelt: true, text: `Originalumriss des Katasters: ${h.name ?? h.id}; ${parkPruefText(h)}` })
   // Vorschläge der Rechnung: amtliche Parkfelder (Kataster) zählen ohne Bestätigung und stehen als Körper; Vorschläge aus OSM zählen erst
   // nach Bestätigung und liegen nur als Umriss auf dem Boden. Verworfene Parkfelder (rechnung.parkVerworfen) fehlen.
   for (const v of rechnung?.vorschlaege ?? []) {
-    if (v.hindernis.quelle === 'kataster') {
-      if (!hindernisse.some(h => h.id === v.hindernis.id)) hindernisEinfuegen(v.hindernis, farben, flaechen, linien, waende, koerper)
-    }
-    else if (v.hindernis.art === 'parkfeld' && v.hindernis.ring.length >= 3) flaechen.push({ id: `vorschlag:${v.id}`, art: 'parkfeld', ringe: [ring(v.hindernis.ring)],
+    if (v.hindernis.quelle !== 'kataster' && v.hindernis.art === 'parkfeld' && v.hindernis.ring.length >= 3) flaechen.push({ id: `vorschlag:${v.id}`, art: 'parkfeld', ringe: [ring(v.hindernis.ring)],
       farbe: farben.hindernis(v.hindernis), alpha: 0.25, text: `Vorschlag aus OSM, zählt erst nach Bestätigung: ${v.grund}` })
   }
   for (const fp of flaechenPlan) if (fp.ring.length >= 3) {
@@ -312,7 +320,7 @@ function hindernisEinfuegen(h: Hindernis, farben: Farben3D, flaechen: Flaeche3D[
     const r = h.art === 'parkfeld' ? h.ring : laengsPolygon(h.linie, h.breite)
     const zweirad = h.art === 'parkfeld' && h.klasse !== 'auto'
     if (!zweirad && r.length >= 3) {
-      const parkfeld = h.id, text = `${h.art === 'parkfeld' ? 'Parkfeld' : 'Längsparkierung'} ${name} – Belegung angenommen`.trim()
+      const parkfeld = h.id, text = `${h.art === 'parkfeld' ? 'Parkfeld' : 'Längsparkierung'} ${name} – Belegung angenommen; ${parkPruefText(h)}`.trim()
       flaechen.push({ id: `hindernis:${h.id}`, parkfeld, art: 'parkfeld', ringe: [ring(r)], farbe: PARKRAND_FARBE, alpha: 0.1, text })
       linien.push({ id: `parkRand:${h.id}`, parkfeld, art: 'umriss', punkte: geschlossen(r), farbe: PARKRAND_FARBE, breite: 2, text })
       flaechen.push({ id: `parkhuelle:${h.id}`, parkfeld, pruefhuelle: true, art: 'parkfeld', ringe: [ring(r)], farbe: PARKRAND_FARBE,
@@ -325,7 +333,7 @@ function hindernisEinfuegen(h: Hindernis, farben: Farben3D, flaechen: Flaeche3D[
   } else if (h.art === 'baum') {
     const d = Math.max(h.stamm || BAUM_STAMM_M, BAUM_STAMM_MIN_M)
     koerper.push({ id: `hindernis:${h.id}`, art: 'baum', mitte: ll(h.p), peilung: 0, masse: [d, d, BAUM_HOEHE_M], farbe: BAUM_FARBE,
-      text: `Baum ${name} (Stamm ${m1(d)} m, Höhe angenommen)` })
+      text: `Baum ${name}; ${baumStammText(h)}; Stammhöhe ${BAUM_HOEHE_M} m angenommen` })
   } else if (h.art === 'insel') {
     if (h.ring.length >= 3) linien.push({ id: `inselRand:${h.id}`, art: 'inselRand', punkte: geschlossen(h.ring), farbe: farben.insel, breite: 2,
       gestrichelt: true, text: `Insel ${name}` })

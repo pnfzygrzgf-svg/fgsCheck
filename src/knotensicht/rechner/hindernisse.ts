@@ -13,6 +13,7 @@
 import { type P, add, dist, imPolygon, sub, einheit, rechts } from '../geo'
 import { type Multi, type Poly, abstandPunkt } from './poly'
 import type { Verdeckend } from './sicht'
+import type { ParkPruefung, ParkAnordnung } from './parkgeometrie'
 
 export const BAUM_STAMM_M = 0.5            // Stamm als Kreis mit diesem Durchmesser (BAUM_STAMM_M)
 export const LAENGS_BREITE_M = 2.0         // Längsparkierung von Hand: Breite des Streifens (Annahme, wie ein Parkfeld)
@@ -23,7 +24,7 @@ export type ParkKlasse = 'auto' | 'velo' | 'motorrad'
 export type Quelle = 'hand' | 'osm' | 'kataster'
 
 export type Hindernis =
-  | { id: string; art: 'parkfeld'; klasse: ParkKlasse; ring: P[]; quelle: Quelle; name?: string }
+  | { id: string; art: 'parkfeld'; klasse: ParkKlasse; ring: P[]; quelle: Quelle; name?: string; katasterTyp?: string; parkAnordnung?: ParkAnordnung; parkPruefung?: ParkPruefung }
   | { id: string; art: 'laengsparkierung'; linie: P[]; breite: number; quelle: Quelle; name?: string }
   | { id: string; art: 'baum'; p: P; stamm: number; quelle: Quelle; name?: string }
   | { id: string; art: 'hecke' | 'mauer' | 'uebrige'; linie?: P[]; ring?: P[]; sichtbehindernd: boolean; quelle: Quelle; name?: string }
@@ -67,7 +68,7 @@ const env = (r: P[]): [number, number, number, number] =>
 /** ParkRaster: Parkfelder (alle Klassen; auto = nur Autos) mit trifft/kandidaten/abstand wie in Python */
 export class ParkRaster {
   felder: Feld[]
-  constructor(felder: Feld[], nurAuto: boolean) { this.felder = nurAuto ? felder.filter(f => f.klasse === 'auto') : felder }
+  constructor(felder: Feld[], nurAuto: boolean, public streifenBreiteM = 1.9) { this.felder = nurAuto ? felder.filter(f => f.klasse === 'auto') : felder }
   /** trifft: Kreis mit radius um p berührt ein Feld */
   trifft(p: P, radius = 0.4): boolean {
     return this.felder.some(f => p[0] >= f.env[0] - radius && p[0] <= f.env[2] + radius && p[1] >= f.env[1] - radius &&
@@ -93,7 +94,7 @@ export class HindernisDaten {
   parkAlle: ParkRaster      // alle Klassen (Konflikte, Abstand 1,5 m)
   baeume: BaumInfo[]
   sonstige: SonstInfo[]
-  constructor(liste: Hindernis[]) {
+  constructor(liste: Hindernis[], streifenBreiteM = 1.9) {
     const felder: Feld[] = []
     this.baeume = []
     this.sonstige = []
@@ -109,8 +110,8 @@ export class HindernisDaten {
         this.sonstige.push({ geom: h.ring && h.ring.length >= 3 ? [[h.ring]] : null, linie: h.linie && h.linie.length >= 2 ? h.linie : null,
           name: h.name ?? ({ hecke: 'Hecke', mauer: 'Mauer', uebrige: 'Hindernis' } as Record<string, string>)[h.art], id: h.id, art: h.art })
     }
-    this.park = new ParkRaster(felder, true)
-    this.parkAlle = new ParkRaster(felder, false)
+    this.park = new ParkRaster(felder, true, streifenBreiteM)
+    this.parkAlle = new ParkRaster(felder, false, streifenBreiteM)
   }
 }
 

@@ -301,7 +301,9 @@ export function parkOhneSeitenraum(liste: Hindernis[], polys: Multi): { hinderni
     const teile = rest.filter(p => p[0] && flaeche([[p[0]]]) >= SR_REST_M2)
     ersetzt.push({ id: h.id, ganz: !teile.length })
     for (const p of teile)
-      aus.push({ id: h.id, art: 'parkfeld', klasse: 'auto', ring: p[0], quelle: h.quelle, name: h.name ?? (h.art === 'laengsparkierung' ? 'Längsparkierung von Hand' : undefined) })
+      aus.push({ id: h.id, art: 'parkfeld', klasse: 'auto', ring: p[0], quelle: h.quelle, name: h.name ?? (h.art === 'laengsparkierung' ? 'Längsparkierung von Hand' : undefined),
+        ...(h.art === 'parkfeld' && h.katasterTyp ? { katasterTyp: h.katasterTyp } : {}),
+        ...(h.art === 'parkfeld' && h.parkPruefung ? { parkPruefung: h.parkPruefung } : {}) })
   }
   return { hindernisse: aus, ersetzt }
 }

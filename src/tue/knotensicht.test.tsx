@@ -128,6 +128,17 @@ describe('Knotensicht im Worker-Weg (rechneFall + knotensichtAnfuegen)', () => {
 })
 
 describe('Knotensicht: Bäume, Seitenraum und Flächen (Plan) wie in der Sichtprüfung', () => {
+  it('Parkverbotsfeld zählt in der integrierten Knotensicht mit ergänzter Prüffläche, verwerfbar', () => {
+    const feld = { id: 'bernpark:Parkverbot:1:0', klasse: 'auto' as const, katasterTyp: 'Parkverbot', name: 'Parkverbotsfeld',
+      ring: rechteck(-60, -4, -48, -2.4) }
+    const mit = ks(rechnen(fallTue(), { park: { felder: [feld], quellenangabe: 'Bern' } }).streifen[0].knotensicht)
+    const hand = ks(rechnen(fallTue(f => { f.hindernisse.push({ ...feld, ring: rechteck(-60, -4, -48, -2.1), art: 'parkfeld', quelle: 'hand' }) })).streifen[0].knotensicht)
+    const l = (k: Knotensicht) => k.richtungen.find(r => r.richtung === 'links')!.auto!
+    expect(l(mit).ist).toBe(l(hand).ist)
+    expect(l(mit).verdecker).toContain('Parkverbotsfeld')
+    const verworfen = ks(rechnen(fallTue(f => { f.vorschlaege[feld.id] = 'verworfen' }), { park: { felder: [feld], quellenangabe: 'Bern' } }).streifen[0].knotensicht)
+    expect(l(verworfen)).toEqual(l(ks(rechnen(fallTue()).streifen[0].knotensicht)))
+  })
   const PARK = (x: Fall) => x.hindernisse.push({ id: 'h1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-60, -4, -48, -1.8), quelle: 'hand' })
   const links = (f: Fall, rest: Partial<Rest> = {}) => ks(rechnen(f, rest).streifen[0].knotensicht).richtungen.find(r => r.richtung === 'links')!
   it('Bäume aus dem Baumkataster zählen sofort (Baumreihe links); verworfene nicht', () => {

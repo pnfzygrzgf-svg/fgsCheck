@@ -1,3 +1,5 @@
+import { baumStammText } from './rechner/baumAnnahme'
+import { parkDarstellung, parkPruefText } from './rechner/parkgeometrie'
 import { REGIONAL_DIENSTE } from './daten/anbieter/gemeinsam/regionalDienste'
 import { QuelleLink, UNFALL_EBENE, UnfallLegende, ebenenQuelleUrl, objektFenster, objektHtml, objektQuelleUrl, unfallKacheln, type Stelle } from './kartenbaustein/quellenLink'
 import { UNFALL_HINWEIS, unfallEbenen, unfallHtml } from './kartenbaustein/unfaelle'
@@ -291,7 +293,7 @@ export function hindernisText(h: Hindernis): string {
     h.art === 'parkfeld' ? 'amtlich, aus dem Kataster der Stadt' : 'aus Kataster der Stadt'
   const art = { parkfeld: 'Parkfeld', laengsparkierung: 'Längsparkierung', baum: 'Baum', hecke: 'Hecke', mauer: 'Mauer', uebrige: 'Hindernis',
     insel: 'Insel' }[h.art]
-  return `${h.name ?? art} (${q})`
+  return `${h.name ?? art} (${q})` + (h.art === 'baum' ? `; ${baumStammText(h)}` : '')
 }
 
 // ── Fahrzeuge und wartende Personen (27.10.2026, wie der SichtweitenCheck; fahrzeuge.ts) ──
@@ -1205,23 +1207,37 @@ export default function Karte(props: {
     const eb = ebenenRef.current
     if (!eb) return
     eb.hind.clearLayers()
+    const gerechnet = rechnung?.parkPruefflaechen
+    const info = (h: Hindernis) => {
+      const x = gerechnet?.find(p => p.id === h.id)
+      return x ? `<br>${esc(parkPruefText(x))}` : ''
+    }
+    const pruefEbene = (h: Hindernis, stil: L.PathOptions): L.Path => {
+      if (!gerechnet || (h.art !== 'parkfeld' && h.art !== 'laengsparkierung')) return hindernisEbene(h, stil) as L.Path
+      const teile = parkDarstellung([h], gerechnet)
+      const original = teile.find(p => p.art === 'parkfeld' && p.parkPruefung?.status === 'ergaenzt')
+      if (original?.art === 'parkfeld') L.polygon(original.parkPruefung!.original.map(ll), {
+        color: '#64748b', weight: 2, dashArray: '3 4', fill: false, interactive: false }).addTo(eb.hind)
+      return L.polygon(teile.flatMap(p => p.art === 'parkfeld' ? [[p.ring.map(ll)]] : p.art === 'laengsparkierung' ? [[laengsPolygon(p.linie, p.breite).map(ll)]] : []), stil)
+    }
+
     // Parkierung unter einem vorgezogenen Seitenraum: gestrichelt, gedimmt (entfällt in der Rechnung ganz bzw. zum überdeckten Teil)
     const ersetzt = new Map((rechnung?.seitenraumErsetzt ?? []).map(x => [x.id, x.ganz]))
     const srStil = (id: string): L.PathOptions => (ersetzt.has(id) ? { dashArray: '3 4', opacity: 0.6, fillOpacity: 0.08 } : {})
     const srText = (id: string) => (ersetzt.has(id) ? `<br>${SR_ERSETZT}${ersetzt.get(id) ? '' : ' (zum überdeckten Teil)'}` : '')
     for (const h of hindernisse) {
       const farbe = hindernisFarbe(h)
-      const ebene = hindernisEbene(h, { color: farbe, weight: h.id === bearbeiten ? 3 : 2, fillColor: farbe, fillOpacity: 0.35, ...srStil(h.id) })
-      ;(ebene as L.Path).bindTooltip(esc(hindernisText(h)) + ((h.art === 'hecke' || h.art === 'mauer' || h.art === 'uebrige') &&
+      const ebene = pruefEbene(h, { color: farbe, weight: h.id === bearbeiten ? 3 : 2, fillColor: farbe, fillOpacity: 0.35, ...srStil(h.id) })
+      ;(ebene as L.Path).bindTooltip(esc(hindernisText(h)) + info(h) + ((h.art === 'hecke' || h.art === 'mauer' || h.art === 'uebrige') &&
         !h.sichtbehindernd ? ' – nicht sichtbehindernd' : '') + srText(h.id), { sticky: true })
         .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(h.id) })
       ebene.addTo(eb.hind)
     }
     for (const v of rechnung?.vorschlaege ?? []) {
       const farbe = hindernisFarbe(v.hindernis)
-      const ebene = hindernisEbene(v.hindernis, { color: farbe, weight: v.id === bearbeiten ? 4 : 2, dashArray: v.hindernis.quelle === 'osm' ? '5 4' : undefined,
+      const ebene = (v.hindernis.quelle === 'kataster' ? pruefEbene : hindernisEbene)(v.hindernis, { color: farbe, weight: v.id === bearbeiten ? 4 : 2, dashArray: v.hindernis.quelle === 'osm' ? '5 4' : undefined,
         fillColor: farbe, fillOpacity: v.hindernis.quelle === 'osm' ? 0.12 : 0.35, ...srStil(v.id) })
-      ;(ebene as L.Path).bindTooltip(`${esc(v.hindernis.name ?? 'Vorschlag')}<br>${esc(v.grund)}${srText(v.id)}` +
+      ;(ebene as L.Path).bindTooltip(`${esc(v.hindernis.name ?? 'Vorschlag')}<br>${esc(v.grund)}${info(v.hindernis)}${srText(v.id)}` +
         (v.hindernis.quelle === 'kataster' ? '<br><i>Klick: wählen, im Panel verwerfen</i>' : ''), { sticky: true })
         .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(v.id) })
       ebene.addTo(eb.hind)

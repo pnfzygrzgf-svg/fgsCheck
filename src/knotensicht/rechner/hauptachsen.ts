@@ -10,7 +10,7 @@
 // Fahrbahnrand. Nach links liegt sie auf der nahen, nach rechts auf der fernen Fahrbahnhälfte; das ergibt sich hier von selbst,
 // weil der Verkehr jeweils vom Arm her kommt.
 // Parkstreifen (Folgeauftrag E2a, Regel aus fgsCheck fahrstreifenmitte): liegen Parkfelder auf der Fahrbahn am rechten
-// Rand, läuft die Achse d neben dem Parkstreifen statt neben dem AV-Rand (Abzug PARKSTREIFEN 1,90 m, durchgehend, auch in
+// Rand, läuft die Achse d neben dem Parkstreifen statt neben dem AV-Rand (Abzug regional 1,90 m bzw. 2,00 m, durchgehend, auch in
 // Lücken). Prüfpunkte PARK_SONDE_M innerhalb des Rands, je QUER_SCHRITT_M; ein Prüfpunkt trifft, wenn ein Feld höchstens
 // PARK_SONDE_RADIUS_M entfernt ist (ParkRaster.trifft). Seit 31.10.2026 zählen Parkfelder aller Klassen. Abweichend von fgsCheck (mindestens 2 Treffer) braucht es Treffer an
 // mindestens 2 Feldern bzw. PARK_EIN_FELD_TREFFER an einem Feld (Längsparkierung, Streifen aus OSM, Feld für zwei Fahrzeuge):
@@ -26,7 +26,7 @@ import { OsmAchsen, type SpurEnde, type SpurWechsel } from './achsen'
 import { teilungsFortsetzung, einbahnTeilung } from './knoten'
 import { punkteAufSpur } from './spur'
 import { streckeLaenge } from './netz'
-import { osmBreite, PARKSTREIFEN, PARK_MIN_TREFFER, PARK_SONDE_M, randProfilEntlang, profilBei, bezugsBreite, type RandProfil } from './fahrstreifen'
+import { osmBreite, PARK_MIN_TREFFER, PARK_SONDE_M, randProfilEntlang, profilBei, bezugsBreite, type RandProfil } from './fahrstreifen'
 import type { ArmInfo } from './typen'
 import type { ParkRaster } from './hindernisse'
 import { abstandPunkt } from './poly'
@@ -273,7 +273,8 @@ export const PARK_SONDE_RADIUS_M = 0.4
 export const PARK_EIN_FELD_TREFFER = 4
 
 export interface ParkStreifen {
-  abzug: number               // 0 bzw. PARKSTREIFEN [m]
+  ids?: string[]             // nur die Felder eines tatsächlich erkannten Parkstreifens
+  abzug: number               // 0 bzw. regionaler Parkstreifenabzug [m]
   treffer: number             // Prüfpunkte auf einem Parkfeld (alle Klassen)
   punkte: number              // Prüfpunkte gesamt
   felder: number              // verschiedene getroffene Felder
@@ -294,7 +295,8 @@ export function parkStreifen(sonden: P[], park: ParkRaster | null): ParkStreifen
     for (const f of hier) jeFeld.set(f.id, (jeFeld.get(f.id) ?? 0) + 1)
   }
   const streifen = treffer >= PARK_MIN_TREFFER && (jeFeld.size >= 2 || Math.max(0, ...jeFeld.values()) >= PARK_EIN_FELD_TREFFER)
-  return { abzug: streifen ? PARKSTREIFEN : 0, treffer, punkte: sonden.length, felder: jeFeld.size }
+  return { abzug: streifen ? park.streifenBreiteM : 0, treffer, punkte: sonden.length, felder: jeFeld.size,
+    ...(streifen ? { ids: [...jeFeld.keys()] } : {}) }
 }
 
 /** Prüfpunkte am rechten Rand des Verkehrs zum Knoten (links von u, Abstand qs.links) entlang der Mittellinie von 0 bis bis */

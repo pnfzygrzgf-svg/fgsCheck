@@ -1,3 +1,4 @@
+import { ParkGrundlagen, ParkQuellen } from './ParkAnnahmen'
 // ── Einstiegshilfe, Datenschutz und Fusszeile (E4, Veröffentlichung) ──
 
 import { datenschutzGruppen } from './daten/quellenregister'
@@ -32,12 +33,12 @@ export function Anleitung() {
 
 /** Grundlagen der Sichtrechnung (Panel «Grundlagen und Quellen»): Werke als Verweise wie im Lesetext, VRV mit Artikel-Link */
 export function RechnungGrundlagen() {
-  return <p className="klein">
+  return <><ParkGrundlagen /><p className="klein">
     Sichtweiten: <VerweisText text={`${LESENAME['40241']}, Tabelle 1`} /> ({TAB1_TEXT});
     im Knoten nach Kurvenradius (<VerweisText text={LESENAME.BFU} /><WerkLinks w="BFU" kurz /> bzw. <VerweisText text={`${LESENAME['40241']}, Tabelle 2`} />:
     {' '}{KURVE_SICHTWEITE.map(([r, s]) => `bis ${r} m: ${s} m`).join(', ')}). Sichtpunkte mindestens 1,5 m von Parkfeldern; Auto-Parkfeld
     näher als 5 m am Streifen: <VerweisText text={`${LESENAME.VRV}, Art. 18 Abs. 2 Bst. e`} />.
-  </p>
+  </p></>
 }
 
 /** Quellen der Prüfungen (seit 23.10.2026 im Panel-Abschnitt «Grundlagen und Quellen», nicht mehr in der Hilfe): je Werk
@@ -47,6 +48,7 @@ export function QuellenTabelle() {
   const n = regelnJeWerk()
   return (
     <div id="quellen-pruefungen">
+      <ParkQuellen />
       <p className="klein">Worauf sich die Prüfungen im Reiter «Bedarf und Querungstyp» stützen. Regeln: wie viele Regeln das Werk als
         Quelle nennen (ohne Verzweigungen des Ablaufs). Die Links ↗ führen zum Herausgeber (neues Fenster; «PDF» lädt das Dokument); Normen sind kostenpflichtig.</p>
       <div className="tabelle-rahmen"><table className="quellen-tabelle">

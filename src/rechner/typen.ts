@@ -13,6 +13,7 @@ export interface Konflikt {
 }
 
 export interface ZufahrtErgebnis {
+  parkEinfluss?: import('./parkEinfluss').ParkEinfluss[]
   fgsId: string
   zufahrt: string                 // Schlüssel wie in der Berner Karte: gerade = Richtung, abbiegend = a + Richtung
   kennung: string                 // w<wid>± bzw. k<nid>:w<wid>±
@@ -41,6 +42,7 @@ export interface ZufahrtErgebnis {
   parkLinks: boolean | null
   velostreifenRechtsM: number | null
   velostreifenLinksM: number | null
+  parkstreifenBreiteM?: number
   abzugQuelle: string | null
   abzugRechtsM: number | null    // Abzug rechts (Parkierung bzw. Velostreifen-Linie ab der Bordkante)
   fahrstreifenM: number | null

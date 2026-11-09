@@ -102,3 +102,33 @@ Code: **[MIT](LICENSE)** (Copyright (c) 2026 pnfzygrzgf-svg). Eigene Inhalte (Te
 [LICENSE-INHALTE.md](LICENSE-INHALTE.md). Bis zur Version 0.7.0 (31.10.2026) galt CC BY-NC 4.0. Die eingebundenen
 **Dritt-Daten** behalten ihre eigenen Lizenzen und Quellenangaben, siehe [Datenquellen](#datenquellen)
 (swisstopo, Amtliche Vermessung, OpenStreetMap/ODbL, Geodaten Stadt Bern). polygon-clipping steht unter MIT.
+
+### Parkplatzgeometrie und Nachweise
+
+Katasterpolygone bleiben als Quelle unverändert. Für eindeutig einer Strasse zugeordnete, konvexe Längsparkflächen von Autos wird eine
+schmalere Prüffläche ausschliesslich zur Fahrbahn hin auf mindestens 1,90 m ergänzt, im Kanton Zürich auf 2,00 m. Der äussere Rand und
+die Länge bleiben erhalten. Handgeometrien und breitere Polygone werden nicht geändert. Ohne eindeutige Längsrichtung
+oder Fahrbahnseite bleibt das Polygon mit einem Prüfhinweis unverändert; Schräg-/Senkrechtparkierung wird nicht mit Längsmassen ergänzt.
+
+Rechnung, Karte und Bericht verwenden dieselben Prüfflächen, in der 3D-Ansicht des fgsCheck auch die Parkquader. Die ursprünglichen
+Katasterumrisse ergänzter Flächen erscheinen grau gestrichelt. Tooltip und Tabelle «Parkflächen: Annahmen und Katasterumrisse» nennen
+Katasterbreite, verwendete Breite, Ergänzung und Grundlage. Vorhandene Plan-Seitenräume werden erst danach abgezogen.
+
+Die regionale Vorgabe gilt auch für den Abzug eines erkannten Parkstreifens von der Fahrbahnbreite; die Fahrlinie wird aus der
+verbleibenden Breite bestimmt. Erkennungsregeln und Eingaben von Hand bleiben bestehen. Katasterpolygone sind keine Vor-Ort-Messung.
+
+Grundlagen: **SN 640 291a – Parkieren, Anordnung und Geometrie der Parkierungsanlagen**, gültig ab 1. Februar 2006, Tabelle 2,
+Komfortstufen A/B (1,90 m; C: 2,00 m). **Kanton Zürich, Richtlinie Parkieren entlang von Staatsstrassen, 601.14.01**, Version 1.0 vom
+1.11.2022, Kapitel 4.1 (2,00 m). Deren Geltung auf Staatsstrassen wird als solche ausgewiesen; die Verwendung von 2,00 m im ganzen
+Kanton ist eine Modellannahme. Die App weist damit keine heutige Normkonformität nach und addiert keine Überhang-/Sicherheitsstreifen.
+
+Parkverbotsfelder (`Parkverbot`, Anzeige «Parkverbotsfeld») werden ebenfalls geladen und wie belegte Auto-Parkfelder für Sichtverdeckung und Parkstreifenerkennung berücksichtigt und nach derselben Mindestbreitenregel
+zur Fahrbahn hin ergänzt. Die Bezeichnung «Parkverbotsfeld» und das ursprüngliche Katasterpolygon als Quelle bleiben erhalten.
+
+Örtliche Grundlagen der Stadt Bern: **Bern baut C 2.10.22 – Parkfelder 1/2 (Auto)**, revidiert März 2019 (Längspark- und
+Parkverbotsfelder 1,90 m), sowie **C 2.10.23 – Parkfelder 2/2**, revidiert April 2011. Danach erhalten `Parkplatz_Velo_Mofa`
+1,90 m Tiefe quer zur Strasse und `Parkplatz_Motorrad` je Anordnung längs 1,20 m, senkrecht 2,30 m oder schräg 45° 1,90 m.
+Diese Zweiradmasse gelten ausserhalb Berns als ausdrücklich ausgewiesene Modellannahme. Der Berner Motorrad-Kataster hat kein
+Anordnungsfeld: Auswahl je Fläche im Panel, bis dahin Originalumriss mit Hinweis. Die Auswahl wird mit dem Fall gespeichert.
+Velo/Mofa und Motorrad bleiben bei der Sichtprüfung nur Hinweis. Gemessen wird die Tiefe der Gruppe quer zur Strasse, nicht die
+Breite eines einzelnen Velo-/Motorradstellplatzes. Auch hier erfolgt eine Ergänzung ausschliesslich zur Fahrbahn hin, ohne Kürzung.

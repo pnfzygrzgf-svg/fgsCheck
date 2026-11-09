@@ -362,7 +362,8 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const abzugHandB = k.vonHand?.abzug?.(fid, 'abbiegend', grad) ?? null
   const abzugB = abzugHandB ? () => abzugHandB : abzugAusOsm(netz, punkteAufSpur(arm, ARM_MESSUNG))
   const park = k.hindernisse?.park ?? null, parkAlle = k.hindernisse?.parkAlle ?? null
-  let fsB: Fs | null = fahrstreifenmitte(messFb, 'beide', fahrbahn, abzugB, 99.0, fsoB, messIdx, !!abzugHandB, park)
+  const parkStart = park?.verwendung.length ?? 0, parkAlleStart = parkAlle?.verwendung.length ?? 0
+  let fsB: Fs | null = fahrstreifenmitte(messFb, 'beide', fahrbahn, abzugB, 99.0, fsoB, messIdx, !!abzugHandB, parkAlle)
   let armOsm: number | null = null
   if (messHoch.some(x => x) && (fsB === null || 2 * messHoch.filter(x => x).length >= messHoch.length)) {
     armOsm = messHoch.find(x => x)!
@@ -407,7 +408,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const linksAb = gr[4] > 0
   // Linksabbieger: Fahrbahn des Arms am Knoten (querschnitt_am_knoten)
   if (linksAb && fsB && LINKS_ARM_AM_KNOTEN && armOsm === null) {
-    const fsK = fahrstreifenmitte(querschnittAmKnoten(fahrbahn, messFb), 'beide', fahrbahn, abzugB, 99.0, fsoB, null, !!abzugHandB, park)
+    const fsK = fahrstreifenmitte(querschnittAmKnoten(fahrbahn, messFb), 'beide', fahrbahn, abzugB, 99.0, fsoB, null, !!abzugHandB, parkAlle)
     const lageAvB = fsB.lage + (fsDvB ?? 0)
     if (fsK && ((lageAvB > fsK.rechts - RAND_RECHTS_MIN_M && fsB.rechts - fsK.rechts > KNOTEN_QUER_TOL_M) ||
       (KNOTEN_QUER_LINKS && fsB.links - fsK.links > KNOTEN_QUER_TOL_M)) &&
@@ -850,10 +851,14 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     }
     // Parkfelder im Bogen: Prüfpunkte auf der Fahrlinie (vor dem Streifen) und halbwegs zur Bordkante (ECKE_PARK_MIN)
     let nP = 0
+    const eckParkIds = new Set<string>()
     if (parkAlle && !parkAlle.leer) for (const q_ of bogen_) {
       if (dot(sub(q_, s.m), neg(d)) <= 0) continue
       const v_ = sub(eckMitte!, q_), l_ = Math.hypot(v_[0], v_[1])
-      for (const x_ of [0, abstBord! / 2]) if (parkAlle.trifft(l_ > 0 ? add(q_, v_, x_ / l_) : q_, 0.1)) nP++
+      for (const x_ of [0, abstBord! / 2]) {
+        const ids = parkAlle.idsBei(l_ > 0 ? add(q_, v_, x_ / l_) : q_, 0.1)
+        if (ids.length) { nP++; ids.forEach(id => eckParkIds.add(id)) }
+      }
     }
     const sg_ = linksAb ? -1 : 1
     const randE = linksAb ? (zielE ? zielE[0] : null) : vomRandAb
@@ -869,6 +874,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     const gross = werte.length ? Math.max(...werte) : 0
     const grund_ = nP >= ECKE_PARK_MIN ? `Parkfelder im Bogen (${nP} Prüfpunkte)` : gross > ECKE_FS_MAX_M ? `Bordkante ${f1(gross)} m hinter dem Rand der ` +
       `${rueck[0] !== null && rueck[0] >= gross ? 'eigenen Strasse' : 'Querstrasse'} (Platz, breite Mündung)` : null
+    if (nP >= ECKE_PARK_MIN) parkAlle?.merken([...eckParkIds], 'Parkierung im Abbiegebogen / Prüfung des Kurvenradius')
     return [grund_, rueck[0], rueck[1]]
   }
   if (ECKE_AN_FAHRSTREIFEN && radiusAv !== null && bogenRegel && eckMitte !== null) {
@@ -1159,12 +1165,14 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   }
   const plF = eckFrage ? planEcke() : null
   if (eckFrage) annahmen.push(plF ? `Ecke nach ${plF} prüfen: ${eckFrage}` : `AV-Ecke prüfen: ${eckFrage}`)
-  if (fsB?.abzugQuelle) annahmen.push(abzugAnnahme(fsB.abzugQuelle, true))
+  if (fsB?.abzugQuelle) annahmen.push(abzugAnnahme(fsB.abzugQuelle, true, Math.max(fsB.abzugParkR, fsB.abzugParkL)))
   const konflikte = k.konflikte(feldB, sichtpunkteB)
   // frei bis (29.10.2026, wie bei geraden Zufahrten): Grundprüfung und Querung ohne Vortritt entscheiden Muss bzw. Soll danach
   const freiBisM = freiBis(sichtpunkteB, konflikte, k.sichtfeld, k.konflikte, geprueftB ? geprueftB.bis : swB)
   const radiusOut = Number.isFinite(radiusB) ? radiusRunden(radiusB) : null
   return {
+    parkEinfluss: [...(park?.verwendung.slice(parkStart) ?? []), ...(parkAlle?.verwendung.slice(parkAlleStart) ?? []),
+      ...[...new Set([...(fsB?.parkIds ?? []), ...(k.fs?.parkIds ?? [])])].map(id => ({ id, grund: 'Parkstreifenabzug / Lage der Fahrlinie' }))],
     fgsId: fid, zufahrt: `a${grad}`, kennung: kennungArm(a), richtung: grad, art: 'abbiegend',
     strasse: a.name || null, ueberStrasse: zf.name || null, knotenM: Math.round(bisKnoten * 10) / 10,
     tempo: tempoB, tempoQuelle: tempoQB, sichtweite: geprueftB ? geprueftB.soll : swB, sichtweiteQuelle: swQuelleB,
@@ -1174,7 +1182,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
     kurvenradiusM: radiusHand !== null ? radiusRunden(radiusHand) : radiusOut, radiusQuelle: radiusText ?? radiusQuelleB, ...konfliktFelder(konflikte), konflikte,
     spurHinweis: hinweisB, spurHinweisM: null, fahrbahnM: fsB ? Math.round(fsB.breite * 100) / 100 : null,
     parkRechts: fsB ? fsB.parkR : null, parkLinks: fsB ? fsB.parkL : null, velostreifenRechtsM: fsB ? fsB.veloR : null,
-    velostreifenLinksM: fsB ? fsB.veloL : null, abzugQuelle: fsB?.abzugQuelle ?? null,
+    velostreifenLinksM: fsB ? fsB.veloL : null, abzugQuelle: fsB?.abzugQuelle ?? null, parkstreifenBreiteM: fsB ? Math.max(fsB.abzugParkR, fsB.abzugParkL) : undefined,
     abzugRechtsM: fsB ? Math.max(fsB.parkR ? fsB.abzugParkR : 0, fsB.veloR) : null,
     fahrstreifenM: fsB ? Math.round(fsB.jeRichtung * 100) / 100 : null, mehrstreifig: fsB ? fsB.mehrstreifig : null,
     sichtpunktVomRandM: fsB ? Math.round(fsB.vomRand * 100) / 100 : null, lageQuelle: lageHand ? 'Hand' : armOsm !== null ? 'OSM' : fsB ? 'AV' : 'Annahme',

@@ -7,6 +7,7 @@ import { avParsen, type GeoJson } from '../daten/av'
 import { rechneFall } from '../rechner'
 import { leererFall, type Fall } from '../fall'
 import type { Hindernis } from '../rechner/hindernisse'
+import { ring as ring3d } from './modell'
 import { FARBE_HERAN, FARBE_HERAN_BLASS } from '../fahrzeuge'
 import { peilung } from '../streetview'
 import { AUGHOEHE, AUTO_MASSE, BAUM_HOEHE_M, EBENE, BAUM_STAMM_MIN_M, KONFLIKT_HOEHE, NICHT_SICHTBEHINDERND_M, PARK_HOEHE_M, PERSON_FARBE, PERSON_MASSE,
@@ -169,6 +170,16 @@ describe('Abbildung eines Falls (Fussgängerstreifen über die Hauptstrasse, zwe
 })
 
 describe('Parkfelder aus den Vorschlägen der Rechnung', () => {
+  it('verwendet genau die ergänzte Rechenfläche und zeigt den Katasterumriss getrennt; keine geparkten Fahrzeugmodelle', () => {
+    const kat: Hindernis = { id: 'kat-schmals', art: 'parkfeld', klasse: 'auto', ring: rechteck(80, 2.4, 85, 4), quelle: 'kataster', name: 'schmal' }
+    const r = rechnen(fallMit([kat])), sz = szene3d(r, null, [kat], [], null, FARBEN)
+    const h = r.parkPruefflaechen!.find(h => h.id === kat.id)!
+    if (h.art !== 'parkfeld') throw Error('Typ')
+    expect(h.parkPruefung?.status).toBe('ergaenzt')
+    expect(sz.flaechen.find(f => f.pruefhuelle && f.parkfeld === kat.id)!.ringe).toEqual([ring3d(h.ring)])
+    expect(sz.linien.find(l => l.id === `katasterRand:${kat.id}`)?.gestrichelt).toBe(true)
+    expect(sz.koerper.some(k => k.id.startsWith('parkauto:'))).toBe(false)
+  })
   it('ein bereits übernommenes amtliches Feld erhält nur einen Parkquader', () => {
     const r = rechnen(fallMit([PARKFELD])), kat = { ...PARKFELD, quelle: 'kataster' as const }
     const sz = szene3d({ ...r, vorschlaege: [{ id: kat.id, hindernis: kat, grund: 'amtlich' }] }, null, [kat], [], null, FARBEN)
@@ -179,7 +190,7 @@ describe('Parkfelder aus den Vorschlägen der Rechnung', () => {
     const r = rechnen(fallMit())
     const kat: Hindernis = { id: 'k1', art: 'parkfeld', klasse: 'auto', ring: rechteck(80, 4, 85, 6), quelle: 'kataster', name: 'Nr. 1' }
     const osm: Hindernis = { id: 'o1', art: 'parkfeld', klasse: 'auto', ring: rechteck(70, 4, 75, 6), quelle: 'osm' }
-    const r2 = { ...r, vorschlaege: [{ id: 'k1', hindernis: kat, grund: 'amtlich' }, { id: 'o1', hindernis: osm, grund: 'parking:lane' }],
+    const r2 = { ...r, parkPruefflaechen: [kat], vorschlaege: [{ id: 'k1', hindernis: kat, grund: 'amtlich' }, { id: 'o1', hindernis: osm, grund: 'parking:lane' }],
       parkVerworfen: [{ id: 'k2', hindernis: { ...kat, id: 'k2' }, grund: 'verworfen' }] }
     const sz = szene3d(r2, null, [], [], null, FARBEN)
     const p = sz.flaechen.filter(f => f.art === 'parkfeld' && !f.pruefhuelle)

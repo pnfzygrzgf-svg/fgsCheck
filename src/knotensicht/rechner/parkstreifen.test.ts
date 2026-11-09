@@ -1,3 +1,4 @@
+import { parkBerichtFelder, parkEinfluesse } from './parkEinfluss'
 // Tests Parkstreifen an den Achsen (Folgeauftrag E2a, rechner/hauptachsen.ts parkStreifen; rechnen.ts): Abzug 1,90 m für die
 // Fahrstreifenachse der Vortrittsstrasse und für die Achse des Zufahrtsstreifens, einzelnes Feld ohne Abzug, Zweirad ohne
 // Wirkung, FA ausserhalb der Parkfelder.
@@ -46,6 +47,47 @@ const suedreihe = (x0: number, n: number, klasse: KatasterFeld['klasse'] = 'auto
   Array.from({ length: n }, (_, i) => feld(`s${i}`, rechteck(x0 - 6 * i - 5, -3, x0 - 6 * i, -1), klasse))
 
 describe('Parkstreifen an der Fahrstreifenachse der Vortrittsstrasse', () => {
+  it('schmales Katasterfeld: Sichtwirkung nutzt dieselbe ergänzte Fläche, die der Karte zurückgegeben wird', () => {
+    const felder = suedreihe(-10, 8).map((f, i) => ({ ...f, ring: rechteck(-15 - 6 * i, -3, -10 - 6 * i, -1.4) }))
+    const e = rechne(park(felder))
+    const roh = rechne({ ...KEINE_HINDERNISSE, hindernisse: felder.map(f => ({ id: f.id, art: 'parkfeld', klasse: 'auto', quelle: 'hand', ring: f.ring })) })
+    expect(links(e).vorhanden).toBeLessThan(links(roh).vorhanden)
+    const v = links(e).verdeckerListe.find(v => v.id === felder[0].id)!
+    const dargestellt = e.parkPruefflaechen!.find(h => h.id === v.id)!
+    expect(dargestellt.art === 'parkfeld' && dargestellt.ring).toEqual(v.ring)
+    expect(dargestellt.art === 'parkfeld' && dargestellt.parkPruefung?.ergaenzung).toBeCloseTo(0.3, 5)
+    expect(links(e).parkStreifen.abzug).toBe(1.9)
+  })
+  it('Parkverbotsfeld verdeckt mit ergänzter Prüffläche und zählt für die Parkstreifenerkennung, auch nach Verwerfen korrekt', () => {
+    const felder = suedreihe(-10, 8).map((f, i) => ({ ...f, id: `bernpark:Parkverbot:${i}:0`, katasterTyp: 'Parkverbot',
+      name: `Parkverbotsfeld ${i}`, ring: rechteck(-15 - 6 * i, -3, -10 - 6 * i, -1.4) }))
+    const e = rechne(park(felder))
+    expect(links(e).parkStreifen.abzug).toBe(1.9)
+    const v = links(e).verdeckerListe.find(v => v.id === felder[0].id)!
+    expect(v.ring).not.toEqual(felder[0].ring)
+    const dargestellt = e.parkPruefflaechen!.find(h => h.id === v.id)!
+    expect(dargestellt.art === 'parkfeld' && dargestellt.ring).toEqual(v.ring)
+    expect(dargestellt.art === 'parkfeld' && dargestellt.parkPruefung?.pruefBreite).toBe(1.9)
+    expect(v.name).toContain('Parkverbotsfeld')
+    const aus = rechne({ ...park(felder), verworfen: felder.map(f => f.id) })
+    expect(links(aus).parkStreifen.abzug).toBe(0)
+    expect(links(aus).verdeckerListe.some(v => v.id.startsWith('bernpark:Parkverbot'))).toBe(false)
+  })
+  it('Kanton Zürich: 2,00 m statt 1,90 m auf Hauptstrasse und Zufahrt, einschliesslich Beobachtungspunkt', () => {
+    const zh = [{ ...fahrbahn, kanton: 'ZH', bfs: 261 }]
+    const h = park(suedreihe(-10, 8))
+    const e = rechneKnoten(osm, zh, { knoten: 12, zufahrt: null, hindernisse: h }).ergebnis!
+    expect(links(e).parkStreifen.abzug).toBe(2)
+    expect(links(e).randAbstand).toBeCloseTo(3.5, 6)
+    expect(rel(links(e).K)[1]).toBeCloseTo(0.5, 2)
+    expect(links(e).lageQuelle).toContain('Abzug 2,00 m')
+    expect(e.herleitung!.join(' ')).toContain('kantonsweite Modellannahme')
+    const ost = Array.from({ length: 9 }, (_, i) => feld(`z${i}`, rechteck(0.5, -12 - 6 * i, 2.5, -7 - 6 * i)))
+    const z = rechneKnoten(osm, zh, { knoten: 12, zufahrt: null, hindernisse: park(ost) }).ergebnis!
+    expect(rel(z.D)[0]).toBeCloseTo(-0.75, 2)
+    expect(z.zufahrtLageQuelle).toContain('Abzug 2,00 m')
+    expect(z.annahmen.join(' ')).toContain('2,00 m abgezogen')
+  })
   it('ohne Parkfelder: d = 1,50 m, Achse y = −1,5, kein Parkstreifen', () => {
     const l = links(rechne(KEINE_HINDERNISSE))
     expect(l.randAbstand).toBeCloseTo(1.5, 6)
@@ -127,5 +169,26 @@ describe('Parkstreifen auf der Zufahrt: Achse, D und FB nach links', () => {
     // festgelegter Wortlaut
     expect(e.annahmen.join(' | ')).toContain('Parkfelder entlang der Zufahrt: 1,90 m abgezogen, Achse, D und F_B entsprechend verschoben.')
     expect(e.hindernis.inD).toEqual([])                // D liegt nicht in einem Feld
+  })
+})
+
+
+describe('Berichtsbeiträge aus der tatsächlichen Knotenrechnung', () => {
+  it('behält Parkstreifenfelder ohne Sichttreffer, lässt einen unbeteiligten geladenen Parkplatz weg', () => {
+    const reihe = suedreihe(-10, 8)
+    const fern = feld('ohne-einfluss', rechteck(90, 70, 95, 72))
+    const e = rechne(park([...reihe, fern]))
+    const ids = parkBerichtFelder(e.parkPruefflaechen!, e).map(h => h.id)
+    expect(ids).not.toContain(fern.id)
+    expect(ids).toEqual(expect.arrayContaining(reihe.map(h => h.id)))
+    const sichtIds = links(e).verdeckerListe.map(v => v.id)
+    expect(reihe.some(h => !sichtIds.includes(h.id))).toBe(true)
+    expect(parkEinfluesse(links(e)).some(x => x.grund.includes('Parkstreifenabzug'))).toBe(true)
+  })
+  it('weist den angewendeten Parkabzug der wartenden Zufahrt aus', () => {
+    const ost = Array.from({ length: 9 }, (_, i) => feld(`z${i}`, rechteck(0.5, -12 - 6 * i, 2.5, -7 - 6 * i)))
+    const e = rechne(park(ost))
+    expect(e.parkEinfluss?.map(x => x.id)).toEqual(ost.slice(0, 6).map(h => h.id))
+    expect(e.parkEinfluss?.every(x => x.grund.includes('Beobachtungspunkt'))).toBe(true)
   })
 })

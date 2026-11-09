@@ -29,6 +29,33 @@ const ohne = rechne(fall())
 const vorschlaege = zhParkVorschlaege(parkKatasterFelder(felder, ohne.streifen.map(s => s.umriss), ohne.streifen[0].m, 'Stadt Zürich'), [], {})
 
 describe('Parkfelder Stadt Zürich in der Rechnung', () => {
+  it.each(['velo', 'motorrad'] as const)('%s: Parkstreifenerkennung wie im SichtweitenCheck, weiterhin keine Auto-Sichtverdeckung', klasse => {
+    const f = fall(x => { x.hindernisse = [12, 18, 24].map((x, i) => ({ id: `kat:${klasse}:${i}`, art: 'parkfeld', klasse,
+      quelle: 'kataster', ring: rechteck(x, 2, x + 5, 4), name: `Zweiradfeld ${i}` })) })
+    const r = rechne(f), mitPark = r.streifen.flatMap(s => s.zufahrten).filter(z => z.parkRechts || z.parkLinks)
+    expect(mitPark.length).toBeGreaterThan(0)
+    for (const z of mitPark) {
+      expect(z.parkstreifenBreiteM).toBe(2)
+      expect(z.konflikte.some(k => k.klasse === 'auto')).toBe(false)
+    }
+  })
+  it('gemeinsame Prüffläche: schmales Katasterfeld wird zur Fahrbahn auf 2,00 m ergänzt und der Parkstreifenabzug folgt mit', () => {
+    const f = fall(x => { x.hindernisse = [12, 18, 24].map((x, i) => ({ id: `zhpark:schmal:${i}`, art: 'parkfeld', klasse: 'auto',
+      quelle: 'kataster', ring: rechteck(x, 2.4, x + 5, 4), name: `Parkfeld ${i}` })) })
+    const original = structuredClone(f.hindernisse), r = rechne(f)
+    expect(f.hindernisse).toEqual(original)
+    expect(r.parkAnnahmen).toHaveLength(3)
+    for (const h of r.parkAnnahmen!) {
+      expect(h.art === 'parkfeld' && h.parkPruefung?.pruefBreite).toBe(2)
+      expect(h.art === 'parkfeld' && h.parkPruefung?.ergaenzung).toBeCloseTo(0.4, 6)
+      expect(h.art === 'parkfeld' && Math.max(...h.ring.map(p => p[1]))).toBeCloseTo(O[1] + 4, 6)
+      expect(r.parkPruefflaechen!.find(p => p.id === h.id)).toEqual(h)
+    }
+    const z = r.streifen.flatMap(s => s.zufahrten).find(z => z.abzugQuelle?.includes('Parkfelder'))!
+    expect(z.parkstreifenBreiteM).toBe(2)
+    expect(z.annahmen.join(' ')).toContain('2,00 m')
+    expect(herangezogeneQuellen(f, r, [], []).ids).toContain('norm.park.zh')
+  })
   it('wirken nicht, solange sie Vorschlag oder verworfen sind', () => {
     expect(parkQuelleAmOrt([261])).toBeNull()
     expect(vorschlaege).toHaveLength(6)
