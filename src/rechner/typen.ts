@@ -13,6 +13,7 @@ export interface Konflikt {
 }
 
 export interface ZufahrtErgebnis {
+  parkEinfluss?: import('./parkEinfluss').ParkEinfluss[]
   fgsId: string
   zufahrt: string                 // Schlüssel wie in der Berner Karte: gerade = Richtung, abbiegend = a + Richtung
   kennung: string                 // w<wid>± bzw. k<nid>:w<wid>±

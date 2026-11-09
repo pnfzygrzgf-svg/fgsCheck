@@ -97,7 +97,7 @@ import { rechterArm, rechteArme, linkerArm, RECHTS_MIN_GRAD, zustandAbb6, rvMind
   ENG_LAENGE_M, ENG_SCHRITT_M, WAHRNEHMBARKEIT_VORGABE, WAHRNEHMBARKEIT_TEXT, WAHRNEHMBARKEITEN, ZUSTAND_TEXT, ABB6_GRENZEN, type Wahrnehmbarkeit,
   type Zustand } from './rechtsvortritt'
 import { hindernisVerdeckend, HindernisDaten, type Hindernis, type ParkRaster } from './hindernisse'
-import { parkPruefflaechen, parkRegel } from './parkgeometrie'
+import { parkPruefflaechen, parkRegel, PARK_BERICHT_ANNAHME } from './parkgeometrie'
 import { PARK_SONDE_M, PARK_MIN_TREFFER, type AbzugQuelle } from './fahrstreifen'
 import { parkVorschlaege, baumVorschlaege, parkKatasterFelder, osmUeberdeckt, imSichtfeld } from './vorschlaege'
 import { KEINE_EINGABEN, KEINE_HINDERNISSE, KEINE_KNOTEN_EINGABEN, type ArmInfo, type Ergebnis, type HindernisEingaben,
@@ -703,6 +703,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   // (Korrektur auch Velo- und Motorradfelder verschieben die Fahrlinie; ihre Sichtwirkung bleibt Hinweis)
   const zaehlend = zaehlendeHindernisse(hg, k.av, k.netz)
   const park = new HindernisDaten(zaehlend, parkRegel(k.av, kp).breite).parkAlle
+  const parkEinfluss: import('./parkEinfluss').ParkEinfluss[] = []
   let zLage: number, zQuelle: string
   // Lage je Stelle (Bogenlänge auf zMl), sonst null = feste Lage zLage; zText ergänzt die Quelle um die Lage am Nullpunkt
   let zProfil: { s: number[]; lage: number[] } | null = null
@@ -753,6 +754,8 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   // Ränder je Stelle (Ausreisser verworfen, geglättet); zu wenige gültige Stellen: feste Lage aus dem Median wie bisher
   const rp = fs ? randProfil(ab.slice(0, ref.length), sehnen) : null
   if (fs) {
+    for (const id of [...(fs.abzugParkR ? zParkR.ids ?? [] : []), ...(fs.abzugParkL ? zParkL.ids ?? [] : [])])
+      parkEinfluss.push({ id, grund: 'Parkstreifenabzug der Zufahrt / Lage von Achse und Beobachtungspunkt' })
     zLage = fs.lage
     const pz = [zParkR.abzug ? parkStreifenText(zParkR) : '', fs.abzugParkL ? parkStreifenText(zParkL).replace('rechts', 'links') : '']
       .filter(x => x)
@@ -1026,9 +1029,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     'Gerechnet im Grundriss; ob ein Hindernis in die Sichthöhe reicht (0,60 bis 3,00 m, Ziffer 10, S. 7), wird nicht geprüft.' +
     (hat(h => h.art === 'hecke' || h.art === 'mauer' || h.art === 'zaun' || h.art === 'uebrige') ? ' Ob eine Hecke, Mauer, ein Zaun oder ' +
       'ein übriges Hindernis verdeckt, legst du beim Hindernis fest («sichtbehindernd» bzw. «dicht»).' : ''))
-  if (hat(h => h.art === 'parkfeld' || h.art === 'laengsparkierung'))
-    an.hindernisse.push('Parkfelder gelten als besetzt. Velo- und Motorradparkfelder verdecken nicht und werden nur erwähnt; die Fahrzeuge ' +
-      'fahren aber neben ihnen wie neben Autoparkfeldern.')
+  if (hat(h => h.art === 'parkfeld' || h.art === 'laengsparkierung')) an.hindernisse.push(PARK_BERICHT_ANNAHME)
   if (hat(h => h.art === 'baum'))
     an.hindernisse.push(`${BAUM_ANNAHME} Mehrere Bäume verdecken ` +
       `erst, wenn sie zusammen mindestens ${f1(PALISADE_MIN_M)} m der Strecke am Stück verdecken (Palisade).`)
@@ -1472,10 +1473,6 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     `Zufahrt ${fi(zufahrtNeigung.i)} % in Fahrtrichtung von F_B (${zufahrtNeigung.quelle}; ohne Wirkung` +
     `${Math.abs(zufahrtNeigung.i) > ZUFAHRT_STEIL_PROZENT ? ', steile Zufahrt' : ''}).`] : []))
   // je Thema ein Punkt
-  const parkHinweise = zaehlend.filter(h => h.art === 'parkfeld' && h.parkPruefung)
-  if (parkHinweise.length) an.hindernisse.push(`Parkflächen: ${parkHinweise.length} Katasterobjekte mit dokumentierter Prüfbreite; ` +
-    `${parkHinweise.filter(h => h.art === 'parkfeld' && h.parkPruefung?.status === 'ergaenzt').length} zur Fahrbahn hin ergänzt. ` +
-    'Originalumrisse und Einzelheiten unter «Parkflächen: Annahmen und Katasterumrisse».')
   const annahmenThemen: AnnahmeThema[] = ANNAHME_THEMEN.filter(([id]) => an[id].length).map(([id, titel]) => ({ thema: id,
     titel: id === 'wartend' && zufahrtVelo ? 'Wartendes Velo' : titel, text: an[id].join(' ') }))
   const annahmen = annahmenThemen.map(t => `${t.titel}: ${t.text}`)
@@ -1491,6 +1488,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     ausserorts: ao.ausserorts, zufahrtAchse: abschneiden(abBogen(zAchse, Math.max(0, beob.sRand - 2)), Math.max(B, bisD) + 12),
     zufahrtLageQuelle, vortritt: [aL.key, aR.key], einbiegewinkel,
     richtungen, strasse, avRadius, avBedarf, annahmen, hinweise, annahmenThemen, herleitung,
+    parkEinfluss,
     parkPruefflaechen: zaehlend.filter(h => h.art === 'parkfeld' || h.art === 'laengsparkierung'),
     hindernis, zufahrtProfil, zufahrtNeigung, massnahmen, radwegRand: abRadweg ? xRadweg!.p : null, trottoirPruefung, trottoirProfil,
     rechtsvortritt, zufahrtVelo, seiteOhneArm, ...(trottoirueberfahrt ? { trottoirueberfahrt } : {}), ueberholen, ...(info.lsa ? { lsa: true } : {}) }

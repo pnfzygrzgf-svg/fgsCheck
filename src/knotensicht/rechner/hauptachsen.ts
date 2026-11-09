@@ -273,6 +273,7 @@ export const PARK_SONDE_RADIUS_M = 0.4
 export const PARK_EIN_FELD_TREFFER = 4
 
 export interface ParkStreifen {
+  ids?: string[]             // nur die Felder eines tatsächlich erkannten Parkstreifens
   abzug: number               // 0 bzw. regionaler Parkstreifenabzug [m]
   treffer: number             // Prüfpunkte auf einem Parkfeld (alle Klassen)
   punkte: number              // Prüfpunkte gesamt
@@ -294,7 +295,8 @@ export function parkStreifen(sonden: P[], park: ParkRaster | null): ParkStreifen
     for (const f of hier) jeFeld.set(f.id, (jeFeld.get(f.id) ?? 0) + 1)
   }
   const streifen = treffer >= PARK_MIN_TREFFER && (jeFeld.size >= 2 || Math.max(0, ...jeFeld.values()) >= PARK_EIN_FELD_TREFFER)
-  return { abzug: streifen ? park.streifenBreiteM : 0, treffer, punkte: sonden.length, felder: jeFeld.size }
+  return { abzug: streifen ? park.streifenBreiteM : 0, treffer, punkte: sonden.length, felder: jeFeld.size,
+    ...(streifen ? { ids: [...jeFeld.keys()] } : {}) }
 }
 
 /** Prüfpunkte am rechten Rand des Verkehrs zum Knoten (links von u, Abstand qs.links) entlang der Mittellinie von 0 bis bis */

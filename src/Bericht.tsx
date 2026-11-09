@@ -1,5 +1,6 @@
 import { BAUM_ANNAHME, baumStammText } from './rechner/baumAnnahme'
-import { ParkAnnahmen, ParkQuellen } from './ParkAnnahmen'
+import { ParkBerichtAnnahme, ParkBerichtDetails } from './ParkBericht'
+import { parkBerichtFelder } from './rechner/parkEinfluss'
 import { parkDarstellung } from './rechner/parkgeometrie'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { fgsSichtMasse, massBildPunkte } from './sichtMasse'
@@ -352,7 +353,7 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
             <g key={'ks' + st.fgsId + i}>{[[d.frei, d.art === 'velo' ? '#0f766e' : '#16a34a'], [d.verdeckt, '#dc2626']].map(([ring, farbe], k) =>
               <path key={k} d={pfad([ring as P[]])} fill={farbe as string} fillOpacity={0.15} stroke={farbe as string} strokeWidth={2}
                 strokeDasharray={d.art === 'velo' ? '6 4' : d.art === 'trottoir' ? '2 4' : undefined} />)}</g>))}
-          {(r.parkAnnahmen ?? []).map(h => h.art === 'parkfeld' && h.parkPruefung?.status === 'ergaenzt' &&
+          {parkBerichtFelder(berichtParkfelder(r), r).map(h => h.art === 'parkfeld' && h.parkPruefung?.status === 'ergaenzt' &&
             <path key={'kataster' + h.id} d={pfad([h.parkPruefung.original])} fill="none" stroke="#64748b" strokeWidth={2} strokeDasharray="3 4" />)}
           {hindernisse.map((h, hi) => {
             const { ringe, linie } = hindernisRinge(h)
@@ -488,13 +489,21 @@ function zufahrtName(r: FallRechnung | null, key: string, namen: Namen, hand: St
     `${t}, Zufahrt mit Kennung ${kennung} (ohne passende Zufahrt)`
 }
 
+/** Die Knotensicht kann entlang der Hauptstrasse weitere geladene Felder verwenden. */
+function berichtParkfelder(r: FallRechnung): Hindernis[] {
+  const alle = [...(r.parkAnnahmen ?? []), ...(r.parkPruefflaechen ?? []), ...r.streifen.flatMap(s =>
+    s.knotensicht && 'richtungen' in s.knotensicht ? s.knotensicht.parkPruefflaechen ?? [] : [])]
+  const gesehen = new Set<string>()
+  return alle.filter(h => { if (gesehen.has(h.id)) return false; gesehen.add(h.id); return true })
+}
+
 function eingabenListe(fall: Fall, r: FallRechnung | null, namen: Namen): string[] {
   const aus: string[] = [], hand = fall.streifenHand
   // Trottoirüberfahrt (27.10.2026): «Trottoirüberfahrt 1», Achse ohne die Zeichenbreite (Masse aus der Knotensicht)
   for (const s of fall.streifenHand) aus.push(istTrottoirueberfahrt(fall, s.id)
     ? `${titelImFall(s.id, fall, r?.streifen)}: Achse ${f1(dist(s.p0, s.p1))} m, ${streifenHerkunftText(s)}`
     : `${titelImFall(s.id, fall, r?.streifen)}: ${f1(dist(s.p0, s.p1))} m lang, ${f1(s.breite)} m breit, ${streifenHerkunftText(s)}`)
-  for (const h of fall.hindernisse) aus.push(h.art === 'insel' ? 'Insel von Hand (teilt den Streifen wie eine AV-Verkehrsinsel, ersetzt die Insel nach OSM und Luftbild)' :
+  for (const h of parkBerichtFelder(fall.hindernisse, r)) aus.push(h.art === 'insel' ? 'Insel von Hand (teilt den Streifen wie eine AV-Verkehrsinsel, ersetzt die Insel nach OSM und Luftbild)' :
     `Hindernis: ${hindernisText(h)}` + ((h.art === 'hecke' || h.art === 'mauer' || h.art === 'uebrige') ?
     (h.sichtbehindernd ? ', sichtbehindernd' : ', nicht sichtbehindernd') : '') + (h.art === 'parkfeld' ? `, Klasse ${h.klasse}` : ''))
   for (const [k, z] of Object.entries(fall.zufahrten)) {
@@ -622,9 +631,10 @@ function LageTabelle({ s, fixpunkte, namen, plan = false }: { s: StreifenErgebni
   )
 }
 
-function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende, profile }: { s: StreifenErgebnis; fall: Fall; ausserhalb: Ausserhalb | null
+function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende, profile, parkfelder }: { s: StreifenErgebnis; fall: Fall; ausserhalb: Ausserhalb | null
   namen: ZufahrtNamen | undefined; alle: StreifenErgebnis[]; alleNamen: Map<string, ZufahrtNamen>
   gelaende: Readonly<Record<string, GelaendeStand>> | null
+  parkfelder: readonly Hindernis[]
   profile: readonly EbenenObjekt[]   // Geländeprofile der Sichtlinien (gelaendeKarte.gelaendeProfile), im Bericht nur die massgebenden
 }) {
   const profilBilder = s.status === 'kein_fgs' || s.trottoirueberfahrt ? [] : nachNr(s.zufahrten, namen).flatMap(z => profilWahlBericht(profile, z, gelaende))
@@ -649,7 +659,7 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
         Anhaltesichtweite), L = {f1(s.querung.L)} m{s.querung.ganzeFahrbahn ? ' (Insel nur markiert: ganze Fahrbahn)' : ''}.</p>}
       {s.status !== 'kein_fgs' && (
         <table className="bericht-tabelle">
-          <thead><tr><th>Zufahrt</th><th>Tempo</th><th>nötige Sicht</th><th>vorhandene Sicht</th><th>Ergebnis</th><th>Hindernisse im Sichtfeld</th></tr></thead>
+          <thead><tr><th>Zufahrt</th><th>Tempo</th><th>nötige Sicht</th><th>vorhandene Sicht</th><th>Ergebnis</th><th>Parkflächen und Sichthindernisse</th></tr></thead>
           <tbody>
             {nachNr(s.zufahrten, namen).map(z => (
               <tr key={z.zufahrt}>
@@ -666,7 +676,7 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
                     return <><div className="klein">{erkennungText(a)}; {gelaendeText(a)}</div>
                       {erkennungEmpfehlungText(a, z.sichtweite) && <div className="klein"><strong className="status-farbe" style={{ color: STATUS_FARBE.verdeckt }}>{erkennungEmpfehlungText(a, z.sichtweite)}</strong></div>}</>
                   })()}</td>
-                <td className="klein">{hindernisseText(z)}{erkennungHindernisText(z, gelaende) && <div>{erkennungHindernisText(z, gelaende)}</div>}</td>
+                <td className="klein"><ParkBerichtDetails felder={parkfelder} ergebnis={z} /><div>Im Sichtfeld: {hindernisseText(z)}</div>{erkennungHindernisText(z, gelaende) && <div>{erkennungHindernisText(z, gelaende)}</div>}</td>
               </tr>
             ))}
             {!s.zufahrten.length && <tr><td colSpan={6} className="klein">keine Zufahrt</td></tr>}
@@ -825,7 +835,10 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
         </section>
         {rechnung.streifen.length > 0 && <BerichtKarte neigung={neigung} gelaende={gelaende} r={rechnung} ort={ort} onBereit={setBild} fixpunkte={fall.fixpunkte ?? []}
           namen={namen} hand={fall.streifenHand} plan={fall.flaechenPlan ?? []} zusatzMm={ergebnisZusatzMm([...rechnung.streifen.flatMap(erkennungBefunde), ...bedarfZeilen])}
-          hindernisse={parkDarstellung([...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)], rechnung.parkPruefflaechen)} />}
+          hindernisse={parkBerichtFelder([
+            ...parkDarstellung([...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)], rechnung.parkPruefflaechen),
+            ...rechnung.streifen.flatMap(s => s.knotensicht && 'richtungen' in s.knotensicht ? s.knotensicht.parkPruefflaechen ?? [] : []),
+          ], rechnung)} />}
 
         </td></tr>
         <tr className={rechnung.streifen.length > 0 ? 'bericht-neue-seite' : undefined}><td>
@@ -836,7 +849,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
           <p className="klein">Je Zufahrt die nötige und die vorhandene Sicht auf die Wartefläche, die Hindernisse im Sichtfeld und die
             Erkennungsdistanz der Bodenmarkierung; Sichtfelder und Fahrlinien zeigt das Kartenbild auf Seite 1.</p>
         </section>
-        {rechnung.streifen.map(s => <StreifenTabelle key={s.fgsId} s={s} fall={fall} gelaende={gelaende} profile={profile} ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null}
+        {rechnung.streifen.map(s => <StreifenTabelle parkfelder={berichtParkfelder(rechnung)} key={s.fgsId} s={s} fall={fall} gelaende={gelaende} profile={profile} ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null}
           namen={namen.get(s.fgsId)} alle={rechnung.streifen} alleNamen={namen} />)}
         {hinweise.length > 0 && <section className="bericht-block druck-block">
           <h3>Hinweise zur Sichtprüfung</h3>
@@ -854,10 +867,10 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
         </section>}
 
         <section className="bericht-block druck-block">
-          {((rechnung.parkAnnahmen?.length ?? 0) > 0 || [...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)].some(h => h.art === 'baum')) && <>
+          {(parkBerichtFelder(berichtParkfelder(rechnung), rechnung).length > 0 || [...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)].some(h => h.art === 'baum')) && <>
           <h2>Annahmen und Hinweise</h2>
           {[...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)].some(h => h.art === 'baum') && <p className="klein">{BAUM_ANNAHME}</p>}
-          <ParkAnnahmen felder={rechnung.parkAnnahmen} bericht />
+          {parkBerichtFelder(berichtParkfelder(rechnung), rechnung).length > 0 && <ParkBerichtAnnahme />}
           </>}
           <h2>Eingaben von Hand</h2>
           {eingaben.length ? <ul className="klein">{eingaben.map((x, i) => <li key={i}>{x}</li>)}</ul> :
@@ -869,7 +882,6 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
         <section className="bericht-block">
           <h2>Quellen</h2>
           <BerichtQuellenTabelle ids={quellenIds} lage={datenlage} qualitaet={quellenQualitaet} />
-          <ParkQuellen />
           {zusatzQuellen.length > 0 && <ul className="klein">{zusatzQuellen.map(q => <li key={q}>{datumText(q)}</li>)}</ul>}
           {quellenOhneTreffer.length > 0 && <div className="druck-block"><h3>Abgefragt, nicht verwendet</h3>
             <BerichtQuellenTabelle ids={quellenOhneTreffer.map(q => q.id)} qualitaet={quellenQualitaet} gruende={Object.fromEntries(quellenOhneTreffer.map(q => [q.id, q.grund]))} /></div>}

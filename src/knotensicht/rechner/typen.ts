@@ -554,6 +554,7 @@ export interface UeberholStand {
 
 export interface Ergebnis {
   /** Genau die verwendeten Parkgeometrien; der Katasterumriss bleibt in parkPruefung.original erhalten. */
+  parkEinfluss?: import('./parkEinfluss').ParkEinfluss[]
   parkPruefflaechen?: Hindernis[]
   knoten: number | null       // OSM-Knoten (null bei einer Grundstückzufahrt)
   zufahrtspunkt: ZufahrtspunktErgebnis | null

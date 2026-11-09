@@ -183,3 +183,11 @@ export function parkMitAnordnung(h: Hindernis, anordnung: ParkAnordnung | undefi
   const { parkPruefung, ...roh } = h
   return { ...roh, ring: (parkPruefung?.original ?? h.ring).map(p => [...p] as P), parkAnordnung: anordnung }
 }
+
+
+/** Gemeinsame, kurze Annahme für Ergebnis und Bericht; Einzelangaben folgen nur bei einem Ergebnisbeitrag. */
+export const PARK_BERICHT_ANNAHME = 'Parkfelder gelten als besetzt, einschliesslich Parkverbotsflächen. Velo-/Mofa- und Motorradflächen ergeben nur Hinweise zur Sicht. ' +
+  'Mindestbreite für Auto-Längsparkierung: Bern und ohne örtliche Vorgabe 1,90 m, Kanton Zürich 2,00 m (Modellannahme). ' +
+  'Velo/Mofa: 1,90 m Tiefe; Motorrad je bestätigter Anordnung 1,20 / 2,30 / 1,90 m. ' +
+  'Ergänzung nur bei eindeutiger Zuordnung zur Fahrbahn hin; sonst Originalumriss. Belegung und Geometrie sind Annahmen. ' +
+  'Die verwendete Prüffläche gilt für Sichtprüfung, Parkstreifenerkennung und Darstellung; grau gestrichelt der ursprüngliche Katasterumriss einer ergänzten Fläche.'

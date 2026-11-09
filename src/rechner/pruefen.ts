@@ -548,6 +548,8 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   const abzugQ: AbzugQuelle | null = abzugHand ? () => abzugHand :
     netz ? abzugAusOsm(netz, punkteAufSpur(wegRoh, messGut.map(i => abst[i]))) : null
   const park = kx.hindernisse?.park ?? null, parkAlle = kx.hindernisse?.parkAlle ?? null
+  const parkStart = park?.verwendung.length ?? 0, parkAlleStart = parkAlle?.verwendung.length ?? 0
+  const parkZusatz: import('./parkEinfluss').ParkEinfluss[] = []
   let fs: Fs | null = fahrstreifenmitte(mess, art, fahrbahn, abzugQ, s.breite, null, null, !!abzugHand, parkAlle)
   if (messBr.some(x => x) && netz) {
     const widBr = messBr.find(x => x)!
@@ -668,6 +670,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
         if (fhZ) netzHinweis.push(...fhZ.split(';'))
       }
       if (fsZ) {
+        for (const id of fsZ.parkIds ?? []) parkZusatz.push({ id, grund: 'Parkstreifenabzug / Lage der Fahrlinie nach der Einbahn' })
         vomRandZwei = fsZ.vomRand
         vomRandG = abst.map(a_ => vomRand + (vomRandZwei! - vomRand) * Math.min(1, Math.max(0, (a_ - quer_ab! + VERSATZ_RUECK_M / 2) / VERSATZ_RUECK_M)))
       }
@@ -940,6 +943,8 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     // Velo (29.10.2026): zweite Sicht von der Veloachse, nur Fussgängerstreifen mit Radstreifen bzw. Radweg nach OSM
     const velo = ov ? undefined : veloSicht(fs, zf.g !== null && netz ? netz.w(zf.g.wid).t : null, sichtpunkte, ref, tempo, sf, kf)
     ergebnisse.push({
+      parkEinfluss: [...(park?.verwendung.slice(parkStart) ?? []), ...(parkAlle?.verwendung.slice(parkAlleStart) ?? []), ...parkZusatz,
+        ...(fs?.parkIds ?? []).map(id => ({ id, grund: 'Parkstreifenabzug / Lage der Fahrlinie' }))],
       fgsId: fid, zufahrt: schluessel([...bisher, ...ergebnisse], art, gradD), kennung: kennungG, richtung: gradD, art,
       strasse: zf.name || null, ueberStrasse: null, knotenM: null, tempo, tempoQuelle: tempoQ,
       // geprüft bis zur Reichweite (ohne Vortritt): ausgewiesen das Soll, geprüft bis geprueftBisM (nicht, wenn ein Gebäude kürzt)

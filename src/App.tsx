@@ -2701,11 +2701,13 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                   return f
                 })} />
                   {' '}{kataster.quelle.name} laden ({kataster.quelle.quellenangabe})</label>
+                <details className="hilfe"><summary>Annahmen und Hinweise zum Baumkataster</summary>
                 <p className="klein">{BAUM_ANNAHME}</p>
-                {kataster.fehler && <div className="fehler">Nicht geladen: {kataster.fehler}{' '}
-                  <button className="zweit klein" onClick={() => setKataster(k => (k ? { quelle: k.quelle, baeume: null, lat: k.lat, lon: k.lon } : k))}>erneut laden</button></div>}
                 {fall.baumkataster && kataster.baeume && <div>{katBaeume.length} Bäume in Reichweite der Rechnung ({KATASTER_PARK_M} m um den Streifen) zählen als Hindernis (Stamm {f1(BAUM_STAMM_M)} m);
                   einzelne auf der Karte anklicken und unten verwerfen.</div>}
+                </details>
+                {kataster.fehler && <div className="fehler">Nicht geladen: {kataster.fehler}{' '}
+                  <button className="zweit klein" onClick={() => setKataster(k => (k ? { quelle: k.quelle, baeume: null, lat: k.lat, lon: k.lon } : k))}>erneut laden</button></div>}
                 {bearbeiten && katBaeume.some(v => v.id === bearbeiten) && <button className="zweit klein"
                   onClick={() => { aendern(f => { f.vorschlaege[bearbeiten] = 'verworfen'; return f }); setBearbeiten(null) }}>gewählten Baum verwerfen</button>}
               </div>
@@ -2724,14 +2726,13 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                 {parkKat.fehler && <div className="fehler">Nicht geladen: {parkKat.fehler}{' '}
                   <button className="zweit klein" onClick={() => setParkKat(k => (k ? { ...k, felder: null, fehler: undefined, laedt: false } : k))}>
                     erneut laden</button></div>}
-                {parkAn && parkKat.felder && <div title={`Felder bis ${KATASTER_PARK_M} m um den Streifen (geladen: Ausschnitt ±${PARK_RADIUS_M} m, ` +
+                {parkAn && parkKat.felder && <details className="hilfe"><summary>Annahmen und Hinweise zu den Parkfeldern</summary><div title={`Felder bis ${KATASTER_PARK_M} m um den Streifen (geladen: Ausschnitt ±${PARK_RADIUS_M} m, ` +
                   `${parkKat.felder.length} Felder). Klassen wie in der Berner Prüfung: Parkfelder, ` +
-                  'Spezialfelder und übrige = Auto; Parkplatz Velo/Mofa = Velo; Parkplatz Motorrad = Motorrad; Parkverbote und ' +
-                  'Veloabstellplätze zählen nicht.'}>
+                  'Spezialfelder, übrige und Parkverbotsfelder = Auto; Parkplatz Velo/Mofa = Velo; Parkplatz Motorrad = Motorrad.'}>
                   {katPark.length} Felder in Reichweite der Rechnung ({KATASTER_PARK_M} m um den Streifen; {parkKlasseZahl('auto')} Auto,
                   {' '}{parkKlasseZahl('velo')} Velo, {parkKlasseZahl('motorrad')} Motorrad) zählen als Hindernis; einzelne auf der Karte
                   anklicken und verwerfen, verworfene (gestrichelt) dort anklicken und wieder zählen. Nur öffentliche Felder: private Parkplätze von
-                  Hand ergänzen.</div>}
+                  Hand ergänzen.</div></details>}
                 {parkGewaehlt && <div><button className="zweit klein" onClick={() => {
                   aendern(f => { f.vorschlaege[parkGewaehlt.id] = 'verworfen'; return f }); setBearbeiten(null)
                 }}>gewähltes Parkfeld verwerfen</button> {parkGewaehlt.hindernis.name}{srErsetztText(parkGewaehlt.id)}</div>}

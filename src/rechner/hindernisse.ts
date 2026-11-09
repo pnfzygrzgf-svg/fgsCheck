@@ -52,6 +52,13 @@ const env = (r: P[]): [number, number, number, number] =>
 /** ParkRaster: Parkfelder (alle Klassen; auto = nur Autos) mit trifft/kandidaten/abstand wie in Python */
 export class ParkRaster {
   felder: Feld[]
+  /** Laufende Ergebnisbeiträge; eine Zufahrt übernimmt nur ihren eigenen Ausschnitt. */
+  verwendung: import('./parkEinfluss').ParkEinfluss[] = []
+  merken(ids: readonly string[], grund: string) { for (const id of new Set(ids)) this.verwendung.push({ id, grund }) }
+  idsBei(p: P, radius = 0.4): string[] {
+    return this.felder.filter(f => p[0] >= f.env[0] - radius && p[0] <= f.env[2] + radius && p[1] >= f.env[1] - radius &&
+      p[1] <= f.env[3] + radius && abstandPunkt([f.poly], p) <= radius).map(f => f.id)
+  }
   constructor(felder: Feld[], nurAuto: boolean, public streifenBreiteM = 1.9) { this.felder = nurAuto ? felder.filter(f => f.klasse === 'auto') : felder }
   /** trifft: Kreis mit radius um p berührt ein Feld */
   trifft(p: P, radius = 0.4): boolean {

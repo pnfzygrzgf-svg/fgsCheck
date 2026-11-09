@@ -1,3 +1,4 @@
+import { ParkBerichtDetails } from '../ParkBericht'
 // ── Block «Knotensicht» an einer Trottoirüberfahrt (K4): Reiter Sichtprüfung und Bericht ──
 //
 // Ersetzt den bisherigen Verweis auf den SichtweitenCheck: je Richtung die beiden Phasen (vom hinteren Rand aufs Trottoir, vom vorderen
@@ -28,15 +29,15 @@ const HERKUNFT: Record<string, string> = { hand: 'von Hand', geoportal: 'Geoport
 
 /** Tabelle je Richtung (Panel und Bericht) */
 export function KnotensichtTabelle({ k, klasse, schaltbar = false }: { k: Knotensicht; klasse: string; schaltbar?: boolean }) {
-  return <table className={klasse}>
+  return <>{!schaltbar && <ParkBerichtDetails felder={k.parkPruefflaechen} ergebnis={{ parkEinfluss: k.parkEinfluss }} />}<table className={klasse}>
     <thead><tr><th>Richtung</th><th title="vom hinteren Rand der Überfahrt aus">aufs Trottoir</th><th title="vom vorderen Rand der Überfahrt aus">auf die Fahrbahn</th></tr></thead>
     <tbody>{k.richtungen.map(r => <tr key={r.richtung}>
-      <td title={r.tempoQuelle}>{KS_LAGE[r.lage] ?? r.lage}<div className="klein">{r.strasse}{r.auto || r.velo ? `, ${r.tempo} km/h ${HERKUNFT[r.tempoHerkunft]}${r.tempoOsmVergleich ? `; ${r.tempoOsmVergleich}` : ''}` : ''}</div></td>
+      <td title={r.tempoQuelle}>{!schaltbar && <ParkBerichtDetails felder={k.parkPruefflaechen} ergebnis={r} />}{KS_LAGE[r.lage] ?? r.lage}<div className="klein">{r.strasse}{r.auto || r.velo ? `, ${r.tempo} km/h ${HERKUNFT[r.tempoHerkunft]}${r.tempoOsmVergleich ? `; ${r.tempoOsmVergleich}` : ''}` : ''}</div></td>
       <td>{r.trottoir ? <Teil t={r.trottoir} art="trottoir" id={schaltbar ? tueSichtId(k.streifenId, r.lage) : undefined} /> : '–'}</td>
       <td>{r.auto && <Teil name="Auto" t={r.auto} art="auto" id={schaltbar ? tueSichtId(k.streifenId, r.lage) : undefined} />}{r.velo && <Teil name="Velo" t={r.velo} art="velo" id={schaltbar ? tueSichtId(k.streifenId, r.lage) : undefined} />}
         {!r.auto && !r.velo && 'kein Verkehr von dieser Seite'}</td>
     </tr>)}</tbody>
-  </table>
+  </table></>
 }
 
 /** Breite der Überfahrt mit Herkunft in Worten */

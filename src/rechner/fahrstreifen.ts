@@ -279,6 +279,7 @@ export function fahrstreifenLage(fso: Fso, netto: number, abR: number, randR: nu
 }
 
 export interface Fs {
+  parkIds?: string[] // Katasterfelder, die den angewendeten Parkstreifenabzug tragen
   lage: number; breite: number; rechts: number; links: number; lagePlausi: number
   parkR: boolean; parkL: boolean; abzugParkR: number; abzugParkL: number; veloR: number; veloL: number
   jeRichtung: number; vomRand: number; nSehnen: number; mehrstreifig: number; zweiRichtungen: number
@@ -365,14 +366,19 @@ export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Fahrba
   const er: number[] = [], el: number[] = []
   const parkR: number[] = [], parkL: number[] = [], veloR: number[] = [], veloL: number[] = []
   let trefferR = 0, trefferL = 0
+  const idsR = new Set<string>(), idsL = new Set<string>()
   ref.forEach(([q, r], i) => {
     const sh = fahrbahn.sehne(q, r)
     if (sh === null) return
     er.push(sh[0]); el.push(sh[1])
     // Parkstreifen: Auto-Parkfeld am Prüfpunkt PARK_SONDE_M innerhalb der Bordkante (fahrstreifenmitte, park.trifft)
     if (park && !park.leer) {
-      if (park.trifft(add(q, r, sh[0] - PARK_SONDE_M))) trefferR++
-      if ((art === 'beide' || art === 'einbahn') && park.trifft(add(q, r, -(sh[1] - PARK_SONDE_M)))) trefferL++
+      const rechtsIds = park.idsBei(add(q, r, sh[0] - PARK_SONDE_M))
+      if (rechtsIds.length) { trefferR++; rechtsIds.forEach(id => idsR.add(id)) }
+      if (art === 'beide' || art === 'einbahn') {
+        const linksIds = park.idsBei(add(q, r, -(sh[1] - PARK_SONDE_M)))
+        if (linksIds.length) { trefferL++; linksIds.forEach(id => idsL.add(id)) }
+      }
     }
     const a = abzug ? abzug(idx ? idx[i] : i) : null
     if (a) {
@@ -403,6 +409,7 @@ export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Fahrba
     parkR: pr > 0, parkL: pl > 0, abzugParkR: pr, abzugParkL: pl, veloR: Math.round(vr * 100) / 100,
     veloL: Math.round(vl * 100) / 100, jeRichtung: je, vomRand, nSehnen: er.length, mehrstreifig: je > MEHRSTREIFIG_AB ? 1 : 0,
     zweiRichtungen: zweiRichtungen ? 1 : 0, abzugQuelle: quellen.length ? quellen.join(', ') : null }
+  if (parkFeldR || parkFeldL) out.parkIds = [...new Set([...(parkFeldR ? idsR : []), ...(parkFeldL ? idsL : [])])]
   if (fso) out.osm = fahrstreifenLage(fso, netto, randRFrei, rechtsM)
   return out
 }

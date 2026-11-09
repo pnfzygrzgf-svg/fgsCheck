@@ -1,3 +1,4 @@
+import { parkBerichtFelder, parkEinfluesse } from './parkEinfluss'
 // Tests Parkstreifen an den Achsen (Folgeauftrag E2a, rechner/hauptachsen.ts parkStreifen; rechnen.ts): Abzug 1,90 m für die
 // Fahrstreifenachse der Vortrittsstrasse und für die Achse des Zufahrtsstreifens, einzelnes Feld ohne Abzug, Zweirad ohne
 // Wirkung, FA ausserhalb der Parkfelder.
@@ -168,5 +169,26 @@ describe('Parkstreifen auf der Zufahrt: Achse, D und FB nach links', () => {
     // festgelegter Wortlaut
     expect(e.annahmen.join(' | ')).toContain('Parkfelder entlang der Zufahrt: 1,90 m abgezogen, Achse, D und F_B entsprechend verschoben.')
     expect(e.hindernis.inD).toEqual([])                // D liegt nicht in einem Feld
+  })
+})
+
+
+describe('Berichtsbeiträge aus der tatsächlichen Knotenrechnung', () => {
+  it('behält Parkstreifenfelder ohne Sichttreffer, lässt einen unbeteiligten geladenen Parkplatz weg', () => {
+    const reihe = suedreihe(-10, 8)
+    const fern = feld('ohne-einfluss', rechteck(90, 70, 95, 72))
+    const e = rechne(park([...reihe, fern]))
+    const ids = parkBerichtFelder(e.parkPruefflaechen!, e).map(h => h.id)
+    expect(ids).not.toContain(fern.id)
+    expect(ids).toEqual(expect.arrayContaining(reihe.map(h => h.id)))
+    const sichtIds = links(e).verdeckerListe.map(v => v.id)
+    expect(reihe.some(h => !sichtIds.includes(h.id))).toBe(true)
+    expect(parkEinfluesse(links(e)).some(x => x.grund.includes('Parkstreifenabzug'))).toBe(true)
+  })
+  it('weist den angewendeten Parkabzug der wartenden Zufahrt aus', () => {
+    const ost = Array.from({ length: 9 }, (_, i) => feld(`z${i}`, rechteck(0.5, -12 - 6 * i, 2.5, -7 - 6 * i)))
+    const e = rechne(park(ost))
+    expect(e.parkEinfluss?.map(x => x.id)).toEqual(ost.slice(0, 6).map(h => h.id))
+    expect(e.parkEinfluss?.every(x => x.grund.includes('Beobachtungspunkt'))).toBe(true)
   })
 })
