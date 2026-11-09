@@ -7,7 +7,7 @@
 // ihr Ziel geändert hat, sonst bleibt der frei gewählte Standpunkt.
 
 import { useEffect, useRef, useState } from 'react'
-import { kameraModusVorgabe, modusLesen, modusSpeichern, type KameraModus, type Szene3D } from './modell'
+import { kameraModusVorgabe, modusLesen, modusSpeichern, PARK_HINWEIS, type KameraModus, type Szene3D } from './modell'
 import { AUS, standLesen, standSetzen, useAnsicht3dStand } from './stand'
 import type { Szene } from './cesiumSzene'
 import { ansichtAbgleich } from './abgleich'
@@ -144,8 +144,8 @@ export default function Ansicht3D({ szene, profil = null, setProfil }: { szene: 
         <label><input type="checkbox" checked={gebaeude} disabled={stand.gebaeude === 'fehlt'} onChange={e => setGebaeude(e.target.checked)} /> Gebäude</label>
         <label title="Brücken aus swissTLM3D (swisstopo), in der Stadt Bern aus den Kunstbauten der Stadt (3D-Netz); das Gelände enthält keine Brücken. Fahrzeuge, Kamera und Sichtlinien stehen in einem Brückenumriss der AV auf der Fahrbahn der Brücke">
           <input type="checkbox" checked={bruecken} disabled={stand.bruecken === 'fehlt'} onChange={e => setBruecken(e.target.checked)} /> Brücken</label>
-        <label title="Baummodelle an den Standorten des swisstopo-Vegetationsdienstes, keine echten Kronen">
-          <input type="checkbox" checked={baeume} disabled={stand.baeume === 'fehlt'} onChange={e => setBaeume(e.target.checked)} /> Modellbäume</label>
+        <label title="Angenommene Baumkronen direkt über den erfassten Stämmen aus dem Baumkataster bzw. von Hand; Form und Masse sind nicht gemessen">
+          <input type="checkbox" checked={baeume} onChange={e => setBaeume(e.target.checked)} /> Modellbäume</label>
         <label title="Fahrzeuge der Zufahrten"><input type="checkbox" checked={fahrzeuge} onChange={e => setFahrzeuge(e.target.checked)} /> Fahrzeuge</label>
         <label title="Wartende Personen an den Streifenenden"><input type="checkbox" checked={personen} onChange={e => setPersonen(e.target.checked)} /> Personen</label>
         <label title="Schatten von Gebäuden, Fahrzeugen und Figuren (fester Sonnenstand, braucht Grafikleistung)"><input type="checkbox" checked={schatten} onChange={e => setSchatten(e.target.checked)} /> Schatten</label>
@@ -153,9 +153,13 @@ export default function Ansicht3D({ szene, profil = null, setProfil }: { szene: 
       <div className="a3-fuss">
         <p className={'a3-status' + (stand.phase === 'fehler' ? ' fehler' : '')} role="status">
           {stand.phase === 'aus' ? 'Wird geöffnet …' : stand.text}{stand.hinweis && <> {stand.hinweis}</>}{!!stand.anschluss && <> Ergänzter Fahrbahnanschluss: Darstellung, keine gemessene Fläche.</>}{bruecke && <> {BRUECKE_HINWEIS}</>}{!szene.leer || <> Kein Streifen gerechnet.</>}
+          {szene.flaechen.some(f => f.pruefhuelle) && <span title={PARK_HINWEIS}> Parkquader zeigen die ganze Parkfläche.</span>}
           {stand.phase === 'bereit' && <> {GESTEN[modus]}</>}
         </p>
-        <p className="a3-legende">{szene.legende}</p>
+        <details className="a3-hinweise">
+          <summary>Annahmen und Datenquellen</summary>
+          <p className="a3-legende">{szene.legende}</p>
+        </details>
       </div>
       <div ref={creditRef} className="a3-credits" />
     </div>

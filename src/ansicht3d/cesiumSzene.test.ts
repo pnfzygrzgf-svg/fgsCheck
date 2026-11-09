@@ -1,9 +1,9 @@
 // Die echten Szenenabläufe mit Cesium-Datentypen, aber ohne WebGL oder Netz prüfen.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Szene3D } from './modell'
+import { szene3d, type Szene3D } from './modell'
 import type { Stand3D } from './stand'
 import { wgs } from '../geo'
-import { Cartographic, ClassificationType, HeightReference } from 'cesium'
+import { Cartographic, ClassificationType, HeightReference, Cesium3DTileset } from 'cesium'
 
 const test = vi.hoisted(() => ({ widgets: [] as any[], terrain: 500 as number | undefined, terrainFehler: false, dtm: 500.04, profilStartFehlt: false,
   baute: [] as any[], ladeBaute: null as null | Promise<any> }))
@@ -70,6 +70,57 @@ beforeEach(() => {
 afterEach(() => { aktiv.splice(0).forEach(f => f()); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('3D-Szene ohne WebGL', () => {
+  it('genau eine eigene Krone am Stammstandort, ohne unabhängige Vegetationskacheln; Schalter und Ortswechsel bleiben konsistent', async () => {
+    test.terrain = 500.31
+    const { s, w } = await oeffnen(), m = modell()
+    const baum = (id: string, mitte: [number, number]) => ({ id, art: 'baum' as const, mitte, peilung: 0,
+      masse: [0.5, 0.5, 4] as const, farbe: '#78350f', text: id })
+    m.koerper = [baum('Katasterbaum', ziel), baum('Baum von Hand', [ziel[0] + 0.00001, ziel[1]])]
+    await s.zeigen(m)
+    const kronen = () => w.entities.values.filter((e: any) => e.ellipsoid)
+    expect(kronen()).toHaveLength(2)
+    expect(kronen().every((e: any) => !e.show)).toBe(true)
+    await s.baeume(true)
+    for (const k of m.koerper) {
+      const stamm = w.entities.values.find((e: any) => e.name === k.text)
+      const krone = kronen().find((e: any) => e.name.startsWith(k.text + ';'))
+      const a = Cartographic.fromCartesian(stamm.position.getValue()), b = Cartographic.fromCartesian(krone.position.getValue())
+      expect(a.longitude).toBeCloseTo(b.longitude, 12)
+      expect(a.latitude).toBeCloseTo(b.latitude, 12)
+      expect(a.height - 2).toBeCloseTo(500.31, 5)
+      expect(b.height - 5).toBeCloseTo(500.31, 5)
+      expect(krone.show).toBe(true)
+    }
+    await s.kamera('fahrzeug'); s.kategorie('personen', false)
+    expect(kronen().every((e: any) => e.show)).toBe(true)
+    await s.zeigen(m)
+    expect(kronen().every((e: any) => e.show)).toBe(true)
+    await s.baeume(false)
+    expect(kronen().every((e: any) => !e.show)).toBe(true)
+    expect(w.entities.values.filter((e: any) => e.cylinder).every((e: any) => e.show)).toBe(true)
+    expect(vi.mocked(Cesium3DTileset.fromUrl).mock.calls.some(([url]) => String(url).includes('vegetation'))).toBe(false)
+    await s.zeigen({ ...m, koerper: [] })
+    expect(kronen()).toHaveLength(0)
+  })
+  it('Parkquader bleiben ohne Autos sichtbar und folgen dem dargestellten Boden, auch bei Kamera- und Ebenenwechsel', async () => {
+    test.terrain = 500.31
+    const { s, w } = await oeffnen(), m = modell(wgs(2600005, 1200005))
+    const park = szene3d(null, null, [{ id: 'p', art: 'parkfeld', klasse: 'auto', quelle: 'hand',
+      ring: [[2600002.5, 1200004], [2600007.5, 1200004], [2600007.5, 1200006], [2600002.5, 1200006]] }], [], null,
+    { status: {}, hindernis: () => '#0000ff', insel: '#ffffff', plan: {} as never })
+    m.flaechen = park.flaechen; m.linien = park.linien; m.koerper = park.koerper
+    await s.zeigen(m)
+    const huellen = () => w.entities.values.filter((e: any) => e.name.startsWith('Prüfhülle'))
+    expect(w.entities.values.some((e: any) => e.model || e.box)).toBe(false)
+    expect(huellen()).toHaveLength(2)
+    expect(huellen().every((e: any) => e.show)).toBe(true)
+    const wand = huellen().find((e: any) => e.wall).wall
+    expect(wand.minimumHeights.getValue().every((h: number) => h === 500.31)).toBe(true)
+    await s.kamera('fahrzeug'); s.pruefung(false); s.kategorie('fahrzeuge', false)
+    expect(huellen().every((e: any) => e.show)).toBe(true)
+    await s.kamera('uebersicht'); await s.zeigen(m)
+    expect(huellen().every((e: any) => e.show)).toBe(true)
+  })
   it.each(['undefined', 'abgelehnt'])('fehlendes Gelände (%s) lässt keine Nullhöhen oder NaN in Geometrie und Kamera gelangen', async art => {
     test.terrain = undefined; test.terrainFehler = art === 'abgelehnt'
     const { s, w, staende } = await oeffnen(), m = modell()

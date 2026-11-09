@@ -11,7 +11,7 @@ import { FARBE_HERAN, FARBE_HERAN_BLASS } from '../fahrzeuge'
 import { peilung } from '../streetview'
 import { AUGHOEHE, AUTO_MASSE, BAUM_HOEHE_M, EBENE, BAUM_STAMM_MIN_M, KONFLIKT_HOEHE, NICHT_SICHTBEHINDERND_M, PARK_HOEHE_M, PERSON_FARBE, PERSON_MASSE,
   SCHLUESSEL_MODUS, SICHTBEHINDERND_M, SICHT_NICHT_GEPRUEFT, STREIFEN_FARBE, UEBERSICHT_DISTANZ_M, UEBERSICHT_NEIGUNG_GRAD, ZIELHOEHE_WARTE_M,
-  ZIELHOEHE_MARKIERUNG_M, PARK_ZWEIRAD_HOEHE_M, BALKEN_M, balken, hintereEcken,
+  ZIELHOEHE_MARKIERUNG_M, PARK_ZWEIRAD_HOEHE_M, PARKRAND_FARBE, BALKEN_M, balken, hintereEcken,
   aufBruecke, verdichten, versatz, kameraHeadingPitch, kameraModusVorgabe, koerperHeading, ll, modusLesen, modusSpeichern, ring, szene3d, uebersichtKamera, type Farben3D } from './modell'
 
 const O: P = [2600000, 1200000]
@@ -169,15 +169,23 @@ describe('Abbildung eines Falls (Fussgängerstreifen über die Hauptstrasse, zwe
 })
 
 describe('Parkfelder aus den Vorschlägen der Rechnung', () => {
-  it('amtliche Felder (Kataster) als Körper, OSM-Vorschläge nur als Umriss, verworfene gar nicht', () => {
+  it('ein bereits übernommenes amtliches Feld erhält nur einen Parkquader', () => {
+    const r = rechnen(fallMit([PARKFELD])), kat = { ...PARKFELD, quelle: 'kataster' as const }
+    const sz = szene3d({ ...r, vorschlaege: [{ id: kat.id, hindernis: kat, grund: 'amtlich' }] }, null, [kat], [], null, FARBEN)
+    expect(sz.koerper.some(k => k.id.startsWith('parkauto:'))).toBe(false)
+    expect(sz.flaechen.filter(f => f.pruefhuelle && f.parkfeld === kat.id)).toHaveLength(1)
+  })
+  it('amtliche Felder mit Prüfhülle ohne Parkautos, OSM-Vorschläge nur flach, verworfene gar nicht', () => {
     const r = rechnen(fallMit())
     const kat: Hindernis = { id: 'k1', art: 'parkfeld', klasse: 'auto', ring: rechteck(80, 4, 85, 6), quelle: 'kataster', name: 'Nr. 1' }
     const osm: Hindernis = { id: 'o1', art: 'parkfeld', klasse: 'auto', ring: rechteck(70, 4, 75, 6), quelle: 'osm' }
     const r2 = { ...r, vorschlaege: [{ id: 'k1', hindernis: kat, grund: 'amtlich' }, { id: 'o1', hindernis: osm, grund: 'parking:lane' }],
       parkVerworfen: [{ id: 'k2', hindernis: { ...kat, id: 'k2' }, grund: 'verworfen' }] }
     const sz = szene3d(r2, null, [], [], null, FARBEN)
-    const p = sz.flaechen.filter(f => f.art === 'parkfeld')
-    expect(p.map(f => [f.id, f.hoehe, f.farbe, f.alpha])).toEqual([['hindernis:k1', PARK_HOEHE_M, '#00f', 0.7], ['vorschlag:o1', undefined, '#0ea5e9', 0.25]])
+    const p = sz.flaechen.filter(f => f.art === 'parkfeld' && !f.pruefhuelle)
+    expect(p.map(f => [f.id, f.hoehe, f.farbe, f.alpha])).toEqual([['hindernis:k1', undefined, PARKRAND_FARBE, 0.1], ['vorschlag:o1', undefined, '#0ea5e9', 0.25]])
+    expect(sz.koerper.some(k => k.id.startsWith('parkauto:'))).toBe(false)
+    expect(sz.flaechen.filter(f => f.pruefhuelle).map(f => [f.parkfeld, f.hoehe])).toEqual([['k1', PARK_HOEHE_M]])
     expect(p[1].text).toContain('zählt erst nach Bestätigung')
   })
 })
@@ -207,11 +215,21 @@ describe('Hindernisse und Flächen (Plan)', () => {
     { id: 'i1', art: 'insel', ring: rechteck(0, 20, 2, 22), quelle: 'hand' },
   ]
   const sz = szene3d(null, null, hs, [{ id: 'fp1', art: 'trottoir', ring: rechteck(0, 30, 4, 32) }], null, FARBEN)
-  it('Parkfelder und Längsparkierung als Körper 1,5 m in der Hindernisfarbe', () => {
-    const p = sz.flaechen.filter(f => f.art === 'parkfeld')
-    expect(p.map(f => [f.hoehe, f.farbe, f.ringe[0].length])).toEqual([[PARK_HOEHE_M, '#0ea5e9', 4], [PARK_HOEHE_M, '#0ea5e9', 4]])
+  it('Parkfelder ohne Autos, mit blauem Umriss und vollständiger Prüfhülle; Zweiradflächen bleiben Hinweise', () => {
+    const p = sz.flaechen.filter(f => f.art === 'parkfeld' && !f.pruefhuelle)
+    expect(p.map(f => [f.hoehe, f.farbe, f.ringe[0].length])).toEqual([[undefined, PARKRAND_FARBE, 4], [undefined, PARKRAND_FARBE, 4]])
+    expect(sz.koerper.some(k => k.art === 'auto')).toBe(false)
+    expect(sz.linien.filter(l => l.parkfeld).map(l => [l.farbe, l.punkte.length])).toEqual([[PARKRAND_FARBE, 5], [PARKRAND_FARBE, 5]])
+    expect(sz.flaechen.filter(f => f.pruefhuelle).map(f => f.hoehe)).toEqual([PARK_HOEHE_M, PARK_HOEHE_M])
     const velo = szene3d(null, null, [{ id: 'v1', art: 'parkfeld', klasse: 'velo', ring: rechteck(0, 0, 2, 2), quelle: 'kataster' }], [], null, FARBEN)
     expect(velo.flaechen.map(f => [f.hoehe, f.alpha])).toEqual([[PARK_ZWEIRAD_HOEHE_M, 0.4]]); expect(velo.flaechen[0].text).toContain('nur Hinweis')
+  })
+  it('breite Sammelflächen behalten ihre vollständige Prüfhülle ohne erfundene Stellordnung', () => {
+    const sz = szene3d(null, null, [{ ...PARKFELD, ring: rechteck(0, 0, 20, 15) }], [], null, FARBEN)
+    expect(sz.koerper).toHaveLength(0)
+    expect(sz.flaechen.find(f => !f.pruefhuelle)?.hoehe).toBeUndefined()
+    expect(sz.flaechen.find(f => f.pruefhuelle)?.hoehe).toBe(PARK_HOEHE_M)
+    expect(sz.linien[0].parkfeld).toBe(PARKFELD.id)
   })
   it('Bäume als Stamm: Durchmesser mindestens 0,3 m, Höhe 4 m', () => {
     const b = sz.koerper.filter(k => k.art === 'baum')

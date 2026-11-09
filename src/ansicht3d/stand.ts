@@ -53,7 +53,7 @@ export function quelleZeile(s: Stand3D): Record<string, QuellenInfo> {
     s.gebaeude === 'an' ? 'Gebäude' : s.gebaeude === 'fehlt' ? 'Gebäude nicht verfügbar' : 'Gebäude aus',
     s.bruecken === 'an' ? 'Brücken' : s.bruecken === 'fehlt' ? 'Brücken nicht verfügbar' : null,
     typeof s.kunstbauten === 'number' && s.kunstbauten > 0 ? `Kunstbauten Stadt Bern (${s.kunstbauten})` : s.kunstbauten === 'fehlt' ? 'Kunstbauten Stadt Bern nicht verfügbar' : null,
-    s.baeume === 'an' ? 'Modellbäume' : null,
+    s.baeume === 'an' ? 'Baumkronen an den erfassten Stammstandorten (Form und Masse angenommen)' : null,
     s.hoehenprofile?.length ? `Fahrbahnprofile: ${[...new Set(s.hoehenprofile.map(p => p.dienst === 'bern.dtm' ? 'DTM 2023 Stadt Bern' : 'swissALTI3D'))].join(', ')} (LN02; lokaler Versatz zur Szene ${[...new Set(s.hoehenprofile.map(p => p.versatzM.toFixed(3)))].join(', ')} m, entlang der Zufahrt konstant angenommen)` : null,
     s.hoehenprofile?.some(p => p.rueckfall) ? s.hoehenprofile.filter(p => p.rueckfall).map(p => p.rueckfall).join('; ') : null,
     s.anschluss ? `${s.anschluss} ergänzte Fahrbahnanschlüsse: Darstellung, keine gemessene Fläche; Breite aus AV, ersatzweise 6 m innerhalb der AV-Strassenfläche` : null,

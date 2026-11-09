@@ -84,7 +84,8 @@ Liste der Dienste steht in der App unter «Datenschutz».
   Stadt Bern), beides Annahmen nach der Genauigkeit der Modelle. Fällt der Berner Dienst aus, rechnet die App mit swissALTI3D.
 - Wartezeit beim Ausfahren nur als Schätzung aus dem DTV der Hauptstrasse (Bern); ohne Verkehrszahlen offen.
 - 3D-Ansicht: Höhen von Fahrzeugen, Parkfeldern, Hecken und Bäumen sind Annahmen; auf Brücken liegt das Gelände unter der Fahrbahn;
-  Modellbäume sind keine echten Kronen. Die Ansicht prüft nichts und ändert kein Ergebnis.
+  Modellbäume stehen direkt an den erfassten Stämmen aus Kataster bzw. Handeingabe; ihre Kronenform und Masse sind angenommen.
+  Die Ansicht prüft nichts und ändert kein Ergebnis.
 - Die App ersetzt keine Beurteilung vor Ort.
 
 ## Veröffentlichung

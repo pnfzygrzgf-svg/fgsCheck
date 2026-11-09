@@ -1,6 +1,6 @@
 // ── 3D-Ansicht: Szene mit CesiumJS (einzige Datei, die Cesium lädt; erst beim Öffnen der Ansicht per import()) ──
 //
-// Gelände (quantized mesh) und die 3D-Tiles der Brücken (swissTLM3D), Gebäude (swissBUILDINGS3D) bzw. Modellbäume (Vegetation) kommen
+// Gelände (quantized mesh) und die 3D-Tiles der Brücken (swissTLM3D) und Gebäude (swissBUILDINGS3D) kommen
 // direkt von swisstopo; Fahrzeuge, Personen, Kamera und Sichtlinien stehen auf dem Gelände und auf einer Brücke auf deren Fahrbahn (Höhen selbst
 // bestimmt, nicht an 3D-Kacheln angedockt). Den
 // Boden bilden die AV-Flächen des Falls als eigene Bildebene (avBild.ts), deckend; rundherum liegt die graue Karte swissTLM für 3D, das
@@ -14,7 +14,7 @@
 // zerstoeren() gibt Renderer und Listener frei.
 
 import type { KameraModus, Koerper3D, Szene3D, LL } from './modell'
-import { EBENE, aufBruecke, linieBeruehrtBruecke, kameraHeadingPitch, koerperHeading, uebersichtKamera, verdichten, versatz, type Flaeche3D } from './modell'
+import { BAUM_KRONE_MASSE, BAUM_KRONE_MITTE_M, EBENE, aufBruecke, linieBeruehrtBruecke, kameraHeadingPitch, koerperHeading, uebersichtKamera, verdichten, versatz, type Flaeche3D } from './modell'
 import type { Stand3D } from './stand'
 import { lv95, wgs } from '../geo'
 import { ladeBodenProfil, type BodenProfil } from './bodenprofil'
@@ -29,11 +29,10 @@ type Cesium = typeof import('cesium')
 
 export const TERRAIN_URL = 'https://3d.geo.admin.ch/ch.swisstopo.terrain.3d/v1/'
 export const GEBAEUDE_URL = 'https://3d.geo.admin.ch/ch.swisstopo.swissbuildings3d.3d/v1/tileset.json'
-export const BAEUME_URL = 'https://3d.geo.admin.ch/ch.swisstopo.vegetation.3d/v1/tileset.json'
 /** Kunstbauten aus swissTLM3D (Brücken, KUNSTBAUTE 200/450); das Gelände (DTM) enthält keine Brücken */
 export const BRUECKEN_URL = 'https://3d.geo.admin.ch/ch.swisstopo.swisstlm3d.3d/v1/tileset.json'
-export type TilesetSchluessel = 'gebaeude' | 'baeume' | 'bruecken'
-const TILESET_NAME: Readonly<Record<TilesetSchluessel, string>> = { gebaeude: 'Gebäude', baeume: 'Modellbäume', bruecken: 'Brücken' }
+export type TilesetSchluessel = 'gebaeude' | 'bruecken'
+const TILESET_NAME: Readonly<Record<TilesetSchluessel, string>> = { gebaeude: 'Gebäude', bruecken: 'Brücken' }
 /** neutraler Grund (Globus, solange keine Kacheln da sind) und Grundton, mit dem die AV-Flächen deckend gemischt werden; Himmel */
 export const BODEN_FARBE = '#d6d3cb'
 export const HIMMEL_FARBE = '#dbeafe'
@@ -304,6 +303,7 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
 
     // Geometrie des Falls: Entities, bei jeder neuen Szene vollständig ersetzt
     let eigenes: import('cesium').Entity[] = [], eigenesAuto: import('cesium').Entity[] = []
+    let baumKronen: import('cesium').Entity[] = [], baeumeAn = start.baeume
     // Boden (AV-Flächen) als Bildebene über Karte und Luftbild (avBild.ts): Kacheln werden bei Bedarf aus den Flächen gezeichnet.
     // Als GroundPrimitive (Schattenvolumen) fielen je nach Kamera ganze Flächen weg.
     let boden: { ebene: import('cesium').ImageryLayer; schluessel: string } | null = null
@@ -353,7 +353,7 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
       if (!punkte.length) return []
       const bau = kunstbau?.prim?.show ? kunstbau.grundriss : null
       const an = brueckenSichtbar()
-      const ohne: object[] = [tilesets.gebaeude, tilesets.baeume, ...eigenes].filter((x): x is NonNullable<typeof x> => !!x)
+      const ohne: object[] = [tilesets.gebaeude, ...eigenes].filter((x): x is NonNullable<typeof x> => !!x)
       const carto = punkte.map(p => C.Cartographic.fromDegrees(p[1], p[0]))
       try { await C.sampleTerrainMostDetailed(terrainProvider, carto, true) }
       catch { for (const c of carto) c.height = Number.NaN }
@@ -409,7 +409,7 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
         !bauHoehen(bau, punktListe[i]).some(h => Math.abs(h + LN02_ZU_SZENE_M - proben[Math.floor(i / 3)].hoehen[i % 3]) <= 0.75))
       if (indizes.length && scene.sampleHeightSupported && tilesets.bruecken?.show) {
         try {
-          const ohne: object[] = [tilesets.gebaeude, tilesets.baeume, kunstbau?.prim, ...eigenes].filter((x): x is NonNullable<typeof x> => !!x)
+          const ohne: object[] = [tilesets.gebaeude, kunstbau?.prim, ...eigenes].filter((x): x is NonNullable<typeof x> => !!x)
           const oben = await scene.sampleHeightMostDetailed(indizes.map(i => C.Cartographic.clone(carto[i])), ohne)
           indizes.forEach((i, j) => { const h = oben[j]?.height
             getragen[i] = gueltigeHoehe(h) && h > carto[i].height + 0.3 && Math.abs(h - proben[Math.floor(i / 3)].hoehen[i % 3]) <= 0.75
@@ -516,11 +516,12 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
       const anzeige = () => darstellung[c++]
       const flHoehen = new Map(flaechenBr.map(f => [f, f.ringe.map(rg => rg.map(anzeige))] as const))
       const liHoehen = linienBr.map(pts => (pts ? pts.map(anzeige) : null))
-      const kfHoehen = new Map(koerperFl.map(k => [k.f, { ring: k.ring, boden: k.ring.map(() => hs[c++]?.oben ?? null) }] as const))
+      const kfHoehen = new Map(koerperFl.map(k => [k.f, { ring: k.ring,
+        boden: k.ring.map(() => k.f.pruefhuelle ? darstellung[c++].h : hs[c++]?.oben ?? null) }] as const))
       mitEreignispause(w.entities, () => {
         for (const e of eigenes) w.entities.remove(e)
-        eigenes = []; eigenesAuto = []; koerperEntities = []; pruefungEntities = []
-        const add = (e: Parameters<typeof w.entities.add>[0], pruefung = false) => { const x = w.entities.add(e); eigenes.push(x); if (pruefung) { pruefungEntities.push(x); x.show = pruefungSichtbar() } }
+        eigenes = []; eigenesAuto = []; koerperEntities = []; pruefungEntities = []; baumKronen = []
+        const add = (e: Parameters<typeof w.entities.add>[0], pruefung = false) => { const x = w.entities.add(e); eigenes.push(x); if (pruefung) { pruefungEntities.push(x); x.show = pruefungSichtbar() } return x }
         // Boden: über der Karte deckend (mit dem Grundton gemischt), über dem Luftbild nur als Tönung; neu nur, wenn sich Flächen oder Farben ändern
         bodenSetzen(s.flaechen.filter(f => f.art === 'av').map(f => ({ ringe: f.ringe,
           fuellung: avFuellung(f.farbe, f.alpha, BODEN_FARBE, luftbildAn, AV_UEBER_LUFTBILD), rand: !luftbildAn })))
@@ -598,7 +599,7 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
           const hv = ni === undefined ? undefined : hs[neigungAb + 2 * ni]?.oben, hh = ni === undefined ? undefined : hs[neigungAb + 2 * ni + 1]?.oben
           const neigung = gueltigeHoehe(hv) && gueltigeHoehe(hh) ? Math.atan2(hv - hh, k.masse[0]) : 0
           const stand = darstellung[koerperAb + j]
-          const standHoehe = k.art === 'person' ? stand.h! : hk
+          const standHoehe = k.art === 'person' || k.art === 'baum' ? stand.h! : hk
           /** Box und Zylinder sitzen ohne Höhenbezug mit der Mitte auf der Position */
           const mittig = grad(k.mitte, standHoehe + k.masse[2] / 2)
           const basis = { name: k.text, show: sichtbar(k) }
@@ -618,6 +619,12 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
           else add({ ...basis, position: mittig, cylinder: { length: k.masse[2], topRadius: k.masse[0] / 2, bottomRadius: k.masse[1] / 2,
             heightReference: C.HeightReference.NONE, material: farbe(k.farbe, 0.95), outline: k.art === 'person', outlineColor: C.Color.BLACK.withAlpha(0.7) } })
           if (eigenes.length > vorher) { koerperEntities.push({ e: eigenes[eigenes.length - 1], k }); if (k.eigen) eigenesAuto.push(eigenes[eigenes.length - 1]) }
+          // Genau eine generische Krone am selben Punkt wie der erfasste Stamm, auch bei Bäumen von Hand.
+          // Keine unabhängige Vegetationsebene und kein räumliches Raten zwischen zwei Baum-Datensätzen.
+          if (k.art === 'baum') baumKronen.push(add({ name: `${k.text}; Krone: Form und Masse angenommen`, show: baeumeAn,
+            position: grad(k.mitte, standHoehe + BAUM_KRONE_MITTE_M), ellipsoid: {
+              radii: new C.Cartesian3(...BAUM_KRONE_MASSE.map(m => m / 2) as [number, number, number]),
+              stackPartitions: 6, slicePartitions: 10, material: farbe('#4d7c0f'), shadows: C.ShadowMode.ENABLED } }))
         }
       })
       setzen({ phase: 'laedt', hinweis: hoehenHinweis || undefined })
@@ -678,7 +685,7 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
     setzen({ luftbild: luftbildAn })
     await tilesetLaden('bruecken', BRUECKEN_URL, start.bruecken ?? true)
     await tilesetLaden('gebaeude', GEBAEUDE_URL, start.gebaeude)
-    if (start.baeume) await tilesetLaden('baeume', BAEUME_URL, true); else setzen({ baeume: 'aus' })
+    setzen({ baeume: baeumeAn ? 'an' : 'aus' })
     pruefen()
     melde()
     scene.requestRender()
@@ -686,7 +693,7 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
       zeigen,
       kamera,
       gebaeude: an => tilesetLaden('gebaeude', GEBAEUDE_URL, an),
-      baeume: an => tilesetLaden('baeume', BAEUME_URL, an),
+      baeume: async an => { baeumeAn = an; for (const e of baumKronen) e.show = an; setzen({ baeume: an ? 'an' : 'aus' }); scene.requestRender() },
       bruecken: an => tilesetLaden('bruecken', BRUECKEN_URL, an),
       kategorie: (kat, an) => { kategorieAn[kat] = an; eigenesZeigen(); scene.requestRender() },
       luftbild: an => { luftbildAn = an; luftbildEbene.show = an; setzen({ luftbild: an }); if (aktuell) bodenSetzen(aktuell.flaechen.filter(f => f.art === 'av').map(f => ({ ringe: f.ringe, fuellung: avFuellung(f.farbe, f.alpha, BODEN_FARBE, an, AV_UEBER_LUFTBILD), rand: !an }))); scene.requestRender() },

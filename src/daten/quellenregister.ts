@@ -144,11 +144,11 @@ export const QUELLEN: readonly Quelle[] = [
     'Öffnet man im Stadtgebiet die 3D-Ansicht, geht ein Rechteck von ±150 m um den Streifen (nur Koordinaten) an gisapp.bern.ch; ' +
     'zurück kommen die Bauwerke darin. Ausserhalb der Stadt und bei Ausfall bleiben die Brücken aus swissTLM3D.', 'ansicht3d/kunstbauten.ts'),
     datenschutzSatz: true, hinweis: 'nur Anzeige; Höhen LN02 wie die Landeshöhen der swisstopo-Kacheln, −0,04 m nach LHN95 (Annahme: in der Stadt konstant, REFRAME am Klösterlistutz)' },
-  { id: 'swisstopo.3d', themen: [], name: '3D-Ansicht: Gelände, Karte swissTLM für 3D (grau), Luftbild SWISSIMAGE, swissBUILDINGS3D, Brücken aus swissTLM3D, Modellbäume', anbieter: 'swisstopo',
-    gebiet: { art: 'schweiz' }, dienst: 'api', lizenz: SWISSTOPO_LIZENZ, stand: 'Datum der Kachelpfade (Gelände, Gebäude, Brücken, Vegetation); Karte und Luftbild «current»',
+  { id: 'swisstopo.3d', themen: [], name: '3D-Ansicht: Gelände, Karte swissTLM für 3D (grau), Luftbild SWISSIMAGE, swissBUILDINGS3D, Brücken aus swissTLM3D', anbieter: 'swisstopo',
+    gebiet: { art: 'schweiz' }, dienst: 'api', lizenz: SWISSTOPO_LIZENZ, stand: 'Datum der Kachelpfade (Gelände, Gebäude, Brücken); Karte und Luftbild «current»',
     cors: true, empfaenger: 'swisstopo', datenschutzSatz: true,
     datenschutz: 'Die 3D-Ansicht lädt nur, solange sie geöffnet ist, Geländekacheln (ch.swisstopo.terrain.3d), Gebäudekacheln (swissBUILDINGS3D), Brückenkacheln (swissTLM3D) ' +
-      'und auf Wunsch Modellbäume (Vegetation) von 3d.geo.admin.ch sowie Kartenkacheln (Karte swissTLM für 3D, grau) und auf Wunsch ' +
+      'von 3d.geo.admin.ch sowie Kartenkacheln (Karte swissTLM für 3D, grau) und auf Wunsch ' +
       'Luftbildkacheln (SWISSIMAGE), beide im Raster WGS84, von wmts.geo.admin.ch; ' +
       'welche Kacheln das sind, bestimmt die Kamera. Es gehen nur Kachelnummern, keine Eingaben oder Ergebnisse.',
     module: ['ansicht3d/cesiumSzene.ts'], hinweis: 'nur Anzeige, keine Änderung der Rechnung; Bibliothek CesiumJS (Apache-2.0)' },

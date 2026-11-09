@@ -69,3 +69,12 @@ it('kennzeichnet ergänzte Anschlüsse auch in der auf kleinen Bildschirmen sich
   const h = renderToStaticMarkup(<Ansicht3D szene={leer} />)
   expect(h).toMatch(/role="status"[^]*?Ergänzter Fahrbahnanschluss: Darstellung, keine gemessene Fläche/)
 })
+
+it('erklärt die dauerhaften Parkquader ohne einen Hinweis auf dargestellte Parkautos', () => {
+  const sz: Szene3D = { ...mitFahrzeug, flaechen: [{ id: 'huelle', parkfeld: 'p', pruefhuelle: true, art: 'parkfeld', ringe: [],
+    farbe: '#2563eb', alpha: 0.12, hoehe: 1.5, text: 'Prüfhülle' }] }
+  const html = renderToStaticMarkup(<Ansicht3D szene={sz} />)
+  expect(html).toMatch(/role="status"[^]*?Parkquader zeigen die ganze Parkfläche/)
+  expect(html).not.toContain('Parkierte Autos')
+  expect(html).not.toContain('Klick zeigt die Prüfhülle')
+})

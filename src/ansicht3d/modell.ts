@@ -41,11 +41,16 @@ export const AUTO_MASSE: readonly [number, number, number] = [PW_LAENGE_M, PW_BR
 export const VELO_MASSE: readonly [number, number, number] = [1.8, 0.6, 1.2]
 export const PERSON_MASSE: readonly [number, number, number] = [0.5, 0.5, 1.7]
 export const PARK_HOEHE_M = 1.5
+export const PARKRAND_FARBE = '#2563eb'
+export const PARK_HINWEIS = 'Parkquader zeigen die ganze Parkfläche, die auch die Rechnung berücksichtigt. Belegung und Höhe sind angenommen.'
 /** Velo- und Motorradfelder zählen in der Rechnung nur als Hinweis: niedriger und blasser */
 export const PARK_ZWEIRAD_HOEHE_M = 1.0
 export const SICHTBEHINDERND_M = 1.5
 export const NICHT_SICHTBEHINDERND_M = 0.5
 export const BAUM_HOEHE_M = 4
+/** Ausschliesslich Darstellung: generische Krone, 5 m breit, von 2 bis 8 m über dem Boden. Keine gemessene Kronengeometrie. */
+export const BAUM_KRONE_MASSE: readonly [number, number, number] = [5, 5, 6]
+export const BAUM_KRONE_MITTE_M = 5
 export const BAUM_STAMM_MIN_M = 0.3
 /** verdeckende Objekte der Rechnung je Klasse: Höhe des Körpers; Gebäude nur aufgelegt (das Haus kommt aus swissBUILDINGS3D) */
 export const KONFLIKT_HOEHE: Readonly<Record<Konflikt['klasse'], number | undefined>> =
@@ -82,6 +87,9 @@ export interface Farben3D {
 
 /** Fläche auf dem Gelände (hoehe fehlt) bzw. als Körper mit dieser Höhe über dem Gelände; ringe[0] aussen, weitere Löcher */
 export interface Flaeche3D {
+  /** Kennung der Parkfläche für Grundriss und transparente Prüfhülle. */
+  parkfeld?: string
+  pruefhuelle?: true
   fahrbahn?: string
   avArt?: string
   id: string
@@ -93,7 +101,7 @@ export interface Flaeche3D {
   text: string
 }
 /** Linie auf dem Gelände */
-export interface Linie3D { fahrbahn?: string; id: string; art: 'spur' | 'umriss' | 'annRand' | 'inselRand' | 'planRand'; punkte: LL[]; farbe: string; breite: number
+export interface Linie3D { parkfeld?: string; fahrbahn?: string; id: string; art: 'spur' | 'umriss' | 'annRand' | 'inselRand' | 'planRand'; punkte: LL[]; farbe: string; breite: number
   gestrichelt?: boolean; text: string }
 /** Wand (Hecke, Mauer, Übriges als Linie) mit dieser Höhe über dem Gelände */
 export interface Wand3D { fahrbahn?: string; id: string; punkte: LL[]; hoehe: number; farbe: string; text: string }
@@ -145,9 +153,9 @@ const zufahrtKey = (z: Pick<ZufahrtErgebnis, 'fgsId' | 'zufahrt'>) => `${z.fgsId
 const m1 = (v: number) => v.toFixed(1).replace('.', ',')
 
 export const LEGENDE = `Höhen angenommen: Auge ${m1(AUGHOEHE)} m über der Fahrbahn, Ziel auf der Wartefläche ${m1(ZIELHOEHE_WARTE_M)} m; Autos ${m1(AUTO_MASSE[2])} m, ` +
-  `Personen ${m1(PERSON_MASSE[2])} m; Parkfelder ${m1(PARK_HOEHE_M)} m (Velo, Motorrad ${m1(PARK_ZWEIRAD_HOEHE_M)} m); Hecken und Mauern ${m1(SICHTBEHINDERND_M)} m (sichtbehindernd) bzw. ` +
-  `${m1(NICHT_SICHTBEHINDERND_M)} m; Bäume als Stamm ${BAUM_HOEHE_M} m. Boden: Flächen der Amtlichen Vermessung auf dem Gelände von swisstopo; Gebäude aus swissBUILDINGS3D, Brücken aus swissTLM3D, in der Stadt Bern aus den Kunstbauten der Stadt. ` +
-  'Fahrbahnhöhen folgen den Zufahrten mit Bodenprofilen aus dem DTM 2023 der Stadt Bern bzw. swissALTI3D. Ergänzte Fahrbahnanschlüsse: Darstellung, keine gemessene Fläche; Breite aus der AV, ersatzweise 6 m innerhalb der AV-Strassenfläche. Mehrdeutige Höhen werden nicht dargestellt. Die Ansicht prüft nichts und ändert kein Ergebnis.'
+  `Personen ${m1(PERSON_MASSE[2])} m; Prüfhüllen der Auto-Parkflächen ${m1(PARK_HOEHE_M)} m (Velo- und Motorradflächen ${m1(PARK_ZWEIRAD_HOEHE_M)} m); Hecken und Mauern ${m1(SICHTBEHINDERND_M)} m (sichtbehindernd) bzw. ` +
+  `${m1(NICHT_SICHTBEHINDERND_M)} m; Bäume als Stamm ${BAUM_HOEHE_M} m. Zuschaltbare Baumkronen direkt an diesen Standorten: Form angenommen, 5 m breit, Gesamthöhe 8 m; keine gemessenen Kronen. Boden: Flächen der Amtlichen Vermessung auf dem Gelände von swisstopo; Gebäude aus swissBUILDINGS3D, Brücken aus swissTLM3D, in der Stadt Bern aus den Kunstbauten der Stadt. ` +
+  'Fahrbahnhöhen folgen den Zufahrten mit Bodenprofilen aus dem DTM 2023 der Stadt Bern bzw. swissALTI3D. Ergänzte Fahrbahnanschlüsse: Darstellung, keine gemessene Fläche; Breite aus der AV, ersatzweise 6 m innerhalb der AV-Strassenfläche. Mehrdeutige Höhen werden nicht dargestellt. ' + PARK_HINWEIS + ' Die Ansicht prüft nichts und ändert kein Ergebnis.'
 
 /** Flächen eines Polygons mit Löchern (rechner/poly: Ring[0] aussen) */
 const polyRinge = (poly: Poly): LL[][] => poly.filter(r => r.length >= 3).map(ring)
@@ -186,7 +194,9 @@ export function szene3d(rechnung: FallRechnung | null, auswahl: string | null, h
   // Vorschläge der Rechnung: amtliche Parkfelder (Kataster) zählen ohne Bestätigung und stehen als Körper; Vorschläge aus OSM zählen erst
   // nach Bestätigung und liegen nur als Umriss auf dem Boden. Verworfene Parkfelder (rechnung.parkVerworfen) fehlen.
   for (const v of rechnung?.vorschlaege ?? []) {
-    if (v.hindernis.quelle === 'kataster') hindernisEinfuegen(v.hindernis, farben, flaechen, linien, waende, koerper)
+    if (v.hindernis.quelle === 'kataster') {
+      if (!hindernisse.some(h => h.id === v.hindernis.id)) hindernisEinfuegen(v.hindernis, farben, flaechen, linien, waende, koerper)
+    }
     else if (v.hindernis.art === 'parkfeld' && v.hindernis.ring.length >= 3) flaechen.push({ id: `vorschlag:${v.id}`, art: 'parkfeld', ringe: [ring(v.hindernis.ring)],
       farbe: farben.hindernis(v.hindernis), alpha: 0.25, text: `Vorschlag aus OSM, zählt erst nach Bestätigung: ${v.grund}` })
   }
@@ -301,6 +311,14 @@ function hindernisEinfuegen(h: Hindernis, farben: Farben3D, flaechen: Flaeche3D[
   if (h.art === 'parkfeld' || h.art === 'laengsparkierung') {
     const r = h.art === 'parkfeld' ? h.ring : laengsPolygon(h.linie, h.breite)
     const zweirad = h.art === 'parkfeld' && h.klasse !== 'auto'
+    if (!zweirad && r.length >= 3) {
+      const parkfeld = h.id, text = `${h.art === 'parkfeld' ? 'Parkfeld' : 'Längsparkierung'} ${name} – Belegung angenommen`.trim()
+      flaechen.push({ id: `hindernis:${h.id}`, parkfeld, art: 'parkfeld', ringe: [ring(r)], farbe: PARKRAND_FARBE, alpha: 0.1, text })
+      linien.push({ id: `parkRand:${h.id}`, parkfeld, art: 'umriss', punkte: geschlossen(r), farbe: PARKRAND_FARBE, breite: 2, text })
+      flaechen.push({ id: `parkhuelle:${h.id}`, parkfeld, pruefhuelle: true, art: 'parkfeld', ringe: [ring(r)], farbe: PARKRAND_FARBE,
+        alpha: 0.18, hoehe: PARK_HOEHE_M, text: `Prüfhülle: ganze Parkfläche ${name} (Höhe angenommen)` })
+      return
+    }
     if (r.length >= 3) flaechen.push({ id: `hindernis:${h.id}`, art: 'parkfeld', ringe: [ring(r)], farbe, alpha: zweirad ? 0.4 : 0.7,
       hoehe: zweirad ? PARK_ZWEIRAD_HOEHE_M : PARK_HOEHE_M,
       text: `${h.art === 'parkfeld' ? `Parkfeld (${h.klasse})` : 'Längsparkierung'} ${name}${zweirad ? ' – nur Hinweis, kein Sichthindernis der Rechnung' : ''}`.trim() })
