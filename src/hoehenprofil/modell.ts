@@ -14,7 +14,8 @@ export interface HoehenProfil {
   datenstand?: string
   abgerufen?: string
   /** Nur bei tatsächlich gerechneter Gelände-Sichtprüfung; keine Ableitung aus Steigung. */
-  sicht?: { augeM: number; zielM: number; toleranzM: number; frei: boolean }
+  /** zielBodenH: Boden unter dem Ziel, wenn nicht der letzte Profilpunkt (Sicht auf die Wartefläche: Mitte der Wartefläche) [m ü. M.] */
+  sicht?: { augeM: number; zielM: number; toleranzM: number; frei: boolean; zielBodenH?: number }
 }
 
 export function profilGruppen(profile: readonly HoehenProfil[]) {
@@ -44,7 +45,9 @@ export function profilGeometrie(p: HoehenProfil) {
   const a = punkte[0], b = punkte[punkte.length - 1]
   if (!a || !b || punkte.length < 2 || b.dist <= a.dist) return null
   const sicht = p.sicht
-  const strahl = sicht ? { anfang: a.h + sicht.augeM, ende: b.h + sicht.zielM } : null
+  // Boden unter dem Ziel: bei der Sicht auf die Wartefläche deren Mitte (wie geprüft), sonst der letzte Profilpunkt
+  const zielBoden = sicht?.zielBodenH ?? b.h
+  const strahl = sicht ? { anfang: a.h + sicht.augeM, ende: zielBoden + sicht.zielM } : null
   const pruefpunkte = strahl ? punkte.slice(1, -1).map(x => {
     const t = (x.dist - a.dist) / (b.dist - a.dist)
     const strahlH = strahl.anfang + (strahl.ende - strahl.anfang) * t
@@ -52,8 +55,10 @@ export function profilGeometrie(p: HoehenProfil) {
   }) : []
   const hoechster = pruefpunkte.reduce<typeof pruefpunkte[number] | null>((m, x) => !m || x.ueberM > m.ueberM ? x : m, null)
   const getroffen = sicht && hoechster && hoechster.ueberM > sicht.toleranzM ? hoechster : null
-  return { punkte, a, b, strahl, getroffen,
-    minH: Math.min(...punkte.map(x => x.h), ...(strahl ? [strahl.anfang, strahl.ende] : [])),
+  return { punkte, a, b, strahl, getroffen, zielBoden,
+    /** Ziel über dem Boden der Wartefläche (Mitte), der vom Boden am Ende des Schnitts abweicht */
+    zielAusMitte: sicht?.zielBodenH !== undefined && Math.abs(sicht.zielBodenH - b.h) >= 0.005,
+    minH: Math.min(...punkte.map(x => x.h), zielBoden, ...(strahl ? [strahl.anfang, strahl.ende] : [])),
     maxH: Math.max(...punkte.map(x => x.h), ...(strahl ? [strahl.anfang + sicht!.toleranzM, strahl.ende + sicht!.toleranzM] : [])) }
 }
 

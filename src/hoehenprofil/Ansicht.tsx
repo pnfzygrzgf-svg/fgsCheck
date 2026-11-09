@@ -70,9 +70,9 @@ export function HoehenprofilAnsicht({ profile, onAuswahl, kartenAlle = false, on
           <line x1={L} y1={y(g.strahl.anfang + p.sicht!.toleranzM)} x2={W - R} y2={y(g.strahl.ende + p.sicht!.toleranzM)} stroke="#60a5fa" strokeDasharray="4 3" />
           <line x1={L} y1={y(g.strahl.anfang)} x2={W - R} y2={y(g.strahl.ende)} stroke="#0369a1" strokeWidth="2" />
           <line x1={L} x2={L} y1={y(g.a.h)} y2={y(g.strahl.anfang)} stroke="#0369a1" strokeWidth="1.5" />
-          <line x1={W - R} x2={W - R} y1={y(g.b.h)} y2={y(g.strahl.ende)} stroke="#0369a1" strokeWidth="1.5" />
+          <line x1={W - R} x2={W - R} y1={y(g.zielBoden)} y2={y(g.strahl.ende)} stroke="#0369a1" strokeWidth="1.5" />
           <text x={L + 5} y={(y(g.a.h) + y(g.strahl.anfang)) / 2 + 4} fill="#0369a1" fontSize="10" stroke="#fff" strokeWidth="3" paintOrder="stroke">+{zahl(p.sicht!.augeM, 2)} m</text>
-          <text x={W - R - 5} y={(y(g.b.h) + y(g.strahl.ende)) / 2 + 4} textAnchor="end" fill="#0369a1" fontSize="10" stroke="#fff" strokeWidth="3" paintOrder="stroke">+{zahl(p.sicht!.zielM, 2)} m</text>
+          <text x={W - R - 5} y={(y(g.zielBoden) + y(g.strahl.ende)) / 2 + 4} textAnchor="end" fill="#0369a1" fontSize="10" stroke="#fff" strokeWidth="3" paintOrder="stroke">+{zahl(p.sicht!.zielM, 2)} m</text>
           <circle cx={L} cy={y(g.strahl.anfang)} r="4" fill="#0369a1" />
           <circle cx={W - R} cy={y(g.strahl.ende)} r="4" fill="#0369a1" />
           <text x={L + 5} y={y(g.strahl.anfang) - 8} fill="#0369a1" fontSize="11">Fahrer*innenauge</text>
@@ -86,8 +86,9 @@ export function HoehenprofilAnsicht({ profile, onAuswahl, kartenAlle = false, on
         <text x={(L + W - R) / 2} y={H - 5} textAnchor="middle" fontSize="11">Abstand {p.sicht ? 'ab Auge entlang der Sichtlinie' : 'ab Profilanfang'} (m)</text>
       </svg>
       <p style={{ margin: '6px 0' }}>Braun: Boden{p.sicht ? ' · Blau: Blick vom Fahrer*innenauge zum Ziel' : ''}.</p>
-      {p.sicht && <p style={{ margin: '6px 0' }}>{Math.abs(g.a.h - g.b.h) < .05 ? 'Der Boden liegt an beiden Enden ungefähr gleich hoch.'
-        : `Der Boden am Fahrzeugstandort liegt laut Höhenmodell ${zahl(Math.abs(g.a.h - g.b.h))} m ${g.a.h > g.b.h ? 'höher' : 'tiefer'} als am Ziel.`}
+      {p.sicht && <p style={{ margin: '6px 0' }}>{Math.abs(g.a.h - g.zielBoden) < .05 ? 'Der Boden liegt beim Fahrzeug und unter dem Ziel ungefähr gleich hoch.'
+        : `Der Boden am Fahrzeugstandort liegt laut Höhenmodell ${zahl(Math.abs(g.a.h - g.zielBoden))} m ${g.a.h > g.zielBoden ? 'höher' : 'tiefer'} als unter dem Ziel.`}
+        {g.zielAusMitte ? ` Das Ziel steht über dem Boden in der Mitte der Wartefläche; an ihrer Ecke, wo der Schnitt endet, liegt der Boden ${zahl(Math.abs(g.zielBoden - g.b.h), 2)} m ${g.b.h < g.zielBoden ? 'tiefer' : 'höher'}.` : ''}
         {' '}Die Höhe ist gegenüber der Entfernung anders skaliert.</p>}
       <p style={{ margin: '6px 0', fontWeight: 600 }}>
         {p.sicht ? p.hinweis ? 'Das Bodenprofil erlaubt hier keinen verlässlichen Nachweis der Fahrbahnsicht.' : p.sicht.frei ? 'Geländemodell: In den geprüften Stützpunkten ist diese Sichtlinie frei.' : 'Geländemodell: Der Boden verdeckt diese Sichtlinie.'
@@ -100,7 +101,7 @@ export function HoehenprofilAnsicht({ profile, onAuswahl, kartenAlle = false, on
             ? `Bei ${zahl(g.getroffen.dist - g.a.dist)} m ab Fahrer*innenauge liegt das Gelände ${zahl(g.getroffen.ueberM, 2)} m über dem Sichtstrahl.`
             : 'In den geprüften Stützpunkten überschreitet das Gelände den Sichtstrahl nicht um mehr als die berücksichtigte Toleranz.'}
             {' '}Toleranz dieser Berechnung: {zahl(p.sicht.toleranzM, 2)} m (hellblauer Bereich).</p>
-          <p>Auge {zahl(p.sicht.augeM, 2)} m, Ziel {zahl(p.sicht.zielM, 2)} m über Gelände. Gebäude und Bewuchs sind in diesem Geländeprofil nicht enthalten.</p>
+          <p>Auge {zahl(p.sicht.augeM, 2)} m, Ziel {zahl(p.sicht.zielM, 2)} m über Gelände{p.sicht.zielBodenH !== undefined ? ' (Ziel: über dem Boden in der Mitte der Wartefläche, Annahme)' : ''}. Gebäude und Bewuchs sind in diesem Geländeprofil nicht enthalten.</p>
           <p>Die Fahrzeugposition wird entlang der Fahrbahn gemessen. Die waagerechte Achse des Schnitts zeigt die Länge der Sichtlinie vom Fahrer*innenauge zum Ziel.</p>
         </>}
         <p style={{ fontSize: 12 }}>Horizontale und vertikale Achse haben unterschiedliche Massstäbe. {g.punkte.length} Stützpunkte; zwischen ihnen ist die Linie verbunden.</p>

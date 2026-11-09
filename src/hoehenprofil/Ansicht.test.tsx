@@ -116,3 +116,23 @@ describe('Erklärender Höhenschnitt', () => {
     expect(renderToStaticMarkup(<EbenenGruppe mitProfil={false} titel="Tempo">Tempo</EbenenGruppe>)).toBe('<div>Tempo</div>')
   })
 })
+
+describe('Ziel über dem Boden in der Mitte der Wartefläche', () => {
+  it('Strahl endet über dem Boden der Mitte, nicht über der tieferen Ecke; Text nennt den Unterschied', () => {
+    const p = profil({ punkte: [{ dist: 0, h: 504.2 }, { dist: 5, h: 504.2 }, { dist: 10, h: 504.3 }, { dist: 10.5, h: 503.1 }],
+      sicht: { augeM: 1, zielM: .6, toleranzM: .15, frei: true, zielBodenH: 504.2 } })
+    const g = profilGeometrie(p)!
+    expect(g.strahl!.ende).toBeCloseTo(504.8, 6)
+    expect(g.zielBoden).toBe(504.2)
+    expect(g.zielAusMitte).toBe(true)
+    expect(g.getroffen).toBeNull()
+    const html = renderToStaticMarkup(<HoehenprofilAnsicht profile={[p]} />)
+    expect(html).toContain('Mitte der Wartefläche')
+    // Zahlen im Format de-CH (Dezimalpunkt)
+    expect(html).toMatch(/1[.,]10 m tiefer/)
+    // ohne Höhe der Mitte bleibt es beim letzten Profilpunkt
+    const ohne = profilGeometrie(profil({ ...p, sicht: { augeM: 1, zielM: .6, toleranzM: .15, frei: false } }))!
+    expect(ohne.zielBoden).toBe(503.1)
+    expect(ohne.zielAusMitte).toBe(false)
+  })
+})

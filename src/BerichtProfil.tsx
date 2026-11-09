@@ -75,9 +75,9 @@ export function ProfilBericht({ p }: { p: HoehenProfil }) {
         <line x1={L} y1={y(strahl.anfang + s.toleranzM)} x2={W - R} y2={y(strahl.ende + s.toleranzM)} stroke="#60a5fa" strokeDasharray="4 3" />
         <line x1={L} y1={y(strahl.anfang)} x2={W - R} y2={y(strahl.ende)} stroke="#0369a1" strokeWidth="2" />
         <line x1={L} x2={L} y1={y(g.a.h)} y2={y(strahl.anfang)} stroke="#0369a1" strokeWidth="1.5" />
-        <line x1={W - R} x2={W - R} y1={y(g.b.h)} y2={y(strahl.ende)} stroke="#0369a1" strokeWidth="1.5" />
+        <line x1={W - R} x2={W - R} y1={y(g.zielBoden)} y2={y(strahl.ende)} stroke="#0369a1" strokeWidth="1.5" />
         <text x={L + 5} y={(y(g.a.h) + y(strahl.anfang)) / 2 + 4} fill="#0369a1" fontSize="10" stroke="#fff" strokeWidth="3" paintOrder="stroke">+{zahl(s.augeM, 2)} m</text>
-        <text x={W - R - 5} y={(y(g.b.h) + y(strahl.ende)) / 2 + 4} textAnchor="end" fill="#0369a1" fontSize="10" stroke="#fff" strokeWidth="3" paintOrder="stroke">+{zahl(s.zielM, 2)} m</text>
+        <text x={W - R - 5} y={(y(g.zielBoden) + y(strahl.ende)) / 2 + 4} textAnchor="end" fill="#0369a1" fontSize="10" stroke="#fff" strokeWidth="3" paintOrder="stroke">+{zahl(s.zielM, 2)} m</text>
         <circle cx={L} cy={y(strahl.anfang)} r="4" fill="#0369a1" />
         <circle cx={W - R} cy={y(strahl.ende)} r="4" fill="#0369a1" />
         <text x={L + 5} y={y(strahl.anfang) - 8} fill="#0369a1" fontSize="11">Fahrer*innenauge</text>
@@ -93,7 +93,8 @@ export function ProfilBericht({ p }: { p: HoehenProfil }) {
         <b>{p.titel}.</b> {befund}{g.getroffen ? ` Bei ${zahl(g.getroffen.dist - g.a.dist)} m ab Fahrer*innenauge liegt das Gelände ` +
           `${zahl(g.getroffen.ueberM, 2)} m über dem Sichtstrahl (rote Markierung); Toleranz ${zahl(s.toleranzM, 2)} m (hellblau).` : ''}
         {p.hinweis ? ` ${p.hinweis}` : ''}
-        {' '}Braun: Boden, blau: Blick vom Fahrer*innenauge ({zahl(s.augeM, 2)} m über Gelände) zum Ziel ({zahl(s.zielM, 2)} m über Gelände).
+        {' '}Braun: Boden, blau: Blick vom Fahrer*innenauge ({zahl(s.augeM, 2)} m über Gelände) zum Ziel ({zahl(s.zielM, 2)} m über Gelände{s.zielBodenH !== undefined ? ' in der Mitte der Wartefläche, Annahme' : ''}).
+        {g.zielAusMitte ? ` An der Ecke der Wartefläche, wo der Schnitt endet, liegt der Boden ${zahl(Math.abs(g.zielBoden - g.b.h), 2)} m ${g.b.h < g.zielBoden ? 'tiefer' : 'höher'}.` : ''}
         Höhe gegenüber der Entfernung rund {zahl(ueberhoehung, 0)}-fach gestreckt. Gebäude und Bewuchs sind im Geländeprofil nicht enthalten.
         {' '}{p.quelle}{p.datenstand ? `; Datenstand ${p.datenstand}` : ''}.
       </figcaption>

@@ -9,7 +9,7 @@ import { RANG_STATUS } from './rechner/typen'
 import { AUGHOEHE_M } from './rechner/erkennung'
 import { GELAENDE_TOL_M, gelaendeFrei, type GelaendeStand, type ProfilLader } from './erkennungGelaende'
 import { SICHT_ABFRAGEN_MAX, STATUS_GELAENDE, ZIEL_HOEHE_WARTE_M, linieBei, rechnungMitSichtGelaende, sichtGelaendeAnzeige, sichtGelaendePruefen,
-  sichtGelaendeSchluessel, sichtGelaendeText, sichtGeo, sichtLinien, streifenStatusNeu, warteZiele, zielBei, zufahrtMitGelaende } from './sichtGelaende'
+  sichtGelaendeSchluessel, sichtGelaendeText, sichtGeo, sichtLinien, streifenStatusNeu, warteMitte, warteZiele, zielBei, zufahrtMitGelaende } from './sichtGelaende'
 import { STATUS, statusKurzKarte, statusText } from './texte'
 import { wgs } from './geo'
 import { rechneFall } from './rechner'
@@ -89,8 +89,8 @@ describe('Sicht auf die Wartefläche: Prüfung je Zufahrt', () => {
     const z = zuf(55)
     const k = kuppe(32)
     const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, k.laden)
-    // 6 Linien + 2 halbierende (30 → 40: 35 frei, 37,5 verdeckt)
-    expect(k.n()).toBe(8)
+    // 6 Linien + 2 halbierende (30 → 40: 35 frei, 37,5 verdeckt) + 1 Höhe der Mitte der Wartefläche, auf die alle Linien zielen
+    expect(k.n()).toBe(9)
     expect(e).toMatchObject({ abM: 35, abfragen: 8 })
     expect(e.frei['30.00']).toBe(true)
     expect(e.frei['40.00']).toBe(false)
@@ -143,7 +143,9 @@ describe('Sicht auf die Wartefläche: Prüfung je Zufahrt', () => {
   it('höchstens 14 Abfragen je Zufahrt, auch bei 110 m', async () => {
     const k = kuppe(104)
     const e = await sichtGelaendePruefen(sichtGeo(zuf(110), ANN)!, k.laden)
-    expect(k.n()).toBe(13)
+    // 13 Linien + 1 Höhe der Mitte der Wartefläche (zählt nicht zu den Abfragen der Linien)
+    expect(k.n()).toBe(14)
+    expect(e.abfragen).toBe(13)
     expect(e.abfragen).toBeLessThanOrEqual(SICHT_ABFRAGEN_MAX)
     expect(e.abM).toBeGreaterThanOrEqual(100)
     expect(e.abM).toBeLessThan(110)
@@ -259,7 +261,9 @@ describe('D1: geprüfte Fahrzeugpositionen statt scheinbar genauer Sichtgrenze',
   it('führt 17,5 m frei / 20 m verdeckt mit, während Rechenwert 17 m und fünf Abfragen gleich bleiben', async () => {
     const z = zuf(24), aufrufe: number[] = []
     const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, async a => { aufrufe.push(a[1]); return hoehenschnitt(a[1] > 17.5) })
-    expect(aufrufe).toEqual([10, 20, 24, 15, 17.5])
+    // Augpunkte der Linien; dazu einmal die Mitte der Wartefläche (y −2,5) für die Höhe des Ziels
+    expect(aufrufe.filter(y => y > 0)).toEqual([10, 20, 24, 15, 17.5])
+    expect(aufrufe.filter(y => y < 0)).toEqual([-2.5])
     expect(e).toMatchObject({ abM: 17, abfragen: 5, pruefbereich: { letzteFreiM: 17.5, ersteVerdecktM: 20 } })
     const zz = zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'ok', ...e, quelle: 'swissALTI3D' }))
     expect(zz.freiBisM).toBe(17)
@@ -288,5 +292,36 @@ describe('D1: geprüfte Fahrzeugpositionen statt scheinbar genauer Sichtgrenze',
     expect(text).toContain('abgerundeter Rechenwert 17 m, genaue Prüflagen nicht verfügbar')
     expect(text).not.toContain('erste verdeckte Position')
     expect(text).not.toContain('letzte frei geprüfte Position')
+  })
+})
+
+describe('Ziel über dem Boden in der Mitte der Wartefläche', () => {
+  it('Ecke im Abfall neben dem Trottoir (Klösterlistutz, Bern): mit der Höhe der Mitte frei, mit der Höhe der Ecke wäre sie verdeckt', async () => {
+    const z = zuf(24)
+    // Fahrbahn und Trottoir 500 m, die Ecke der Wartefläche liegt 1,1 m tiefer im Hang (DTM), die Mitte auf dem Trottoir
+    const imAnn = (p: P) => p[1] < 0 && Math.abs(p[0]) >= 4
+    const laden: ProfilLader = async (a, b) => {
+      const L = Math.hypot(a[0] - b[0], a[1] - b[1])
+      return profil(L, d => (d >= L - 1e-9 ? 498.9 : 500)).map((q, i) => (i === 0 && imAnn(a) ? { ...q, h: 500 } : q))
+    }
+    // Gegenprobe: die Ecke selbst ist mit ihrer eigenen Höhe verdeckt (alter Rechenweg)
+    const g = sichtGeo(z, ANN)!
+    const l = linieBei(g, 10)
+    expect(gelaendeFrei(await laden(l.auge, l.ziel), GELAENDE_TOL_M, ZIEL_HOEHE_WARTE_M)).toBe(false)
+    const e = await sichtGelaendePruefen(g, laden)
+    expect(e.abM).toBeNull()
+    expect(Object.values(e.zielBoden ?? {})).toEqual([500, 500, 500])
+    const a = sichtGelaendeAnzeige(z, ANN, werteVon(z, { stand: 'ok', ...e }))!
+    expect(a.linien.map(x => x.zielBodenH)).toEqual([500, 500, 500])
+    expect(a.linien[0].mitte).toEqual([-5, -2.5])
+  })
+  it('Mitte liegt in der Wartefläche, auch bei einer gebogenen Fläche', () => {
+    expect(warteMitte(ANN[0])).toEqual([5, -2.5])
+    // Bogen um (0 | 0) von 0° bis 180°, Radien 9 und 10 m: der Schwerpunkt der Ecken liegt ausserhalb, die Mitte im Band
+    const aussen = Array.from({ length: 13 }, (_, i) => [10 * Math.cos(i * Math.PI / 12), 10 * Math.sin(i * Math.PI / 12)] as P)
+    const innen = Array.from({ length: 13 }, (_, i) => [9 * Math.cos((12 - i) * Math.PI / 12), 9 * Math.sin((12 - i) * Math.PI / 12)] as P)
+    const m = warteMitte([[...aussen, ...innen]])!
+    expect(Math.hypot(m[0], m[1])).toBeGreaterThan(9)
+    expect(Math.hypot(m[0], m[1])).toBeLessThan(10)
   })
 })

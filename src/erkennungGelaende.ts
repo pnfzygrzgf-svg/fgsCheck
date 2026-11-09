@@ -38,7 +38,9 @@ export const gelaendeName = (quelle?: string | null): string => (quelle ? `${GEL
  * frei: Ergebnis je Sichtlinie nach x; abfragen: Anzahl Profile; quelle: Modellname, tolM: Toleranz des benutzten Dienstes) bzw.
  * Fehler (Rechnung bleibt 2D) */
 export interface GelaendeErgebnis { abM: number | null; frei: Record<string, boolean>; abfragen: number; pruefbereich?: GelaendePruefbereich
-  quelle?: string; tolM?: number }
+  quelle?: string; tolM?: number
+  /** nur Sicht auf die Wartefläche: Boden unter dem Ziel je Sichtlinie nach x (Mitte der Wartefläche) [m ü. M.] */
+  zielBoden?: Record<string, number> }
 export type GelaendeStand = { stand: 'laedt' }
   | ({ stand: 'ok' } & GelaendeErgebnis)
   | { stand: 'fehler'; text: string }
