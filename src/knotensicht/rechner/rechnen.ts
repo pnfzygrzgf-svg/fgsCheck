@@ -1421,10 +1421,10 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     const ueberholfall = u0 && su ? { vorhanden: su.vorhanden, massgebend: A, reicht: su.vorhanden + 1e-6 >= A } : null
     // Rechtsvortritt: Abb. 6 nicht «zu sanieren» und (schmale Zufahrt) Sichtfeld ohne die entfernten Hindernisse frei
     const st = r.rv ? (zustandAbb6(wahr, si.vorhanden) === 'sanieren' ? 'nicht_erfuellt' : 'erfuellt') :
-      sichtStatus(si.vorhanden, sw ?? { massgebend: r.massgebend, oben: r.erforderlichOben })
+      sichtStatus(si.vorhanden, sw ?? { massgebend: r.massgebend, oben: r.erforderlichOben, tempo: r.tempo })
     const engFrei = !(r.rv && rvAchsen) || sichtfeldEng(v.D ?? D, rvAchsen[0], rvAchsen[1], v.ohne ?
       flaechenRv.filter(f => !v.ohne!.includes(f.id)) : flaechenRv).frei
-    const auto = st !== 'nicht_erfuellt' && engFrei
+    const auto = (st === 'erfuellt' || st === 'massgebend') && engFrei
     return { richtung: r.richtung, lage: r.lage, vorhanden: si.vorhanden, massgebend: A, reicht: auto && (velo?.reicht ?? true) &&
       (ueberholfall?.reicht ?? true), tempo: t, velo, ...(ueberholfall ? { ueberholfall } : {}),
       ...(r.rv && rvAchsen ? { sichtfeldFrei: engFrei } : {}) }
@@ -1446,7 +1446,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   // dem Nullpunkt gerechnet (wie die Massnahmen); mit D von Hand nur mit Vorbehalt
   if (regelung === 'stop' && !rv && !nurRv) {
     const mitV = richtungen.filter(r => r.status !== 'keine_zufahrt' || r.velo)
-    const reicht = (r: RichtungErgebnis) => r.status !== 'nicht_erfuellt' && r.velo?.status !== 'nicht_erfuellt' &&
+    const reicht = (r: RichtungErgebnis) => r.status !== 'nicht_erfuellt' && r.status !== 'nicht_beurteilbar' && r.velo?.status !== 'nicht_erfuellt' &&
       r.ueberholfall?.status !== 'nicht_erfuellt'
     if (mitV.length && mitV.every(reicht)) {
       if (!ao.ausserorts) hinweise.push(KEIN_VORTRITT_STATT_STOP)
@@ -1527,7 +1527,7 @@ const TUE_GEH_TOL_M = 0.3
 const RADWEG_AN_ZUFAHRT_M = 3
 /** Trottoir: Höhenprofil so weit beidseits der Zufahrt [m] (grösster Wert der Tab. 2) */
 export const TROTTOIR_PROFIL_M = Math.max(...TAB2)
-const RANG: Record<RichtungStatus, number> = { nicht_erfuellt: 0, massgebend: 1, erfuellt: 2, keine_zufahrt: 3 }
+const RANG: Record<RichtungStatus, number> = { nicht_erfuellt: 0, nicht_beurteilbar: 1, massgebend: 2, erfuellt: 3, keine_zufahrt: 4 }
 /** Rechtsvortritt (E3c): Zustand nach Abb. 6 als Status der Richtung bzw. des Arms */
 const ZUSTAND_STATUS: Record<Zustand, RichtungStatus> = { anzustreben: 'erfuellt', zulaessig: 'massgebend', sanieren: 'nicht_erfuellt' }
 export const RV_STATUS: Record<Zustand, RvStatus> = { anzustreben: 'erfuellt', zulaessig: 'bedingt', sanieren: 'nicht_erfuellt' }
@@ -1774,7 +1774,8 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
     const velo = nurVelo ? veloRechnen() : null
     if (!rvGrund) hinweise.push(...endeHinweis(velo, null))
     return { ...basis, vorhanden: 0, bisEnde: false, status: 'keine_zufahrt', statusZusatz: [], verdecker: null, verdeckerListe: [],
-      palisade: null, achse: [], sichtpunkte: [], sichtbar: [], profilLinie: velo ? abschneiden(velo.achse, Math.max(PROFIL_MIN_M, velo.A)) : [],
+      palisade: null, achse: [], sichtpunkte: [], sichtbar: [], profilLinie: velo ? abschneiden(velo.achse, Math.max(PROFIL_MIN_M, velo.A,
+        veloSichtweite(velo.tempo, 0, ebikeVerboten, true).A)) : [],
       velo, gesamt: 'keine_zufahrt', gesamtFehlt: [], dreieck: [], dreieckFrei: [], dreieckVerdeckt: [],
       hinweise: [...hinweise, nurVelo ? `Einbahn vom Knoten weg: von dieser Seite kommen nur Velos (OSM ${nurVelo}).` :
         !a.zufluss ? 'Einbahn vom Knoten weg: von dieser Seite kommt kein Verkehr.' : `${rvGrund}.`],
@@ -1782,6 +1783,9 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
   }
   // Rechtsvortritt: Sichtdreieck und Liste der Verdecker bis zum anzustrebenden Wert (mindestens RV_A_M), auch wenn weniger zulässig ist
   const A = rvWahr ? Math.max(sw.massgebend, RV_A_M) : sw.massgebend
+  // Länge des Höhenprofils (SW-05): unabhängig von der gemessenen Neigung, sonst änderte die Neigung A, A die Linie und die Linie
+  // die Neigung. Beim Rechtsvortritt A (ohne Neigung), sonst der strengste Wert der Stufe (Neigung unbekannt, ungünstig) ≥ A
+  const profilA = rvWahr ? A : Math.max(A, sichtweiteA(tempo, strasse.typ, { ...ungunstRichtung(strasse, richtung), neigung: true }, 0, true).massgebend)
   const si = sichtEntlang(D, achse, sMax, [...k.gebaeude, ...hindernisse], A)
   // Rechtsvortritt: Status nach Abb. 6 (anzustreben = erfüllt, zulässig = «massgebend», zu sanieren = nicht erfüllt)
   const zustand: Zustand | null = rvWahr ? zustandAbb6(rvWahr, si.vorhanden) : null
@@ -1825,7 +1829,7 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
     verdecker: vd ? { id: vd.id, name: vd.name, art: vd.art ?? 'Gebäude', quelle: vd.quelle ?? 'AV', ring: vd.poly[0],
       sVerdeckt: si.sVerdeckt ?? 0 } : null,
     achse: abschneiden(achse, sMax), sichtpunkte: si.punkte, sichtbar: si.sichtbar,
-    profilLinie: abschneiden(achse, Math.max(PROFIL_MIN_M, A)),
+    profilLinie: abschneiden(achse, Math.max(PROFIL_MIN_M, profilA)),
     dreieck: sichtdreieck(D, achse, 0, A), dreieckFrei: sichtdreieck(D, achse, 0, frei),
     dreieckVerdeckt: si.vorhanden < A ? sichtdreieck(D, achse, si.vorhanden, A) : [],
     hinweise,

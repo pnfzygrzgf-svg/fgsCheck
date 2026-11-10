@@ -221,3 +221,32 @@ describe('E2a: Puffer um Linien (laengsPolygon)', () => {
     expect(laengsPolygon([lv(0, 0), lv(10, 0), lv(0, 0)], 2).length).toBe(6)
   })
 })
+
+describe('SW-03: schmales volles Hindernis zwischen den Punkten des groben Rasters', () => {
+  // Gegenprobe der Prüfung vom 10.11.2026: D = (0; −10), Achse (0; 0) bis (40; 0), A = 20, volles Hindernis x 10,4 … 10,6
+  const Dp = lv(0, -10), achse: P[] = [lv(0, 0), lv(40, 0)]
+  const rechteck = (x0: number, x1: number, y0: number, y1: number): Verdeckend => ({ id: 'h1', name: 'schmal', wirkung: 'voll', quelle: 'hand',
+    poly: [[lv(x0, y0), lv(x1, y0), lv(x1, y1), lv(x0, y1), lv(x0, y0)]] })
+  it('die Sicht endet vor dem Hindernis, Liste und Sichtweite stimmen überein', () => {
+    const s = sichtEntlang(Dp, achse, 40, [rechteck(10.4, 10.6, -0.01, 0.01)], 20)
+    expect(s.bisEnde).toBe(false)
+    expect(s.vorhanden).toBeLessThan(10.4)
+    expect(s.vorhanden).toBeGreaterThan(10.2)
+    expect(s.verdecker?.id).toBe('h1')
+    expect(s.liste.map(t => t.v.id)).toEqual(['h1'])
+    expect(s.liste[0].sErst).toBeGreaterThanOrEqual(s.vorhanden)
+  })
+  it('auch nach A (zwischen A und dem Ende der Zielpunkte) und bei verschobener Lage', () => {
+    for (const x of [10.1, 10.25, 10.45, 25.3, 33.75]) {
+      const s = sichtEntlang(Dp, achse, 40, [rechteck(x, x + 0.2, -0.01, 0.01)], 20)
+      expect(s.bisEnde, `x = ${x}`).toBe(false)
+      expect(s.vorhanden, `x = ${x}`).toBeLessThan(x + 1e-6)
+      expect(s.vorhanden, `x = ${x}`).toBeGreaterThan(x - 0.3)
+    }
+  })
+  it('ohne Hindernis und mit einem Baum (Palisade) unverändert', () => {
+    expect(sichtEntlang(Dp, achse, 40, [], 20)).toMatchObject({ vorhanden: 40, bisEnde: true })
+    const baum = { ...rechteck(10.4, 10.6, -0.01, 0.01), wirkung: 'palisade' as const }
+    expect(sichtEntlang(Dp, achse, 40, [baum], 20)).toMatchObject({ vorhanden: 40, bisEnde: true })
+  })
+})

@@ -184,7 +184,7 @@ export function kreiselSicht(k: KreiselInfo, verdeckend: Verdeckend[]):
   if (az) annahmen.push(`Az ist ein Vergleichswert, kein Normwert (${AZ_QUELLE}).`)
   hinweise.push('Anhaltesichtweite auf der Kreiselfahrbahn und in die Ausfahrt folgt in einer späteren Version; die Sicht auf ' +
     'Fussgängerstreifen prüft fgsCheck.')
-  const rang: Record<Status, number> = { erfuellt: 0, massgebend: 1, nicht_erfuellt: 2 }
+  const rang: Record<Status, number> = { erfuellt: 0, massgebend: 1, nicht_beurteilbar: 2, nicht_erfuellt: 3 }
   const gesamt = [auto.status, veloT.status, bermeStatus as Status].reduce((m, s) => (rang[s] > rang[m] ? s : m))
   return { arm: arm.key, D, tempo, typ, typQuelle, auto: { ...auto, A: gerundet(auto.A), oben: gerundet(auto.oben) }, velo: veloT, az, azGrund, azLinks,
     berme: { flaechen: berme.map(p => p[0]), tiefe: Math.max(0, tiefe), innenring, ganz: ganz && !durchsicht.length, hindernisse: inBerme.map(f => f.name), ids: inBerme.map(f => f.id),

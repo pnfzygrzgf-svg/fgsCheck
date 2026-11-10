@@ -129,7 +129,7 @@ export function sichtweiteA(tempo: number, typ: Strassentyp = 'es', ungunst: Ung
   return {
     tempo, stufe, unten, oben, zwischen, typ, ungunst, typStufe, typWert, typText, neigung: i, neigungUnbekannt, anhalte, anhalteAngewendet,
     massgebend, massgebendText,
-    hinweis: ueber ? `Tempo ${tempo} km/h über der Tab. 1 (bis ${TAB1_MAX} km/h): Werte der Stufe ${TAB1_MAX} km/h, prüfen` : null,
+    hinweis: ueber ? `Tempo ${tempo} km/h über der Tab. 1 (bis ${TAB1_MAX} km/h): Sicht nicht beurteilbar; zum Vergleich die Werte der Stufe ${TAB1_MAX} km/h` : null,
     hinweise,
   }
 }
@@ -148,12 +148,18 @@ export function neigungLesen(t: string): number | null {
 export const zielLaenge = (sw: Pick<Sichtweite, 'oben' | 'massgebend'>): number => Math.ceil(ZIEL_FAKTOR * Math.max(sw.oben, sw.massgebend))
 
 /** erfüllt: ≥ oberer Wert (und ≥ massgebend); massgebend: ≥ massgebender Wert; sonst nicht erfüllt */
-export type Status = 'erfuellt' | 'massgebend' | 'nicht_erfuellt'
+export type Status = 'erfuellt' | 'massgebend' | 'nicht_erfuellt' | 'nicht_beurteilbar'
+
+/** Tempo über der VSS 40 273 Tab. 1: die Sicht lässt sich nach der Norm nicht beurteilen (Befund SW-02, 10.11.2026); Text für
+ *  Anzeige, Hinweis und Bericht */
+export const UEBER_TAB1_TEXT = `nicht beurteilbar: Tempo über ${TAB1_MAX} km/h, VSS 40 273 Tab. 1 endet bei ${TAB1_MAX} km/h`
 
 /** Status je Richtung: erfüllt ab dem oberen Wert (mindestens dem massgebenden), «massgebend» ab dem massgebenden Wert, sonst
- *  nicht erfüllt */
-export function sichtStatus(vorhanden: number, sw: Pick<Sichtweite, 'massgebend' | 'oben'>): Status {
+ *  nicht erfüllt. Über TAB1_MAX (SW-02): reicht die Sicht nicht einmal für die Werte der Stufe TAB1_MAX, ist sie sicher nicht
+ *  erfüllt; sonst nicht beurteilbar (kein Norm-erfüllt-Status ausserhalb der Tabelle) */
+export function sichtStatus(vorhanden: number, sw: Pick<Sichtweite, 'massgebend' | 'oben'> & { tempo?: number }): Status {
   const eps = 1e-6
   if (vorhanden + eps < sw.massgebend) return 'nicht_erfuellt'
+  if (sw.tempo !== undefined && sw.tempo > TAB1_MAX) return 'nicht_beurteilbar'
   return vorhanden + eps >= sw.oben ? 'erfuellt' : 'massgebend'
 }
