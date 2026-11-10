@@ -8,6 +8,8 @@ export const AV_LEGENDE: [string, string, string][] = [
   ['gruen', '#65a30d', 'Grünflächen, Wald'], ['uebrige', '#a8a29e', 'Übrige Bodenbedeckung'],
 ]
 export const AV_ARTEN = AV_LEGENDE.map(l => l[0])
+/** Vorauswahl ohne gespeicherte Wahl: Trottoir, Verkehrsinseln, Gebäude; die übrigen Arten lassen sich zuschalten */
+export const AV_VORAUSWAHL: readonly string[] = ['trottoir', 'verkehrsinsel', 'gebaeude']
 export function avKlasse(art: string): string {
   return art === 'Strasse_Weg' ? 'strasse' : art === 'Trottoir' || art === 'Verkehrsinsel' ? art.toLowerCase() : art === 'Gebaeude' ? 'gebaeude' :
     /humus|Gartenanlage|Acker|Wiese|Wald|bestockt|Gebuesch/i.test(art) ? 'gruen' : 'uebrige'
@@ -19,6 +21,6 @@ export function avKartenStil(art: string): { farbe: string; deckkraft: number } 
 }
 export function avArtenLesen(text: string | null): Set<string> {
   try { const v: unknown = JSON.parse(text ?? 'null'); if (Array.isArray(v)) return new Set(v.filter((x): x is string => typeof x === 'string' && AV_ARTEN.includes(x))) } catch { /* Vorgabe */ }
-  return new Set(AV_ARTEN)
+  return new Set(AV_VORAUSWAHL)
 }
 export const avArtSichtbar = (art: string, an: boolean, arten: ReadonlySet<string>): boolean => an && arten.has(avKlasse(art))

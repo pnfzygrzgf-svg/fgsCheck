@@ -475,7 +475,7 @@ export default function Karte(props: {
   const [hkMap, setHkMap] = useState<L.Map | null>(null)
   const hk = useHoehenkurven(hkMap, av)
   const [avAn, setAvAn] = useState(true)
-  const [avArten, setAvArten] = useState(() => { try { return avArtenLesen(localStorage.getItem('fgs.avArten')) } catch { return avArtenLesen(null) } })
+  const [avArten, setAvArten] = useState(() => { try { return avArtenLesen(localStorage.getItem('fgs.avArten2')) } catch { return avArtenLesen(null) } })
   const avArtSetzen = (art: string, an: boolean) => setAvArten(alt => { const neu = new Set(alt); if (an) neu.add(art); else neu.delete(art); return neu })
 
   const elRef = useRef<HTMLDivElement>(null)
@@ -906,7 +906,7 @@ export default function Karte(props: {
     const map = kartenRef.current, eb = ebenenRef.current
     if (!map || !eb) return
     eb.av.clearLayers()
-    try { localStorage.setItem('fgs.avAn', String(avAn)); localStorage.setItem('fgs.avArten', JSON.stringify([...avArten])) } catch { /* Sitzung */ }
+    try { localStorage.setItem('fgs.avAn', String(avAn)); localStorage.setItem('fgs.avArten2', JSON.stringify([...avArten])) } catch { /* Sitzung */ }
     if (avAn && !map.hasLayer(eb.av)) eb.av.addTo(map)
     else if (!avAn && map.hasLayer(eb.av)) map.removeLayer(eb.av)
     if (!av) return
