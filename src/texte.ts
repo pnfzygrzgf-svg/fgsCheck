@@ -104,12 +104,33 @@ export function sichtQuelleKurz(q: string): string {
   if (/^bis Kreiselring/.test(q)) return 'bis zum Kreiselring'
   if (/^bis Knoten/.test(q)) return 'bis zur Kreuzung'
   if (/^bis Wegende/.test(q)) return 'bis zum Wegende'
+  if (/Hofzufahrt/.test(q)) return 'bis zur Einmündung (Hofzufahrt)'
+  // gedeckter Abbieger: Kurvensichtweite, aber höchstens nach Tempo (abbiegen.ts, quelleGedeckt)
+  if (/Kurvensichtweite, höchstens (VSS Tab\. 1|nach Tempo)/.test(q)) return 'nach Tempo'
   if (/^bis Gebäude/.test(q)) return 'bis zum Gebäude'
   if (/Kurvenregel|Tab\. 2/.test(q)) return 'nach Strassenkurve (Kurvenregel)'
   if (/V85/.test(q)) return 'nach V85'
   if (/Kurvensichtweite|bfu|Kreiselring|Radius/.test(q)) return 'nach Kurvenradius'
   return 'nach Tempo'
 }
+/** Abbiegeradius, bis zu dem die bfu eine Sichtweite nennt (MS.013-2025, Abschnitt 2.2, Tab. 1, S. 4); darüber gilt Tempo (VSS 40 241 Tab. 1) */
+const BFU_RADIUS_MAX_M = 20
+/**
+ * Nötige Sicht einer Zufahrt in Worten. Abbieger nennen den Abbiegeradius, nach dem die Sicht bestimmt wurde (Rückmeldung 10.11.2026,
+ * Streifen 4273049857): bis 20 m nach bfu («nach bfu, Abbiegeradius 6,9 m»), darüber nach Tempo («nach Tempo, Abbiegeradius 23,7 m –
+ * über 20 m keine bfu-Stufe»). Ohne innere Klammern, weil Tabelle und Bericht den Text in Klammern setzen. Gerade Zufahrten und alle übrigen Fälle wie sichtQuelleKurz.
+ */
+export function sichtHerleitungKurz(z: Pick<ZufahrtErgebnis, 'art' | 'sichtweiteQuelle' | 'kurvenradiusM'>): string {
+  const k = sichtQuelleKurz(z.sichtweiteQuelle)
+  if (z.art !== 'abbiegend' || z.kurvenradiusM == null || !Number.isFinite(z.kurvenradiusM)) return k
+  const r = f1(z.kurvenradiusM)
+  if (k === 'nach Kurvenradius') return `nach bfu, Abbiegeradius ${r} m`
+  if (k === 'nach Tempo') return z.kurvenradiusM > BFU_RADIUS_MAX_M
+    ? `nach Tempo, Abbiegeradius ${r} m – über ${BFU_RADIUS_MAX_M} m keine bfu-Stufe`
+    : `nach Tempo, Abbiegeradius ${r} m – nach bfu nicht weniger`
+  return k
+}
+
 export const STATUS: Record<string, string> = {
   frei: 'frei', verdeckt: 'verdeckt (Auto-Parkfeld)', verdeckt_gebaeude: 'verdeckt (Gebäude)', verdeckt_hindernis: 'verdeckt (Hecke, Mauer bzw. übriges Hindernis)',
   verdeckt_baum: 'verdeckt (Baum)', verdeckt_zweirad: 'verdeckt (Zweirad-Feld)', verdeckt_gelaende: 'verdeckt (Geländemodell)', kein_fgs: 'kein FGS (von Hand)', ohne_zufahrt: 'keine Zufahrt',

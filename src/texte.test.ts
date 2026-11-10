@@ -1,6 +1,6 @@
 // Tests 23.10.2026: hier nicht geprüfte Richtungen und Zufahrtszeile in Alltagssprache (Beispiel Zieglerstrasse)
 import { describe, expect, it } from 'vitest'
-import { ART, ENTFALLEN_TITEL, GRUND, entfallenGrund, sichtQuelleKurz, tempoHerkunft, erkennungEmpfehlungText } from './texte'
+import { ART, ENTFALLEN_TITEL, GRUND, entfallenGrund, sichtHerleitungKurz, sichtQuelleKurz, tempoHerkunft, erkennungEmpfehlungText } from './texte'
 import { entfallen } from './rechner/zufahrten'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './rechner/typen'
 
@@ -84,5 +84,28 @@ describe('Hier nicht geprüfte Richtungen: Alltagssprache', () => {
     expect(sichtQuelleKurz('Annahme: bis Beginn des Abbiegens; nach VSS 40 240 Z. 8.2 wären es 89,1 m (L 4,0 m)'))
       .toBe('Annahme: bis Beginn des Abbiegens; nach VSS 40 240 Z. 8.2 wären es 89,1 m')
     for (const q of ['VSS Tab. 1', 'VSS Tab. 2', 'bis Gebäude', 'bis Wegende', 'bis Kreiselring']) expect(sichtQuelleKurz(q)).not.toMatch(/VSS|Tab\./)
+  })
+})
+
+// Rückmeldung 10.11.2026 (Streifen 4273049857, Mühlemattstrasse Bern): beide Abbieger rechnen nach derselben Regel (Abbiegeradius nach
+// bfu MS.013-2025 Tab. 1 bis 20 m, darüber Tempo nach VSS 40 241 Tab. 1); die Zeile nennt jetzt den Radius, der den Ausschlag gibt
+describe('Abbieger: nötige Sicht mit Abbiegeradius', () => {
+  const ab = (q: string, r: number | null) => sichtHerleitungKurz({ art: 'abbiegend', sichtweiteQuelle: q, kurvenradiusM: r })
+  it('Mühlemattstrasse: 23,7 m → nach Tempo mit Grund; 6,9 m → nach bfu', () => {
+    expect(ab('VSS Tab. 1', 23.7)).toBe('nach Tempo, Abbiegeradius 23,7 m – über 20 m keine bfu-Stufe')
+    expect(ab('bfu', 6.9)).toBe('nach bfu, Abbiegeradius 6,9 m')
+  })
+  it('gedeckter Abbieger: «Kurvensichtweite, höchstens …» ist nach Tempo, nicht nach Radius', () => {
+    expect(sichtQuelleKurz('Kurvensichtweite, höchstens VSS Tab. 1; ab dem Knoten prüft die gerade Zufahrt mit')).toBe('nach Tempo')
+    expect(ab('Kurvensichtweite, höchstens VSS Tab. 1; ab dem Knoten prüft die gerade Zufahrt mit', 30)).toBe('nach Tempo, Abbiegeradius 30,0 m – über 20 m keine bfu-Stufe')
+    expect(ab('Kurvensichtweite (bfu); ab dem Knoten prüft die gerade Zufahrt mit', 12)).toBe('nach bfu, Abbiegeradius 12,0 m')
+  })
+  it('übrige Grenzen bleiben: Hofzufahrt, bis Knoten, Querung ohne Vortritt; ohne Radius bzw. gerade Zufahrt wie bisher', () => {
+    expect(ab('bfu Knotenregel 15 m, bis Einmündung (Hofzufahrt)', 8)).toBe('bis zur Einmündung (Hofzufahrt)')
+    expect(ab('bis Knoten (Tab. 1 eigene Strasse)', 25)).toBe('bis zur Kreuzung')
+    expect(ab('VSS 40 240 Z. 8.2 (L 4,0 m)', 9)).toBe('Querung ohne Vortritt')
+    expect(ab('VSS Tab. 1', null)).toBe('nach Tempo')
+    expect(sichtHerleitungKurz({ art: 'gerade', sichtweiteQuelle: 'VSS Tab. 1', kurvenradiusM: 23.7 })).toBe('nach Tempo')
+    for (const q of ['VSS Tab. 1', 'bfu']) expect(ab(q, 23.7)).not.toMatch(/VSS|Tab\./)
   })
 })

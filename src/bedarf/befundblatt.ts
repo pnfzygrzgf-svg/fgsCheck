@@ -32,7 +32,7 @@ import type { StreifenErgebnis, ZufahrtErgebnis } from '../rechner/typen'
 import type { Fall } from '../fall'
 import type { P } from '../geo'
 import { sichtweiteKurve } from '../rechner/tempo'
-import { sichtQuelleKurz } from '../texte'
+import { sichtHerleitungKurz } from '../texte'
 import { annahmeKurz } from '../rechner/ohneVortritt'
 import { sichtFgs } from './tabellen'
 import { gelaendeName } from '../erkennungGelaende'
@@ -61,6 +61,8 @@ export interface SichtZeile {
   freiBisM?: number
   /** Soll durch eine Annahme der App unter dem Normwert (ohneVortritt.annahmeKurz), z. B. Abbieger bis Beginn des Abbiegens */
   annahme?: string
+  /** Herleitung in Worten (texte.sichtHerleitungKurz; Abbieger mit Abbiegeradius) */
+  kurz?: string
 }
 export interface OffenZeile { feld: string; name: string; gruppe: GruppeId | null; regeln: string[]
   /** Feld hat eine vorgeschlagene Annahme, die ein hartes Verbot trägt: bestätigen statt eingeben */
@@ -401,7 +403,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       // Anzeige; keine Sichtregel des Baums (A2 beendet ihn) und keine Grundprüfung des Fussgängerstreifens
       if (st === 'begegnungszone') {
         for (const z of s.zufahrten) sicht.push({ fgsId: s.fgsId, zufahrt: z.zufahrt, name: zName(s.fgsId, z.zufahrt), regel: 'E3', tempo: z.tempo,
-          soll: z.sichtweite, quelle: z.sichtweiteQuelle, frei: z.status === 'frei', status: statusKurz(z),
+          soll: z.sichtweite, quelle: z.sichtweiteQuelle, kurz: sichtHerleitungKurz(z), frei: z.status === 'frei', status: statusKurz(z),
           ...(z.geprueftBisM !== undefined ? { bisM: z.geprueftBisM } : {}), ...(z.freiBisM !== undefined ? { freiBisM: z.freiBisM } : {}) })
         continue
       }
@@ -424,7 +426,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
       }
       if (!erreichtR(regel)) {
         for (const z of s.zufahrten) sicht.push({ fgsId: s.fgsId, zufahrt: z.zufahrt, name: zName(s.fgsId, z.zufahrt), regel, tempo: z.tempo,
-          soll: z.sichtweite, quelle: z.sichtweiteQuelle, frei: z.status === 'frei', status: statusKurz(z),
+          soll: z.sichtweite, quelle: z.sichtweiteQuelle, kurz: sichtHerleitungKurz(z), frei: z.status === 'frei', status: statusKurz(z),
           ...(z.geprueftBisM !== undefined ? { bisM: z.geprueftBisM } : {}), ...(z.freiBisM !== undefined ? { freiBisM: z.freiBisM } : {}) })
         continue
       }
@@ -436,7 +438,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
         const frei = z.status === 'frei'
         const bis = z.geprueftBisM
         sicht.push({ fgsId: s.fgsId, zufahrt: z.zufahrt, name: zName(s.fgsId, z.zufahrt), regel, tempo: z.tempo, soll: z.sichtweite,
-          quelle: z.sichtweiteQuelle, frei, status: statusKurz(z), ...(bis !== undefined ? { bisM: bis } : {}),
+          quelle: z.sichtweiteQuelle, kurz: sichtHerleitungKurz(z), frei, status: statusKurz(z), ...(bis !== undefined ? { bisM: bis } : {}),
           ...(z.freiBisM !== undefined ? { freiBisM: z.freiBisM } : {}) })
         const soll = `${String(z.sichtweite).replace('.', ',')} m frei (${z.sichtweiteQuelle})`
         const wo = g.streifen.length > 1 ? `${titel(s.fgsId)}, ${zName(s.fgsId, z.zufahrt)}` : zName(s.fgsId, z.zufahrt)
@@ -697,7 +699,7 @@ export function sichtAnzeige(g: QuerungGruppe, titel: (fgsId: string) => string,
     for (const z of s.zufahrten) {
       const name = `${g.streifen.length > 1 ? `${titel(s.fgsId)}, ` : ''}${zName(s.fgsId, z.zufahrt)}`
       // Herleitung in Worten statt Rohfundstelle (Nachprüfung 23.10.2026)
-      const soll = `Soll ${m1(z.sichtweite)} (${sichtQuelleKurz(z.sichtweiteQuelle)})`
+      const soll = `Soll ${m1(z.sichtweite)} (${sichtHerleitungKurz(z)})`
       if (z.status === 'frei') {
         const bis = z.geprueftBisM ?? z.freiBisM
         teile.push(`${name}: ${bis !== undefined ? `frei bis ${m1(bis)}` : 'frei'}, ${soll}`)

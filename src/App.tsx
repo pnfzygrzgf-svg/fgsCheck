@@ -65,7 +65,7 @@ import { KATASTER_PARK_M, parkKatasterFelder } from './rechner/vorschlaege'
 import { abzugTeile } from './rechner/fahrstreifen'
 import { type Hindernis, BAUM_STAMM_M, LAENGS_BREITE_M } from './rechner/hindernisse'
 import { linieKreis, RADIUS_HAND_M } from './rechner/spurhand'
-import { ART, ENTFALLEN_ERKLAERUNG, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, f1, f2, mText, streifenStatus, TUE_OPTION,
+import { ART, ENTFALLEN_ERKLAERUNG, ENTFALLEN_TITEL, entfallenGrund, sichtHerleitungKurz, statusText, f1, f2, mText, streifenStatus, TUE_OPTION,
   TUE_NUR_EINMUENDUNG, erkennungText, erkennungEmpfehlungText, ERKENNUNG_TITEL } from './texte'
 import { KnotensichtBlock } from './tue/KnotensichtBlock'
 import { tueBreiteHand } from './tue/texte'
@@ -3213,7 +3213,7 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
       {s.status !== 'kein_fgs' && <p className="klein">Tempo direkt je Zufahrt ändern. Ein im Feld «Signalisiertes Tempo» gewählter oder eingegebener Wert gilt auch hier; eine Korrektur für diese Zufahrt geht vor.</p>}
       {s.status !== 'kein_fgs' && (
         <table className="zufahrten">
-          <thead><tr><th>Zufahrt</th><th>Tempo</th><th title="Sichtweite, die frei sein muss (nach Tempo bzw. Kurvenradius)">nötige Sicht</th>
+          <thead><tr><th>Zufahrt</th><th>Tempo</th><th title="Sichtweite, die frei sein muss (nach Tempo, bei Abbiegern nach dem Abbiegeradius bis 20 m)">nötige Sicht</th>
             <th>Ergebnis</th></tr></thead>
           <tbody>
             {nachNr(s.zufahrten, namen).map(z => (<Fragment key={z.zufahrt}>
@@ -3227,8 +3227,8 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
                   {z.lageQuelle === 'Hand' && <div className="klein">Fahrlinie von Hand</div>}
                   <StreetViewZufahrt url={zufahrtStreetView(z, s)} nr={zufahrtNr(namen, z.zufahrt) || z.zufahrt} /></td>
                 <td><ZufahrtTempo z={z} name={zufahrtLang(namen, z.zufahrt)} fall={fall} aendern={aendern} /></td>
-                <td title={`Herleitung: ${z.sichtweiteQuelle}${z.kurvenradiusM != null ? `, Kurvenradius ${f1(z.kurvenradiusM)} m` : ''}`}>{mText(z.sichtweite)} m
-                  <div className="klein">({sichtQuelleKurz(z.sichtweiteQuelle)})</div>
+                <td title={`Herleitung: ${z.sichtweiteQuelle}${z.kurvenradiusM != null ? `, ${z.art === 'abbiegend' ? 'Abbiegeradius' : 'Kurvenradius'} ${f1(z.kurvenradiusM)} m` : ''}`}>{mText(z.sichtweite)} m
+                  <div className="klein">({sichtHerleitungKurz(z)})</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
                 <td><SichtTaste art="auto" id={fgsSichtId(z)}><span className="farbe" style={{ background: STATUS_FARBE[z.status] }} />Wartefläche: {statusText(z, fall.hindernisse)}</SichtTaste>
                   {z.unter5m && <div className="klein warnung">Parkfeld unter 5 m</div>}

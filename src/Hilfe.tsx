@@ -35,8 +35,9 @@ export function Anleitung() {
 export function RechnungGrundlagen() {
   return <><p className="klein">
     Sichtweiten: <VerweisText text={`${LESENAME['40241']}, Tabelle 1`} /> ({TAB1_TEXT});
-    im Knoten nach Kurvenradius (<VerweisText text={LESENAME.BFU} /><WerkLinks w="BFU" kurz /> bzw. <VerweisText text={`${LESENAME['40241']}, Tabelle 2`} />:
-    {' '}{KURVE_SICHTWEITE.map(([r, s]) => `bis ${r} m: ${s} m`).join(', ')}). Sichtpunkte mindestens 1,5 m von Parkfeldern; Auto-Parkfeld
+    Abbieger nach dem Abbiegeradius (<VerweisText text={LESENAME.BFU} /><WerkLinks w="BFU" kurz />:
+    {' '}{KURVE_SICHTWEITE.map(([r, s]) => `bis ${r} m: ${s} m`).join(', ')}; darüber nach Tempo); nach einer Strassenkurve nur mit allen fünf
+    Voraussetzungen <VerweisText text={`${LESENAME['40241']}, Tabelle 2`} /> (Kurvenregel). Sichtpunkte mindestens 1,5 m von Parkfeldern; Auto-Parkfeld
     näher als 5 m am Streifen: <VerweisText text={`${LESENAME.VRV}, Art. 18 Abs. 2 Bst. e`} />.
   </p><ParkGrundlagen /></>
 }

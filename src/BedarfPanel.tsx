@@ -1232,7 +1232,7 @@ function annahmenPunkte(b: BefundBlatt, ablauf: readonly Eintrag[], druck: boole
   if (b.sicht.length) aus.push(<li key="sicht">Sicht (<VerweisText druck={druck}
     text={b.sicht[0].regel === 'E3' ? fundstelleText({ werk: '40240', ziffer: 'Z. 8.2' }) : fundstelleText({ werk: '40241', ziffer: 'Z. 14' })} />):
     <ul>{[...b.sicht].sort((p, q) => p.name.localeCompare(q.name, 'de', { numeric: true })).map((x, i) => <li key={i}>{`${x.name} ${x.frei ? (x.bisM !== undefined ? `frei bis ${x.bisM} m, darüber nicht geprüft` : 'frei') : x.status} ` +
-      `(Soll ${String(x.soll).replace('.', ',')} m, ${sichtQuelleKurz(x.quelle)})`}</li>)}</ul></li>)
+      `(Soll ${String(x.soll).replace('.', ',')} m, ${x.kurz ?? sichtQuelleKurz(x.quelle)})`}</li>)}</ul></li>)
   if (b.sichtVonHand) aus.push(<li key="sichthand">{T('Sicht: vorhandene Sichtweite von Hand eingegeben (Regeln H1 bzw. E3 statt Sichtprüfung).')}</li>)
   // Annahmen nur einmal: im Panel ohne die der Grundprüfung, im Bericht auch ohne die der Tabelle «Eingaben und Quellen»
   const annahmen = b.annahmen.filter(a => !annahmeInGrund(b, a) && !(druck && annahmeInTabelle(b, a)))

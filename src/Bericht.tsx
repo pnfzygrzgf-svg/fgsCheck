@@ -33,7 +33,7 @@ import { STATUS_FARBE, STRICH_GEDECKT, UEBERGANG_TEXT, INSEL_FARBE, STRICH_INSEL
   STRICH_TUE, QUELLE_FARBE } from './Karte'
 import { tueGezeichnet, tueFlaeche } from './tue/karte'
 import { LESENAME } from './bedarf/quellen'
-import { ART, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, tempoHerkunft, f1, f2, mText, streifenStatus,
+import { ART, ENTFALLEN_TITEL, entfallenGrund, sichtHerleitungKurz, sichtQuelleKurz, statusText, tempoHerkunft, f1, f2, mText, streifenStatus,
   erkennungText, erkennungEmpfehlungText } from './texte'
 import { erkennungAnzeige, gelaendeText, type GelaendeStand } from './erkennungGelaende'
 import { sichtGelaendeBerichtText } from './sichtGelaende'
@@ -668,7 +668,7 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
                 <td><NrMarke nr={zufahrtNr(namen, z.zufahrt)} /><b>{zufahrtLang(namen, z.zufahrt)}</b>{z.deckung && <span className="klein"> (mitgeprüft)</span>}
                   <div className="klein">{ART[z.art] ?? z.art}{z.art === 'abbiegend' && z.ueberStrasse ? `, weiter auf ${z.ueberStrasse}` : ''}</div></td>
                 <td>{z.tempo} km/h<div className="klein">({z.tempoQuelle === 'Ersatz' ? 'Annahme, ohne Angabe' : z.tempoQuelle === 'Geoportal' ? 'Geoportal Stadt Bern' : tempoHerkunft(z.tempoQuelle)})</div></td>
-                <td>{mText(z.sichtweite)} m<div className="klein">({sichtQuelleKurz(z.sichtweiteQuelle)}{z.kurvenradiusM != null ? `, Kurvenradius ${f1(z.kurvenradiusM)} m` : ''})</div>
+                <td>{mText(z.sichtweite)} m<div className="klein">({z.art === 'abbiegend' ? sichtHerleitungKurz(z) : `${sichtQuelleKurz(z.sichtweiteQuelle)}${z.kurvenradiusM != null ? `, Kurvenradius ${f1(z.kurvenradiusM)} m` : ''}`})</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
                 <td>{vorhandeneSichtText(z)}</td>
                 <td><b className="status-farbe" style={{ color: statusFarbe(grundriss(z.status)) }}>Grundriss (Gebäude, Parkfelder, Bäume, Hindernisse): Wartefläche {grundriss(z.status) === 'frei' ? 'frei' : statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}
@@ -893,7 +893,8 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
           <h3>Werke der Sichtprüfung</h3>
           <ul className="klein">
             <li>Sichtweiten: {LESENAME['40241']}, Tabelle 1 ({TAB1_TEXT}).</li>
-            <li>Im Knoten nach Kurvenradius: {LESENAME.BFU} bzw. {LESENAME['40241']}, Tabelle 2 ({KURVE_SICHTWEITE.map(([r, sw]) => `bis ${r} m: ${sw} m`).join(', ')}).</li>
+            <li>Abbieger nach dem Abbiegeradius: {LESENAME.BFU} ({KURVE_SICHTWEITE.map(([r, sw]) => `bis ${r} m: ${sw} m`).join(', ')}); über {KURVE_SICHTWEITE[KURVE_SICHTWEITE.length - 1][0]} m
+              nach Tempo ({LESENAME['40241']}, Tabelle 1). Nach einer Strassenkurve nur mit allen fünf Voraussetzungen: {LESENAME['40241']}, Tabelle 2 (Kurvenregel).</li>
             <li>Auto-Parkfeld näher als 5 m am Streifen: {LESENAME.VRV}, Art. 18 Abs. 2 Buchstabe e.</li>
             {rechnung.streifen.some(s => s.querung?.typ === 'begegnungszone') && <li>Querung in der Begegnungszone (Vortritt Fussverkehr):
               {' '}{LESENAME['40240']}, Ziffer 8.2, Sichtweite = Anhaltesichtweite.</li>}
