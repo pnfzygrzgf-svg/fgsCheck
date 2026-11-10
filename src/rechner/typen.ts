@@ -14,6 +14,8 @@ export interface Konflikt {
 
 export interface ZufahrtErgebnis {
   parkEinfluss?: import('./parkEinfluss').ParkEinfluss[]
+  /** Strassenkurve vor dem Streifen (gerade Zufahrt, Kurvenregel VSS 40 241 Tab. 2; Prüfung FGS-01) */
+  kurveStrasse?: import('./kurvenregel').KurveStrasse
   fgsId: string
   zufahrt: string                 // Schlüssel wie in der Berner Karte: gerade = Richtung, abbiegend = a + Richtung
   kennung: string                 // w<wid>± bzw. k<nid>:w<wid>±
@@ -155,6 +157,9 @@ export interface StreifenErgebnis {
   annHand?: [AnnHand | null, AnnHand | null]
   rand: [P, P]
   randQuelle: string
+  /** Ebene des gequerten OSM-Wegs am Streifen (alle Zufahrten gleich; sonst bzw. ohne OSM-Weg fehlt sie): Start der Fahrbahnhöhe in der
+   *  3D-Ansicht (Prüfung 3D-01); die Rechnung nutzt sie nicht */
+  wegLage?: import('./netz').WegLage
   strasse: string
   netzQuelle: string
   lsa: string

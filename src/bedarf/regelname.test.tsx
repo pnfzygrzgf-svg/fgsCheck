@@ -211,7 +211,7 @@ describe('Fundstellen lesbar: Lesename, ausgeschriebene Ziffern, keine Nummer vo
       expect([...b.matchAll(REGEL_ID_RE)].map(m => m[1]), `${t.regel} ${t.name}: ${b}`).toEqual([])
       expect(b, t.name).not.toMatch(/\b(Z|Ziff|Tab|Anh)\. /)
     }
-    const e = fall({ tempoRegime: 't30_zone', vSig: 30, beduerfnis: ['schule'], dtv: 2000 })
+    const e = fall({ tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', beduerfnis: ['schule'], dtv: 2000 })
     const b = begruendung(beurteile(e, { ebenen: { bern: false, kantonBE: false, richtlinie: true } }))
     expect(b).toContain('Tempo-30-Zonen-Verordnung (SR 741.213.3), Art. 4 Abs. 2')
   })

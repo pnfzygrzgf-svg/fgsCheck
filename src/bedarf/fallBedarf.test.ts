@@ -52,7 +52,7 @@ describe('Fall-Datei mit Bedarf (Version 1, 2, 3)', () => {
       'insel.breite': { wert: 1.8, quelle: 'hand' }, beduerfnis: { wert: [], quelle: 'hand' } }, ebenen: { bern: true } }
   })
   it('Version 1 ohne alles, 2 mit Flächen (Plan), 3 mit Bedarf bzw. Querung ohne Vortritt; leerer Block wird nicht geschrieben', () => {
-    expect(FALL_VERSION).toBe(11)
+    expect(FALL_VERSION).toBe(12)
     expect(JSON.parse(fallSchreiben(fallMit())).version).toBe(1)
     expect(JSON.parse(fallSchreiben(fallMit(x => { x.flaechenPlan = [NASE] }))).version).toBe(2)
     expect(JSON.parse(fallSchreiben(mitBedarf)).version).toBe(3)
@@ -70,7 +70,7 @@ describe('Fall-Datei mit Bedarf (Version 1, 2, 3)', () => {
     expect(fallLesen(JSON.stringify(v1))[0].streifen).toEqual({ '1': { lsa: 'nein' } })
     const v2 = JSON.parse(fallSchreiben(fallMit(x => { x.flaechenPlan = [NASE] })))
     expect(fallLesen(JSON.stringify(v2))[0].flaechenPlan).toEqual([NASE])
-    expect(() => fallLesen(JSON.stringify({ ...v1, version: 12 }))).toThrow('Fall-Datei Version 12 wird nicht unterstützt')
+    expect(() => fallLesen(JSON.stringify({ ...v1, version: 13 }))).toThrow('Fall-Datei Version 13 wird nicht unterstützt')
   })
   it('tief geprüft: ungültige Werte, Unterfelder, Quellen, unbekannte Pfade und Ebenen werden gemeldet und übergangen', () => {
     const roh = JSON.parse(fallSchreiben(mitBedarf))

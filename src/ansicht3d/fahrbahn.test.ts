@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { kandidaten, fahrbahnVerfolgen, gueltigeHoehe, hoeheWaehlen, wegBezug } from './fahrbahn'
+import { kandidaten, fahrbahnVerfolgen, gueltigeHoehe, hoeheWaehlen, startWaehlen, wegBezug, START_DECK_TEXT, START_UNKLAR_TEXT } from './fahrbahn'
 
 const weg = (hs: unknown[][], schritt = 1) => hs.map((kandidaten, i) => ({ p: [i * schritt, 0] as [number, number], kandidaten }))
 describe('Fahrbahnzuordnung', () => {
@@ -67,5 +67,43 @@ describe('Begrenzte Wiederaufnahme', () => {
     expect(r.every(p => p.hoehe.h !== null && p.hoehe.h > 504)).toBe(true)
     expect(r.at(-1)?.hoehe.h).toBe(504.16)
     expect(r.at(-1)?.boden).toBe(501.84)
+  })
+})
+
+// Prüfung 3D-01 (10.11.2026): Starthöhe am Streifen aus Bodenprofil, Geländekachel, Deckhöhen und der Ebene des gequerten OSM-Wegs
+describe('Startwahl am Streifen (3D-01)', () => {
+  const brueckenWeg = (n = 6) => weg(Array.from({ length: n }, (_, i) => [500 - 0.05 * i, 510 + 0.02 * i]))
+  it('Gegenprobe des Reviews: Start auf der Brücke mit tieferem DTM wählt das Deck (OSM hoch) und bleibt oben', () => {
+    const st = startWaehlen(500, 500.3, [510], 'hoch')
+    expect(st).toEqual({ h: 510, hinweis: START_DECK_TEXT })
+    expect(fahrbahnVerfolgen(brueckenWeg(), st.h).map(p => p.hoehe.h)).toEqual([510, 510.02, 510.04, 510.06, 510.08, 510.1])
+  })
+  it('ohne OSM-Angabe, im Tunnel bzw. mit mehreren Decks: unklar, der ganze Weg bleibt ohne Höhe (nie pauschal das höchste Deck)', () => {
+    for (const [deck, lage] of [[[510], undefined], [[510], null], [[510], 'tunnel'], [[505, 510], 'hoch']] as const) {
+      const st = startWaehlen(500, 500, deck, lage)
+      expect(st, `${deck} ${lage}`).toEqual({ h: null, hinweis: START_UNKLAR_TEXT })
+      expect(fahrbahnVerfolgen(brueckenWeg(), st.h).every(p => p.hoehe.h === null)).toBe(true)
+    }
+    // ohne Bodenhöhe kein Deck raten
+    expect(startWaehlen(null, null, [510], 'hoch').h).toBeNull()
+    expect(startWaehlen(null, null, [505, 510], 'hoch').h).toBeNull()
+  })
+  it('Weg unter der Brücke (OSM boden, auch layer < 0) bleibt unten', () => {
+    const st = startWaehlen(500, 500.3, [510], 'boden')
+    expect(st).toEqual({ h: 500 })
+    expect(fahrbahnVerfolgen(brueckenWeg(), st.h).map(p => p.hoehe.h)).toEqual([500, 499.95, 499.9, 499.85, 499.8, 499.75])
+  })
+  it('eine Ebene wie bisher: Boden aus dem Profil, sonst die Geländekachel; Deck auf Höhe des DTM (Klösterlistutz) zählt nicht als zweite Ebene', () => {
+    expect(startWaehlen(504.08, 504.3, [], undefined)).toEqual({ h: 504.08 })
+    expect(startWaehlen(504.08, 504.3, [504.16], undefined)).toEqual({ h: 504.08 })
+    expect(startWaehlen(null, 500.3, [], undefined)).toEqual({ h: 500.3 })
+    expect(startWaehlen(null, null, [510], 'hoch')).toEqual({ h: null })
+    expect(startWaehlen(NaN, Infinity, [], 'hoch')).toEqual({ h: null })
+  })
+  it('vom Gelände über den Brückenkopf: Start auf dem Boden, stetiger Wechsel auf das Deck, das Tal darunter wird nicht verfolgt', () => {
+    // Boden steigt zum Brückenkopf auf das Deck (503), danach fällt das DTM ins Tal, das Deck bleibt
+    const ps = weg([[501], [502], [503], [499, 503.1], [497, 503.2], [495, 503.3]], 3)
+    const st = startWaehlen(501, 501, [], 'boden')
+    expect(fahrbahnVerfolgen(ps, st.h).map(p => p.hoehe.h)).toEqual([501, 502, 503, 503.1, 503.2, 503.3])
   })
 })

@@ -54,7 +54,7 @@ describe('Ablauf: typische Berner Fälle', () => {
     expect(ids(b.lokal.hinweise)).toContain('C2-B')
   })
   it('Tempo-30-Zone mit Schule: FGS möglich mit Begründung (C2b), Pfad D', () => {
-    const b = beurteile(fall({ tempoRegime: 't30_zone', vSig: 30, v85: 31, dtv: 4000, beduerfnis: ['schule'] }), BERN)
+    const b = beurteile(fall({ tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', v85: 31, dtv: 4000, beduerfnis: ['schule'] }), BERN)
     expect(b.zulaessigkeit).toBe('mit_begruendung')
     expect(ids(b.norm.hinweise)).toContain('C2b')
     expect(b.empfehlung.typ).toBe('Q1')
@@ -88,7 +88,7 @@ describe('Ablauf: typische Berner Fälle', () => {
     expect(kr.empfehlung.typ).not.toBe('Q3')
   })
   it('Trottoirüberfahrt am Eingangstor einer T30-Zone: Q3 normkonform, C2 nur stumm (40 242 Z. 15 regelt die Zone)', () => {
-    const b = beurteile(fall({ lage: 'einmuendung', typ: 'trottoirueberfahrt', tempoRegime: 't30_zone', vSig: 30, v85: 30,
+    const b = beurteile(fall({ lage: 'einmuendung', typ: 'trottoirueberfahrt', tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', v85: 30,
       q3: { ...Q3_OK, zoneEinm: 't30', eingangstor: true } }), BERN)
     expect(b.empfehlung.typ).toBe('Q3')
     expect(b.alle.some(x => x.id.startsWith('C'))).toBe(false)

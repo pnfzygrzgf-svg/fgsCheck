@@ -513,7 +513,7 @@ describe('Bern bleibt trotz zusätzlicher Quellen unverändert', () => {
     const f=fallMit(x=>{x.bedarf={felder:{v85:{wert:60,quelle:'hand'}}}})
     const a=befundblatt(mitKurve,f,{vorgabe:{bern:true,kantonBE:true},geo:basis})
     const b=befundblatt(mitKurve,f,{vorgabe:{bern:true,kantonBE:true},geo:{...basis,regional:snapshot(bund)}})
-    expect(a.vorbelegt.werte['kurve.b1Innerorts50']).toMatchObject({wert:true})
+    expect(a.vorbelegt.werte['kurve.b1Innerorts50']).toBeUndefined()   // Kurvenregel je Zufahrt in der Rechnung (Prüfung FGS-01)
     expect(b.vorbelegt.werte['kurve.b1Innerorts50']).toEqual(a.vorbelegt.werte['kurve.b1Innerorts50'])
     expect(b.gebildet.eingaben.innerorts).toEqual(a.gebildet.eingaben.innerorts)
     const regeln=(x:typeof a)=>x.befund.alle.filter(e=>e.id==='A3')

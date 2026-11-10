@@ -14,6 +14,7 @@ import { parkDarstellung, parkPruefText } from '../rechner/parkgeometrie'
 import { add, dist, einheit, rechts, sub, wgs, type P } from '../geo'
 import type { FallRechnung } from '../rechner'
 import type { Konflikt, StreifenErgebnis, ZufahrtErgebnis } from '../rechner/typen'
+import type { WegLage } from '../rechner/netz'
 import type { Poly } from '../rechner/poly'
 import { type Hindernis, laengsPolygon, BAUM_STAMM_M } from '../rechner/hindernisse'
 import type { FlaechePlan, PlanArt } from '../fall'
@@ -131,8 +132,9 @@ export interface KameraFahrzeug { auge: LL; ziel: LL; augHoehe: number; zielHoeh
 export interface SzeneOptionen { feldZeigen?: (art: 'auto' | 'velo', z: ZufahrtErgebnis) => boolean; profil?: string | null; bruecken?: readonly Poly[]; sichtlinienAn?: boolean }
 export interface KameraUebersicht { ziel: LL; peilung: number; distanzM: number; neigungGrad: number }
 export interface Szene3D {
-  /** Wege beginnen am Streifen; Schlüssel der Zufahrt bzw. streifen:<id> für Warteflächen. */
-  wege?: { id: string; punkte: LL[] }[]
+  /** Wege beginnen am Streifen; Schlüssel der Zufahrt bzw. streifen:<id> für Warteflächen. lage: Ebene des gequerten OSM-Wegs am
+   *  Streifen (Start der Fahrbahnhöhe, 3D-01) */
+  wege?: { id: string; punkte: LL[]; lage?: WegLage }[]
   flaechen: Flaeche3D[]
   linien: Linie3D[]
   waende: Wand3D[]
@@ -180,8 +182,9 @@ export function szene3d(rechnung: FallRechnung | null, auswahl: string | null, h
     const vorher = [flaechen.length, linien.length, koerper.length, sichtlinien.length]
     streifenEinfuegen(s, auswahl, neigung, farben, optionen, flaechen, linien, koerper, sichtlinien, k => { kamera.fahrzeug = k })
     const id = `streifen:${s.fgsId}`
-    wege.push({ id, punkte: [ll(s.m), ll(s.p0), ll(s.p1)] })
-    for (const z of s.zufahrten) if (z.spur.length) wege.push({ id: zufahrtKey(z), punkte: z.spur.map(ll) })
+    const lage = s.wegLage ? { lage: s.wegLage } : {}
+    wege.push({ id, punkte: [ll(s.m), ll(s.p0), ll(s.p1)], ...lage })
+    for (const z of s.zufahrten) if (z.spur.length) wege.push({ id: zufahrtKey(z), punkte: z.spur.map(ll), ...lage })
     for (const [j, objekte] of [flaechen, linien, koerper, sichtlinien].entries())
       for (const o of objekte.slice(vorher[j])) {
         // Fahrzeuge ohne zugeordnete Zufahrt (Knotensicht) nicht an den Streifen versetzen.

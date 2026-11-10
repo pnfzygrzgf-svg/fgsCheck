@@ -20,7 +20,7 @@ import { lv95, wgs } from '../geo'
 import { ladeBodenProfil, type BodenProfil } from './bodenprofil'
 import { anschlussFlaechen, anschlussProben, naheUmriss, tragendeFlaechen, ANSCHLUSS_NAEHE_M, ANSCHLUSS_TEXT, type AnschlussFlaeche } from './anschluss'
 import { abstandPunkt, enthaelt, vereinigung } from '../rechner/poly'
-import { fahrbahnVerfolgen, gueltigeHoehe, hoeheWaehlen, kandidaten, wegBezug, type FahrbahnProbe } from './fahrbahn'
+import { fahrbahnVerfolgen, gueltigeHoehe, hoeheWaehlen, kandidaten, startWaehlen, wegBezug, type FahrbahnProbe } from './fahrbahn'
 import { anfragenFolge, ebenenLader, mitEreignispause } from './ladevorgaenge'
 import { LN02_ZU_SZENE_M, bauHoehen, grenzenLv95, grundriss, inBern, naheBau, kunstbautenLesen, kunstbautenUrl, type Grundriss, type Kunstbaute } from './kunstbauten'
 import { AV_MAX_STUFE, KACHEL_PX, avFuellung, avSchluessel, gesamtGrenzen, grenzen, kachelZeichnen, type AvBildFlaeche, type AvBildTeil } from './avBild'
@@ -453,11 +453,12 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
         const [proben, profil] = await Promise.all([kandidatenLaden(pts, s), profilCache.get(key)!])
         const eingang = ps.map((p, i) => ({ p, boden: profil?.szeneHoehen[i] ?? null,
           kandidaten: kandidaten([profil?.szeneHoehen[i] ?? proben[i].gelaende, ...proben[i].deck]) }))
-        const start = gueltigeHoehe(profil?.szeneHoehen[0]) ? profil.szeneHoehen[0]
-          : eingang[0]?.kandidaten.length === 1 ? proben[0]?.gelaende : null
-        return { id: weg.id, weg: fahrbahnVerfolgen(eingang, start), profil, fehler: profilFehler.get(key) }
+        // Start am Streifen: auf einer Brücke nach der Ebene des gequerten OSM-Wegs, sonst unklar (3D-01; fahrbahn.startWaehlen)
+        const start = startWaehlen(profil?.szeneHoehen[0], proben[0]?.gelaende, proben[0]?.deck ?? [], weg.lage)
+        return { id: weg.id, weg: fahrbahnVerfolgen(eingang, start.h), profil, fehler: profilFehler.get(key), hinweis: start.hinweis }
       }))
-      return { wege: new Map(eintraege.map(e => [e.id, e.weg])), profile: eintraege.map(e => e.profil), fehler: [...new Set(eintraege.flatMap(e => e.fehler ? [e.fehler] : []))] }
+      return { wege: new Map(eintraege.map(e => [e.id, e.weg])), profile: eintraege.map(e => e.profil), fehler: [...new Set(eintraege.flatMap(e => e.fehler ? [e.fehler] : []))],
+        hinweise: [...new Set(eintraege.flatMap(e => e.hinweis ? [e.hinweis] : []))] }
     }
     const anschlussLaden = async (s: Szene3D, wege: Map<string, FahrbahnProbe[]>): Promise<AnschlussFlaeche[]> => {
       if (!brueckenSichtbar()) return []
@@ -574,7 +575,8 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
           gelaende: !fest && gueltigeHoehe(h.gelaende) }
       })
       hoehenHinweis = [hs.some(h => h.oben === null) ? 'Fahrbahnhöhen fehlen oder sind mehrdeutig; betroffene Objekte und Sichtlinien werden ausgeblendet.' : '',
-        daten.fehler.length ? `Bodenprofil nicht verfügbar (${daten.fehler.join('; ')}); Rückfall auf Geländekacheln der 3D-Ansicht.` : ''].filter(Boolean).join(' ')
+        daten.fehler.length ? `Bodenprofil nicht verfügbar (${daten.fehler.join('; ')}); Rückfall auf Geländekacheln der 3D-Ansicht.` : '',
+        ...daten.hinweise.map(t => `${t}.`)].filter(Boolean).join(' ')
       let i = 0
       const naechste = () => hs[i++]?.oben ?? null
       // Sichtlinien/Wände verwenden die zugeordnete Fahrbahn, Bodenmarkierungen die sichtbare Standfläche.

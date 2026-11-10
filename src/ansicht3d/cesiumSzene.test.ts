@@ -48,6 +48,7 @@ vi.mock('cesium', async original => {
 })
 
 import { MODELLE, szeneOeffnen } from './cesiumSzene'
+import { START_DECK_TEXT, START_UNKLAR_TEXT } from './fahrbahn'
 const ziel: [number, number] = [47.2, 8.5]
 function modell(p = ziel): Szene3D {
   return { flaechen: [], linien: [], waende: [], koerper: [], sichtlinien: [], kamera: {
@@ -146,14 +147,18 @@ describe('3D-Szene ohne WebGL', () => {
     expect([position.x, position.y, position.z].every(Number.isFinite)).toBe(true)
     expect(staende.at(-1)?.hinweis).toContain('entfernte Übersicht')
   })
-  it.each([['Unterführung', 500.04, 500], ['Brückenkopf', 505.04, 505]] as const)
-    ('%s: Fahrzeug, Person und Kamera erhalten dieselbe zugeordnete Fahrbahn', async (_fall, dtm, erwartet) => {
+  // 3D-01 (10.11.2026): bei Boden und Deck am Streifen entscheidet die Ebene des gequerten OSM-Wegs (Unterführung: boden; Streifen auf
+  // der Brücke mit tieferem DTM: hoch, Deck 505 m LN02 = 504,96 m in der Szene); am Brückenkopf liegt das DTM auf dem Deck (eine Ebene,
+  // wie bisher)
+  it.each([['Unterführung', 500.04, 500, 'boden'], ['Brückenkopf', 505.04, 505, undefined], ['Streifen auf der Brücke über tieferem DTM', 500.04, 504.96, 'hoch']] as const)
+    ('%s: Fahrzeug, Person und Kamera erhalten dieselbe zugeordnete Fahrbahn', async (_fall, dtm, erwartet, lage) => {
       test.dtm = dtm
-      const { s, w } = await oeffnen()
+      const { s, w, staende } = await oeffnen()
       vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response)
       test.baute = [{ name: 'Brücke', dreiecke: new Float64Array([2600000, 1200000, 505, 2600020, 1200000, 505, 2600000, 1200020, 505]) }]
       const p = wgs(2600005, 1200005), m = modell(p)
-      m.wege!.push({ id: 'streifen', punkte: [p] })
+      if (lage) m.wege![0].lage = lage
+      m.wege!.push({ id: 'streifen', punkte: [p], ...(lage ? { lage } : {}) })
       m.koerper.push({ id: 'auto', fahrbahn: 'weg', art: 'auto', mitte: p, peilung: 0, masse: [4, 2, 1.5], farbe: '#ff0000', text: 'Auto' },
         { id: 'person', fahrbahn: 'streifen', art: 'person', mitte: p, peilung: 0, masse: [0.5, 0.5, 1.7], farbe: '#ff0000', text: 'Person' })
       await s.zeigen(m)
@@ -165,7 +170,21 @@ describe('3D-Szene ohne WebGL', () => {
       expect(Cartographic.fromCartesian(person.position.getValue()).height).toBeCloseTo(erwartet + 0.85, 2)
       expect(await s.kamera('fahrzeug')).toBe('fahrzeug')
       expect(Cartographic.fromCartesian(w.camera.setView.mock.calls.at(-1)[0].destination).height).toBeCloseTo(erwartet + 1, 2)
+      if (lage === 'hoch') expect(staende.at(-1)?.hinweis).toContain(START_DECK_TEXT)
     })
+  it.each([undefined, 'tunnel'] as const)('3D-01: Streifen über tieferem DTM, Ebene %s: weder Boden noch Deck geraten, Hinweis «unklar»', async lage => {
+    test.dtm = 500.04
+    const { s, w, staende } = await oeffnen()
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response)
+    test.baute = [{ name: 'Brücke', dreiecke: new Float64Array([2600000, 1200000, 505, 2600020, 1200000, 505, 2600000, 1200020, 505]) }]
+    const p = wgs(2600005, 1200005), m = modell(p)
+    if (lage) m.wege![0].lage = lage
+    m.koerper.push({ id: 'auto', fahrbahn: 'weg', art: 'auto', mitte: p, peilung: 0, masse: [4, 2, 1.5], farbe: '#ff0000', text: 'Auto' })
+    await s.zeigen(m)
+    expect(w.entities.values).toHaveLength(0)
+    expect(await s.kamera('fahrzeug')).toBe('uebersicht')
+    expect(staende.some(st => st.hinweis?.includes(START_UNKLAR_TEXT))).toBe(true)
+  })
   it.each([0.043077, 0.24523, 0.245771, 0.31231])('Klösterlistutz: Personen und Markierungen folgen dem um %s m höheren sichtbaren Boden', async differenz => {
     test.dtm = 504.18; test.terrain = 504.14 + differenz
     const { s, w } = await oeffnen(), m = modell()
@@ -193,6 +212,7 @@ describe('3D-Szene ohne WebGL', () => {
     test.terrain = 500.31; test.dtm = ort === 'Brücke' ? 505.04 : 500.04
     test.baute = [{ name: 'Brücke', dreiecke: new Float64Array([2600000, 1200000, 505, 2600020, 1200000, 505, 2600000, 1200020, 505]) }]
     const { s, w } = await oeffnen(), p = wgs(2600005, 1200005), m = modell(p)
+    if (ort === 'Boden') m.wege![0].lage = 'boden' // Unterführung (3D-01: Ebene aus OSM)
     for (let i = 0; i < 2; i++) m.koerper.push({ id: `person${i}`, fahrbahn: 'weg', art: 'person', mitte: p, peilung: 0,
       masse: [0.5, 0.5, 1.7], farbe: '#ff0000', text: `Person${i}` })
     m.flaechen.push({ id: 'streifen', fahrbahn: 'weg', art: 'streifen', ringe: [[p, wgs(2600006, 1200005), wgs(2600005, 1200006)]],

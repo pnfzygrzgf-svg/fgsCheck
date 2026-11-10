@@ -26,6 +26,33 @@ export function hoeheWaehlen(werte: readonly unknown[], vorher: unknown, abstand
   return { h: hs[0] }
 }
 
+/** Ebene des gequerten OSM-Wegs (rechner/netz.ts) */
+export type StartLage = 'hoch' | 'boden' | 'tunnel'
+export interface StartWahl { h: number | null; hinweis?: string }
+/** Annahmetexte der Startwahl */
+export const START_DECK_TEXT = 'Streifen auf einer Brücke: Fahrbahn ab dem Deck (Annahme aus OSM bridge bzw. layer)'
+export const START_UNKLAR_TEXT = 'Streifen mit mehreren Ebenen (Gelände und Brückendeck), Ebene nicht eindeutig (OSM ohne Brückenangabe, Tunnel bzw. mehrere Decks): Fahrbahnhöhe dort unklar'
+
+/**
+ * Starthöhe eines Wegs am Streifen (Prüfung 3D-01, 10.11.2026). boden: Bodenprofil (DTM 2023 Stadt Bern bzw. swissALTI3D, ohne Brücken),
+ * gelaende: Geländekachel der 3D-Ansicht, deck: Deckhöhen am Startpunkt, lage: Ebene des gequerten OSM-Wegs.
+ * - Eine Ebene (Deck höchstens 0,75 m über dem Boden bzw. kein Deck): wie bisher der Boden (am Klösterlistutz liegt das DTM am Streifen
+ *   auf der Fahrbahn).
+ * - Mehrere Ebenen: lage «hoch» und genau ein Deck über dem Boden → dieses Deck; lage «boden» (auch Unterführung, layer < 0) → der
+ *   Boden; sonst (keine OSM-Angabe, Tunnel, mehrere Decks) unklar. Nie pauschal das höchste Deck.
+ */
+export function startWaehlen(boden: unknown, gelaende: unknown, deck: readonly unknown[], lage?: StartLage | null): StartWahl {
+  const unten = gueltigeHoehe(boden) ? boden : gueltigeHoehe(gelaende) ? gelaende : null
+  const ebenen = kandidaten([unten, ...deck])
+  if (ebenen.length < 2) return { h: gueltigeHoehe(boden) ? boden : ebenen.length === 1 && gueltigeHoehe(gelaende) ? gelaende : null }
+  if (lage === 'boden' && unten !== null) return { h: unten }
+  if (lage === 'hoch' && unten !== null) {
+    const oben = ebenen.filter(h => h > unten + 0.75)
+    if (oben.length === 1) return { h: oben[0], hinweis: START_DECK_TEXT }
+  }
+  return { h: null, hinweis: START_UNKLAR_TEXT }
+}
+
 export interface WegProbe { p: P; kandidaten: readonly unknown[]; boden?: number | null }
 export interface FahrbahnProbe { p: P; hoehe: Hoehe; boden?: number | null }
 export const LUECKE_MAX_M = 5

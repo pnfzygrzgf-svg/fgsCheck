@@ -30,12 +30,25 @@
 import { add, dist, imPolygon, sub, type P } from './geo'
 import type { Poly } from './rechner/poly'
 import { RANG_STATUS, type SichtGelaendeAnzeige, type StreifenErgebnis, type ZufahrtErgebnis } from './rechner/typen'
-import { GELAENDE_TOL_M, VERFEINERN_GELAENDE, gelaendeFrei, gelaendeName, xKey, pruefbereichText, type GelaendeErgebnis, type GelaendeStand, type ProfilLader } from './erkennungGelaende'
+import { GELAENDE_TOL_M, PROFIL_ANNAHME, PROFIL_RAND_MAX_M, VERFEINERN_GELAENDE, gelaendeFrei, gelaendeName, profilFehler, xKey, pruefbereichText,
+  type GelaendeErgebnis, type GelaendeStand, type ProfilLader } from './erkennungGelaende'
+import type { ProfilPunkt } from './knotensicht/rechner/neigung'
 
 /** Ziel über dem Boden der Wartefläche (in ihrer Mitte) [m]: untere Grenze der Sichtfeldhöhe (Annahme) */
 export const ZIEL_HOEHE_WARTE_M = 0.6
 /** Mitte und Ecke so nah beieinander, dass die Höhe der Ecke gilt [m] (kein Profil über null Länge) */
 const MITTE_MIN_M = 0.2
+/** Boden in der Mitte der Wartefläche aus dem ersten Punkt des Profils Mitte → Ecke: nur mit gültigen Zahlen, steigenden Stationen
+ *  (gleiche zulässig: swissALTI3D rundet die Distanzen kurzer Profile auf 0,1 m) und dem ersten Punkt höchstens PROFIL_RAND_MAX_M
+ *  neben der Mitte (Prüfung FGS-03); sonst wirft es */
+export function bodenAusProfil(p: readonly ProfilPunkt[]): number {
+  if (!p.length) throw new Error('Höhenprofil der Wartefläche ohne Höhen')
+  if (!p.every(q => Number.isFinite(q?.dist) && Number.isFinite(q?.h)) || p.some((q, i) => i > 0 && q.dist < p[i - 1].dist))
+    throw new Error('Höhenprofil der Wartefläche unvollständig: ungültige Distanz bzw. Höhe')
+  if (Math.abs(p[0].dist) > PROFIL_RAND_MAX_M) throw new Error('Höhenprofil der Wartefläche unvollständig: Mitte ohne Höhe')
+  return p[0].h
+}
+
 /** ein Augpunkt alle so viele Meter entlang der Sichtpunkte */
 export const SICHT_LINIEN_ABSTAND_M = 10
 /** Obergrenze der Höhenabfragen je Zufahrt (wie bei der Erkennungsdistanz) */
@@ -156,8 +169,9 @@ export function sichtGelaendeSchluessel(z: Pick<ZufahrtErgebnis, 'fgsId' | 'zufa
 }
 
 /**
- * Gelände entlang der Sichtlinien bis zur geprüften Länge (Ablauf oben). Wirft, wenn ein Profil der ersten Runde fehlt (die Rechnung
- * bleibt dann 2D); fehlt ein Profil der Verfeinerung, gilt die letzte freie Lage. Ein Abbruch wird weitergereicht.
+ * Gelände entlang der Sichtlinien bis zur geprüften Länge (Ablauf oben). Wirft, wenn ein Profil der ersten Runde fehlt bzw.
+ * unvollständig ist (erkennungGelaende.profilMangel, Boden der Mitte: bodenAusProfil; die Rechnung bleibt dann 2D); fehlt ein Profil
+ * der Verfeinerung bzw. ist es unvollständig, gilt die letzte freie Lage. Ein Abbruch wird weitergereicht.
  */
 export async function sichtGelaendePruefen(g: SichtGeo, laden: ProfilLader, bruecke?: Bruecke, tol = GELAENDE_TOL_M):
   Promise<GelaendeErgebnis> {
@@ -169,13 +183,15 @@ export async function sichtGelaendePruefen(g: SichtGeo, laden: ProfilLader, brue
     if (!m || dist(m, l.ziel) < MITTE_MIN_M) return Promise.resolve(null)
     const key = `${m[0]},${m[1]}`
     let h = boden.get(key)
-    if (!h) { h = laden(m, l.ziel).then(p => (p.length && Number.isFinite(p[0].h) ? p[0].h : null)); boden.set(key, h) }
+    if (!h) { h = laden(m, l.ziel).then(bodenAusProfil); boden.set(key, h) }
     return h
   }
   const zielBoden: Record<string, number> = {}
   /** frei mit dem Ziel über dem Boden der Mitte (ohne Mitte: über dem Boden an der Ecke, dem letzten Profilpunkt) */
   const pruefe = async (l: SichtLinieGelaende, p: Parameters<typeof gelaendeFrei>[0]) => {
     if (!p.length) return null
+    const fehler = profilFehler(p, l.auge, l.ziel)
+    if (fehler) throw fehler
     const hMitte = await bodenMitte(l)
     const mitMitte = hMitte === null ? p : [...p.slice(0, -1), { ...p[p.length - 1], h: hMitte }]
     zielBoden[xKey(l.x)] = mitMitte[mitMitte.length - 1].h
@@ -275,7 +291,7 @@ export function sichtGelaendeBerichtText(a: Pick<SichtGelaendeAnzeige, 'stand' |
 export const SICHT_GELAENDE_TITEL = 'Geländemodell (Kuppen, Senken, Böschungen) zwischen Fahrlinie und Wartefläche: nach der Rechnung entlang ' +
   'einzelner Sichtlinien (alle 10 m bis zur nötigen Sicht) aus dem Höhenmodell (swissALTI3D, in der Stadt Bern DTM 2023) geprüft, Auge 1,0 m (VSS 40 241 Ziffer 14, S. 6) ' +
   'und Ziel 0,60 m über dem Boden in der Mitte der Wartefläche (Annahme); verdeckt es die Sicht vor der nötigen Sicht, ist die Zufahrt verdeckt. Ohne Antwort gilt die Rechnung in 2D ' +
-  '(«Geländemodell: nicht geprüft»). Die genannten Positionen sind Fahrzeugpositionen entlang der Fahrlinie, keine genaue Sichtgrenze.'
+  `(«Geländemodell: nicht geprüft»). ${PROFIL_ANNAHME}. Die genannten Positionen sind Fahrzeugpositionen entlang der Fahrlinie, keine genaue Sichtgrenze.`
 /** Tooltip einer geländeverdeckten Sichtlinie auf der Karte */
 export const sichtGelaendeLinieText = (x: number, quelle?: string): string =>
   `Sichtlinie ${Math.round(x)} m vor dem Streifen auf die Wartefläche: im ${gelaendeName(quelle)} verdeckt`

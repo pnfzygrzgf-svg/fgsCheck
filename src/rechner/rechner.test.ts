@@ -97,7 +97,9 @@ describe('Tempo und Sichtweite', () => {
     expect(QUELLE_TAB1_20).toMatch(/^Annahme: wie 30 km\/h/)
     expect(tempoStufe(45)).toBe(50)
     expect(sichtweiteKurve(7.5)).toEqual([15, 'bfu'])
-    expect(sichtweiteKurve(26)).toEqual([40, 'VSS Tab. 2'])
+    expect(sichtweiteKurve(26)).toEqual([null, null])          // bfu endet bei 20 m (Prüfung FGS-01); Tab. 2 nur für die Kurvenregel
+    expect(sichtweiteKurve(20.01)).toEqual([null, null])
+    expect(sichtweiteKurve(20)).toEqual([24, 'bfu'])
     expect(sichtweiteKurve(45)).toEqual([null, null])
     expect(radiusRunden(10.04)).toBe(10.1)
     expect(zonenTempo('CH:zone30')).toBe(30)

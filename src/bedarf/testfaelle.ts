@@ -95,11 +95,13 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'C1', name: 'vSig 60, V85 61', abw: { vSig: 60, v85: 61 }, erwartet: { C1: 'hart' }, empfehlung: 'furt' },
   { regel: 'C1', name: 'vSig 50, V85 61', abw: { vSig: 50, v85: 61 }, erwartet: { C1: 'hart', A3: 'weich' } },
   { regel: 'C1', name: 'vSig 70, ohne V85', abw: { vSig: 70, v85: null }, erwartet: { C1: 'hart' } },
-  { regel: 'C2', name: 'T30-Zone ohne Bedürfnis', abw: { tempoRegime: 't30_zone', vSig: 30 }, erwartet: { C2: 'hart', E1: 'hinweis', D2c: '-' } },
-  { regel: 'C2b', name: 'T30-Zone mit Schule', abw: { tempoRegime: 't30_zone', vSig: 30, beduerfnis: ['schule'] }, erwartet: { C2b: 'hinweis', C2: '-' }, empfehlung: 'Q1' },
+  { regel: 'C2', name: 'T30-Zone ohne Bedürfnis', abw: { tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert' }, erwartet: { C2: 'hart', E2: 'hinweis', D2c: '-' } },
+  // Prüfung FGS-02 (10.11.2026): verkehrsorientiert von Hand → Art. 1a, keine Zonenregel
+  { regel: 'C2', name: 'T30-Zone, verkehrsorientierte Strasse (Art. 1a)', abw: { tempoRegime: 't30_zone', vSig: 30 }, erwartet: { C2: '-', C2b: '-' } },
+  { regel: 'C2b', name: 'T30-Zone mit Schule', abw: { tempoRegime: 't30_zone', vSig: 30, beduerfnis: ['schule'], strassentyp: 'siedlungsorientiert' }, erwartet: { C2b: 'hinweis', C2: '-' }, empfehlung: 'Q1' },
   // C2c gestrichen: Hauptstrasse mit Tempo 30 ausserhalb der Zone ist eine Strecke
   { regel: 'C2', name: 'Tempo 30 auf einer Hauptstrasse ausserhalb der Zone (Strecke)', abw: { tempoRegime: 'strecke', vSig: 30 }, erwartet: { C2: '-', C2b: '-' }, empfehlung: 'Q1' },
-  { regel: 'C2-B', name: 'T30-Zone Basisnetz, Bern', abw: { tempoRegime: 't30_zone', vSig: 30 }, ebenen: BERN, erwartet: { C2: 'hart', 'C2-B': 'hinweis' } },
+  { regel: 'C2-B', name: 'T30-Zone Basisnetz, Bern', abw: { tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert' }, ebenen: BERN, erwartet: { C2: 'hart', 'C2-B': 'hinweis' } },
   { regel: 'C3', name: 'FG 99, kein Netz', abw: { fg5h: 99, netz: 'keins' }, erwartet: { C3: 'weich' } },
   { regel: 'C3', name: 'FG 100', abw: { fg5h: 100, netz: 'keins' }, erwartet: { C3: '-' } },
   { regel: 'C3b', name: 'FG 60, qualifizierte Netzplanung', abw: { fg5h: 60, netzQualifiziert: true }, erwartet: { C3b: 'hinweis', C3: '-' } },
@@ -337,10 +339,12 @@ export const TESTFAELLE: Testfall[] = [
   { regel: 'H1b', name: 'V85 57 mit Anzeichen', abw: { v85: 57, anzeichenSchneller: true }, erwartet: { H1: 'hart', H1b: 'hinweis' }, soll: { H1: '75' } },
   { regel: 'H1b', name: 'V85 57 gemessen ohne Anzeichen, Sicht 60', abw: { v85: 57, v85Nachweis: true, sichtVorh: [60, 60] }, erwartet: { H1: 'hart', H1b: 'hinweis' }, soll: { H1: '75' } },
   { regel: 'H1b', name: 'V85 57 ohne Nachweis und ohne Anzeichen', abw: { v85: 57, v85Nachweis: false, sichtVorh: [60, 60] }, erwartet: { H1: '-', H1b: '-' } },
-  { regel: 'H1', name: 'V85 38 nachgewiesen, Sicht 45', abw: { v85: 38, sichtVorh: [45, 45] }, erwartet: { H1: '-' } },
-  { regel: 'H2', name: 'Radius 25, fünf Bedingungen, Sicht 36', abw: { kurve: { radius: 25, radiusStrasse: 25, fuenfBedingungen: true }, sichtVorh: [36, 36] }, erwartet: { H2: 'hinweis', H1: '-' } },
+  // tieferer V85 je Querung senkt nichts mehr (nur je Zufahrt, Prüfung FGS-01, 10.11.2026)
+  { regel: 'H1', name: 'V85 38 nachgewiesen (je Querung), Sicht 45', abw: { v85: 38, sichtVorh: [45, 45] }, erwartet: { H1: 'hart' }, soll: { H1: '55' } },
+  // Strassenkurve je Querung (ältere Fall-Dateien) wirkt nicht mehr: Kurvenregel je Zufahrt in der Sichtprüfung (Prüfung FGS-01)
+  { regel: 'H2', name: 'Radius 25, fünf Bedingungen je Querung, Sicht 36', abw: { kurve: { radius: 25, radiusStrasse: 25, fuenfBedingungen: true }, sichtVorh: [36, 36] }, erwartet: { H2: '-', H1: 'hart' }, soll: { H1: '55' } },
   { regel: 'H2', name: 'Radius 25, Bedingung fehlt, Sicht 36', abw: { kurve: { radius: 25, radiusStrasse: 25, fuenfBedingungen: false }, sichtVorh: [36, 36] }, erwartet: { H2: '-', H1: 'hart' }, soll: { H1: '55' } },
-  { regel: 'H2', name: 'Radius 20, fünf Bedingungen, Sicht 25 (bfu 24 m, Norm 30 m)', abw: { kurve: { radius: 20, radiusStrasse: 20, fuenfBedingungen: true }, sichtVorh: [25, 25] }, erwartet: { H2: 'hinweis', H1: '-' }, soll: { H2: '24' } },
+  { regel: 'H2', name: 'Radius 20, fünf Bedingungen je Querung, Sicht 25', abw: { kurve: { radius: 20, radiusStrasse: 20, fuenfBedingungen: true }, sichtVorh: [25, 25] }, erwartet: { H2: '-', H1: 'hart' }, soll: { H1: '55' } },
   { regel: 'H3a', name: 'Erkennung 54 (Soll 55)', abw: { erkennungM: 54 }, erwartet: { H3a: 'hart', H3b: '-' } },
   { regel: 'H3b', name: 'Erkennung 100', abw: { erkennungM: 100 }, erwartet: { H3b: 'weich', H3a: '-' } },
   { regel: 'H3b', name: 'Erkennung 110', abw: { erkennungM: 110 }, erwartet: { H3b: '-' } },

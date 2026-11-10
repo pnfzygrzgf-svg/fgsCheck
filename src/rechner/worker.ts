@@ -28,6 +28,8 @@ interface Auftrag {
   vsig?: VsigEingang | null
   /** Trottoirüberfahrt (K2/K3): Mitte des AV-Ausschnitts und Längsneigung der Knotensicht aus dem Höhenmodell */
   avZentrum?: P; hoehen?: Record<string, HoehenVorgabe> | null
+  /** Längsneigung der Fahrlinie je «Streifen|Kennung» [%] (Kurvenregel, Prüfung FGS-01) */
+  neigungFahrlinie?: Record<string, number | null> | null
 }
 
 let bildSchl = '', bild: Bild | null = null
@@ -46,12 +48,12 @@ async function dekodieren(lb: LuftbildRoh): Promise<Bild> {
 }
 
 self.onmessage = async (ev: MessageEvent<Auftrag>) => {
-  const { id, osm, av, sosf, nid, fall, kataster, park, luftbild, vsig, avZentrum, hoehen } = ev.data
+  const { id, osm, av, sosf, nid, fall, kataster, park, luftbild, vsig, avZentrum, hoehen, neigungFahrlinie } = ev.data
   try {
     let b: Bild | null = null
     if (luftbild) { try { b = await dekodieren(luftbild) } catch { b = null } }
     const r = rechneFall(osmParsen(osm as Parameters<typeof osmParsen>[0]), avParsen(av), sosf ? avParsen(sosf) : [], nid, fall, kataster, b,
-      park ?? null, vsig ? vsigTempo(vsig) : null, vsig?.bereich && !vsig.zuerich && !vsig.regional ? { linien: [...vsig.linien], bereich: { ...vsig.bereich!, form: 'quadrat' } } : null, vsig?.zuerich ?? null, vsig?.regional ?? null)
+      park ?? null, vsig ? vsigTempo(vsig) : null, vsig?.bereich && !vsig.zuerich && !vsig.regional ? { linien: [...vsig.linien], bereich: { ...vsig.bereich!, form: 'quadrat' } } : null, vsig?.zuerich ?? null, vsig?.regional ?? null, neigungFahrlinie ?? null)
     if (luftbild && !b) r.meldungen.push('Luftbild nicht lesbar: Streifen aus OSM + AV.')
     // Trottoirüberfahrt: Knotensicht der Einbiegenden (Kern des SichtweitenCheck); ohne Trottoirüberfahrt geschieht nichts
     knotensichtAnfuegen(r, { osm, av }, fall, { park: park ?? null, baeume: kataster ?? null, vsig: vsig ?? null, avZentrum: avZentrum ?? lv95(fall.ort.lat, fall.ort.lon),

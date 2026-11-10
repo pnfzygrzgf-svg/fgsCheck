@@ -46,7 +46,6 @@ import { zufahrtNamen } from '../benennung'
 import { erkennungText } from '../texte'
 import { ERKENNUNG_FAKTOR, type Erkennung } from '../rechner/erkennung'
 import { erkennungAnzeige, gelaendeText, type GelaendeStand } from '../erkennungGelaende'
-import { modellName } from '../hoehenModell'
 import { sichtFgs } from './tabellen'
 import { type Fall, inselStandard } from '../fall'
 import type { Quelle, TempoRegime } from './eingaben'
@@ -62,8 +61,6 @@ import { WARTE_TC_S, WARTE_TF_S, breiteVorbelegung, knotensichtGueltig, knotensi
   winkelVorbelegung } from '../tue/texte'
 import { wegTempo } from '../rechner/tempo'
 import { OsmNetz } from '../rechner/netz'
-import { KURVE_GEFAELLE_MAX, KURVE_NAH_M, KURVE_WEIT_M, KURVE_WINKEL_MIN, kurveProfilSchluessel, strassenKurve } from './kurvenregel'
-import type { NeigungMessung } from '../knotensicht/rechner/typen'
 import { automatikC, oevVorbelegen, strassentypBern, tempoAusHierarchie, vsigVorbelegen, zoneNachVsig } from './automatikC'
 import { bfsAmPunkt, GEOPORTAL_BERN, type BernErgebnis } from '../daten/geoportal'
 import type { RichtplanDaten } from '../daten/richtplanFussverkehr'
@@ -540,7 +537,7 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
     w[p].quellenOptionen = optionen
   }
   // Kurvenregel (29.10.2026): die fünf Voraussetzungen aus der Zufahrt mit der Kurve (kurvenregel.ts)
-  kurvenregelVorbelegen(st, fall, w, geo.kurveNeigung ?? null, setze, feldHinweis)
+  // Kurvenregel seit 10.11.2026 je Zufahrt in der Rechnung (rechner/kurvenregel.ts), keine Vorbelegung je Querung mehr
   // Trottoirüberfahrt (K4): die Knotensicht (tue/knotensicht.ts) beantwortet «Sicht beim Ausfahren», nur mit eindeutigem Ergebnis beider
   // Phasen; sonst bleibt die Frage offen (Hinweis). Eine Handeingabe geht vor (fallBedarf)
   const kv = knotensichtVorbelegung(g.streifen.flatMap(s => (s.knotensicht ? [s.knotensicht] : [])))
@@ -611,57 +608,6 @@ export function zoneFuerSicht(g: QuerungGruppe, fall: Fall, geo: GeoVorbelegung)
     : lesetext(v.text) }
 }
 
-/**
- * Kurvenregel (VSS 40 241 Z. 14, S. 7; 29.10.2026): nur an einer Kurve der Strasse selbst (gerade Zufahrt, Fahrlinie ändert die Richtung
- * innerhalb der Sichtweite um mindestens 60°; kurvenregel.strassenKurve), nicht für Abbieger. Vorbelegt: Radius der Strassenkurve und die
- * fünf Voraussetzungen: (1) innerorts, 50 km/h und vortrittsberechtigte Strasse (Vortritt seit 30.10.2026: über die Zufahrt ohne Vortritt einer
- * Kreuzung nein, sonst angenommen), (2) Fahrstreifen je Richtung, (3) Abstand vom Kurvenende, (4) Richtungsänderung,
- * (5) Längsgefälle aus dem Höhenmodell. Ohne solche Kurve nichts (die Fragen sind dann ausgeblendet)
- */
-export function kurvenregelVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vorbelegung, neigung: Readonly<Record<string, NeigungMessung>> | null,
-  setze: Setze, feldHinweis: FeldHinweis): void {
-  const sk = strassenKurve(st)
-  if (!sk) return
-  const z = sk.z
-  const Z = '(VSS 40 241 Z. 14, S. 7)'
-  setze('kurve.radiusStrasse', sk.radius, 'rechnung', `Strassenkurve vor dem Streifen: Radius rund ${sk.radius} m, Richtungsänderung rund ` +
-    `${sk.winkel}° (Fahrlinie der Sichtprüfung, OSM-Weg)`)
-  // (1) innerorts (von Hand bzw. vorbelegt), Tempo der Zufahrt in der Kurve und Vortritt (30.10.2026: Lage «Kreuzung, über die Zufahrt ohne
-  // Vortritt» von Hand bzw. vorbelegt: nein; sonst als Annahme vortrittsberechtigt, kein sechstes Feld)
-  const hl = fall.bedarf?.felder.lage
-  const lage = hl && typeof hl.wert === 'string' ? { wert: hl.wert, quelle: hl.quelle } : w.lage && typeof w.lage.wert === 'string'
-    ? { wert: w.lage.wert as string, quelle: w.lage.quelle } : null
-  const hi = fall.bedarf?.felder.innerorts
-  const io = hi && typeof hi.wert === 'boolean' ? { wert: hi.wert, quelle: hi.quelle } : w.innerorts && typeof w.innerorts.wert === 'boolean'
-    ? { wert: w.innerorts.wert as boolean, quelle: w.innerorts.quelle } : null
-  const tempoBekannt = z.tempoQuelle !== 'Ersatz'
-  const tq: Quelle = tempoQuelleArt([z.tempoQuelle])
-  const annahme = (q: Quelle) => q === 'annahme' || q === 'schaetzung'
-  if (io?.wert === false) setze('kurve.b1Innerorts50', false, io.quelle === 'hand' ? 'rechnung' : io.quelle, `ausserorts: Kurvenregel gilt nicht ${Z}`)
-  else if (lage?.wert === 'knoten_belastet') setze('kurve.b1Innerorts50', false, lage.quelle === 'hand' ? 'rechnung' : lage.quelle,
-    `Streifen über die Zufahrt ohne Vortritt: keine vortrittsberechtigte Strasse, Kurvenregel gilt nicht ${Z}`)
-  else if (tempoBekannt && z.tempo !== 50) setze('kurve.b1Innerorts50', false, tq, `Tempo der Zufahrt in der Kurve ${z.tempo} km/h, nicht 50 km/h ${Z}`)
-  else if (io?.wert === true && tempoBekannt) setze('kurve.b1Innerorts50', true, 'annahme',
-    `innerorts${annahme(io.quelle) ? ' (angenommen)' : ''}, Tempo der Zufahrt in der Kurve 50 km/h, vortrittsberechtigt angenommen ${Z}`)
-  else feldHinweis('kurve.b1Innerorts50', `${io ? 'Tempo der Zufahrt in der Kurve unbekannt' : 'innerorts noch offen'}: von Hand angeben ${Z}`)
-  // (2) Fahrstreifen je Richtung der Zufahrt
-  const nOsm = z.fahrstreifenOsmN ?? null
-  const nFs = nOsm ?? (z.mehrstreifig === null ? null : z.mehrstreifig ? 2 : 1)
-  if (nFs !== null) setze('kurve.b2EinFahrstreifen', nFs <= 1, nOsm !== null ? 'osm' : 'annahme',
-    `${nFs} Fahrstreifen je Richtung in der Kurve (${nOsm !== null ? 'OSM, lanes' : 'aus der Fahrbahnbreite geschätzt'}) ${Z}`)
-  // (3) und (4) aus der Fahrlinie der Sichtprüfung
-  const t = `Kurvenende ${ganz(sk.endeM)} m vor dem Streifen (Fahrlinie der Sichtprüfung)`
-  if (sk.endeM <= KURVE_NAH_M) setze('kurve.b3NachKurvenende', true, 'rechnung', `${t} ${Z}`)
-  else if (sk.endeM > KURVE_WEIT_M) setze('kurve.b3NachKurvenende', false, 'rechnung', `${t} ${Z}`)
-  else feldHinweis('kurve.b3NachKurvenende', `${t}: von Hand beurteilen ${Z}`)
-  setze('kurve.b4Winkel60', sk.winkel >= KURVE_WINKEL_MIN, 'rechnung', `Richtungsänderung der Fahrlinie über die Kurve rund ${sk.winkel}° ` +
-    `(Sichtprüfung, OSM-Weg) ${Z}`)
-  // (5) Längsgefälle aus dem Höhenmodell entlang der Fahrlinie
-  const m = neigung?.[kurveProfilSchluessel(z)]
-  if (m && m.i !== null) setze('kurve.b5Gefaelle5', Math.abs(m.i) <= KURVE_GEFAELLE_MAX, 'rechnung',
-    `Längsneigung ${String(Math.abs(m.i)).replace('.', ',')} % auf ${ganz(m.laenge)} m vor dem Streifen (Höhenmodell ${modellName(m.quelle)}) ${Z}`)
-  else feldHinweis('kurve.b5Gefaelle5', `Höhenmodell nicht verfügbar: Längsgefälle von Hand angeben ${Z}`)
-}
 
 // ── Trottoirkante an den Streifenenden (Richtlinie Hindernisfreie Architektur Kap. 4.1, S. 10; 30.10.2026) ──
 //
@@ -805,23 +751,25 @@ export function erkennungVorbelegen(st: StreifenErgebnis[], fall: Fall, w: Vorbe
     return s.zufahrten.filter(z => z.art !== 'abbiegend' && z.erkennungM).map(z => {
       const nr = namen.zufahrt.get(z.zufahrt)?.nr
       const name = `${st.length > 1 ? `Teil ${i + 1}, ` : ''}${nr ? `Zufahrt ${nr}` : `Zufahrt ${z.zufahrt}`}`
-      return { e: erkennungAnzeige(z, gelaende)!.e, name, tempo: z.tempo }
+      return { e: erkennungAnzeige(z, gelaende)!.e, name, tempo: z.tempo, soll: z.sichtweite }
     })
   })
   if (!kand.length) return
   // Bewuchs (30.10.2026): als Erkennungsdistanz zählt der sicher freie Teil (bis zum Beginn des Bewuchses), wie ein gerechneter Wert
   const sicher = (e: Erkennung) => e.bewuchsAb ?? e.wert
-  const rang = (x: { e: Erkennung }) => sicher(x.e) + (x.e.bis === 'fahrlinie_endet' && x.e.bewuchsAb === undefined ? 0.5 : 0)
+  // massgebend die Zufahrt mit dem kleinsten Verhältnis zur eigenen Sichtweite (Soll je Zufahrt: Kurvenregel bzw. V85, Prüfung FGS-01)
+  const rang = (x: { e: Erkennung; soll: number }) => (sicher(x.e) + (x.e.bis === 'fahrlinie_endet' && x.e.bewuchsAb === undefined ? 0.5 : 0)) / x.soll
   const min = kand.reduce((a, b) => (rang(b) < rang(a) ? b : a))
   const text = `Sichtprüfung: ${erkennungText(min.e)} (${min.name}); ${gelaendeText(min.e)}; ` +
     'nur Bodenmarkierung geprüft; Signale hier nicht zusätzlich bewertet'
   const zahl = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? x : null)
   const hand = (p: string) => zahl(fall.bedarf?.felder[p]?.wert)
   const v = Math.max(...[zahl(w.vSig?.wert), hand('vSig'), hand('v85'), ...kand.map(k => k.tempo)].filter((x): x is number => x !== null))
-  const noetig = ERKENNUNG_FAKTOR * sichtFgs(v)
+  const noetig = ERKENNUNG_FAKTOR * Math.max(sichtFgs(v), min.soll)
   if (min.e.bis === 'verdeckt' || min.e.bewuchsAb !== undefined || min.e.wert >= noetig - 1e-9) {
     setze('erkennungM', sicher(min.e), 'annahme', text)
     w.erkennungM.geradeZufahrt = true
+    w.erkennungM.sollM = min.soll
   }
   else feldHinweis('erkennungM', `${text}; nötig ${noetig} m (doppelte Sichtweite bei ${v} km/h), so weit nicht geprüft: von Hand angeben`)
 }

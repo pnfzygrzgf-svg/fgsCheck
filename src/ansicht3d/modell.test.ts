@@ -333,3 +333,20 @@ it('erkennt eine schmale überquerte Brücke ohne Stützpunkt im Umriss', async 
   expect(linieBeruehrtBruecke([[3, 0], [3, 10]], br)).toBe(false)
   expect(linieBeruehrtBruecke([[0.5, 4.15], [1.5, 4.15]], br)).toBe(true)
 })
+
+// Prüfung 3D-01 (10.11.2026): Ebene des gequerten OSM-Wegs am Streifen (bridge/layer/tunnel) bis in die Wege der 3D-Szene
+describe('Ebene des gequerten Wegs für den Start der Fahrbahnhöhe (3D-01)', () => {
+  const mitTags = (zusatz: Record<string, string>) => {
+    const roh = { elements: OSM_ROH.elements.map(e => (e.id === 1 ? { ...e, tags: { ...e.tags, ...zusatz } } : e)) }
+    return rechneFall(osmParsen(roh), avParsen(AV), [], null, fallMit(), null, null, null, null)
+  }
+  it.each([[{}, 'boden'], [{ bridge: 'yes', layer: '1' }, 'hoch'], [{ layer: '1' }, 'hoch'], [{ layer: '-1' }, 'boden'], [{ tunnel: 'yes', layer: '-1' }, 'tunnel']] as const)
+    ('OSM %o → %s an Streifen und allen Wegen der Szene', (tags, lage) => {
+      const r = mitTags(tags)
+      expect(r.streifen[0].zufahrten.length).toBeGreaterThan(0)
+      expect(r.streifen[0].wegLage).toBe(lage)
+      const sz = szene3d(r, null, [], [], null, FARBEN)
+      expect(sz.wege!.length).toBe(1 + r.streifen[0].zufahrten.length)
+      expect(sz.wege!.every(w => w.lage === lage)).toBe(true)
+    })
+})

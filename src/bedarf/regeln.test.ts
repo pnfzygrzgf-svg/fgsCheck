@@ -5,7 +5,7 @@ import { beurteile } from './entscheid'
 import { fall, S0, TESTFAELLE, type Testfall } from './testfaelle'
 import { formelSicht, sollSichtOhneVortritt } from './sichtOhneVortritt'
 import { AHS_40240, TAB2_40241, ahs, sichtFgs, sichtKurveTab2 } from './tabellen'
-import { SICHTWEITE, KURVE_SICHTWEITE } from '../rechner/tempo'
+import { SICHTWEITE, KURVE_SICHTWEITE, TAB2_KURVE } from '../rechner/tempo'
 import { KATALOG } from './katalog'
 import type { Befund } from './typen'
 
@@ -75,29 +75,20 @@ describe('Normbeispiele und Tabellen', () => {
       expect(b(s).alle.find(x => x.id === 'H1'), `${v} km/h`).toBeUndefined()
     }
   })
-  it('40 241 Tab. 2: je Radius knapp darunter hart; bei 20 m gilt der bfu-Wert 24 m (wie tempo.ts) mit Normhinweis 30 m', () => {
-    const soll: Record<number, number> = { 20: 24, 25: 35, 30: 40, 35: 45, 40: 50 }
-    for (const [r, s] of Object.entries(soll).map(([r, s]) => [Number(r), s])) {
-      expect(sichtKurveTab2(r)).toEqual({ sicht: s, norm: TAB2_40241[r] })
-      const b = beurteile(fall({ kurve: { radius: r, radiusStrasse: r, fuenfBedingungen: true }, sichtVorh: [s - 0.1, 80] }))
-      const h1 = b.alle.find(x => x.id === 'H1')
-      expect(h1?.staerke, `Radius ${r}`).toBe('hart')
-      if (r === 20) expect(h1?.normHinweis).toContain('30 m')
-      else expect(h1?.normHinweis).toBeUndefined()
-    }
-    expect(TAB2_40241[20]).toBe(30)                            // Normwert bleibt als Referenz
-    for (const [r, s] of KURVE_SICHTWEITE) if (r >= 20) expect(sichtKurveTab2(r)?.sicht).toBe(s)
+  it('40 241 Tab. 2 ausschliesslich (Prüfung FGS-01): bei 20 m 30 m, nicht der bfu-Wert 24 m; gleiche Werte wie der Rechenkern', () => {
+    for (const r of [20, 25, 30, 35, 40]) expect(sichtKurveTab2(r)).toEqual({ sicht: TAB2_40241[r], norm: TAB2_40241[r] })
+    expect(sichtKurveTab2(20)?.sicht).toBe(30)
+    for (const [r, s] of TAB2_KURVE) expect(TAB2_40241[r]).toBe(s)
+    expect(KURVE_SICHTWEITE.every(([r]) => r <= 20)).toBe(true)  // bfu nur bis 20 m (Knoten)
     expect(sichtKurveTab2(22)).toEqual({ sicht: 35, norm: 35 })
     expect(sichtKurveTab2(19)).toBeNull()
   })
-  it('Kurvenregel nur innerorts bei 50 km/h (29.10.2026): sonst gilt Tab. 1 trotz «ja» zu den fünf Voraussetzungen', () => {
-    const h2 = (abw: Record<string, unknown>) => beurteile(fall({ kurve: { radius: 25, radiusStrasse: 25, fuenfBedingungen: true }, sichtVorh: [36, 36], ...abw })).alle.find(x => x.id === 'H2')
-    expect(h2({})?.zustand).toBe('verletzt')                   // Weiche: Sicht nach Radius
-    expect(h2({ vSig: 30 })).toBeUndefined()
-    expect(h2({ vSig: 60 })).toBeUndefined()
-    // ausserorts endet der Baum vorher; die Regel selbst greift dort nicht
-    const b = beurteile(fall({ kurve: { radius: 25, radiusStrasse: 25, fuenfBedingungen: true }, sichtVorh: [36, 36], vSig: 30 }))
-    expect(b.alle.find(x => x.id === 'H1')?.soll ?? '').not.toContain('Tab. 2')
+  it('Strassenkurve je Querung (ältere Fall-Datei) wirkt nicht mehr: kein H2, Sicht nach dem Tempo (Prüfung FGS-01)', () => {
+    for (const vSig of [30, 50, 60]) {
+      const b = beurteile(fall({ kurve: { radius: 25, radiusStrasse: 25, fuenfBedingungen: true }, sichtVorh: [36, 36], vSig }))
+      expect(b.alle.find(x => x.id === 'H2'), `${vSig} km/h`).toBeUndefined()
+      expect(b.alle.find(x => x.id === 'H1')?.soll ?? '').not.toContain('Tab. 2')
+    }
   })
   it('AH BE 5.3.2 markierte Insel: Fahrbahn 7,5 bis 8,4 m, Fahrstreifen je 3,0 m, Insel mindestens 1,5 m', () => {
     const b = (B: number, d: number, i: number) => beurteile(fall({ fahrbahnB: B, insel: { vorhanden: true, art: 'markiert', breite: i, kopfUeberstand: null, vertikal: null, kopfErhoeht: null, furt: null }, durchfahrt: [d, d] }), { ebenen: { kantonBE: true } })

@@ -190,7 +190,9 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   tempoAmtlich: TempoAmtlich | null = null,
   /** V_sig-Linien des Geoportals Stadt Bern mit Bereich (wie geo.vsig der Vorbelegung): für Strecke oder Zone der unmarkierten
    * OSM-Querung (Begegnungszone, 30.10.2026); null: ausserhalb Berns bzw. nicht geladen */
-  vsigZone: GeoVorbelegung['vsig'] = null, zuerich: ZuerichSnapshot | null = null, regional: RegionalSnapshot | null = null): FallRechnung {
+  vsigZone: GeoVorbelegung['vsig'] = null, zuerich: ZuerichSnapshot | null = null, regional: RegionalSnapshot | null = null,
+  /** Längsneigung der Fahrlinie je «Streifen|Kennung» [%] (App, Höhenmodell; Kurvenregel b5) */
+  neigungFahrlinie: Readonly<Record<string, number | null>> | null = null): FallRechnung {
   const t0 = performance.now()
   // Flächen (Plan) von Hand (planflaechen.ts): ersetzen die AV-Bodenbedeckung darunter, für die ganze Rechnung (ohne sie: av)
   const plan = avMitPlan(av0, fall.flaechenPlan)
@@ -316,7 +318,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const sb = streifen.filter(s => istBestand(s.fgsId))
   const furt = sb.length > 1 || sb.some(s => s.inseln.length > 0)
   const vorgabe = (typ: QuerungSicht) => (fid: string) => (grau && istBestand(fid) ? typ : null)
-  kx.vonHand = vonHandAusFall(fall, vorgabe(furt ? 'furt' : 'ohne_vortritt'))
+  kx.vonHand = vonHandAusFall(fall, vorgabe(furt ? 'furt' : 'ohne_vortritt'), neigungFahrlinie)
   kx.tempoAmtlich = tempoAmtlich
   // Ortslage für Tab. 1 bei 60 km/h (30.10.2026): Angabe im Bedarfsblock des Falls (von Hand); sonst OSM am gequerten Weg (pruefen.ortslageSicht)
   const io = fall.bedarf?.felder.innerorts?.wert
@@ -333,7 +335,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
     const z = zoneFuerSicht(g, fall, { osmTags, vsig: vsigZone, osm, zuerich, regional })
     if (z.wert === 'begegnungszone') {
       bgzText = z.text
-      kx.vonHand = vonHandAusFall(fall, vorgabe('begegnungszone'))
+      kx.vonHand = vonHandAusFall(fall, vorgabe('begegnungszone'), neigungFahrlinie)
       erg = pruefen(streifen, kx)
     }
   }

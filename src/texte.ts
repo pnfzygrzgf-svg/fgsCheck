@@ -105,7 +105,9 @@ export function sichtQuelleKurz(q: string): string {
   if (/^bis Knoten/.test(q)) return 'bis zur Kreuzung'
   if (/^bis Wegende/.test(q)) return 'bis zum Wegende'
   if (/^bis Gebäude/.test(q)) return 'bis zum Gebäude'
-  if (/Kurvensichtweite|Tab\. 2|bfu|Kreiselring|Radius/.test(q)) return 'nach Kurvenradius'
+  if (/Kurvenregel|Tab\. 2/.test(q)) return 'nach Strassenkurve (Kurvenregel)'
+  if (/V85/.test(q)) return 'nach V85'
+  if (/Kurvensichtweite|bfu|Kreiselring|Radius/.test(q)) return 'nach Kurvenradius'
   return 'nach Tempo'
 }
 export const STATUS: Record<string, string> = {

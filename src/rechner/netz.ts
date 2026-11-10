@@ -176,6 +176,11 @@ export function wegDeuten(nds: number[], t: Tags): Weg {
   }
 }
 
+/** Ebene eines OSM-Wegs (Prüfung 3D-01, 10.11.2026): hoch = über dem Boden (bridge bzw. layer > 0 ohne tunnel, wie Weg.hoch),
+ *  tunnel = tunnel gesetzt, sonst boden (auch layer < 0: Unterführung im Gelände). Nur für die 3D-Darstellung */
+export type WegLage = 'hoch' | 'boden' | 'tunnel'
+export const wegLage = (w: Pick<Weg, 'hoch' | 't'>): WegLage => (w.hoch ? 'hoch' : (w.t.tunnel ?? 'no') !== 'no' ? 'tunnel' : 'boden')
+
 // ---------------------------------------------------------------- Datenklassen (fgs_netz.py)
 export interface Gequert {            // massgebender Weg am Teilstreifen (SPEC 2.2)
   wid: number; k: number; q: P; lage: number; winkel: number; imStreifen: boolean; klasse: 'mfz' | 'bus'

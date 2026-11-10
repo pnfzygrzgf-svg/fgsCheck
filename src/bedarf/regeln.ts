@@ -6,7 +6,7 @@
 
 import { KATALOG, type BefundId } from './katalog'
 import { type Ergebnis, type Kontext, Offen } from './kontext'
-import { BERN_INSEL, BERN_LSA, BERN_Q3, Q3_DTV_GRENZE, bernTabelle, kTempo, sichtFgs, sichtFgsHerkunft, sichtKurveTab2, type Bern3a } from './tabellen'
+import { BERN_INSEL, BERN_LSA, BERN_Q3, Q3_DTV_GRENZE, bernTabelle, kTempo, sichtFgs, sichtFgsHerkunft, type Bern3a } from './tabellen'
 import { EPS, pruefeSichtOhneVortritt, type SichtOhneVortritt } from './sichtOhneVortritt'
 import { sichtweiteKurve } from '../rechner/tempo'
 import { f3Klasse } from './durchfahrt'
@@ -66,23 +66,15 @@ function e3(k: Kontext): { r: SichtOhneVortritt; v: number; L: number[] } {
 const e3Ausnahme = (k: Kontext): boolean => fgUnter(k, K.E3a.werte.fgMax) && k.w('dtv') < K.E3a.werte.dtvMax
 
 /** Normhinweis, wenn bei Radius 20 m der bfu-Wert statt Tab. 2 gilt */
-const hinweisTab2 = (t: { sicht: number; norm: number }): string | undefined =>
-  t.sicht !== t.norm ? `Norm: VSS 40 241:2019 Tab. 2 nennt ${t.norm} m; verwendet ist wie in der Sichtprüfung der bfu-Wert ${t.sicht} m` : undefined
 
 /**
  * Notwendige Sichtweite FGS (H1, H3): Tab. 2 nach Kurvenradius (H2), sonst Tab. 1 nach vSicht. vSicht = vSig; mit Anzeichen
  * für schnelleres Fahren oder gemessener V85 über vSig gilt V85 (Pflicht); mit nachgewiesener tieferer V85 darf V85 gelten
  * (40 241 Z. 14). offenV85: Anzeichen ohne Messung, V85 wäre nötig.
  */
-/** Kurvenregel (VSS 40 241 Z. 14, S. 7): die fünf Voraussetzungen und dazu innerorts mit signalisiert 50 km/h (29.10.2026) */
-export const kurvenregelGilt = (k: Kontext): boolean => !!k.w('kurve').fuenfBedingungen && (k.w('kurve').radiusStrasse ?? null) !== null &&
-  k.o('innerorts') === true && k.o('vSig') === 50
+// Seit 10.11.2026 (Prüfung FGS-01): Kurvenregel und ein tieferer V85 gelten je Zufahrt in der Sichtprüfung (rechner/kurvenregel.ts);
+// hier nur noch die Sichtweite nach Tempo für eine Sichtweite von Hand, ein höherer V85 bleibt Pflicht für die ganze Querung
 function hSoll(k: Kontext): { soll: number; text: string; offenV85: boolean; normHinweis?: string } {
-  const kurve = k.w('kurve')
-  if (kurvenregelGilt(k)) {
-    const t = sichtKurveTab2(kurve.radiusStrasse!)
-    if (t !== null) return { soll: t.sicht, text: `Tab. 2, Radius ${fmt(kurve.radiusStrasse!, 0)} m`, offenV85: false, normHinweis: hinweisTab2(t) }
-  }
   const vSig = k.w('vSig')
   const v85 = k.o('v85')
   const anz = k.w('anzeichenSchneller')
@@ -91,7 +83,6 @@ function hSoll(k: Kontext): { soll: number; text: string; offenV85: boolean; nor
   if (anz && v85 === null) return { soll: sichtFgs(vSig), text: `${T(vSig)}, ${vSig} km/h signalisiert`, offenV85: true }
   if (v85 !== null && v85 > vSig && (anz || k.w('v85Nachweis')))
     return { soll: sichtFgs(v85), text: `${T(v85)}, V85 ${v85} km/h (${anz ? 'Anzeichen' : 'Messung'} über dem signalisierten Tempo)`, offenV85: false }
-  if (v85 !== null && v85 < vSig && !anz && k.w('v85Nachweis')) return { soll: sichtFgs(v85), text: `${T(v85)}, V85 ${v85} km/h (Messung)`, offenV85: false }
   return { soll: sichtFgs(vSig), text: `${T(vSig)}, ${vSig} km/h signalisiert`, offenV85: false }
 }
 function hSollSicher(k: Kontext): number {
@@ -108,6 +99,10 @@ const istKnoten = (lage: string): boolean => lage.startsWith('knoten')
  * ausschliessen, werden darum vor offenen Feldern gelesen (k.o): Lichtsignal bekannt, Typ bekannt, Insel bzw. Radstreifen «nein».
  */
 const lsaBekannt = (k: Kontext): boolean => k.o('typ') === 'lsa' || k.o('fgsMitLsa') === true
+
+/** Strassenfunktion belastbar: von Hand, bestätigt bzw. aus amtlichen Daten; keine Annahme bzw. Schätzung (Prüfung FGS-02) */
+const strassentypBelastbar = (k: Kontext): boolean => { const q = k.e.strassentyp?.quelle ?? null; return q !== null && !QUELLEN_ANNAHME.includes(q) && q !== 'vorschlag' }
+const ZONE_ART_1A = 'verkehrsorientierte Strasse: gilt nach Art. 1a der Zonenverordnung nicht als Zonenstrasse (Stand 01.10.2026), Art. 4 Abs. 2 entfällt'
 
 export const REGELN: Record<BefundId, RegelFn> = {
   // ── A ──
@@ -150,20 +145,36 @@ export const REGELN: Record<BefundId, RegelFn> = {
   // C2c gestrichen: eine Hauptstrasse ausserhalb der Zone ist im Tempo-Regime eine Strecke
   // Mit bekanntem besonderem Grund ist C2 auch bei offener Zone nicht verletzbar (C2b statt C2);
   // offen ist C2 nur nach den Feldern, die wirklich fehlen (Zone und/oder Grund)
+  // Art. 1a der Zonenverordnung (seit 01.10.2026, SR 741.213.3; Prüfung FGS-02, 10.11.2026): verkehrsorientierte Strassen gelten
+  // nicht als Zonenstrassen, auch wenn sie in die Zone einbezogen sind; dort entfällt Art. 4 Abs. 2. Die Strassenfunktion zählt
+  // nur belastbar (von Hand, bestätigt bzw. amtlich, z. B. Strassenhierarchie Bern); eine OSM-Annahme macht C2 offen
+  // («Vorschlag bestätigen», nurMitBestaetigung), ohne Strassentyp bleibt C2 offen
   C2: k => {
     const tr = k.o('tempoRegime'), bd = k.o('beduerfnis')
     if (bd !== null && k.bed()) return tr === null || tr === 't30_zone' ? ja(false) : null
     if (tr === null) throw new Offen(bd === null ? ['tempoRegime', 'beduerfnis'] : ['tempoRegime'])
-    return tr !== 't30_zone' ? null : ja(!k.bed())
+    if (tr !== 't30_zone') return null
+    const st = k.o('strassentyp')
+    if (st === null) throw new Offen(bd === null ? ['strassentyp', 'beduerfnis'] : ['strassentyp'])
+    if (st === 'verkehrsorientiert') {
+      if (strassentypBelastbar(k)) return ja(false, { grund: ZONE_ART_1A })
+      // nur angenommen: weder Befund noch Freigabe; über nurMitBestaetigung offen mit «Vorschlag bestätigen»
+      return ja(true, { detail: 'Strassenfunktion nur angenommen (verkehrsorientiert): ob die Zonenregel gilt, ist offen' })
+    }
+    return ja(!k.bed())
   },
   C2b: k => {
     const tr = k.o('tempoRegime')
-    if (tr !== null) return tr !== 't30_zone' ? null : ja(k.bed())
+    if (tr !== null) {
+      if (tr !== 't30_zone') return null
+      if (k.o('strassentyp') === 'verkehrsorientiert' && strassentypBelastbar(k)) return ja(false, { grund: ZONE_ART_1A })
+      return ja(k.bed())
+    }
     if (k.o('beduerfnis') !== null && k.bed())
       return ja(true, { detail: 'Zone noch offen: liegt die Strasse in einer Tempo-30-Zone, ist der Grund für Vortritt auszuweisen' })
     throw new Offen(['tempoRegime'])
   },
-  'C2-B': k => (k.w('tempoRegime') !== 't30_zone' ? null : ja(['basisnetz', 'publikumsintensiv'].includes(k.w('netz')))),
+  'C2-B': k => (k.w('tempoRegime') !== 't30_zone' || (k.o('strassentyp') === 'verkehrsorientiert' && strassentypBelastbar(k)) ? null : ja(['basisnetz', 'publikumsintensiv'].includes(k.w('netz')))),
   // 30.10.2026: ohne Befund mit Grund (Ausnahme: Fusswegnetz bzw. besonderer Grund; genug Querende); Auswertung wie bisher
   C3: k => {
     const s = K.C3.werte.fgMin
@@ -613,18 +624,14 @@ export const REGELN: Record<BefundId, RegelFn> = {
     if (!k.w('anzeichenSchneller') && !k.w('v85Nachweis')) return null
     return ja(v85 > k.w('vSig'), { ist: `V85 ${v85} km/h` })
   },
-  H2: k => {
-    const kurve = k.w('kurve')
-    if (!kurvenregelGilt(k)) return ja(false)
-    const t = sichtKurveTab2(kurve.radiusStrasse!)
-    return ja(t !== null, t !== null ? { soll: `≥ ${t.sicht}`, detail: `Radius ${fmt(kurve.radiusStrasse!, 0)} m`, normHinweis: hinweisTab2(t) } : {})
-  },
+  // Kurvenregel je Zufahrt aus der Sichtprüfung (befundblatt.ts, Prüfung FGS-01)
+  H2: () => null,
   H3a: k => {
-    const S = hSollSicher(k), E = k.w('erkennungM')
+    const S = k.sollZufahrt('erkennungM') ?? hSollSicher(k), E = k.w('erkennungM')
     return ja(E < S, { ist: fmt(E, 0), soll: `≥ ${fmt(S, 0)}` })
   },
   H3b: k => {
-    const S = hSollSicher(k), E = k.w('erkennungM'), f = K.H3b.werte.faktor
+    const S = k.sollZufahrt('erkennungM') ?? hSollSicher(k), E = k.w('erkennungM'), f = K.H3b.werte.faktor
     return ja(E >= S && E < f * S, { ist: fmt(E, 0), soll: `≥ ${fmt(f * S, 0)} (doppelte Sichtweite)` })
   },
   H4: k => {

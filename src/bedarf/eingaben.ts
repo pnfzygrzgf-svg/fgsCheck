@@ -222,6 +222,9 @@ export interface Feld<T> { wert: T | null; quelle: Quelle | null
   /** Wert stammt aus der Rechnung der geraden Zufahrten (erkennungM, nur aus der Vorbelegung, eine Handeingabe trägt es nicht): massgebend ist
    * dann das Soll dieser Zufahrten, nicht das der Abbiegelinie (B5-1b) */
   geradeZufahrt?: true
+  /** Soll der Zufahrt, aus der eine vorbelegte Erkennungsdistanz stammt (Prüfung FGS-01, 10.11.2026): H3a/H3b vergleichen damit statt
+   * mit dem Soll der Querung (Kurvenregel bzw. V85 gelten je Zufahrt) */
+  sollM?: number
   /** 23.10.2026: Feld offen, weil Datenquellen sich widersprechen (bisher nur Strecke/Zone: Begegnungszone aus OSM gegen amtliches
    * Tempo ab 30 km/h); A2 bleibt dann offen statt nicht anwendbar */
   strittig?: true }

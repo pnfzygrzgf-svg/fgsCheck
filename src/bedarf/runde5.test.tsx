@@ -143,7 +143,7 @@ describe('Lücke zwischen Balken und Trottoirkante (Feld gestrichen)', () => {
 
 describe('Runde 5: Fusswegnetz als besonderer Grund (Bern, Stelle 10)', () => {
   it('nur mit der Ebene Bern: Streifen in der Zone zulässig mit Begründung; ohne Bern verletzt', () => {
-    const e = testFall({ tempoRegime: 't30_zone', vSig: 30, beduerfnis: ['fusswegnetz'] })
+    const e = testFall({ tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', beduerfnis: ['fusswegnetz'] })
     expect(beurteile(e, { ebenen: { bern: true } }).zulaessigkeit).toBe('mit_begruendung')
     expect(beurteile(e, { ebenen: { bern: false } }).zulaessigkeit).toBe('nicht_angezeigt')
   })
@@ -226,14 +226,14 @@ describe('Runde 5, Korrekturen nach Prüfung', () => {
   }
   it('C2: vier Kombinationen von Zone und besonderem Grund; Begründung nennt das wirklich fehlende Feld', () => {
     // Zone bekannt, Grund bekannt → C2b (Grund ausweisen), mit Begründung
-    expect(zul({ tempoRegime: 't30_zone', vSig: 30, beduerfnis: ['schule'] }).zul).toBe('mit_begruendung')
+    expect(zul({ tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', beduerfnis: ['schule'] }).zul).toBe('mit_begruendung')
     // Zone offen, Grund bekannt → C2 nicht verletzbar, C2b → mit Begründung (nicht offen)
     const a = zul({ tempoRegime: null, vSig: 30, beduerfnis: ['schule'] })
     expect(a.zul).toBe('mit_begruendung')
     expect(a.b.alle.find(x => x.id === 'C2')).toBeUndefined()
     expect(a.b.alle.find(x => x.id === 'C2b')?.detail).toContain('Zone noch offen')
     // Zone bekannt, Grund offen → offen wegen des Grunds
-    const g = zul({ tempoRegime: 't30_zone', vSig: 30, beduerfnis: null })
+    const g = zul({ tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', beduerfnis: null })
     expect(g.zul).toBe('offen')
     expect(g.begr).toContain('weil noch kein besonderer Grund für Vortritt bestätigt ist')
     expect(g.begr).not.toContain('Tempo-30-Zone liegt')
@@ -247,7 +247,7 @@ describe('Runde 5, Korrekturen nach Prüfung', () => {
     expect(k.zul).toBe('offen')
     expect(k.begr).toContain('weil noch offen ist, ob die Strasse in einer Tempo-30-Zone liegt:')
     // Zone bekannt, Grund «keines» → nicht angezeigt (unverändert)
-    expect(zul({ tempoRegime: 't30_zone', vSig: 30, beduerfnis: [] }).zul).toBe('nicht_angezeigt')
+    expect(zul({ tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', beduerfnis: [] }).zul).toBe('nicht_angezeigt')
   })
   it('V_sig: ist die nächste Linie ohne Wert, gilt OSM (null), nicht eine weiter entfernte Linie mit Wert (wie 177/211)', () => {
     const t = vsigTempo({ linien: [{ id: 'leer', strasse: 'Schwarzenburgstrasse', vSig: null, teile: [[lv(-300, 0), lv(300, 0)]] },
@@ -265,7 +265,7 @@ describe('Runde 5, Korrekturen nach Prüfung', () => {
   })
   it('Zusammenfassung: Punkt nach «(und N weitere)»; Satz 4 fällt nie ganz weg; höchstens 85 Wörter', () => {
     const r = rechneFall(OSM, AV, [], 12, fallMit(), null)
-    const f = fallMit(x => { x.bedarf = { felder: { tempoRegime: { wert: 't30_zone', quelle: 'hand' }, vSig: { wert: 30, quelle: 'hand' } } } })
+    const f = fallMit(x => { x.bedarf = { felder: { tempoRegime: { wert: 't30_zone', quelle: 'hand' }, vSig: { wert: 30, quelle: 'hand' }, strassentyp: { wert: 'siedlungsorientiert', quelle: 'hand' } } } })
     const [b] = befundblaetter(r, f, { vorgabe: { bern: true, kantonBE: true } })
     const x = zfEingabeBlatt(b)
     const z = zusammenfassungBlatt(b)

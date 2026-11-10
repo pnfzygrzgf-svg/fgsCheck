@@ -76,7 +76,7 @@ describe('Hier nicht geprüfte Richtungen: Alltagssprache', () => {
     expect(tempoHerkunft('OpenStreetMap (OSM) (gewählt); Datenstand unbekannt')).toBe('OpenStreetMap (OSM) (gewählt); Datenstand unbekannt')
     expect(tempoHerkunft('Ersatz')).toBe('Annahme')
     expect(sichtQuelleKurz('VSS Tab. 1')).toBe('nach Tempo')
-    expect(sichtQuelleKurz('VSS Tab. 2')).toBe('nach Kurvenradius')
+    expect(sichtQuelleKurz('VSS Tab. 2')).toBe('nach Strassenkurve (Kurvenregel)')
     expect(sichtQuelleKurz('Kurvensichtweite (bfu); ab dem Knoten prüft die gerade Zufahrt mit')).toBe('nach Kurvenradius')
     expect(sichtQuelleKurz('bis Knoten (Strassenende)')).toBe('bis zur Kreuzung')
     expect(sichtQuelleKurz('VSS 40 240 Z. 8.2 (L 4,0 m)')).toBe('Querung ohne Vortritt')
