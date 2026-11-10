@@ -1199,6 +1199,8 @@ export default function Karte(props: {
     const eb = ebenenRef.current
     if (!eb) return
     eb.hind.clearLayers()
+    // Parkierung unter einem vorgezogenen Seitenraum: gestrichelt, gedimmt (entfällt in der Rechnung ganz bzw. zum überdeckten Teil)
+    const ersetzt = new Map((rechnung?.seitenraumErsetzt ?? []).map(x => [x.id, x.ganz]))
     const gerechnet = rechnung?.parkPruefflaechen
     const info = (h: Hindernis) => {
       const x = gerechnet?.find(p => p.id === h.id)
@@ -1206,15 +1208,17 @@ export default function Karte(props: {
     }
     const pruefEbene = (h: Hindernis, stil: L.PathOptions): L.Path => {
       if (!gerechnet || (h.art !== 'parkfeld' && h.art !== 'laengsparkierung')) return hindernisEbene(h, stil) as L.Path
+      // Unter einem vorgezogenen Seitenraum (ganz oder teilweise ersetzt) bzw. vor der nachgeführten Rechnung: Umriss aus dem Fall,
+      // damit das Feld sichtbar und wählbar bleibt (gestrichelt und blass über srStil)
+      if (ersetzt.has(h.id)) return hindernisEbene(h, stil) as L.Path
       const teile = parkDarstellung([h], gerechnet)
+      if (!teile.length) return hindernisEbene(h, stil) as L.Path
       const original = teile.find(p => p.art === 'parkfeld' && p.parkPruefung?.status === 'ergaenzt')
       if (original?.art === 'parkfeld') L.polygon(original.parkPruefung!.original.map(ll), {
         color: '#64748b', weight: 2, dashArray: '3 4', fill: false, interactive: false }).addTo(eb.hind)
       return L.polygon(teile.flatMap(p => p.art === 'parkfeld' ? [[p.ring.map(ll)]] : p.art === 'laengsparkierung' ? [[laengsPolygon(p.linie, p.breite).map(ll)]] : []), stil)
     }
 
-    // Parkierung unter einem vorgezogenen Seitenraum: gestrichelt, gedimmt (entfällt in der Rechnung ganz bzw. zum überdeckten Teil)
-    const ersetzt = new Map((rechnung?.seitenraumErsetzt ?? []).map(x => [x.id, x.ganz]))
     const srStil = (id: string): L.PathOptions => (ersetzt.has(id) ? { dashArray: '3 4', opacity: 0.6, fillOpacity: 0.08 } : {})
     const srText = (id: string) => (ersetzt.has(id) ? `<br>${SR_ERSETZT}${ersetzt.get(id) ? '' : ' (zum überdeckten Teil)'}` : '')
     for (const h of hindernisse) {

@@ -1,7 +1,7 @@
 import { BAUM_ANNAHME, baumStammText } from './rechner/baumAnnahme'
-import { ParkBerichtAnnahme, ParkBerichtDetails } from './ParkBericht'
-import { parkBerichtFelder } from './rechner/parkEinfluss'
-import { parkDarstellung } from './rechner/parkgeometrie'
+import { ParkBerichtDetails } from './ParkBericht'
+import { parkBerichtFelder, parkEinfluesse } from './rechner/parkEinfluss'
+import { parkDarstellung, PARK_BERICHT_ANNAHME } from './rechner/parkgeometrie'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { fgsSichtMasse, massBildPunkte } from './sichtMasse'
 import { MassBild, useSichtWahl, sichtZeigen, sichtMassZeigen, fgsSichtId, tueSichtId, type SichtArt } from './Sichtfelder'
@@ -659,7 +659,7 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
         Anhaltesichtweite), L = {f1(s.querung.L)} m{s.querung.ganzeFahrbahn ? ' (Insel nur markiert: ganze Fahrbahn)' : ''}.</p>}
       {s.status !== 'kein_fgs' && (
         <table className="bericht-tabelle">
-          <thead><tr><th>Zufahrt</th><th>Tempo</th><th>nötige Sicht</th><th>vorhandene Sicht</th><th>Ergebnis</th><th>Parkflächen und Sichthindernisse</th></tr></thead>
+          <thead><tr><th>Zufahrt</th><th>Tempo</th><th>nötige Sicht</th><th>vorhandene Sicht</th><th>Ergebnis</th><th>Hindernisse im Sichtfeld</th></tr></thead>
           <tbody>
             {nachNr(s.zufahrten, namen).map(z => (
               <tr key={z.zufahrt}>
@@ -676,13 +676,14 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
                     return <><div className="klein">{erkennungText(a)}; {gelaendeText(a)}</div>
                       {erkennungEmpfehlungText(a, z.sichtweite) && <div className="klein"><strong className="status-farbe" style={{ color: STATUS_FARBE.verdeckt }}>{erkennungEmpfehlungText(a, z.sichtweite)}</strong></div>}</>
                   })()}</td>
-                <td className="klein"><ParkBerichtDetails felder={parkfelder} ergebnis={z} /><div>Im Sichtfeld: {hindernisseText(z)}</div>{erkennungHindernisText(z, gelaende) && <div>{erkennungHindernisText(z, gelaende)}</div>}</td>
+                <td className="klein">{hindernisseText(z)}{erkennungHindernisText(z, gelaende) && <div>{erkennungHindernisText(z, gelaende)}</div>}</td>
               </tr>
             ))}
             {!s.zufahrten.length && <tr><td colSpan={6} className="klein">keine Zufahrt</td></tr>}
           </tbody>
         </table>
       )}
+      {s.status !== 'kein_fgs' && <ParkBerichtDetails titel="Parkflächen mit Einfluss auf die Prüfung" felder={parkfelder} ergebnis={{ zufahrten: s.zufahrten }} />}
       {profilBilder.length > 0 && <>
         <h4>{profilBilder.length === 1 ? 'Geländeprofil der Sichtlinie, an der das Geländemodell die Sicht verdeckt' : 'Geländeprofile der Sichtlinien, an denen das Geländemodell die Sicht verdeckt'}</h4>
         <p className="klein">Gezeigt wird nur, wo das Geländemodell zu «nicht erfüllt» führt: die Wartefläche ist verdeckt bzw. die
@@ -730,7 +731,12 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
   const eingaben = eingabenListe(fall, rechnung, namen)
   // der Bedarfsteil steht im Bericht, sobald eine Beurteilung vorliegt (die Vorbelegung genügt)
   const mitBedarf = blaetter.length > 0
-  const hinweise = hinweisListe(rechnung, fall, luftbildStand, ausserhalb, namen, parkVorschlaegeOffen)
+  // Annahmen zu Bäumen und Parkflächen nur, wenn ein Baum bzw. eine Parkfläche das Ergebnis beeinflusst
+  const wirkIds = new Set(parkEinfluesse({ streifen: rechnung.streifen }).map(x => x.id))
+  const baumWirkt = [...fall.hindernisse, ...rechnung.vorschlaege.map(v => v.hindernis)].some(h => h.art === 'baum' && wirkIds.has(h.id))
+  const hinweise = [...hinweisListe(rechnung, fall, luftbildStand, ausserhalb, namen, parkVorschlaegeOffen),
+    ...(baumWirkt ? [BAUM_ANNAHME] : []),
+    ...(parkBerichtFelder(berichtParkfelder(rechnung), rechnung).length > 0 ? [`Parkflächen: ${PARK_BERICHT_ANNAHME}`] : [])]
   // Ergebnis auf Seite 1: neben dem Status die verfehlte Erkennungsdistanz je Zufahrt und die Aussage zum Bedarf
   const erkennungBefunde = (s: StreifenErgebnis): string[] => nachNr(s.zufahrten, namen.get(s.fgsId)).flatMap(z => {
     const t = z.erkennungM ? erkennungEmpfehlungText(erkennungAnzeige(z, gelaende)!.e, z.sichtweite) : ''
@@ -867,11 +873,6 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
         </section>}
 
         <section className="bericht-block druck-block">
-          {(parkBerichtFelder(berichtParkfelder(rechnung), rechnung).length > 0 || [...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)].some(h => h.art === 'baum')) && <>
-          <h2>Annahmen und Hinweise</h2>
-          {[...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)].some(h => h.art === 'baum') && <p className="klein">{BAUM_ANNAHME}</p>}
-          {parkBerichtFelder(berichtParkfelder(rechnung), rechnung).length > 0 && <ParkBerichtAnnahme />}
-          </>}
           <h2>Eingaben von Hand</h2>
           {eingaben.length ? <ul className="klein">{eingaben.map((x, i) => <li key={i}>{x}</li>)}</ul> :
             <p className="klein">Keine. Ergebnis aus den geladenen Daten, Rechenregeln und ausgewiesenen Annahmen.</p>}
