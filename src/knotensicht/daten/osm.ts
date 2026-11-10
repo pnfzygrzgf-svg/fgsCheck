@@ -46,8 +46,9 @@ const MAX_BACKOFF_MS = 10000
 /** warten; bricht mit AbortError ab, wenn signal abbricht (z. B. beim Verlassen der Prüfung) */
 function warte(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((res, rej) => {
+    // schon abgebrochen: ohne Timer enden (t gibt es hier noch nicht)
+    if (signal?.aborted) { rej(new DOMException('abgebrochen', 'AbortError')); return }
     const abbruch = () => { clearTimeout(t); rej(new DOMException('abgebrochen', 'AbortError')) }
-    if (signal?.aborted) { abbruch(); return }
     const t = setTimeout(() => { signal?.removeEventListener('abort', abbruch); res() }, ms)
     signal?.addEventListener('abort', abbruch, { once: true })
   })

@@ -1,9 +1,9 @@
 {
  "hinweis": "Wortgleiche Kopie des Rechenkerns aus dem SichtweitenCheck (scripts/knotensicht_holen.mjs). Nicht von Hand ändern; der Test src/tue/herkunft.test.ts prüft die SHA-256 je Datei.",
  "quelle": "SichtweitenCheck",
- "version": "0.9.8",
- "commit": "32abdea140d3bfe0ed845a565d1fa56ff8fa302d",
- "datum": "2026-11-10T22:37:53+01:00",
+ "version": "0.9.9",
+ "commit": "47576f81f0a291caeabe6ab345a2afb687d49a8e",
+ "datum": "2026-11-10T22:45:02+01:00",
  "kern": 59,
  "tests": 27,
  "ausgelasseneTests": [
@@ -38,7 +38,7 @@
   "daten/baumkataster.ts": "0bad0b9758912b5dc0d183ecfa1f069af19a97d9075eecf0629833237eed89da",
   "daten/hoehen.ts": "6e89b31e8eb5f803c93f9d0c833a4f008136733041b062cac84489bfa566c6fa",
   "daten/holen.ts": "c67c01e963bacaba9f3bd7f6bc70a8a5bdce88d7484fe869fd07e895f412c4e6",
-  "daten/osm.ts": "983d53ca60814acaab0ba0ab2631d0dd3d47096ec30971c3cb94fe7218e74a97",
+  "daten/osm.ts": "853cb963df0035269503f059bde6bb537bb95d96dc556de2d71fe48dde933313",
   "daten/parkkataster.ts": "dfdaa9bf4051f91638c6924808fb73ef8be8b376c3dcdcd8a580858a2ae72d7f",
   "daten/vsig.ts": "c1613eeabe6feec5f7c2cd29346a5b8c485c509b8d9a1f86d727c92fc5252c25",
   "geo.ts": "f0f3c648173639b9d252fd6a54ad7b3c8c3c001b18c4901939e069a0bdf48417",
