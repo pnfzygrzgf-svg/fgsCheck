@@ -20,7 +20,7 @@ export function Anleitung() {
       <p><b>Ort suchen:</b> Oben in der Karte Ort, Adresse oder Strasse eingeben und heranzoomen, bis die Übergänge erscheinen.</p>
       <ol>
         <li><b>Übergang wählen:</b> Einen Punkt auf der Karte anklicken. Die App lädt die Daten und startet die Prüfung.</li>
-        <li><b>Sichtprüfung:</b> Je Zufahrt steht, ob die Sicht frei oder verdeckt ist. Eine Zeile anklicken, um das Sichtfeld auf der Karte zu sehen.</li>
+        <li><b>Sichtprüfung:</b> Je Zufahrt steht, ob die Sicht frei oder verdeckt ist. Eine Zeile anklicken: Das Sichtfeld erscheint auf der Karte, «3D-Ansicht» zeigt es räumlich.</li>
         <li><b>Bedarf und Querungstyp:</b> Die Zusammenfassung lesen, offene Fragen beantworten und Vorschläge prüfen.</li>
         <li><b>Angaben ergänzen:</b> Unter «Eingaben von Hand» zum Beispiel Tempo anpassen oder Hindernisse einzeichnen. Die App rechnet neu.</li>
         <li><b>Neu planen:</b> In der Gruppe «Planen» das passende Werkzeug wählen. Für einen neuen Streifen «Streifen planen» wählen und die beiden Wartebereiche anklicken.</li>
@@ -84,13 +84,12 @@ export function Datenschutz() {
           Angaben stehen hinter dem # der Adresse und gehen nicht an den Webserver; einzig die Knotennummer für den SichtweitenCheck steht davor.</li>
         <li>Eingaben (Hindernisse, Tempo, Fahrlinien, Streifen, Bezeichnung) bleiben im Browser: je Übergang mit Eingaben ein Eintrag
           im lokalen Speicher (localStorage, Schlüssel «fgsCheck.fall.» und Nummer des Übergangs, mit den Koordinaten), sonst nur in
-          der Fall-Datei, wenn du sie speicherst. Übergänge ohne Eingaben werden nicht gespeichert. Fälle ohne Übergang (z. B. ein
+          der Fall-Datei, wenn du sie speicherst. Für die unten genannten Höhenprofile werden auch die Koordinaten von Hand korrigierter Fahrlinien an den jeweiligen Höhendienst übermittelt. Übergänge ohne Eingaben werden nicht gespeichert. Fälle ohne Übergang (z. B. ein
           geplanter Streifen) teilen sich einen einzigen Eintrag «fgsCheck.fall.ort»; liegt dort ein anderer Fall, fragt die App, bevor
           sie ihn ersetzt, und «Letzten geplanten Fall wiederherstellen» holt ihn zurück. Gehört ein Fall nicht mehr zu seinem
           Übergang (Streifen von Hand verschoben bzw. in einer Fall-Datei weit vom Übergang), merkt die App ihn unter
           «fgsCheck.fall.ort» und entfernt danach den Eintrag des Übergangs. «Eingaben verwerfen» bzw. das Löschen aller Eingaben entfernt den Eintrag des
-          Übergangs; alle Einträge löschst du über die Website-Daten dieser Seite in den Browser-Einstellungen. An keinen Dienst
-          gehen Eingaben oder Ergebnisse. Die Breite des rechten Bereichs (Trenner) steht unter «fgsCheck.panelBreite», die zuletzt gesehene Kartenansicht (Mitte und Zoom) unter «fgsCheck.karteAnsicht».</li>
+          Übergangs; alle Einträge löschst du über die Website-Daten dieser Seite in den Browser-Einstellungen. Abgesehen von den unten beschriebenen Koordinaten für Karten- und Höhenabrufe gehen keine weiteren Eingaben oder Prüfergebnisse an die Dienste. Die Breite des rechten Bereichs (Trenner) steht unter «fgsCheck.panelBreite», die zuletzt gesehene Kartenansicht (Mitte und Zoom) unter «fgsCheck.karteAnsicht».</li>
         <li>Der Browser holt die Daten direkt bei diesen Diensten; sie sehen dabei technisch die IP-Adresse und Browserangaben:
           <ul>
             {ds.gruppen.map(g => <li key={g.name}>{g.name}: {g.text}</li>)}

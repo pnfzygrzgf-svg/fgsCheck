@@ -47,6 +47,10 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
         lassen sich im Luftbild messen.
       </p>
       <p>
+        Auf Wunsch zeigt eine 3D-Ansicht den Streifen auf den Flächen der Amtlichen Vermessung mit Gelände und Gebäuden von swisstopo, aus dem wartenden Auto
+        heraus, um den Streifen drehbar oder frei über die Karte bewegbar. Sie ist nur Darstellung und ändert kein Ergebnis.
+      </p>
+      <p>
         <b>Daten:</b> Die App nutzt offene Daten von Bund, Kantonen und Städten sowie OpenStreetMap, zum Beispiel das Luftbild
         SWISSIMAGE, die Amtliche Vermessung und das Höhenmodell. Je nach Ort kommen weitere Quellen dazu, etwa amtliches Tempo,
         Parkfelder oder der Baumkataster. Welche Quellen genutzt werden, steht in der App unter «Datenquellen und Ladezustand».
@@ -81,15 +85,15 @@ export default function Startseite({ onStart }: { onStart: () => void }) {
 
       <div className="start-daten">
         <div className="start-daten-titel">Datenspeicherung</div>
-        <div>Alle Berechnungen laufen im Browser. Eingaben und Ergebnisse werden an keinen Server übermittelt.</div>
+        <div>Alle Berechnungen laufen im Browser. Für Karten und Höhenprofile werden die unten beschriebenen Koordinaten an die Datenanbieter übermittelt; Prüfergebnisse bleiben im Browser.</div>
         <ul>
           <li>Eingaben merkt sich der Browser je Übergang (lokaler Speicher), nur wenn etwas eingegeben wurde; «Eingaben
             verwerfen» löscht sie. Von geplanten Streifen ohne OSM-Übergang merkt er nur den zuletzt bearbeiteten Fall («Letzten
             geplanten Fall wiederherstellen»); sichere ihn mit «Fall speichern». Die Fall-Datei und der PDF-Bericht werden
-            lokal gespeichert, ohne Upload. Auch die gewählte Breite des rechten Bereichs merkt sich der Browser.</li>
+            lokal gespeichert, ohne Upload. Auch die gewählte Breite des rechten Bereichs und die zuletzt gewählte Kamera der 3D-Ansicht merkt sich der Browser.</li>
           <li>Für Karte, Rechnung und Bericht fragt die App den Kartenausschnitt bei swisstopo, geodienste.ch, OpenStreetMap
             (Overpass), in Bern bei map.bern.ch und gisapp.bern.ch und in Zürich bei den Geodatendiensten der Stadt ab; gesendet
-            werden nur Koordinaten. Den Suchbegriff der Ortssuche erhält swisstopo; der eigene Standort bleibt im Browser. Die Dienste sehen technisch die IP-Adresse.
+            werden nur Koordinaten. In der geöffneten 3D-Ansicht wird je Zufahrt ein Bodenprofil entlang der Fahrlinie abgefragt, in Bern beim DTM der Stadt, sonst und bei dessen Ausfall bei swisstopo. Ausserhalb Berns erhält swisstopo zusätzlich einen Profilpunkt und seine gelieferte Bodenhöhe für die Umrechnung des Höhenbezugs. Den Suchbegriff der Ortssuche erhält swisstopo; der eigene Standort bleibt im Browser. Die Dienste sehen technisch die IP-Adresse.
             Die Links «Street View ↗» öffnen Google Maps erst auf Klick; dabei gehen die Koordinaten an Google. Beim Wechsel zu einem anderen
             Rechner gehen nur Lage und OSM-Id mit. Die vollständige Liste der Dienste steht in der App unter «Datenschutz».</li>
           <li>Nutzungsstatistik: Seitenaufrufe werden mit GoatCounter gezählt, ohne Cookies und ohne Speicherung der

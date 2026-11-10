@@ -20,7 +20,11 @@ export default defineConfig(() => ({
   // (erst ab iOS 16.4 / Safari 16.4 unterstützt).
   build: {
     cssTarget: ['chrome80', 'safari13', 'firefox78', 'edge80'],
+    // Der einzige grosse Chunk ist CesiumJS; er wird erst beim Öffnen der 3D-Ansicht geladen (src/ansicht3d/cesiumSzene.ts)
+    chunkSizeWarningLimit: 6000,
   },
+  // CesiumJS beim Start des Entwicklungsservers vorbündeln, statt beim ersten Öffnen der 3D-Ansicht mit Neuladen
+  optimizeDeps: { include: ['cesium'] },
   // Tests über alle Testfälle und Varianten brauchen auf dem GitHub-Runner länger als die Vorgabe von 5 s
   test: { testTimeout: 60_000 },
 }))

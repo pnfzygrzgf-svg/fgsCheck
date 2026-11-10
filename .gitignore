@@ -1,5 +1,7 @@
 node_modules
 dist
+# Cesium-Dateien für die 3D-Ansicht, kopiert von scripts/cesium_assets.mjs
+public/cesium/
 *.local
 .DS_Store
 # lokale Fälle (Fall-Dateien) und Referenz-/Vergleichsdaten gehören nicht ins Repo

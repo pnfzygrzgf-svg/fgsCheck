@@ -12,7 +12,7 @@
 
 import { type P, add, dist, dot, rechts, sub, richtungGrad, neg } from '../geo'
 import type { OsmNetz } from './netz'
-import { kennungGerade, kennungArm, verlaengern, streckeLaenge, type Knotenbereich, type Suche, type SpurGerade, type ArmInfo } from './netz'
+import { wegLage, kennungGerade, kennungArm, verlaengern, streckeLaenge, type Knotenbereich, type Suche, type SpurGerade, type ArmInfo } from './netz'
 import type { Fahrbahn, Inseln, Gebaeude, Flaechen } from './flaechen'
 import { Kreisel, KREISEL_BOGEN_M } from './kreisel'
 import {
@@ -327,10 +327,12 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
       ent.push(...r.entfallen)
     }
     if (ov && !keinFgs) annahmenS.push(istBgz(ov) ? annahmeBgz(erg.map(z => z.tempo)) : annahmeOhneVortritt(ov, erg.map(z => z.tempo), s.randQuelle !== 'AV'))
+    // Ebene des gequerten Wegs für die 3D-Ansicht (3D-01): nur wenn alle gequerten Wege dieselbe haben
+    const lagen = new Set(netz ? zfs.flatMap(z => (z.g ? [wegLage(netz.w(z.g.wid))] : [])) : [])
     const status = keinFgs ? 'kein_fgs' :
       erg.length ? erg.reduce((b, e) => (RANG_STATUS[e.status] > RANG_STATUS[b] ? e.status : b), 'frei') : 'ohne_zufahrt'
     aus.push({ fgsId: fid, uebergangId: s.uebergangId, p0: s.p0, p1: s.p1, bw: s.bw, m: s.m, umriss: umrissRing(s), ann,
-      rand: s.rand, randQuelle: s.randQuelle, strasse: s.strasse ?? '', netzQuelle: s.netzQuelle ?? '', lsa, lsaQuelle: lsaQ,
+      rand: s.rand, randQuelle: s.randQuelle, ...(lagen.size === 1 ? { wegLage: [...lagen][0] } : {}), strasse: s.strasse ?? '', netzQuelle: s.netzQuelle ?? '', lsa, lsaQuelle: lsaQ,
       zufahrten: erg, entfallen: ent, status, annahmen: annahmenS, ...(ov && !keinFgs ? { querung: ov } : {}),
       ...(s.warte.length ? { warte: s.warte.map(w => [w[0], w[1]] as [P, P]) } : {}),
       ...(annBasis ? { annBasis } : {}), ...(annBasis && annH ? { annHand: [annH[0] ?? null, annH[1] ?? null] as [AnnHand | null, AnnHand | null] } : {}) })

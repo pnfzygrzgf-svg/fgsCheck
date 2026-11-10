@@ -23,6 +23,10 @@ html, body, #root { margin: 0; height: 100%; background: var(--bg); }
 .app { display: flex; height: 100%; }
 .kartenrahmen { position: relative; flex: 1; min-width: 0; height: 100%; }
 .karte { width: 100%; height: 100%; }
+/* 3D-Ansicht offen (ansicht3d/): die Leaflet-Karte bleibt eingehängt, aber unsichtbar (behält ihre Grösse); Kartenebenen und Ortssuche
+   steuern Leaflet und sind solange aus */
+.kartenrahmen.dreid .karte { visibility: hidden; }
+.kartenrahmen.dreid .q-knopf, .kartenrahmen.dreid .q-fenster, .kartenrahmen.dreid .kartenkopf { display: none; }
 /* Ortssuche und Hinweise über der Karte: zwischen Zoom-Knöpfen (links) und Ebenenwahl (rechts), Karte darum bleibt bedienbar;
    z-index unter den Leaflet-Knöpfen (1000), damit die aufgeklappte Ebenenwahl darüber liegt, über den Kartenebenen (bis 700) */
 .kartenkopf { position: absolute; top: 10px; left: 56px; right: 62px; max-width: 380px; margin: 0 auto; z-index: 900;
@@ -616,6 +620,34 @@ button.frage-knopf.klein:not(.zweit) { color: var(--bedarf); background: none; b
 .feld-quellen button.gewaehlt { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; background: var(--accent-mittel); }
 /* gewählter Chip (Datenquelle, amtliches Signal): Häkchen und gelber Grund, gleicher Zustand wie die Sichtfeld-Schalter (06.11.2026) */
 .amtliche-signale button.quelle-chip[aria-pressed=true] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; background: var(--accent-mittel); }
+/* 3D-Ansicht (ansicht3d/Ansicht3D.tsx): über der Karte (Leaflet 1000, Kartenebenen 1010), unter dem Bericht (2000); der Umschalter
+   2D/3D unten rechts über der Quellenangabe, in beiden Ansichten sichtbar */
+.ansicht3d { position: absolute; inset: 0; z-index: 1100; background: #cbd5e1; }
+.a3-buehne { position: absolute; inset: 0; overflow: hidden; }
+.a3-buehne .cesium-widget, .a3-buehne .cesium-widget canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+.a3-leiste { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; pointer-events: none; }
+.a3-leiste > * { pointer-events: auto; }
+.a3-leiste button, .ansicht-wahl button { border: 2px solid rgba(0,0,0,.2); border-radius: 6px; background: #ffffff; color: var(--text-strong);
+  font-size: 12px; font-weight: 600; padding: 5px 10px; min-height: 0; cursor: pointer; }
+.a3-leiste button:hover, .ansicht-wahl button:hover { filter: none; background: #f4f4f4; }
+.a3-leiste button[aria-pressed="true"], .ansicht-wahl button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.a3-leiste button:disabled, .ansicht-wahl button:disabled { opacity: .5; cursor: default; }
+.a3-leiste label, .a3-menue label { display: inline-flex; align-items: center; gap: 4px; background: #ffffff; border-radius: 6px; padding: 4px 8px; font-size: 12px; }
+.a3-leiste label:has(input:disabled), .a3-menue label:has(input:disabled) { color: var(--text-muted); cursor: default; }
+.a3-leiste select { max-width: 260px; font-size: 12px; min-height: 0; padding: 4px 6px; border-radius: 6px; border: 2px solid rgba(0,0,0,.2); background: #ffffff; }
+.a3-menue { position: absolute; top: 48px; left: 10px; z-index: 2; display: flex; flex-direction: column; gap: 4px; background: rgba(255,255,255,.92); border-radius: 8px; padding: 6px; }
+/* Status und Legende unten links übereinander, Platz rechts für den Umschalter 2D/3D */
+.a3-fuss { position: absolute; left: 10px; right: 200px; bottom: 22px; z-index: 2; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+.a3-status, .a3-hinweise { margin: 0; background: rgba(255,255,255,.92); border-radius: 8px; padding: 4px 8px; font-size: 12px; color: var(--text); pointer-events: auto; }
+.a3-status.fehler { color: #b91c1c; }
+.a3-hinweise summary { cursor: pointer; font-weight: 600; }
+.a3-hinweise summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.a3-legende { margin: 6px 0 0; font-size: 12px; color: var(--text-muted); max-height: min(24vh, 160px); overflow-y: auto; overscroll-behavior: contain; }
+.a3-credits { position: absolute; right: 0; bottom: 0; z-index: 2; }
+.a3-credits .cesium-widget-credits { position: static; color: #ffffff; font-size: 10px; text-shadow: 0 0 2px #000; padding: 2px 5px; }
+.ansicht-wahl { position: absolute; right: 10px; bottom: 34px; z-index: 1150; display: flex; gap: 4px; }
+@media (pointer: coarse) { .a3-leiste button, .ansicht-wahl button { min-height: 44px; padding: 9px 12px; } .a3-leiste label { min-height: 44px; } }
+@media (max-width: 700px) { .a3-fuss { right: 10px; bottom: 64px; } .ansicht-wahl { bottom: 44px; } }
 /* Punkte der Quellen: Quadrate mit Zeichen (die Objekte der Prüfung sind Kreise); in der Legende gleich */
 
 /* Amtliche Quellenwahl: gleiche Höhe wie Quellenchips, vollständige Herkunft im Titel und darunter. */

@@ -1,0 +1,26 @@
+3D-Modelle der 3D-Ansicht (src/ansicht3d/cesiumSzene.ts). Alle unter CC0 1.0 (Public Domain Dedication), keine Namensnennung nötig;
+Herkunft hier festgehalten, Prüfsummen SHA-256 der abgelegten Datei.
+
+auto.glb
+  Modell: «SUV» von Quaternius, Poly Pizza, https://poly.pizza/m/xsMtZhBkxL
+  Datei: https://static.poly.pizza/e5fbf2ee-5c9e-47d5-8ab6-80cacd463baa.glb (abgerufen 04.11.2026, 181'608 Bytes, unverändert)
+  Lizenz: CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/
+  Masse im Modell (glTF, Y nach oben): Länge 4,21 (Z), Breite 2,11 (X), Höhe 1,53; Räder auf Y ≈ 0; Front bei +Z (Vorderräder).
+  SHA-256: 1a9ce2bba813dca5005abab09715b01b8b5f4a9c48d7260463afdfeb876aa8b6
+
+person_m.glb
+  Modell: «Man» von Quaternius, Poly Pizza, https://poly.pizza/m/HMnuH5geEG
+  Datei: https://static.poly.pizza/3746be88-6799-4817-929b-6bc067c47caa.glb (abgerufen 04.11.2026, 493'196 Bytes)
+  Lizenz: CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/
+  Bearbeitung: Pose «HumanArmature|Man_Idle» (erste Keyframes) statisch in das Netz gebacken, Skin und Animationen entfernt
+  (Cesium zeigte die skinnte Figur nicht aufrecht; Skript glbbake.py, lineares Blend-Skinning). Materialien unverändert.
+  Masse im Modell: Höhe 4,81 Einheiten (Y), Füsse auf Y ≈ 0, Front bei +Z (auf Personenhöhe skaliert).
+  SHA-256: 267cb17ee6eef7c2174bcfbec132d860668eda7c5736079ec0c95625b0cd5134
+
+person_w.glb
+  Modell: «Woman Casual» von Quaternius, Poly Pizza, https://poly.pizza/m/jpKRgGDxhk
+  Datei: https://static.poly.pizza/51d5abdd-bb87-4b8d-9967-21738ffb8437.glb (abgerufen 04.11.2026, 586'108 Bytes)
+  Lizenz: CC0 1.0, https://creativecommons.org/publicdomain/zero/1.0/
+  Bearbeitung: Pose «HumanArmature|Female_Idle» (erste Keyframes) statisch in das Netz gebacken, Skin und Animationen entfernt, wie person_m.glb.
+  Masse im Modell: Höhe 4,62 Einheiten (Y), Füsse auf Y ≈ 0, Front bei +Z.
+  SHA-256: ca2b53bcf7267383d8386201d49cdbe83fa5cd29590a9a67cfb50dd05221732d

@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { BerichtQuellenTabelle, DatenlageZeile, genutzteQuellen, zustandJeQuelle } from './Datenlage'
 import { datenlage } from './daten/quellenregister'
+import { KUNSTBAUTEN_URL } from './ansicht3d/kunstbauten'
+import { einzelQuellenZeilen } from './ansicht3d/stand'
 import { Anleitung, Datenschutz } from './Hilfe'
 import { lv95 } from './geo'
 
@@ -32,6 +34,37 @@ describe('«Datenlage hier» im Panel', () => {
     const h = renderToStaticMarkup(<DatenlageZeile lage={BERN} zustand={z} />)
     expect(h).toContain('<th>Zustand</th>')
     expect(h).toContain('<td class="fehler">Fehler</td>')
+  })
+  it('zeigt 3D-Dienste in denselben Spalten, mit eigenem Zustand statt dem 2D-Luftbildzustand', () => {
+    const a3 = einzelQuellenZeilen({ phase: 'bereit', text: '', quellen: {
+      gelaende: { aktiv: true, zustand: 'geladen', geladen: true }, grundkarte: { aktiv: true, zustand: 'geladen', geladen: true },
+      luftbild: { aktiv: false, zustand: 'aus' }, gebaeude: { aktiv: false, zustand: 'geladen', geladen: true },
+      bruecken: { aktiv: true, zustand: 'Fehler', fehler: 'HTTP 503' }, kunstbauten: { aktiv: true, zustand: 'geladen', geladen: true } } })
+    const z = zustandJeQuelle({ luftbild: { ms: 10 }, ...a3 })
+    expect(z.swissimage).toBe('geladen')
+    expect(z['swisstopo.3d.luftbild']).toBe('aus')
+    expect(z['swisstopo.3d.gebaeude']).toBe('geladen (Ebene aus)')
+    const html = renderToStaticMarkup(<DatenlageZeile lage={BERN} zustand={z} />), t = text(html)
+    for (const name of ['3D-Gelände', '3D-Grundkarte', '3D-Luftbild', '3D-Gebäude', '3D-Brücken', '3D-Kunstbauten Stadt Bern']) expect(t).toContain(name)
+    for (const quelle of ['ch.swisstopo.terrain.3d', 'Karte swissTLM für 3D (grau)', 'swissBUILDINGS3D', 'swissTLM3D', 'Kunstbauten']) expect(t).toContain(quelle)
+    expect(html).toContain('<td class="fehler">Fehler</td>')
+    const auswaerts = text(renderToStaticMarkup(<DatenlageZeile lage={LAUSANNE} zustand={z} />))
+    expect(auswaerts).toContain('3D-Brücken')
+    expect(auswaerts).not.toContain('3D-Kunstbauten Stadt Bern')
+  })
+  it('verweist bei den Kunstbauten in Datenlage und Bericht auf das 3D-Stadtmodell und den tatsächlich verwendeten Dienst', () => {
+    const q = BERN.kunstbauten3d!
+    expect(`${q.dienstUrl}/query`).toBe(KUNSTBAUTEN_URL)
+    for (const h of [renderToStaticMarkup(<DatenlageZeile lage={BERN} />),
+      renderToStaticMarkup(<BerichtQuellenTabelle ids={[q.id]} lage={BERN} />)]) {
+      expect(h).toContain('3D-Stadtmodell Stadt Bern – Ebene Kunstbauten')
+      expect(h).toContain('href="https://map.bern.ch/geoportal/#/produkt/3D_Stadtmodell"')
+      expect(h).toContain('href="https://gisapp.bern.ch/server/rest/services/StadtBern_Kunstbauten/FeatureServer/0"')
+      expect(text(h)).toContain('Zugangsstufe A (3D-Stadtmodell): freie Nutzung')
+      expect(text(h)).toContain('30.05.2023 (Katalogstand; Erfassungsstand einzelner Bauwerke unbekannt)')
+      expect(h).not.toContain('produkt/Kunstbauten')
+      expect(h).not.toContain('Lärmschutzwände')
+    }
   })
 })
 

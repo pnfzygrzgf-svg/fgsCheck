@@ -7,6 +7,7 @@ import { quellenStaende } from './quellenStaende'
 import { zustaendigkeitAmOrt, istZuerichAmOrt, gemeindeText } from './daten/anbieter/gemeinsam/gebiet'
 import { RechenWorker } from './RechenWorker'
 import { useHoehenkurvenQuelle } from './hoehenkurven/stand'
+import { useAnsicht3dQuelle } from './ansicht3d/stand'
 import { SichtfelderWahl, SichtTaste, fgsSichtId } from './Sichtfelder'
 import { ZufahrtTempo } from './ZufahrtTempo'
 import { amtlicheSignalZiele } from './amtlicheSignalZiele'
@@ -51,7 +52,7 @@ import { quellenQualitaetText, type QuellenQualitaet } from './daten/anbieter/ge
 import { BAV_QUELLENANGABE, bavDatenstandText } from './daten/anbieter/gemeinsam/bav'
 import { ladeVerkehrsdatenBern, type VdLinie } from './daten/verkehrsdaten'
 import { datenlage, gemeindeAmOrt, quelle as registerQuelle, type Datenlage } from './daten/quellenregister'
-import { DatenlageZeile, QUELLE_JE_SCHLUESSEL, quelleInfo, zustandJeQuelle, qualitaetJeQuelle } from './Datenlage'
+import { DatenlageZeile, QUELLE_JE_SCHLUESSEL, QuelleLinks, quelleInfo, zustandJeQuelle, qualitaetJeQuelle } from './Datenlage'
 import { herangezogeneQuellen } from './quellenHerangezogen'
 import { VD_QUELLE_ID } from './daten/verkehrsdaten'
 import type { GeoVorbelegung } from './bedarf/vorbelegung'
@@ -303,12 +304,13 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [auswahl, setAuswahl] = useState<string | null>(null)
   const [quellen, setQuellen] = useState<Record<string, QuellenStand>>({})
   const hkQuellen = useHoehenkurvenQuelle()
-  const quellenMitSnapshots = useMemo<Record<string, QuellenStand>>(() => ({ ...quellen, ...hkQuellen, ...Object.fromEntries(lbSnaps.map(sn => {
+  const a3Quellen = useAnsicht3dQuelle()
+  const quellenMitSnapshots = useMemo<Record<string, QuellenStand>>(() => ({ ...quellen, ...hkQuellen, ...a3Quellen, ...Object.fromEntries(lbSnaps.map(sn => {
     const stadt = sn.datei.match(/luftbild_fgs_(\w+)\.json$/)?.[1]
     return [`eth.fgs.${stadt}`, { name: `Streifen aus dem Luftbild (ETH-Modell), ${stadt}`, server: 'eigene Datei',
       objekte: `${sn.kandidaten.length} Kandidaten im Stadtsnapshot`,
       datenstand: `${sn.erzeugt ? sn.erzeugt.split('-').reverse().join('.') : 'unbekannt'} (Snapshot-Erzeugung); Flugjahre ${sn.flugjahre.join(', ') || 'unbekannt'}` }]
-  })) }), [quellen, lbSnaps, hkQuellen])
+  })) }), [quellen, lbSnaps, hkQuellen, a3Quellen])
   const [werkzeug, setWerkzeug] = useState<Werkzeug>(null)
   // Trottoirüberfahrt: Alternative Fussgängerstreifen mit Fragen prüfen (nur in der Sitzung, nicht im Fall; 27.10.2026)
   const [alternative, setAlternative] = useState(false)
@@ -404,6 +406,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const sichtWerte = sichtGel && sichtGel.nr === ladeNr.current ? sichtGel.werte : null
   const sosfRoh = daten?.sosf ?? null
   const bruecke = useMemo(() => (sosfRoh ? brueckenumriss(avParsen(sosfRoh)) : null), [sosfRoh])
+  // 3D-Ansicht: Brückenumrisse, nur darin hebt die Szene auf eine Brückenfahrbahn
+  const brueckenUmrisse = useMemo(() => (sosfRoh ? avParsen(sosfRoh).filter(f => f.art === 'Bruecke_Passerelle').map(f => f.ringe) : []), [sosfRoh])
   const rechnung = useMemo(() => rechnungMitSichtGelaende(rechnungRoh, sichtWerte, bruecke), [rechnungRoh, sichtWerte, bruecke])
   const quellenMetadaten = useRef(new QuellenMetadaten())
   const setzeQuelle = useCallback((k: string, s: QuellenStand) => {
@@ -1968,7 +1972,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const verwaist = useMemo(() => (fall && rechnung && rechnungFall === rechenFall ? eingabenVerwaist(fall, rechnung.streifen) : []),
     [fall, rechnung, rechnungFall, rechenFall])
   // «Datenquellen und Ladezustand» eingeklappt; hat eine Quelle einen Fehler, klappt der Abschnitt auf (und die Überschrift nennt ihn)
-  const quellenFehler = Object.values({...quellen,...hkQuellen}).some(q => q.fehler)
+  const quellenFehler = Object.values({...quellen,...hkQuellen,...a3Quellen}).some(q => q.fehler)
   const [quellenOffen, setQuellenOffen] = useState(false)
   useEffect(() => { if (quellenFehler) setQuellenOffen(true) }, [quellenFehler])
   const kantone = useMemo(() => [...new Set((av ?? []).map(f => f.kanton).filter(Boolean))].sort(), [av])
@@ -2026,7 +2030,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const kanton = g?.kanton ?? av?.find(f => f.kanton)?.kanton
     return datenlage({ lat, lon, bfs: g?.bfs ?? null, ...(kanton ? { kanton } : {}) })
   }, [av, fall, rechnung, daten, bund.stand.gebiet])
-  const quellZustand = useMemo(() => zustandJeQuelle(quellen), [quellen])
+  const quellZustand = useMemo(() => zustandJeQuelle(quellenMitSnapshots), [quellenMitSnapshots])
   const geoVor = useMemo<GeoVorbelegung>(() => {
     const bav = 'daten' in bund.stand.bav ? bund.stand.bav.daten : null
     const modell = 'daten' in npvm.stand ? npvm.stand.daten : null
@@ -2355,7 +2359,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
 
   return (
     <div className="app" style={{ '--panel-breite': `${panelBreite}px` } as CSSProperties}>
-      <Karte luftbildBestaetigt={!!(fall && rechnung?.luftbild && luftbildGilt(fall, rechnung.luftbild.teile))} quellenEbenen={quellenEbenen} osmTags={geoVor.osmTags ?? null} mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
+      <Karte baumkatasterAn={!!fall?.baumkataster} bruecken={brueckenUmrisse} luftbildBestaetigt={!!(fall && rechnung?.luftbild && luftbildGilt(fall, rechnung.luftbild.teile))} quellenEbenen={quellenEbenen} osmTags={geoVor.osmTags ?? null} mitte={START} av={avKarte} kantone={kantoneKarte} uebergaenge={sichtbar} strassennamen={namen} gewaehlt={gewaehlt?.id ?? null}
         amtlicheKandidaten={amtKandidaten} onAmtlicherKandidat={pruefenAmtlich} luftbildKandidaten={lbKandidaten} onLuftbildKandidat={pruefenLuftbild}
         fusswegnetz={fusswegnetz} richtplanVorhanden={richtplanVorhanden} onRichtplan={setRpStand}
         taktilGenutzt={taktilGen} taktilVorhanden={taktilVorhanden} onTaktil={setTkStand}
@@ -2811,17 +2815,19 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
           Datenstand; bestätigte Eingaben bleiben erhalten. Das Abrufdatum ist kein Datenstand.</p>
         <table>
           <tbody>
-            {quellenSortiert(quellenMitSnapshots).map(([k, q]) => (
+            {quellenSortiert(quellenMitSnapshots).map(([k, q]) => {
+              const registerEintrag = registerQuelle(QUELLE_JE_SCHLUESSEL[k] ?? '')
+              return (
               <tr key={k}><td><b>{quellenThema(k, q.name)}</b><br />{q.name}{q.server && <div className="klein">{q.server}</div>}
                 <div className="klein quelle-info">{quellenQualitaetText(q)}{q.zeit && <><br />Abgerufen {new Date(q.zeit).toLocaleString('de-CH')}</>}</div>
-                {registerQuelle(QUELLE_JE_SCHLUESSEL[k] ?? '') && <div className="klein quelle-info">{quelleInfo(registerQuelle(QUELLE_JE_SCHLUESSEL[k])!)}</div>}</td>
+                {registerEintrag && <><div className="klein quelle-info">{quelleInfo(registerEintrag)}</div><QuelleLinks quelle={registerEintrag} /></>}</td>
                 {q.fehler ? <td className="fehler">{q.fehler}{k === 'parkkataster' && parkKat?.fehler && <>{' '}
                   <button className="zweit klein" onClick={() => setParkKat(x => (x ? { ...x, felder: null, fehler: undefined, laedt: false } : x))}>
                     erneut laden</button></>}</td> :
                   <td className="klein">{[q.objekte, q.ms != null ? `${Math.round(q.ms)} ms` : '', q.bytes != null ? `${Math.round(q.bytes / 1024)} kB` : '']
                     .filter(Boolean).join(', ') || 'lädt …'}</td>}
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
         </details>
