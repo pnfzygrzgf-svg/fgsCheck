@@ -148,7 +148,15 @@ export function neigungLesen(t: string): number | null {
 export const zielLaenge = (sw: Pick<Sichtweite, 'oben' | 'massgebend'>): number => Math.ceil(ZIEL_FAKTOR * Math.max(sw.oben, sw.massgebend))
 
 /** erfüllt: ≥ oberer Wert (und ≥ massgebend); massgebend: ≥ massgebender Wert; sonst nicht erfüllt */
-export type Status = 'erfuellt' | 'massgebend' | 'nicht_erfuellt' | 'nicht_beurteilbar'
+export type Status = 'erfuellt' | 'massgebend' | 'nicht_erfuellt' | 'nicht_beurteilbar' | 'offen'
+
+/** SW-04 (Prüfung 10.11.2026): VSS 40 273 Ziffer 11 verlangt auch bei zugelassenen Einzelhindernissen (Palisade unter 5 m), dass das
+ *  vortrittsberechtigte Fahrzeug bei A sichtbar ist. Liegt der Zielpunkt bei A im Schatten eines Stamms, kann die App das nicht
+ *  nachweisen (das Fahrzeug ist breiter als der Punkt): kein «erfüllt», sondern «offen», bis die Sicht vor Ort bestätigt ist */
+export const OFFEN_A_TEXT = 'offen: Zielpunkt bei A im Schatten eines Stamms, Sicht auf das Fahrzeug bei A vor Ort prüfen (VSS 40 273 Ziffer 11)'
+/** Status mit der Bedingung von Ziffer 11: ein erfüllter Status wird «offen», wenn der Zielpunkt bei A im Schatten eines Stamms liegt */
+export const mitSichtBeiA = <S extends string>(status: S, beiA: boolean | null | undefined): S | 'offen' =>
+  beiA && (status === 'erfuellt' || status === 'massgebend') ? 'offen' : status
 
 /** Tempo über der VSS 40 273 Tab. 1: die Sicht lässt sich nach der Norm nicht beurteilen (Befund SW-02, 10.11.2026); Text für
  *  Anzeige, Hinweis und Bericht */

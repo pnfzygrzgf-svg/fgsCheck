@@ -340,7 +340,7 @@ export interface SichtTeil {
   sichtbar: boolean[]
   vorhanden: number
   bisEnde: boolean
-  status: 'erfuellt' | 'nicht_erfuellt'
+  status: 'erfuellt' | 'nicht_erfuellt' | 'offen'   // offen: Zielpunkt bei A im Schatten eines Stamms (SW-04)
   verdecker: Verdecker | null
   verdeckerListe: VerdeckerEintrag[]
   palisade: Palisade | null

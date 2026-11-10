@@ -6,7 +6,8 @@ import type { Fall } from '../fall'
 
 /** Status eines Teils bzw. einer Phase, kurz */
 export const KS_STATUS: Record<RichtungStatus, string> = { erfuellt: 'genügt', massgebend: 'genügt knapp',
-  nicht_erfuellt: 'zu wenig Sicht', keine_zufahrt: 'nicht geprüft', nicht_beurteilbar: 'nicht beurteilbar (über 80 km/h)' }
+  nicht_erfuellt: 'zu wenig Sicht', keine_zufahrt: 'nicht geprüft', nicht_beurteilbar: 'nicht beurteilbar (über 80 km/h)',
+  offen: 'offen (Fahrzeug bei A im Schatten eines Stamms, vor Ort prüfen; SW-04)' }
 /** Herkunft der Breite in Worten */
 export const KS_BREITE: Record<TueBreiteQuelle, string> = { eingabe: 'von Hand', av_quer: 'Trottoir quer über die Einmündung nach AV',
   av_neben: 'angrenzendes Trottoir nach AV', annahme: 'angenommen' }

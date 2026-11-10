@@ -71,7 +71,7 @@ import { fahrstreifenmitte, lageOsm, LAGE_ERSATZ, randProfil, fahrstreifenLagen,
 import { punkteAufSpur, SEHNE_MIN_PUNKTE } from './spur'
 import { wegTempo, tempoEntlang, zonenTempo, amtlichNaechste, amtlichEntlang, TEMPO_ERSATZ } from './tempo'
 import { tueBand, TUE_GEHLINIE_M, TUE_BREITE_ANNAHME_M, type TueBand } from './trottoirueberfahrt'
-import { sichtweiteA, zielLaenge, sichtStatus, istHvsHighway, TAB1, TAB1_MAX, ZIEL_FAKTOR, STRASSENTYP_TEXT, NEIGUNG_GROSS_PROZENT,
+import { sichtweiteA, zielLaenge, sichtStatus, mitSichtBeiA, istHvsHighway, TAB1, TAB1_MAX, ZIEL_FAKTOR, STRASSENTYP_TEXT, NEIGUNG_GROSS_PROZENT,
   NEIGUNG_EBEN_PROZENT, ZWISCHENWERT_TEXT, SCHWERVERKEHR_PROZENT, type Strassentyp, type Ungunst,
   HVS_HIGHWAY } from './sichtweite'
 import { ANHALTESICHT_I_MIN } from './anhaltesicht'
@@ -1446,7 +1446,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   // dem Nullpunkt gerechnet (wie die Massnahmen); mit D von Hand nur mit Vorbehalt
   if (regelung === 'stop' && !rv && !nurRv) {
     const mitV = richtungen.filter(r => r.status !== 'keine_zufahrt' || r.velo)
-    const reicht = (r: RichtungErgebnis) => r.status !== 'nicht_erfuellt' && r.status !== 'nicht_beurteilbar' && r.velo?.status !== 'nicht_erfuellt' &&
+    const reicht = (r: RichtungErgebnis) => r.status !== 'nicht_erfuellt' && r.status !== 'nicht_beurteilbar' && r.status !== 'offen' && r.velo?.status !== 'nicht_erfuellt' &&
       r.ueberholfall?.status !== 'nicht_erfuellt'
     if (mitV.length && mitV.every(reicht)) {
       if (!ao.ausserorts) hinweise.push(KEIN_VORTRITT_STATT_STOP)
@@ -1527,7 +1527,7 @@ const TUE_GEH_TOL_M = 0.3
 const RADWEG_AN_ZUFAHRT_M = 3
 /** Trottoir: Höhenprofil so weit beidseits der Zufahrt [m] (grösster Wert der Tab. 2) */
 export const TROTTOIR_PROFIL_M = Math.max(...TAB2)
-const RANG: Record<RichtungStatus, number> = { nicht_erfuellt: 0, nicht_beurteilbar: 1, massgebend: 2, erfuellt: 3, keine_zufahrt: 4 }
+const RANG: Record<RichtungStatus, number> = { nicht_erfuellt: 0, nicht_beurteilbar: 1, offen: 1.5, massgebend: 2, erfuellt: 3, keine_zufahrt: 4 }
 /** Rechtsvortritt (E3c): Zustand nach Abb. 6 als Status der Richtung bzw. des Arms */
 const ZUSTAND_STATUS: Record<Zustand, RichtungStatus> = { anzustreben: 'erfuellt', zulaessig: 'massgebend', sanieren: 'nicht_erfuellt' }
 export const RV_STATUS: Record<Zustand, RvStatus> = { anzustreben: 'erfuellt', zulaessig: 'bedingt', sanieren: 'nicht_erfuellt' }
@@ -1577,9 +1577,10 @@ function sichtTeil(D: P, achse: P[], sMax: number, flaechenAlle: Verdeckend[], A
   const pal = si.palisade
   if (pal && (pal.anteil > 0 || pal.zaehlt))
     hinweise.push(`Palisade (Bäume): ${Math.round(pal.anteil * 100)} % der Strecke bis A verdeckt, längste Strecke ${f1(pal.laengste)} m` +
-      `${pal.zaehlt ? ` (ab ${f1(PALISADE_MIN_M)} m: zählt als Verdeckung)` : ''}.`)
+      `${pal.zaehlt ? ` (ab ${f1(PALISADE_MIN_M)} m: zählt als Verdeckung)` : ''}.` +
+      (pal.beiA ? ' Zielpunkt bei A im Schatten eines Stamms: Status «offen», Sicht vor Ort prüfen (Ziffer 11).' : ''))
   return { A, K: achse[0], achse: abschneiden(achse, sMax), sMax, sichtpunkte: si.punkte, sichtbar: si.sichtbar, vorhanden: si.vorhanden,
-    bisEnde: si.bisEnde, status: si.vorhanden + 1e-6 >= A ? 'erfuellt' : 'nicht_erfuellt',
+    bisEnde: si.bisEnde, status: mitSichtBeiA(si.vorhanden + 1e-6 >= A ? 'erfuellt' : 'nicht_erfuellt', pal?.beiA),   // SW-04
     verdecker: vd ? { id: vd.id, name: vd.name, art: vd.art ?? 'Gebäude', quelle: vd.quelle ?? 'AV', ring: vd.poly[0], sVerdeckt: si.sVerdeckt ?? 0 } : null,
     verdeckerListe: si.liste.map(t => ({ id: t.v.id, name: t.v.name, art: t.v.art ?? 'Gebäude', quelle: t.v.quelle ?? 'AV',
       wirkung: t.v.wirkung ?? 'voll', sErst: t.sErst, strecke: t.strecke, ring: t.v.poly[0] })), palisade: pal,
@@ -1789,13 +1790,15 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
   const si = sichtEntlang(D, achse, sMax, [...k.gebaeude, ...hindernisse], A)
   // Rechtsvortritt: Status nach Abb. 6 (anzustreben = erfüllt, zulässig = «massgebend», zu sanieren = nicht erfüllt)
   const zustand: Zustand | null = rvWahr ? zustandAbb6(rvWahr, si.vorhanden) : null
-  const status = zustand ? ZUSTAND_STATUS[zustand] : sichtStatus(si.vorhanden, sw)
+  // SW-04: Zielpunkt bei A im Schatten eines Stamms → «offen» statt erfüllt bzw. massgebend
+  const status = mitSichtBeiA(zustand ? ZUSTAND_STATUS[zustand] : sichtStatus(si.vorhanden, sw), si.palisade?.beiA)
   const frei = Math.min(si.vorhanden, A)
   const vd = si.verdecker as Verdeckend | null
   const verdeckerListe: VerdeckerEintrag[] = si.liste.map(t => ({ id: t.v.id, name: t.v.name, art: t.v.art ?? 'Gebäude',
     quelle: t.v.quelle ?? 'AV', wirkung: t.v.wirkung ?? 'voll', sErst: t.sErst, strecke: t.strecke, ring: t.v.poly[0] }))
   // Statuszusatz und Hinweise zu Zweirädern, durchlässigen Zäunen und zur Palisade (ohne Statuswirkung)
   const statusZusatz: string[] = zustand ? [`Abb. 6: ${ZUSTAND_TEXT[zustand]}`] : []
+  if (status === 'offen') statusZusatz.push('offen: Fahrzeug bei A im Schatten eines Stamms')
   if (faVersetzt) statusZusatz.push('Fahrlinie von Hand')
   const hinweisArt = (f: (t: VerdeckerEintrag) => boolean) => verdeckerListe.filter(t => t.wirkung === 'hinweis' && f(t))
   const zweirad = hinweisArt(t => t.art.startsWith('Parkfeld'))
@@ -1818,8 +1821,8 @@ function richtungRechnen(k: Kontext, richtung: Richtung, lage: Lage, a: ArmInfo,
       pal.hinterVoll ? '(liegt hinter der ersten vollen Verdeckung: ohne Wirkung)' :
       `(unter ${f1(PALISADE_MIN_M)} m: zählt nicht als Verdeckung)`
     hinweise.push(`Palisade (Bäume, Ziffer 11, Abb. 3): ${proz} % der Strecke bis A verdeckt, längste zusammenhängend verdeckte ` +
-      `Strecke bis A ${f1(pal.laengste)} m ${wertung}.` + (pal.beiA ? ' Der Zielpunkt bei A liegt im Schatten eines ' +
-      'Stamms: Sichtbarkeit des Fahrzeugs bei A vor Ort prüfen.' : ''))
+      `Strecke bis A ${f1(pal.laengste)} m ${wertung}.` + (pal.beiA ? ' Der Zielpunkt bei A liegt im Schatten eines Stamms. ' +
+      'Ziffer 11 verlangt, dass das Fahrzeug bei A sichtbar ist; das lässt sich hier nicht nachweisen: Status «offen», Sicht vor Ort prüfen.' : ''))
   }
   const velo = veloRechnen()
   hinweise.push(...endeHinweis(velo, A))

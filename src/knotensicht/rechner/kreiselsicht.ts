@@ -18,7 +18,7 @@
 import { type P, dist, imPolygon, winkelGrad } from '../geo'
 import { abschneiden, streckeLaenge } from './netz'
 import { sichtEntlang, sichtdreieck, type Verdeckend } from './sicht'
-import { sichtweiteA, sichtStatus, istHvsHighway, type Status, type Strassentyp } from './sichtweite'
+import { sichtweiteA, sichtStatus, istHvsHighway, mitSichtBeiA, type Status, type Strassentyp } from './sichtweite'
 import { veloSichtweite } from './velo'
 import { vereinigung, schnitt, differenz, type Multi } from './poly'
 import { armText } from './knoten'
@@ -61,8 +61,11 @@ function teil(D: P, achse: P[], sMax: number, flaechenAlle: Verdeckend[], A: num
   const frei = Math.min(si.vorhanden, oben)
   const hinweise = durch.map(f => `Die Linie läuft bis A durch «${f.name}» (${f.quelle}): für diese Sicht nicht gerechnet; Lage prüfen.`)
   if (si.palisade && (si.palisade.anteil > 0 || si.palisade.zaehlt)) hinweise.push(`Palisade (Bäume): ${Math.round(si.palisade.anteil * 100)} % ` +
-    `der Strecke bis A verdeckt, längste Strecke ${f1(si.palisade.laengste)} m${si.palisade.zaehlt ? ' (zählt als Verdeckung)' : ''}.`)
-  return { A, oben, minimal, text, achse: abschneiden(achse, sMax), sMax, vorhanden: si.vorhanden, bisEnde: si.bisEnde, status: status(si.vorhanden),
+    `der Strecke bis A verdeckt, längste Strecke ${f1(si.palisade.laengste)} m${si.palisade.zaehlt ? ' (zählt als Verdeckung)' : ''}.` +
+    (si.palisade.beiA ? ' Zielpunkt bei A im Schatten eines Stamms: Status «offen», Sicht vor Ort prüfen (Ziffer 11).' : ''))
+  // SW-04: Zielpunkt bei A im Schatten eines Stamms → «offen» statt erfüllt
+  return { A, oben, minimal, text, achse: abschneiden(achse, sMax), sMax, vorhanden: si.vorhanden, bisEnde: si.bisEnde,
+    status: mitSichtBeiA(status(si.vorhanden), si.palisade?.beiA),
     verdecker: vd ? { id: vd.id, name: vd.name, art: vd.art ?? 'Gebäude', quelle: vd.quelle ?? 'AV', ring: vd.poly[0], sVerdeckt: si.sVerdeckt ?? 0 } : null,
     verdeckerListe: si.liste.map(t => ({ id: t.v.id, name: t.v.name, art: t.v.art ?? 'Gebäude', quelle: t.v.quelle ?? 'AV', wirkung: t.v.wirkung ?? 'voll',
       sErst: t.sErst, strecke: t.strecke, ring: t.v.poly[0] })),
@@ -184,7 +187,7 @@ export function kreiselSicht(k: KreiselInfo, verdeckend: Verdeckend[]):
   if (az) annahmen.push(`Az ist ein Vergleichswert, kein Normwert (${AZ_QUELLE}).`)
   hinweise.push('Anhaltesichtweite auf der Kreiselfahrbahn und in die Ausfahrt folgt in einer späteren Version; die Sicht auf ' +
     'Fussgängerstreifen prüft fgsCheck.')
-  const rang: Record<Status, number> = { erfuellt: 0, massgebend: 1, nicht_beurteilbar: 2, nicht_erfuellt: 3 }
+  const rang: Record<Status, number> = { erfuellt: 0, massgebend: 1, offen: 1.5, nicht_beurteilbar: 2, nicht_erfuellt: 3 }
   const gesamt = [auto.status, veloT.status, bermeStatus as Status].reduce((m, s) => (rang[s] > rang[m] ? s : m))
   return { arm: arm.key, D, tempo, typ, typQuelle, auto: { ...auto, A: gerundet(auto.A), oben: gerundet(auto.oben) }, velo: veloT, az, azGrund, azLinks,
     berme: { flaechen: berme.map(p => p[0]), tiefe: Math.max(0, tiefe), innenring, ganz: ganz && !durchsicht.length, hindernisse: inBerme.map(f => f.name), ids: inBerme.map(f => f.id),

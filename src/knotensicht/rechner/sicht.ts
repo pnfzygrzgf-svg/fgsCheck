@@ -44,7 +44,8 @@ export interface Palisade {
   strecken: [number, number][] // verdeckte Strecken [von, bis] (s der Zielpunkte, ganze Achse bis sMax)
   zaehlt: boolean             // eine Strecke misst innerhalb von A ≥ PALISADE_MIN_M und beginnt vor der ersten vollen Verdeckung
   hinterVoll: boolean         // eine solche Strecke liegt erst hinter der ersten vollen Verdeckung (ohne Wirkung)
-  beiA: boolean | null        // Zielpunkt bei A durch einen Baum verdeckt (null: A ausserhalb der Achse)
+  beiA: boolean | null        // Zielpunkt bei A durch einen Baum verdeckt (null: A ausserhalb der Achse); liegt A zwischen zwei feinen
+                              // Punkten, zählt jeder der beiden (SW-04, 10.11.2026)
 }
 
 export interface SichtErgebnis {
@@ -177,9 +178,11 @@ export function sichtEntlang(D: P, achse: P[], sMax: number, flaechen: Verdecken
     const zaehlt = !!lang && sPal < sVoll
     if (zaehlt) { vorhanden = sPal; bisEnde = false; verdecker = palVerdeckt[lang![0]]; sVerdeckt = fein[lang![0]] }
     const nA = palVerdeckt.slice(0, kBisA).filter(x => x).length
-    const kA = A <= ende + 1e-9 ? Math.min(fein.length - 1, Math.round(A / FEIN_M)) : -1
+    // Zielpunkt bei A (SW-04): auf einer Rastergrenze der Punkt selbst, dazwischen beide Nachbarn (der Schatten kann A treffen)
+    const imA = A <= ende + 1e-9
+    const kA0 = Math.min(fein.length - 1, Math.floor(A / FEIN_M + 1e-9)), kA1 = Math.min(fein.length - 1, Math.ceil(A / FEIN_M - 1e-9))
     palisade = { anteil: kBisA ? nA / kBisA : 0, laengste: Math.max(...laeufe.map(laengeA)), strecken, zaehlt, hinterVoll: !!lang && !zaehlt,
-      beiA: kA < 0 ? null : !!palVerdeckt[kA] }
+      beiA: imA ? !!palVerdeckt[kA0] || !!palVerdeckt[kA1] : null }
   }
   return { punkte, abstaende, sichtbar, vorhanden, bisEnde, verdecker, sVerdeckt, liste, palisade }
 }
