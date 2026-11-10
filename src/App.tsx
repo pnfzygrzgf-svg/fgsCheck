@@ -1,3 +1,4 @@
+import { linienPruefsumme, diensteKennung } from './linienPruefsumme'
 import { BAUM_ANNAHME } from './rechner/baumAnnahme'
 import { ParkAnnahmen } from './ParkAnnahmen'
 import { regionaleQuellenAngabe, regionaleQuelleMitStand } from './regionaleQuellenTexte'
@@ -544,8 +545,11 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     setzeQuelle(d.schluessel[art], { name: hoehenName(d, art), fehler: rueckfallText(f, n) }), [setzeQuelle])
   // Trottoirüberfahrt (K3): Längsneigung der Knotensicht aus dem Höhenmodell, je «Knoten|Zufahrt»; nach dem
   // Eintreffen rechnet der Worker die Knotensicht neu (Effekt «Längsneigung der Knotensicht» unten)
-  const [ksHoehen, setKsHoehen] = useState<{ nr: number; werte: Record<string, HoehenVorgabe> } | null>(null)
-  const hoehenWerte = ksHoehen && ksHoehen.nr === ladeNr.current ? ksHoehen.werte : null
+  // SW-05: der Schlüssel je Knotensicht enthält die Prüfsumme der Profillinien (tue/knotensicht.ts); der Stand gilt nur für die
+  // Dienste, mit denen er geholt wurde (in Bern wechselt die Wahl, sobald das amtliche Tempo geladen ist)
+  const diensteId = diensteKennung(hoehenDienste)
+  const [ksHoehen, setKsHoehen] = useState<{ nr: number; dienste: string; werte: Record<string, HoehenVorgabe> } | null>(null)
+  const hoehenWerte = ksHoehen && ksHoehen.nr === ladeNr.current && ksHoehen.dienste === diensteId ? ksHoehen.werte : null
   useEffect(() => {
     if (!daten || !rechenFall) return
     const t = setTimeout(() => rechnen(daten, rechenFall, kataster, parkDaten, vsigRechnung, hoehenWerte), 200)
@@ -556,12 +560,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // Rückfallgrund, beim letzten Dienst gibt ein Fehler 0 % mit Hinweis (hoehenDienst.neigungMit)
   const hoehenLaeuft = useRef(new Set<string>())
   useEffect(() => {
-    const ctrl = abbruchRef.current, nr = ladeNr.current
+    const ctrl = abbruchRef.current, nr = ladeNr.current, dienste = diensteId
     if (!rechnungRoh || !ctrl || ctrl.signal.aborted) return
     const offen = rechnungRoh.streifen.map(s => s.knotensicht).filter((k): k is Knotensicht => !!k && !('fehler' in k))
-      .filter(k => !hoehenWerte?.[k.hoehenSchluessel] && !hoehenLaeuft.current.has(`${nr}|${k.hoehenSchluessel}`))
+      .filter(k => !hoehenWerte?.[k.hoehenSchluessel] && !hoehenLaeuft.current.has(`${nr}|${dienste}|${k.hoehenSchluessel}`))
     for (const k of offen) {
-      const lauf = `${nr}|${k.hoehenSchluessel}`
+      const lauf = `${nr}|${dienste}|${k.hoehenSchluessel}`
       hoehenLaeuft.current.add(lauf)
       const linien = (Object.entries(k.profile) as [keyof HoehenVorgabe, P[]][]).filter(([, l]) => l.length >= 2)
       setzeQuelle(hoehenDienste[0].schluessel.neigung, { name: hoehenName(hoehenDienste[0], 'neigung') })
@@ -573,7 +577,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       }, rueckfallMelden('neigung')).then(({ dienst: d, wert: res }) => {
         if (ctrl.signal.aborted || ladeNr.current !== nr) return
         const stand: HoehenVorgabe = Object.fromEntries(res.map(([n, [m]]) => [n, m]))
-        setKsHoehen(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [k.hoehenSchluessel]: stand } }))
+        setKsHoehen(h => ({ nr, dienste, werte: { ...(h && h.nr === nr && h.dienste === dienste ? h.werte : {}), [k.hoehenSchluessel]: stand } }))
         const fehler = res.filter(([, [, a]]) => typeof a === 'string')
         const ok = res.map(([, [, a]]) => a).filter((a): a is Exclude<typeof a, string> => typeof a !== 'string')
         setzeQuelle(d.schluessel.neigung, { name: hoehenName(d, 'neigung'), objekte: `${res.length} Profile`, ...(ok.length ? { ms: Math.max(...ok.map(a => a.ms)),
@@ -583,16 +587,27 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         if (ctrl.signal.aborted || istAbbruch(err) || ladeNr.current !== nr) return
         // Dienst-Fehler: jedes Profil «nicht verfügbar» (wie ein fehlerhaftes Einzelprofil), damit der Kern die
         // Neigung als unbekannt rechnet (strengster Wert) und nicht dauerhaft «vorerst 0 %» bleibt
-        setKsHoehen(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [k.hoehenSchluessel]: hoehenNichtVerfuegbar(linien.map(([n]) => n), err) } }))
+        setKsHoehen(h => ({ nr, dienste, werte: { ...(h && h.nr === nr && h.dienste === dienste ? h.werte : {}), [k.hoehenSchluessel]: hoehenNichtVerfuegbar(linien.map(([n]) => n), err) } }))
         setzeQuelle(hoehenLetzter.schluessel.neigung, { name: hoehenName(hoehenLetzter, 'neigung'), fehler: `${(err as Error).message} (Längsneigung unbekannt, strengster Wert)` })
       })
     }
-  }, [rechnungRoh, hoehenWerte])
+  }, [rechnungRoh, hoehenWerte, diensteId])
 
   // Längsneigung entlang der Fahrlinie (29.10.2026), 50 m vor dem Streifen, aus demselben Höhendienst wie die Knotensicht:
   // für die Kurvenregel (Zufahrt mit der Strassenkurve) und die Sicht vom Velo (Zufahrten mit Radstreifen bzw. Radweg); einmal je
   // Ladevorgang und Zufahrt. Fehlt das Profil (lädt, Fehler), gelten 0 % bzw. die Frage bleibt offen
-  const [kurveNeigung, setKurveNeigung] = useState<{ nr: number; werte: Record<string, NeigungMessung> } | null>(null)
+  const [kurveRoh, setKurveRoh] = useState<{ nr: number; werte: Record<string, { geo: string; m: NeigungMessung }> } | null>(null)
+  // SW-05: je Zufahrt nur der Stand, dessen Linie und Dienste zur aktuellen Rechnung passen (Fahrlinie von Hand, Streifen verschoben)
+  const kurveGeo = useCallback((z: Parameters<typeof kurveProfilLinie>[0]) => linienPruefsumme([['fahrlinie', kurveProfilLinie(z)]], diensteId), [diensteId])
+  const kurveNeigung = useMemo(() => {
+    if (!kurveRoh || kurveRoh.nr !== ladeNr.current || !rechnungRoh) return null
+    const werte: Record<string, NeigungMessung> = {}
+    for (const z of rechnungRoh.streifen.flatMap(s => s.zufahrten)) {
+      const key = kurveProfilSchluessel(z), w = kurveRoh.werte[key]
+      if (w && w.geo === kurveGeo(z)) werte[key] = w.m
+    }
+    return { nr: kurveRoh.nr, werte }
+  }, [kurveRoh, rechnungRoh, kurveGeo])
   const kurveLaeuft = useRef(new Set<string>())
   useEffect(() => {
     const ctrl = abbruchRef.current, nr = ladeNr.current
@@ -600,9 +615,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     const kz = strassenKurve(rechnungRoh.streifen)?.z
     const zs = [...(kz ? [kz] : []), ...rechnungRoh.streifen.flatMap(s => s.zufahrten.filter(z => z.velo))]
     for (const z of zs) {
-      const key = kurveProfilSchluessel(z), lauf = `${nr}|${key}`
+      const key = kurveProfilSchluessel(z), geo = kurveGeo(z), lauf = `${nr}|${key}|${geo}`
       const linie = kurveProfilLinie(z)
-      if (linie.length < 2 || kurveLaeuft.current.has(lauf)) continue
+      if (linie.length < 2 || kurveLaeuft.current.has(lauf) || kurveNeigung?.werte[key]) continue
       kurveLaeuft.current.add(lauf)
       setzeQuelle(hoehenDienste[0].schluessel.neigung, { name: hoehenName(hoehenDienste[0], 'neigung') })
       mitRueckfall(hoehenDienste, async d => {
@@ -611,7 +626,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         return r
       }, rueckfallMelden('neigung')).then(({ dienst: d, wert: [m, a] }) => {
         if (ctrl.signal.aborted || ladeNr.current !== nr) return
-        setKurveNeigung(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [key]: m } }))
+        setKurveRoh(h => ({ nr, werte: { ...(h && h.nr === nr ? h.werte : {}), [key]: { geo, m } } }))
         setzeQuelle(d.schluessel.neigung, typeof a === 'string' ? { name: hoehenName(d, 'neigung'), fehler: `${a} (Längsneigung der Fahrlinie: 0 % bzw. offen)` }
           : { name: hoehenName(d, 'neigung'), objekte: 'Profil der Fahrlinie', ms: a.ms, bytes: a.bytes, server: a.quelle })
       }, err => {
@@ -619,7 +634,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         setzeQuelle(hoehenLetzter.schluessel.neigung, { name: hoehenName(hoehenLetzter, 'neigung'), fehler: `${(err as Error).message} (Längsneigung der Fahrlinie: 0 % bzw. offen)` })
       })
     }
-  }, [rechnung])
+  }, [rechnung, kurveGeo])
 
   // Erkennungsdistanz mit Gelände (30.10.2026; erkennungGelaende.ts): nach jeder Rechnung je gerade Zufahrt eines Fussgängerstreifens
   // die Höhenprofile der Sichtlinien bis zur Erkennungsdistanz (höchstens 14, daten/sichtProfil.ts mit Cache), je Zufahrt und Lage der

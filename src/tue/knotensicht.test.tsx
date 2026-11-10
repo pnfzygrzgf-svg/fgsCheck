@@ -54,6 +54,8 @@ function rechnen(fall: Fall, rest: Partial<Rest> = {}, av = avRoh()) {
   return r
 }
 const ks = (a: KnotensichtAntwort | undefined): Knotensicht => { if (!a || 'fehler' in a) throw new Error(`keine Knotensicht: ${JSON.stringify(a)}`); return a }
+/** Schlüssel der Höhenprofile eines Falls, wie ihn die Rechnung liefert (SW-05: Knoten|Zufahrt|Prüfsumme der Profillinien) */
+const schl = (f: Fall): string => ks(rechnen(f).streifen[0].knotensicht).hoehenSchluessel
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, ' ')
 
 describe('Knotensicht: Knoten und Zufahrt aus dem Streifen', () => {
@@ -98,7 +100,13 @@ describe('Knotensicht im Worker-Weg (rechneFall + knotensichtAnfuegen)', () => {
     expect(k.karte.kanten).toHaveLength(2)
     expect(Object.keys(k.profile).sort()).toEqual(['links', 'rechts', 'trottoir', 'zufahrt'])
     expect(k.karte.dreiecke.map(d => d.art).sort()).toEqual(['auto', 'auto', 'trottoir', 'trottoir', 'velo', 'velo'])
-    expect(k.hoehenSchluessel).toBe('11|2:0:1|3,00')
+    expect(k.hoehenSchluessel).toMatch(/^11\|2:0:1\|[0-9a-f]+$/)
+    // SW-05: Tempo der Hauptstrasse von Hand ändert A und damit die Linien: anderer Schlüssel, das alte Profil gilt nicht mehr
+    expect(schl(fallTue(x => { x.bedarf = { felder: { 'q3.vSigHaupt': { wert: 60, quelle: 'hand' } } } }))).not.toBe(k.hoehenSchluessel)
+    // gleiche Geometrie: gleicher Schlüssel, auch nach dem Laden der Neigung (die Linien hängen nicht von ihr ab)
+    const m0 = { i: -8, quelle: HOEHEN_QUELLE, laenge: 50, punkte: 20, hinweis: null }
+    expect(ks(rechnen(fallTue(), { hoehen: { [k.hoehenSchluessel]: { links: m0, rechts: m0, zufahrt: m0, trottoir: m0 } } }).streifen[0].knotensicht).hoehenSchluessel)
+      .toBe(k.hoehenSchluessel)
   })
   it('Breite von Hand (Bedarf «Breite der Trottoirüberfahrt») geht vor; ausserhalb 1 bis 8 m ohne Wirkung', () => {
     const mit = (w: number) => ks(rechnen(fallTue(x => { x.bedarf = { felder: { 'q3.breiteM': { wert: w, quelle: 'hand' } } } })).streifen[0].knotensicht)
@@ -173,7 +181,7 @@ describe('Knotensicht: Vorbelegung «Sicht beim Ausfahren», Handeingabe geht vo
     expect(blatt(fallTue()).vorbelegt.werte['q3.knotensichtOk']).toMatchObject({ wert: true, quelle: 'annahme' })
     const m = { i: 0, quelle: HOEHEN_QUELLE, laenge: 50, punkte: 20, hinweis: null }
     const mitTempo = (x: Fall) => { x.bedarf = { felder: { 'q3.vSigHaupt': { wert: 50, quelle: 'hand' } } } }
-    const w = blatt(fallTue(mitTempo), { hoehen: { '11|2:0:1|3,00': { links: m, rechts: m, zufahrt: m, trottoir: m } } }).vorbelegt.werte['q3.knotensichtOk']
+    const w = blatt(fallTue(mitTempo), { hoehen: { [schl(fallTue(mitTempo))]: { links: m, rechts: m, zufahrt: m, trottoir: m } } }).vorbelegt.werte['q3.knotensichtOk']
     expect(w).toMatchObject({ wert: true, quelle: 'rechnung' }); expect(String(w?.text)).toContain('aufs Trottoir genügt')
   })
   it('nicht erfüllt: nein; Handeingabe überschreibt', () => {
@@ -230,11 +238,11 @@ describe('Knotensicht: Einzelfälle (S1–S3, K3, K4, K7)', () => {
   it('S1: Höhenprofil uneben: Hinweis, unsicher; nicht verfügbar: Hinweis, Neigung unbekannt (strengster Wert) als Annahme', () => {
     const uneben = { i: 1, quelle: HOEHEN_QUELLE, laenge: 50, punkte: 20, hinweis: 'Höhenprofil uneben (Streuung 0,5 m um die Ausgleichsgerade; Kuppe, Wanne, Brücke?): Längsneigung vor Ort bzw. von Hand prüfen.' }
     const ok = { ...uneben, i: 0, hinweis: null }
-    const k = ks(rechnen(fallTue(), { hoehen: { '11|2:0:1|3,00': { links: uneben, rechts: ok, zufahrt: ok, trottoir: ok } } }).streifen[0].knotensicht)
+    const k = ks(rechnen(fallTue(), { hoehen: { [schl(fallTue())]: { links: uneben, rechts: ok, zufahrt: ok, trottoir: ok } } }).streifen[0].knotensicht)
     expect(k.ok).toBeNull(); expect(k.unklar[0]).toContain('Höhenprofil uneben')
     // nicht verfügbar: Höhenmodell geladen, Profil ohne Neigung → unbekannt, der Kern nimmt den strengsten Wert
     const weg = neigungMessung(new Error('x'))
-    const g = ks(rechnen(fallTue(), { hoehen: { '11|2:0:1|3,00': { links: weg, rechts: ok, zufahrt: ok, trottoir: weg } } }).streifen[0].knotensicht)
+    const g = ks(rechnen(fallTue(), { hoehen: { [schl(fallTue())]: { links: weg, rechts: ok, zufahrt: ok, trottoir: weg } } }).streifen[0].knotensicht)
     expect([g.ok, g.neigungGemessen, g.neigungUnbekannt]).toEqual([true, false, true])
     expect(g.annahmeGrund).toContain('Längsneigung unbekannt, strengster Wert angenommen')
     expect(g.annahmeGrund).not.toContain('Längsneigung 0 % angenommen')
@@ -299,7 +307,7 @@ describe('Knotensicht: Einzelfälle (S1–S3, K3, K4, K7)', () => {
     expect([q.zustand, q.bestaetigen]).toEqual(['offen', true])
     const m = { i: 0, quelle: HOEHEN_QUELLE, laenge: 50, punkte: 20, hinweis: null }
     const f = fallTue(x => { park(x); x.bedarf = { felder: { 'q3.vSigHaupt': { wert: 50, quelle: 'hand' } } } })
-    const r = bl(f, { hoehen: { '11|2:0:1|3,00': { links: m, rechts: m, zufahrt: m, trottoir: m } } })
+    const r = bl(f, { hoehen: { [schl(f)]: { links: m, rechts: m, zufahrt: m, trottoir: m } } })
     expect(r.vorbelegt.werte['q3.knotensichtOk']).toMatchObject({ wert: false, quelle: 'rechnung' })
     expect(r.befund.alle.find(x => x.id === 'Q3-11')?.zustand).toBe('verletzt')
   })

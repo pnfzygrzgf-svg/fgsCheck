@@ -23,11 +23,18 @@ describe('VSS 40 273 Tab. 1', () => {
     expect(sichtweiteA(45)).toMatchObject({ tempo: 45, stufe: 50, unten: 50, oben: 70 })
     expect(sichtweiteA(25)).toMatchObject({ stufe: 30, unten: 20, oben: 35 })
   })
-  it('über 80 km/h: Werte der Stufe 80 mit Hinweis', () => {
+  it('über 80 km/h: Werte der Stufe 80 nur zum Vergleich, Status nicht beurteilbar (SW-02)', () => {
     const sw = sichtweiteA(100)
     expect(sw).toMatchObject({ tempo: 100, stufe: 80, unten: 110, oben: 140, massgebend: 110 })
-    expect(sw.hinweis).toContain('über der Tab. 1')
+    expect(sw.hinweis).toContain('nicht beurteilbar')
     expect(tempoStufe(100)).toBe(100)
+    // Gegenprobe SW-02 der Prüfung vom 10.11.2026: 120 km/h und 140 m Sicht ergeben keinen erfüllten Status
+    const s120 = sichtweiteA(120)
+    expect(sichtStatus(140, s120)).toBe('nicht_beurteilbar')
+    expect(sichtStatus(100, s120)).toBe('nicht_erfuellt')          // reicht nicht einmal für die Stufe 80 km/h
+    expect(sichtStatus(140, sichtweiteA(80))).toBe('erfuellt')      // 80 km/h unverändert
+    expect(sichtStatus(140, sichtweiteA(80.01))).toBe('nicht_beurteilbar')
+    expect(sichtStatus(140, { massgebend: 110, oben: 140 })).toBe('erfuellt')   // ohne Tempo wie bisher
   })
   it('Zielpunkte bis 1,5 × oberer Wert (aufgerundet)', () => {
     expect(zielLaenge(sichtweiteA(30))).toBe(53)        // 1,5 × 35 = 52,5
@@ -69,26 +76,27 @@ describe('VSS 40 273 Ziffer 13.1: Strassentyp, ungünstige Verhältnisse, Neigun
     expect(['motorway', 'unclassified', 'residential', 'living_street', 'service', 'tertiary_linkx'].some(istHvsHighway)).toBe(false)
   })
   it('Anhaltesichtweite: bei |i| ≤ 2 % nicht angewendet, darüber Untergrenze (aufgerundet)', () => {
-    // 50 km/h, ES (Kurve um −1 m auf Tab. 1 verschoben): −2 % -> Tab. 1 (50 m); −3 % -> (52 + 51) / 2 − 1 = 50,5 -> 51 m;
-    // +3 % -> 49,5 − 1 = 48,5 -> 49 < 50 -> 50 m
+    // 50 km/h, ES (Abb. 2 unverändert, SW-01): −2 % -> Tab. 1 (50 m); −3 % -> (53 + 52) / 2 = 52,5 -> 53 m;
+    // +3 % -> (50 + 49) / 2 = 49,5 -> 50 m, nicht über Tab. 1
     expect(sichtweiteA(50, 'es', KEINE_UNGUNST, -2)).toMatchObject({ anhalteAngewendet: false, massgebend: 50 })
-    expect(sichtweiteA(50, 'es', KEINE_UNGUNST, -2).anhalte?.meter).toBe(50)          // angezeigt, nicht angewendet
+    expect(sichtweiteA(50, 'es', KEINE_UNGUNST, -2).anhalte?.meter).toBe(52)          // angezeigt, nicht angewendet
     const s3 = sichtweiteA(50, 'es', KEINE_UNGUNST, -3)
-    expect(s3).toMatchObject({ anhalteAngewendet: true, massgebend: 51, massgebendText: 'Anhaltesichtweite bei −3 %' })
+    expect(s3).toMatchObject({ anhalteAngewendet: true, massgebend: 53, massgebendText: 'Anhaltesichtweite bei −3 %' })
     expect(sichtweiteA(50, 'es', KEINE_UNGUNST, 3)).toMatchObject({ anhalteAngewendet: true, massgebend: 50, massgebendText: 'unterer Wert, Erschliessungsstrasse' })
-    // HVS 50 km/h bei −6 %: Anhaltesichtweite 52 m (53 − 1) < Zwischenwert 60 m
+    // HVS 50 km/h bei −6 %: Anhaltesichtweite 54 m < Zwischenwert 60 m
     expect(sichtweiteA(50, 'hvs', KEINE_UNGUNST, -6)).toMatchObject({ massgebend: 60 })
-    expect(sichtweiteA(50, 'hvs', KEINE_UNGUNST, -6).anhalte?.meter).toBe(52)
-    // 30 km/h: Kurve liegt im Diagramm über Tab. 1 (24 statt 20 m bei i = 0), ist aber auf Tab. 1 verschoben: bei +6 % bleibt
-    // Tab. 1 massgebend (Diagramm 23 m -> verschoben 19 m < 20 m), bei −6 % wird es 21 m (25 − 24 + 20)
+    expect(sichtweiteA(50, 'hvs', KEINE_UNGUNST, -6).anhalte?.meter).toBe(54)
+    // 30 km/h: Abb. 2 liegt über Tab. 1 (25 statt 20 m bei i = 0) und gilt unverändert (SW-01): +6 % -> 23 m, −6 % -> 26 m
     const s30 = sichtweiteA(30, 'es', KEINE_UNGUNST, 6)
-    expect(s30.massgebend).toBe(20)
-    expect(s30.anhalte?.meter).toBe(19)
-    expect(sichtweiteA(30, 'es', KEINE_UNGUNST, -6)).toMatchObject({ massgebend: 21, massgebendText: 'Anhaltesichtweite bei −6 %' })
-    expect(s30.hinweise.join(' ')).toContain('4 m über dem unteren Wert der Tab. 1 (20 m)')
+    expect([s30.anhalte?.meter, s30.massgebend, s30.massgebendText]).toEqual([23, 23, 'Anhaltesichtweite bei +6 %'])
+    const s30t = sichtweiteA(30, 'es', KEINE_UNGUNST, -6)
+    expect(s30t).toMatchObject({ massgebend: 26, massgebendText: 'Anhaltesichtweite bei −6 %' })
+    // Gegenprobe SW-01 der Prüfung vom 10.11.2026: 22 m vorhandene Sicht genügen bei −6 % nicht
+    expect(sichtStatus(22, s30t)).toBe('nicht_erfuellt')
+    expect(sichtStatus(26, s30t)).not.toBe('nicht_erfuellt')
   })
   it('Anhaltesichtweite über dem oberen Wert (80 km/h, −12 %): massgebend 142 m, Zielpunkte 1,5 × 142 m', () => {
-    // Diagramm 143 m, um −1 m auf Tab. 1 verschoben (111 statt 110 m bei 0 %)
+    // Abb. 2 bei −12 % 142 m (über −10 % hinaus fortgesetzt, unsicher)
     const sw = sichtweiteA(80, 'hvs', U({ neigung: true }), -12)
     expect([sw.typWert, sw.anhalte?.meter, sw.massgebend]).toEqual([140, 142, 142])
     expect(zielLaenge(sw)).toBe(213)                     // 1,5 × 142 = 213
@@ -97,17 +105,17 @@ describe('VSS 40 273 Ziffer 13.1: Strassentyp, ungünstige Verhältnisse, Neigun
     expect(sw.hinweise.join(' ')).toContain('verlängert')
   })
   it('Neigung unbekannt: Anhaltesichtweite angewendet mit dem Wert bei −12 %', () => {
-    // 50 km/h, ES: Abb. 2 bei −12 % 58 m, verschoben um −1 m: 57 m > 50 m; i bleibt 0, die Vorgabe «grosse Längsneigung» nicht
+    // 50 km/h, ES: Abb. 2 bei −12 % 58 m > 50 m; i bleibt 0, die Vorgabe «grosse Längsneigung» nicht
     const sw = sichtweiteA(50, 'es', KEINE_UNGUNST, 0, true)
-    expect(sw).toMatchObject({ neigung: 0, neigungUnbekannt: true, anhalteAngewendet: true, massgebend: 57,
+    expect(sw).toMatchObject({ neigung: 0, neigungUnbekannt: true, anhalteAngewendet: true, massgebend: 58,
       massgebendText: 'Anhaltesichtweite, Neigung unbekannt (strengster Wert bei −12 %)' })
     expect(sw.anhalte?.i).toBe(-12)
     // dasselbe wie bei i = −12 % von Hand; ohne «unbekannt» bei 0 % nicht angewendet
     expect(sw.massgebend).toBe(sichtweiteA(50, 'es', KEINE_UNGUNST, -12).massgebend)
     expect(sichtweiteA(50, 'es', KEINE_UNGUNST, 0)).toMatchObject({ anhalteAngewendet: false, massgebend: 50, neigungUnbekannt: false })
-    // HVS 60 km/h: Zwischenwert 80 m, Abb. 2 bei −12 % 81 − (68 − 70) = 83 m; 30 km/h: 26 − 4 = 22 m > 20 m
-    expect(sichtweiteA(60, 'hvs', KEINE_UNGUNST, 0, true).massgebend).toBe(83)
-    expect(sichtweiteA(30, 'es', KEINE_UNGUNST, 0, true).massgebend).toBe(22)
+    // HVS 60 km/h: Zwischenwert 80 m, Abb. 2 bei −12 % 81 m; 30 km/h: 28 m > 20 m
+    expect(sichtweiteA(60, 'hvs', KEINE_UNGUNST, 0, true).massgebend).toBe(81)
+    expect(sichtweiteA(30, 'es', KEINE_UNGUNST, 0, true).massgebend).toBe(28)
     // unter 30 km/h keine Kurve: Tab. 1 mit Hinweis
     const s20 = sichtweiteA(20, 'es', KEINE_UNGUNST, 0, true)
     expect([s20.anhalte, s20.massgebend]).toEqual([null, 10])

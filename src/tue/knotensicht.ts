@@ -1,3 +1,4 @@
+import { linienPruefsumme } from '../linienPruefsumme'
 import { parkEinfluesse, type ParkEinfluss } from '../rechner/parkEinfluss'
 import { tueSichtId } from '../SichtKennung'
 import { massAchse, massGerade, massPunkt, type SichtMass } from '../sichtMasse'
@@ -40,7 +41,7 @@ import { fahrstreifenTags } from '../rechner/fahrstreifen'
 import { neigungMessung } from '../knotensicht/rechner/neigung'
 import { ausHoehenmodell as ausModell, modellName } from '../hoehenModell'
 import { KEINE_ALLE_EINGABEN, TUE_BREITE_MAX, TUE_BREITE_MIN, TEMPO_MIN, TEMPO_MAX, type HoehenVorgabe, type Lage, type Richtung, type RichtungStatus,
-  type TueBreiteQuelle, type TuePhase } from '../knotensicht/rechner/typen'
+  type TueBreiteQuelle, type TuePhase, type Ergebnis as KsErgebnis } from '../knotensicht/rechner/typen'
 import type { Hindernis } from '../rechner/hindernisse'
 import type { KatasterFeld } from '../daten/parkkataster'
 import herkunft from '../knotensicht/herkunft.json'
@@ -258,10 +259,10 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
     hindernisse: { hindernisse, verworfen: d.verworfen, park: null, baeume: null },
     avZentrum: d.avZentrum, hoehen, tempoAmtlich,
   }, kx, d.avRadius)
-  // Längsneigung je «Knoten|Zufahrt|Abstand des hinteren Rands» (die Gehlinie hängt daran): erst ohne, dann mit dem passenden Profil
+  // Längsneigung je «Knoten|Zufahrt|Prüfsumme der Profillinien» (SW-05: Tempo, Auge von Hand und Gehlinie ändern die Linien; die
+  // Linien hängen nicht von der Neigung ab): erst ohne, dann mit dem passenden Profil
   let r = rechne(null)
-  const b0 = r.ergebnis?.trottoirueberfahrt?.abstand
-  const hoehenSchluessel = `${z.knoten}|${z.zufahrt}|${b0 !== undefined ? f2(b0) : ''}`
+  const hoehenSchluessel = `${z.knoten}|${z.zufahrt}|${r.ergebnis ? linienPruefsumme(Object.entries(profileVon(r.ergebnis)) as [string, P[]][]) : ''}`
   const hoehen = d.hoehen?.[hoehenSchluessel] ?? null
   if (hoehen) r = rechne(hoehen)
   const e = r.ergebnis, t = e?.trottoirueberfahrt
@@ -337,10 +338,7 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
     const vl = rr.velo ? veloLage(rr.velo.sichtpunkte, Math.min(rr.velo.A, rr.velo.sichtpunkte.length - 1)) : null
     if (vl) fahrzeuge.push({ art: 'velo', rolle: 'fa', objekt: tueSichtId(s.fgsId ?? '', rr.lage), mitte: vl[0], richtung: vl[1], text: `Velo am Ende der nötigen Sichtweite, ${seite}` })
   }
-  const profile: Knotensicht['profile'] = {}
-  for (const rr of e.richtungen) if (rr.profilLinie.length >= 2) profile[rr.richtung] = rr.profilLinie
-  if (e.zufahrtProfil.length >= 2) profile.zufahrt = e.zufahrtProfil
-  if (e.trottoirProfil.length >= 2) profile.trottoir = e.trottoirProfil
+  const profile = profileVon(e)
   // eigene kurze Annahmen (statt der Texte des Kerns)
   const annahmen = [
     e.regelung === 'stop' ? `Ausfahrt mit Stop (${e.regelungQuelle}).` : 'Ausfahrt ohne Vortritt (Trottoirüberfahrt).',
@@ -390,6 +388,15 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
 
 /** Höhenvorgabe nach einem Fehler des Höhendienstes (App): jedes Profil i = null mit der Quelle «… nicht
  * verfügbar» (wie ein fehlerhaftes Einzelprofil, neigungMessung des Kerns); der Kern rechnet dann mit unbekannter Neigung */
+/** Linien der Höhenprofile einer Rechnung (je Richtung, Zufahrt, Gehlinie) */
+function profileVon(e: Pick<KsErgebnis, 'richtungen' | 'zufahrtProfil' | 'trottoirProfil'>): Knotensicht['profile'] {
+  const profile: Knotensicht['profile'] = {}
+  for (const rr of e.richtungen) if (rr.profilLinie.length >= 2) profile[rr.richtung] = rr.profilLinie
+  if (e.zufahrtProfil.length >= 2) profile.zufahrt = e.zufahrtProfil
+  if (e.trottoirProfil.length >= 2) profile.trottoir = e.trottoirProfil
+  return profile
+}
+
 export function hoehenNichtVerfuegbar(profile: readonly (keyof HoehenVorgabe)[], err: unknown): HoehenVorgabe {
   const f = err instanceof Error ? err : new Error(String(err))
   return Object.fromEntries(profile.map(n => [n, neigungMessung(f)])) as HoehenVorgabe
