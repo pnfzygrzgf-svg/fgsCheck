@@ -1,3 +1,7 @@
+import { BAUM_ANNAHME, baumStammText } from './rechner/baumAnnahme'
+import { ParkBerichtDetails } from './ParkBericht'
+import { parkBerichtFelder, parkEinfluesse } from './rechner/parkEinfluss'
+import { parkDarstellung, PARK_BERICHT_ANNAHME } from './rechner/parkgeometrie'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
 import { fgsSichtMasse, massBildPunkte } from './sichtMasse'
 import { MassBild, useSichtWahl, sichtZeigen, sichtMassZeigen, fgsSichtId, tueSichtId, type SichtArt } from './Sichtfelder'
@@ -32,7 +36,7 @@ import { LESENAME } from './bedarf/quellen'
 import { ART, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, tempoHerkunft, f1, f2, mText, streifenStatus,
   erkennungText, erkennungEmpfehlungText } from './texte'
 import { erkennungAnzeige, gelaendeText, type GelaendeStand } from './erkennungGelaende'
-import { sichtGelaendeText } from './sichtGelaende'
+import { sichtGelaendeBerichtText } from './sichtGelaende'
 import { gelaendeProfile } from './gelaendeKarte'
 import { erkennungBaender, erkennungSichtlinien } from './erkennungKarte'
 import { ProfilBericht, profilWahlBericht } from './BerichtProfil'
@@ -73,6 +77,8 @@ type Box = [number, number, number, number]
 
 /** Farbe des Status im Text (06.11.2026): grün frei, rot verdeckt, grau übrige; wie die Sichtfelder im Kartenbild */
 const statusFarbe = (status: string): string => (status === 'frei' ? '#15803d' : STATUS_FARBE[status] ?? '#374151')
+/** Ergebnis der Prüfung im Grundriss: «verdeckt (Geländemodell)» stammt aus der Geländeprüfung, im Grundriss war die Sicht frei */
+const grundriss = (status: string): string => (status === 'verdeckt_gelaende' ? 'frei' : status)
 /** Strichart je Status (zusätzlich zur Farbe, damit der Bericht schwarz-weiss lesbar bleibt) */
 const strich = (status: string) => (status === 'frei' ? undefined : status.startsWith('verdeckt') ? '14 7' : '3 6')
 
@@ -145,7 +151,7 @@ function hindernisArtText(h: Hindernis): string {
   const klasse: Record<string, string> = { auto: 'Auto', velo: 'Velo', motorrad: 'Motorrad' }
   const art: Record<string, string> = { laengsparkierung: 'Längsparkierung', baum: 'Baum', hecke: 'Hecke', mauer: 'Mauer', uebrige: 'übriges Hindernis', insel: 'Insel von Hand' }
   const q = h.quelle === 'hand' ? ' (von Hand)' : h.quelle === 'osm' ? ' (OSM)' : ' (Kataster)'
-  return (h.art === 'parkfeld' ? `Parkfeld ${klasse[h.klasse] ?? h.klasse}` : art[h.art] ?? h.art) + (h.art === 'insel' ? '' : q)
+  return (h.art === 'parkfeld' ? `Parkfeld ${klasse[h.klasse] ?? h.klasse}` : art[h.art] ?? h.art) + (h.art === 'insel' ? '' : q) + (h.art === 'baum' ? `; ${baumStammText(h)}` : '')
 }
 /** Text je Fahrzeugsymbol in der Legende */
 function fahrzeugLegende(f: FahrzeugForm): string {
@@ -349,12 +355,14 @@ function BerichtKarte({ r, hindernisse, fixpunkte, ort, onBereit, namen, hand, p
             <g key={'ks' + st.fgsId + i}>{[[d.frei, d.art === 'velo' ? '#0f766e' : '#16a34a'], [d.verdeckt, '#dc2626']].map(([ring, farbe], k) =>
               <path key={k} d={pfad([ring as P[]])} fill={farbe as string} fillOpacity={0.15} stroke={farbe as string} strokeWidth={2}
                 strokeDasharray={d.art === 'velo' ? '6 4' : d.art === 'trottoir' ? '2 4' : undefined} />)}</g>))}
-          {hindernisse.map(h => {
+          {parkBerichtFelder(berichtParkfelder(r), r).map(h => h.art === 'parkfeld' && h.parkPruefung?.status === 'ergaenzt' &&
+            <path key={'kataster' + h.id} d={pfad([h.parkPruefung.original])} fill="none" stroke="#64748b" strokeWidth={2} strokeDasharray="3 4" />)}
+          {hindernisse.map((h, hi) => {
             const { ringe, linie } = hindernisRinge(h)
             const farbe = hindernisFarbe(h)
             // Parkierung unter einem vorgezogenen Seitenraum: gestrichelt, blass (entfällt in der Rechnung)
             const ersetzt = r.seitenraumErsetzt?.some(x => x.id === h.id)
-            return <path key={'h' + h.id} d={pfad(ringe, !linie)} fill={linie ? 'none' : farbe} fillOpacity={ersetzt ? 0.08 : 0.35} stroke={farbe}
+            return <path key={'h' + h.id + hi} d={pfad(ringe, !linie)} fill={linie ? 'none' : farbe} fillOpacity={ersetzt ? 0.08 : 0.35} stroke={farbe}
               strokeWidth={linie ? 5 : 2} strokeDasharray={ersetzt ? '4 4' : undefined} strokeOpacity={ersetzt ? 0.6 : undefined} />
           })}
           {(r.inseln ?? []).map((z, i) => (
@@ -483,13 +491,21 @@ function zufahrtName(r: FallRechnung | null, key: string, namen: Namen, hand: St
     `${t}, Zufahrt mit Kennung ${kennung} (ohne passende Zufahrt)`
 }
 
+/** Die Knotensicht kann entlang der Hauptstrasse weitere geladene Felder verwenden. */
+function berichtParkfelder(r: FallRechnung): Hindernis[] {
+  const alle = [...(r.parkAnnahmen ?? []), ...(r.parkPruefflaechen ?? []), ...r.streifen.flatMap(s =>
+    s.knotensicht && 'richtungen' in s.knotensicht ? s.knotensicht.parkPruefflaechen ?? [] : [])]
+  const gesehen = new Set<string>()
+  return alle.filter(h => { if (gesehen.has(h.id)) return false; gesehen.add(h.id); return true })
+}
+
 function eingabenListe(fall: Fall, r: FallRechnung | null, namen: Namen): string[] {
   const aus: string[] = [], hand = fall.streifenHand
   // Trottoirüberfahrt (27.10.2026): «Trottoirüberfahrt 1», Achse ohne die Zeichenbreite (Masse aus der Knotensicht)
   for (const s of fall.streifenHand) aus.push(istTrottoirueberfahrt(fall, s.id)
     ? `${titelImFall(s.id, fall, r?.streifen)}: Achse ${f1(dist(s.p0, s.p1))} m, ${streifenHerkunftText(s)}`
     : `${titelImFall(s.id, fall, r?.streifen)}: ${f1(dist(s.p0, s.p1))} m lang, ${f1(s.breite)} m breit, ${streifenHerkunftText(s)}`)
-  for (const h of fall.hindernisse) aus.push(h.art === 'insel' ? 'Insel von Hand (teilt den Streifen wie eine AV-Verkehrsinsel, ersetzt die Insel nach OSM und Luftbild)' :
+  for (const h of parkBerichtFelder(fall.hindernisse, r)) aus.push(h.art === 'insel' ? 'Insel von Hand (teilt den Streifen wie eine AV-Verkehrsinsel, ersetzt die Insel nach OSM und Luftbild)' :
     `Hindernis: ${hindernisText(h)}` + ((h.art === 'hecke' || h.art === 'mauer' || h.art === 'uebrige') ?
     (h.sichtbehindernd ? ', sichtbehindernd' : ', nicht sichtbehindernd') : '') + (h.art === 'parkfeld' ? `, Klasse ${h.klasse}` : ''))
   for (const [k, z] of Object.entries(fall.zufahrten)) {
@@ -569,7 +585,7 @@ function vorhandeneSichtText(z: ZufahrtErgebnis): string {
 
 function hindernisseText(z: ZufahrtErgebnis): string {
   if (!z.konflikte.length) return 'keine'
-  return z.konflikte.map(k => `${k.layer}${k.klasse === 'baum' ? '' : ` ${f1(k.flaeche)} m²`}, ${f1(k.abstand)} m vom Streifen`).join('; ')
+  return z.konflikte.map(k => `${k.layer}: ${f1(k.abstand)} m vom Streifen`).join('; ')
 }
 
 /** Hindernis, das nur die Erkennungsdistanz begrenzt: Es liegt jenseits der nötigen Sicht und steht darum nicht unter «Hindernisse im Sichtfeld» */
@@ -617,9 +633,10 @@ function LageTabelle({ s, fixpunkte, namen, plan = false }: { s: StreifenErgebni
   )
 }
 
-function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende, profile }: { s: StreifenErgebnis; fall: Fall; ausserhalb: Ausserhalb | null
+function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende, profile, parkfelder }: { s: StreifenErgebnis; fall: Fall; ausserhalb: Ausserhalb | null
   namen: ZufahrtNamen | undefined; alle: StreifenErgebnis[]; alleNamen: Map<string, ZufahrtNamen>
   gelaende: Readonly<Record<string, GelaendeStand>> | null
+  parkfelder: readonly Hindernis[]
   profile: readonly EbenenObjekt[]   // Geländeprofile der Sichtlinien (gelaendeKarte.gelaendeProfile), im Bericht nur die massgebenden
 }) {
   const profilBilder = s.status === 'kein_fgs' || s.trottoirueberfahrt ? [] : nachNr(s.zufahrten, namen).flatMap(z => profilWahlBericht(profile, z, gelaende))
@@ -654,8 +671,10 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
                 <td>{mText(z.sichtweite)} m<div className="klein">({sichtQuelleKurz(z.sichtweiteQuelle)}{z.kurvenradiusM != null ? `, Kurvenradius ${f1(z.kurvenradiusM)} m` : ''})</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
                 <td>{vorhandeneSichtText(z)}</td>
-                <td><b className="status-farbe" style={{ color: statusFarbe(z.status) }}>Wartefläche: {statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}
-                  {z.sichtGelaende && <div className="klein">{sichtGelaendeText(z.sichtGelaende)}</div>}
+                <td><b className="status-farbe" style={{ color: statusFarbe(grundriss(z.status)) }}>Grundriss (Gebäude, Parkfelder, Bäume, Hindernisse): Wartefläche {grundriss(z.status) === 'frei' ? 'frei' : statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}
+                  {z.sichtGelaende && (z.sichtGelaende.abM !== null
+                    ? <div><b className="status-farbe" style={{ color: statusFarbe('verdeckt_gelaende') }}>{sichtGelaendeBerichtText(z.sichtGelaende)}</b></div>
+                    : <div className="klein">{sichtGelaendeBerichtText(z.sichtGelaende)}</div>)}
                   {z.erkennungM && (() => {
                     const a = erkennungAnzeige(z, gelaende)!.e
                     return <><div className="klein">{erkennungText(a)}; {gelaendeText(a)}</div>
@@ -668,6 +687,7 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
           </tbody>
         </table>
       )}
+      {s.status !== 'kein_fgs' && <ParkBerichtDetails titel="Parkflächen mit Einfluss auf die Prüfung" felder={parkfelder} ergebnis={{ zufahrten: s.zufahrten }} />}
       {profilBilder.length > 0 && <>
         <h4>{profilBilder.length === 1 ? 'Geländeprofil der Sichtlinie, an der das Geländemodell die Sicht verdeckt' : 'Geländeprofile der Sichtlinien, an denen das Geländemodell die Sicht verdeckt'}</h4>
         <p className="klein">Gezeigt wird nur, wo das Geländemodell zu «nicht erfüllt» führt: die Wartefläche ist verdeckt bzw. die
@@ -715,7 +735,12 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
   const eingaben = eingabenListe(fall, rechnung, namen)
   // der Bedarfsteil steht im Bericht, sobald eine Beurteilung vorliegt (die Vorbelegung genügt)
   const mitBedarf = blaetter.length > 0
-  const hinweise = hinweisListe(rechnung, fall, luftbildStand, ausserhalb, namen, parkVorschlaegeOffen)
+  // Annahmen zu Bäumen und Parkflächen nur, wenn ein Baum bzw. eine Parkfläche das Ergebnis beeinflusst
+  const wirkIds = new Set(parkEinfluesse({ streifen: rechnung.streifen }).map(x => x.id))
+  const baumWirkt = [...fall.hindernisse, ...rechnung.vorschlaege.map(v => v.hindernis)].some(h => h.art === 'baum' && wirkIds.has(h.id))
+  const hinweise = [...hinweisListe(rechnung, fall, luftbildStand, ausserhalb, namen, parkVorschlaegeOffen),
+    ...(baumWirkt ? [BAUM_ANNAHME] : []),
+    ...(parkBerichtFelder(berichtParkfelder(rechnung), rechnung).length > 0 ? [`Parkflächen: ${PARK_BERICHT_ANNAHME}`] : [])]
   // Ergebnis auf Seite 1: neben dem Status die verfehlte Erkennungsdistanz je Zufahrt und die Aussage zum Bedarf
   const erkennungBefunde = (s: StreifenErgebnis): string[] => nachNr(s.zufahrten, namen.get(s.fgsId)).flatMap(z => {
     const t = z.erkennungM ? erkennungEmpfehlungText(erkennungAnzeige(z, gelaende)!.e, z.sichtweite) : ''
@@ -820,7 +845,10 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
         </section>
         {rechnung.streifen.length > 0 && <BerichtKarte neigung={neigung} gelaende={gelaende} r={rechnung} ort={ort} onBereit={setBild} fixpunkte={fall.fixpunkte ?? []}
           namen={namen} hand={fall.streifenHand} plan={fall.flaechenPlan ?? []} zusatzMm={ergebnisZusatzMm([...rechnung.streifen.flatMap(erkennungBefunde), ...bedarfZeilen])}
-          hindernisse={[...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)]} />}
+          hindernisse={parkBerichtFelder([
+            ...parkDarstellung([...fall.hindernisse, ...rechnung.vorschlaege.filter(v => v.hindernis.quelle === 'kataster').map(v => v.hindernis)], rechnung.parkPruefflaechen),
+            ...rechnung.streifen.flatMap(s => s.knotensicht && 'richtungen' in s.knotensicht ? s.knotensicht.parkPruefflaechen ?? [] : []),
+          ], rechnung)} />}
 
         </td></tr>
         <tr className={rechnung.streifen.length > 0 ? 'bericht-neue-seite' : undefined}><td>
@@ -831,7 +859,7 @@ export default function Bericht({ fall, rechnung, rechnungZeit, luftbildStand, z
           <p className="klein">Je Zufahrt die nötige und die vorhandene Sicht auf die Wartefläche, die Hindernisse im Sichtfeld und die
             Erkennungsdistanz der Bodenmarkierung; Sichtfelder und Fahrlinien zeigt das Kartenbild auf Seite 1.</p>
         </section>
-        {rechnung.streifen.map(s => <StreifenTabelle key={s.fgsId} s={s} fall={fall} gelaende={gelaende} profile={profile} ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null}
+        {rechnung.streifen.map(s => <StreifenTabelle parkfelder={berichtParkfelder(rechnung)} key={s.fgsId} s={s} fall={fall} gelaende={gelaende} profile={profile} ausserhalb={ausserhalb.find(x => x.id === s.fgsId) ?? null}
           namen={namen.get(s.fgsId)} alle={rechnung.streifen} alleNamen={namen} />)}
         {hinweise.length > 0 && <section className="bericht-block druck-block">
           <h3>Hinweise zur Sichtprüfung</h3>

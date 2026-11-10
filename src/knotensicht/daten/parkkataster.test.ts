@@ -17,10 +17,11 @@ describe('Klassen wie park_klasse (fgs_sicht_pruefen.py)', () => {
   it('ordnet die Typen zu', () => {
     for (const t of ['Parkfeld_Gebuehrenpflichtig', 'Parkfeld_blau_APK', 'Parkfeld_weiss_APK', 'Parkfeld_weiss_Kurzzeit', 'Spezialfeld',
       'Andere_Unbekannt']) expect(parkKlasse(t)).toBe('auto')
+    expect(parkKlasse('Parkverbot')).toBe('auto')
     expect(parkKlasse('Parkplatz_Velo_Mofa')).toBe('velo')
     expect(parkKlasse('Parkplatz_Motorrad')).toBe('motorrad')
     expect(parkKlasse('Motorradparkplatz')).toBe('motorrad')
-    for (const t of ['Parkverbot', 'Veloabstellplatz', 'Velostation', 'Taxistandplatz', 'Behindertenparkplatz', 'Carsharing_Parkplatz'])
+    for (const t of ['Veloabstellplatz', 'Velostation', 'Taxistandplatz', 'Behindertenparkplatz', 'Carsharing_Parkplatz'])
       expect(parkKlasse(t)).toBeNull()
   })
   it('Quelle nur in Bern (BFS 351); Ids nach Quelle', () => {
@@ -51,9 +52,10 @@ describe('GeoJSON -> Felder', () => {
     expect(ff[0].name).toBe('Parkfeld blau (APK), Nr. 1234 (Parkplätze öffentlich Stadt Bern)')
     expect(ff[2].name).toBe('Parkfeld blau (APK) (Parkplätze öffentlich Stadt Bern)')
   })
-  it('Flächen unter 0,5 m² und Punkte entfallen; Typ ohne Klasse liefert nichts', () => {
+  it('Flächen unter 0,5 m² und Punkte entfallen; Parkverbotsfelder werden geladen', () => {
     expect(ff.some(f => f.id.includes(':8:'))).toBe(false)
-    expect(felderAusGeoJson(gj, 'Parkverbot', 'bernpark', 'Parkverbot', 'x')).toEqual([])
+    expect(felderAusGeoJson(gj, 'Parkverbot', 'bernpark', 'Parkverbotsfeld', 'x')).toHaveLength(ff.length)
+    expect(felderAusGeoJson(gj, 'Parkverbot', 'bernpark', 'Parkverbotsfeld', 'x')[0]).toMatchObject({ klasse: 'auto', katasterTyp: 'Parkverbot', name: 'Parkverbotsfeld, Nr. 1234 (x)' })
     expect(felderAusGeoJson(gj, 'Parkplatz_Velo_Mofa', 'bernpark', 'Velo', 'x')[0].klasse).toBe('velo')
   })
   it('WGS84 [lon, lat] wird streng nach LV95 umgerechnet; Antwort ohne EPSG:2056 erkannt', () => {

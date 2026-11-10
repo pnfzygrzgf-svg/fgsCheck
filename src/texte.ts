@@ -131,8 +131,8 @@ const ENDE_TEXT: Record<string, string> = { knoten: 'Fahrlinie endet am Knoten, 
 const HINDERNIS_TEXT: Record<string, string> = { gebaeude: 'Gebäude', auto: 'Auto-Parkfeld' }
 /** Wert der Erkennungsdistanz: «64 m» bzw. «mindestens 30 m» (Fahrlinie endet vorher) */
 export const erkennungWert = (e: Erkennung): string => `${e.bis === 'fahrlinie_endet' ? 'mindestens ' : ''}${e.wert} m`
-/** «erkennbar ab 64 m» bzw. «erkennbar auf mindestens 30 m» (Untergrenze, weiter zurück nicht geprüft) */
-export const erkennungSatz = (e: Erkennung): string => `erkennbar ${e.bis === 'fahrlinie_endet' ? 'auf' : 'ab'} ${erkennungWert(e)}`
+/** «bis 64 m vor dem Streifen sichtbar» bzw. «bis mindestens 30 m …» (Untergrenze, weiter zurück nicht geprüft) */
+export const erkennungSatz = (e: Erkennung): string => `bis ${erkennungWert(e)} vor dem Streifen sichtbar`
 /** Zusatz: Grund des Endes der Fahrlinie, «so weit geprüft» (frei bis zur Prüfgrenze) bzw. das verdeckende Hindernis */
 export const erkennungZusatz = (e: Erkennung): string => (e.bis === 'fahrlinie_endet' ? ENDE_TEXT[e.ende ?? 'wegende']
   : e.bis === 'frei' ? 'so weit geprüft' : `weiter entfernt verdeckt${e.hindernis ? `: ${HINDERNIS_TEXT[e.hindernis.klasse] ?? e.hindernis.name}` : ''}`)
@@ -143,8 +143,9 @@ export const erkennungBewuchs = (e: Erkennung): string => (e.bewuchsAb === undef
  * Bewuchs und nicht geprüfte Positionen sind kein freier örtlicher Sichtnachweis. */
 export const erkennungText = (e: Erkennung): string => (e.gelaendePruefbereich?.letzteFreiM === null
   ? 'Bodenmarkierung: keine frei geprüfte Position im Geländemodell'
-  : e.bewuchsAb === undefined ? `Bodenmarkierung im Modell ${erkennungSatz(e)} (${e.hindernis?.klasse === 'gelaende' ? 'abgerundeter Rechenwert; ' : ''}${erkennungZusatz(e)})`
-  : `Bodenmarkierung in den Daten frei bis ${erkennungWert(e)}, ${erkennungBewuchs(e)} (${erkennungZusatz(e)})`)
+  // Annahme der App: die Rechnung prüft die Sichtbarkeit im Modell, nicht vor Ort
+  : e.bewuchsAb === undefined ? `Annahme: Bodenmarkierung ${erkennungSatz(e)} (${e.hindernis?.klasse === 'gelaende' ? 'abgerundeter Rechenwert; ' : ''}${erkennungZusatz(e)})`
+  : `Annahme: Bodenmarkierung in den Daten bis ${erkennungWert(e)} vor dem Streifen frei, ${erkennungBewuchs(e)} (${erkennungZusatz(e)})`)
 
 /** Empfehlung direkt bei der betreffenden Zufahrt erklären. Ein zu kurzer geprüfter Ausschnitt
  * oder Bewuchs ist kein Nachweis einer Verletzung. Bestehende Rechenwerte/Regeln bleiben gleich. */

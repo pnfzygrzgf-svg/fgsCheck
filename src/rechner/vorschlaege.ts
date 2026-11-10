@@ -125,7 +125,7 @@ export function parkKatasterFelder(felder: KatasterFeld[], umrisse: P[][], mitte
   const rw = reichweite(umrisse, mitte)
   return felder.filter(f => f.ring.length >= 3 && rw.ring(f.ring) <= KATASTER_PARK_M)
     .map(f => ({ id: f.id, grund: `${quellenangabe} – zählt als Hindernis, verwerfen, wenn nicht mehr vorhanden`,
-      hindernis: { id: f.id, art: 'parkfeld', klasse: f.klasse, ring: f.ring, quelle: 'kataster', name: f.name } }))
+      hindernis: { id: f.id, art: 'parkfeld', klasse: f.klasse, ring: f.ring, quelle: 'kataster', name: f.name, ...(f.katasterTyp ? { katasterTyp: f.katasterTyp } : {}) } }))
 }
 
 /**

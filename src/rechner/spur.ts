@@ -299,6 +299,7 @@ export function amRandHalten(fahrbahn: Fahrbahn, ref: RefPunkt[], lage: number, 
       const nach = nachK.length ? Math.min(...nachK) : null
       if (vor !== null && nach !== null && NASE_MIN_M <= beparkt.get(vor)! - e && beparkt.get(vor)! - e <= abzug + RAND_TOL_NASE &&
         beparkt.get(nach)! - e >= NASE_MIN_M) {
+        for (const j of [vor, nach]) if (j > 0) park.merken(park.idsBei(add(ref[j][0], ref[j][1], raenderK[j]! - PARK_SONDE_M)), 'Fahrlinie an der Trottoirnase')
         grenzeNase.set(k, e - halb)
         if (k === 0) lat[0] = Math.min(lat[0]!, grenzeNase.get(0)!)
         else { naseK.add(k); lat[k] = null; grenze[k] = grenzeNase.get(k)! }
@@ -499,7 +500,10 @@ export function endpunkteMangel(alt: [P, P], neu: [P, P], auf: (p: P) => boolean
   for (const [name, a, b] of paare) {
     if (a[0] === b[0] && a[1] === b[1]) continue
     if (auf(a) && !auf(b)) out.push(['fahrbahn', `${name} Sichtpunkt neben der Fahrbahn`])
-    if (park && !park.trifft(a, 0.05) && park.trifft(b, 0.05)) out.push(['parkfeld', `${name} Sichtpunkt im Auto-Parkfeld`])
+    if (park && !park.trifft(a, 0.05) && park.trifft(b, 0.05)) {
+      park.merken(park.idsBei(b, 0.05), 'Lage des Sichtpunkts am Streifenrand')
+      out.push(['parkfeld', `${name} Sichtpunkt im Auto-Parkfeld`])
+    }
   }
   return out
 }
@@ -617,7 +621,17 @@ export function abstandHalten(punkte: P[], auf: (p: P) => boolean, parkAlle: Par
     if (best !== null) ziel[k] = best[0]
   }
   const minD0 = Math.min(...d0s)
+  // Nur die bindenden Flächen an den Ausgangspunkten und den tatsächlich verschobenen Punkten dokumentieren.
+  const parkBeitrag = (punkteNeu: P[]) => {
+    for (let k = 0; k < n; k++) {
+      if (d0s[k] < PARK_ABSTAND_M && (!fest.has(k) || d0s[k] <= 0))
+        parkAlle.merken(parkAlle.idsBei(punkte[k], PARK_ABSTAND_M), '1,5-m-Abstand / Lage der Fahrlinie')
+      if (dist(punkte[k], punkteNeu[k]) > 1e-6)
+        parkAlle.merken(parkAlle.idsBei(punkteNeu[k], PARK_ABSTAND_M + 1e-6), '1,5-m-Abstand / Lage der Fahrlinie')
+    }
+  }
   if (!ziel.some(x => x)) {
+    if (minD0 < PARK_ABSTAND_M) parkBeitrag(punkte)
     return [[...punkte], minD0 >= PARK_ABSTAND_M ? null : { n: 0, max: 0, vor: minD0, nach: minD0,
       eng: d0s.filter(d => d < PARK_ABSTAND_M).length, im: d0s.filter(d => d <= 0).length }]
   }
@@ -643,6 +657,7 @@ export function abstandHalten(punkte: P[], auf: (p: P) => boolean, parkAlle: Par
     xMax = Math.max(xMax, Math.abs(x))
     d1s.push(mess[k](x))
   }
+  parkBeitrag(out)
   return [out, { n: nV, max: xMax, vor: minD0, nach: Math.min(...d1s), eng: d1s.filter(d => d < PARK_ABSTAND_M - 1e-6).length,
     im: d1s.filter(d => d <= 0).length }]
 }

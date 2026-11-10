@@ -13,6 +13,7 @@ export interface Konflikt {
 }
 
 export interface ZufahrtErgebnis {
+  parkEinfluss?: import('./parkEinfluss').ParkEinfluss[]
   fgsId: string
   zufahrt: string                 // Schlüssel wie in der Berner Karte: gerade = Richtung, abbiegend = a + Richtung
   kennung: string                 // w<wid>± bzw. k<nid>:w<wid>±
@@ -41,6 +42,7 @@ export interface ZufahrtErgebnis {
   parkLinks: boolean | null
   velostreifenRechtsM: number | null
   velostreifenLinksM: number | null
+  parkstreifenBreiteM?: number
   abzugQuelle: string | null
   abzugRechtsM: number | null    // Abzug rechts (Parkierung bzw. Velostreifen-Linie ab der Bordkante)
   fahrstreifenM: number | null
@@ -106,7 +108,8 @@ export interface SichtGelaendeAnzeige {
   pruefbereich?: GelaendePruefbereich
   /** Modellname (swissALTI3D bzw. DTM 2023 Stadt Bern) */
   quelle?: string
-  linien: { x: number; auge: P; ziel: P; frei: boolean | null; bruecke?: true }[]
+  /** zielBodenH: Boden unter dem Ziel (Mitte der Wartefläche) [m ü. M.], wie geprüft; mitte: deren Lage */
+  linien: { x: number; auge: P; ziel: P; mitte?: P; frei: boolean | null; bruecke?: true; zielBodenH?: number }[]
 }
 
 /** Sicht von der Veloachse einer Zufahrt (ZufahrtErgebnis.velo) */

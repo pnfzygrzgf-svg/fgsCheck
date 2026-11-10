@@ -1,5 +1,8 @@
+import { parkEinfluesse, type ParkEinfluss } from '../rechner/parkEinfluss'
 import { tueSichtId } from '../SichtKennung'
 import { massAchse, massGerade, massPunkt, type SichtMass } from '../sichtMasse'
+import { parkPruefflaechen } from '../rechner/parkgeometrie'
+import { OsmNetz } from '../rechner/netz'
 import type { VsigEingang } from '../daten/vsig'
 // ── Knotensicht an einer Trottoirüberfahrt (K2, 23.10.2026): Adapter fgsCheck → Kern des SichtweitenCheck (src/knotensicht) ──
 //
@@ -83,6 +86,7 @@ export interface KsTeil { soll: number; ist: number; status: RichtungStatus; ver
 /** Herkunft des Tempos einer Richtung: von Hand (Bedarf), Geoportal (V_sig), OSM, angenommen (ohne Angabe) */
 export type KsTempoHerkunft = 'hand' | 'geoportal' | 'amtlich' | 'osm' | 'annahme'
 export interface KsRichtung {
+  parkEinfluss?: ParkEinfluss[]
   richtung: Richtung; lage: Lage; strasse: string
   tempo: number; tempoQuelle: string; tempoHerkunft: KsTempoHerkunft
   /** weicht das amtliche Tempo von OSM ab: «OSM 50 km/h» bzw. «OSM ohne Angabe», sonst null */
@@ -103,6 +107,8 @@ export interface KsFahrzeug { objekt?: string; art: 'auto' | 'velo'; rolle: 'fb'
    * Hand gesetzt (27.10.2026: auf der Karte ziehbar) */
   phase?: 'fahrbahn' | 'trottoir'; auge?: P; vonHand?: boolean; ziehbar?: boolean }
 export interface Knotensicht {
+  parkEinfluss?: ParkEinfluss[]
+  parkPruefflaechen?: Hindernis[]
   quelle: string
   /** Streifen, an dem gerechnet wurde (Querung mit Teilstreifen: einmal je Querung) */
   streifenId: string
@@ -195,9 +201,9 @@ function zaehlend(d: KsDaten): OhneInsel[] {
   const weg = new Set(d.verworfen), da = new Set(d.hindernisse.map(h => h.id))
   const baeume: Hindernis[] = (d.baeume?.baeume ?? []).filter(b => !weg.has(b.id) && !da.has(b.id))
     .map(b => ({ id: b.id, art: 'baum', p: b.p, stamm: BAUM_STAMM_M, quelle: 'kataster', name: b.name }))
-  const amtlich: Hindernis[] = (d.park?.felder ?? []).filter(f => !weg.has(f.id) && f.ring.length >= 3)
-    .map(f => ({ id: f.id, art: 'parkfeld', klasse: f.klasse, ring: f.ring, quelle: 'kataster', name: f.name }))
-  const alle = [...d.hindernisse, ...baeume, ...amtlich].filter(ohneInsel)
+  const amtlich: Hindernis[] = (d.park?.felder ?? []).filter(f => !weg.has(f.id) && !da.has(f.id) && f.ring.length >= 3)
+    .map(f => ({ id: f.id, art: 'parkfeld', klasse: f.klasse, ring: f.ring, quelle: 'kataster', name: f.name, ...(f.katasterTyp ? { katasterTyp: f.katasterTyp } : {}) }))
+  const alle = parkPruefflaechen([...d.hindernisse, ...baeume, ...amtlich], d.av, d.osm ? new OsmNetz(d.osm) : null).filter(ohneInsel)
   return d.seitenraum?.length ? parkOhneSeitenraum(alle, d.seitenraum).hindernisse.filter(ohneInsel) : alle
 }
 
@@ -269,7 +275,7 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
     const tr = tp?.richtungen.find(x => x.richtung === rr.richtung)
     const hf = kurzHinweise([...rr.hinweise, ...(rr.velo?.hinweise ?? [])]), ht = kurzHinweise(tr?.hinweise ?? [])
     unklar.push(...hf.unklar, ...ht.unklar)
-    return { richtung: rr.richtung, lage: rr.lage, strasse: strassenName(arme.get(rr.arm)?.name), tempo: rr.tempo, tempoQuelle: rr.tempoQuelle,
+    return { parkEinfluss: parkEinfluesse({ rr, tr }), richtung: rr.richtung, lage: rr.lage, strasse: strassenName(arme.get(rr.arm)?.name), tempo: rr.tempo, tempoQuelle: rr.tempoQuelle,
       tempoHerkunft: herkunft(rr), tempoOsmVergleich: rr.tempoArt ? null : rr.tempoOsmVergleich,
       auto: rr.status === 'keine_zufahrt' ? null : teil(rr.status, rr.massgebend, rr.vorhanden, rr.verdecker, rr.bisEnde),
       velo: rr.velo ? teil(rr.velo.status, rr.velo.A, rr.velo.vorhanden, rr.velo.verdecker, rr.velo.bisEnde) : null,
@@ -370,6 +376,8 @@ export function knotensichtTue(d: KsDaten, s: KsStreifen, z0?: { knoten: number;
   }
   for (const m of masse) if (!m.objekt) m.objekte = richtungen.filter(r => r[m.art === 'ueberholen' ? 'auto' : m.art]).map(r => tueSichtId(s.fgsId ?? '', r.lage))
   return {
+    parkEinfluss: parkEinfluesse({ parkEinfluss: e.parkEinfluss, hindernis: { inD: e.hindernis.inD } }),
+    parkPruefflaechen: (e.parkPruefflaechen ?? []).flatMap(h => h.art === 'parkfeld' || h.art === 'laengsparkierung' ? [h] : []),
     quelle: KS_QUELLE, streifenId: s.fgsId ?? '', knoten: z.knoten, zufahrt: e.zufahrt, zufahrtName: strassenName(arme.get(e.zufahrt)?.name),
     breite: t.breite, breiteQuelle: t.breiteQuelle, breiteText: t.breiteText, laenge: t.laenge, einbiegewinkel: e.einbiegewinkel,
     phaseTrottoir: t.phaseTrottoir, phaseFahrbahn: t.phaseFahrbahn, richtungen, ok, unklar: [...new Set(unklar)], durchgehend, neigungGemessen, neigungUnbekannt,

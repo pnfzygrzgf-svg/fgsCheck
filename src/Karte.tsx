@@ -1,3 +1,5 @@
+import { baumStammText } from './rechner/baumAnnahme'
+import { parkDarstellung, parkPruefText } from './rechner/parkgeometrie'
 import { REGIONAL_DIENSTE } from './daten/anbieter/gemeinsam/regionalDienste'
 import { QuelleLink, UNFALL_EBENE, UnfallLegende, ebenenQuelleUrl, objektFenster, objektHtml, objektQuelleUrl, unfallKacheln, type Stelle } from './kartenbaustein/quellenLink'
 import { UNFALL_HINWEIS, unfallEbenen, unfallHtml } from './kartenbaustein/unfaelle'
@@ -286,7 +288,7 @@ export function hindernisText(h: Hindernis): string {
     h.art === 'parkfeld' ? 'amtlich, aus dem Kataster der Stadt' : 'aus Kataster der Stadt'
   const art = { parkfeld: 'Parkfeld', laengsparkierung: 'Längsparkierung', baum: 'Baum', hecke: 'Hecke', mauer: 'Mauer', uebrige: 'Hindernis',
     insel: 'Insel' }[h.art]
-  return `${h.name ?? art} (${q})`
+  return `${h.name ?? art} (${q})` + (h.art === 'baum' ? `; ${baumStammText(h)}` : '')
 }
 
 // ── Fahrzeuge und wartende Personen (27.10.2026, wie der SichtweitenCheck; fahrzeuge.ts) ──
@@ -464,7 +466,7 @@ export default function Karte(props: {
   const [hkMap, setHkMap] = useState<L.Map | null>(null)
   const hk = useHoehenkurven(hkMap, av)
   const [avAn, setAvAn] = useState(true)
-  const [avArten, setAvArten] = useState(() => { try { return avArtenLesen(localStorage.getItem('fgs.avArten')) } catch { return avArtenLesen(null) } })
+  const [avArten, setAvArten] = useState(() => { try { return avArtenLesen(localStorage.getItem('fgs.avArten2')) } catch { return avArtenLesen(null) } })
   const avArtSetzen = (art: string, an: boolean) => setAvArten(alt => { const neu = new Set(alt); if (an) neu.add(art); else neu.delete(art); return neu })
 
   const elRef = useRef<HTMLDivElement>(null)
@@ -491,6 +493,12 @@ export default function Karte(props: {
   const rpZahl = new Set([...(rpRef.current?.objekte ?? []), ...(props.richtplanVorhanden ? Object.values(rpAusVorbelegung(props.richtplanVorhanden.daten)).flat() : [])].map(o => o.id)).size
   const tkZahl = new Set([...(tkRef.current?.objekte ?? []), ...(props.taktilVorhanden ? Object.values(tkAusVorbelegung(props.taktilVorhanden.daten)).flat() : [])].map(o => o.id)).size
   const [qOffen, setQOffen] = useState(false)
+  const [sichtlinienAn, setSichtlinienAn] = useState(() => {
+    try { return localStorage.getItem('fgs.sichtlinien') !== 'aus' } catch { return true }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('fgs.sichtlinien', sichtlinienAn ? 'an' : 'aus') } catch { /* nur für diese Sitzung */ }
+  }, [sichtlinienAn])
   const [profilAuswahl, setProfilAuswahl] = useState<string | null>(null)
   const [alleGelaendeProfile, setAlleGelaendeProfile] = useState(false)
   const [kartenStaende, setKartenStaende] = useState<Record<string, QuellenQualitaet>>({})
@@ -869,7 +877,7 @@ export default function Karte(props: {
     const map = kartenRef.current, eb = ebenenRef.current
     if (!map || !eb) return
     eb.av.clearLayers()
-    try { localStorage.setItem('fgs.avAn', String(avAn)); localStorage.setItem('fgs.avArten', JSON.stringify([...avArten])) } catch { /* Sitzung */ }
+    try { localStorage.setItem('fgs.avAn', String(avAn)); localStorage.setItem('fgs.avArten2', JSON.stringify([...avArten])) } catch { /* Sitzung */ }
     if (avAn && !map.hasLayer(eb.av)) eb.av.addTo(map)
     else if (!avAn && map.hasLayer(eb.av)) map.removeLayer(eb.av)
     if (!av) return
@@ -898,7 +906,7 @@ export default function Karte(props: {
     const profilId = standardProfil((daten.gelaende ?? []).flatMap(o => o.hoehenprofil ? [o.hoehenprofil] : []), profilAuswahl)?.id
     const aktiv: { o: EbenenObjekt; farbe: string; symbol: string; def: EbeneDef }[] = []
     for (const def of EBENEN) {
-      if (def.id === 'av' || UNFALL_EBENE[def.id] || !qAn.has(def.id)) continue
+      if (def.id === 'av' || UNFALL_EBENE[def.id] || !qAn.has(def.id) || (def.id === 'gelaende' && !sichtlinienAn)) continue
       for (const o of def.id === 'gelaende' ? profilObjekteWaehlen(daten.gelaende ?? [], profilAuswahl, alleGelaendeProfile) : daten[def.id] ?? [])
         aktiv.push({ o, farbe: ebenenFarbe(def, o.klasse), symbol: ebenenSymbol(def, o.klasse), def })
     }
@@ -952,7 +960,7 @@ export default function Karte(props: {
     const avObjekte = (daten.av ?? []).filter(o => avArtSichtbar(o.id.slice(o.id.lastIndexOf(':') + 1), avAn, avArten))
     qObjekteRef.current = [...aktiv.map(x => x.o), ...avObjekte]
     qDefRef.current = new Map([...aktiv.map(x => [x.o, x.def] as const), ...avObjekte.map(o => [o, avDef] as const)])
-  }, [props.quellenEbenen, qAn, zoom, profilAuswahl, alleGelaendeProfile, avAn, avArten])
+  }, [props.quellenEbenen, qAn, zoom, profilAuswahl, alleGelaendeProfile, avAn, avArten, sichtlinienAn])
   useEffect(() => { rpRef.current?.laden() }, [rpVorhanden])
   // Taktile Markierungen: ebenso (genutztes Feld bzw. Leitlinie, geladene Daten des Falls)
   const tkGen = props.taktilGenutzt ?? null, tkVorhanden = props.taktilVorhanden ?? null
@@ -1193,21 +1201,39 @@ export default function Karte(props: {
     eb.hind.clearLayers()
     // Parkierung unter einem vorgezogenen Seitenraum: gestrichelt, gedimmt (entfällt in der Rechnung ganz bzw. zum überdeckten Teil)
     const ersetzt = new Map((rechnung?.seitenraumErsetzt ?? []).map(x => [x.id, x.ganz]))
+    const gerechnet = rechnung?.parkPruefflaechen
+    const info = (h: Hindernis) => {
+      const x = gerechnet?.find(p => p.id === h.id)
+      return x ? `<br>${esc(parkPruefText(x))}` : ''
+    }
+    const pruefEbene = (h: Hindernis, stil: L.PathOptions): L.Path => {
+      if (!gerechnet || (h.art !== 'parkfeld' && h.art !== 'laengsparkierung')) return hindernisEbene(h, stil) as L.Path
+      // Unter einem vorgezogenen Seitenraum (ganz oder teilweise ersetzt) bzw. vor der nachgeführten Rechnung: Umriss aus dem Fall,
+      // damit das Feld sichtbar und wählbar bleibt (gestrichelt und blass über srStil)
+      if (ersetzt.has(h.id)) return hindernisEbene(h, stil) as L.Path
+      const teile = parkDarstellung([h], gerechnet)
+      if (!teile.length) return hindernisEbene(h, stil) as L.Path
+      const original = teile.find(p => p.art === 'parkfeld' && p.parkPruefung?.status === 'ergaenzt')
+      if (original?.art === 'parkfeld') L.polygon(original.parkPruefung!.original.map(ll), {
+        color: '#64748b', weight: 2, dashArray: '3 4', fill: false, interactive: false }).addTo(eb.hind)
+      return L.polygon(teile.flatMap(p => p.art === 'parkfeld' ? [[p.ring.map(ll)]] : p.art === 'laengsparkierung' ? [[laengsPolygon(p.linie, p.breite).map(ll)]] : []), stil)
+    }
+
     const srStil = (id: string): L.PathOptions => (ersetzt.has(id) ? { dashArray: '3 4', opacity: 0.6, fillOpacity: 0.08 } : {})
     const srText = (id: string) => (ersetzt.has(id) ? `<br>${SR_ERSETZT}${ersetzt.get(id) ? '' : ' (zum überdeckten Teil)'}` : '')
     for (const h of hindernisse) {
       const farbe = hindernisFarbe(h)
-      const ebene = hindernisEbene(h, { color: farbe, weight: h.id === bearbeiten ? 3 : 2, fillColor: farbe, fillOpacity: 0.35, ...srStil(h.id) })
-      ;(ebene as L.Path).bindTooltip(esc(hindernisText(h)) + ((h.art === 'hecke' || h.art === 'mauer' || h.art === 'uebrige') &&
+      const ebene = pruefEbene(h, { color: farbe, weight: h.id === bearbeiten ? 3 : 2, fillColor: farbe, fillOpacity: 0.35, ...srStil(h.id) })
+      ;(ebene as L.Path).bindTooltip(esc(hindernisText(h)) + info(h) + ((h.art === 'hecke' || h.art === 'mauer' || h.art === 'uebrige') &&
         !h.sichtbehindernd ? ' – nicht sichtbehindernd' : '') + srText(h.id), { sticky: true })
         .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(h.id) })
       ebene.addTo(eb.hind)
     }
     for (const v of rechnung?.vorschlaege ?? []) {
       const farbe = hindernisFarbe(v.hindernis)
-      const ebene = hindernisEbene(v.hindernis, { color: farbe, weight: v.id === bearbeiten ? 4 : 2, dashArray: v.hindernis.quelle === 'osm' ? '5 4' : undefined,
+      const ebene = (v.hindernis.quelle === 'kataster' ? pruefEbene : hindernisEbene)(v.hindernis, { color: farbe, weight: v.id === bearbeiten ? 4 : 2, dashArray: v.hindernis.quelle === 'osm' ? '5 4' : undefined,
         fillColor: farbe, fillOpacity: v.hindernis.quelle === 'osm' ? 0.12 : 0.35, ...srStil(v.id) })
-      ;(ebene as L.Path).bindTooltip(`${esc(v.hindernis.name ?? 'Vorschlag')}<br>${esc(v.grund)}${srText(v.id)}` +
+      ;(ebene as L.Path).bindTooltip(`${esc(v.hindernis.name ?? 'Vorschlag')}<br>${esc(v.grund)}${info(v.hindernis)}${srText(v.id)}` +
         (v.hindernis.quelle === 'kataster' ? '<br><i>Klick: wählen, im Panel verwerfen</i>' : ''), { sticky: true })
         .on('click', e => { if (cb.current.werkzeug) return; L.DomEvent.stopPropagation(e); cb.current.onHindernis(v.id) })
       ebene.addTo(eb.hind)
@@ -1549,7 +1575,7 @@ export default function Karte(props: {
     const eb = ebenenRef.current
     if (!eb) return
     eb.erkLinien.clearLayers()
-    if (!rechnung || !erkWahl) return
+    if (!rechnung || !erkWahl || !sichtlinienAn) return
     const z = rechnung.streifen.filter(s => !s.trottoirueberfahrt).flatMap(s => s.zufahrten).find(x => zufahrtKey(x) === erkWahl)
     if (!z || !sichtZeigen(sicht, 'auto', fgsSichtId(z))) return
     for (const l of erkennungSichtlinien(z, props.gelaende)) {
@@ -1560,7 +1586,7 @@ export default function Karte(props: {
       L.circleMarker(ll(l.auge), { pane: ERK_PANE, radius: 3, color: '#111827', weight: 1, fillColor: farbe, fillOpacity: 1, interactive: false })
         .addTo(eb.erkLinien)
     }
-  }, [rechnung, erkWahl, werkzeug, props.gelaende, sicht])
+  }, [rechnung, erkWahl, werkzeug, props.gelaende, sicht, sichtlinienAn])
 
   useEffect(() => {
     const eb = ebenenRef.current
@@ -1603,7 +1629,7 @@ export default function Karte(props: {
     if (!sichtZeigen(sicht, 'auto', fgsSichtId(z))) return
     // Sicht auf die Wartefläche mit Gelände (sichtGelaende.ts): Sichtlinien, die das Gelände verdeckt, rot
     // gestrichelt über dunklem Rand (wie die Sichtlinien der Erkennungsdistanz)
-    for (const l of z.sichtGelaende?.linien ?? []) {
+    for (const l of sichtlinienAn ? z.sichtGelaende?.linien ?? [] : []) {
       if (l.frei !== false) continue
       const pl = [l.auge, l.ziel].map(ll)
       L.polyline(pl, { pane: ERK_PANE, color: '#0f172a', weight: 4, opacity: 0.45, interactive: false }).addTo(eb.auswahl)
@@ -1623,7 +1649,7 @@ export default function Karte(props: {
         .bindTooltip(ende ? (i === 0 ? 'erster Sichtpunkt (am Streifen)' : `letzter Sichtpunkt (${String(z.sichtweite).replace('.', ',')} m)`) : 'Sichtpunkt')
         .addTo(eb.auswahl)
     })
-  }, [rechnung, auswahl, props.neigung, sicht])
+  }, [rechnung, auswahl, props.neigung, sicht, sichtlinienAn])
 
   // Zeichnung in Arbeit
   useEffect(() => {
@@ -1671,6 +1697,8 @@ export default function Karte(props: {
         const gruppeSchalten = (g: L.LayerGroup | undefined, an: boolean) => { if (map && g) { if (an) g.addTo(map); else map.removeLayer(g) } }
         return (
           <EbenenFenster lage={qLage} schliessen={() => setQOffen(false)}>
+            <EbenenZeile titel="Sichtlinien" an={sichtlinienAn} setzen={setSichtlinienAn}
+              hinweis="Linien zur Wartefläche und Bodenmarkierung einschliesslich Geländeprofilen; nur Darstellung, keine Änderung der Rechnung.">{null}</EbenenZeile>
             {pruefEbenen && <PruefGruppe map={map} gruppen={[
               { name: 'Flächen (Plan)', ebene: pruefEbenen.plan }, { name: 'OSM-Übergänge', ebene: pruefEbenen.osm }, { name: LUFTBILD_FGS_NAME, ebene: pruefEbenen.lbfgs },
               { name: 'Strassennamen (OSM)', ebene: pruefEbenen.namen }, { name: 'Nummern der Zufahrten', ebene: pruefEbenen.nr }, { name: 'Fahrzeuge', ebene: pruefEbenen.fahrzeug },

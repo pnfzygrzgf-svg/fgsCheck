@@ -1,3 +1,4 @@
+import { PARK_SN, PARK_ZH, PARK_BE_AUTO, PARK_BE_VELO } from '../rechner/parkgeometrie'
 // ── Quellenregister: alle externen Datenquellen der App mit Gebiet, Dienst, Lizenz und Datenschutz (30.10.2026) ──
 //
 // Ein Eintrag je Quelle. Das Gebiet sagt, wo die Quelle gilt (ganze Schweiz, Kantone, Gemeinden nach BFS-Nummer der AV-Fläche
@@ -34,6 +35,8 @@ export type Gebiet =
 export type Empfaenger = 'swisstopo' | 'geodienste' | 'overpass' | 'bern' | 'zuerich' | 'regional' | 'eigen'
 
 export interface Quelle {
+  /** Rein fachliche, eingebundene Grundlage ohne Netzabfrage (kein Empfänger in der Datenschutz-Liste). */
+  netzabfrage?: false
   id: string
   /** welche Bedürfnisse der App die Quelle deckt (leer: nur Karte bzw. Suche) */
   themen: Thema[]
@@ -86,6 +89,20 @@ export const ETH_STAND: Record<string, string> = { bern: '29.10.2026', zurich: '
 const ETH_BILD: Record<string, string> = { bern: 'SWISSIMAGE und Orthofoto Stadt Bern 2026', zurich: 'SWISSIMAGE', basel: 'SWISSIMAGE' }
 
 export const QUELLEN: readonly Quelle[] = [
+  ...([{ id: 'norm.park.be.auto', name: PARK_BE_AUTO, stand: 'revidiert März 2019' },
+    { id: 'norm.park.be.zweirad', name: PARK_BE_VELO, stand: 'revidiert April 2011' }].map(q => ({
+      ...q, netzabfrage: false as const, themen: [], anbieter: 'Stadt Bern, Bern baut', gebiet: BERN, dienst: 'datei' as const,
+      lizenz: 'Fachliche Grundlage, kein Dokument eingebunden', cors: true as const, empfaenger: 'eigen' as const,
+      datenschutz: 'Eingebundene Massannahmen; keine Netzabfrage der Normalie.', module: ['rechner/parkgeometrie.ts'],
+      hinweis: 'Zweiradmasse ausserhalb Berns als Modellannahme; bei Motorrädern Anordnung von Hand festlegen.' }))),
+  { id: 'norm.park.sn', netzabfrage: false, themen: [], name: PARK_SN, anbieter: 'VSS', gebiet: { art: 'schweiz' }, dienst: 'datei',
+    lizenz: 'Urheberrechtlich geschützte Norm, kein Normtext eingebunden', stand: 'gültig ab 1.2.2006', cors: true, empfaenger: 'eigen',
+    datenschutz: 'Parkplatz-Mindestbreiten als dokumentierte Modellannahme im Browser; keine Netzabfrage der Norm.',
+    module: ['rechner/parkgeometrie.ts'], hinweis: 'Tab. 2, Längsparkfelder A/B: 1,90 m; C: 2,00 m. Keine Aussage zur heutigen Normkonformität.' },
+  { id: 'norm.park.zh', netzabfrage: false, themen: [], name: PARK_ZH, anbieter: 'Kanton Zürich, Tiefbauamt', gebiet: { art: 'kantone', kantone: ['ZH'] }, dienst: 'datei',
+    lizenz: 'Grundlage der Modellannahme, kein Richtlinientext eingebunden', stand: 'Version 1.0, 1.11.2022', cors: true, empfaenger: 'eigen',
+    datenschutz: 'Zürcher Parkplatz-Mindestbreite als dokumentierte Modellannahme im Browser; keine Netzabfrage der Richtlinie.',
+    module: ['rechner/parkgeometrie.ts'], hinweis: 'Kap. 4.1: 2,00 m auf Staatsstrassen; Anwendung im ganzen Kanton als Modellannahme.' },
   ...REGIONAL_DIENSTE.map((d): Quelle => ({ id: `regional.${d.id}`, themen: ['beleuchtung', 'taktil', 'netz'].includes(d.art) ? [] : d.art === 'tempo' || d.art === 'zone' ? ['tempo'] : d.art==='strasse'?['strassentyp']:d.art==='bauzone'?['zonen']:d.art==='bedarf'?['schulen']:d.art==='tram'||d.art==='unfall'?[]:['uebergaenge'], name: d.name, anbieter: d.anbieter,
     gebiet: d.kanton==='CH'?{art:'schweiz'}:d.bfs ? { art: 'gemeinden', bfs: [d.bfs], name: d.id.startsWith('bedarf.zh.') ? 'Stadt Zürich' : d.id === 'bedarf.winterthur' ? 'Stadt Winterthur' : d.name } : { art: 'kantone', kantone: [d.kanton] },
     dienst: d.format === 'arcgis' ? 'arcgis' : d.format === 'wfs' || d.format === 'gml' ? 'wfs' : 'api',
@@ -315,12 +332,12 @@ const und = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} un
 /** Zeilen der Datenschutz-Liste je Empfänger (Reihenfolge wie EMPFAENGER_NAME) und die Sätze zu eigenen Dateien */
 export function datenschutzGruppen(liste: readonly Quelle[] = QUELLEN): { gruppen: { name: string; text: string }[]; eigen: string[] } {
   const gruppen = (Object.keys(EMPFAENGER_NAME) as (keyof typeof EMPFAENGER_NAME)[]).flatMap(e => {
-    const qs = liste.filter(q => q.empfaenger === e)
+    const qs = liste.filter(q => q.empfaenger === e && q.netzabfrage !== false)
     if (!qs.length) return []
     const auf = qs.filter(q => !q.datenschutzSatz).map(q => q.datenschutz), saetze = qs.filter(q => q.datenschutzSatz).map(q => q.datenschutz)
     const kern = e === 'bern' ? `Rechteck ±150 m für ${und(auf)}` : auf.join('; ')
     return [{ name: EMPFAENGER_NAME[e], text: [`${kern}.`, ...saetze].join(' ') }]
   })
-  const eigen = [...new Set(liste.filter(q => q.empfaenger === 'eigen').map(q => q.datenschutz))]
+  const eigen = [...new Set(liste.filter(q => q.empfaenger === 'eigen' && q.netzabfrage !== false).map(q => q.datenschutz))]
   return { gruppen, eigen }
 }

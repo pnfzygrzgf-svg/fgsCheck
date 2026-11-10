@@ -1,3 +1,4 @@
+import { BAUM_ANNAHME } from './baumAnnahme'
 import { bundBelegText } from '../daten/anbieter/gemeinsam/bundBelege'
 import { regionalEntlang } from '../daten/anbieter/gemeinsam/regionalZuordnung'
 import { signalText } from '../daten/anbieter/gemeinsam/regionalSignale'
@@ -95,8 +96,10 @@ import { veloSichtweite, trottoirSichtweite, radwegLinien, radwegNeben, veloVorg
 import { rechterArm, rechteArme, linkerArm, RECHTS_MIN_GRAD, zustandAbb6, rvMindest, sichtfeldEng, RV_TEMPO, RV_B_M, RV_A_M, RV_A_MIN_M, RV_ZIEL_M, SCHMAL_M,
   ENG_LAENGE_M, ENG_SCHRITT_M, WAHRNEHMBARKEIT_VORGABE, WAHRNEHMBARKEIT_TEXT, WAHRNEHMBARKEITEN, ZUSTAND_TEXT, ABB6_GRENZEN, type Wahrnehmbarkeit,
   type Zustand } from './rechtsvortritt'
-import { hindernisVerdeckend, HindernisDaten, BAUM_STAMM_M, type Hindernis, type ParkRaster } from './hindernisse'
-import { PARKSTREIFEN, PARK_SONDE_M, PARK_MIN_TREFFER, type AbzugQuelle } from './fahrstreifen'
+import { hindernisVerdeckend, HindernisDaten, type Hindernis, type ParkRaster } from './hindernisse'
+import { parkPruefflaechen, parkRegel, PARK_BERICHT_ANNAHME } from './parkgeometrie'
+import { parkEinfluesse } from './parkEinfluss'
+import { PARK_SONDE_M, PARK_MIN_TREFFER, type AbzugQuelle } from './fahrstreifen'
 import { parkVorschlaege, baumVorschlaege, parkKatasterFelder, osmUeberdeckt, imSichtfeld } from './vorschlaege'
 import { KEINE_EINGABEN, KEINE_HINDERNISSE, KEINE_KNOTEN_EINGABEN, type ArmInfo, type Ergebnis, type HindernisEingaben,
   type HindernisStand, type KnotenEingaben, type KnotenFall, type KnotenInfo, type Rechnung, type Regelung, type Richtung,
@@ -194,14 +197,14 @@ const seiteOsm = (l: number) => (Math.abs(l) < 0.005 ? 'auf der OSM-Achse' : `${
 const fi = (x: number) => (x > 0 ? '+' : x < 0 ? '−' : '±') + String(Math.abs(Math.round(x * 10) / 10)).replace('.', ',')
 
 export interface Kontext { netz: OsmNetz; achsen: OsmAchsen; fahrbahn: Fahrbahn; trottoir: Flaechen; gebaeude: Verdeckend[]; osm: OsmDaten
-  radwege: RadwegLinie[] }
+  radwege: RadwegLinie[]; av: AvFlaeche[] }
 
 /** Kontext aus OSM und AV (verdeckend sind die Gebäude der AV; Hindernisse kommen je Rechnung dazu) */
 export function kontextBauen(osm: OsmDaten, av: AvFlaeche[]): Kontext {
   const netz = new OsmNetz(osm)
   const geb = new Gebaeude(av)
   return { netz, achsen: new OsmAchsen(netz), fahrbahn: new Fahrbahn(av), trottoir: new Flaechen(av, ['Trottoir']), osm,
-    radwege: radwegLinien(osm.querungen ?? []),
+    radwege: radwegLinien(osm.querungen ?? []), av,
     gebaeude: geb.r.teile.map((t, i) => ({ poly: t.poly, id: `gebaeude:${i}`, name: 'Gebäude (AV)', art: 'Gebäude', quelle: 'AV' })) }
 }
 
@@ -266,13 +269,13 @@ export function rechneKnoten(osm: OsmDaten, av: AvFlaeche[], fall: KnotenFall, k
     if (!kn || !kr) return leer(`OSM-Knoten ${fall.knoten}: kein Kreisel.`, t0, null, netz, ampeln)
     if (!kr.zufahrt) return leer(kr.zufahrtFehler ?? KREISEL_EINFAHRT_TEXT, t0, kn, netz, ampeln)
     if (!av.some(f => f.art === 'Strasse_Weg')) return leer(keineAv, t0, kn, netz, ampeln)
-    const zaehlend = zaehlendeHindernisse(hg)
+    const zaehlend = zaehlendeHindernisse(hg, k.av, k.netz)
     const s = kreiselSicht(kr, [...k.gebaeude, ...hindernisVerdeckend(zaehlend)])
     if (s) {
       const weit = Math.max(0, ...[s.auto, s.velo, ...(s.az ? [s.az] : [])].flatMap(t => t.achse.map(p => dist(kn.p, p))))
       kr.sicht = { ...s, hindernis: hindernisStand(k, hg, kn.p, weit + REICHWEITE_RESERVE_M, kreiselDreiecke(s), s.D, []) }
     }
-    return { knoten: kn, ergebnis: null, meldungen: fall.tempoAmtlich?.zuerich ? ['Stadt Zürich: amtliches Strassentempo wird nicht als Kreiselfahrtempo übernommen. Im Kreisel gelten weiterhin Typ und Ablenkungswinkel.'] : fall.tempoAmtlich?.regional ? ['Amtliches Strassentempo wird nicht als Kreiselfahrtempo übernommen. Im Kreisel gelten weiterhin Typ und Ablenkungswinkel.'] : [], ms: performance.now() - t0, ...umkreis(netz, ampeln) }
+    return { knoten: kn, ergebnis: null, parkPruefflaechen: zaehlend.filter(h => h.art === 'parkfeld' || h.art === 'laengsparkierung'), meldungen: fall.tempoAmtlich?.zuerich ? ['Stadt Zürich: amtliches Strassentempo wird nicht als Kreiselfahrtempo übernommen. Im Kreisel gelten weiterhin Typ und Ablenkungswinkel.'] : fall.tempoAmtlich?.regional ? ['Amtliches Strassentempo wird nicht als Kreiselfahrtempo übernommen. Im Kreisel gelten weiterhin Typ und Ablenkungswinkel.'] : [], ms: performance.now() - t0, ...umkreis(netz, ampeln) }
   }
   if (art === 'gabelung') return leer(`${GABELUNG_TEXT}.`, t0, null, netz, ampeln)
   if (art === 'fahrbahnteilung') return leer(`${fahrbahnteilungText(netz, fall.knoten)}.`, t0, null, netz, ampeln)
@@ -371,11 +374,12 @@ export function strasseBestimmen(netz: OsmNetz, arme: ArmInfo[], eg: SichtEingab
 const REICHWEITE_RESERVE_M = 10
 
 /** Hindernisse für die Rechnung: Eingaben (von Hand, bestätigte Vorschläge) und amtliche Parkfelder ohne verworfene */
-export function zaehlendeHindernisse(hg: HindernisEingaben): Hindernis[] {
+export function zaehlendeHindernisse(hg: HindernisEingaben, av: AvFlaeche[] = [], netz: OsmNetz | null = null): Hindernis[] {
   const weg = new Set(hg.verworfen)
-  const amtlich: Hindernis[] = (hg.park?.felder ?? []).filter(f => !weg.has(f.id) && f.ring.length >= 3)
-    .map(f => ({ id: f.id, art: 'parkfeld', klasse: f.klasse, ring: f.ring, quelle: 'kataster', name: f.name }))
-  return [...hg.hindernisse, ...amtlich]
+  const da = new Set(hg.hindernisse.map(h => h.id))
+  const amtlich: Hindernis[] = (hg.park?.felder ?? []).filter(f => !weg.has(f.id) && !da.has(f.id) && f.ring.length >= 3)
+    .map(f => ({ id: f.id, art: 'parkfeld', klasse: f.klasse, ring: f.ring, quelle: 'kataster', name: f.name, ...(f.katasterTyp ? { katasterTyp: f.katasterTyp } : {}) }))
+  return parkPruefflaechen([...hg.hindernisse, ...amtlich], av, netz)
 }
 
 /** Tags der Vortrittsstrasse für die Vorgabe der Regelung: highway, Tags, Tempo (maxspeed bzw. Zone, km/h) */
@@ -698,8 +702,9 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   // OSM-Linie; zwischen den Stellen linear, zum Knoten hin und am Ende konstant. Ohne genügend AV-Querschnitte feste Lage zLage.
   // Hindernisse (E2a): zählende Hindernisse; Parkfelder aller Klassen und Längsparkierung auch für den Parkstreifen an den Achsen
   // (Korrektur auch Velo- und Motorradfelder verschieben die Fahrlinie; ihre Sichtwirkung bleibt Hinweis)
-  const zaehlend = zaehlendeHindernisse(hg)
-  const park = new HindernisDaten(zaehlend).parkAlle
+  const zaehlend = zaehlendeHindernisse(hg, k.av, k.netz)
+  const park = new HindernisDaten(zaehlend, parkRegel(k.av, kp).breite).parkAlle
+  const parkEinfluss: import('./parkEinfluss').ParkEinfluss[] = []
   let zLage: number, zQuelle: string
   // Lage je Stelle (Bogenlänge auf zMl), sonst null = feste Lage zLage; zText ergänzt die Quelle um die Lage am Nullpunkt
   let zProfil: { s: number[]; lage: number[] } | null = null
@@ -750,6 +755,8 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   // Ränder je Stelle (Ausreisser verworfen, geglättet); zu wenige gültige Stellen: feste Lage aus dem Median wie bisher
   const rp = fs ? randProfil(ab.slice(0, ref.length), sehnen) : null
   if (fs) {
+    for (const id of [...(fs.abzugParkR ? zParkR.ids ?? [] : []), ...(fs.abzugParkL ? zParkL.ids ?? [] : [])])
+      parkEinfluss.push({ id, grund: 'Parkstreifenabzug der Zufahrt / Lage von Achse und Beobachtungspunkt' })
     zLage = fs.lage
     const pz = [zParkR.abzug ? parkStreifenText(zParkR) : '', fs.abzugParkL ? parkStreifenText(zParkL).replace('rechts', 'links') : '']
       .filter(x => x)
@@ -770,7 +777,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
         `${fs.nSehnen} Sehnen; ohne genügend AV-Querschnitte je Stelle: feste Lage ${seiteOsm(zLage)}` +
         `${pz.length ? `; ${pz.join('; ')}` : ''})`
     // Festgelegter Wortlaut (Seite und Zählung der Prüfpunkte stehen in der Herleitung)
-    if (pz.length) an.wartend.push(`Parkfelder entlang der Zufahrt: ${pz.length > 1 ? '2 × ' : ''}${f2(PARKSTREIFEN)} m abgezogen, Achse, D und F_B ` +
+    if (pz.length) an.wartend.push(`Parkfelder entlang der Zufahrt: ${pz.length > 1 ? '2 × ' : ''}${f2(park.streifenBreiteM)} m abgezogen, Achse, D und F_B ` +
       'entsprechend verschoben.')
   } else {
     const [l0, , q] = lageOsm(netz, zArm.wid, LAGE_ERSATZ)
@@ -1023,11 +1030,8 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     'Gerechnet im Grundriss; ob ein Hindernis in die Sichthöhe reicht (0,60 bis 3,00 m, Ziffer 10, S. 7), wird nicht geprüft.' +
     (hat(h => h.art === 'hecke' || h.art === 'mauer' || h.art === 'zaun' || h.art === 'uebrige') ? ' Ob eine Hecke, Mauer, ein Zaun oder ' +
       'ein übriges Hindernis verdeckt, legst du beim Hindernis fest («sichtbehindernd» bzw. «dicht»).' : ''))
-  if (hat(h => h.art === 'parkfeld' || h.art === 'laengsparkierung'))
-    an.hindernisse.push('Parkfelder gelten als besetzt. Velo- und Motorradparkfelder verdecken nicht und werden nur erwähnt; die Fahrzeuge ' +
-      'fahren aber neben ihnen wie neben Autoparkfeldern.')
   if (hat(h => h.art === 'baum'))
-    an.hindernisse.push(`Bäume zählen mit dem Stamm (${f1(BAUM_STAMM_M)} m), die Krone liegt über dem Sichtfeld. Mehrere Bäume verdecken ` +
+    an.hindernisse.push(`${BAUM_ANNAHME} Mehrere Bäume verdecken ` +
       `erst, wenn sie zusammen mindestens ${f1(PALISADE_MIN_M)} m der Strecke am Stück verdecken (Palisade).`)
 
   const richtungen = ([['links', aL, haupt[0], veloStand[0], lageLR[0]], ['rechts', aR, haupt[1], veloStand[1], lageLR[1]]] as
@@ -1104,7 +1108,7 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     herleitung.push(`Zufahrt: ab ${Math.round(zTeilung.ab)} m (Teilung am OSM-Knoten ${zTeilung.knoten}) auf der zuführenden Einbahn ` +
       `(OSM-Weg ${zTeilung.wid})${zTeilungText ? `; ${zTeilungText}` : ''}.`)
   }
-  if (autoR.length) herleitung.push(`Parkierung an der Fahrlinie: Abzug ${f2(PARKSTREIFEN)} m, wenn Prüfpunkte ${f2(PARK_SONDE_M)} m ` +
+  if (autoR.length) herleitung.push(`Parkierung an der Fahrlinie: Abzug ${f2(park.streifenBreiteM)} m (${parkRegel(k.av, kp).grundlage}), wenn Prüfpunkte ${f2(PARK_SONDE_M)} m ` +
     `innerhalb des Rands, je 2 m bis zum Ende der Zielpunkte, auf Parkfeldern liegen (mindestens ${PARK_MIN_TREFFER} Treffer an 2 ` +
     `Feldern bzw. ${PARK_EIN_FELD_TREFFER} an einem Feld, Abstand höchstens ${f1(PARK_SONDE_RADIUS_M)} m).`)
   // Rechtsvortritt (E3c): Ergebnis des gewählten Arms gegen den rechten, bei schmaler Zufahrt das Sichtfeld (Abb. 5; Konstruktion nach
@@ -1468,6 +1472,10 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   herleitung.unshift(`${zufahrtLageQuelle}.`, ...(zufahrtNeigung?.i !== null && zufahrtNeigung?.i !== undefined ? [`Längsneigung der ` +
     `Zufahrt ${fi(zufahrtNeigung.i)} % in Fahrtrichtung von F_B (${zufahrtNeigung.quelle}; ohne Wirkung` +
     `${Math.abs(zufahrtNeigung.i) > ZUFAHRT_STEIL_PROZENT ? ', steile Zufahrt' : ''}).`] : []))
+  // Parkflächen-Annahme nur, wenn eine Parkfläche das Ergebnis beeinflusst (Verdeckung, Parkstreifenabzug, Beobachtungspunkt)
+  const parkIds = new Set(zaehlend.filter(h => h.art === 'parkfeld' || h.art === 'laengsparkierung').map(h => h.id))
+  if (parkEinfluesse({ parkEinfluss, richtungen, hindernis: { inD: hindernis.inD }, trottoirPruefung, rechtsvortritt }).some(x => parkIds.has(x.id)))
+    an.hindernisse.push(PARK_BERICHT_ANNAHME)
   // je Thema ein Punkt
   const annahmenThemen: AnnahmeThema[] = ANNAHME_THEMEN.filter(([id]) => an[id].length).map(([id, titel]) => ({ thema: id,
     titel: id === 'wartend' && zufahrtVelo ? 'Wartendes Velo' : titel, text: an[id].join(' ') }))
@@ -1484,6 +1492,8 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     ausserorts: ao.ausserorts, zufahrtAchse: abschneiden(abBogen(zAchse, Math.max(0, beob.sRand - 2)), Math.max(B, bisD) + 12),
     zufahrtLageQuelle, vortritt: [aL.key, aR.key], einbiegewinkel,
     richtungen, strasse, avRadius, avBedarf, annahmen, hinweise, annahmenThemen, herleitung,
+    parkEinfluss,
+    parkPruefflaechen: zaehlend.filter(h => h.art === 'parkfeld' || h.art === 'laengsparkierung'),
     hindernis, zufahrtProfil, zufahrtNeigung, massnahmen, radwegRand: abRadweg ? xRadweg!.p : null, trottoirPruefung, trottoirProfil,
     rechtsvortritt, zufahrtVelo, seiteOhneArm, ...(trottoirueberfahrt ? { trottoirueberfahrt } : {}), ueberholen, ...(info.lsa ? { lsa: true } : {}) }
 }
@@ -1592,7 +1602,8 @@ function hindernisStand(k: Kontext, hg: HindernisEingaben, kp: P, reichweite: nu
   const ueberdeckt = osmUeberdeckt(osmAlle, felder.filter(f => f.klasse === 'auto').map(f => f.ring))
   const osm = osmAlle.filter(v => !ueberdeckt.has(v.id) && v.hindernis.art === 'parkfeld' && imSichtfeld(v.hindernis.ring, dreiecke))
   const baeume = hg.baeume ? baumVorschlaege(hg.baeume.baeume, kp, reichweite, hg.baeume.quellenangabe).filter(v => offen(v.id)) : []
-  const amtlichAlle = hg.park ? parkKatasterFelder(felder, kp, reichweite, hg.park.quellenangabe) : []
+  // im Fall übernommene Felder (z. B. Motorradfeld mit Anordnung von Hand) stehen bei den Hindernissen, nicht nochmals hier
+  const amtlichAlle = hg.park ? parkKatasterFelder(felder, kp, reichweite, hg.park.quellenangabe).filter(v => !da.has(v.id)) : []
   return { vorschlaege: [...osm, ...baeume], amtlich: amtlichAlle.filter(v => !weg.has(v.id)),
     amtlichVerworfen: amtlichAlle.filter(v => weg.has(v.id)), osmUeberdeckt: ueberdeckt.size, inD, reichweite: Math.round(reichweite) }
 }

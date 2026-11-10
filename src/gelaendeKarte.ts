@@ -27,7 +27,8 @@ export function gelaendeProfile(streifen: readonly StreifenErgebnis[],
   for (const [index, s] of streifen.entries()) {
     if (s.trottoirueberfahrt || s.status === 'kein_fgs') continue
     for (const z of s.zufahrten) {
-      const nimm = (art: 'warte' | 'markierung', x: number, auge: EbenenObjekt['punkt'], ziel: EbenenObjekt['punkt'], frei: boolean, d: HoehenDienst) => {
+      const nimm = (art: 'warte' | 'markierung', x: number, auge: EbenenObjekt['punkt'], ziel: EbenenObjekt['punkt'], frei: boolean, d: HoehenDienst,
+        zielBodenH?: number) => {
         if (!auge || !ziel) return
         const id = `gel:${s.fgsId}:${z.zufahrt}:${art}:${x}`, profil = vorhanden(auge, ziel, d)
         const hinweis = profilBeruehrtBruecke(auge, ziel, bruecke)
@@ -44,13 +45,14 @@ export function gelaendeProfile(streifen: readonly StreifenErgebnis[],
             datenstand: profil.datenstand, abgerufen: profil.abgerufen,
             hinweis,
             zweck: `Das Auto steht ${Math.round(x)} m vor dem Fussgängerstreifen. Geprüft wird der Blick vom Fahrer*innenauge ${art === 'warte' ? 'zur Wartefläche' : 'auf die Bodenmarkierung'}.`,
-            sicht: { augeM: AUGHOEHE_M, zielM: art === 'warte' ? ZIEL_HOEHE_WARTE_M : ZIEL_HOEHE_M, toleranzM: d.tolM, frei } } } : {}),
+            sicht: { augeM: AUGHOEHE_M, zielM: art === 'warte' ? ZIEL_HOEHE_WARTE_M : ZIEL_HOEHE_M, toleranzM: d.tolM, frei,
+              ...(zielBodenH !== undefined ? { zielBodenH } : {}) } } } : {}),
           text: `${name}: ${art === 'warte' ? 'Sicht auf die Wartefläche' : 'Erkennung der Bodenmarkierung'}, ` +
             `${Math.round(x)} m vor dem Streifen; ${hinweis ?? (frei ? 'im Geländemodell frei (andere Hindernisse separat geprüft)' : 'im Geländemodell verdeckt')}; Höhenschnitt unter Kartenebenen → Gelände → Geländeprofile ansehen` })
       }
       if (z.sichtGelaende?.stand === 'mit') {
         const d = hoehenDienst(z.sichtGelaende.quelle) ?? SWISSALTI
-        for (const l of z.sichtGelaende.linien) if (!l.bruecke && l.frei !== null) nimm('warte', l.x, l.auge, l.ziel, l.frei, d)
+        for (const l of z.sichtGelaende.linien) if (!l.bruecke && l.frei !== null) nimm('warte', l.x, l.auge, l.ziel, l.frei, d, l.zielBodenH)
       }
       const a = erkennungAnzeige(z, erkennung)
       const dm = hoehenDienst(a?.e.gelaendeQuelle) ?? SWISSALTI

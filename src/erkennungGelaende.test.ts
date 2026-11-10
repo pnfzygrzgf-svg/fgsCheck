@@ -73,7 +73,7 @@ describe('Gelände: Prüfung je Zufahrt', () => {
     const a = erkennungAnzeige(zz, werte)!
     expect(a.e).toEqual({ wert: g.abM, bis: 'verdeckt', hindernis: { klasse: 'gelaende', name: 'Geländemodell (swissALTI3D)' }, gelaende: 'mit',
       gelaendeQuelle: 'swissALTI3D', gelaendePruefbereich: { letzteFreiM: 52.5, ersteVerdecktM: 55 } })
-    expect(erkennungText(a.e)).toBe(`Bodenmarkierung im Modell erkennbar ab ${g.abM} m (abgerundeter Rechenwert; weiter entfernt verdeckt: Geländemodell (swissALTI3D))`)
+    expect(erkennungText(a.e)).toBe(`Annahme: Bodenmarkierung bis ${g.abM} m vor dem Streifen sichtbar (abgerundeter Rechenwert; weiter entfernt verdeckt: Geländemodell (swissALTI3D))`)
     expect(gelaendeText(a.e)).toBe('mit Geländemodell (swissALTI3D); letzte frei geprüfte Position 52,5 m; erste verdeckte Position 55 m vor dem Streifen')
     expect(a.linien.find(x => x.x === 70)).toMatchObject({ befund: 'verdeckt', grund: 'Geländemodell (swissALTI3D)', gelaende: false })
     // ohne Modellname (Ergebnis ohne quelle) nur «Geländemodell»; Berner DTM mit seinem Namen
@@ -215,7 +215,7 @@ describe('D1: Grenzpositionen für die Bodenmarkierung', () => {
     expect(g).toMatchObject({ abM: 17, abfragen: 5, pruefbereich: { letzteFreiM: 17.5, ersteVerdecktM: 20 } })
     const zz = z(e, l), a = erkennungAnzeige(zz, { [gelaendeSchluessel(zz)!]: { stand: 'ok', ...g } })!
     expect(a.e.wert).toBe(17)
-    expect(erkennungText(a.e)).toContain('Bodenmarkierung im Modell erkennbar ab 17 m (abgerundeter Rechenwert;')
+    expect(erkennungText(a.e)).toContain('Annahme: Bodenmarkierung bis 17 m vor dem Streifen sichtbar (abgerundeter Rechenwert;')
     expect(gelaendeText(a.e)).toContain('letzte frei geprüfte Position 17,5 m; erste verdeckte Position 20 m')
   })
   it('behauptet bei ausschliesslich verdeckten Proben keine freie Position am Streifenrand', async () => {

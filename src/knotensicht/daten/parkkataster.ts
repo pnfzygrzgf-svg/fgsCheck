@@ -19,7 +19,7 @@ import { holeJson, AbrufFehler, type Abruf } from './holen'
 
 export const PARK_MIN_M2 = 0.5
 
-export interface KatasterFeld { id: string; klasse: ParkKlasse; ring: P[]; name: string }
+export interface KatasterFeld { id: string; klasse: ParkKlasse; ring: P[]; name: string; katasterTyp?: string }
 export interface ParkQuelle {
   id: string
   name: string
@@ -30,7 +30,8 @@ export interface ParkQuelle {
 
 /** park_klasse (fgs_sicht_pruefen.py): Typ bzw. Layer -> Klasse, null = nicht verwenden */
 export function parkKlasse(typ: string): ParkKlasse | null {
-  if (typ.startsWith('Parkverbot') || typ.startsWith('Veloabstell') || typ.startsWith('Velostation')) return null
+  if (typ.startsWith('Veloabstell') || typ.startsWith('Velostation')) return null
+  if (typ === 'Parkverbot') return 'auto' // Parkverbotsfeld: gleiche Prüfannahmen, Bezeichnung bleibt erhalten
   if (typ.startsWith('Parkplatz_Velo')) return 'velo'
   if (typ.startsWith('Parkplatz_Motorrad') || typ.startsWith('Motorradparkplatz')) return 'motorrad'
   if (typ.startsWith('Parkfeld') || typ.startsWith('Spezialfeld') || typ.startsWith('Andere')) return 'auto'
@@ -79,7 +80,7 @@ export function felderAusGeoJson(gj: GeoJsonFlaechen, typ: string, praefix: stri
     let k = 0
     for (const poly of polys) {
       if (!Array.isArray(poly)) continue
-      for (const ring of ringeBereinigen(poly[0], koord)) out.push({ id: `${praefix}:${typ}:${oid}:${k++}`, klasse, ring, name })
+      for (const ring of ringeBereinigen(poly[0], koord)) out.push({ id: `${praefix}:${typ}:${oid}:${k++}`, klasse, ring, name, katasterTyp: typ })
     }
   }
   return out
@@ -87,11 +88,11 @@ export function felderAusGeoJson(gj: GeoJsonFlaechen, typ: string, praefix: stri
 
 // ---------------------------------------------------------------- Bern
 const BERN_WFS = 'https://map.bern.ch/arcgis/services/Geoportal/Parkplaetze_oeffentlich/MapServer/WFSServer'
-/** Flächen-Typen (MultiPolygon) mit Bezeichnung; Parkverbot hat keine Klasse und wird nicht geladen */
+/** Flächen-Typen (MultiPolygon) mit Bezeichnung; Parkverbotsfelder zählen wie Auto-Parkfelder */
 export const BERN_TYPEN: Record<string, string> = {
   Parkfeld_Gebuehrenpflichtig: 'Parkfeld gebührenpflichtig', Parkfeld_blau_APK: 'Parkfeld blau (APK)',
   Parkfeld_weiss_APK: 'Parkfeld weiss (APK)', Parkfeld_weiss_Kurzzeit: 'Parkfeld weiss (Kurzzeit)',
-  Parkplatz_Velo_Mofa: 'Parkplatz Velo/Mofa', Parkplatz_Motorrad: 'Parkplatz Motorrad', Parkverbot: 'Parkverbot',
+  Parkplatz_Velo_Mofa: 'Parkplatz Velo/Mofa', Parkplatz_Motorrad: 'Parkplatz Motorrad', Parkverbot: 'Parkverbotsfeld',
   Spezialfeld: 'Spezialfeld', Andere_Unbekannt: 'Parkfeld (andere/unbekannt)',
 }
 

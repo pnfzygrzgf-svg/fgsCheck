@@ -19,6 +19,7 @@ import { istLuftbildUebergang, luftbildUebergangHinweis, LUFTBILD_FGS_QUELLE } f
 import { pruefen, type Kontext, R2_FLAECHEN } from './pruefen'
 import { eckCacheLeeren } from './abbiegen'
 import { HindernisDaten, type Hindernis } from './hindernisse'
+import { parkPruefflaechen, parkRegel } from './parkgeometrie'
 import { parkVorschlaege, baumVorschlaege, parkKatasterFelder, osmUeberdeckt, doppeltAmtlich, type Vorschlag } from './vorschlaege'
 import { flaeche } from './poly'
 import { avMitPlan, planAmRand, planNahLinie, planKurz, anteilInPlanInsel, PLAN_NAME, planStandardKurz, planTitel, INSEL_DOPPELT_ANTEIL,
@@ -47,7 +48,7 @@ export function kontextBauen(osm: OsmDaten | null, av: AvFlaeche[], sosf: AvFlae
     flaechenR2: new Flaechen(av, [...R2_FLAECHEN, 'Gebaeude']),
     bewuchs: new Flaechen(av, BEWUCHS_ARTEN),
     brueckenumriss: brueckenumriss(sosf),
-    hindernisse: hindernisse.length ? new HindernisDaten(hindernisse) : null,
+    hindernisse: hindernisse.length ? new HindernisDaten(hindernisse, parkRegel(av).breite) : null,
   }
 }
 
@@ -152,6 +153,11 @@ export const LUFTBILD_PLAN_TEXT = 'Mit Flächen (Plan): Streifen aus dem Luftbil
 let luftbildCache: { bild: Bild; nid: number; erkennung: Erkennung } | null = null
 
 export interface FallRechnung extends Rechnung {
+  /** Verwendete Parkflächen nach Mindestbreite und Plan-Seitenraum; Originale in parkAnnahmen. */
+  parkPruefflaechen?: Hindernis[]
+  parkAnnahmen?: Hindernis[]
+  /** Grundlage der Parkstreifenbreite am Ort (ParkRegel.quellenId), für die Quellen im Bericht */
+  parkstreifenQuelleId?: string
   vorschlaege: Vorschlag[]; streifenQuelle: 'osm' | 'hand' | 'luftbild'
   parkVerworfen: Vorschlag[]         // verworfene amtliche Parkfelder in Reichweite (Karte: gedimmt, einzeln zurückholbar)
   doppelt: string[]                  // Ids von Parkierung im Fall, die sich mit amtlichen Feldern deckt (doppeltAmtlich)
@@ -282,7 +288,8 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const parkVerworfen = parkAlle.filter(v => fall.vorschlaege[v.id] && !vorhanden.has(v.id))
   // Doppelzählung: gegen alle geladenen amtlichen Felder (auch verworfene und ausserhalb der Reichweite)
   const doppelt = park && fall.parkkataster !== false ? doppeltAmtlich(fall.hindernisse, park.felder.map(f => f.ring)) : []
-  let hindernisse: Hindernis[] = [...fall.hindernisse, ...kat.map(v => v.hindernis), ...katPark.map(v => v.hindernis)]
+  let hindernisse = parkPruefflaechen([...fall.hindernisse, ...kat.map(v => v.hindernis), ...katPark.map(v => v.hindernis)], av, kxOhne.netz)
+  const parkAnnahmen = hindernisse.filter(h => h.art === 'parkfeld' && h.parkPruefung)
   // Vorgezogener Seitenraum (seitenraum.ts): Parkierung darunter entfällt für die Sichtprüfung (Einträge im Fall bleiben)
   // (nur Art Trottoir: nach einem Wechsel der Art wirkt die Fläche wie jede Plan-Fläche)
   const srPolys = plan.teile.filter(t => t.standard?.typ === 'seitenraum' && t.art === 'trottoir').map(t => t.poly)
@@ -377,6 +384,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const inseln = [...new Set(streifen.flatMap(s => s.inseln))].filter(z => z.herkunft !== 'hand')
   return { streifen: erg, meldungen, ms: performance.now() - t0, vorschlaege: [...offen, ...kat, ...katPark], streifenQuelle: quelle,
     markierung: mk, hinweis: lbU ? lbHinweis : hinweis, luftbild, parkVerworfen, doppelt, inseln, inselTeilt,
+    parkAnnahmen, parkstreifenQuelleId: parkRegel(av).quellenId, parkPruefflaechen: hindernisse.filter(h => h.art === 'parkfeld' || h.art === 'laengsparkierung'),
     ...(lbU ? { luftbildUebergang: { bestaetigt: quelle === 'luftbild' || (luftbild?.befund === 'erkannt' && !!luftbild.nurVorschlag) } } : {}),
     ...(fall.flaechenPlan?.length ? { planFlaechen: new Set(plan.teile.map(t => t.id)).size } : {}),
     ...(srErsetzt ? { seitenraumErsetzt: srErsetzt } : {}) }

@@ -1,3 +1,4 @@
+import { parkBerichtFelder, parkEinfluesse } from './parkEinfluss'
 // Tests E2 (Eingaben): Konflikte und Status, Abstand 1,5 m zu Parkfeldern, Fall-Datei, Rechnung mit Eingaben von Hand.
 // Künstlicher Knoten wie rechner.test.ts (keine echten Daten): Hauptstrasse West–Ost (8 m), Übergang bei x = 0,
 // Querstrasse nach Süden bei x = -40.
@@ -90,6 +91,7 @@ describe('Abstand zu Parkfeldern (abstand_halten)', () => {
     const pts: P[] = Array.from({ length: 11 }, (_, i) => [i * 2 - 4, 0] as P)
     const [neu, info] = abstandHalten(pts, () => true, hd.parkAlle)
     expect(info).not.toBeNull()
+    expect(new Set(hd.parkAlle.verwendung.map(x => x.id))).toEqual(new Set(['p']))
     for (const p of neu) expect(hd.parkAlle.abstand(p)).toBeGreaterThanOrEqual(PARK_ABSTAND_M - 0.11)
     expect(neu[4][1]).toBeLessThan(-0.9)                  // auf der Höhe des Felds um rund 1 m nach rechts
     expect(dist(neu[10], pts[10])).toBeLessThan(1.6)
@@ -138,6 +140,13 @@ describe('Fall-Datei', () => {
 describe('Rechnung mit Eingaben von Hand (rechneFall)', () => {
   const ohne = ost(rechneFall(daten(), AV, [], 12, fallMit(() => {}), null))
   it('ohne Hindernisse frei', () => expect(ohne.status).toBe('frei'))
+  it('weist den Parkstreifenbeitrag aus und nimmt unbeteiligte geladene Flächen nicht in den Bericht', () => {
+    const wirksam: Hindernis = { id: 'parkstreifen', art: 'parkfeld', klasse: 'auto', quelle: 'hand', ring: rechteck(7, 2, 70, 4).slice(0, 4) }
+    const fern: Hindernis = { ...wirksam, id: 'unbeteiligt', ring: rechteck(70, 70, 75, 72).slice(0, 4) }
+    const r = rechneFall(daten(), AV, [], 12, fallMit(f => { f.hindernisse.push(wirksam, fern) }), null)
+    expect(parkEinfluesse(r).some(x => x.id === wirksam.id && x.grund.includes('Parkstreifenabzug'))).toBe(true)
+    expect(parkBerichtFelder([wirksam, fern], r).map(h => h.id)).toEqual([wirksam.id])
+  })
   it('Parkfeld von Hand vor dem Streifen verdeckt die Sicht', () => {
     const h: Hindernis = { id: 'p1', art: 'parkfeld', klasse: 'auto', ring: rechteck(-12, 2, -7, 4).slice(0, 4), quelle: 'hand' }
     const z = ost(rechneFall(daten(), AV, [], 12, fallMit(x => x.hindernisse.push(h)), null))
