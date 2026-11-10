@@ -98,6 +98,7 @@ import { rechterArm, rechteArme, linkerArm, RECHTS_MIN_GRAD, zustandAbb6, rvMind
   type Zustand } from './rechtsvortritt'
 import { hindernisVerdeckend, HindernisDaten, type Hindernis, type ParkRaster } from './hindernisse'
 import { parkPruefflaechen, parkRegel, PARK_BERICHT_ANNAHME } from './parkgeometrie'
+import { parkEinfluesse } from './parkEinfluss'
 import { PARK_SONDE_M, PARK_MIN_TREFFER, type AbzugQuelle } from './fahrstreifen'
 import { parkVorschlaege, baumVorschlaege, parkKatasterFelder, osmUeberdeckt, imSichtfeld } from './vorschlaege'
 import { KEINE_EINGABEN, KEINE_HINDERNISSE, KEINE_KNOTEN_EINGABEN, type ArmInfo, type Ergebnis, type HindernisEingaben,
@@ -1029,7 +1030,6 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
     'Gerechnet im Grundriss; ob ein Hindernis in die Sichthöhe reicht (0,60 bis 3,00 m, Ziffer 10, S. 7), wird nicht geprüft.' +
     (hat(h => h.art === 'hecke' || h.art === 'mauer' || h.art === 'zaun' || h.art === 'uebrige') ? ' Ob eine Hecke, Mauer, ein Zaun oder ' +
       'ein übriges Hindernis verdeckt, legst du beim Hindernis fest («sichtbehindernd» bzw. «dicht»).' : ''))
-  if (hat(h => h.art === 'parkfeld' || h.art === 'laengsparkierung')) an.hindernisse.push(PARK_BERICHT_ANNAHME)
   if (hat(h => h.art === 'baum'))
     an.hindernisse.push(`${BAUM_ANNAHME} Mehrere Bäume verdecken ` +
       `erst, wenn sie zusammen mindestens ${f1(PALISADE_MIN_M)} m der Strecke am Stück verdecken (Palisade).`)
@@ -1472,6 +1472,10 @@ function rechneZufahrt(k: Kontext, info: KnotenInfo, zArm: ArmInfo, vorgeschlage
   herleitung.unshift(`${zufahrtLageQuelle}.`, ...(zufahrtNeigung?.i !== null && zufahrtNeigung?.i !== undefined ? [`Längsneigung der ` +
     `Zufahrt ${fi(zufahrtNeigung.i)} % in Fahrtrichtung von F_B (${zufahrtNeigung.quelle}; ohne Wirkung` +
     `${Math.abs(zufahrtNeigung.i) > ZUFAHRT_STEIL_PROZENT ? ', steile Zufahrt' : ''}).`] : []))
+  // Parkflächen-Annahme nur, wenn eine Parkfläche das Ergebnis beeinflusst (Verdeckung, Parkstreifenabzug, Beobachtungspunkt)
+  const parkIds = new Set(zaehlend.filter(h => h.art === 'parkfeld' || h.art === 'laengsparkierung').map(h => h.id))
+  if (parkEinfluesse({ parkEinfluss, richtungen, hindernis: { inD: hindernis.inD }, trottoirPruefung, rechtsvortritt }).some(x => parkIds.has(x.id)))
+    an.hindernisse.push(PARK_BERICHT_ANNAHME)
   // je Thema ein Punkt
   const annahmenThemen: AnnahmeThema[] = ANNAHME_THEMEN.filter(([id]) => an[id].length).map(([id, titel]) => ({ thema: id,
     titel: id === 'wartend' && zufahrtVelo ? 'Wartendes Velo' : titel, text: an[id].join(' ') }))
@@ -1598,7 +1602,8 @@ function hindernisStand(k: Kontext, hg: HindernisEingaben, kp: P, reichweite: nu
   const ueberdeckt = osmUeberdeckt(osmAlle, felder.filter(f => f.klasse === 'auto').map(f => f.ring))
   const osm = osmAlle.filter(v => !ueberdeckt.has(v.id) && v.hindernis.art === 'parkfeld' && imSichtfeld(v.hindernis.ring, dreiecke))
   const baeume = hg.baeume ? baumVorschlaege(hg.baeume.baeume, kp, reichweite, hg.baeume.quellenangabe).filter(v => offen(v.id)) : []
-  const amtlichAlle = hg.park ? parkKatasterFelder(felder, kp, reichweite, hg.park.quellenangabe) : []
+  // im Fall übernommene Felder (z. B. Motorradfeld mit Anordnung von Hand) stehen bei den Hindernissen, nicht nochmals hier
+  const amtlichAlle = hg.park ? parkKatasterFelder(felder, kp, reichweite, hg.park.quellenangabe).filter(v => !da.has(v.id)) : []
   return { vorschlaege: [...osm, ...baeume], amtlich: amtlichAlle.filter(v => !weg.has(v.id)),
     amtlichVerworfen: amtlichAlle.filter(v => weg.has(v.id)), osmUeberdeckt: ueberdeckt.size, inD, reichweite: Math.round(reichweite) }
 }

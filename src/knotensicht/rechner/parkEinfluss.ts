@@ -46,3 +46,12 @@ export function parkBerichtFelder(felder: readonly Hindernis[], ergebnis: unknow
     return true
   })
 }
+
+/** Kennungen der Parkplatz-Grundlagen (ParkRegel.quellenId), die über eine Parkfläche mit Ergebnisbeitrag ins Resultat eingehen. */
+export function parkQuellenIds(felder: readonly Hindernis[], ergebnis: unknown): string[] {
+  const ids = new Set(parkEinfluesse(ergebnis).map(x => x.id))
+  return [...new Set(felder.flatMap(h => h.art === 'parkfeld' && h.parkPruefung && ids.has(h.id) ? [h.parkPruefung.regel.quellenId] : []))]
+}
+
+/** Wurde ein Parkstreifenabzug angewendet (Lage der Fahrlinie bzw. des Beobachtungspunkts)? */
+export const parkAbzugAngewendet = (ergebnis: unknown): boolean => parkEinfluesse(ergebnis).some(x => x.grund.startsWith('Parkstreifenabzug'))

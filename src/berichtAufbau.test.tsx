@@ -20,7 +20,7 @@ describe('Bericht: Reihenfolge der Abschnitte', () => {
       '<h3>Werke der Sichtprüfung</h3>', '<VerzeichnisBericht blaetter={blaetter} />', '<footer className="bericht-fuss">', '<h2>Anhang: Eingaben und Quellen'].map(lage)
     expect([...reihe].sort((a, b) => a - b)).toEqual(reihe)
     expect(src).not.toContain('<h2>Normbezüge</h2>')
-    expect(src).toContain('<h2>Annahmen und Hinweise</h2>')       // gemeinsame Parkplatz- und Baumannahmen ausdrücklich im Bericht
+    expect(src).not.toContain('<h2>Annahmen und Hinweise</h2>')   // die Überschrift steht nur noch im Bedarf; Park- und Baumannahmen unter «Hinweise zur Sichtprüfung»
     expect(src).toContain('bedarfZeilen.map(')                    // Aussage zum Bedarf im Ergebnis auf Seite 1
     expect(src).toContain('erkennungBefunde(s).map(')             // verfehlte Erkennungsdistanz im Ergebnis auf Seite 1
   })

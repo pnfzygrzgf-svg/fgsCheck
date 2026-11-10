@@ -156,6 +156,8 @@ export interface FallRechnung extends Rechnung {
   /** Verwendete Parkflächen nach Mindestbreite und Plan-Seitenraum; Originale in parkAnnahmen. */
   parkPruefflaechen?: Hindernis[]
   parkAnnahmen?: Hindernis[]
+  /** Grundlage der Parkstreifenbreite am Ort (ParkRegel.quellenId), für die Quellen im Bericht */
+  parkstreifenQuelleId?: string
   vorschlaege: Vorschlag[]; streifenQuelle: 'osm' | 'hand' | 'luftbild'
   parkVerworfen: Vorschlag[]         // verworfene amtliche Parkfelder in Reichweite (Karte: gedimmt, einzeln zurückholbar)
   doppelt: string[]                  // Ids von Parkierung im Fall, die sich mit amtlichen Feldern deckt (doppeltAmtlich)
@@ -382,7 +384,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
   const inseln = [...new Set(streifen.flatMap(s => s.inseln))].filter(z => z.herkunft !== 'hand')
   return { streifen: erg, meldungen, ms: performance.now() - t0, vorschlaege: [...offen, ...kat, ...katPark], streifenQuelle: quelle,
     markierung: mk, hinweis: lbU ? lbHinweis : hinweis, luftbild, parkVerworfen, doppelt, inseln, inselTeilt,
-    parkAnnahmen, parkPruefflaechen: hindernisse.filter(h => h.art === 'parkfeld' || h.art === 'laengsparkierung'),
+    parkAnnahmen, parkstreifenQuelleId: parkRegel(av).quellenId, parkPruefflaechen: hindernisse.filter(h => h.art === 'parkfeld' || h.art === 'laengsparkierung'),
     ...(lbU ? { luftbildUebergang: { bestaetigt: quelle === 'luftbild' || (luftbild?.befund === 'erkannt' && !!luftbild.nurVorschlag) } } : {}),
     ...(fall.flaechenPlan?.length ? { planFlaechen: new Set(plan.teile.map(t => t.id)).size } : {}),
     ...(srErsetzt ? { seitenraumErsetzt: srErsetzt } : {}) }

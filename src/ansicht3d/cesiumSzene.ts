@@ -81,6 +81,8 @@ const LINIE_SCHRITT_M = 1
 /** Körper (Parkfelder, Hindernisse, Konflikte): Bodenpunkte entlang des Umrisses so dicht [m], damit sie dem Gefälle folgen */
 const KOERPER_SCHRITT_M = 2
 const GEBAEUDE_FEHLER_PX = 24
+/** so viele letzte Kachelantworten einer Quelle entscheiden über «Fehler» (alle fehlgeschlagen) */
+const KACHEL_FENSTER = 8
 
 export interface Szene {
   zeigen(s: Szene3D): Promise<void>
@@ -127,6 +129,15 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
     if (JSON.stringify(z) !== JSON.stringify(alt)) setzen({ quellen: { ...stand.quellen, [key]: z } })
   }
   const quellFehler = (key: Dienst3D, e: unknown) => quelleSetzen(key, { zustand: 'Fehler', fehler: e instanceof Error ? e.message : String(e) })
+  // Kacheldienste: «Fehler» erst, wenn die letzten KACHEL_FENSTER Antworten alle fehlschlugen. Eine einzelne fehlende Kachel (Rand der
+  // Abdeckung, Blick zum Horizont) ist kein Ausfall der Quelle; die nächste gelungene Kachel hebt den Fehler wieder auf.
+  const kachelVerlauf = new Map<Dienst3D, boolean[]>()
+  const kachelErgebnis = (key: Dienst3D, ok: boolean, e?: unknown) => {
+    const v = [...(kachelVerlauf.get(key) ?? []), ok].slice(-KACHEL_FENSTER)
+    kachelVerlauf.set(key, v)
+    if (v.some(x => x)) quelleSetzen(key, { zustand: 'geladen' })
+    else quellFehler(key, e ?? 'Kacheln nicht verfügbar')
+  }
   const pruefen = () => { if (signal.aborted) throw abbruch() }
   setzen({})
   // Cesium sucht seine Dateien unter dieser Adresse (buildModuleUrl prüft die globale Variable CESIUM_BASE_URL)
@@ -145,6 +156,15 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
   const terrainProvider = await C.CesiumTerrainProvider.fromUrl(TERRAIN_URL, { credit: new C.Credit('© swisstopo', true) })
     .catch(e => { quellFehler('gelaende', e); throw e })
   quelleSetzen('gelaende', { zustand: 'geladen' })
+  // Gelungene Geländekacheln nur beobachten (Fehler meldet errorEvent): Anfrage, Rückgabewert und Fehlerverhalten bleiben erhalten
+  if (terrainProvider.requestTileGeometry) {
+    const abruf = terrainProvider.requestTileGeometry.bind(terrainProvider)
+    terrainProvider.requestTileGeometry = (...args) => {
+      const antwort = abruf(...args)
+      if (antwort) void antwort.then(() => kachelErgebnis('gelaende', true), () => { /* errorEvent */ })
+      return antwort
+    }
+  }
   pruefen()
   const w = new C.CesiumWidget(el, {
     baseLayer: false, terrainProvider, scene3DOnly: true, requestRenderMode: true, maximumRenderTimeChange: Infinity,
@@ -174,7 +194,7 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
           const antwort = abruf(...args)
           if (antwort) {
             quelleSetzen(key, { zustand: 'lädt' })
-            void antwort.then(() => quelleSetzen(key, { zustand: 'geladen' }), e => quellFehler(key, e))
+            void antwort.then(() => kachelErgebnis(key, true), e => kachelErgebnis(key, false, e))
           }
           return antwort
         }
@@ -228,7 +248,7 @@ export async function szeneOeffnen(el: HTMLElement, credits: HTMLElement, melden
         gpuBytes: gpu || undefined })
     }
     if (terrainProvider.errorEvent) {
-      const fehler = (e: { message?: string }) => quellFehler('gelaende', e.message ?? 'Geländekachel nicht verfügbar')
+      const fehler = (e: { message?: string }) => kachelErgebnis('gelaende', false, e.message ?? 'Geländekachel nicht verfügbar')
       terrainProvider.errorEvent.addEventListener(fehler)
       listener.push(() => terrainProvider.errorEvent.removeEventListener(fehler))
     }

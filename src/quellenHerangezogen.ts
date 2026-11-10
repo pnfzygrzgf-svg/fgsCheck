@@ -1,3 +1,4 @@
+import { parkQuellenIds, parkAbzugAngewendet } from './rechner/parkEinfluss'
 // ── Quellen im Bericht: nur, was für diesen Fall herangezogen wurde (06.11.2026) ──
 //
 // Die App lädt um den Ort herum alle Dienste, die es dort gibt (Fall.quellen). Der Bericht nennt aber nur die Quellen, die in die
@@ -82,7 +83,7 @@ export function quellenOhneTreffer(blaetter: readonly BefundBlatt[], genutzt: Re
 
 /** Herangezogene Quellen eines Falls (Reihenfolge: Sichtprüfung, dann Bedarf), ohne Doppel, und die abgefragten ohne Treffer. Kataster: auch
  *  die Vorschläge der Rechnung, sie gehen wie übernommene Hindernisse in Sichtprüfung und Kartenbild ein */
-export function herangezogeneQuellen(fall: Fall, rechnung: Pick<FallRechnung, 'vorschlaege' | 'parkAnnahmen'> & Partial<Pick<FallRechnung, 'streifen'>> | null, blaetter: readonly BefundBlatt[],
+export function herangezogeneQuellen(fall: Fall, rechnung: Pick<FallRechnung, 'vorschlaege'> & Partial<Pick<FallRechnung, 'streifen' | 'parkAnnahmen' | 'parkPruefflaechen' | 'parkstreifenQuelleId'>> | null, blaetter: readonly BefundBlatt[],
   hoehen: readonly string[]): { ids: string[]; ohneTreffer: OhneTreffer[] } {
   const basis: Record<string, unknown> = {}
   for (const k of ['av', 'osm', 'luftbild'] as const) if (fall.quellen[k]) basis[k] = fall.quellen[k]
@@ -92,8 +93,10 @@ export function herangezogeneQuellen(fall: Fall, rechnung: Pick<FallRechnung, 'v
   if (kataster.some(h => istZhParkId(h.id))) basis[ZH_PARK_SCHLUESSEL] = true
   if (fall.ort.amtlich) basis[`regional.${fall.ort.amtlich.quelleId}`] = true
   const ids = [...new Set([...genutzteQuellen(basis, { herkunftP: fall.ort.herkunft?.p ?? null, hoehen }), ...bedarfQuellenIds(blaetter, fall.quellen)])]
-  if (kataster.some(h => h.art === 'parkfeld')) ids.push('norm.park.sn')
-  const parkQuellen = [...(rechnung?.parkAnnahmen ?? []), ...(rechnung?.streifen ?? []).flatMap(s => s.knotensicht && 'richtungen' in s.knotensicht ? s.knotensicht.parkPruefflaechen ?? [] : [])]
-  for (const h of parkQuellen) if (h.art === 'parkfeld' && h.parkPruefung && !ids.includes(h.parkPruefung.regel.quellenId)) ids.push(h.parkPruefung.regel.quellenId)
+  // Parkplatz-Grundlagen nur, wenn eine Parkfläche das Ergebnis beeinflusst (Sichtfeld, Verdeckung, Parkstreifenabzug)
+  const parkQuellen = [...(rechnung?.parkAnnahmen ?? []), ...(rechnung?.parkPruefflaechen ?? []), ...(rechnung?.streifen ?? []).flatMap(s => s.knotensicht && 'richtungen' in s.knotensicht ? s.knotensicht.parkPruefflaechen ?? [] : [])]
+  const wirkung = { streifen: rechnung?.streifen ?? [] }
+  for (const id of [...parkQuellenIds(parkQuellen, wirkung), ...(rechnung?.parkstreifenQuelleId && parkAbzugAngewendet(wirkung) ? [rechnung.parkstreifenQuelleId] : [])])
+    if (!ids.includes(id)) ids.push(id)
   return { ids, ohneTreffer: quellenOhneTreffer(blaetter, new Set(ids)) }
 }

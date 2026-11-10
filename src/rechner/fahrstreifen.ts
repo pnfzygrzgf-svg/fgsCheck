@@ -371,7 +371,8 @@ export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Fahrba
     const sh = fahrbahn.sehne(q, r)
     if (sh === null) return
     er.push(sh[0]); el.push(sh[1])
-    // Parkstreifen: Auto-Parkfeld am Prüfpunkt PARK_SONDE_M innerhalb der Bordkante (fahrstreifenmitte, park.trifft)
+    // Parkstreifen: Parkfläche am Prüfpunkt PARK_SONDE_M innerhalb der Bordkante. Die Aufrufer übergeben seit dem 09.11.2026 das Raster
+    // aller Klassen (parkAlle): auch Velo-/Mofa- und Motorradflächen lösen den Abzug aus, wie im SichtweitenCheck
     if (park && !park.leer) {
       const rechtsIds = park.idsBei(add(q, r, sh[0] - PARK_SONDE_M))
       if (rechtsIds.length) { trefferR++; rechtsIds.forEach(id => idsR.add(id)) }

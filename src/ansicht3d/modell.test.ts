@@ -92,6 +92,7 @@ describe('Abbildung eines Falls (Fussgängerstreifen über die Hauptstrasse, zwe
     // Sichtfeldwahl der 2D-Karte: ausgeblendete Felder fehlen auch in 3D
     const nurVelo = szene3d(r, key(r, 0), [], [], null, FARBEN, [], { feldZeigen: art => art === 'velo' })
     expect(nurVelo.flaechen.filter(f => f.art === 'sichtfeld')).toEqual([])
+    expect(nurVelo.sichtlinien).toEqual([])   // auch die Sichtlinien folgen der Sichtfeldwahl
     expect(ohne.sichtlinien).toEqual([])
     expect(ohne.flaechen.filter(f => f.art === 'konflikt')).toEqual([])
     expect(mit.sichtlinien.length).toBeGreaterThanOrEqual(1)
@@ -182,12 +183,12 @@ describe('Parkfelder aus den Vorschlägen der Rechnung', () => {
     expect(h.parkPruefung?.status).toBe('ergaenzt')
     expect(sz.flaechen.find(f => f.pruefhuelle && f.parkfeld === kat.id)!.ringe).toEqual([ring3d(h.ring)])
     expect(sz.linien.find(l => l.id === `katasterRand:${kat.id}`)?.gestrichelt).toBe(true)
-    expect(sz.koerper.some(k => k.id.startsWith('parkauto:'))).toBe(false)
+    expect(sz.koerper.some(k => k.id.endsWith(kat.id))).toBe(false)   // Parkfläche ohne Fahrzeugkörper
   })
   it('ein bereits übernommenes amtliches Feld erhält nur einen Parkquader', () => {
     const r = rechnen(fallMit([PARKFELD])), kat = { ...PARKFELD, quelle: 'kataster' as const }
     const sz = szene3d({ ...r, vorschlaege: [{ id: kat.id, hindernis: kat, grund: 'amtlich' }] }, null, [kat], [], null, FARBEN)
-    expect(sz.koerper.some(k => k.id.startsWith('parkauto:'))).toBe(false)
+    expect(sz.koerper.some(k => k.id.endsWith(kat.id))).toBe(false)
     expect(sz.flaechen.filter(f => f.pruefhuelle && f.parkfeld === kat.id)).toHaveLength(1)
   })
   it('amtliche Felder mit Prüfhülle ohne Parkautos, OSM-Vorschläge nur flach, verworfene gar nicht', () => {
@@ -199,7 +200,7 @@ describe('Parkfelder aus den Vorschlägen der Rechnung', () => {
     const sz = szene3d(r2, null, [], [], null, FARBEN)
     const p = sz.flaechen.filter(f => f.art === 'parkfeld' && !f.pruefhuelle)
     expect(p.map(f => [f.id, f.hoehe, f.farbe, f.alpha])).toEqual([['hindernis:k1', undefined, PARKRAND_FARBE, 0.1], ['vorschlag:o1', undefined, '#0ea5e9', 0.25]])
-    expect(sz.koerper.some(k => k.id.startsWith('parkauto:'))).toBe(false)
+    expect(sz.koerper.some(k => k.id.endsWith(':k1') || k.id.endsWith(':o1'))).toBe(false)
     expect(sz.flaechen.filter(f => f.pruefhuelle).map(f => [f.parkfeld, f.hoehe])).toEqual([['k1', PARK_HOEHE_M]])
     expect(p[1].text).toContain('zählt erst nach Bestätigung')
   })

@@ -7,5 +7,5 @@ export function baumStammText(h: Hindernis): string {
   if (h.art !== 'baum') return ''
   const d = (h.stamm || BAUM_STAMM_M) * 100
   const f = (v: number) => Number(v.toFixed(2)).toString().replace('.', ',')
-  return `Stammdurchmesser ${f(d)} cm ${h.quelle === 'kataster' && d === 50 ? 'angenommen' : '(Eingabe)'}; Radius ${f(d / 2)} cm`
+  return `Stammdurchmesser ${f(d)} cm ${h.quelle !== 'hand' && d === 50 ? 'angenommen' : '(Eingabe)'}; Radius ${f(d / 2)} cm`
 }

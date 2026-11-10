@@ -270,14 +270,16 @@ function streifenEinfuegen(s: StreifenErgebnis, auswahl: string | null, neigung:
     const auge = z.sichtpunkte[z.sichtpunkte.length - 1]
     if (!auge) continue
     const sg = z.sichtGelaende, profilId = (art: 'warte' | 'markierung', x: number) => `gel:${s.fgsId}:${z.zufahrt}:${art}:${x}`
-    if (sg?.linien.length) for (const l of sg.linien) sichtlinien.push({ id: `sicht:${key}:${l.x}`, fahrbahn: key, auge: ll(l.auge), ziel: ll(l.ziel),
+    // Sichtlinien nur mit eingeblendetem Auto-Sichtfeld der Zufahrt, wie auf der 2D-Karte
+    const linienZeigen = feldZeigen('auto', z)
+    if (!linienZeigen) { /* keine Linien dieser Zufahrt */ } else if (sg?.linien.length) for (const l of sg.linien) sichtlinien.push({ id: `sicht:${key}:${l.x}`, fahrbahn: key, auge: ll(l.auge), ziel: ll(l.ziel),
       augHoehe: AUGHOEHE, zielHoehe: ZIELHOEHE_WARTE_M, frei: l.frei, farbe: l.frei === null ? SICHT_NICHT_GEPRUEFT : l.frei ? farben.status.frei : farben.status.verdeckt_gelaende,
       text: `Sicht auf die Wartefläche ${l.x} m vor dem Streifen: ${l.frei === null ? 'nicht geprüft' : l.frei ? 'frei' : 'durch das Gelände verdeckt'}`,
       profil: profilId('warte', l.x), gewaehlt: optionen.profil === profilId('warte', l.x), ...(l.bruecke ? { bruecke: true } : {}) })
     else s.rand.forEach((r, i) => sichtlinien.push({ id: `sicht:${key}:rand${i}`, fahrbahn: key, auge: ll(auge), ziel: ll(r), augHoehe: AUGHOEHE, zielHoehe: ZIELHOEHE_WARTE_M,
       frei: null, farbe: SICHT_NICHT_GEPRUEFT, text: 'Sichtlinie vom Auge zur Bordkante (Gelände nicht geprüft)' }))
     // gewähltes Profil der Erkennungsdistanz (Bodenmarkierung): nur dieses, Ziel am Boden
-    const markierung = (z.erkennungLinien ?? []).find((l: ErkennungLinie) => optionen.profil === profilId('markierung', l.x))
+    const markierung = !linienZeigen ? undefined : (z.erkennungLinien ?? []).find((l: ErkennungLinie) => optionen.profil === profilId('markierung', l.x))
     if (markierung) sichtlinien.push({ id: `erkennung:${key}:${markierung.x}`, fahrbahn: key, auge: ll(markierung.auge), ziel: ll(markierung.ziel), augHoehe: AUGHOEHE,
       zielHoehe: ZIELHOEHE_MARKIERUNG_M, frei: markierung.befund === 'frei', profil: profilId('markierung', markierung.x), gewaehlt: true,
       farbe: markierung.befund === 'frei' ? farben.status.frei : markierung.befund === 'bewuchs' ? SICHT_BEWUCHS : farben.status.verdeckt,
