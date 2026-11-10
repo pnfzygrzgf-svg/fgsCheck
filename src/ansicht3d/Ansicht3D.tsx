@@ -16,7 +16,7 @@ import { ansichtAbgleich } from './abgleich'
 export const GESTEN: Readonly<Record<KameraModus, string>> = {
   fahrzeug: 'Ziehen dreht, Rad oder zwei Finger zoomen, rechte Maustaste bzw. Strg + Ziehen kippt.',
   uebersicht: 'Ziehen dreht um den Streifen, Rad oder zwei Finger zoomen, rechte Maustaste bzw. Strg + Ziehen kippt.',
-  frei: 'Frei: Ziehen verschiebt über die Karte, Rad oder zwei Finger zoomen, mittlere Maustaste bzw. Strg + Ziehen kippt und dreht. ' +
+  frei: 'Frei navigieren: Ziehen verschiebt über die Karte, Rad oder zwei Finger zoomen, mittlere Maustaste bzw. Strg + Ziehen kippt und dreht. ' +
     'Daten des Falls (Boden, Bäume, Parkfelder, Personen) nur rund 150 m um den Streifen; «Übersicht» springt zurück.',
 }
 export const BRUECKE_HINWEIS = 'Auf einer Brücke liegt das Gelände unter der Fahrbahn; ohne die Ebene «Brücken» steht die Kamera dann zu tief.'
@@ -33,7 +33,10 @@ export function AnsichtSchalter({ dreiD, setzen, moeglich }: { dreiD: boolean; s
   )
 }
 
-export default function Ansicht3D({ szene, profil = null, setProfil, baumkatasterAn = false }: { szene: Szene3D; profil?: string | null; setProfil?: (id: string | null) => void; baumkatasterAn?: boolean }) {
+export default function Ansicht3D({ szene, profil = null, setProfil, baumkatasterAn = false, sichtlinienAn = true, setSichtlinienAn }: {
+  szene: Szene3D; profil?: string | null; setProfil?: (id: string | null) => void; baumkatasterAn?: boolean
+  sichtlinienAn?: boolean; setSichtlinienAn?: (an: boolean) => void
+}) {
   const elRef = useRef<HTMLDivElement>(null), creditRef = useRef<HTMLDivElement>(null)
   const szeneRef = useRef<Szene | null>(null)
   const [bereit, setBereit] = useState(0)
@@ -123,11 +126,11 @@ export default function Ansicht3D({ szene, profil = null, setProfil, baumkataste
         <button type="button" aria-pressed={modus === 'uebersicht'} onClick={() => kameraWaehlen('uebersicht')}
                 title="Von schräg oben, um den Streifen drehbar">Übersicht</button>
         <button type="button" aria-pressed={modus === 'frei'} onClick={() => kameraWaehlen('frei')}
-                title="Kamera vom Streifen lösen und frei über die Karte bewegen: Ziehen verschiebt, Rad zoomt, mittlere Maustaste bzw. Strg + Ziehen kippt und dreht">
-          Frei</button>
-        {/* wirkt nur im Blick aus dem Fahrzeug; in Übersicht und «Frei» ist die Prüfung immer sichtbar, darum dort angehakt und gesperrt */}
+                title="Kamera unabhängig vom Streifen verschieben, drehen, kippen und zoomen.">
+          Frei navigieren</button>
+        {/* wirkt nur im Blick aus dem Fahrzeug; in Übersicht und «Frei navigieren» ist die Prüfung immer sichtbar, darum dort angehakt und gesperrt */}
         <label title={modus !== 'fahrzeug'
-          ? 'In der Übersicht und frei sind Sichtfelder, Warteflächen, Fahrlinien, Konflikte und Sichtlinien immer sichtbar; das Häkchen gilt für den Blick aus dem Fahrzeug'
+          ? 'In der Übersicht und beim freien Navigieren sind Sichtfelder, Warteflächen, Fahrlinien, Konflikte und Sichtlinien immer sichtbar; das Häkchen gilt für den Blick aus dem Fahrzeug'
           : 'Sichtfelder, Warteflächen, Fahrlinien, Konflikte und Sichtlinien auch im Blick aus dem Fahrzeug zeigen (in der Übersicht immer sichtbar)'}>
           <input type="checkbox" checked={pruefung || modus !== 'fahrzeug'} disabled={modus !== 'fahrzeug'}
                  onChange={e => setPruefung(e.target.checked)} /> Sichtprüfung</label>
@@ -140,6 +143,8 @@ export default function Ansicht3D({ szene, profil = null, setProfil, baumkataste
         <button type="button" aria-expanded={menue} onClick={() => setMenue(m => !m)} title="Ebenen der 3D-Ansicht">Ebenen {menue ? '▴' : '▾'}</button>
       </div>
       {menue && <div className="a3-menue" role="group" aria-label="Ebenen der 3D-Ansicht">
+        {setSichtlinienAn && <label title="Linien zur Wartefläche und Bodenmarkierung; dieselbe Sichtbarkeit wie in der 2D-Karte, nur Darstellung">
+          <input type="checkbox" checked={sichtlinienAn} onChange={e => setSichtlinienAn(e.target.checked)} /> Sichtlinien</label>}
         <label title="Luftbild SWISSIMAGE statt der grauen Karte swissTLM auf dem Gelände; die AV-Flächen liegen dann nur als Tönung darüber"><input type="checkbox" checked={luftbild} onChange={e => setLuftbild(e.target.checked)} /> Luftbild</label>
         <label><input type="checkbox" checked={gebaeude} disabled={stand.gebaeude === 'fehlt'} onChange={e => setGebaeude(e.target.checked)} /> Gebäude</label>
         <label title="Brücken aus swissTLM3D (swisstopo), in der Stadt Bern aus den Kunstbauten der Stadt (3D-Netz); das Gelände enthält keine Brücken. Fahrzeuge, Kamera und Sichtlinien stehen in einem Brückenumriss der AV auf der Fahrbahn der Brücke">

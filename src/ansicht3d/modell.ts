@@ -128,7 +128,7 @@ export interface KameraFahrzeug { auge: LL; ziel: LL; augHoehe: number; zielHoeh
   zufahrt: string; profil?: string }
 /** weitere Eingaben der Szene: Sichtfeldwahl der 2D-Karte (Sichtfelder.tsx) und das gewählte Geländeprofil (Karte.tsx profilAuswahl) */
 /** bruecken: Umrisse der AV-Einzelobjekte Bruecke_Passerelle (LV95), dieselbe Quelle wie die Rechnung (rechner/bruecke.ts) */
-export interface SzeneOptionen { feldZeigen?: (art: 'auto' | 'velo', z: ZufahrtErgebnis) => boolean; profil?: string | null; bruecken?: readonly Poly[] }
+export interface SzeneOptionen { feldZeigen?: (art: 'auto' | 'velo', z: ZufahrtErgebnis) => boolean; profil?: string | null; bruecken?: readonly Poly[]; sichtlinienAn?: boolean }
 export interface KameraUebersicht { ziel: LL; peilung: number; distanzM: number; neigungGrad: number }
 export interface Szene3D {
   /** Wege beginnen am Streifen; Schlüssel der Zufahrt bzw. streifen:<id> für Warteflächen. */
@@ -215,7 +215,8 @@ export function szene3d(rechnung: FallRechnung | null, auswahl: string | null, h
       text: `Fläche (Plan): ${fp.art}` })
   }
   const bruecken = (optionen.bruecken ?? []).map(polyRinge).filter(r => r.length)
-  return { flaechen, linien, waende, koerper, sichtlinien, kamera, legende: LEGENDE, leer: streifen.length === 0, bruecken, wege }
+  return { flaechen, linien, waende, koerper, sichtlinien: optionen.sichtlinienAn === false ? [] : sichtlinien,
+    kamera, legende: LEGENDE, leer: streifen.length === 0, bruecken, wege }
 }
 
 const geschlossen = (r: readonly P[]): LL[] => { const x = ring(r); return x.length ? [...x, x[0]] : x }

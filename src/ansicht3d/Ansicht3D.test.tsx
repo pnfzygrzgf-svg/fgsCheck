@@ -25,8 +25,8 @@ describe('Ansicht3D', () => {
     const h = renderToStaticMarkup(<Ansicht3D szene={leer} />)
     expect(h).toMatch(/aria-pressed="false" disabled[^>]*>Aus dem Fahrzeug/)
     expect(h).toMatch(/aria-pressed="true"[^>]*>Übersicht/)
-    // «Frei» wählbar, nicht vorgewählt
-    expect(h).toMatch(/aria-pressed="false"[^>]*>\s*Frei<\/button>/)
+    // «Frei navigieren» wählbar, nicht vorgewählt
+    expect(h).toMatch(/aria-pressed="false"[^>]*>\s*Frei navigieren<\/button>/)
     // Sichtprüfung: in der Übersicht immer sichtbar, darum angehakt und gesperrt; Ebenen im eingeklappten Menü
     const haken = /<input type="checkbox"([^>]*)\/> Sichtprüfung/.exec(h)?.[1] ?? ''
     expect(haken).toContain('checked=""'); expect(haken).toContain('disabled=""')

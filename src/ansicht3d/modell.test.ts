@@ -121,6 +121,10 @@ describe('Abbildung eines Falls (Fussgängerstreifen über die Hauptstrasse, zwe
     const mitProfil = szene3d(r2, key(r, 0), [], [], null, FARBEN, [], { profil: `gel:${s.fgsId}:${z.zufahrt}:warte:10` })
     expect(mitProfil.sichtlinien.map(l => l.gewaehlt ?? false)).toEqual([false, true, false])
     expect(mitProfil.kamera.fahrzeug?.auge).toEqual(ll(lv(90, 0))); expect(mitProfil.kamera.fahrzeug?.profil).toBe(`gel:${s.fgsId}:${z.zufahrt}:warte:10`)
+    const verborgen = szene3d(r2, key(r, 0), [], [], null, FARBEN, [], { profil: `gel:${s.fgsId}:${z.zufahrt}:warte:10`, sichtlinienAn: false })
+    expect(verborgen.sichtlinien).toEqual([])
+    expect(verborgen.kamera).toEqual(mitProfil.kamera)
+    expect(verborgen.flaechen).toEqual(mitProfil.flaechen)
     // Profil der Bodenmarkierung: nur die gewählte Erkennungslinie dazu, Ziel am Boden
     const zg2 = { ...zg, erkennungLinien: [{ x: 30, auge: lv(70, 0), ziel: lv(98, 0), befund: 'bewuchs' as const, gelaende: true }] }
     const r3 = { ...r, streifen: [{ ...s, zufahrten: [zg2, ...s.zufahrten.slice(1)] }] }

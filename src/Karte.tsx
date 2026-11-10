@@ -502,6 +502,12 @@ export default function Karte(props: {
   const rpZahl = new Set([...(rpRef.current?.objekte ?? []), ...(props.richtplanVorhanden ? Object.values(rpAusVorbelegung(props.richtplanVorhanden.daten)).flat() : [])].map(o => o.id)).size
   const tkZahl = new Set([...(tkRef.current?.objekte ?? []), ...(props.taktilVorhanden ? Object.values(tkAusVorbelegung(props.taktilVorhanden.daten)).flat() : [])].map(o => o.id)).size
   const [qOffen, setQOffen] = useState(false)
+  const [sichtlinienAn, setSichtlinienAn] = useState(() => {
+    try { return localStorage.getItem('fgs.sichtlinien') !== 'aus' } catch { return true }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('fgs.sichtlinien', sichtlinienAn ? 'an' : 'aus') } catch { /* nur für diese Sitzung */ }
+  }, [sichtlinienAn])
   const [profilAuswahl, setProfilAuswahl] = useState<string | null>(null)
   const [alleGelaendeProfile, setAlleGelaendeProfile] = useState(false)
   // 3D-Ansicht (ansicht3d/): ersetzt die Karte im Kartenbereich, solange sie offen ist; die Szene folgt Rechnung und Auswahl
@@ -518,9 +524,9 @@ export default function Karte(props: {
   }, [dreiD])
   const szene3D = useMemo(() => {
     if (!dreiD) return null
-    const optionen: SzeneOptionen = { feldZeigen: (art, z) => sichtZeigen(sicht, art, fgsSichtId(z)), profil: profilAuswahl, bruecken: props.bruecken }
+    const optionen: SzeneOptionen = { feldZeigen: (art, z) => sichtZeigen(sicht, art, fgsSichtId(z)), profil: profilAuswahl, bruecken: props.bruecken, sichtlinienAn }
     return szene3d(rechnung, auswahl, hindernisse, flaechenPlan, props.neigung ?? null, FARBEN_3D, av ?? [], optionen)
-  }, [dreiD, rechnung, auswahl, hindernisse, flaechenPlan, props.neigung, av, sicht, profilAuswahl, props.bruecken])
+  }, [dreiD, rechnung, auswahl, hindernisse, flaechenPlan, props.neigung, av, sicht, profilAuswahl, props.bruecken, sichtlinienAn])
   const [kartenStaende, setKartenStaende] = useState<Record<string, QuellenQualitaet>>({})
   useEffect(() => {
     if (!qOffen) return
@@ -926,7 +932,7 @@ export default function Karte(props: {
     const profilId = standardProfil((daten.gelaende ?? []).flatMap(o => o.hoehenprofil ? [o.hoehenprofil] : []), profilAuswahl)?.id
     const aktiv: { o: EbenenObjekt; farbe: string; symbol: string; def: EbeneDef }[] = []
     for (const def of EBENEN) {
-      if (def.id === 'av' || UNFALL_EBENE[def.id] || !qAn.has(def.id)) continue
+      if (def.id === 'av' || UNFALL_EBENE[def.id] || !qAn.has(def.id) || (def.id === 'gelaende' && !sichtlinienAn)) continue
       for (const o of def.id === 'gelaende' ? profilObjekteWaehlen(daten.gelaende ?? [], profilAuswahl, alleGelaendeProfile) : daten[def.id] ?? [])
         aktiv.push({ o, farbe: ebenenFarbe(def, o.klasse), symbol: ebenenSymbol(def, o.klasse), def })
     }
@@ -980,7 +986,7 @@ export default function Karte(props: {
     const avObjekte = (daten.av ?? []).filter(o => avArtSichtbar(o.id.slice(o.id.lastIndexOf(':') + 1), avAn, avArten))
     qObjekteRef.current = [...aktiv.map(x => x.o), ...avObjekte]
     qDefRef.current = new Map([...aktiv.map(x => [x.o, x.def] as const), ...avObjekte.map(o => [o, avDef] as const)])
-  }, [props.quellenEbenen, qAn, zoom, profilAuswahl, alleGelaendeProfile, avAn, avArten])
+  }, [props.quellenEbenen, qAn, zoom, profilAuswahl, alleGelaendeProfile, avAn, avArten, sichtlinienAn])
   useEffect(() => { rpRef.current?.laden() }, [rpVorhanden])
   // Taktile Markierungen: ebenso (genutztes Feld bzw. Leitlinie, geladene Daten des Falls)
   const tkGen = props.taktilGenutzt ?? null, tkVorhanden = props.taktilVorhanden ?? null
@@ -1591,7 +1597,7 @@ export default function Karte(props: {
     const eb = ebenenRef.current
     if (!eb) return
     eb.erkLinien.clearLayers()
-    if (!rechnung || !erkWahl) return
+    if (!rechnung || !erkWahl || !sichtlinienAn) return
     const z = rechnung.streifen.filter(s => !s.trottoirueberfahrt).flatMap(s => s.zufahrten).find(x => zufahrtKey(x) === erkWahl)
     if (!z || !sichtZeigen(sicht, 'auto', fgsSichtId(z))) return
     for (const l of erkennungSichtlinien(z, props.gelaende)) {
@@ -1602,7 +1608,7 @@ export default function Karte(props: {
       L.circleMarker(ll(l.auge), { pane: ERK_PANE, radius: 3, color: '#111827', weight: 1, fillColor: farbe, fillOpacity: 1, interactive: false })
         .addTo(eb.erkLinien)
     }
-  }, [rechnung, erkWahl, werkzeug, props.gelaende, sicht])
+  }, [rechnung, erkWahl, werkzeug, props.gelaende, sicht, sichtlinienAn])
 
   useEffect(() => {
     const eb = ebenenRef.current
@@ -1645,7 +1651,7 @@ export default function Karte(props: {
     if (!sichtZeigen(sicht, 'auto', fgsSichtId(z))) return
     // Sicht auf die Wartefläche mit Gelände (sichtGelaende.ts): Sichtlinien, die das Gelände verdeckt, rot
     // gestrichelt über dunklem Rand (wie die Sichtlinien der Erkennungsdistanz)
-    for (const l of z.sichtGelaende?.linien ?? []) {
+    for (const l of sichtlinienAn ? z.sichtGelaende?.linien ?? [] : []) {
       if (l.frei !== false) continue
       const pl = [l.auge, l.ziel].map(ll)
       L.polyline(pl, { pane: ERK_PANE, color: '#0f172a', weight: 4, opacity: 0.45, interactive: false }).addTo(eb.auswahl)
@@ -1665,7 +1671,7 @@ export default function Karte(props: {
         .bindTooltip(ende ? (i === 0 ? 'erster Sichtpunkt (am Streifen)' : `letzter Sichtpunkt (${String(z.sichtweite).replace('.', ',')} m)`) : 'Sichtpunkt')
         .addTo(eb.auswahl)
     })
-  }, [rechnung, auswahl, props.neigung, sicht])
+  }, [rechnung, auswahl, props.neigung, sicht, sichtlinienAn])
 
   // Zeichnung in Arbeit
   useEffect(() => {
@@ -1698,7 +1704,8 @@ export default function Karte(props: {
     <div className={'kartenrahmen' + (dreiD ? ' dreid' : '')} style={{ '--karte-h': `${stufe}dvh` } as CSSProperties}>
       <PlanMuster />
       <div ref={elRef} className="karte" aria-hidden={dreiD || undefined} />
-      {dreiD && szene3D && <Ansicht3D szene={szene3D} baumkatasterAn={props.baumkatasterAn} profil={profilAuswahl} setProfil={setProfilAuswahl} />}
+      {dreiD && szene3D && <Ansicht3D szene={szene3D} baumkatasterAn={props.baumkatasterAn} profil={profilAuswahl} setProfil={setProfilAuswahl}
+        sichtlinienAn={sichtlinienAn} setSichtlinienAn={setSichtlinienAn} />}
       <AnsichtSchalter dreiD={dreiD} setzen={setDreiD} moeglich={!!rechnung?.streifen.length} />
       <button type="button" className="karte-hoehe" onClick={stufeWeiter}
               aria-label={`Kartenhöhe ${stufe} % – ${stufe === 70 ? 'kleiner' : 'grösser'}`}
@@ -1715,6 +1722,8 @@ export default function Karte(props: {
         const gruppeSchalten = (g: L.LayerGroup | undefined, an: boolean) => { if (map && g) { if (an) g.addTo(map); else map.removeLayer(g) } }
         return (
           <EbenenFenster lage={qLage} schliessen={() => setQOffen(false)}>
+            <EbenenZeile titel="Sichtlinien" an={sichtlinienAn} setzen={setSichtlinienAn}
+              hinweis="Linien zur Wartefläche und Bodenmarkierung einschliesslich Geländeprofilen; nur Darstellung, keine Änderung der Rechnung.">{null}</EbenenZeile>
             {pruefEbenen && <PruefGruppe map={map} gruppen={[
               { name: 'Flächen (Plan)', ebene: pruefEbenen.plan }, { name: 'OSM-Übergänge', ebene: pruefEbenen.osm }, { name: LUFTBILD_FGS_NAME, ebene: pruefEbenen.lbfgs },
               { name: 'Strassennamen (OSM)', ebene: pruefEbenen.namen }, { name: 'Nummern der Zufahrten', ebene: pruefEbenen.nr }, { name: 'Fahrzeuge', ebene: pruefEbenen.fahrzeug },
