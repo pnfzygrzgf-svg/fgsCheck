@@ -262,6 +262,15 @@ export function sichtGelaendeText(a: Pick<SichtGelaendeAnzeige, 'stand' | 'abM' 
   if (a.abM !== null) return `${gelaendeName(a.quelle)}: Verdeckung; ${a.pruefbereich ? pruefbereichText(a.pruefbereich) : `abgerundeter Rechenwert ${a.abM} m, genaue Prüflagen nicht verfügbar`}`
   return `Geländemodell: geprüfte Sichtlinien frei${a.linien.some(l => l.bruecke) ? ' (Sichtlinien auf der Brücke nicht geprüft)' : ''}`
 }
+/** Bericht: Zeile der Geländeprüfung im gleichen Aufbau wie die Grundrisszeile («Prüfart: Wartefläche …») */
+export function sichtGelaendeBerichtText(a: Pick<SichtGelaendeAnzeige, 'stand' | 'abM' | 'linien' | 'pruefbereich' | 'quelle'>): string {
+  const kopf = 'Geländemodell (Kuppen, Senken)'
+  if (a.stand === 'laedt') return `${kopf}: lädt`
+  if (a.stand === 'ohne') return `${kopf}: nicht geprüft`
+  if (a.stand === 'bruecke') return `${kopf}: nicht prüfbar (Brücke)`
+  if (a.abM !== null) return `${kopf}: Wartefläche verdeckt; ${a.pruefbereich ? pruefbereichText(a.pruefbereich) : `abgerundeter Rechenwert ${a.abM} m, genaue Prüflagen nicht verfügbar`}`
+  return `${kopf}: Wartefläche frei${a.linien.some(l => l.bruecke) ? ' (Sichtlinien auf der Brücke nicht geprüft)' : ''}`
+}
 /** Tooltip der Zeile */
 export const SICHT_GELAENDE_TITEL = 'Geländemodell (Kuppen, Senken, Böschungen) zwischen Fahrlinie und Wartefläche: nach der Rechnung entlang ' +
   'einzelner Sichtlinien (alle 10 m bis zur nötigen Sicht) aus dem Höhenmodell (swissALTI3D, in der Stadt Bern DTM 2023) geprüft, Auge 1,0 m (VSS 40 241 Ziffer 14, S. 6) ' +

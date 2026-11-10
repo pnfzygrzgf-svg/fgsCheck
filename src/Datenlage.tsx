@@ -127,7 +127,7 @@ export function BerichtQuellenTabelle({ ids, lage, qualitaet = {}, gruende }: { 
   /** Datenlage am Ort: «Für» nennt nur die Themen, für die die Quelle dort massgebend ist */
   lage?: Datenlage | null }) {
   const fuer = (q: Quelle) => THEMEN.filter(t => q.themen.includes(t) && (!lage || lage[t]?.id === q.id)).map(t => THEMA_NAME[t]).join(', ') ||
-    (q.id.startsWith('regional.e6.') || q.id === 'hoehenkurven' ? 'nur Kartenkontext' : '–')
+    (q.id.startsWith('regional.e6.') || q.id === 'hoehenkurven' ? 'nur Kartenkontext' : q.netzabfrage === false ? 'Mindestmasse der Parkflächen' : '–')
   const qs = ids.map(quelle).filter((q): q is Quelle => !!q).sort((a, b) => alphabetisch(fuer(a), fuer(b)))
   if (!qs.length) return null
   /** Stand der Quelle; «Abruf beim Laden» mit der Abrufzeit, wenn sie bekannt ist */
@@ -138,7 +138,7 @@ export function BerichtQuellenTabelle({ ids, lage, qualitaet = {}, gruende }: { 
       <thead><tr><th>Quelle</th><th>{gruende ? 'Grund' : 'Für'}</th><th>Anbieter</th><th>Stand</th><th>Lizenz</th></tr></thead>
       <tbody>{qs.map(q => <tr key={q.id}><td>{quelleUrl(q) ? <a href={quelleUrl(q)}>{q.name}</a> : q.name}<QuelleLinks quelle={q} produkt={false} /></td>
         <td>{gruende ? gruende[q.id] : fuer(q)}</td>
-        <td>{q.anbieter}</td><td>{stand(q)}<div className="klein">{produktNamen(quellenQualitaetText(qualitaet[q.id]))}</div></td><td>{q.lizenz}</td></tr>)}</tbody>
+        <td>{q.anbieter}</td><td>{stand(q)}{q.netzabfrage !== false && <div className="klein">{produktNamen(quellenQualitaetText(qualitaet[q.id]))}</div>}</td><td>{q.lizenz}</td></tr>)}</tbody>
     </table>
   )
 }

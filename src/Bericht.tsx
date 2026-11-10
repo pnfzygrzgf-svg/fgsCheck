@@ -36,7 +36,7 @@ import { LESENAME } from './bedarf/quellen'
 import { ART, ENTFALLEN_TITEL, entfallenGrund, sichtQuelleKurz, statusText, tempoHerkunft, f1, f2, mText, streifenStatus,
   erkennungText, erkennungEmpfehlungText } from './texte'
 import { erkennungAnzeige, gelaendeText, type GelaendeStand } from './erkennungGelaende'
-import { sichtGelaendeText } from './sichtGelaende'
+import { sichtGelaendeBerichtText } from './sichtGelaende'
 import { gelaendeProfile } from './gelaendeKarte'
 import { erkennungBaender, erkennungSichtlinien } from './erkennungKarte'
 import { ProfilBericht, profilWahlBericht } from './BerichtProfil'
@@ -77,6 +77,8 @@ type Box = [number, number, number, number]
 
 /** Farbe des Status im Text (06.11.2026): grün frei, rot verdeckt, grau übrige; wie die Sichtfelder im Kartenbild */
 const statusFarbe = (status: string): string => (status === 'frei' ? '#15803d' : STATUS_FARBE[status] ?? '#374151')
+/** Ergebnis der Prüfung im Grundriss: «verdeckt (Geländemodell)» stammt aus der Geländeprüfung, im Grundriss war die Sicht frei */
+const grundriss = (status: string): string => (status === 'verdeckt_gelaende' ? 'frei' : status)
 /** Strichart je Status (zusätzlich zur Farbe, damit der Bericht schwarz-weiss lesbar bleibt) */
 const strich = (status: string) => (status === 'frei' ? undefined : status.startsWith('verdeckt') ? '14 7' : '3 6')
 
@@ -583,7 +585,7 @@ function vorhandeneSichtText(z: ZufahrtErgebnis): string {
 
 function hindernisseText(z: ZufahrtErgebnis): string {
   if (!z.konflikte.length) return 'keine'
-  return z.konflikte.map(k => `${k.layer}${k.klasse === 'baum' ? '' : ` ${f1(k.flaeche)} m²`}, ${f1(k.abstand)} m vom Streifen`).join('; ')
+  return z.konflikte.map(k => `${k.layer}: ${f1(k.abstand)} m vom Streifen`).join('; ')
 }
 
 /** Hindernis, das nur die Erkennungsdistanz begrenzt: Es liegt jenseits der nötigen Sicht und steht darum nicht unter «Hindernisse im Sichtfeld» */
@@ -669,8 +671,10 @@ function StreifenTabelle({ s, fall, ausserhalb, namen, alle, alleNamen, gelaende
                 <td>{mText(z.sichtweite)} m<div className="klein">({sichtQuelleKurz(z.sichtweiteQuelle)}{z.kurvenradiusM != null ? `, Kurvenradius ${f1(z.kurvenradiusM)} m` : ''})</div>
                   {z.geprueftBisM != null && <div className="klein warnung">geprüft bis {z.geprueftBisM} m, darüber nicht geprüft</div>}</td>
                 <td>{vorhandeneSichtText(z)}</td>
-                <td><b className="status-farbe" style={{ color: statusFarbe(z.status) }}>Wartefläche: {statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}
-                  {z.sichtGelaende && <div className="klein">{sichtGelaendeText(z.sichtGelaende)}</div>}
+                <td><b className="status-farbe" style={{ color: statusFarbe(grundriss(z.status)) }}>Grundriss (Gebäude, Parkfelder, Bäume, Hindernisse): Wartefläche {grundriss(z.status) === 'frei' ? 'frei' : statusText(z, fall.hindernisse)}</b>{z.unter5m && <div className="klein">Auto-Parkfeld unter 5 m am Streifen</div>}
+                  {z.sichtGelaende && (z.sichtGelaende.abM !== null
+                    ? <div><b className="status-farbe" style={{ color: statusFarbe('verdeckt_gelaende') }}>{sichtGelaendeBerichtText(z.sichtGelaende)}</b></div>
+                    : <div className="klein">{sichtGelaendeBerichtText(z.sichtGelaende)}</div>)}
                   {z.erkennungM && (() => {
                     const a = erkennungAnzeige(z, gelaende)!.e
                     return <><div className="klein">{erkennungText(a)}; {gelaendeText(a)}</div>
