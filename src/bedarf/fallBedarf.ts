@@ -145,15 +145,18 @@ const GESTRICHEN = ['knotenArmeOhneQuerung', 'knotenLsa', 'insel.pfostenH', 'q3.
 const OBJEKTE_GESTRICHEN = ['lsaZeiten', 'hvl']
 const objektGestrichen = (pfad: string): boolean => OBJEKTE_GESTRICHEN.some(o => pfad === o || pfad.startsWith(`${o}.`))
 /**
- * Alte Fälle mit dem gestrichenen Feld: Wert verworfen. War es «ja» bei Tempo-Regime «Tempo-30-Zone» von Hand, gilt die Strasse
- * als Strecke (Quelle Annahme, mit Hinweis), damit die Beurteilung gleich bleibt (bisher C2c statt C2). Sonst ohne Wirkung, still.
+ * Alte Fälle mit dem gestrichenen Feld: Wert verworfen. War es «ja» bei Tempo-Regime «Tempo-30-Zone», bleibt die Zone erhalten
+ * (Prüfung FGS-02, 10.11.2026; bis dahin als Strecke umgedeutet) und die Strasse gilt als verkehrsorientiert, aber nur als Annahme:
+ * nach Art. 1a der Zonenverordnung (Stand 01.10.2026) entfällt die Zonenregel C2 erst, wenn die Strassenfunktion bestätigt ist.
+ * Ein vorhandener Strassentyp geht vor. Sonst ohne Wirkung, still.
  */
 function zoneAltLesen(felder: unknown, b: BedarfBlock, h: string[]): void {
   if (!istObjekt(felder) || !istObjekt(felder[ZONE_GESTRICHEN])) return
   if (felder[ZONE_GESTRICHEN].wert !== true || b.felder.tempoRegime?.wert !== 't30_zone') return
-  b.felder.tempoRegime = { wert: 'strecke', quelle: 'annahme' }
-  h.push('Bedarf: Feld «verkehrsorientierte Strasse in der Zone» gestrichen; die Hauptstrasse ausserhalb der Zone gilt als Strecke ' +
-    '(Tempo-Regime «Strecke» als Annahme)')
+  if (b.felder.strassentyp?.wert != null) return
+  b.felder.strassentyp = { wert: 'verkehrsorientiert', quelle: 'annahme' }
+  h.push('Bedarf: Feld «verkehrsorientierte Strasse in der Zone» gestrichen; die Zone bleibt, die Strasse gilt als verkehrsorientiert ' +
+    '(Annahme, Art. 1a Zonenverordnung, Stand 01.10.2026): bestätigen, damit die Zonenregel entfällt')
 }
 
 /** Vorbelegter Wert aus der Rechnung (vorbelegung.ts): Wert, Quelle und Herkunft als Text */
@@ -163,7 +166,9 @@ export interface VorWert { datenstand?: string; wert: unknown; quelle: Quelle; t
   /** Wert ist die Länge der ganzen Strasse (abstandFgsM, abstandLsaM; eingaben.Feld.ganzeStrasse) */
   ganzeStrasse?: true
   /** Wert aus der Rechnung der geraden Zufahrten (erkennungM; eingaben.Feld.geradeZufahrt) */
-  geradeZufahrt?: true }
+  geradeZufahrt?: true
+  /** Soll der Zufahrt, aus der der Wert stammt (erkennungM; eingaben.Feld.sollM) */
+  sollM?: number }
 export type Vorbelegung = Record<string, VorWert>
 
 /** Herkunft eines Pfads für die Anzeige: von Hand (überschreibt) bzw. vorbelegt bzw. offen */
@@ -196,13 +201,13 @@ export function eingabenBilden(vor: Vorbelegung, block: BedarfBlock | null | und
   const herkunft = new Map<string, Herkunft>()
   const hinweise: string[] = []
   const hand = block?.felder ?? {}
-  const wert = (pfad: string): { wert: unknown; quelle: Quelle; hand: boolean; ganzeStrasse?: true; geradeZufahrt?: true } | null => {
+  const wert = (pfad: string): { wert: unknown; quelle: Quelle; hand: boolean; ganzeStrasse?: true; geradeZufahrt?: true; sollM?: number } | null => {
     const hf = hand[pfad]
     if (hf && hf.wert !== null && hf.wert !== undefined) return { wert: hf.wert, quelle: hf.quelle, hand: true }
     if (hf) return null                                   // bewusst offen von Hand: keine Vorbelegung
     const v = vor[pfad]
     if (v?.bestaetigungNoetig) return null
-    if (v && v.wert !== null && v.wert !== undefined) return { wert: v.wert, quelle: v.quelle, hand: false, ...(v.ganzeStrasse ? { ganzeStrasse: true as const } : {}), ...(v.geradeZufahrt ? { geradeZufahrt: true as const } : {}) }
+    if (v && v.wert !== null && v.wert !== undefined) return { wert: v.wert, quelle: v.quelle, hand: false, ...(v.ganzeStrasse ? { ganzeStrasse: true as const } : {}), ...(v.geradeZufahrt ? { geradeZufahrt: true as const } : {}), ...(v.sollM !== undefined ? { sollM: v.sollM } : {}) }
     return null
   }
   for (const [pfad] of FELD_DEF) {
@@ -216,7 +221,7 @@ export function eingabenBilden(vor: Vorbelegung, block: BedarfBlock | null | und
     if (f === 'fgQuelle') continue
     if (!istObjektFeld(f)) {
       const x = wert(f)
-      if (x) e[f] = { wert: structuredClone(x.wert), quelle: x.quelle, ...(x.ganzeStrasse ? { ganzeStrasse: true as const } : {}), ...(x.geradeZufahrt ? { geradeZufahrt: true as const } : {}) }
+      if (x) e[f] = { wert: structuredClone(x.wert), quelle: x.quelle, ...(x.ganzeStrasse ? { ganzeStrasse: true as const } : {}), ...(x.geradeZufahrt ? { geradeZufahrt: true as const } : {}), ...(x.sollM !== undefined ? { sollM: x.sollM } : {}) }
       continue
     }
     const us = unterfelder(f)

@@ -164,9 +164,9 @@ describe('Vorlagen', () => {
     expect(feldZiel(z.fehlt!.felder[0])).toBe('dtv')
   })
   it('Tempo-30-Zone ohne Grund: nicht zulässig mit Grund und Empfehlung', () => {
-    const z = zf({ tempoRegime: 't30_zone', vSig: 30 })
+    const z = zf({ tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert' })
     expect(z.antwort).toBe('Ein Fussgängerstreifen ist hier nicht zulässig: Tempo-30-Zone ohne besonderen Grund für Vortritt; empfohlen wird ' +
-      'eine Fussgängerfurt (Insel ohne Balken), weil es eine Durchgangsstrasse ist.')
+      'eine Querung ohne Vortritt (vorgezogener Seitenraum, Einengung oder Anhebung), weil es eine Quartierstrasse ist.')
     expect(z.grundIds).toEqual(['C2'])
     expect(z.genannt).not.toContain('C2')
     const q = zf({ tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', laengsparkierung: false })
@@ -205,7 +205,7 @@ describe('Vorlagen', () => {
     expect(zusammenfassung({ befund: bo, grund: grundpruefung(eo), kontext: { ebenen: { bern: false, kantonBE: false, richtlinie: true }, typ: 'lsa' } }).antwort)
       .toBe('Ein Fussgängerstreifen ist hier zulässig, mit Lichtsignalanlage wie heute.')
     // mit Begründung (Tempo-30-Zone) und Seitenraum: die LSA steht als Gegebenheit vor der Empfehlung
-    const zb = zf({ typ: 'lsa', fgsMitLsa: true, tempoRegime: 't30_zone', vSig: 30, beduerfnis: ['schule'], laengsparkierung: true, seitenraumVorParklinieM: -2 })
+    const zb = zf({ typ: 'lsa', fgsMitLsa: true, tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', beduerfnis: ['schule'], laengsparkierung: true, seitenraumVorParklinieM: -2 })
     expect(zb.antwort).toMatch(/nur mit Begründung zulässig: .*; mit Lichtsignalanlage wie angegeben; empfohlen mit vorgezogenem Seitenraum/)
     expect(z.wichtig).not.toContain('Grundprüfung')
   })
@@ -247,7 +247,7 @@ describe('Vorlagen', () => {
   it('Korrektur M2: Trottoirüberfahrt nicht zulässig – Alternative nach der Zulässigkeit des Fussgängerstreifens', () => {
     // 27.10.2026: die Alternative läuft still mit («nur grob geprüft»), bis «Alternative Fussgängerstreifen prüfen» gewählt ist
     expect(zf({ typ: 'trottoirueberfahrt' }).antwort).toMatch(/; stattdessen passt ein Fussgängerstreifen \(nur grob geprüft\)\.$/)
-    expect(zf({ typ: 'trottoirueberfahrt', tempoRegime: 't30_zone', vSig: 30, beduerfnis: ['schule'] }).antwort)
+    expect(zf({ typ: 'trottoirueberfahrt', tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', beduerfnis: ['schule'] }).antwort)
       .toMatch(/; stattdessen ein Fussgängerstreifen, aber nur mit Begründung \(nur grob geprüft\)\.$/)
     expect(zf({ typ: 'trottoirueberfahrt', tempoRegime: null }).antwort).toMatch(/; ob stattdessen ein Fussgängerstreifen zulässig ist, ist noch offen \(nur grob geprüft\)\.$/)
     expect(zf({ typ: 'trottoirueberfahrt', vSig: 60, v85: 65 }).antwort).toMatch(/; stattdessen passt eine Fussgängerfurt \(Insel ohne Balken\) \(nur grob geprüft\)\.$/)
@@ -257,7 +257,7 @@ describe('Vorlagen', () => {
     expect(zf({ typ: 'furt' }).antwort).toBe('Beurteilt wird die Fussgängerfurt; ohne gebaute Schutzinsel ist sie keine Furt im Sinn der Norm; ' +
       'ein Fussgängerstreifen wäre hier ebenfalls zulässig.')
     expect(zf({ typ: 'furt', insel: { ...INSEL_OK, art: 'markiert' } }).antwort).toContain('ohne gebaute Schutzinsel')
-    expect(zusammenfassung({ ...eingabe({ typ: 'furt', tempoRegime: 't30_zone', vSig: 30, beduerfnis: null }), geplant: true }).antwort)
+    expect(zusammenfassung({ ...eingabe({ typ: 'furt', tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', beduerfnis: null }), geplant: true }).antwort)
       .toMatch(/^Beurteilt wird die geplante Fussgängerfurt.*; ob stattdessen ein Fussgängerstreifen zulässig wäre, ist noch offen/)
     expect(zf({ typ: 'ohne_vortritt' }).antwort).toBe('Beurteilt wird die Querung ohne Vortritt; ein Fussgängerstreifen wäre hier ebenfalls zulässig.')
     expect(zf({ typ: 'mehrzweck' }).antwort).toBe('Beurteilt wird der Mehrzweckstreifen; ein Fussgängerstreifen wäre hier ebenfalls zulässig.')
@@ -343,7 +343,7 @@ describe('Zusammenfassung an Befundblättern mit Rechnung', () => {
     ['Sicht verdeckt', fallMit(x => { park(x); x.bedarf = HAND })],
     ['Furt', fallMit(x => { x.streifen[fid] = { typ: 'furt' }; x.bedarf = HAND })],
     ['Lichtsignal', fallMit(x => { x.streifen[fid] = { lsa: 'ja' }; park(x); x.bedarf = HAND })],
-    ['Tempo 30 Zone', fallMit(x => { x.bedarf = { felder: { ...HAND.felder, tempoRegime: { wert: 't30_zone', quelle: 'hand' }, vSig: { wert: 30, quelle: 'hand' } } } })],
+    ['Tempo 30 Zone', fallMit(x => { x.bedarf = { felder: { ...HAND.felder, tempoRegime: { wert: 't30_zone', quelle: 'hand' }, vSig: { wert: 30, quelle: 'hand' }, strassentyp: { wert: 'siedlungsorientiert', quelle: 'hand' } } } })],
   ]
   it('Regeln der Zusammenfassung an allen Szenarien (beide Ebenenstände)', () => {
     const fehler: string[] = []

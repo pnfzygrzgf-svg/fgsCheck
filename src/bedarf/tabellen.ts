@@ -6,7 +6,7 @@
 // Berner Tabellen Tempo × DTV nach Masterplan Fussverkehr (Skizze Abschnitt 3a). Bei Kurvenradius 20 m gilt wie in der
 // Sichtprüfung der bfu-Wert 24 m statt 30 m nach Tab. 2; der Befund nennt den Normwert.
 
-import { QUELLE_TAB1_20, QUELLE_TAB1_UEBER60, SICHTWEITE, sichtweiteKurve, sichtweiteTab1, tempoStufe } from '../rechner/tempo'
+import { QUELLE_TAB1_20, QUELLE_TAB1_UEBER60, SICHTWEITE, sichtweiteTab1, tempoStufe } from '../rechner/tempo'
 
 /** Anhaltesichtweite [m] nach Tempo [km/h] (VSS 40 240:2025-07 Z. 8.2) */
 export const AHS_40240: Readonly<Record<number, number>> = { 20: 15, 30: 25, 40: 40, 50: 55, 60: 75 }
@@ -22,15 +22,15 @@ export function ahs(v: number): number {
 export const TAB2_40241: Readonly<Record<number, number>> = { 20: 30, 25: 35, 30: 40, 35: 45, 40: 50 }
 
 /**
- * Sichtweite nach Kurve wie die Sichtprüfung (tempo.sichtweiteKurve): Radius bis 20 m bfu-Wert 24 m, 25 bis 40 m Tab. 2
- *; Radius zwischen den Stufen auf die nächsthöhere Stufe. norm: Wert nach Tab. 2 für den Hinweis.
+ * Sichtweite nach Kurve (Kurvenregel) ausschliesslich nach Tab. 2 (seit 10.11.2026, Prüfung FGS-01; bis dahin bei 20 m der bfu-Wert
+ * 24 m); Radius zwischen den Stufen auf die nächsthöhere Stufe. sicht = norm.
  * Ausserhalb 20 bis 40 m null.
  */
 export function sichtKurveTab2(radius: number): { sicht: number; norm: number } | null {
   const stufen = Object.keys(TAB2_40241).map(Number).sort((a, b) => a - b)
   if (radius < stufen[0] - 1e-9 || radius > stufen[stufen.length - 1] + 1e-9) return null
   const norm = TAB2_40241[stufen.find(r => r >= radius - 1e-9)!]
-  return { sicht: sichtweiteKurve(radius)[0] ?? norm, norm }
+  return { sicht: norm, norm }
 }
 
 /** Tab. 1 von VSS 40 241 (Sichtweite FGS) für ein Tempo: Stufe nach tempo.ts */

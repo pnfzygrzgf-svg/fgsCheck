@@ -14,9 +14,19 @@ import { punkteAufSpur } from './spur'
 
 /** VSS 40 241, Tab. 1: Sichtweite [m] nach Tempo [km/h] */
 export const SICHTWEITE: Record<number, number> = { 20: 25, 30: 25, 40: 40, 50: 55, 60: 75 }
-/** Sichtweite nach Kurvenradius in Fahrstreifenmitte: (Radius bis, Sichtweite, Quelle) – bfu 2.457.01 bzw. VSS Tab. 2 */
-export const KURVE_SICHTWEITE: [number, number, string][] = [[5, 10, 'bfu'], [10, 15, 'bfu'], [15, 20, 'bfu'], [20, 24, 'bfu'],
-  [25, 35, 'VSS Tab. 2'], [30, 40, 'VSS Tab. 2'], [35, 45, 'VSS Tab. 2'], [40, 50, 'VSS Tab. 2']]
+/** Sichtweite in Knoten nach dem Radius der Fahrlinie in Fahrstreifenmitte (Abbieger, Ausfahrt aus dem Kreisel): (Radius bis,
+ *  Sichtweite, Quelle) – bfu MS.013-2025, Abschnitt 2.2, Tabelle 1, S. 4 (Empfehlung). Über 20 m nennt die bfu nichts: dann gilt
+ *  VSS 40 241 Tab. 1 nach Tempo (seit 10.11.2026; bis dahin hier die Werte der Tab. 2 weitergeführt, Prüfung FGS-01) */
+export const KURVE_SICHTWEITE: [number, number, string][] = [[5, 10, 'bfu'], [10, 15, 'bfu'], [15, 20, 'bfu'], [20, 24, 'bfu']]
+/** VSS 40 241:2019 Ziffer 14, Tab. 2, S. 7: notwendige Sichtweite nach einer Strassenkurve (Kurvenregel, nur mit den fünf
+ *  Voraussetzungen): Radius in Fahrstreifenmitte -> Sichtweite */
+export const TAB2_KURVE: readonly (readonly [number, number])[] = [[20, 30], [25, 35], [30, 40], [35, 45], [40, 50]]
+/** Kurvenregel: Sichtweite nach VSS 40 241 Tab. 2 für den ungerundeten Radius; zwischen den Stufen die nächsthöhere Stufe (grösserer
+ *  Radius, höheres Tempo); unter 20 m und über 40 m kein Wert (null) */
+export function sichtweiteTab2(radius: number): number | null {
+  if (!Number.isFinite(radius) || radius < TAB2_KURVE[0][0] - 1e-9 || radius > TAB2_KURVE[TAB2_KURVE.length - 1][0] + 1e-9) return null
+  return TAB2_KURVE.find(([r]) => r >= radius - 1e-9)![1]
+}
 export const TEMPO_ERSATZ = 50
 /** Quelle eines amtlichen Tempos (Eingabe der Rechnung, z. B. V_sig des Geoportals Stadt Bern) */
 export const TEMPO_QUELLE_AMTLICH = 'Geoportal'

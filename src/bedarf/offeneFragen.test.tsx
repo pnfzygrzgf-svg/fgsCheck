@@ -19,7 +19,7 @@ import { grundKopf } from './kompakt'
 import { beurteile } from './entscheid'
 import { BedarfAbschnitt, FeldEingabe, ListeMitKnopf, Maske, ZusammenfassungAnzeige, eingabeUebernehmen } from '../BedarfPanel'
 import { FELD_DEFS, istGrundFeld } from './felder'
-import { sichtbar, type SichtKontext } from './feldhilfen'
+import { sichtbar, VERALTETE_FELDER, type SichtKontext } from './feldhilfen'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number): [number, number] => wgs(O[0] + x, O[1] + y)
@@ -182,12 +182,12 @@ describe('Ausgeblendete Felder: Schalter je Maske', () => {
     const html = panel(f0, b0)
     const saetze = [...text(html).matchAll(/(\d+) Felde?r? zählen? in diesem Fall nicht und (?:sind|ist) ausgeblendet[^.]*\. trotzdem zeigen/g)]
     const k: SichtKontext[] = [{ e: b0.gebildet.eingaben, ebenen: b0.ebenen }]
-    const nicht = (grund: boolean) => FELD_DEFS.filter(d => istGrundFeld(d.pfad) === grund && !k.some(x => sichtbar(d.pfad, x))).length
+    const nicht = (grund: boolean) => FELD_DEFS.filter(d => istGrundFeld(d.pfad) === grund && !VERALTETE_FELDER.has(d.pfad) && !k.some(x => sichtbar(d.pfad, x))).length
     const erwartet = [nicht(true), nicht(false)].filter(n => n > 0)
     expect(saetze.map(m => Number(m[1]))).toEqual(erwartet)
     expect(html).not.toContain('alle Felder zeigen')
     // Maske mit eingeblendeten Feldern: Vermerk und graue Zeile
-    const erw = FELD_DEFS.filter(d => !istGrundFeld(d.pfad))
+    const erw = FELD_DEFS.filter(d => !istGrundFeld(d.pfad) && !VERALTETE_FELDER.has(d.pfad))
     const m = renderToStaticMarkup(<Maske fall={f0} blatt={b0} aendern={() => {}} felder={erw} zaehlt={p => k.some(x => sichtbar(p, x))} alle
       kontexte={k} />)
     expect((m.match(/<tr [^>]*class="[^"]*zaehlt-nicht"/g) ?? []).length).toBe(nicht(false))

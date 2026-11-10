@@ -18,9 +18,11 @@ import { querungen, vorbelegen } from './bedarf/vorbelegung'
 import type { OsmDaten, OsmKnoten, OsmWeg } from './daten/osm'
 import type { AvFlaeche } from './daten/av'
 
-/** Profil der Länge L mit der Höhe h(d) alle 2 m */
-const profil = (L: number, h: (d: number) => number): ProfilPunkt[] =>
-  Array.from({ length: Math.round(L / 2) + 1 }, (_, i) => ({ dist: Math.min(L, i * 2), h: h(Math.min(L, i * 2)) }))
+/** Profil der Länge L mit der Höhe h(d), Stützpunkte gleichmässig wie beim Dienst (sichtProfilPunkte: rund alle 2 m, mindestens 10) */
+const profil = (L: number, h: (d: number) => number): ProfilPunkt[] => {
+  const n = sichtProfilPunkte(L)
+  return Array.from({ length: n }, (_, i) => { const d = i === n - 1 ? L : (i * L) / (n - 1); return { dist: d, h: h(d) } })
+}
 /** Sichtlinien entlang der y-Achse: Augpunkt (0, x + 1), Ziel (0, 0,5) */
 const linien = (xs: number[]): ErkennungLinie[] => xs.map(x => ({ x, auge: [0, x + 1] as P, ziel: [0, 0.5] as P, befund: 'frei' }))
 const XS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110]
@@ -117,7 +119,7 @@ describe('Gelände: Prüfung je Zufahrt', () => {
     const e: Erkennung = { wert: 110, bis: 'frei' }
     const l = linien(XS)
     await expect(gelaendePruefen(e, l, async () => { throw new Error('HTTP 500') })).rejects.toThrow('HTTP 500')
-    await expect(gelaendePruefen(e, l, async () => [])).rejects.toThrow('Höhenprofil ohne Höhen')
+    await expect(gelaendePruefen(e, l, async () => [])).rejects.toThrow('Höhenprofil unvollständig: keine Höhen')
     const zz = z(e, l), key = gelaendeSchluessel(zz)!
     for (const st of [undefined, { stand: 'fehler', text: 'HTTP 500' } as GelaendeStand]) {
       const a = erkennungAnzeige(zz, st ? { [key]: st } : null)!
@@ -136,7 +138,8 @@ describe('Gelände: Prüfung je Zufahrt', () => {
   it('Brücke: Linien mit Augpunkt bzw. Ziel auf der Brücke werden nicht geprüft', async () => {
     const l = linien(XS).map(x => (x.x >= 30 && x.x <= 50 ? { ...x, bruecke: true as const } : x))
     // Lader: nur die Augpunkte 30 bis 50 m (auf der Brücke) sähen eine Kuppe
-    const g = await gelaendePruefen({ wert: 110, bis: 'frei' }, l, async a => profil(20, d => (a[1] > 30 && a[1] < 52 && d === 10 ? 3 : 0)))
+    const g = await gelaendePruefen({ wert: 110, bis: 'frei' }, l, async (a, b) =>
+      profil(Math.hypot(a[0] - b[0], a[1] - b[1]), d => (a[1] > 30 && a[1] < 52 && Math.abs(d - 10) < 1.5 ? 3 : 0)))
     expect(g.frei['40.00']).toBeUndefined()
     expect(g.frei['60.00']).toBe(true)
     expect(g.abM).toBeNull()
@@ -207,10 +210,14 @@ describe('Gelände: Vorbelegung «Ab welcher Distanz ist der Streifen erkennbar�
 })
 
 describe('D1: Grenzpositionen für die Bodenmarkierung', () => {
-  const hoehenschnitt = (verdeckt: boolean): ProfilPunkt[] => [{ dist: 0, h: 500 }, { dist: 5, h: verdeckt ? 502 : 500 }, { dist: 10, h: 500 }]
+  /** vollständiges Profil Augpunkt → Ziel, verdeckt: 2 m hohe Kuppe in der Mitte */
+  const schnitt = (a: P, b: P, verdeckt: boolean): ProfilPunkt[] => {
+    const L = Math.hypot(a[0] - b[0], a[1] - b[1])
+    return profil(L, d => (verdeckt && Math.abs(d - L / 2) < 1 ? 502 : 500))
+  }
   it('zeigt Prüflagen statt einer erfundenen genauen Grenze und erhält den abgerundeten Wert', async () => {
     const e: Erkennung = { wert: 24, bis: 'frei' }, l = linien([0, 10, 20, 24]), aufrufe: number[] = []
-    const g = await gelaendePruefen(e, l, async a => { aufrufe.push(a[1] - 1); return hoehenschnitt(a[1] > 18.5) })
+    const g = await gelaendePruefen(e, l, async (a, b) => { aufrufe.push(a[1] - 1); return schnitt(a, b, a[1] > 18.5) })
     expect(aufrufe).toEqual([10, 20, 24, 15, 17.5])
     expect(g).toMatchObject({ abM: 17, abfragen: 5, pruefbereich: { letzteFreiM: 17.5, ersteVerdecktM: 20 } })
     const zz = z(e, l), a = erkennungAnzeige(zz, { [gelaendeSchluessel(zz)!]: { stand: 'ok', ...g } })!
@@ -220,7 +227,7 @@ describe('D1: Grenzpositionen für die Bodenmarkierung', () => {
   })
   it('behauptet bei ausschliesslich verdeckten Proben keine freie Position am Streifenrand', async () => {
     const e: Erkennung = { wert: 24, bis: 'frei' }, l = linien([0, 10, 20, 24])
-    const g = await gelaendePruefen(e, l, async () => hoehenschnitt(true))
+    const g = await gelaendePruefen(e, l, async (a, b) => schnitt(a, b, true))
     expect(g).toMatchObject({ abM: 0, abfragen: 5, pruefbereich: { letzteFreiM: null, ersteVerdecktM: 2.5 } })
     const zz = z(e, l), werte = { [gelaendeSchluessel(zz)!]: { stand: 'ok' as const, ...g } }
     const a = erkennungAnzeige(zz, werte)!
@@ -230,9 +237,9 @@ describe('D1: Grenzpositionen für die Bodenmarkierung', () => {
   })
   it.each(['fehler', 'ohne_hoehen'] as const)('erhält bei fehlender Verfeinerung (%s) die tatsächlich geprüften Grenzen', async art => {
     const e: Erkennung = { wert: 24, bis: 'frei' }, l = linien([0, 10, 20, 24])
-    const g = await gelaendePruefen(e, l, async a => {
+    const g = await gelaendePruefen(e, l, async (a, b) => {
       if (a[1] === 16) { if (art === 'fehler') throw Error('HTTP 500'); return [] }
-      return hoehenschnitt(a[1] >= 21)
+      return schnitt(a, b, a[1] >= 21)
     })
     expect(g).toMatchObject({ abM: 10, abfragen: 4, pruefbereich: { letzteFreiM: 10, ersteVerdecktM: 20 } })
   })

@@ -450,7 +450,7 @@ describe('Fusswegnetz: Kategorie und Abstand im Text, Feld «Stellung im Fussweg
     expect(frageVon('netz')).toBe('Zu welcher Stufe des Berner Fusswegnetzes gehört die Querung?')
     expect(bezuege('netz').map(x => x.id)).toEqual(expect.arrayContaining(['C2-B', 'C4-B']))
     // Regeln greifen weiter (Ebene Bern): Fusswegnetz in der Zone bzw. wenig Verkehr
-    const b = beurteile(testfall({ tempoRegime: 't30_zone', vSig: 30, netz: 'basisnetz', dtv: 2000 }), { ebenen: { bern: true, kantonBE: true } })
+    const b = beurteile(testfall({ tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', netz: 'basisnetz', dtv: 2000 }), { ebenen: { bern: true, kantonBE: true } })
     expect(b.alle.map(x => x.id)).toEqual(expect.arrayContaining(['C2-B', 'C4-B']))
   })
 })
@@ -642,7 +642,7 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
     const BERN = { ebenen: { bern: true, kantonBE: true } }
     type Q = 'osm' | 'annahme' | 'bestaetigt' | 'hand'
     const c2 = (qZone: Q, qGrund: Q) => {
-      const e = testfall({ tempoRegime: 't30_zone', vSig: 30 })
+      const e = testfall({ tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert' })
       e.tempoRegime = { wert: 't30_zone', quelle: qZone }
       e.beduerfnis = { wert: [], quelle: qGrund }
       return beurteile(e, BERN)
@@ -673,7 +673,7 @@ describe('Korrekturen nach Prüfung (21.10.2026)', () => {
     expect(bgz('osm').empfehlung.typ).toBe('flaechig')
     expect(beurteile(testfall({ tempoRegime: 'strecke' }), BERN).empfehlung.typ).not.toBe('keiner')
     // andere Regeln behalten Annahmen wie bisher (C2b Hinweis bei Zone als Annahme und Grund)
-    const e = testfall({ tempoRegime: 't30_zone', vSig: 30, beduerfnis: ['schule'] }); e.tempoRegime = { wert: 't30_zone', quelle: 'annahme' }
+    const e = testfall({ tempoRegime: 't30_zone', vSig: 30, strassentyp: 'siedlungsorientiert', beduerfnis: ['schule'] }); e.tempoRegime = { wert: 't30_zone', quelle: 'annahme' }
     expect(beurteile(e, BERN).alle.find(y => y.id === 'C2b')?.zustand).toBe('verletzt')
     expect(frageVon('tempoRegime')).toContain('Tempo-30')
     expect(frageVon('beduerfnis')).toContain('besonderen Grund für Vortritt')

@@ -397,9 +397,10 @@ describe('Korrekturen nach Prüfung E2', () => {
       expect([r12.kurvenradiusM, r12.sichtweite, r12.sichtweiteQuelle]).toEqual([12, 20, kurve])
       expect(r12.deckung).toBe(text(20))
       expect(r12.netzHinweis).toEqual(expect.arrayContaining(['spur_hand', 'gedeckt']))
-      // Radius von Hand 30 m mit Tempo 50: VSS Tab. 2 40 m, der Knoten liegt innerhalb -> nicht gedeckt, ohne «deckung»
+      // Radius von Hand 30 m mit Tempo 50: bfu endet bei 20 m, also Tab. 1 55 m (Prüfung FGS-01; bis 10.11.2026 Tab. 2 40 m), der Knoten
+      // liegt innerhalb -> nicht gedeckt, ohne «deckung»
       const r30 = ab({ tempo: 50, spur: { art: 'B', linie, radius: 30 } })
-      expect([r30.kurvenradiusM, r30.sichtweite, r30.sichtweiteQuelle, r30.deckung]).toEqual([30, 40, 'VSS Tab. 2', undefined])
+      expect([r30.kurvenradiusM, r30.sichtweite, r30.sichtweiteQuelle, r30.deckung]).toEqual([30, 55, 'VSS Tab. 1', undefined])
       expect(r30.netzHinweis).toContain('spur_hand')
       expect(r30.netzHinweis).not.toContain('gedeckt')
     } finally { gedecktRechnenSetzen(null) }
@@ -870,8 +871,8 @@ describe('Kurvenregel nur innerorts bei 50 km/h: Hinweis im Befundblatt (29.10.2
           'b5Gefaelle5'].map(u => [`kurve.${u}`, { wert: true, quelle: 'hand' as const }])) } } })
       return befundblaetter(rechneFall(daten(), AV, [], 12, f, null), f, { vorgabe: { bern: false, kantonBE: false } })[0].hinweise
     }
-    expect(hw(30)).toContain('Kurvenregel gilt nur innerorts bei 50 km/h: Sichtweite nach dem Tempo (VSS 40 241 Z. 14, S. 7)')
-    expect(hw(50).some(h => h.startsWith('Kurvenregel'))).toBe(false)
+    // seit 10.11.2026 (Prüfung FGS-01): Strassenkurve je Querung wirkt nicht mehr, Hinweis auf die Angabe je Zufahrt
+    for (const v of [30, 50]) expect(hw(v).some(h => h.startsWith('Strassenkurve aus einer älteren Fall-Datei')), `${v} km/h`).toBe(true)
   })
 })
 
@@ -887,12 +888,11 @@ describe('Kurvenregel im Thema Sicht (29.10.2026)', () => {
         bericht: renderToStaticMarkup(createElement(BefundblattAnzeige, { b: bl[0], druck: true })) }
     }
     const mit = lauf(true), ohne = lauf(false)
-    expect(mit.panel).toContain('Kurvenregel (VSS 40 241 Ziffer 14, Seite 7)')
-    for (const u of ['b1Innerorts50', 'b2EinFahrstreifen', 'b3NachKurvenende', 'b4Winkel60', 'b5Gefaelle5'])
-      expect((mit.panel.match(new RegExp(`id="feld-kurve-${u}"`, 'g')) ?? []).length, u).toBe(1)
-    expect(mit.bericht).toContain('Liegt die Kurve innerorts auf einer vortrittsberechtigten Strasse mit 50 km/h? ja (von Hand)')
-    expect(ohne.panel).not.toContain('Kurvenregel (')
-    expect(ohne.panel).not.toContain('feld-kurve-b1')
+    // seit 10.11.2026 (Prüfung FGS-01): keine Felder je Querung mehr, die Kurvenregel steht je Zufahrt in der Sichtprüfung
+    for (const u of ['radiusStrasse', 'b1Innerorts50', 'b2EinFahrstreifen', 'b3NachKurvenende', 'b4Winkel60', 'b5Gefaelle5'])
+      expect(mit.panel, u).not.toContain(`id="feld-kurve-${u}"`)
+    expect(mit.panel).toContain('Strassenkurve aus einer älteren Fall-Datei')
+    expect(ohne.panel).not.toContain('Strassenkurve aus einer älteren Fall-Datei')
   })
 })
 

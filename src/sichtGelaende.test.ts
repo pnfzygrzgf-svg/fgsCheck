@@ -16,10 +16,13 @@ import { rechneFall } from './rechner'
 import { leererFall } from './fall'
 import type { OsmDaten, OsmKnoten, OsmWeg } from './daten/osm'
 import type { AvFlaeche } from './daten/av'
+import { sichtProfilPunkte } from './daten/sichtProfil'
 
-/** Profil der Länge L mit der Höhe h(d) alle 2 m */
-const profil = (L: number, h: (d: number) => number): ProfilPunkt[] =>
-  Array.from({ length: Math.round(L / 2) + 1 }, (_, i) => ({ dist: Math.min(L, i * 2), h: h(Math.min(L, i * 2)) }))
+/** Profil der Länge L mit der Höhe h(d), Stützpunkte gleichmässig wie beim Dienst (sichtProfilPunkte: rund alle 2 m, mindestens 10) */
+const profil = (L: number, h: (d: number) => number): ProfilPunkt[] => {
+  const n = sichtProfilPunkte(L)
+  return Array.from({ length: n }, (_, i) => { const d = i === n - 1 ? L : (i * L) / (n - 1); return { dist: d, h: h(d) } })
+}
 /** Sichtpunkte alle 2 m entlang x = 1,5 (Fahrt nach Süden auf den Streifen bei y < 0) */
 const punkte = (L: number): P[] => Array.from({ length: Math.floor(L / 2) + 1 }, (_, i) => [1.5, Math.min(L, i * 2)] as P)
   .concat(L % 2 ? [[1.5, L] as P] : [])
@@ -257,10 +260,14 @@ describe('Sicht auf die Wartefläche: Tooltip des Sichtfelds', () => {
 })
 
 describe('D1: geprüfte Fahrzeugpositionen statt scheinbar genauer Sichtgrenze', () => {
-  const hoehenschnitt = (verdeckt: boolean): ProfilPunkt[] => [{ dist: 0, h: 500 }, { dist: 5, h: verdeckt ? 502 : 500 }, { dist: 10, h: 500 }]
+  /** vollständiges Profil Augpunkt → Ziel, verdeckt: 2 m hohe Kuppe in der Mitte einer Sichtlinie (nicht im Profil der Wartefläche, y < 0) */
+  const schnitt = (a: P, b: P, verdeckt: boolean): ProfilPunkt[] => {
+    const L = Math.hypot(a[0] - b[0], a[1] - b[1])
+    return profil(L, d => (verdeckt && a[1] > 0 && Math.abs(d - L / 2) < 1 ? 502 : 500))
+  }
   it('führt 17,5 m frei / 20 m verdeckt mit, während Rechenwert 17 m und fünf Abfragen gleich bleiben', async () => {
     const z = zuf(24), aufrufe: number[] = []
-    const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, async a => { aufrufe.push(a[1]); return hoehenschnitt(a[1] > 17.5) })
+    const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, async (a, b) => { aufrufe.push(a[1]); return schnitt(a, b, a[1] > 17.5) })
     // Augpunkte der Linien; dazu einmal die Mitte der Wartefläche (y −2,5) für die Höhe des Ziels
     expect(aufrufe.filter(y => y > 0)).toEqual([10, 20, 24, 15, 17.5])
     expect(aufrufe.filter(y => y < 0)).toEqual([-2.5])
@@ -272,7 +279,7 @@ describe('D1: geprüfte Fahrzeugpositionen statt scheinbar genauer Sichtgrenze',
   })
   it('bezeichnet die rechnerische Untergrenze 0 nicht als frei geprüft', async () => {
     const z = zuf(24)
-    const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, async () => hoehenschnitt(true))
+    const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, async (a, b) => schnitt(a, b, true))
     expect(e).toMatchObject({ abM: 0, abfragen: 5, pruefbereich: { letzteFreiM: null, ersteVerdecktM: 2.5 } })
     const text = sichtGelaendeText(zufahrtMitGelaende(z, ANN, werteVon(z, { stand: 'ok', ...e })).sichtGelaende!)
     expect(text).toContain('keine freie Position geprüft; erste verdeckte Position 2,5 m')
@@ -280,9 +287,9 @@ describe('D1: geprüfte Fahrzeugpositionen statt scheinbar genauer Sichtgrenze',
   })
   it.each(['fehler', 'ohne_hoehen', 'bruecke'] as const)('erfindet bei unterbrochener Verfeinerung (%s) keine Zwischenlage', async art => {
     const z = zuf(24)
-    const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, async a => {
+    const e = await sichtGelaendePruefen(sichtGeo(z, ANN)!, async (a, b) => {
       if (a[1] === 15) { if (art === 'fehler') throw Error('HTTP 500'); return [] }
-      return hoehenschnitt(a[1] >= 20)
+      return schnitt(a, b, a[1] >= 20)
     }, art === 'bruecke' ? { enthaelt: a => a[1] === 15 } : undefined)
     expect(e).toMatchObject({ abM: 10, abfragen: art === 'bruecke' ? 3 : 4, pruefbereich: { letzteFreiM: 10, ersteVerdecktM: 20 } })
   })

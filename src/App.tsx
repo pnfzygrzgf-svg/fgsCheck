@@ -72,7 +72,7 @@ import type { Knotensicht } from './tue/knotensicht'
 import { hoehenDienst, hoehenDienstFuer, ladeNeigungMit, mitRueckfall, rueckfallText, type HoehenDienst } from './daten/hoehenDienst'
 import { ausHoehenmodell, modellName } from './hoehenModell'
 import { hoehenNichtVerfuegbar } from './tue/knotensicht'
-import { kurveProfilLinie, kurveProfilSchluessel, strassenKurve } from './bedarf/kurvenregel'
+import { kurveProfilLinie, kurveProfilSchluessel, zufahrtenMitFahrlinienNeigung } from './bedarf/kurvenregel'
 import { ebenenBeschriften, ebenenAusGeo, parkZuerichObjekte, type ProfilAnzeige } from './quellenEbenen'
 import { gelaendeProfile } from './gelaendeKarte'
 import type { NeigungMessung } from './knotensicht/rechner/typen'
@@ -92,7 +92,9 @@ import { type Fall, type FallErgebnis, type StreifenHand, handGeplant, type Fixp
   naechsteFixId, FIXPUNKT_NAME_MAX, STREIFEN_NAME_MAX, leererFall, fallLesen, fallSchreiben, fallMerken, fallErinnern, fallVergessen,
   ohneUebergang, eingabenSchluessel, ortMerkenEntscheid, zufahrtSchluessel, streifenHandTeilen, teilungZuruecknehmbar,
   teilungZuruecknehmen, type TeilungRueck, verschiebungZuruecknehmbar, verschiebungZuruecknehmen, type VerschiebungRueck, eingabenZahl, hatEingaben, naechsteHandId, streifenUebernehmen, eingabenVerwaist,
-  luftbildGilt, luftbildMitten, streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, annHandSetzen, annHandText, type StreifenQuerung } from './fall'
+  luftbildGilt, luftbildMitten, streifenHerkunftText, rechnungsSchluessel, STREIFEN_QUERUNGEN, istTrottoirueberfahrt, annHandSetzen, annHandText, KURVE_BEDINGUNGEN, type StreifenQuerung, type ZufahrtHand, type KurveHand, type KurveBedingung } from './fall'
+import { sichtweiteTab2 } from './rechner/tempo'
+import { KURVE_BEDINGUNG_TEXT } from './rechner/kurvenregel'
 import { augenNachVerschieben, tueMasse, type KsPhase } from './tue/karte'
 import { LsaEinmuendung } from './tue/LsaEinmuendung'
 import { handSetzen } from './bedarf/fallBedarf'
@@ -445,6 +447,8 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     }
   }, [])
 
+  /** Längsneigung der Fahrlinie je «Streifen|Kennung» [%] für die Kurvenregel (b5, Prüfung FGS-01); gesetzt nach dem Laden der Profile */
+  const neigungRef = useRef<Record<string, number | null> | null>(null)
   const rechnen = useCallback(async (d: Daten, f: Fall, kat: typeof kataster, pk: typeof parkDaten, vs: VsigRechnung | null,
     hs: Record<string, HoehenVorgabe> | null) => {
     const nr = ++auftrag.current
@@ -453,7 +457,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     setRechnet(true)
     const antwort = await w.rechnen({ osm: d.osm, av: d.av, sosf: d.sosf, nid: d.nid, fall: f, luftbild: d.luftbild,
       kataster: kat && kat.baeume && f.baumkataster ? { baeume: kat.baeume, quellenangabe: kat.quelle.quellenangabe } : null,
-      park: pk && f.parkkataster !== false ? pk : null, vsig: vs, avZentrum: d.ort, hoehen: hs })
+      park: pk && f.parkkataster !== false ? pk : null, vsig: vs, avZentrum: d.ort, hoehen: hs, neigungFahrlinie: neigungRef.current })
     if (nr !== auftrag.current) return
     setRechnet(false)
     if (!antwort.ok) { setMeldung(`Fehler in der Rechnung: ${antwort.fehler}`); return }
@@ -604,12 +608,20 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     }
     return { nr: kurveRoh.nr, werte }
   }, [kurveRoh, rechnungRoh, kurveGeo])
+  // geladene Längsneigungen an die Rechnung (Kurvenregel b5): neu rechnen, sobald sich die Werte ändern (Text als Schlüssel, keine Schleife)
+  const neigungSig = useMemo(() => (kurveNeigung ? JSON.stringify(Object.entries(kurveNeigung.werte).map(([k, m]) => [k, m.i]).sort()) : ''),
+    [kurveNeigung])
+  useEffect(() => {
+    neigungRef.current = neigungSig ? Object.fromEntries(JSON.parse(neigungSig) as [string, number | null][]) : null
+    if (!daten || !rechenFall || !neigungSig) return
+    const t = setTimeout(() => rechnen(daten, rechenFall, kataster, parkDaten, vsigRechnung, hoehenWerte), 200)
+    return () => clearTimeout(t)
+  }, [neigungSig])
   const kurveLaeuft = useRef(new Set<string>())
   useEffect(() => {
     const ctrl = abbruchRef.current, nr = ladeNr.current
     if (!rechnungRoh || !ctrl || ctrl.signal.aborted) return
-    const kz = strassenKurve(rechnungRoh.streifen)?.z
-    const zs = [...(kz ? [kz] : []), ...rechnungRoh.streifen.flatMap(s => s.zufahrten.filter(z => z.velo))]
+    const zs = zufahrtenMitFahrlinienNeigung(rechnungRoh.streifen)
     for (const z of zs) {
       const key = kurveProfilSchluessel(z), geo = kurveGeo(z), lauf = `${nr}|${key}|${geo}`
       const linie = kurveProfilLinie(z)
@@ -2069,8 +2081,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   // Profile der Längsneigung (Fahrlinien) und die Brücken aus den AV-Einzelobjekten
   const ebenenGeometrie = useMemo(() => {
     const werte = kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : {}
-    const kz = rechnungRoh ? strassenKurve(rechnungRoh.streifen)?.z : undefined
-    const zs = rechnungRoh ? [...(kz ? [kz] : []), ...rechnungRoh.streifen.flatMap(s => s.zufahrten.filter(z => z.velo))] : []
+    const zs = rechnungRoh ? zufahrtenMitFahrlinienNeigung(rechnungRoh.streifen) : []
     const gesehen = new Set<string>()
     const profile: ProfilAnzeige[] = zs.flatMap(z => {
       const key = kurveProfilSchluessel(z), m = werte[key]
@@ -3266,6 +3277,47 @@ function StreifenAnzeige({ s, fall, auswahl, setAuswahl, aendern, gewaehlteZ, sp
   )
 }
 
+/** Rechenweg der geraden Zufahrt von Hand (Prüfung FGS-01, 10.11.2026): Strassenkurve nach VSS 40 241 Ziffer 14, Tab. 2 (Radius und die fünf
+ * Voraussetzungen) und V85 mit Nachweis; leer bzw. «aus der Rechnung»: Wert der Rechnung. Gilt nur für diese Zufahrt */
+function ZufahrtRechenweg({ z, zh, setze }: { z: ZufahrtErgebnis; zh: ZufahrtHand; setze: (neu: Partial<ZufahrtHand> | null) => void }) {
+  const ks = z.kurveStrasse, kh = zh.kurve ?? {}
+  const kurveSetzen = (neu: Partial<KurveHand>) => {
+    const x: KurveHand = { ...kh, ...neu }
+    for (const k of Object.keys(x) as (keyof KurveHand)[]) if (x[k] === undefined) delete x[k]
+    setze({ kurve: Object.keys(x).length ? x : undefined })
+  }
+  const r = kh.radius !== undefined ? kh.radius : ks?.radius ?? null
+  const imBereich = r !== null && sichtweiteTab2(r) !== null
+  const herkunft = (b: KurveBedingung) => ks?.b[b] ?? null
+  const v = zh.v85
+  return <div className="klein rechenweg">
+    <b title="VSS 40 241 Ziffer 14, S. 7: nach einer Strassenkurve darf die Sichtweite nach dem Radius bestimmt werden (Tab. 2), wenn alle fünf Voraussetzungen erfüllt sind. Gilt nur für diese Zufahrt.">
+      Strassenkurve vor dem Streifen</b> (Kurvenregel, VSS 40 241 Ziffer 14, Tab. 2, S. 7)<br />
+    Radius in Fahrstreifenmitte <ZahlFeld wert={r === null ? null : Math.round(r * 10) / 10} stellen={1} bereich={[1, 1000]} platzhalter="keine"
+      setze={x => kurveSetzen({ radius: x })} leer={() => kurveSetzen({ radius: kh.radius === undefined ? null : undefined })} /> m{' '}
+    <span className="klein">{kh.radius !== undefined ? (kh.radius === null ? 'von Hand: keine Strassenkurve' : 'von Hand')
+      : ks?.radius != null ? ks.radiusText : ks ? ks.radiusText : 'aus der Fahrlinie keine Kurve erkannt'}</span>
+    {kh.radius !== undefined && <> <button className="zweit klein" onClick={() => kurveSetzen({ radius: undefined })}>Wert der Rechnung</button></>}
+    {imBereich && <ul className="kurve-bedingungen">{KURVE_BEDINGUNGEN.map(b => {
+      const h = herkunft(b), hand = kh[b]
+      return <li key={b}>{KURVE_BEDINGUNG_TEXT[b]}:{' '}
+        <select aria-label={KURVE_BEDINGUNG_TEXT[b]} value={hand === undefined ? 'rechnung' : hand ? 'ja' : 'nein'}
+          onChange={e => kurveSetzen({ [b]: e.target.value === 'rechnung' ? undefined : e.target.value === 'ja' })}>
+          <option value="rechnung">{h && h.herkunft !== 'hand' ? `${h.wert === null ? 'offen' : h.wert ? 'ja' : 'nein'}${h.herkunft === 'annahme' ? ' (Annahme)' : ''}: ${h.text}` : 'aus der Rechnung'}</option>
+          <option value="ja">ja (bestätigt)</option><option value="nein">nein</option>
+        </select></li>
+    })}</ul>}
+    {ks && <div>{ks.hinweis}</div>}
+    <div style={{ marginTop: 6 }}><b title="VSS 40 241 Ziffer 14, S. 6: höheres gefahrenes Tempo (Anzeichen bzw. Messung) gilt; ein tieferes nur mit Nachweis (Messung). Gilt nur für diese Zufahrt.">
+      Gefahrenes Tempo V85 dieser Zufahrt</b>{' '}
+      <ZahlFeld wert={v?.wert ?? null} bereich={[5, 150]} platzhalter="nicht erfasst"
+        setze={x => setze({ v85: { wert: x, gemessen: v?.gemessen ?? false } })} leer={() => setze({ v85: undefined })} /> km/h{' '}
+      <label><input type="checkbox" checked={!!v?.gemessen} disabled={!v} onChange={e => v && setze({ v85: { ...v, gemessen: e.target.checked } })} /> gemessen (Nachweis)</label>
+      {v && v.wert < z.tempo && !v.gemessen && <div className="klein">Tieferer V85 ohne Messung: Sichtweite nach dem signalisierten Tempo.</div>}
+    </div>
+  </div>
+}
+
 function ZufahrtDetail({ z, name, nr, fall, aendern, spurZeichnen, gelaende = null }: {
   z: ZufahrtErgebnis; name: string; nr: string; fall: Fall; aendern: (f: (x: Fall) => Fall) => void; spurZeichnen: (key: string) => void
   gelaende?: Readonly<Record<string, GelaendeStand>> | null
@@ -3301,6 +3353,7 @@ function ZufahrtDetail({ z, name, nr, fall, aendern, spurZeichnen, gelaende = nu
         {z.netzHinweis.length > 0 && <tr><td>Hinweise Netz</td><td className="klein">{z.netzHinweis.join(', ')}</td></tr>}
       </tbody></table>
       {z.annahmen.length > 0 && <ul className="annahmen">{z.annahmen.map(a => <li key={a}>{a}</li>)}</ul>}
+      {z.art !== 'abbiegend' && !/40 240/.test(z.sichtweiteQuelle) && <ZufahrtRechenweg z={z} zh={zh} setze={setze} />}
       <div className="klein spur">
         <b title={'Die Fahrlinie ist die Linie, auf der das Auto fährt, das den Wartebereich sehen muss; auf ihr liegen die ' +
           'Sichtpunkte. Korrigieren, wenn sie nicht dort liegt, wo Autos fahren (z. B. im Velostreifen, auf der Haltestelle, im ' +

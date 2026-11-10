@@ -14,7 +14,7 @@ import { type P, add, dist, dot, rechts, sub, richtungGrad, neg } from '../geo'
 import type { OsmNetz } from './netz'
 import { kennungGerade, kennungArm, verlaengern, streckeLaenge, type Knotenbereich, type Suche, type SpurGerade, type ArmInfo } from './netz'
 import type { Fahrbahn, Inseln, Gebaeude, Flaechen } from './flaechen'
-import { Kreisel, KREISEL_LOKAL_M, KREISEL_RMS_M, KREISEL_BOGEN_M } from './kreisel'
+import { Kreisel, KREISEL_BOGEN_M } from './kreisel'
 import {
   refAuf, punkteAufSpur, glaetten, versetzen, amRandHalten, querZweirichtig, aufFahrbahnNaechst, umsetzen, randWaehlen,
   endpunkteMangel, abstandHalten, type RandInfo, SCHRITT, VERSATZ_RUECK_M, FAHRSTREIFEN_MAX,
@@ -39,6 +39,9 @@ import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvex
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
 import { RANG_STATUS, type ZufahrtErgebnis, type StreifenErgebnis, type Konflikt, type QuerungSicht, type AnnBasis, type AnnHand } from './typen'
 import { type Augpunkt, type ErkennungErgebnis, type ErkennungEnde, ERKENNUNG_MAX_M, entlangLinie, erkennungRechnen, zielPunkte } from './erkennung'
+import { kurvenbogen } from './kurvenbogen'
+import { kurveStrasse, kurveQuelle, v85Soll, KURVE_SUCH_M, KURVE_NAH_M, type KurveStrasse } from './kurvenregel'
+import type { KurveHand, V85Hand } from '../fall'
 import { type OhneVortritt, sollQuerung, quelleQuerung, quelleAnnahme, annahmeOhneVortritt, annahmeBgz, istBgz, weiteQuerung, REICHWEITE_SICHT_M,
   BIS_KNOTEN, EINMUENDUNG_NAH_M } from './ohneVortritt'
 
@@ -87,6 +90,11 @@ export interface VonHand {
   querung?: (fid: string) => { typ: QuerungSicht; inselMarkiert: boolean; vorgabe?: true } | null
   /** Annäherungsbereich je Ende von Hand (Streifen von Hand, 30.10.2026); null bzw. fehlt: wie gerechnet */
   ann?: (fid: string) => readonly [AnnHand | null, AnnHand | null] | null
+  /** Strassenkurve (Kurvenregel) und V85 je gerader Zufahrt von Hand (Kennung; Prüfung FGS-01, 10.11.2026) */
+  kurve?: (fid: string, kennung: string) => KurveHand | null
+  v85?: (fid: string, kennung: string) => V85Hand | null
+  /** Längsneigung der Fahrlinie vor dem Streifen [%] aus dem Höhenmodell (App lädt sie nach der ersten Rechnung); null: unbekannt */
+  neigungFahrlinie?: (fid: string, kennung: string) => number | null
 }
 
 export interface Kontext {
@@ -422,6 +430,27 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     kx.vonHand?.tempoKennung?.(fid, zf.g !== null ? kennungGerade(zf.g, zf.sd!) : `s${fid}:${gradD}`) ?? null
   if (tempoHand) { tempo = tempoHand; sw = swTab(tempoHand); tempoQ = 'Korrektur' }
   if (tempoQ === 'Ersatz') annahmen.push('Tempo 50 km/h angenommen (in OSM keine Höchstgeschwindigkeit erfasst)')
+  // Rechenweg der geraden Zufahrt (Prüfung FGS-01, 10.11.2026): Kurvenregel (VSS 40 241 Tab. 2) bzw. V85 je Zufahrt; nur Fussgängerstreifen
+  const kennungZ = zf.g !== null ? kennungGerade(zf.g, zf.sd!) : `s${fid}:${gradD}`
+  let kurveS: KurveStrasse | null = null, v85Q: string | null = null
+  // Ausfahrt aus dem Kreisel: der Ring ist keine Strassenkurve (Kurvenregel nicht anwendbar; Radius der Ausfahrt unten nach bfu)
+  const ausKreisel = kreiselPruefen && kreisel.treffer(wegRoh, h + Math.max(sw, KURVE_SUCH_M)) !== null
+  if (!ov && !ausKreisel) {
+    const sh = kx.vonHand?.spur?.(fid, kennungZ) ?? null
+    const bogen = sh?.art === 'B' ? kurvenbogen(sh.linie, 0, Math.max(sw, KURVE_SUCH_M)) : kurvenbogen(wegRoh, h, Math.max(sw, KURVE_SUCH_M))
+    const tags = zf.g !== null && netz ? netz.w(zf.g.wid).t : null
+    const lanes = tags?.lanes !== undefined ? Number(tags.lanes) : NaN, einbahn = tags?.oneway === 'yes'
+    kurveS = kurveStrasse(bogen, kx.vonHand?.kurve?.(fid, kennungZ) ?? null, {
+      ausserorts: ort.ausserorts, tempo,
+      einFahrstreifen: Number.isFinite(lanes) ? { wert: einbahn ? lanes <= 1 : lanes <= 2, text: `OSM lanes=${lanes}${einbahn ? ', Einbahn' : ''}` }
+        : { wert: null, text: 'ohne Angabe in OSM; ein Fahrstreifen je Richtung angenommen' },
+      neigung: kx.vonHand?.neigungFahrlinie?.(fid, kennungZ) ?? null, linieVonHand: sh?.art === 'B' })
+    if (kurveS?.gilt) sw = kurveS.soll!
+    else {
+      const v = v85Soll(kx.vonHand?.v85?.(fid, kennungZ), tempo, swTab)
+      if (v && 'sw' in v) { sw = v.sw; v85Q = v.quelle } else if (v) annahmen.push(v.hinweis)
+    }
+  }
   const swEigen = sw
   let gesamt = sw + h
   const kInSicht = su !== null && su.art === 'knoten' && su.dist - h < swEigen
@@ -450,7 +479,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     }
     return { ergebnisse, entfallen: entf }
   }
-  let swQuelle = ov ? quelleQuerung(ov) : quelleTab1(tempo, ort.ausserorts), hinweis = '', hinweisM: number | null = null
+  let swQuelle = ov ? quelleQuerung(ov) : kurveS?.gilt ? kurveQuelle(kurveS) : v85Q ?? quelleTab1(tempo, ort.ausserorts), hinweis = '', hinweisM: number | null = null
   if (!ov && tempo === 60 && ort.annahme) annahmen.push(ORTSLAGE_ANNAHME)
   if (kInSicht && hatGerade) { hinweis = 'knoten'; hinweisM = su!.dist }
   if (hatGerade && sg !== null && sg.endeM !== null && sg.endeM - h < sw) {
@@ -467,37 +496,26 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       wegRoh = verlaengern(wegRoh, gesamt + 1.0)
     }
   }
-  // Kreisel-Regel nach Ringradius
+  // Ausfahrt aus dem Kreisel (Prüfung FGS-01, 10.11.2026): wie ein Abbieger im Knoten Sichtweite nach bfu (Tabelle 1, bis 20 m) mit dem
+  // Radius der eigenen Fahrlinie zwischen Ring und Streifen (kurvenbogen), nicht mit dem Ringradius; der Bogen muss belastbar sein und
+  // unmittelbar vor dem Streifen enden (KURVE_NAH_M). Über 20 m bzw. ohne belastbaren Bogen: Tab. 1. Die Zufahrt zum Kreisel hin trifft
+  // den Ring nicht (Fahrlinie rückwärts) und rechnet immer nach Tab. 1
   const kt = kreiselPruefen && hatGerade ? kreisel.treffer(wegRoh, gesamt) : null
   let radiusG: number | null = null, radiusQG: string | null = null
   if (kt) {
-    const [rRing, rq] = kreisel.radius(kt[1], kt[2], kt[3], KREISEL_LOKAL_M)
-    radiusQG = rq
-    radiusG = rRing === null ? null : radiusRunden(rRing)
-    let [swR, qR] = rRing !== null ? sichtweiteKurve(rRing) : [null, null]
+    const shK = kx.vonHand?.spur?.(fid, kennungZ) ?? null
     const bisRing = Math.max(kt[0], h) - h
+    const bogenK = shK?.art === 'B' ? kurvenbogen(shK.linie, 0, bisRing) : kurvenbogen(wegRoh, h, bisRing)
+    const rA = bogenK?.radius ?? null, nah = bogenK?.endeM != null && bogenK.endeM <= KURVE_NAH_M
+    const woher = shK?.art === 'B' ? 'Fahrlinie von Hand' : 'modellierter Fahrlinie'
+    radiusG = rA === null ? null : radiusRunden(rA)
+    radiusQG = rA === null ? `Ausfahrt aus dem Kreisel: kein Radius (${bogenK?.grund ?? 'keine Fahrlinie'})`
+      : `Ausfahrt aus dem Kreisel, Radius aus ${woher}${nah ? '' : ' (Bogen endet nicht unmittelbar vor dem Streifen)'}`
+    let [swR, qR] = rA !== null && nah ? sichtweiteKurve(rA) : [null, null]
     let bisR: [number, number, number] | null = null
     if (swR !== null && bisRing > swR) { bisR = [kt[0], 0, swR]; swR = Math.ceil(bisRing); qR = 'bis Kreiselring' }
-    else if (swR !== null) qR = `Kreiselring R ${f1(radiusG!)} m (${qR})`
-    if (kreisel.rms(kt[1]) > KREISEL_RMS_M) {
-      const grenze = swR !== null ? Math.min(sw, swR) : sw
-      let bogenG: [number, number, number, number, string] | null = null
-      for (let o = SCHRITT; bisRing + o + KREISEL_LOKAL_M / 2 < grenze; o += SCHRITT) {
-        const rO = kreisel.radiusAb(kt[1], kt[2], kt[3], o, KREISEL_LOKAL_M)
-        const [swO, qO] = rO !== null ? sichtweiteKurve(rO) : [null, null]
-        const noetig = swO === null ? null : Math.max(swO, Math.ceil(bisRing + o + KREISEL_LOKAL_M / 2))
-        if (noetig !== null && noetig < (bogenG ? bogenG[0] : grenze)) bogenG = [noetig, rO!, o, swO!, qO!]
-      }
-      if (bogenG) {
-        const [n_, rO, o, swO, qO] = bogenG
-        swR = n_
-        radiusG = radiusRunden(rO)
-        radiusQG = `Kreiselring OSM lokal (Ringbogen ${o.toFixed(0)} m hinter dem Treffpunkt, ${KREISEL_LOKAL_M} m Ring, Ring unrund)`
-        qR = swR > swO ? 'bis Ringbogen' : `Ringbogen R ${f1(radiusG)} m (${qO})`
-        bisR = swR > swO ? [kt[0], o + KREISEL_LOKAL_M / 2, swO] : null
-      }
-    }
-    // Kreiselregel nach Ringradius (bfu bzw. VSS 40 241 Tab. 2) nur für Fussgängerstreifen
+    else if (swR !== null) qR = `Ausfahrt aus dem Kreisel, Radius R ${f1(radiusG!)} m aus ${woher} (bfu)`
+    // bfu-Wert der Ausfahrt nur für Fussgängerstreifen und nur, wenn er unter Tab. 1 liegt
     if (swR !== null && swR < sw && !ov) {
       bis = bisR === null ? null : [bisR[0], bisR[1], bisR[2], sw, Math.ceil]
       sw = swR; gesamt = swR + h; swQuelle = qR!
@@ -951,7 +969,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       sichtweite: geprueftBis !== null && sw >= geprueftBis - 1e-9 ? (annahmeK ? annahmeK.sw : swEigen) : sw,
       ...(annahmeK && swQuelle === annahmeK.quelle ? { annahmeGrenze: { grenze: annahmeK.grenze, normM: annahmeK.normM } } : {}),
       ...(geprueftBis !== null && sw >= geprueftBis - 1e-9 ? { geprueftBisM: geprueftBis } : {}),
-      sichtweiteQuelle: swQuelle, kurvenradiusM: radiusG, radiusQuelle: radiusQG,
+      sichtweiteQuelle: swQuelle, kurvenradiusM: radiusG, radiusQuelle: radiusQG, ...(kurveS ? { kurveStrasse: kurveS } : {}),
       ...konfliktFelder(konflikte), konflikte,
       spurHinweis: hinweis, spurHinweisM: hinweisM === null ? null : Math.round(Math.max(0, hinweisM - h) * 10) / 10,
       fahrbahnM: fs ? Math.round(fs.breite * 100) / 100 : null, parkRechts: fs ? fs.parkR : null, parkLinks: fs ? fs.parkL : null,

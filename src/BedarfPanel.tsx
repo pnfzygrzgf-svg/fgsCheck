@@ -38,11 +38,12 @@ import type { BefundBlatt } from './bedarf/befundblatt'
 import type { Ebene, Eintrag } from './bedarf/typen'
 import { QUELLEN_ANNAHME, QUELLEN_BESTAETIGBAR, type Quelle, KURVE_BEDINGUNGEN } from './bedarf/eingaben'
 import { mitTiteln, regelName, regelTitel } from './bedarf/regelname'
+import { sichtQuelleKurz } from './texte'
 import { ABSCHNITTE, EBENE_WORT, LEGENDE, THEMEN, abschnittVon, gruppeVonThema, istAusfuehrung, mitEinheit, nachAbschnitt, pruefUebersicht, themaName,
   themaVon, verbindlichkeitVon } from './bedarf/themen'
 import { BLOCK_GRUENDE, hatInhalt, ohneBefundZeile, themaGliederung, themenAnsicht, type ThemaFrage, type ThemaTeil, type ThemenAnsicht } from './bedarf/themenansicht'
 import { FELD_HILFEN, SICHTBAR, bedingungText, bezuegeImFall, feldZiel, frageVon, leerText, regelPfade, schalter, schalterText, sichtbar,
-  wozuTeilen, type SichtKontext } from './bedarf/feldhilfen'
+  wozuTeilen, VERALTETE_FELDER, type SichtKontext } from './bedarf/feldhilfen'
 import { A2_OFFEN_TEXT, OHNE_ORTSLAGE_TEXT, typText, herkunftSichtbar } from './bedarf/befundblatt'
 import { offeneFragen, zusammenfassung, zfEingabeBlatt, type OffeneFrage } from './bedarf/zusammenfassung'
 import { lesetext, tooltipText } from './bedarf/lesetext'
@@ -454,7 +455,7 @@ function feldFuerEbenen(d: FeldDef, bern: boolean): FeldDef {
 
 /** Felder der Grundprüfung (oben) bzw. der erweiterten Prüfung (aufklappbar) */
 const FELDER_GRUND = FELD_DEFS.filter(d => istGrundFeld(d.pfad))
-const FELDER_ERWEITERT = FELD_DEFS.filter(d => !istGrundFeld(d.pfad))
+const FELDER_ERWEITERT = FELD_DEFS.filter(d => !istGrundFeld(d.pfad) && !VERALTETE_FELDER.has(d.pfad))
 
 const ebeneText: Record<keyof BedarfEbenen, string> = {
   bern: 'Stadt Bern (Masterplan Fussverkehr, Handbuch Lichtsignalanlagen, Standards Veloinfrastruktur)', kantonBE: 'Kanton Bern (Arbeitshilfe Fussgängerstreifen)',
@@ -1229,9 +1230,9 @@ export const annahmeInTabelle = (b: BefundBlatt, a: string): boolean => eingaben
 function annahmenPunkte(b: BefundBlatt, ablauf: readonly Eintrag[], druck: boolean, begriffe: ReadonlyMap<Eintrag, string[]>): JSX.Element[] {
   const aus: JSX.Element[] = []
   if (b.sicht.length) aus.push(<li key="sicht">Sicht (<VerweisText druck={druck}
-    text={b.sicht[0].regel === 'E3' ? fundstelleText({ werk: '40240', ziffer: 'Z. 8.2' }) : fundstelleText({ werk: '40241', ziffer: 'Tab. 1' })} />):
+    text={b.sicht[0].regel === 'E3' ? fundstelleText({ werk: '40240', ziffer: 'Z. 8.2' }) : fundstelleText({ werk: '40241', ziffer: 'Z. 14' })} />):
     <ul>{[...b.sicht].sort((p, q) => p.name.localeCompare(q.name, 'de', { numeric: true })).map((x, i) => <li key={i}>{`${x.name} ${x.frei ? (x.bisM !== undefined ? `frei bis ${x.bisM} m, darüber nicht geprüft` : 'frei') : x.status} ` +
-      `(Soll ${String(x.soll).replace('.', ',')} m)`}</li>)}</ul></li>)
+      `(Soll ${String(x.soll).replace('.', ',')} m, ${sichtQuelleKurz(x.quelle)})`}</li>)}</ul></li>)
   if (b.sichtVonHand) aus.push(<li key="sichthand">{T('Sicht: vorhandene Sichtweite von Hand eingegeben (Regeln H1 bzw. E3 statt Sichtprüfung).')}</li>)
   // Annahmen nur einmal: im Panel ohne die der Grundprüfung, im Bericht auch ohne die der Tabelle «Eingaben und Quellen»
   const annahmen = b.annahmen.filter(a => !annahmeInGrund(b, a) && !(druck && annahmeInTabelle(b, a)))

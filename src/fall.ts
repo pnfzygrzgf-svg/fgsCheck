@@ -43,16 +43,18 @@ import { amtlicheQuellenLesen } from './daten/anbieter/gemeinsam/speicher'
  * Version 9: regionale Ausschnitte, amtliche Übergänge und Signalentscheide.
  * Version 10 (E1c): weitere Bundesquellen und ihre Bestätigungen.
  * Version 11 (E4): örtliche Bedarfsquellen. E6-Kontextteile nutzen das bestehende Regionalformat.
- * Version 12 ist nicht eingeführt: Das Überspringen unbekannter Regionalteile mit Hinweis ändert das Format nicht.
+ * Version 12 (10.11.2026, Prüfung FGS-01): Strassenkurve (Kurvenregel) und V85 je Zufahrt; eine ältere App würde sie übergehen und
+ * mit anderem Soll rechnen, darum lehnt sie die Datei ab.
  * Bekannte Teile werden weiterhin streng aus ihren Rohdaten gelesen; ihre Validierung wird nicht gelockert. */
-export const FALL_VERSION = 11
+export const FALL_VERSION = 12
 export const FALL_VERSION_BASIS = 1
 /** Version, mit der ein Fall geschrieben wird: 11 mit örtlichen Bedarfsquellen (E4), 10 mit weiteren Bundesquellen/Bestätigungen (E1c), 9 mit regionalen Ausschnitten, amtlichem Übergang oder Signalentscheid; 8 mit Zürcher Ausschnitt bzw. Feldquelle, 7 mit NPVM oder expliziter Feldquelle (E1b), 6 mit amtlichen Quellenausschnitten (E1a), 5 mit der Lage einer bestehenden Querung ohne Fussgängerstreifen von Hand angepasst
  * (30.10.2026), 4 mit einem vorgezogenen Seitenraum (seit 23.10.2026: eine ältere App würde die Parkierung darunter weiter zählen, sie
  * lehnt die Datei mit «neuere Version, Seite neu laden» ab), 3 mit Bedarf bzw. Querung ohne Vortritt, 2 mit Flächen (Plan), sonst 1 */
-export const fallVersion = (f: { flaechenPlan?: FlaechePlan[]; bedarf?: BedarfBlock; streifen?: Record<string, StreifenEingabe>
+export const fallVersion = (f: { flaechenPlan?: FlaechePlan[]; bedarf?: BedarfBlock; streifen?: Record<string, StreifenEingabe>; zufahrten?: Record<string, ZufahrtHand>
   streifenHand?: StreifenHand[]; ort?: { markierung?: Markierung; amtlich?: AmtlicherUebergang }; amtlicheQuellen?: AmtlicheQuellen; npvm?: NpvmSnapshot; zuerich?: ZuerichSnapshot; regional?: RegionalSnapshot; signalEntscheide?: SignalEntscheid[] }): number =>
-  (f.regional?.teile.some(t => t.id.startsWith('bedarf.')) || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.id.startsWith('regional.bedarf.')) ? 11 : f.regional?.teile.some(t => t.id.startsWith('bund.')) || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.id.startsWith('regional.bund.')) ? 10 : f.ort?.amtlich || f.signalEntscheide?.length || f.regional || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.datenstand !== undefined) || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.id.startsWith('regional.')) ? 9 : f.zuerich || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.id.startsWith('zh.')) ? 8 : f.npvm || f.bedarf?.felder.dtv?.npvmBeleg || Object.values(f.bedarf?.felder ?? {}).some(h => !!h.datenquelle) ? 7 : f.amtlicheQuellen ? 6 : f.streifenHand?.some(h => !!h.bestand) && !(f.ort?.markierung && istFgs(f.ort.markierung)) ? 5
+  Object.values(f.zufahrten ?? {}).some(z => z.kurve !== undefined || z.v85 !== undefined) ? 12
+    : (f.regional?.teile.some(t => t.id.startsWith('bedarf.')) || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.id.startsWith('regional.bedarf.')) ? 11 : f.regional?.teile.some(t => t.id.startsWith('bund.')) || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.id.startsWith('regional.bund.')) ? 10 : f.ort?.amtlich || f.signalEntscheide?.length || f.regional || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.datenstand !== undefined) || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.id.startsWith('regional.')) ? 9 : f.zuerich || Object.values(f.bedarf?.felder ?? {}).some(h => h.datenquelle?.id.startsWith('zh.')) ? 8 : f.npvm || f.bedarf?.felder.dtv?.npvmBeleg || Object.values(f.bedarf?.felder ?? {}).some(h => !!h.datenquelle) ? 7 : f.amtlicheQuellen ? 6 : f.streifenHand?.some(h => !!h.bestand) && !(f.ort?.markierung && istFgs(f.ort.markierung)) ? 5
     : f.flaechenPlan?.some(x => x.standard?.typ === 'seitenraum') ? 4
     : !bedarfLeer(f.bedarf) || Object.values(f.streifen ?? {}).some(e => !!e.typ) ? 3 : f.flaechenPlan?.length ? 2 : FALL_VERSION_BASIS)
 
@@ -75,7 +77,16 @@ const BESTAND_ID = /^-?\d{1,15}(-\d{1,2}){0,3}$/
 export const STREIFEN_NAME_MAX = 60
 export type StreifenHerkunft = 'gezeichnet' | 'osm' | 'luftbild' | 'luftbild_vorschlag'
 const HERKUNFTE: StreifenHerkunft[] = ['gezeichnet', 'osm', 'luftbild', 'luftbild_vorschlag']
-export interface ZufahrtHand { tempo?: number; streichen?: boolean; spur?: SpurHand }
+/** Strassenkurve vor dem Streifen je gerader Zufahrt (VSS 40 241 Ziffer 14, Tab. 2, S. 7; Prüfung FGS-01, 10.11.2026): Eingaben von
+ * Hand; fehlt ein Wert, gilt der aus der Rechnung. radius null: keine Strassenkurve (von Hand). b1 bis b5: die fünf Voraussetzungen
+ * (vortrittsberechtigt innerorts 50 km/h; ein Fahrstreifen je Richtung; unmittelbar nach dem Kurvenende; mindestens 60°; Längsgefälle
+ * höchstens 5 %) */
+export interface KurveHand { radius?: number | null; b1?: boolean; b2?: boolean; b3?: boolean; b4?: boolean; b5?: boolean }
+export const KURVE_BEDINGUNGEN = ['b1', 'b2', 'b3', 'b4', 'b5'] as const
+export type KurveBedingung = typeof KURVE_BEDINGUNGEN[number]
+/** gefahrenes Tempo V85 einer Zufahrt (VSS 40 241 Ziffer 14): gemessen = Nachweis; nur dann darf ein tieferer Wert das Soll senken */
+export interface V85Hand { wert: number; gemessen: boolean }
+export interface ZufahrtHand { tempo?: number; streichen?: boolean; spur?: SpurHand; kurve?: KurveHand; v85?: V85Hand }
 /** Fixpunkt für die Vermassung eines Streifens von Hand (seit 16.10.2026; fixpunkt.ts): gefangen auf eine Gebäudeecke bzw. einen
  * Stützpunkt der AV-Bodenbedeckung, sonst frei gesetzt. Beeinflusst die Rechnung nicht. avArt: Art der AV-Fläche (av_punkt) */
 export type FixpunktArt = 'gebaeudeecke' | 'av_punkt' | 'frei'
@@ -406,6 +417,17 @@ export function fallLesen(text: string): [Fall, string[]] {
     if (v.streichen === true) z.streichen = true
     const sp = spurPruefen(v.spur)
     if (sp) z.spur = sp
+    if (istObjekt(v.kurve)) {
+      const kh: KurveHand = {}
+      if (v.kurve.radius === null) kh.radius = null
+      else if (zahl(v.kurve.radius) && v.kurve.radius > 0 && v.kurve.radius <= 1000) kh.radius = v.kurve.radius
+      for (const bd of KURVE_BEDINGUNGEN) if (typeof v.kurve[bd] === 'boolean') kh[bd] = v.kurve[bd] as boolean
+      if (Object.keys(kh).length) z.kurve = kh; else hinweise.push(`Strassenkurve der Zufahrt ${k} ungültig, übergangen`)
+    }
+    if (istObjekt(v.v85)) {
+      if (zahl(v.v85.wert) && v.v85.wert >= 5 && v.v85.wert <= 150 && typeof v.v85.gemessen === 'boolean') z.v85 = { wert: v.v85.wert, gemessen: v.v85.gemessen }
+      else hinweise.push(`V85 der Zufahrt ${k} ungültig, übergangen`)
+    }
     if (Object.keys(z).length) fall.zufahrten[k] = z
     else if (Object.keys(v).length) hinweise.push(`Zufahrt ${k} ungültig, übergangen`)
   }
@@ -486,7 +508,9 @@ export function annHandSetzen(s: StreifenHand, k: 0 | 1, h: AnnHand | null): voi
 /** Eingaben des Falls als VonHand für die Rechnung; vorgabe: Querungsart ohne Eingabe am Streifen (unmarkierte OSM-Querung:
  * ohne Vortritt, 29.10.2026), sonst Fussgängerstreifen; als Funktion je Streifen (Streifen von Hand: nur die Lage einer bestehenden
  * Querung, 30.10.2026) */
-export function vonHandAusFall(fall: Fall, vorgabe: QuerungSicht | null | ((fid: string) => QuerungSicht | null) = null): VonHand {
+export function vonHandAusFall(fall: Fall, vorgabe: QuerungSicht | null | ((fid: string) => QuerungSicht | null) = null,
+  /** Längsneigung der Fahrlinie je «Streifen|Kennung» [%] (App, Höhenmodell) */
+  neigungFahrlinie: Readonly<Record<string, number | null>> | null = null): VonHand {
   const z = (fid: string, kennung: string) => fall.zufahrten[zufahrtSchluessel(fid, kennung)]
   const vg = (fid: string) => (typeof vorgabe === 'function' ? vorgabe(fid) : vorgabe)
   const h = fall.bedarf?.felder.vSig
@@ -505,6 +529,9 @@ export function vonHandAusFall(fall: Fall, vorgabe: QuerungSicht | null | ((fid:
     // Trottoirüberfahrt: gerechnet wie ein Fussgängerstreifen, rechneFall legt die Zufahrten nur für die Vorbelegung ab
     keinFgs: fid => !!fall.streifen[fid]?.keinFgs,
     tempoKennung: (fid, kennung) => z(fid, kennung)?.tempo ?? null,
+    kurve: (fid, kennung) => z(fid, kennung)?.kurve ?? null,
+    v85: (fid, kennung) => z(fid, kennung)?.v85 ?? null,
+    neigungFahrlinie: (fid, kennung) => neigungFahrlinie?.[zufahrtSchluessel(fid, kennung)] ?? null,
     ann: fid => fall.streifenHand.find(h => h.id === fid)?.ann ?? null,
     querung: fid => {
       const e = fall.streifen[fid]

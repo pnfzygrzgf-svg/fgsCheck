@@ -16,7 +16,8 @@
 // Die Ergebnisse liegen je Zufahrt UND Lage der Linien (gelaendeSchluessel, Prüfsumme): eine neue Rechnung mit anderen Linien (Streifen
 // verschoben) prüft neu, eine alte Antwort überschreibt keine neuere.
 
-import type { P } from './geo'
+import { dist, type P } from './geo'
+import { sichtProfilPunkte } from './daten/sichtProfil'
 import { AUGHOEHE_M, type Erkennung, type ErkennungLinie, type GelaendePruefbereich } from './rechner/erkennung'
 import type { ProfilPunkt } from './knotensicht/rechner/neigung'
 import type { ZufahrtErgebnis } from './rechner/typen'
@@ -50,10 +51,52 @@ export type ProfilLader = (auge: P, ziel: P) => Promise<ProfilPunkt[]>
 /** Schlüssel einer Sichtlinie nach dem Abstand x (auf 0,01 m) in GelaendeStand.frei (auch sichtGelaende.ts) */
 export const xKey = (x: number) => (Math.round(x * 100) / 100).toFixed(2)
 
-/** Sicht über das Gelände frei? Profil vom Augpunkt zum Ziel; null, wenn das Profil zu kurz ist. Augpunkt AUGHOEHE_M über dem Boden,
+// ── Vollständigkeit der Höhenprofile (Prüfung FGS-03, 10.11.2026) ──
+// Ein Profil gilt nur, wenn es die ganze Sichtlinie abdeckt: alle Distanzen und Höhen endliche Zahlen, Stationen streng steigend,
+// Anfang am Augpunkt und Ende am Ziel (höchstens PROFIL_RAND_M bzw. ein halber Punktabstand daneben: Endpunkte in der Adresse und
+// Distanzen von swissALTI3D auf 0,1 m gerundet) und keine Lücke über PROFIL_LUECKE_FAKTOR Punktabstände (also kein fehlender Stützpunkt;
+// beide Dienste tasten gleichmässig ab, geprüft am 10.11.2026). Sonst wirft die erste Runde (Rückfall auf den nächsten Höhendienst,
+// zuletzt «Geländemodell nicht geprüft»), die Verfeinerung bricht ab (es gilt die letzte frei geprüfte Lage). Grenzen: Annahmen der App.
+
+/** kleinste und grösste Abweichung von Anfang bzw. Ende des Profils zum Augpunkt bzw. Ziel [m]; dazwischen ein halber Punktabstand */
+export const PROFIL_RAND_MIN_M = 0.5
+export const PROFIL_RAND_MAX_M = 1
+/** grösste Lücke zwischen zwei Profilpunkten in Punktabständen der Anfrage */
+export const PROFIL_LUECKE_FAKTOR = 1.5
+/** Text der Grenzen für Hilfe und Tooltip */
+export const PROFIL_ANNAHME = 'Höhenprofile gelten nur vollständig (Annahme: Anfang und Ende höchstens 0,5 bis 1 m neben Augpunkt bzw. Ziel, ' +
+  'kein fehlender Stützpunkt, nur gültige Zahlen); sonst Rückfall auf swissALTI3D bzw. «nicht geprüft»'
+
+const m1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1).replace('.', ',')
+/** Mangel des Profils einer Sichtlinie der Länge L (Text) bzw. null, wenn es vollständig ist; punkte: Stützpunkte der Anfrage */
+export function profilMangel(profil: readonly ProfilPunkt[], L: number, punkte = sichtProfilPunkte(L)): string | null {
+  if (!(L > 0) || !Number.isFinite(L)) return 'Sichtlinie ohne Länge'
+  if (profil.length < 2) return profil.length ? 'nur ein Punkt' : 'keine Höhen'
+  if (!profil.every(p => Number.isFinite(p?.dist) && Number.isFinite(p?.h))) return 'ungültige Distanz bzw. Höhe'
+  for (let i = 1; i < profil.length; i++) if (!(profil[i].dist > profil[i - 1].dist)) return 'Stationen nicht aufsteigend bzw. doppelt'
+  const schritt = L / Math.max(1, punkte - 1)
+  const rand = Math.min(PROFIL_RAND_MAX_M, Math.max(PROFIL_RAND_MIN_M, schritt / 2))
+  const a = profil[0].dist, b = profil[profil.length - 1].dist
+  if (Math.abs(a) > rand) return `beginnt ${m1(a)} m nach dem Augpunkt`
+  if (b < L - rand) return `endet ${m1(L - b)} m vor dem Ziel`
+  if (b > L + rand) return `länger als die Sichtlinie (${m1(b)} statt ${m1(L)} m)`
+  for (let i = 1; i < profil.length; i++) {
+    const g = profil[i].dist - profil[i - 1].dist
+    if (g > PROFIL_LUECKE_FAKTOR * schritt + 1e-9) return `Lücke von ${m1(g)} m ab ${m1(profil[i - 1].dist)} m`
+  }
+  return null
+}
+/** Fehler «Höhenprofil unvollständig» mit dem Mangel; null, wenn das Profil vollständig ist */
+export const profilFehler = (profil: readonly ProfilPunkt[], auge: P, ziel: P): Error | null => {
+  const m = profilMangel(profil, dist(auge, ziel))
+  return m ? new Error(`Höhenprofil unvollständig: ${m}`) : null
+}
+
+/** Sicht über das Gelände frei? Profil vom Augpunkt zum Ziel; null, wenn das Profil zu kurz ist bzw. ungültige Zahlen enthält
+ * (Vollständigkeit prüft profilMangel). Augpunkt AUGHOEHE_M über dem Boden,
  * Ziel zielHoehe über dem Boden (Erkennungsdistanz: Markierung am Boden; Sicht auf die Wartefläche: sichtGelaende.ZIEL_HOEHE_WARTE_M) */
 export function gelaendeFrei(profil: readonly ProfilPunkt[], tol = GELAENDE_TOL_M, zielHoehe = ZIEL_HOEHE_M): boolean | null {
-  if (profil.length < 2) return null
+  if (profil.length < 2 || !profil.every(p => Number.isFinite(p.dist) && Number.isFinite(p.h))) return null
   const a = profil[0], b = profil[profil.length - 1], L = b.dist - a.dist
   if (!(L > 0)) return null
   const zA = a.h + AUGHOEHE_M, zB = b.h + zielHoehe
@@ -90,7 +133,8 @@ function linieBei(linien: readonly ErkennungLinie[], x: number): { auge: P; ziel
 
 /**
  * Gelände entlang der Sichtlinien bis zur 2D-Erkennungsdistanz prüfen (Ablauf oben; tol: Toleranz des Dienstes). Wirft, wenn ein
- * Profil der ersten Runde fehlt (die Rechnung bleibt dann 2D); fehlt ein Profil der Verfeinerung, gilt die letzte freie Lage. Ein
+ * Profil der ersten Runde fehlt bzw. unvollständig ist (profilMangel; die Rechnung bleibt dann 2D); fehlt ein Profil der Verfeinerung
+ * bzw. ist es unvollständig, gilt die letzte freie Lage. Ein
  * Abbruch wird weitergereicht.
  */
 export async function gelaendePruefen(e: Erkennung, linien: readonly ErkennungLinie[], laden: ProfilLader, tol = GELAENDE_TOL_M):
@@ -103,6 +147,8 @@ export async function gelaendePruefen(e: Erkennung, linien: readonly ErkennungLi
   }
   kand.sort((a, b) => a.x - b.x)
   const res = await Promise.all(kand.map(l => laden(l.auge, l.ziel).then(p => {
+    const fehler = profilFehler(p, l.auge, l.ziel)
+    if (fehler) throw fehler
     const f = gelaendeFrei(p, tol)
     if (f === null) throw new Error('Höhenprofil ohne Höhen')
     return f
@@ -119,7 +165,10 @@ export async function gelaendePruefen(e: Erkennung, linien: readonly ErkennungLi
     if (!q || q.bruecke) break
     abfragen++
     let f: boolean | null
-    try { f = gelaendeFrei(await laden(q.auge, q.ziel), tol) } catch (err) {
+    try {
+      const p = await laden(q.auge, q.ziel)
+      f = profilFehler(p, q.auge, q.ziel) ? null : gelaendeFrei(p, tol)
+    } catch (err) {
       if ((err as Error)?.name === 'AbortError') throw err
       break
     }

@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:referenz": "vitest run src/referenz.test.ts"
   },
   "engines": {
     "node": ">=20"

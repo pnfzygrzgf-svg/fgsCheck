@@ -116,7 +116,7 @@ describe('Feldhilfen: Erklärung und Herkunft je Feld', () => {
     const ids = (p: string) => bezuege(p).map(b => b.id)
     // Tempo-Regime prüft A2 und die Zonenregeln C2, C2b, C2-B (GEPRUEFT); C2 auch beim besonderen Grund für Vortritt
     expect(ids('tempoRegime')).toEqual(['A2', 'C2', 'C2b', 'C2-B'])
-    expect(bezuege('tempoRegime')[1].quelle).toBe('Tempo-30-Zonen-Verordnung Art. 4 Abs. 2')
+    expect(bezuege('tempoRegime')[1].quelle).toBe('Tempo-30-Zonen-Verordnung Art. 4 Abs. 2, S. 2; Tempo-30-Zonen-Verordnung Art. 1a, S. 1 (seit 01.10.2026)')
     expect(ids('beduerfnis')).toContain('C2')
     expect(schaltet('tempoRegime')).not.toContain('C2')
     expect(ids('insel.kopfUeberstand')).toEqual(['F2f'])
@@ -466,15 +466,23 @@ describe('Gestrichenes Feld «zoneVerkehrsorientiert»', () => {
   })
   const alt = (zone: boolean, regime: string) => ({ felder: { tempoRegime: { wert: regime, quelle: 'hand' }, zoneVerkehrsorientiert: { wert: zone, quelle: 'hand' },
     beduerfnis: { wert: [], quelle: 'hand' } } })
-  it('alter Fall «ja» in der Tempo-30-Zone: als Strecke gewertet (Annahme), mit Hinweis; kein C2', () => {
+  it('alter Fall «ja» in der Tempo-30-Zone: Zone bleibt, Strasse verkehrsorientiert als Annahme (Prüfung FGS-02); C2 offen bis zur Bestätigung', () => {
     const [b, h] = bedarfLesen(alt(true, 't30_zone'))
-    expect(b!.felder.tempoRegime).toEqual({ wert: 'strecke', quelle: 'annahme' })
+    expect(b!.felder.tempoRegime).toEqual({ wert: 't30_zone', quelle: 'hand' })
+    expect(b!.felder.strassentyp).toEqual({ wert: 'verkehrsorientiert', quelle: 'annahme' })
     expect(b!.felder).not.toHaveProperty('zoneVerkehrsorientiert')
-    expect(h).toEqual([expect.stringContaining('gilt als Strecke')])
+    expect(h).toEqual([expect.stringContaining('die Zone bleibt')])
     const e = eingabenBilden({}, b).eingaben
-    const r = beurteile({ ...fall({ vSig: 30 }), tempoRegime: e.tempoRegime })
-    expect(r.alle.map(x => x.id)).not.toContain('C2')
-    expect(r.annahmen).toContain('tempoRegime: Annahme')
+    const r = beurteile({ ...fall({ vSig: 30 }), tempoRegime: e.tempoRegime, beduerfnis: e.beduerfnis, strassentyp: e.strassentyp })
+    expect(r.alle.find(x => x.id === 'C2')).toMatchObject({ zustand: 'offen' })
+    expect(r.offenFelder.C2).toEqual(['strassentyp'])
+    // bestätigt: Art. 1a, C2 ohne Befund
+    const rb = beurteile({ ...fall({ vSig: 30 }), tempoRegime: e.tempoRegime, beduerfnis: e.beduerfnis, strassentyp: { wert: 'verkehrsorientiert', quelle: 'bestaetigt' } })
+    expect(rb.alle.map(x => x.id)).not.toContain('C2')
+    expect(rb.offenFelder.C2).toBeUndefined()
+    // ein vorhandener Strassentyp geht vor
+    const [c] = bedarfLesen({ felder: { ...alt(true, 't30_zone').felder, strassentyp: { wert: 'siedlungsorientiert', quelle: 'hand' } } })
+    expect(c!.felder.strassentyp).toEqual({ wert: 'siedlungsorientiert', quelle: 'hand' })
   })
   it('alter Fall «nein» bzw. ohne Zone: Wert still verworfen, Tempo-Regime bleibt', () => {
     for (const [z, r] of [[false, 't30_zone'], [true, 'strecke'], [false, 'strecke']] as const) {
@@ -489,8 +497,8 @@ describe('Gestrichenes Feld «zoneVerkehrsorientiert»', () => {
   it('über die Fall-Datei: alte Version 3 lädt, schreibt ohne das Feld (Version unverändert)', () => {
     const f = { ...JSON.parse(fallSchreiben(leererFall(46.95, 7.44, null))), version: 3, bedarf: alt(true, 't30_zone') }
     const [g, h] = fallLesen(JSON.stringify(f))
-    expect(h.join(' ')).toContain('gilt als Strecke')
-    expect(g.bedarf!.felder.tempoRegime.wert).toBe('strecke')
+    expect(h.join(' ')).toContain('die Zone bleibt')
+    expect(g.bedarf!.felder.tempoRegime.wert).toBe('t30_zone')
     const neu = JSON.parse(fallSchreiben(g))
     expect(neu.version).toBe(3)
     expect(JSON.stringify(neu)).not.toContain('zoneVerkehrsorientiert')

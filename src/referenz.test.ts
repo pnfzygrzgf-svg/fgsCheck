@@ -10,7 +10,7 @@
 // Ergebnis: Zusammenfassung auf der Konsole; mit FGS_REFERENZ_SCHREIBEN=1 zusätzlich ../referenz_bern/vergleich.json.
 // Liegt im Cache cache/vsig_<Nr>.json (V_sig des Geoportals Stadt Bern, ±200 m), rechnet Lauf B damit wie die App.
 
-import { describe, it, expect } from 'vitest'
+import { beforeEach, describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { osmParsen, type OsmDaten } from './daten/osm'
@@ -184,125 +184,145 @@ const echtB = (z: Zeile) => z.befund.filter(b => !b.startsWith('app_streifen')).
 
 function lesen(p: string): any | null { return existsSync(p) ? JSON.parse(readFileSync(p, 'utf-8')) : null }
 
-describe.skipIf(!da)('Referenz Bern (nur lokal)', () => {
-  it('rechnet die Referenzstreifen und schreibt vergleich.json', () => {
-    const ref = JSON.parse(readFileSync(REF, 'utf-8'))
-    const nur = process.env.FGS_NUR ? process.env.FGS_NUR.split(',').map(Number) : null
-    const zeilen: Zeile[] = []
-    const fehler: string[] = []
-    const geometrie: Record<string, unknown>[] = []
-    for (const s of ref.streifen as RefS[]) {
-      if (nur && !nur.includes(s.fgs_id)) continue
-      const av0 = lesen(join(DIR, 'cache', `av_${s.fgs_id}.json`))
-      const netzRoh = lesen(join(DIR, 'cache', `netz_${s.fgs_id}.json`))
-      const osmRoh = lesen(join(DIR, 'cache', `osm_${s.fgs_id}.json`))
-      if (!av0) { fehler.push(`Nr. ${s.fgs_id}: AV-Cache fehlt`); continue }
-      const av = avParsen(av0)
-      // Berner Hindernisse (Parkfelder, Bäume) als Eingabe «von Hand» (Lauf A und B); AV-Einzelobjekte (Brückenumriss)
-      const hRoh = lesen(join(DIR, 'cache', `hindernisse_${s.fgs_id}.json`))
-      const hind: Hindernis[] = hRoh ? [
-        ...(hRoh.felder as RefZ[]).filter(f => f.ring.length >= 3).map(f => ({ id: f.id, art: 'parkfeld' as const,
-          klasse: f.klasse, ring: f.ring, quelle: 'kataster' as const, name: f.layer })),
-        ...(hRoh.baeume as RefZ[]).map(b => ({ id: b.id, art: 'baum' as const, p: b.p, stamm: 0.5, quelle: 'kataster' as const })),
-      ] : []
-      const sosfRoh = lesen(join(DIR, 'cache', `sosf_${s.fgs_id}.json`))
-      const sosf = sosfRoh ? avParsen(sosfRoh) : []
-      // Lauf A: Achse wie in Bern, OSM wie in Bern, Tempo und Abzüge wie in Bern als Eingabe «von Hand» (prüft die
-      // Portierung); Lauf A0: dasselbe mit offenen Daten (Tempo aus OSM, Abzüge aus OSM-Tags)
-      if (netzRoh) {
-        const osm: OsmDaten = osmParsen(netzRoh)
-        const S = () => (s.nachbarn as RefS[]).map(x => neuerStreifen(String(x.fgs_id), String(x.uebergang_id), x.p0, x.p1, x.bw,
-          x.quelle, x.umriss, x.schraeg))
-        const zeileBern = (fid: string, art: string, grad: number): RefZ | null => {
-          if (fid !== String(s.fgs_id)) return null
-          const ab = art === 'abbiegend'
-          return (s.zufahrten as RefZ[]).find(z => (z.zufahrt_art === 'abbiegend') === ab && winkel(z.richtung, grad) <= (ab ? 15 : 10)) ?? null
-        }
-        const vonHand: VonHand = {
-          tempo: (fid, art, grad) => zeileBern(fid, art, grad)?.tempo ?? null,
-          abzug: (fid, art, grad) => {
-            const z = zeileBern(fid, art, grad)
-            if (!z || z.park_rechts == null) return null
-            // Parkstreifen aus den Berner Parkfeldern (Hindernisse), hier nur die Velostreifen-Linie (ab Bordkante)
-            return { r: { park: 0, velo: z.velostreifen_rechts_m ?? 0 }, l: { park: 0, velo: z.velostreifen_links_m ?? 0 } }
-          },
-        }
-        for (const [lauf, vh] of [['A', vonHand], ['A0', undefined]] as [string, VonHand | undefined][]) {
-          try {
-            const k = kontextBauen(osm, av, sosf, lauf === 'A' ? hind : [])
-            k.vonHand = vh
-            const r = rechneStreifen(osm, av, S(), k)
-            const se = r.streifen.find(x => x.fgsId === String(s.fgs_id)) ?? null
-            const neu = vergleichen(lauf, s, se, lauf === 'A')
-            if (lauf === 'A0') {
-              // A0 unterscheidet sich von A nur durch Tempo und Abzüge aus OSM statt Bern: ist dieselbe Zufahrt in A ohne
-              // Abweichung, ist das die Ursache (Grössenprüfung durch die Rechnung selbst)
-              const gleichA = new Set(zeilen.filter(z => z.lauf === 'A' && z.fgs_id === s.fgs_id && !echtB(z)).map(z => z.zufahrt))
-              for (const z of neu) if (echtB(z) && z.zufahrt && gleichA.has(z.zufahrt))
-                z.ursache = ['offene Daten fehlen: Tempo bzw. Abzüge aus OSM statt Bern; mit den Berner Werten (Lauf A) gleich']
-            }
-            zeilen.push(...neu)
-          } catch (e) { fehler.push(`Nr. ${s.fgs_id} Lauf ${lauf}: ${(e as Error).stack}`) }
-        }
-      }
-      // Lauf B: wie die App (Streifen aus OSM + AV); Lauf B2 («B'», E3): zuerst das Luftbild (Ausschnitt aus cache_luftbild/),
-      // nur bei «erkannt» übernommen, sonst wie B
-      if (osmRoh && s.osm_knoten) {
-        const osm: OsmDaten = osmParsen(osmRoh)
-        const m: P = s.mitte
-        const lbMeta = lesen(join(DIR, 'cache_luftbild', `${s.fgs_id}.json`))
-        const lbPfad = join(DIR, 'cache_luftbild', `${s.fgs_id}.rgb`)
-        const vsRoh = lesen(join(DIR, 'cache', `vsig_${s.fgs_id}.json`))
-        for (const lauf of ['B', 'B2']) {
-          if (lauf === 'B2' && (!lbMeta || !existsSync(lbPfad))) { fehler.push(`Nr. ${s.fgs_id}: Luftbild-Cache fehlt`); continue }
-          try {
-            const k = kontextBauen(osm, av, sosf, hind)
-            // V_sig des Geoportals als Tempo der Zufahrten wie in der App, wenn der Cache die Linien
-            // hat (cache/vsig_<Nr>.json, GeoJSON des Diensts im Rechteck ±200 m um die Streifenmitte); ohne Datei wie bisher OSM
-            if (vsRoh) k.tempoAmtlich = vsigTempo({ linien: vsigAusGeoportal(vsRoh), bereich: { mitte: m, radiusM: 200, form: 'quadrat' } })
-            // nächster Übergangsknoten (wie ein Klick) zur Streifenmitte
-            let nid = s.osm_knoten.id, bd = Infinity
-            for (const [id, u] of k.netz!.U) { const dd = dist(u.p, m); if (dd < bd) { bd = dd; nid = id } }
-            let r = rechneUebergang(osm, av, nid, k)
-            let quelle = 'osm_av', erk: Record<string, unknown> | null = null
-            if (lauf === 'B2') {
-              const t0 = performance.now()
-              const bild = bildAusPixeln(readFileSync(lbPfad), lbMeta.px, lbMeta.px, lbMeta.box, 3)
-              const lb = luftbildStreifen(osm, k, nid, bild)
-              const e = lb.erkennung
-              erk = { befund: e.befund, gruende: e.gruende, ncc: e.ncc, kontrast: e.kontrast, abstand: e.abstandM, teile: e.teile.length,
-                ms: Math.round(performance.now() - t0), ms_erkennung: Math.round(e.ms), bytes: lbMeta.bytes, flugjahr: lbMeta.flugjahr }
-              if (e.befund === 'erkannt' && lb.streifen.length) {
-                const k2 = kontextBauen(osm, av, sosf, hind)
-                k2.tempoAmtlich = k.tempoAmtlich
-                r = rechneStreifen(osm, av, lb.streifen, k2)
-                quelle = 'luftbild'
-              }
-            }
-            // Zuordnung: jeder App-Teilstreifen gehört zum nächsten Berner Streifen (Nachbarn); für diesen Streifen der nächste
-            // davon, sonst der nächste überhaupt
-            const mitteVon = (x: RefS): P => [(x.p0[0] + x.p1[0]) / 2, (x.p0[1] + x.p1[1]) / 2]
-            const eigen = r.streifen.filter(x => {
-              const nb = (s.nachbarn as RefS[]).reduce((b, y) => (dist(mitteVon(y), x.m) < dist(mitteVon(b), x.m) ? y : b))
-              return nb.fgs_id === s.fgs_id
-            })
-            const kand = eigen.length ? eigen : r.streifen
-            const se = kand.reduce<StreifenErgebnis | null>((b, x) => (b === null || dist(x.m, m) < dist(b.m, m) ? x : b), null)
-            const z = vergleichen(lauf, s, se, true)
-            if (se) for (const x of z) x.befund.push(`app_streifen ${se.fgsId} ${dist(se.m, m).toFixed(1)} m neben Bern`)
-            zeilen.push(...z)
-            // Lage des Streifens gegenüber Bern: Mitte, Achse (Winkel), Länge, Balkenlänge
-            if (se) {
-              const ab = (a: P, b: P) => Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI
-              const dw = Math.abs(((ab(se.p0, se.p1) - ab(s.p0, s.p1)) % 180 + 270) % 180 - 90)
-              geometrie.push({ lauf, fgs_id: s.fgs_id, quelle, d_mitte: Math.round(dist(se.m, m) * 100) / 100,
-                d_winkel: Math.round(dw * 10) / 10, d_laenge: Math.round((dist(se.p0, se.p1) - dist(s.p0, s.p1)) * 100) / 100,
-                d_bw: Math.round((se.bw - s.bw) * 100) / 100, erkennung: erk })
-            } else geometrie.push({ lauf, fgs_id: s.fgs_id, quelle, d_mitte: null, erkennung: erk })
-          } catch (e) { fehler.push(`Nr. ${s.fgs_id} Lauf ${lauf}: ${(e as Error).stack}`) }
-        }
-      }
+// QA-01 (Prüfung 10.11.2026): früher ein einziger Test über alle Streifen (rund 64 s am Stück, synchron); der Worker konnte Vitest
+// so lange nicht antworten, der Lauf endete trotz bestandener Prüfungen mit «Timeout calling onTaskUpdate» und Exit 1. Jetzt ein
+// Test je Streifen (je rund 1–2 s) und ein Abschlusstest; zwischen den Tests kommt der Worker zum Zug. Allein ausführen:
+// npm run test:referenz. Fehlen die lokalen Daten, steht der Lauf ausdrücklich als übersprungen in der Ausgabe.
+const REF_DATEN = da ? JSON.parse(readFileSync(REF, 'utf-8')) : { streifen: [] }
+const NUR = process.env.FGS_NUR ? process.env.FGS_NUR.split(',').map(Number) : null
+const STREIFEN = (REF_DATEN.streifen as RefS[]).filter(s => !NUR || NUR.includes(s.fgs_id))
+const zeilen: Zeile[] = []
+const fehler: string[] = []
+const geometrie: Record<string, unknown>[] = []
+
+/** Läufe A, A0, B und B2 eines Referenzstreifens; Ergebnis in zeilen, fehler und geometrie */
+function streifenRechnen(s: RefS): void {
+  const av0 = lesen(join(DIR, 'cache', `av_${s.fgs_id}.json`))
+  const netzRoh = lesen(join(DIR, 'cache', `netz_${s.fgs_id}.json`))
+  const osmRoh = lesen(join(DIR, 'cache', `osm_${s.fgs_id}.json`))
+  if (!av0) { fehler.push(`Nr. ${s.fgs_id}: AV-Cache fehlt`); return }
+  const av = avParsen(av0)
+  // Berner Hindernisse (Parkfelder, Bäume) als Eingabe «von Hand» (Lauf A und B); AV-Einzelobjekte (Brückenumriss)
+  const hRoh = lesen(join(DIR, 'cache', `hindernisse_${s.fgs_id}.json`))
+  const hind: Hindernis[] = hRoh ? [
+    ...(hRoh.felder as RefZ[]).filter(f => f.ring.length >= 3).map(f => ({ id: f.id, art: 'parkfeld' as const,
+      klasse: f.klasse, ring: f.ring, quelle: 'kataster' as const, name: f.layer })),
+    ...(hRoh.baeume as RefZ[]).map(b => ({ id: b.id, art: 'baum' as const, p: b.p, stamm: 0.5, quelle: 'kataster' as const })),
+  ] : []
+  const sosfRoh = lesen(join(DIR, 'cache', `sosf_${s.fgs_id}.json`))
+  const sosf = sosfRoh ? avParsen(sosfRoh) : []
+  // Lauf A: Achse wie in Bern, OSM wie in Bern, Tempo und Abzüge wie in Bern als Eingabe «von Hand» (prüft die
+  // Portierung); Lauf A0: dasselbe mit offenen Daten (Tempo aus OSM, Abzüge aus OSM-Tags)
+  if (netzRoh) {
+    const osm: OsmDaten = osmParsen(netzRoh)
+    const S = () => (s.nachbarn as RefS[]).map(x => neuerStreifen(String(x.fgs_id), String(x.uebergang_id), x.p0, x.p1, x.bw,
+      x.quelle, x.umriss, x.schraeg))
+    const zeileBern = (fid: string, art: string, grad: number): RefZ | null => {
+      if (fid !== String(s.fgs_id)) return null
+      const ab = art === 'abbiegend'
+      return (s.zufahrten as RefZ[]).find(z => (z.zufahrt_art === 'abbiegend') === ab && winkel(z.richtung, grad) <= (ab ? 15 : 10)) ?? null
     }
+    const vonHand: VonHand = {
+      tempo: (fid, art, grad) => zeileBern(fid, art, grad)?.tempo ?? null,
+      abzug: (fid, art, grad) => {
+        const z = zeileBern(fid, art, grad)
+        if (!z || z.park_rechts == null) return null
+        // Parkstreifen aus den Berner Parkfeldern (Hindernisse), hier nur die Velostreifen-Linie (ab Bordkante)
+        return { r: { park: 0, velo: z.velostreifen_rechts_m ?? 0 }, l: { park: 0, velo: z.velostreifen_links_m ?? 0 } }
+      },
+    }
+    for (const [lauf, vh] of [['A', vonHand], ['A0', undefined]] as [string, VonHand | undefined][]) {
+      try {
+        const k = kontextBauen(osm, av, sosf, lauf === 'A' ? hind : [])
+        k.vonHand = vh
+        const r = rechneStreifen(osm, av, S(), k)
+        const se = r.streifen.find(x => x.fgsId === String(s.fgs_id)) ?? null
+        const neu = vergleichen(lauf, s, se, lauf === 'A')
+        if (lauf === 'A0') {
+          // A0 unterscheidet sich von A nur durch Tempo und Abzüge aus OSM statt Bern: ist dieselbe Zufahrt in A ohne
+          // Abweichung, ist das die Ursache (Grössenprüfung durch die Rechnung selbst)
+          const gleichA = new Set(zeilen.filter(z => z.lauf === 'A' && z.fgs_id === s.fgs_id && !echtB(z)).map(z => z.zufahrt))
+          for (const z of neu) if (echtB(z) && z.zufahrt && gleichA.has(z.zufahrt))
+            z.ursache = ['offene Daten fehlen: Tempo bzw. Abzüge aus OSM statt Bern; mit den Berner Werten (Lauf A) gleich']
+        }
+        zeilen.push(...neu)
+      } catch (e) { fehler.push(`Nr. ${s.fgs_id} Lauf ${lauf}: ${(e as Error).stack}`) }
+    }
+  }
+  // Lauf B: wie die App (Streifen aus OSM + AV); Lauf B2 («B'», E3): zuerst das Luftbild (Ausschnitt aus cache_luftbild/),
+  // nur bei «erkannt» übernommen, sonst wie B
+  if (osmRoh && s.osm_knoten) {
+    const osm: OsmDaten = osmParsen(osmRoh)
+    const m: P = s.mitte
+    const lbMeta = lesen(join(DIR, 'cache_luftbild', `${s.fgs_id}.json`))
+    const lbPfad = join(DIR, 'cache_luftbild', `${s.fgs_id}.rgb`)
+    const vsRoh = lesen(join(DIR, 'cache', `vsig_${s.fgs_id}.json`))
+    for (const lauf of ['B', 'B2']) {
+      if (lauf === 'B2' && (!lbMeta || !existsSync(lbPfad))) { fehler.push(`Nr. ${s.fgs_id}: Luftbild-Cache fehlt`); continue }
+      try {
+        const k = kontextBauen(osm, av, sosf, hind)
+        // V_sig des Geoportals als Tempo der Zufahrten wie in der App, wenn der Cache die Linien
+        // hat (cache/vsig_<Nr>.json, GeoJSON des Diensts im Rechteck ±200 m um die Streifenmitte); ohne Datei wie bisher OSM
+        if (vsRoh) k.tempoAmtlich = vsigTempo({ linien: vsigAusGeoportal(vsRoh), bereich: { mitte: m, radiusM: 200, form: 'quadrat' } })
+        // nächster Übergangsknoten (wie ein Klick) zur Streifenmitte
+        let nid = s.osm_knoten.id, bd = Infinity
+        for (const [id, u] of k.netz!.U) { const dd = dist(u.p, m); if (dd < bd) { bd = dd; nid = id } }
+        let r = rechneUebergang(osm, av, nid, k)
+        let quelle = 'osm_av', erk: Record<string, unknown> | null = null
+        if (lauf === 'B2') {
+          const t0 = performance.now()
+          const bild = bildAusPixeln(readFileSync(lbPfad), lbMeta.px, lbMeta.px, lbMeta.box, 3)
+          const lb = luftbildStreifen(osm, k, nid, bild)
+          const e = lb.erkennung
+          erk = { befund: e.befund, gruende: e.gruende, ncc: e.ncc, kontrast: e.kontrast, abstand: e.abstandM, teile: e.teile.length,
+            ms: Math.round(performance.now() - t0), ms_erkennung: Math.round(e.ms), bytes: lbMeta.bytes, flugjahr: lbMeta.flugjahr }
+          if (e.befund === 'erkannt' && lb.streifen.length) {
+            const k2 = kontextBauen(osm, av, sosf, hind)
+            k2.tempoAmtlich = k.tempoAmtlich
+            r = rechneStreifen(osm, av, lb.streifen, k2)
+            quelle = 'luftbild'
+          }
+        }
+        // Zuordnung: jeder App-Teilstreifen gehört zum nächsten Berner Streifen (Nachbarn); für diesen Streifen der nächste
+        // davon, sonst der nächste überhaupt
+        const mitteVon = (x: RefS): P => [(x.p0[0] + x.p1[0]) / 2, (x.p0[1] + x.p1[1]) / 2]
+        const eigen = r.streifen.filter(x => {
+          const nb = (s.nachbarn as RefS[]).reduce((b, y) => (dist(mitteVon(y), x.m) < dist(mitteVon(b), x.m) ? y : b))
+          return nb.fgs_id === s.fgs_id
+        })
+        const kand = eigen.length ? eigen : r.streifen
+        const se = kand.reduce<StreifenErgebnis | null>((b, x) => (b === null || dist(x.m, m) < dist(b.m, m) ? x : b), null)
+        const z = vergleichen(lauf, s, se, true)
+        if (se) for (const x of z) x.befund.push(`app_streifen ${se.fgsId} ${dist(se.m, m).toFixed(1)} m neben Bern`)
+        zeilen.push(...z)
+        // Lage des Streifens gegenüber Bern: Mitte, Achse (Winkel), Länge, Balkenlänge
+        if (se) {
+          const ab = (a: P, b: P) => Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI
+          const dw = Math.abs(((ab(se.p0, se.p1) - ab(s.p0, s.p1)) % 180 + 270) % 180 - 90)
+          geometrie.push({ lauf, fgs_id: s.fgs_id, quelle, d_mitte: Math.round(dist(se.m, m) * 100) / 100,
+            d_winkel: Math.round(dw * 10) / 10, d_laenge: Math.round((dist(se.p0, se.p1) - dist(s.p0, s.p1)) * 100) / 100,
+            d_bw: Math.round((se.bw - s.bw) * 100) / 100, erkennung: erk })
+        } else geometrie.push({ lauf, fgs_id: s.fgs_id, quelle, d_mitte: null, erkennung: erk })
+      } catch (e) { fehler.push(`Nr. ${s.fgs_id} Lauf ${lauf}: ${(e as Error).stack}`) }
+    }
+  }
+}
+
+describe.skipIf(da)(`Referenz Bern: lokale Daten fehlen (${REF})`, () => {
+  it.skip('Referenzlauf übersprungen (keine Berner Daten im Repo)', () => {})
+})
+
+describe.skipIf(!da)('Referenz Bern (nur lokal)', () => {
+  // Vitest wartet zwischen den Tests nur Mikrotasks ab; die Antworten des Hauptprozesses (IPC, Makrotasks) blieben so bis zum Ende
+  // der Datei liegen. Vor jedem Streifen darum ausdrücklich einen Durchlauf der Ereignisschleife abwarten.
+  beforeEach(() => new Promise<void>(res => setTimeout(res, 0)))
+  it.each(STREIFEN.map(s => [s.fgs_id, s] as const))('Streifen Nr. %s: Läufe A, A0, B, B2', (_id, s) => {
+    const vorher = fehler.length
+    streifenRechnen(s)
+    expect(fehler.slice(vorher).filter(f => !f.includes('Cache fehlt'))).toEqual([])
+  }, 60_000)
+
+  it('Zusammenfassung: Ursachen, Erwartung, vergleich.json', () => {
     // Ursachen von Hand (Durchsicht, Datei ausserhalb des Repos): {"A:fgs_id:zufahrt": "Ursache"}
     const handUrsachen: Record<string, string> = lesen(join(DIR, 'ursachen.json')) ?? {}
     const echt = (z: Zeile) => z.befund.filter(b => !b.startsWith('app_streifen')).length > 0
@@ -312,7 +332,7 @@ describe.skipIf(!da)('Referenz Bern (nur lokal)', () => {
     }
     // vergleich.json nur auf Wunsch schreiben (FGS_REFERENZ_SCHREIBEN=1), nicht bei jedem npm test
     if (process.env.FGS_REFERENZ_SCHREIBEN)
-      writeFileSync(join(DIR, nur ? 'vergleich_teil.json' : 'vergleich.json'), JSON.stringify({ zeilen, fehler, geometrie }, null, 1))
+      writeFileSync(join(DIR, NUR ? 'vergleich_teil.json' : 'vergleich.json'), JSON.stringify({ zeilen, fehler, geometrie }, null, 1))
     const offen: Record<string, number> = {}
     for (const lauf of ['A', 'A0', 'B', 'B2']) {
       const z = zeilen.filter(x => x.lauf === lauf && !x.zufahrt.startsWith('entfallen'))
@@ -333,6 +353,22 @@ describe.skipIf(!da)('Referenz Bern (nur lokal)', () => {
     console.log('Erkennung B2: ' + JSON.stringify(lb.reduce((a: Record<string, number>, e) => { a[String(e.befund)] = (a[String(e.befund)] ?? 0) + 1; return a }, {})) +
       `, ms Median ${[...lb.map(e => Number(e.ms_erkennung))].sort((a, b) => a - b)[Math.floor(lb.length / 2)]}`)
     // Portierungsprüfung: im Lauf A darf keine Abweichung ohne zugeordnete Ursache bleiben (nur mit Durchsicht-Datei)
-    if (Object.keys(handUrsachen).length && !nur) expect(offen.A).toBe(0)
-  }, 600000)
+    if (Object.keys(handUrsachen).length && !NUR) expect(offen.A).toBe(0)
+    // Erwartung (QA-01): bekannte Abweichungen ohne Ursache in A0, B und B2 stehen in ../referenz_bern/erwartung.json (ausserhalb
+    // des Repos wie ursachen.json, dort datiert gesichert); eine NEUE unerklärte Abweichung lässt diesen Lauf fehlschlagen,
+    // behobene werden gemeldet. Anlegen bzw. nachführen nach Durchsicht: FGS_REFERENZ_ERWARTUNG_SCHREIBEN=1 npm run test:referenz
+    const schluessel = (z: Zeile) => `${z.lauf}:${z.fgs_id}:${z.zufahrt || z.app_zufahrt}`
+    const ohneUrsache = (lauf: string) => [...new Set(zeilen.filter(z => z.lauf === lauf && echt(z) && !z.ursache.length).map(schluessel))].sort()
+    const ERW = join(DIR, 'erwartung.json')
+    if (process.env.FGS_REFERENZ_ERWARTUNG_SCHREIBEN && !NUR)
+      writeFileSync(ERW, JSON.stringify({ stand: new Date().toISOString().slice(0, 10), ...Object.fromEntries(['A0', 'B', 'B2'].map(l => [l, ohneUrsache(l)])) }, null, 1))
+    const erwartung: Record<string, string[]> | null = lesen(ERW)
+    if (!erwartung) console.log(`Keine Erwartung (${ERW}): Abweichungen ohne Ursache in A0, B, B2 nur protokolliert`)
+    else if (!NUR) for (const lauf of ['A0', 'B', 'B2']) {
+      const jetzt = ohneUrsache(lauf), bekannt = erwartung[lauf] ?? []
+      const behoben = bekannt.filter(k => !jetzt.includes(k))
+      if (behoben.length) console.log(`Lauf ${lauf}: ${behoben.length} bekannte Abweichung(en) nicht mehr vorhanden (Erwartung nachführen): ${behoben.join(', ')}`)
+      expect(jetzt.filter(k => !bekannt.includes(k)), `neue unerklärte Abweichungen in Lauf ${lauf}`).toEqual([])
+    }
+  })
 })

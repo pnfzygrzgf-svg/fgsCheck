@@ -80,7 +80,7 @@ describe('Regelkatalog', () => {
     const gesehen = new Set<string>()
     for (const t of TESTFAELLE) for (const x of beurteile(fall(t.abw), { ebenen: t.ebenen }).alle) gesehen.add(x.id)
     // nur aus der Sichtprüfung (befundblatt.ts, eigene Tests): Sicht vom Velo
-    const NUR_SICHTRECHNER = ['H1-V']
+    const NUR_SICHTRECHNER = ['H1-V', 'H2']   // H2: Kurvenregel je Zufahrt (Prüfung FGS-01)
     const fehlt = mitBefund.filter(id => !gesehen.has(id) && !NUR_SICHTRECHNER.includes(id))
     expect(fehlt).toEqual([])
     const mitFall = new Set(TESTFAELLE.flatMap(t => [t.regel, ...Object.keys(t.erwartet)]))

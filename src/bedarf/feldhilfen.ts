@@ -120,7 +120,8 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
     was: 'Verkehrsorientiert: Strasse vor allem für den Durchgangsverkehr (Haupt- und Sammelstrassen). Siedlungsorientiert: ' +
       'Strasse vor allem für Anwohnende, Aufenthalt und Quartier.',
     ablauf: 'Ist kein Fussgängerstreifen angezeigt, wählt er die Empfehlung: Furt auf verkehrsorientierten, Querung ohne Vortritt ' +
-      'mit Seitenraum, Einengung oder Anhebung auf siedlungsorientierten Strassen.',
+      'mit Seitenraum, Einengung oder Anhebung auf siedlungsorientierten Strassen. In der Zone gilt die Zonenregel nicht für eine ' +
+      'verkehrsorientierte Strasse (Art. 1a); eine Annahme aus OSM hält sie offen.',
     vorschlag: 'in Bern aus der Strassenhierarchie des Geoportals: Basisnetz verkehrsorientiert, Quartierstrasse siedlungsorientiert, Quartierverbindungsstrasse bzw. Widerspruch zum Strassentyp offen. Sonst als Annahme aus OSM: trunk bis tertiary verkehrsorientiert, residential und living_street siedlungsorientiert.',
   },
   ohneBaulich: {
@@ -317,36 +318,15 @@ export const FELD_HILFEN: Record<string, FeldHilfe> = {
       'die nötige Sichtweite richtet sich dann nach dem Radius.',
     leer: 'Leer: keine Kurve vor der Querung; die Sichtweite richtet sich nach dem Tempo. Gilt für Abbieger und Kreisel (bfu); ' +
       'die Kurvenregel der Norm betrifft nur eine Kurve der Strasse selbst.',
-    vorschlag: 'aus der Sichtprüfung: kleinster Abbiegeradius bzw. Kreiselring (geschätzt: Annahme); ohne Abbieger zeigt das Feld das Ergebnis der Sichtprüfung.',
+    vorschlag: 'aus der Sichtprüfung: kleinster Abbiegeradius bzw. Radius der Ausfahrt aus dem Kreisel (geschätzt: Annahme); ohne Abbieger zeigt das Feld das Ergebnis der Sichtprüfung.',
   },
-  // Kurvenregel (29.10.2026): nur an einer Kurve der Strasse selbst; gilt, wenn alle fünf ja sind (dann Sicht nach Kurvenradius, ohne V85)
-  'kurve.radiusStrasse': {
-    was: 'Radius der Kurve der Strasse selbst vor dem Streifen, in Metern (nicht das Abbiegen an einer Einmündung). Unter 20 m ' +
-      'nennt VSS 40 241 Tab. 2, S. 7 keinen Wert; dann gilt die Sicht nach dem Tempo.',
-    vorschlag: 'aus der Fahrlinie der Sichtprüfung (OSM-Weg) einer geraden Zufahrt, die vor dem Streifen um mindestens 60° dreht; sonst ausgeblendet.',
-  },
-  'kurve.b1Innerorts50': {
-    was: 'Ja, wenn Kurve und Streifen innerorts auf einer vortrittsberechtigten Strasse liegen, mit 50 km/h als allgemeinem Tempo. Erste der ' +
-      'fünf Voraussetzungen der Kurvenregel (VSS 40 241 Z. 14, S. 7; Tab. 2, S. 7; Abb. 2, S. 8); mit allen fünf braucht es keine V85-Messung.',
-    vorschlag: 'aus «Innerorts» und dem Tempo der Zufahrt in der Kurve: ja bei innerorts und 50 km/h, sonst nein; quert der Streifen die ' +
-      'Zufahrt ohne Vortritt einer Kreuzung, nein. Der Vortritt ist sonst angenommen (nicht aus den Daten geprüft).',
-  },
-  'kurve.b2EinFahrstreifen': {
-    was: 'Ja, wenn die Kurve je Richtung nur einen Fahrstreifen hat (VSS 40 241 Z. 14, S. 7).',
-    vorschlag: 'aus den Fahrstreifen der Zufahrt nach OSM (lanes), ohne Angabe aus der Fahrbahnbreite geschätzt (Annahme).',
-  },
-  'kurve.b3NachKurvenende': {
-    was: 'Ja, wenn der Streifen gleich nach dem Ende der Kurve liegt (VSS 40 241 Z. 14, S. 7; Abb. 2, S. 8).',
-    vorschlag: 'aus der Fahrlinie der Sichtprüfung: Abstand vom Ende der Kurve bis zum Streifen; bis 10 m ja, über 30 m nein, dazwischen offen.',
-  },
-  'kurve.b4Winkel60': {
-    was: 'Ja, wenn die Kurve die Fahrtrichtung um 60° oder mehr ändert (VSS 40 241 Z. 14, S. 7).',
-    vorschlag: 'aus der Fahrlinie der Sichtprüfung (OSM-Weg): Richtungsänderung über die Kurve.',
-  },
-  'kurve.b5Gefaelle5': {
-    was: 'Ja, wenn die Strasse vor dem Streifen höchstens 5 % Längsgefälle hat (VSS 40 241 Z. 14, S. 7).',
-    vorschlag: 'aus dem Höhenmodell (swissALTI3D, in der Stadt Bern DTM 2023) entlang der Fahrlinie (50 m vor dem Streifen); ohne Höhenmodell offen.',
-  },
+  // Kurvenregel je Querung (29.10.2026) seit 10.11.2026 (Prüfung FGS-01) je Zufahrt in der Sichtprüfung; die Felder bleiben nur für alte Fall-Dateien
+  'kurve.radiusStrasse': { was: 'Radius der Kurve der Strasse vor dem Streifen. ' + 'Feld alter Fall-Dateien (bis 10.11.2026): die Kurvenregel gilt seit der Prüfung FGS-01 je Zufahrt in der Sichtprüfung (Rechenweg der Zufahrt); der Wert hier wirkt nicht mehr.' },
+  'kurve.b1Innerorts50': { was: 'Erste Voraussetzung der Kurvenregel: innerorts, vortrittsberechtigt, 50 km/h. ' + 'Feld alter Fall-Dateien (bis 10.11.2026): die Kurvenregel gilt seit der Prüfung FGS-01 je Zufahrt in der Sichtprüfung (Rechenweg der Zufahrt); der Wert hier wirkt nicht mehr.' },
+  'kurve.b2EinFahrstreifen': { was: 'Zweite Voraussetzung: ein Fahrstreifen je Richtung. ' + 'Feld alter Fall-Dateien (bis 10.11.2026): die Kurvenregel gilt seit der Prüfung FGS-01 je Zufahrt in der Sichtprüfung (Rechenweg der Zufahrt); der Wert hier wirkt nicht mehr.' },
+  'kurve.b3NachKurvenende': { was: 'Dritte Voraussetzung: Streifen gleich nach dem Kurvenende. ' + 'Feld alter Fall-Dateien (bis 10.11.2026): die Kurvenregel gilt seit der Prüfung FGS-01 je Zufahrt in der Sichtprüfung (Rechenweg der Zufahrt); der Wert hier wirkt nicht mehr.' },
+  'kurve.b4Winkel60': { was: 'Vierte Voraussetzung: Richtungsänderung mindestens 60°. ' + 'Feld alter Fall-Dateien (bis 10.11.2026): die Kurvenregel gilt seit der Prüfung FGS-01 je Zufahrt in der Sichtprüfung (Rechenweg der Zufahrt); der Wert hier wirkt nicht mehr.' },
+  'kurve.b5Gefaelle5': { was: 'Fünfte Voraussetzung: Längsgefälle höchstens 5 %. ' + 'Feld alter Fall-Dateien (bis 10.11.2026): die Kurvenregel gilt seit der Prüfung FGS-01 je Zufahrt in der Sichtprüfung (Rechenweg der Zufahrt); der Wert hier wirkt nicht mehr.' },
   sichtVorh: {
     was: `Wie weit Fahrende je Zufahrt auf die Wartefläche am Streifen sehen, in Metern (${MIT_SLASH}). Nur nötig, wenn das ` +
       'Ergebnis der Sichtprüfung nicht passt.',
@@ -546,14 +526,18 @@ const INSEL = ja('insel.vorhanden')
 const INSEL_BAULICH: Bedingung = { alle: [INSEL, { feld: 'insel.art', ist: ['baulich'] }] }
 const OHNE_BAULICH: Bedingung = { alle: [typ('ohne_vortritt'), ja('ohneBaulich')] }
 const alle = (...b: Bedingung[]): Bedingung => ({ alle: b })
-/** Kurvenregel: die fünf Voraussetzungen nur mit einer Kurve (Radius) und bei Fussgängerstreifen bzw. offenem Typ */
-const KURVE_DA = alle(FGS_ODER_OFFEN, { feld: 'kurve.radiusStrasse', gesetzt: true })
+/** nie sichtbar (veraltete Felder, nur noch in älteren Fall-Dateien) */
+const NIE: Bedingung = { eines: [] }
 
 /**
  * Wann ein Feld zählt (fehlt: immer). Abgeleitet aus dem Ablauf in entscheid.ts und grundpruefung.ts und aus den Regeln, die ohne
  * die Bedingung nicht anwendbar sind (null). Leitlinie: ein ausgeblendetes Feld darf weder einen Befund noch «offen» noch die
  * Empfehlung ändern (Wächter an allen Testfällen).
  */
+/** Felder ohne Maske (Prüfung FGS-01, 10.11.2026): Strassenkurve je Querung, ersetzt durch die Angaben je Zufahrt; Werte älterer
+ * Fall-Dateien bleiben gespeichert, wirken aber nicht */
+export const VERALTETE_FELDER: ReadonlySet<string> = new Set(['kurve.radiusStrasse', 'kurve.b1Innerorts50', 'kurve.b2EinFahrstreifen',
+  'kurve.b3NachKurvenende', 'kurve.b4Winkel60', 'kurve.b5Gefaelle5'])
 export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   // Rahmen
   v85Nachweis: FGS,
@@ -590,8 +574,9 @@ export const SICHTBAR: Partial<Record<string, Bedingung>> = {
   mzsBreiteM: typ('mehrzweck'),
   mzsMitFgs: typ('mehrzweck'),
   'kurve.radius': FGS_ODER_OFFEN,
-  'kurve.radiusStrasse': KURVE_DA, 'kurve.b1Innerorts50': KURVE_DA, 'kurve.b2EinFahrstreifen': KURVE_DA, 'kurve.b3NachKurvenende': KURVE_DA, 'kurve.b4Winkel60': KURVE_DA,
-  'kurve.b5Gefaelle5': KURVE_DA,
+  // Strassenkurve je Querung seit 10.11.2026 (Prüfung FGS-01) nicht mehr in der Maske: je Zufahrt in der Sichtprüfung (VERALTETE_FELDER)
+  ...Object.fromEntries(['kurve.radiusStrasse', 'kurve.b1Innerorts50', 'kurve.b2EinFahrstreifen', 'kurve.b3NachKurvenende', 'kurve.b4Winkel60',
+    'kurve.b5Gefaelle5'].map(p => [p, NIE])),
   erkennungM: FGS_ODER_OFFEN,
   // Insel
   'insel.art': INSEL, 'insel.breite': INSEL, 'insel.furt': INSEL, durchfahrt: INSEL, veloQuerung: alle(INSEL_BAULICH, KANTON),
@@ -679,7 +664,7 @@ const feldText = (pfad: string): string => FELD_DEF.get(pfad)?.name ?? pfad
 /** Bedingung als Lesetext, z. B. «Art der Querung: Fussgängerstreifen» */
 export function bedingungText(b: Bedingung): string {
   if ('alle' in b) return b.alle.map(x => ('eines' in x && x.eines.length > 1 ? `(${bedingungText(x)})` : bedingungText(x))).join(' und ')
-  if ('eines' in b) return b.eines.map(bedingungText).join(' oder ')
+  if ('eines' in b) return b.eines.length ? b.eines.map(bedingungText).join(' oder ') : 'nie (Feld nicht mehr in der Maske)'
   if ('ebene' in b) return b.ebene === 'bern' ? 'Ebene Bern an' : b.ebene === 'kantonBE' ? 'Ebene Kanton BE an' : 'Ebene Richtlinie an'
   if ('gesetzt' in b) return `${feldText(b.feld)} eingegeben`
   if ('ueber' in b) return `${feldText(b.feld)} über ${b.ueber} oder offen`

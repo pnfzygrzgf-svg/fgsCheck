@@ -286,9 +286,8 @@ function tempoPruefen(e: Gebildet['eingaben'], regel: 'H1' | 'E3', tempo: number
     if ((anz || nachweis) && tempo < v85) return { fehlend: ['sichtVorh'],
       grund: `Soll nach V85 ${v85} km/h nötig (Sichtweite nach gefahrenem Tempo, H1b), die Sichtprüfung rechnet mit ${tempo} km/h` }
   }
-  // gemessene tiefere V85 darf gelten (VSS 40 241 Z. 14): dann genügt das Tempo der Sichtprüfung, wenn es mindestens die V85 ist
-  if (hoeher && !(v85 !== null && !anz && nachweis && v85 <= tempo + 1e-9)) return hoeher
-  return null
+  // ein tieferer V85 je Querung senkt nichts mehr (Prüfung FGS-01): er gilt nur je Zufahrt in der Sichtprüfung
+  return hoeher
 }
 
 /** Titel aus einer OSM-Nummer («Streifen 2066165582», «Streifen 5180148897-1», seit 30.10.2026 auch «Querung 718541860» für eine
@@ -354,14 +353,16 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
   // Trottoirüberfahrt (30.10.2026): Verkehr von Seitenstrasse und Hauptfahrbahn als Information
   const tueVerkehr = gebildet.eingaben.typ.wert === 'trottoirueberfahrt'
     ? tueVerkehrZeile(gebildet.eingaben.q3.wert?.dtvEinm ?? null, dtvHauptstrasse(g.streifen, opt.geo?.verkehrsdaten ?? null)?.wert ?? null) : undefined
-  // Kurvenregel nur innerorts bei 50 km/h (29.10.2026): «ja» zu den fünf Voraussetzungen wirkt sonst nicht
+  // Kurvenregel und V85 je Zufahrt (Prüfung FGS-01, 10.11.2026): Angaben je Querung aus älteren Fall-Dateien wirken nicht mehr, bis sie
+  // einer Zufahrt zugeordnet sind (App: Zuordnung bei eindeutigem Fall, sonst in der Sichtprüfung je Zufahrt angeben)
   const ein = gebildet.eingaben
-  if (ein.kurve.wert?.fuenfBedingungen === true && !(ein.innerorts.wert === true && ein.vSig.wert === 50))
-    hinweise.push('Kurvenregel gilt nur innerorts bei 50 km/h: Sichtweite nach dem Tempo (VSS 40 241 Z. 14, S. 7)')
-  const rS = ein.kurve.wert?.radiusStrasse ?? null
-  if (rS !== null && rS < 20) hinweise.push('Radius unter 20 m: kein Wert nach Tab. 2; Sicht nach dem Tempo (VSS 40 241 Z. 14, S. 7; Tab. 2, S. 7)')
-  if (ein.kurve.wert?.vorschlag) hinweise.push('Kurvenregel möglich: alle fünf Voraussetzungen ja, aber mit Annahmen; bis zur Bestätigung ' +
-    'gilt die Sichtweite nach dem Tempo (VSS 40 241 Z. 14, S. 7)')
+  const hand = (p: string) => gebildet.herkunft.get(p)?.zustand === 'hand'
+  if (['kurve.radiusStrasse', 'kurve.b1Innerorts50', 'kurve.b2EinFahrstreifen', 'kurve.b3NachKurvenende', 'kurve.b4Winkel60', 'kurve.b5Gefaelle5'].some(hand))
+    hinweise.push('Strassenkurve aus einer älteren Fall-Datei (Angaben je Querung): die Kurvenregel gilt jetzt je Zufahrt; Radius und ' +
+      'Voraussetzungen in der Sichtprüfung bei der Zufahrt aus der Kurve angeben (VSS 40 241 Z. 14, S. 7)')
+  if (ein.v85.wert !== null && ein.vSig.wert !== null && ein.v85.wert < ein.vSig.wert && ein.v85Nachweis.wert === true)
+    hinweise.push(`V85 ${ein.v85.wert} km/h (gemessen) gilt nicht mehr für alle Zufahrten: ein tieferer V85 senkt die Sichtweite nur je Zufahrt; ` +
+      'in der Sichtprüfung bei der gemessenen Zufahrt angeben (VSS 40 241 Z. 14, S. 6)')
   // H4 mit dem Radius aus der Sichtprüfung nur, wenn das Soll nach Radius strenger ist als das nach Tempo
   const rH = gebildet.herkunft.get('kurve.radius'), r = gebildet.eingaben.kurve.wert?.radius ?? null, vSig = gebildet.eingaben.vSig.wert
   if (rH?.zustand === 'vorbelegt' && r !== null && befund.alle.some(x => x.id === 'H4')) {
@@ -381,7 +382,7 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
     befund.alle = befund.alle.filter(x => !['H1', 'E3', 'E3a', 'D5-4'].includes(x.id))
     befund.masse = befund.masse.filter(mz => !mz.regeln.some(id => ['H1', 'E3'].includes(id)))
     const neu: Eintrag[] = []
-    const eintrag = (regel: 'H1' | 'E3' | 'E3a' | 'H1-V', x: Partial<Eintrag> & Pick<Eintrag, 'zustand' | 'staerke'>): Eintrag =>
+    const eintrag = (regel: 'H1' | 'E3' | 'E3a' | 'H1-V' | 'H2', x: Partial<Eintrag> & Pick<Eintrag, 'zustand' | 'staerke'>): Eintrag =>
       ({ id: regel, ebene: 'Norm', text: KATALOG[regel].ergebnis, quelle: quellText(regel), ...x })
     // Querung ohne Vortritt (29.10.2026): Ausnahme nach VSS 40 240 Z. 8.2 (E3a) bei wenig Querenden und wenig Verkehr; offen zählt nicht
     const e = gebildet.eingaben
@@ -439,6 +440,10 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
           ...(z.freiBisM !== undefined ? { freiBisM: z.freiBisM } : {}) })
         const soll = `${String(z.sichtweite).replace('.', ',')} m frei (${z.sichtweiteQuelle})`
         const wo = g.streifen.length > 1 ? `${titel(s.fgsId)}, ${zName(s.fgsId, z.zufahrt)}` : zName(s.fgsId, z.zufahrt)
+        // Kurvenregel je Zufahrt (Prüfung FGS-01): angewendet als H2 mit dem Soll nach Tab. 2; Vorschlag bzw. offen als Hinweis
+        const ks = !ov ? z.kurveStrasse : undefined
+        if (ks?.gilt) neu.push(eintrag('H2', { staerke: 'hinweis', zustand: 'verletzt', soll: `≥ ${ks.soll} m`, detail: `${wo}: ${ks.hinweis}` }))
+        else if (ks && ks.radius !== null && (ks.vorschlag || ks.b.b4.wert === true)) hinweise.push(`${wo}: ${ks.hinweis}`)
         // Sicht vom Velo (29.10.2026): Fussgängerstreifen, Zufahrt mit Radstreifen bzw. Radweg (Sichtprüfung); verdeckt: Soll-Befund
         if (!ov && z.velo && erreichtR('H1')) {
           const v = z.velo, vs = veloSoll(z, opt.geo?.kurveNeigung ?? null)!
@@ -451,7 +456,8 @@ export function befundblatt(g: QuerungGruppe, fall: Fall, opt: BlattOptionen): B
         if (frei && bis === undefined) {
           // abbiegende Zufahrten: das Tempo der Sichtprüfung ist das der Querstrasse, das Soll kommt aus ihr bzw. dem Kurvenradius
           // (wie in der Grundprüfung); signalisiertes Tempo und V85 der Querung gelten dort nicht (Nachprüfung)
-          const t = z.zufahrt.startsWith('a') ? null : tempoPruefen(gebildet.eingaben, regel, z.tempo)
+          // Kurvenregel (Tab. 2): V85 ist dann nicht nötig (VSS 40 241 Z. 14, S. 7)
+          const t = z.zufahrt.startsWith('a') || z.kurveStrasse?.gilt ? null : tempoPruefen(gebildet.eingaben, regel, z.tempo)
           if (t) tempoOffen.push({ z: zName(s.fgsId, z.zufahrt), ...t })
           continue
         }
