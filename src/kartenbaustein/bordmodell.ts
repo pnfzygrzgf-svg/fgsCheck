@@ -94,6 +94,13 @@ export const TEILWEISE_SCHRITT_M = 1
  *  Sehne), voll ab BOGEN_VOLL_GRAD, dazwischen stetig überblendet */
 export const BOGEN_AB_GRAD = 3
 export const BOGEN_VOLL_GRAD = 10
+/** Annahme (Sichtprüfung 14.11.2026, Murtenstrasse 3161672015): überkreuzen sich die Anschlusspunkte zweier Abweichungen auf
+ *  demselben Randteil (leicht gekrümmte Inselkante zwischen zwei Mündungen), wird der Teil an seiner achsparallelsten Ecke dazwischen
+ *  geteilt, wenn diese höchstens TEILUNG_GRAD zur Achse liegt und der Teil dort auf mindestens TEILUNG_MIN_M so verläuft (keine
+ *  Inselspitze: Sandrainstrasse 625820863 bei 1 m K 3,1 statt 1,3 m neben 0.9.9; bei 3 m entfällt die Verbesserung an der
+ *  Rosenbühlgasse 2960338314); sonst werden beide Abweichungen wie bisher zusammengefasst */
+export const TEILUNG_GRAD = 10
+export const TEILUNG_MIN_M = 2
 /** Annahme: Achse höchstens so weit neben der AV-Fahrbahn (wie NEBEN_M der Streifengeometrie) */
 export const NEBEN_M = 3
 /** Annahme: Anschlusspunkt, wo der Bord ANKER_SONDE_M weiter vorne mehr als ANKER_TOL_M von seiner Geraden abweicht */
@@ -1220,8 +1227,32 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
     const kA = (x: Ersatz) => (x.a ? x.a.t * 1e7 + x.a.lam : -Infinity), kB = (x: Ersatz) => (x.b ? x.b.t * 1e7 + x.b.lam : Infinity)
     ers.sort((x, y) => kA(x) - kA(y))
     const liste: Ersatz[] = []
+    // achsparallelste Ecke des Teils t zwischen lam0 und lam1 (TEILUNG_GRAD), sonst null
+    const teilungBei = (t: number, lam0: number, lam1: number): number | null => {
+      const T = TT[t]
+      const winkel = (lam: number): number => {
+        const a = punktBei(T, Math.max(0, lam - 1)), b = punktBei(T, Math.min(teilLaenge(T), lam + 1))
+        if (dist(a, b) < 0.5) return 180
+        return winkelGrad(einheit(sub(b, a)), ach.richtung(ach.station(punktBei(T, lam)).s))
+      }
+      let best: number | null = null, bw = TEILUNG_GRAD + 1e-9
+      for (let i = 0; i < T.p.length; i++) {
+        if (T.lam[i] < lam0 - 1e-9 || T.lam[i] > lam1 + 1e-9 || T.s[i] < 0 || T.s[i] > L) continue
+        const w = winkel(T.lam[i])
+        if (w < bw) { bw = w; best = T.lam[i] }
+      }
+      if (best === null) return null
+      // Länge des achsparallelen Laufs um die Teilungsstelle (Prüfabstand 0,5 m)
+      let v = best, h = best
+      while (v - 0.5 >= 0 && winkel(v - 0.5) <= TEILUNG_GRAD) v -= 0.5
+      while (h + 0.5 <= teilLaenge(T) && winkel(h + 0.5) <= TEILUNG_GRAD) h += 0.5
+      return h - v >= TEILUNG_MIN_M - 1e-9 ? best : null
+    }
     for (const x of ers) {
       const m = liste[liste.length - 1]
+      const teilung = m && kA(x) < kB(m) - 1e-9 && m.b && x.a && m.b.t === x.a.t && m.art !== 'bucht' && x.art !== 'bucht'
+        ? teilungBei(x.a.t, x.a.lam, m.b.lam) : null
+      if (m && teilung !== null) { m.b = { t: x.a!.t, lam: teilung }; liste.push({ ...x, a: { t: x.a!.t, lam: teilung } }); continue }
       if (m && kA(x) < kB(m) - 1e-9) {
         if (kB(x) > kB(m)) m.b = x.b
         if (VORRANG[x.art] > VORRANG[m.art]) { m.art = x.art; m.tiefe = x.tiefe }

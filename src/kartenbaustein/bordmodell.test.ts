@@ -915,6 +915,17 @@ describe('Nachtrag C: Rand der eigenen Fahrbahn', () => {
     // ohne die Regeln zum eigenen Rand bleibt das Stück im Rand
     expect(bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)], auslegung: { eigenerRand: false } }).rand.rechts.fremd).toEqual([])
   })
+  it('überkreuzte Anschlusspunkte auf einer leicht gekrümmten Kante (R 30 m) zwischen zwei Seitenstrassen: zwei Einmündungen, geteilt an ' +
+    'der achsparallelsten Ecke E 28 (Murtenstrasse 3161672015), nicht eine einzige von E 14 bis E 42', () => {
+    const bog: P[] = []
+    for (let x = 20; x <= 36 + 1e-9; x += 1) bog.push(pt(x, 4 + (x - 28) ** 2 / 60))
+    const strasse = [pt(-50, -4), pt(150, -4), pt(150, 4), pt(42, 4), pt(42, 30), pt(36, 30), ...bog.slice().reverse(), pt(20, 30), pt(14, 30), pt(14, 4), pt(-50, 4)]
+    const flaechen = [fl('Strasse_Weg', strasse), fl('Trottoir', rechteck(-50, 14, 4, 30)), fl('Trottoir', [...bog, pt(36, 30), pt(20, 30)]),
+      fl('Trottoir', rechteck(42, 150, 4, 30)), fl('Trottoir', rechteck(-50, 150, -7, -4))]
+    const m = bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)], abzweigungen: [{ p: pt(17, 0), arm: pt(17, 10) }, { p: pt(39, 0), arm: pt(39, 10) }] })
+    expect(abw(m, 'links').map(a => [a.art, a.verbunden, a.s0, a.s1, rel(a.von!), rel(a.bis!)]))
+      .toEqual([['einmuendung', true, 14, 28, [14, 4], [28, 4]], ['einmuendung', true, 28, 42, [28, 4], [42, 4]]])
+  })
   it('C1 Gegenfall ohne Abzweigung: die Insel wird überbrückt (K1), Rand N −14, Breite 19', () => {
     const m = bordmodell({ flaechen: mitInsel(), achse: [pt(0, 0), pt(100, 0)] })
     expect(alleN(m.rand.rechts.teile).every(n => Math.abs(n + 14) < 1e-9)).toBe(true)
