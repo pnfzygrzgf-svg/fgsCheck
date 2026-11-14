@@ -424,10 +424,15 @@ describe('Nachtrag B: Einmündung in einer Kurve (offener Punkt S7)', () => {
       fl('Gartenanlage', rechteck(-200, 200, -60, 250))]
     return bordmodell({ flaechen, achse: kreis(R, -130, -50, 0.5), abzweigungen: [{ p: pt(0, 4), arm: pt(0, -10) }] })
   }
-  it('Bogen R 104: Einmündung verbunden, die Führung über die Mündung ist (noch) die Gerade zwischen den Anschlusspunkten', () => {
+  it('Bogen R 104: Einmündung verbunden; die Führung über die Mündung folgt seit Nachtrag C (C3) dem Bord als Bogen, tangential an die ' +
+    'Bordrichtungen an beiden Anschlusspunkten (vorher die Sehne, in der Mitte rund 1,2 m innen): alle Punkte höchstens 5 cm neben dem ' +
+    'Kreis des Bords (gemessen 3,8 cm aussen: die Bordrichtung kommt aus der letzten Vieleckseite, um eine halbe Seite verdreht)', () => {
     const v = ringVon(100).fuehrung.rechts.verbindungen
-    expect(v.map(x => [x.art, x.linie.length])).toEqual([['einmuendung', 2]])
+    expect(v.map(x => x.art)).toEqual(['einmuendung'])
+    expect(v[0].linie.length).toBeGreaterThan(2)
     expect(dist(v[0].von, v[0].bis)).toBeLessThan(VERBINDUNG_MAX_M)
+    const r0 = dist(v[0].von, pt(0, 100))
+    for (const p of v[0].linie) expect(Math.abs(dist(p, pt(0, 100)) - r0)).toBeLessThan(0.05)
   })
   it('Ist (S7): im Bogen R 54 findet die Suche des Anschlusspunkts die Ecke nicht – der Bord weicht von der Geraden über ANKER_SONDE_M ' +
     'schon 7 cm ab, der Anschlusspunkt liegt am Anfang des Suchfensters (SUCHE_M vor der Flanke), die Verbindung ist über ' +
@@ -832,5 +837,87 @@ describe('Nachtrag 7: vorberechnete Bordstücke', () => {
     const st = bordStuecke(kern(), bordBereich(...z))
     for (const achse of z) expect(ohneStuecke(bordmodell({ flaechen: kern(), achse, ...kernZusatz, stuecke: st })))
       .toEqual(ohneStuecke(bordmodell({ flaechen: kern(), achse, ...kernZusatz })))
+  })
+})
+
+// Nachtrag C (14.11.2026): Rand der eigenen Fahrbahn (C2 fremde Stücke, Teilverdeckung, C1 Seiteninsel), mit den Gegenfällen der
+// Codeprüfung vom 14.11.2026 (Achse neben der Fahrbahn, kurzes Stück vor einer Mündung, Querschnitt hinter einer Seiteninsel)
+describe('Nachtrag C: Rand der eigenen Fahrbahn', () => {
+  // Trennstreifen N 4…6 mit Lücke E 45…55, dahinter die Parallelfahrbahn bis N 12 (wie Aargauerstalden, Lerberstrasse)
+  const trennstreifen = (): AvFlaecheLv[] => [fl('Strasse_Weg', rechteck(-50, 150, -4, 4)), fl('Strasse_Weg', rechteck(45, 55, 4, 6)),
+    fl('Strasse_Weg', rechteck(-50, 150, 6, 12)), fl('Gartenanlage', rechteck(-50, 45, 4, 6)), fl('Gartenanlage', rechteck(55, 150, 4, 6)),
+    fl('Trottoir', rechteck(-50, 150, 12, 15)), fl('Trottoir', rechteck(-50, 150, -7, -4))]
+  it('C2: der äussere Rand der Parallelfahrbahn in der Lücke des Trennstreifens ist fremd; die Lücke ist eine Öffnung auf N 4', () => {
+    const m = bordmodell({ flaechen: trennstreifen(), achse: [pt(0, 0), pt(100, 0)] })
+    expect(m.rand.links.fremd.length).toBe(1)
+    expect(alleN(m.rand.links.fremd).every(n => Math.abs(n - 12) < 1e-9)).toBe(true)
+    expect(alleN(m.rand.links.teile).every(n => n >= 4 - 1e-9 && n <= 6 + 1e-9)).toBe(true)
+    expect(abw(m, 'links').map(a => [a.art, a.s0, a.s1, a.verbunden, rel(a.von!), rel(a.bis!)])).toEqual([['oeffnung', 45, 55, true, [45, 4], [55, 4]]])
+    expect(rel(querBei(m, 30).links.punkt!)[1]).toBeCloseTo(4, 9)
+    expect(querBei(m, 50).links.punkt).toBeNull()                           // Treffer auf dem fremden Stück: kein Bordpunkt
+  })
+  it('C2 mit auslegung.eigenerRand false (Streifenenden im fgsCheck): der physische Rand N 12 bleibt Teil des Rands', () => {
+    const m = bordmodell({ flaechen: trennstreifen(), achse: [pt(0, 0), pt(100, 0)], auslegung: { eigenerRand: false } })
+    expect(m.rand.links.fremd).toEqual([])
+    expect(alleN(m.rand.links.teile).some(n => Math.abs(n - 12) < 1e-9)).toBe(true)
+  })
+  it('Achse 1 m neben der Fahrbahn (N 1…9): der ganze rechte Rand liegt jenseits der Achse und bleibt eigener Rand, Breite 8', () => {
+    const m = bordmodell({ flaechen: [fl('Strasse_Weg', rechteck(-50, 150, 1, 9)), fl('Trottoir', rechteck(-50, 150, 9, 12)),
+      fl('Trottoir', rechteck(-50, 150, -2, 1))], achse: [pt(0, 0), pt(100, 0)] })
+    expect(m.rand.rechts.fremd).toEqual([])
+    expect(alleN(m.rand.rechts.teile).every(n => Math.abs(n - 1) < 1e-9)).toBe(true)
+    expect(querBei(m, 50).breite!).toBeCloseTo(8, 9)
+  })
+  it('kurzes eigenes Stück vor einer Mündung (Achse ab E 8, Seitenstrasse E 10…18) bleibt eigener Rand; Öffnung E 10…18 verbunden', () => {
+    const m = bordmodell({ flaechen: [fl('Strasse_Weg', rechteck(-50, 150, -5, 5)), fl('Strasse_Weg', rechteck(10, 18, -30, -5)),
+      fl('Trottoir', rechteck(-50, 150, 5, 8)), fl('Trottoir', rechteck(-50, 10, -30, -5)), fl('Trottoir', rechteck(18, 150, -30, -5))],
+      achse: [pt(8, 0), pt(100, 0)] })
+    expect(m.rand.rechts.fremd).toEqual([])
+    expect(rel(m.rand.rechts.teile[0][0])).toEqual([8, -5])
+    expect(abw(m, 'rechts').map(a => [a.art, a.s0, a.s1, a.verbunden])).toEqual([['oeffnung', 2, 10, true]])
+  })
+  // Insel E 20…80 / N −7…−5 als Loch der Fahrbahn N −14…5
+  const insel = rechteck(20, 80, -7, -5)
+  const mitInsel = (): AvFlaecheLv[] => [fl('Strasse_Weg', rechteck(-50, 150, -14, 5), insel.slice().reverse()), fl('Verkehrsinsel', insel),
+    fl('Trottoir', rechteck(-50, 150, 5, 8)), fl('Trottoir', rechteck(-50, 150, -17, -14))]
+  it('C1: hinter der Insel verläuft eine OSM-Abzweigung (ab E 50): Seiteninsel, Rand und Querschnitt folgen der Inselkante N −5', () => {
+    const m = bordmodell({ flaechen: mitInsel(), achse: [pt(0, 0), pt(100, 0)], abzweigungen: [{ p: pt(50, -10), arm: pt(60, -10) }] })
+    for (const s of [10, 35, 60, 90]) {
+      const q = querBei(m, s)
+      expect(rel(q.rechts.punkt!)[1]).toBeCloseTo(s > 20 && s < 80 ? -5 : -14, 9)
+      expect(abstandLinie(q.rechts.punkt!, m.rand.rechts.teile)).toBeLessThan(1e-6)   // Querschnitt auf dem gemessenen Rand (auch E 20…50)
+    }
+  })
+  it('C1 mit einem Strahl nurInsel (Radweg, SichtweitenCheck): Seiteninsel wie mit der Abzweigung, aber keine Abzweigung für Einmündungen', () => {
+    const mit = bordmodell({ flaechen: mitInsel(), achse: [pt(0, 0), pt(100, 0)], abzweigungen: [{ p: pt(50, -10), arm: pt(60, -10) }] })
+    const nur = bordmodell({ flaechen: mitInsel(), achse: [pt(0, 0), pt(100, 0)], abzweigungen: [{ p: pt(50, -10), arm: pt(60, -10), nurInsel: true }] })
+    expect(nur.rand).toEqual(mit.rand)
+    expect(nur.querschnitte.map(q => q.rechts.punkt)).toEqual(mit.querschnitte.map(q => q.rechts.punkt))
+    // als Abzweigung für die Einmündungsregel zählt sie nicht: an einer Lücke daneben bleibt der Rand unbekannt
+    const flaechen = [fl('Strasse_Weg', rechteck(-50, 150, -4, 4)), fl('Strasse_Weg', rechteck(44, 56, -30, -4)), fl('Trottoir', rechteck(-50, 150, 4, 7)),
+      fl('Trottoir', rechteck(-50, 44, -30, -4)), fl('Trottoir', rechteck(56, 150, -30, -4))]
+    const z = { p: pt(50, -4), arm: pt(50, -14) }
+    expect(abw(bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)], abzweigungen: [z] }), 'rechts').map(a => a.art)).toEqual(['einmuendung'])
+    expect(abw(bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)], abzweigungen: [{ ...z, nurInsel: true }] }), 'rechts').map(a => a.art)).not.toContain('einmuendung')
+  })
+  it('kurzes Stück, das von beiden Nachbarn mehr als 2 m nach aussen wegläuft (Rand einer spitz einmündenden Parallelfläche, Grosser ' +
+    'Muristalden 484734431), ist fremd: die Führung bleibt auf der Randlage', () => {
+    const t = Math.tan(25 * Math.PI / 180), y = (e: number) => -4 - (e - 40) * t
+    const flaechen = [fl('Strasse_Weg', rechteck(-50, 150, -4, 4)), fl('Trottoir', rechteck(-50, 150, 4, 7)), fl('Trottoir', rechteck(-50, 40, -7, -4)),
+      fl('Gartenanlage', [pt(48, -4), pt(150, -4), pt(150, -7), pt(48, -5)]),                                // Trennstreifen ab E 48
+      fl('Strasse_Weg', [pt(40, -4), pt(48, -4), pt(48, -5), pt(150, -7), pt(150, y(150)), pt(41, y(41))]),   // Parallelfläche
+      fl('uebrige_befestigte', [pt(40, -4), pt(41, y(41)), pt(41, y(41) - 3), pt(40, -7)]),                  // offene Kante E 40–41
+      fl('Trottoir', [pt(41, y(41)), pt(150, y(150)), pt(150, y(150) - 3), pt(41, y(41) - 3)])]
+    const m = bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)] })
+    expect(m.rand.rechts.fremd.length).toBe(1)
+    expect(Math.min(...alleN(m.rand.rechts.fremd))).toBeLessThan(-7)
+    expect(Math.min(...alleN(m.fuehrung.rechts.teile))).toBeGreaterThan(-5 - 1e-9)
+    // ohne die Regeln zum eigenen Rand bleibt das Stück im Rand
+    expect(bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)], auslegung: { eigenerRand: false } }).rand.rechts.fremd).toEqual([])
+  })
+  it('C1 Gegenfall ohne Abzweigung: die Insel wird überbrückt (K1), Rand N −14, Breite 19', () => {
+    const m = bordmodell({ flaechen: mitInsel(), achse: [pt(0, 0), pt(100, 0)] })
+    expect(alleN(m.rand.rechts.teile).every(n => Math.abs(n + 14) < 1e-9)).toBe(true)
+    expect(m.querschnitte.every(q => Math.abs(q.breite! - 19) < 1e-9)).toBe(true)
   })
 })

@@ -17,7 +17,7 @@
 import type { AvFlaeche } from '../daten/av'
 import { type P, add, dist, dot, einheit, links, neg, sub } from '../geo'
 import { geradeSchnitte } from '../kartenbaustein/geometrie'
-import { type Abzweigung, type Bordmodell, type Seite, BAND_M, BORD_ARTEN, STRASSE_ART, bordmodell, schnittBord } from '../kartenbaustein/bordmodell'
+import { type Abzweigung, type BordAuslegung, type Bordmodell, type Seite, BAND_M, BORD_ARTEN, STRASSE_ART, bordmodell, schnittBord } from '../kartenbaustein/bordmodell'
 import type { OsmNetz } from './netz'
 import type { Fahrbahn } from './flaechen'
 
@@ -165,9 +165,14 @@ export function abzweigungenEntlang(netz: OsmNetz, linie: readonly P[]): Abzweig
   for (const n of [...knoten].sort((a, b) => a - b)) {
     const p = netz.p(n), lz = lageZurLinie(p, linie)
     if (lz.d > ABZW_NAH_M) continue
-    const arme = netz.strassenarme(n)
-    if (arme.length < 3) continue
-    for (const arm of arme) {
+    // Nachtrag C (C4, 14.11.2026, Auslegung des fgsCheck): an einem Knoten der Strasse (mindestens zwei Strassenarme) zählen auch
+    // Zufahrten (highway=service) als Abzweigung für das Bordmodell (Einmündung statt Lücke); als Knoten der Prüfung bleiben sie unberührt.
+    // An einem Knoten mit nur zwei Strassenarmen zählen nur die Zufahrten (Codeprüfung 14.11.2026: sonst wird an einem Knick der Strasse
+    // ihr weiterführender Ast zur Abzweigung)
+    const st = netz.strassenarme(n)
+    const zuf = st.length >= 2 ? netz.arme(n).filter(a => netz.w(a[0]).hw === 'service') : []
+    if (st.length < 3 && !zuf.length) continue
+    for (const arm of st.length >= 3 ? [...st, ...zuf] : zuf) {
       const w = winkelGrad(netz.armRichtung(arm), lz.r)
       if (Math.min(w, 180 - w) > ABZW_WINKEL_GRAD) aus.push({ p, arm: netz.armPunkt(arm, ABZW_ARM_M) })
     }
@@ -188,15 +193,15 @@ export class Bordquelle {
     this.mitBord = av.some(f => f.art === STRASSE_ART) && av.some(f => BORD_ARTEN.includes(f.art))
   }
   /** Bordmodell entlang der Achse (Abschnittsrichtung); Abzweigungen entlang osmLinie (sonst entlang der Achse). null ohne Bord */
-  modell(achse: readonly P[], osmLinie: readonly P[] | null = null): Bordmodell | null {
+  modell(achse: readonly P[], osmLinie: readonly P[] | null = null, auslegung: BordAuslegung = {}): Bordmodell | null {
     if (!this.mitBord || achse.length < 2) return null
     const abzweigungen = this.netz ? abzweigungenEntlang(this.netz, osmLinie ?? achse) : []
-    const key = schluessel(achse) + '|' + abzweigungen.map(z => schluessel([z.p, z.arm!])).join(';')
+    const key = schluessel(achse) + '|' + abzweigungen.map(z => schluessel([z.p, z.arm!])).join(';') + '|' + (auslegung.eigenerRand === false ? 'phys' : 'eigen')
     let c = SPEICHER.get(this.av)
     if (!c) { c = new Map(); SPEICHER.set(this.av, c) }
     let m = c.get(key)
     if (!m) {
-      m = bordmodell({ flaechen: this.av, achse: [...achse], abzweigungen })
+      m = bordmodell({ flaechen: this.av, achse: [...achse], abzweigungen, auslegung })
       if (c.size >= CACHE_MAX) c.clear()
       c.set(key, m)
     }
@@ -322,7 +327,8 @@ export function bordAmStreifen(q: Bordquelle, p0: P, p1: P, achse: P[] | null = 
 
 /** Bord am Punkt m für eine Querlinie in Richtung n auf dem Bordmodell entlang der Achse a; null ohne Bord in der AV */
 export function bordAnAchse(q: Bordquelle, a: P[], m: P, n: P): BordStreifen | null {
-  const bm = q.modell(a)
+  // Nachtrag C (Auslegung des fgsCheck): Streifenenden am physischen Bord, ohne die Regeln zum Rand der eigenen Fahrbahn
+  const bm = q.modell(a, null, { eigenerRand: false })
   if (!bm) return null
   const Q = bm.querschnitt(bm.achse.station(m).s)
   let normale: P | null = null

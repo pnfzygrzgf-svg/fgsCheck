@@ -32,13 +32,17 @@ describe('BK3 Laubeggstrasse FGS 275422258 im fgsCheck (derselbe Ausschnitt wie 
     expect(abstandGerade(a.p0, BORDECKEN[0])).toBeCloseTo(0.3, 1)
     expect(abstandGerade(b.p1, BORDECKEN[1])).toBeCloseTo(0.3, 1)
   })
-  it('Bordmodell am gequerten Weg: beide Öffnungen «oeffnung», verbunden, Anschlusspunkte und Herkunft wie im VeloroutenCheck', () => {
+  it('Bordmodell am gequerten Weg: rechts die Fussweg-Öffnung «oeffnung», links seit Nachtrag C (C4) eine Einmündung: dort mündet die ' +
+    'Zufahrt «warum zu Fuss?» (OSM 41426365, highway=service), die jetzt als Abzweigung zählt; beide verbunden und überbrückt', () => {
     const u = osm.uebergaenge.find(x => x.id === 275422258)!, c = lv95(u.lat, u.lon)
     const gw = gequerterWeg({ nid: 275422258, p: c, tags: u.tags }, k.netz!)!
     const m = k.bord!.modell(achseAmWeg(k.netz!, gw.best.wid, gw.best.k, gw.best.q))!
     const o = m.abweichungen.filter(x => x.art === 'oeffnung')
-    expect(o.map(x => [x.seite, x.verbunden, Math.round(dist(x.von!, x.bis!) * 10) / 10])).toEqual([['rechts', true, 11.3], ['links', true, 11.4]])
-    expect(o.map(x => x.grund)).toEqual(['Bordflucht über die Öffnung 11,3 m (Richtung 2,4°, Versatz 0,25 m)', 'Bordflucht über die Öffnung 11,4 m (Richtung 0,0°, Versatz 0,00 m)'])
-    for (const x of o) expect(schnittBord(m, x.seite, 'rand').ueberbrueckt.map(y => y.grund)).toContain(x.grund)
+    expect(o.map(x => [x.seite, x.verbunden, Math.round(dist(x.von!, x.bis!) * 10) / 10])).toEqual([['rechts', true, 11.3]])
+    // seit Nachtrag C (C4) Richtung und Versatz gegen die Achse gemessen (vorher 2,4° / 0,25 m gegen die Gerade des anderen Bords)
+    expect(o.map(x => x.grund)).toEqual(['Bordflucht über die Öffnung 11,3 m (Richtung 2,2°, Versatz 0,24 m)'])
+    const l = m.abweichungen.filter(x => x.seite === 'links' && x.art === 'einmuendung' && x.s1 > 35)
+    expect(l.map(x => [x.verbunden, x.grund.replace(/\d+°/, 'W°')])).toEqual([[true, 'Richtungsänderung W° und OSM-Abzweigung 4,9 m']])
+    for (const x of [...o, ...l]) expect(schnittBord(m, x.seite, 'rand').ueberbrueckt.map(y => y.grund)).toContain(x.grund)
   })
 })
