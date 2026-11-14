@@ -926,6 +926,18 @@ describe('Nachtrag C: Rand der eigenen Fahrbahn', () => {
     expect(abw(m, 'links').map(a => [a.art, a.verbunden, a.s0, a.s1, rel(a.von!), rel(a.bis!)]))
       .toEqual([['einmuendung', true, 14, 28, [14, 4], [28, 4]], ['einmuendung', true, 28, 42, [28, 4], [42, 4]]])
   })
+  it('Keil zwischen zwei Mündungen (Spitze 3 m hinter dem Rand, Kanten 90° und 40°, über 15 m lang; Jungfraustrasse bei Kollerweg und ' +
+    'Englische Anlagen): fremd, eine Einmündung von E 38 bis E 60 gerade auf N 4 statt eines «V» über die Spitze', () => {
+    const flaechen = [fl('Strasse_Weg', rechteck(-50, 150, -4, 4)),
+      fl('Strasse_Weg', [pt(38, 4), pt(60, 4), pt(91, 30), pt(71.4, 30), pt(44, 7), pt(44, 30), pt(38, 30)]),
+      fl('Trottoir', rechteck(-50, 38, 4, 30)), fl('Trottoir', [pt(60, 4), pt(150, 4), pt(150, 30), pt(91, 30)]),
+      fl('Trottoir', [pt(44, 7), pt(71.4, 30), pt(44, 30)]), fl('Trottoir', rechteck(-50, 150, -7, -4))]
+    const m = bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)], abzweigungen: [{ p: pt(41, 0), arm: pt(41, 10) }, { p: pt(52, 0), arm: pt(59.7, 6.4) }] })
+    expect(m.rand.links.fremd.length).toBe(1)
+    expect(Math.min(...alleN(m.rand.links.fremd))).toBeCloseTo(7, 9)
+    expect(abw(m, 'links').map(a => [a.art, a.verbunden, a.s0, a.s1, rel(a.von!), rel(a.bis!)])).toEqual([['einmuendung', true, 38, 60, [38, 4], [60, 4]]])
+    expect(m.fuehrung.links.verbindungen.map(v => v.linie.map(rel))).toEqual([[[38, 4], [60, 4]]])
+  })
   it('C1 Gegenfall ohne Abzweigung: die Insel wird überbrückt (K1), Rand N −14, Breite 19', () => {
     const m = bordmodell({ flaechen: mitInsel(), achse: [pt(0, 0), pt(100, 0)] })
     expect(alleN(m.rand.rechts.teile).every(n => Math.abs(n + 14) < 1e-9)).toBe(true)

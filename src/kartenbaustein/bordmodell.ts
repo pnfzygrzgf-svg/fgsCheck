@@ -82,7 +82,8 @@ export const SEITENINSEL_WINKEL_GRAD = 30
  *  mehr als FREMD_SEITE_M auf der anderen Seite der Achse liegt (nur, wenn die Seite noch ein Stück diesseits hat; sonst liegt die Achse
  *  neben der Fahrbahn, NEBEN_M) oder wenn es kurz ist (höchstens FREMD_LAENGE_MAX_M im Abschnitt) und an beiden Enden mehr als
  *  FREMD_VERSATZ_M (Abstand zur Achse; beim Nachbarn am achsparallelen Teil) neben dem eigenen Rand davor bzw. danach liegt (ohne
- *  Nachbarn auf einer Seite: dort gegen den Rand des anderen). Beispiele: äusserer Rand
+ *  Nachbarn auf einer Seite: dort gegen den Rand des anderen), oder wenn es als Keil zwischen zwei Mündungen ganz mehr als
+ *  FREMD_VERSATZ_M hinter dem Rand davor und danach liegt, ohne achsparallelen Grund (TEILUNG_GRAD, TEILUNG_MIN_M). Beispiele: äusserer Rand
  *  der Parallelfahrbahn in einer Lücke des Trennstreifens (Aargauerstalden, Lerberstrasse: q 12 statt 4,5 m), Spitze eines fremden
  *  Keils am Abschnittsende (q 13–15 statt 4,3 m), Inselspitze in einer Zufahrt (Kasernenstrasse: q 12,9 statt 5,6 m) */
 export const FREMD_VERSATZ_M = 2
@@ -929,6 +930,28 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
         const aussen = (q: number) => sg * q - sg * qE(v) > FREMD_VERSATZ_M && sg * q - sg * qA(h) > FREMD_VERSATZ_M
         if (aussen(qE0(j)) || aussen(qA0(j))) aus[j] = true
       }
+    }
+    // Keil zwischen zwei Mündungen (Testfall Marien_Jungfrau 14.11.2026, Jungfraustrasse bei Kollerweg/Englische Anlagen: Spitze 5 m hinter
+    // dem Rand, die Führung lief als «V» dorthin): ein Teil, das im Abschnitt ganz mehr als FREMD_VERSATZ_M hinter dem Rand davor und
+    // danach liegt und nirgends auf TEILUNG_MIN_M höchstens TEILUNG_GRAD zur Achse verläuft (keine Ausbuchtung mit Grund), gehört nicht
+    // zum eigenen Rand, auch wenn es länger als FREMD_LAENGE_MAX_M ist
+    const parallelGrenze = Math.cos(TEILUNG_GRAD * GRAD)
+    for (let j = 0; j < TT.length; j++) {
+      if (aus[j] || !imAb[j].length) continue
+      let v = -1, h = -1
+      for (let k = j - 1; k >= 0; k--) if (!aus[k]) { v = k; break }
+      for (let k = j + 1; k < TT.length; k++) if (!aus[k]) { h = k; break }
+      if (v < 0 || h < 0) continue
+      const T = TT[j], grenze = Math.max(sg * qE(v), sg * qA(h)) + FREMD_VERSATZ_M
+      if (!imAb[j].every(i => sg * T.q[i] > grenze)) continue
+      let lauf = 0, maxLauf = 0
+      for (let i = 0; i + 1 < T.p.length; i++) {
+        const d = sub(T.p[i + 1], T.p[i]), l = Math.hypot(d[0], d[1])
+        const ok = l > 1e-9 && T.s[i] >= -1e-6 && T.s[i + 1] <= L + 1e-6 && dot([d[0] / l, d[1] / l], ach.richtung((T.s[i] + T.s[i + 1]) / 2)) >= parallelGrenze
+        lauf = ok ? lauf + l : 0
+        maxLauf = Math.max(maxLauf, lauf)
+      }
+      if (maxLauf < TEILUNG_MIN_M) aus[j] = true
     }
     return aus
   }
