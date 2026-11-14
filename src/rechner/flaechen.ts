@@ -4,7 +4,8 @@
 // Flächen aus dem WFS (geodienste.ch), unabhängig von der Gemeinde.
 
 import type { AvFlaeche } from '../daten/av'
-import { type P, add, imPolygon, sub, kreuz, abstandStrecke } from '../geo'
+import { type P, add, imPolygon, abstandStrecke } from '../geo'
+import { intervalleImPolygon } from '../kartenbaustein/geometrie'
 import { type Poly, abstandPunkt } from './poly'
 
 export const SEHNE_HALB = 22.0              // halbe Suchlänge der Senkrechten
@@ -73,29 +74,8 @@ class Raster {
   }
 }
 
-/** Intervalle [t0, t1] der Geraden p + t·r (|t| ≤ halb) innerhalb des Polygons (OGR Intersection einer Linie) */
-export function intervalleImPolygon(p: P, r: P, halb: number, poly: Poly): [number, number][] {
-  const ts = [-halb, halb]
-  for (const ring of poly) for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length], e = sub(b, a)
-    const den = kreuz(r, e)
-    if (Math.abs(den) < 1e-12) continue
-    const q = sub(a, p), t = kreuz(q, e) / den, u = kreuz(q, r) / den
-    if (u >= 0 && u <= 1 && t > -halb && t < halb) ts.push(t)
-  }
-  ts.sort((x, y) => x - y)
-  const out: [number, number][] = []
-  for (let i = 0; i < ts.length - 1; i++) {
-    if (ts[i + 1] - ts[i] < 1e-9) continue
-    const m = (ts[i] + ts[i + 1]) / 2
-    if (imPolygon(add(p, r, m), poly)) {
-      const l = out[out.length - 1]
-      if (l && Math.abs(l[1] - ts[i]) < 1e-9) l[1] = ts[i + 1]
-      else out.push([ts[i], ts[i + 1]])
-    }
-  }
-  return out
-}
+// intervalleImPolygon seit 13.11.2026 abends im Kartenbaustein (geometrie.ts), hier weitergereicht
+export { intervalleImPolygon }
 
 /** fgs_sicht_pruefen.Fahrbahn: AV Strasse_Weg */
 export class Fahrbahn {

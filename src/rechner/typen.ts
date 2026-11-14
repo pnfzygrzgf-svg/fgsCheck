@@ -7,6 +7,20 @@ import type { Vermassung } from './vermassung'
 import type { Erkennung, ErkennungLinie, GelaendePruefbereich } from './erkennung'
 import type { KnotensichtAntwort } from '../tue/knotensicht'
 
+/**
+ * Messrichtungen am Streifen (Plan AV-Geometrie A6, 13.11.2026 spät), Einheitsvektoren gerichtet wie p0→p1:
+ * - breite: Fahrbahnbreite Bord–Bord senkrecht zum AV-Bord (bordNormale), ohne Bordmodell entlang der Achse;
+ * - quer: Querdistanz L der Querung: senkrecht zum Bord, wenn die Achse nur angenommen ist (senkrecht zum OSM-Weg; eine schiefe OSM-Linie
+ *   verlängert sie dann nicht), sonst entlang der Achse (ein schräg erfasster Streifen wird schräg begangen, Gehlänge).
+ * Beispiel: Bord N ±4, Achse 20° schräg (Querungsweg) → breite 8,00, quer 8,51; dieselbe Achse nur angenommen → quer 8,00.
+ */
+export function messRichtungen(s: { p0: P; p1: P; bordNormale?: P | null; achseAngenommen?: boolean }): { breite: P; quer: P } {
+  const v: P = [s.p1[0] - s.p0[0], s.p1[1] - s.p0[1]], l = Math.hypot(v[0], v[1])
+  const achse: P = l > 0 ? [v[0] / l, v[1] / l] : [1, 0]
+  const bord = s.bordNormale ?? null
+  return { breite: bord ?? achse, quer: bord && s.achseAngenommen ? bord : achse }
+}
+
 export interface Konflikt {
   klasse: 'auto' | 'velo' | 'motorrad' | 'gebaeude' | 'baum' | 'hindernis'
   flaeche: number; abstand: number; geom: Multi; layer: string; id?: string
@@ -157,6 +171,11 @@ export interface StreifenErgebnis {
   annHand?: [AnnHand | null, AnnHand | null]
   rand: [P, P]
   randQuelle: string
+  /** Normale zum AV-Bord am Streifen (Einheitsvektor, gerichtet wie p0→p1; Plan AV-Geometrie A6): Fahrbahnbreite Bord–Bord senkrecht
+   *  zum Bord, ebenso die Querdistanz eines Streifens mit nur angenommener Achse (achseAngenommen). Fehlt ohne Bordmodell: entlang der Achse */
+  bordNormale?: P
+  /** Achse nur angenommen (senkrecht zum gequerten OSM-Weg, kein Querungsweg, kein Luftbild, nicht von Hand) */
+  achseAngenommen?: true
   /** Ebene des gequerten OSM-Wegs am Streifen (alle Zufahrten gleich; sonst bzw. ohne OSM-Weg fehlt sie): Start der Fahrbahnhöhe in der
    *  3D-Ansicht (Prüfung 3D-01); die Rechnung nutzt sie nicht */
   wegLage?: import('./netz').WegLage

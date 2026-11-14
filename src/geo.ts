@@ -6,6 +6,8 @@
 // Zylinderprojektion (Formeln swisstopo). Genauigkeit im Millimeterbereich; die Näherungsformeln von E0 (rund 1 m) legten
 // OSM und AV gegeneinander verschoben.
 
+import { sub, add, dist, dot, kreuz, einheit, links, imPolygon } from './kartenbaustein/geometrie'
+
 export type P = [number, number]           // LV95 [E, N]
 export type LL = [number, number]          // WGS84 [lat, lon]
 
@@ -79,17 +81,9 @@ export function bboxLv95(lat: number, lon: number, radiusM: number): string {
 }
 
 // ── Vektoren ──
-export const sub = (a: P, b: P): P => [a[0] - b[0], a[1] - b[1]]
-/** add(p, v, f) = p + v·f (wie add in fgs_sicht_pruefen.py) */
-export const add = (a: P, b: P, f = 1): P => [a[0] + b[0] * f, a[1] + b[1] * f]
-export const dist = (a: P, b: P): number => Math.hypot(a[0] - b[0], a[1] - b[1])
-export const dot = (a: P, b: P): number => a[0] * b[0] + a[1] * b[1]
-export const kreuz = (a: P, b: P): number => a[0] * b[1] - a[1] * b[0]
+// sub, add, dist, dot, kreuz, einheit, links und imPolygon seit 13.11.2026 abends aus dem Kartenbaustein (geometrie.ts)
+export { sub, add, dist, dot, kreuz, einheit, links, imPolygon }
 export const neg = (a: P): P => [-a[0], -a[1]]
-/** Einheitsvektor; Nullvektor bleibt (0, 0) (wie fgs_netz.norm). */
-export const einheit = (a: P): P => { const l = Math.hypot(a[0], a[1]); return l ? [a[0] / l, a[1] / l] : [0, 0] }
-/** Normale links von a (90° gegen den Uhrzeigersinn). */
-export const links = (a: P): P => [-a[1], a[0]]
 /** Normale rechts von a (wie rechts(d) in fgs_sicht_pruefen.py). */
 export const rechts = (a: P): P => [a[1], -a[0]]
 
@@ -121,18 +115,6 @@ export function wdiff(a: P, b: P): number {
 /** Vorzeichenbehafteter Winkel von «von» nach «nach» (°, + links), fgs_netz.drehung */
 export function drehung(von: P, nach: P): number {
   return Math.atan2(kreuz(von, nach), dot(von, nach)) * 180 / Math.PI
-}
-
-/** Punkt im Polygon (Ring ohne Wiederholung des ersten Punkts nötig; Gerade-Ungerade-Regel über alle Ringe). */
-export function imPolygon(pt: P, ringe: P[][]): boolean {
-  let innen = false
-  for (const r of ringe) {
-    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
-      const [xi, yi] = r[i], [xj, yj] = r[j]
-      if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) innen = !innen
-    }
-  }
-  return innen
 }
 
 /**

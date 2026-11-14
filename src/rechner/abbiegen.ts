@@ -18,6 +18,7 @@ import {
 } from '../geo'
 import { type OsmNetz, type ArmInfo, type Suche, type Knotenbereich, kennungArm, streckeLaenge, NEBENAST_GRAD } from './netz'
 import type { Fahrbahn, Inseln } from './flaechen'
+import { type Bordquelle, type SehnenQuelle, bordZufahrt } from './bordquelle'
 import type { Kreisel } from './kreisel'
 import { KREISEL_EINFAHRT_LOKAL_M, KREISEL_EINFAHRT_ZUSATZ_M } from './kreisel'
 import {
@@ -297,6 +298,8 @@ export interface AbbiegeKontext {
   ov?: OhneVortritt
   /** Ortslage der Querung ausserorts (pruefen.ortslageSicht; 30.10.2026): Tab. 1 bei 60 km/h 100 m statt 75 m */
   ausserorts?: boolean
+  /** AV-Bord (Plan AV-Geometrie A6, 13.11.2026 spät): Fahrbahn der Querstrasse senkrecht zum Bord gemessen; fehlt: quer zur OSM-Spur */
+  bord?: Bordquelle | null
 }
 
 const ringKnoten = (netz: OsmNetz, nid: number) => (netz.an.get(nid) ?? []).some(([w]) => netz.w(w).ring)
@@ -354,7 +357,13 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   if (tempoQB === 'Ersatz') annahmen.push(`Tempo Querstrasse ${tempoB} km/h angenommen (in OSM keine Höchstgeschwindigkeit erfasst)`)
   const swTab1B = k.ov ? sollQuerung(k.ov, tempoB) : sichtweiteTab1(tempoB, !!k.ausserorts)
   // Fahrbahn der Querstrasse 8–30 m ab Knoten
-  const messRef = refAuf(arm, ARM_MESSUNG, 0)
+  // AV-Bord (Plan A6): Messpunkte als Achse des Bordmodells, Normalen senkrecht zum Bord, Sehne bis zum gemessenen Rand; ohne Bord wie bisher
+  const messRef0 = refAuf(arm, ARM_MESSUNG, 0)
+  // Ein Ausschluss der Messpunkte in erkannten Einmündungen bzw. Öffnungen (Nachtrag B, BK4) wurde am 14.11.2026 nach B5 zurückgenommen:
+  // in der Berner Referenz fiel 1361:a107 weg, 392:a283 und 397:a221 wurden 3,6 bzw. 6,5 m breiter; 12:a96 und 768:72 brauchen ihn nicht mehr
+  const bzB = k.bord ? bordZufahrt(k.bord, fahrbahn, messRef0, arm) : null
+  const messRef = bzB ? bzB.ref : messRef0
+  const fbB: SehnenQuelle = bzB ? bzB.rand : fahrbahn
   const fsoB = fahrstreifenArm(netz, a, a.dreh > 0)
   const messHoch = ARM_MESSUNG.slice(0, messRef.length).map(l => hochBei(netz, armAb, l))
   const messIdx = messRef.map((_, i) => i).filter(i => !messHoch[i])
@@ -363,7 +372,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const abzugB = abzugHandB ? () => abzugHandB : abzugAusOsm(netz, punkteAufSpur(arm, ARM_MESSUNG))
   const park = k.hindernisse?.park ?? null, parkAlle = k.hindernisse?.parkAlle ?? null
   const parkStart = park?.verwendung.length ?? 0, parkAlleStart = parkAlle?.verwendung.length ?? 0
-  let fsB: Fs | null = fahrstreifenmitte(messFb, 'beide', fahrbahn, abzugB, 99.0, fsoB, messIdx, !!abzugHandB, parkAlle)
+  let fsB: Fs | null = fahrstreifenmitte(messFb, 'beide', fbB, abzugB, 99.0, fsoB, messIdx, !!abzugHandB, parkAlle)
   let armOsm: number | null = null
   if (messHoch.some(x => x) && (fsB === null || 2 * messHoch.filter(x => x).length >= messHoch.length)) {
     armOsm = messHoch.find(x => x)!
@@ -408,7 +417,7 @@ export function abbiegeZufahrt(k: AbbiegeKontext, a: ArmInfo): ZufahrtErgebnis |
   const linksAb = gr[4] > 0
   // Linksabbieger: Fahrbahn des Arms am Knoten (querschnitt_am_knoten)
   if (linksAb && fsB && LINKS_ARM_AM_KNOTEN && armOsm === null) {
-    const fsK = fahrstreifenmitte(querschnittAmKnoten(fahrbahn, messFb), 'beide', fahrbahn, abzugB, 99.0, fsoB, null, !!abzugHandB, parkAlle)
+    const fsK = fahrstreifenmitte(querschnittAmKnoten(fbB, messFb), 'beide', fbB, abzugB, 99.0, fsoB, null, !!abzugHandB, parkAlle)
     const lageAvB = fsB.lage + (fsDvB ?? 0)
     if (fsK && ((lageAvB > fsK.rechts - RAND_RECHTS_MIN_M && fsB.rechts - fsK.rechts > KNOTEN_QUER_TOL_M) ||
       (KNOTEN_QUER_LINKS && fsB.links - fsK.links > KNOTEN_QUER_TOL_M)) &&

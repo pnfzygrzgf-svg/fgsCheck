@@ -20,6 +20,8 @@ import { bedarfLesen, bedarfLeer, DATENQUELLEN, type BedarfBlock } from './bedar
 import { herkunftLesen, type LuftbildHerkunft } from './daten/luftbildFgs'
 import type { AmtlicheQuellen } from './daten/anbieter/gemeinsam/typen'
 import { amtlicheQuellenLesen } from './daten/anbieter/gemeinsam/speicher'
+// Kern eines Streifens von Hand und seine Prüfung (seit 14.11.2026 im Kartenbaustein, gemeinsam mit dem VeloroutenCheck, Plan A5)
+import { streifenHandKernGueltig, type StreifenHandKern } from './kartenbaustein/streifenHand'
 
 /**
  * Versionen der Fall-Datei: 1 = bisher; 2 = mit Flächen (Plan) (Feld flaechenPlan). Version 2
@@ -58,7 +60,7 @@ export const fallVersion = (f: { flaechenPlan?: FlaechePlan[]; bedarf?: BedarfBl
     : f.flaechenPlan?.some(x => x.standard?.typ === 'seitenraum') ? 4
     : !bedarfLeer(f.bedarf) || Object.values(f.streifen ?? {}).some(e => !!e.typ) ? 3 : f.flaechenPlan?.length ? 2 : FALL_VERSION_BASIS)
 
-export interface StreifenHand { id: string; p0: P; p1: P; breite: number; richtung?: P   // richtung: Balken (Luftbild), sonst OSM-Weg
+export interface StreifenHand extends StreifenHandKern { id: string; richtung?: P   // richtung: Balken (Luftbild), sonst OSM-Weg
   herkunft?: StreifenHerkunft      // woher der Streifen stammt (fehlt in Fällen vor dem 11.10.2026: unbekannt)
   angepasst?: boolean              // Enden nach dem Übernehmen bzw. Zeichnen verschoben
   name?: string                    // eigener Name (Anzeige statt «Streifen 1», benennung.streifenTitel; seit 16.10.2026)
@@ -353,7 +355,7 @@ export function fallLesen(text: string): [Fall, string[]] {
   }
   for (const s of liste('streifenHand', 'Streifen von Hand')) {
     const o = istObjekt(s) ? s : null
-    if (o && typeof o.id === 'string' && istP(o.p0) && istP(o.p1) && zahl(o.breite) && o.breite >= 0.5 && o.breite <= 15) {
+    if (o && typeof o.id === 'string' && streifenHandKernGueltig(o)) {
       // doppelte Nummern (ältere Fassung) eindeutig machen
       const doppelt = fall.streifenHand.some(x => x.id === o.id)
       if (doppelt) hinweise.push(`Streifen von Hand ${o.id} doppelt, neu nummeriert`)

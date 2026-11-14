@@ -8,6 +8,7 @@
 import { type P, add, dist, dot, einheit, rechts, median, sub, kreuz, imPolygon } from '../geo'
 import { verlaengern, abschneiden, streckeLaenge } from './netz'
 import type { Fahrbahn } from './flaechen'
+import type { SehnenQuelle } from './bordquelle'
 import type { ParkRaster } from './hindernisse'
 
 export const SCHRITT = 2.0
@@ -155,7 +156,7 @@ export function richtungAmKnoten(wegA: P[], dj: number): P {
 }
 
 /** quer_zweirichtig (Spiegelfall zu versetzen) -> [referenzspur, x | null] */
-export function querZweirichtig(fahrbahn: Fahrbahn, ref: RefPunkt[], abst: number[], ab: number, lage: number, vomRand: number,
+export function querZweirichtig(fahrbahn: SehnenQuelle, ref: RefPunkt[], abst: number[], ab: number, lage: number, vomRand: number,
   lang = VERSATZ_RUECK_M): [RefPunkt[], number | null] {
   const werte: number[] = []
   ref.forEach(([q, r], k) => {
@@ -223,7 +224,7 @@ export function randLuecken(lat0: (number | null)[], rand0: (number | null)[] | 
 }
 
 /** auf_fahrbahn: p neben der Fahrbahn auf der Querlinie Richtung Referenzlinie hinein */
-export function aufFahrbahn(fahrbahn: Fahrbahn, p: P, q: P, r: P, innen = 1.0): P {
+export function aufFahrbahn(fahrbahn: { enthaelt(p: P): boolean }, p: P, q: P, r: P, innen = 1.0): P {
   if (fahrbahn.enthaelt(p)) return p
   const lat = dot(sub(p, q), r)
   const n = Math.min(40, Math.ceil(Math.abs(lat) / 0.25))
@@ -262,16 +263,21 @@ export interface RandInfo { verschoben?: boolean[]; muendung?: number; luecke?: 
  * brauchbar ist, sonst interpoliert (rand_luecken); gleitender Median über 5 Punkte; Punkte neben der Fahrbahn zurück auf
  * sie. Vereinfacht gegenüber Python: ohne nase (Parkfelder) und halt (Haltestellen-Kataster).
  */
-export function amRandHalten(fahrbahn: Fahrbahn, ref: RefPunkt[], lage: number, vomRand: number | number[], maxSprung = 3.0,
+export function amRandHalten(fahrbahn: SehnenQuelle, ref: RefPunkt[], lage: number, vomRand: number | number[], maxSprung = 3.0,
   info: RandInfo | null = null, osm = true, basis: RefPunkt[] | null = null, fest: Map<number, number | null> = new Map(),
   nase: [ParkRaster, number] | null = null): [P[], number] {
   const lat: (number | null)[] = [], rand: (number | null)[] = [], grenze: (number | null)[] = [], raenderK: (number | null)[] = []
+  const ausBord: boolean[] = []
   ref.forEach(([q, r], k) => {
+    ausBord.push(false)
     if (fest.has(k)) { lat.push(null); rand.push(null); grenze.push(null); raenderK.push(null); return }
-    const sh = fahrbahn.sehne(q, r)
+    // Rand aus dem Bordmodell (Plan A6, bordquelle.BordSehne): ohne Klemmung auf maxSprung, der Bord ist gemessen bzw. überbrückt
+    const sx = fahrbahn.sehneHerkunft ? fahrbahn.sehneHerkunft(q, r) : { w: fahrbahn.sehne(q, r), bord: false }
+    const sh = sx.w
     const vr = Array.isArray(vomRand) ? vomRand[k] : vomRand
     const neu = sh ? sh[0] - vr : null
-    const ok = neu !== null && Math.abs(neu - lage) <= maxSprung
+    const ok = neu !== null && (sx.bord || Math.abs(neu - lage) <= maxSprung)
+    ausBord[k] = ok && sx.bord
     lat.push(ok ? neu : null)
     raenderK.push(ok ? sh![0] : null)
     const [qb, rb] = basis !== null ? basis[k] : [q, r]
@@ -327,9 +333,23 @@ export function amRandHalten(fahrbahn: Fahrbahn, ref: RefPunkt[], lage: number, 
   }
   const out: P[] = [], rohe: P[] = []
   let nVersch = 0
-  ref.forEach(([q, r], k) => {
+  // Lage aus dem Bordmodell (Plan A6): gleitender Median über 5 Punkte im Abstand zum Bord (Rand − Lage), nicht in der Lage selbst –
+  // auf einer schiefen Spur ändert sich die Lage von Punkt zu Punkt, der Abstand zum Bord nicht. Nur Punkte, deren Lage am Bord
+  // unverändert blieb (nicht als Mündung verworfen, nicht interpoliert); sonst wie bisher. Der erste Punkt ist die Lage am Streifen
+  // (lage, aus den Bordkanten am Streifen): wie bisher
+  const amBord = (k: number) => k > 0 && !fest.has(k) && ausBord[k] && lat[k] !== null && raenderK[k] !== null && Math.abs(latF[k] - lat[k]!) < 1e-9
+  const glatt = (k: number): number => {
+    if (amBord(k)) {
+      const ds: number[] = []
+      for (let j = Math.max(0, k - 2); j < Math.min(latF.length, k + 3); j++) if (amBord(j)) ds.push(raenderK[j]! - latF[j])
+      ds.sort((a, b) => a - b)
+      return raenderK[k]! - ds[Math.floor(ds.length / 2)]
+    }
     const fenster = latF.slice(Math.max(0, k - 2), k + 3).sort((a, b) => a - b)
-    const roh = add(q, r, grenzeNase.has(k) ? Math.min(latF[k], grenzeNase.get(k)!) : fenster[Math.floor(fenster.length / 2)])
+    return fenster[Math.floor(fenster.length / 2)]
+  }
+  ref.forEach(([q, r], k) => {
+    const roh = add(q, r, grenzeNase.has(k) ? Math.min(latF[k], grenzeNase.get(k)!) : glatt(k))
     const p = fest.has(k) ? roh : aufFahrbahnNaechst(fahrbahn, aufFahrbahn(fahrbahn, roh, q, r))
     if (p[0] !== roh[0] || p[1] !== roh[1]) nVersch++
     out.push(p); rohe.push(roh)

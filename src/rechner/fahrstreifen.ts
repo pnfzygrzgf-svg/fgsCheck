@@ -10,7 +10,7 @@
 
 import { type P, add, dist, dot, einheit, neg, sub, median, drehung } from '../geo'
 import { type OsmNetz, type Gequert, type Suche, type Knotenbereich, type ArmInfo, einbahnTag, RASTER, FAST_GERADE_GRAD } from './netz'
-import type { Fahrbahn } from './flaechen'
+import type { SehnenQuelle } from './bordquelle'
 import type { ParkRaster } from './hindernisse'
 import { SEHNE_HALB } from './flaechen'
 import { punkteAufSpur, abstandSpur, SEHNE_MIN_PUNKTE, FAHRSTREIFEN_MAX } from './spur'
@@ -357,20 +357,40 @@ export function abzugAusOsm(netz: OsmNetz, punkte: [P, P][]): AbzugQuelle {
   }
 }
 
+/** Annahme (Plan A6): Wanderung der Messpunkte quer über die Fahrbahn erst ab so viel über die ganze Messstrecke berücksichtigt */
+export const DRIFT_MIN_M = 0.5
+/** Annahme (Plan A6): … und nur, wo die Breite Bord–Bord je Messpunkt gleichmässig ist (mittlere Abweichung vom Median höchstens so
+ *  viel): eine schiefe Spur auf einer regelmässigen Strasse, nicht ein Platz oder Knotenbereich */
+export const BREITE_STREUUNG_M = 0.3
+
+/**
+ * Wanderung je Meter: robuste Steigung (Theil–Sen, Median der paarweisen Steigungen) der Lage m über der Strecke s; 0, wenn sie über die
+ * ganze Strecke unter DRIFT_MIN_M bleibt. Beispiel: s 0, 2, 4, m 0,0, 0,28, 0,56 → 0,14 je Meter.
+ */
+export function driftJeMeter(s: number[], m: number[]): number {
+  const st: number[] = []
+  for (let i = 0; i < s.length; i++) for (let j = i + 1; j < s.length; j++) if (s[j] - s[i] > 0.5) st.push((m[j] - m[i]) / (s[j] - s[i]))
+  if (!st.length) return 0
+  const d = median(st)
+  return Math.abs(d) * (s[s.length - 1] - s[0]) < DRIFT_MIN_M ? 0 : d
+}
+
 /**
  * fahrstreifenmitte: seitliche Lage der Fahrstreifenmitte relativ zur Referenzspur (rechts positiv).
  * Abzüge (Parkierung/Velostreifen) aus OSM-Tags (abzug(k), Anteil wie PARK_MIN_TREFFER), sonst wie Python.
  */
-export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Fahrbahn, abzug: AbzugQuelle | null, teilbreite: number,
+export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: SehnenQuelle, abzug: AbzugQuelle | null, teilbreite: number,
   fso: Fso | null = null, idx: number[] | null = null, abzugVonHand = false, park: ParkRaster | null = null): Fs | null {
-  const er: number[] = [], el: number[] = []
+  const er: number[] = [], el: number[] = [], sGut: number[] = []
   const parkR: number[] = [], parkL: number[] = [], veloR: number[] = [], veloL: number[] = []
   let trefferR = 0, trefferL = 0
   const idsR = new Set<string>(), idsL = new Set<string>()
+  let sq = 0
   ref.forEach(([q, r], i) => {
+    if (i > 0) sq += dist(ref[i - 1][0], q)
     const sh = fahrbahn.sehne(q, r)
     if (sh === null) return
-    er.push(sh[0]); el.push(sh[1])
+    er.push(sh[0]); el.push(sh[1]); sGut.push(sq)
     // Parkstreifen: Parkfläche am Prüfpunkt PARK_SONDE_M innerhalb der Bordkante. Die Aufrufer übergeben seit dem 09.11.2026 das Raster
     // aller Klassen (parkAlle): auch Velo-/Mofa- und Motorradflächen lösen den Abzug aus, wie im SichtweitenCheck
     if (park && !park.leer) {
@@ -390,6 +410,15 @@ export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Fahrba
     }
   })
   if (er.length < SEHNE_MIN_PUNKTE) return null
+  // Sehne gegen den AV-Bord (Plan AV-Geometrie A6, bordquelle.BordSehne): die Messpunkte einer schiefen OSM-Spur wandern quer über die
+  // Fahrbahn (rechts wird kleiner, links grösser). Die Wanderung (Lage in der Fahrbahn über der Strecke, robuste Gerade) wird auf den
+  // ersten Messpunkt (am Streifen bzw. am Knoten) zurückgerechnet; unter DRIFT_MIN_M über die ganze Strecke bzw. bei ungleichmässiger
+  // Breite (BREITE_STREUUNG_M) gilt keine
+  const bj = er.map((x, i) => x + el[i]), bm = median(bj)
+  if (fahrbahn.sehneHerkunft && median(bj.map(x => Math.abs(x - bm))) <= BREITE_STREUUNG_M) {
+    const d = driftJeMeter(sGut, er.map((x, i) => (x - el[i]) / 2))
+    for (let i = 0; i < er.length; i++) { const v = d * (sGut[i] - sGut[0]); er[i] -= v; el[i] += v }
+  }
   const rechtsM = median(er), linksM = median(el), breite = rechtsM + linksM
   const zweiRichtungen = art === 'beide' || art === 'einbahn' || breite > INSEL_UNGETEILT * teilbreite
   const parkFeldR = trefferR >= PARK_MIN_TREFFER, parkFeldL = zweiRichtungen && trefferL >= PARK_MIN_TREFFER
@@ -416,7 +445,7 @@ export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Fahrba
 }
 
 /** querschnitt_am_knoten */
-export function querschnittAmKnoten(fahrbahn: Fahrbahn, ref: RefPunkt[]): RefPunkt[] {
+export function querschnittAmKnoten(fahrbahn: SehnenQuelle, ref: RefPunkt[]): RefPunkt[] {
   const qs = ref.map(([q, r]) => {
     const sh = fahrbahn.sehne(q, r)
     const ok = sh !== null && Math.min(...sh) >= KNOTEN_QUER_ACHSE_M && Math.max(...sh) < SEHNE_HALB - 0.5

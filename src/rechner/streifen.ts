@@ -12,25 +12,27 @@
 // rand_am_umriss.
 
 import { LUFTBILD_FGS_QUELLE } from '../daten/luftbildFgs'
-import { type P, add, dist, dot, einheit, links, rechts, sub, median, lv95, imPolygon } from '../geo'
+import { type P, add, dist, dot, einheit, links, rechts, sub, median, lv95 } from '../geo'
 import type { OsmNetz } from './netz'
 import type { OsmWeg } from '../daten/osm'
 import { osmBreite } from './fahrstreifen'
-import { type Fahrbahn, type Flaechen, type Inseln, intervalleImPolygon } from './flaechen'
+import { type Fahrbahn, type Flaechen, type Inseln, intervalleImPolygon, SEHNE_MAX } from './flaechen'
+import { geradeSchnitte } from '../kartenbaustein/geometrie'
+import { type Bordquelle, BORD_GESCHAETZT, achseAmWeg, bordAnAchse } from './bordquelle'
 import { ringSchnitt, randSpur, H_RAND_TOL_M, STREIFEN_ENDE_M, ENTLANG_MIN, RAND_BELEG_MIN_M } from './spur'
 import { type Poly, type Multi, abstandPunkt } from './poly'
 import { BALKEN_BREITE_M, type TeilErkannt } from './luftbild'
 import type { AnnHand } from './typen'
+import { RAND_ZUSCHLAG, TEIL_LUECKE_MAX_M, TEIL_MIN_M, abziehen, streifenEnden } from '../kartenbaustein/streifenGeometrie'
 
-export const RAND_ZUSCHLAG = 0.30
+// RAND_ZUSCHLAG, TEIL_LUECKE_MAX_M, TEIL_MIN_M seit 13.11.2026 abends im Kartenbaustein (streifenGeometrie.ts)
+export { RAND_ZUSCHLAG, TEIL_LUECKE_MAX_M, TEIL_MIN_M }
 export const ANN_TIEFE = 1.0
 export const RAND_SEHNE_TOL_M = 2.5
 export const RAND_GEH_MIN_GRAD = 10.0
 export const ENDE_NORMALE_MIN = 0.8
 export const WARTE_SEHNE_M = 3.0
 export const STREIFEN_BREITE_ANNAHME = 4.0     // Balkenlänge (Breite des Streifens entlang der Fahrbahn), Annahme E1
-export const TEIL_LUECKE_MAX_M = 12.0          // Teilstreifen: Insel zwischen zwei Fahrbahnteilen höchstens so breit
-export const TEIL_MIN_M = 2.0                   // Fahrbahnteil mindestens so breit
 const f1 = (x: number) => x.toFixed(1).replace('.', ',')
 
 export interface Streifen {
@@ -43,6 +45,12 @@ export interface Streifen {
   osmKnoten: number | null
   annahmen: string[]
   inseln: InselZusatz[]                        // Inseln ausserhalb der AV (angenommen bzw. von Hand) für die Zufahrten
+  /** Plan AV-Geometrie A6 (13.11.2026 spät): Achse des Bordmodells am Streifen (gequerter OSM-Weg; vom Übergang gesetzt, sonst in
+   *  pruefen gesucht), Normale zum AV-Bord in der Mitte (gerichtet wie p0→p1; Fahrbahnbreite und Querdistanz senkrecht zum Bord) und
+   *  ob die Achse nur angenommen ist (senkrecht zum OSM-Weg, kein Querungsweg) */
+  bordAchse?: P[] | null
+  bordNormale?: P | null
+  achseAngenommen?: boolean
 }
 
 export function neuerStreifen(fgsId: string, uebergangId: string, p0: P, p1: P, bw: number, quelle: string,
@@ -170,8 +178,12 @@ export function sehneStreifen(s: Streifen, fahrbahn: Fahrbahn, p: P, r: P): [num
   return [vorne, hinten]
 }
 
-/** raender: Bordkanten an den Enden aus der AV-Sehne entlang der Achse (an Inseln ausserhalb der AV gekürzt), sonst angenommen */
-export function raender(s: Streifen, fahrbahn: Fahrbahn): [P, P, string] {
+/**
+ * raender: Bordkanten an den Enden aus der AV-Sehne entlang der Achse (an Inseln ausserhalb der AV gekürzt), sonst angenommen.
+ * bord (Plan A6, 13.11.2026 spät): Bord beider Seiten aus dem Bordmodell (bordquelle.bordAmStreifen); die Sehne endet spätestens am
+ * Schnitt der Achse mit ihm (ein Fussweg oder Platz in der Fläche Strasse_Weg verlängert sie nicht), eine Insel näher bleibt.
+ */
+export function raender(s: Streifen, fahrbahn: Fahrbahn, bord: readonly (readonly P[])[] | null = null): [P, P, string] {
   const n = s.n, m = s.m
   const annahme: [P, P, string] = [add(s.p0, n, -RAND_ZUSCHLAG), add(s.p1, n, RAND_ZUSCHLAG), 'Annahme']
   const halb = dist(s.p0, s.p1) / 2
@@ -181,7 +193,12 @@ export function raender(s: Streifen, fahrbahn: Fahrbahn): [P, P, string] {
     richtungen.push([g, dot(g, n)])
   }
   for (const [r, cos] of richtungen) {
-    const sh = sehneStreifen(s, fahrbahn, m, r)
+    let sh = sehneStreifen(s, fahrbahn, m, r)
+    if (bord && bord.length) {
+      const ts = geradeSchnitte(m, r, bord), vor = ts.find(t => t > 1e-6), hin = ts.filter(t => t < -1e-6).pop()
+      if (sh !== null) sh = [vor !== undefined ? Math.min(sh[0], vor) : sh[0], hin !== undefined ? Math.min(sh[1], -hin) : sh[1]]
+      else if (vor !== undefined && hin !== undefined && vor - hin <= SEHNE_MAX) sh = [vor, -hin]
+    }
     if (sh === null) continue
     const [vorne, hinten] = sh
     const ziel0 = [-halb / cos], ziel1 = [halb / cos]
@@ -459,18 +476,15 @@ export function avInselAufAchse(inseln: Inseln, c: P, n: P, a: number, b: number
   return false
 }
 
-/** Intervalle ohne die Bereiche weg (Reste unter 5 cm fallen weg) */
-function abziehen(iv: [number, number][], weg: [number, number][]): [number, number][] {
-  let aus = iv.map(([a, b]) => [a, b] as [number, number])
-  for (const [w0, w1] of weg)
-    aus = aus.flatMap(([a, b]): [number, number][] => (w1 <= a || w0 >= b ? [[a, b]] :
-      ([[a, w0], [w1, b]] as [number, number][]).filter(([x, y]) => y - x > 0.05)))
-  return aus
-}
-
 export interface StreifenOptionen {
   inseln?: InselZusatz[]        // Inseln von Hand bzw. aus dem Luftbild: teilen die Fahrbahn wie AV-Verkehrsinseln
+  /** AV-Bord (Plan A6): Enden aus dem Schnitt der Achse mit dem Bordmodell am gequerten Weg; ohne bzw. ohne Rand wie bisher */
+  bord?: Bordquelle | null
 }
+
+/** Enden ohne Bordmodell-Rand (Plan A6, Punkt 6): Text der Annahme je Ende */
+const randUnbekannt = (a: boolean, b: boolean) => (a && b ? '' : `; Ende ${!a && !b ? 'A und B' : !a ? 'A' : 'B'} am Rand der Fläche ` +
+  'Strasse_Weg (Bordmodell: Rand unbekannt, Bord aus OSM bzw. der Fläche geschätzt)')
 
 /**
  * Teilstreifen eines OSM-Übergangs: Achse senkrecht zum gequerten befahrbaren Weg durch den Knoten; Fahrbahnteile auf der
@@ -485,126 +499,60 @@ export function streifenAusUebergang(u: UebergangWahl, netz: OsmNetz, fahrbahn: 
   if (gw === null) return { streifen: [], meldungen: ['Kein befahrbarer OSM-Weg am Übergang (bis 5 m).'] }
   const { best, dWeg } = gw
   if (gw.meldung) meldungen.push(gw.meldung)
-  let n = links(dWeg)                                   // Achse quer über die Fahrbahn
   const c = u.p
-  let achseText = `senkrecht zum OSM-Weg ${best.wid}`
-  // Fussweg über die Fahrbahn am Knoten (footway=crossing): Gehrichtung als Achse (schräge Streifen), Länge der Querung
-  let querAus: [number, number] | null = null
+  // Kern im Kartenbaustein (streifenGeometrie.streifenEnden, seit 13.11.2026 abends, gemeinsam mit dem VeloroutenCheck): Achse,
+  // Fahrbahnteile, Klemmung, Schätzung, Teilstreifen. Hier bleiben die Wahl des Fusswegs, die Inseln nach OSM/Luftbild und die Texte.
+  // Fussweg über die Fahrbahn am Knoten (footway=crossing, sonst der erste Fussweg dort, nur seine Richtung)
   const fw = querungen.filter(w => w.knoten.includes(u.nid))
   const fwq = fw.find(w => w.tags.footway === 'crossing') ?? fw[0]
-  if (fwq) {
-    const pts = fwq.geom.map(([la, lo]) => lv95(la, lo))
-    const i = fwq.knoten.indexOf(u.nid)
-    const lagen = [0]
-    for (let k = 1; k < pts.length; k++) lagen.push(lagen[k - 1] + dist(pts[k - 1], pts[k]))
-    const bei = (x: number): P => {
-      x = Math.max(0, Math.min(lagen[lagen.length - 1], x))
-      for (let k = 1; k < pts.length; k++) if (lagen[k] >= x && lagen[k] > lagen[k - 1])
-        return add(pts[k - 1], sub(pts[k], pts[k - 1]), (x - lagen[k - 1]) / (lagen[k] - lagen[k - 1]))
-      return pts[pts.length - 1]
-    }
-    const g = einheit(sub(bei(lagen[i] + 6), bei(lagen[i] - 6)))
-    const w = Math.abs(dot(g, einheit(dWeg)))
-    if (g[0] !== 0 || g[1] !== 0) {
-      if (w <= Math.cos(45 * Math.PI / 180)) {
-        n = dot(g, n) >= 0 ? g : [-g[0], -g[1]]
-        // Übergang aus dem Luftbild (daten/luftbildFgs.ts): der Fussweg trägt nur die Richtung des ETH-Modells
-        achseText = fwq.tags.source === LUFTBILD_FGS_QUELLE ? 'entlang der Richtung aus dem Luftbild (ETH-Modell)' : `entlang des OSM-Fusswegs ${fwq.id}`
-      }
-      if (fwq.tags.footway === 'crossing') {
-        const ls = pts.map(p => dot(sub(p, c), n))
-        querAus = [Math.min(...ls), Math.max(...ls)]
-      }
-    }
-  }
-  // Fahrbahnteile (AV Strasse_Weg) und Inseln entlang der Achse, ±SUCHE m
-  const SUCHE = 30
-  const iv: [number, number][] = []
-  for (const t of fahrbahn.polys) {
-    if (t.env[2] < c[0] - SUCHE || t.env[0] > c[0] + SUCHE || t.env[3] < c[1] - SUCHE || t.env[1] > c[1] + SUCHE) continue
-    iv.push(...intervalleImPolygon(c, n, SUCHE, t.poly))
-  }
-  iv.sort((a, b) => a[0] - b[0])
-  let fb: [number, number][] = []
-  for (const x of iv) {
-    const m = fb[fb.length - 1]
-    if (m && x[0] <= m[1] + 0.05) m[1] = Math.max(m[1], x[1]); else fb.push([x[0], x[1]])
-  }
-  // Inseln von Hand bzw. aus dem Luftbild: aus der Fahrbahn auf der Achse herausgeschnitten (wie eine AV-Verkehrsinsel)
   const zusatz = opt.inseln ?? []
-  const zusatzIv = zusatz.map(z => intervalleImPolygon(c, n, SUCHE, [z.ring]))
-  if (zusatz.length) fb = abziehen(fb, zusatzIv.flat())
-  if (!fb.length) return { streifen: [], meldungen: [...meldungen, 'Die Achse quer zum Weg trifft keine AV-Fahrbahn (Strasse_Weg).'] }
-  const abst = ([a, b]: [number, number]) => (a <= 0 && b >= 0 ? 0 : Math.min(Math.abs(a), Math.abs(b)))
-  let i0 = 0
-  fb.forEach((x, i) => { if (abst(x) < abst(fb[i0])) i0 = i })
-  if (abst(fb[i0]) > 3) meldungen.push(`Übergangsknoten ${abst(fb[i0]).toFixed(1)} m neben der AV-Fahrbahn`)
-  const inselBei = (p: P) => inseln.enthaelt(p) || zusatz.some(z => imPolygon(p, [z.ring]))
-  const istInsel = (a: number, b: number) => {
-    // Lücke zwischen zwei Fahrbahnteilen: überwiegend AV-Verkehrsinsel bzw. Insel von Hand (Punkte alle 0,25 m)
-    let n_ = 0, ja = 0
-    for (let x = a + 0.125; x < b; x += 0.25) { n_++; if (inselBei(add(c, n, x))) ja++ }
-    return n_ > 0 && ja / n_ >= 0.5
-  }
-  let geklemmt = false
-  if (querAus && fb[i0][1] - fb[i0][0] > querAus[1] - querAus[0] + 3) {
-    // AV-Fahrbahn viel breiter als die Querung (Knotenbereich, Platz): Enden aus dem OSM-Fussweg
-    const a = Math.max(fb[i0][0], querAus[0] - RAND_ZUSCHLAG), b = Math.min(fb[i0][1], querAus[1] + RAND_ZUSCHLAG)
-    if (b - a >= TEIL_MIN_M) { fb[i0] = [a, b]; geklemmt = true }
-  }
-  // Teilstreifen über Verkehrsinseln; mit OSM-Fussweg (footway=crossing) nur, soweit er über die Insel weiterführt (eine Insel von
-  // Hand bzw. aus dem Luftbild teilt einen Fahrbahnteil: beide Seiten gehören zum Streifen)
-  const reicht = (x: [number, number]) => querAus === null || (x[1] > querAus[0] + 1 && x[0] < querAus[1] - 1)
-  const schnitt = (g0: number, g1: number) => zusatzIv.some(iv => iv.some(([a, b]) => a <= g0 + 0.06 && b >= g1 - 0.06))
-  let geschaetzt = false
-  if (!geklemmt && fb[i0][1] - fb[i0][0] > 15) {
-    // AV-Fahrbahn auf der Achse sehr lang (Platz, Knotenbereich) und kein OSM-Fussweg: Länge aus der Breite des OSM-Wegs
-    // (width bzw. lanes × 3 m, sonst 7 m zweirichtig bzw. 3,5 m Einbahn), um den Knoten
-    const w = netz.w(best.wid)
-    const bEst = osmBreite(w.t)[0] ?? (w.ow ? 3.5 : 7.0)
-    if (fb[i0][1] - fb[i0][0] > 2 * bEst + 6) {
-      const a = Math.max(fb[i0][0], -bEst / 2 - 1), b = Math.min(fb[i0][1], bEst / 2 + 1)
-      if (b - a >= TEIL_MIN_M) { fb[i0] = [a, b]; geschaetzt = true }
-    }
-  }
-  let teile: [number, number][] = [fb[i0]]
-  for (let i = i0 - 1; i >= 0; i--) {
-    const g0 = fb[i][1], g1 = teile[0][0]
-    if (g1 - g0 > TEIL_LUECKE_MAX_M || !istInsel(g0, g1) || fb[i][1] - fb[i][0] < TEIL_MIN_M || (!reicht(fb[i]) && !schnitt(g0, g1))) break
-    teile.unshift(fb[i])
-  }
-  for (let i = i0 + 1; i < fb.length; i++) {
-    const g0 = teile[teile.length - 1][1], g1 = fb[i][0]
-    if (g1 - g0 > TEIL_LUECKE_MAX_M || !istInsel(g0, g1) || fb[i][1] - fb[i][0] < TEIL_MIN_M || (!reicht(fb[i]) && !schnitt(g0, g1))) break
-    teile.push(fb[i])
-  }
-  // Insel von Hand bzw. aus dem Luftbild an einem Ende eines Teils (dort aus der Fahrbahn geschnitten; sonst AV-Verkehrsinsel)
-  const inselAn = (x: number) => zusatz.find((_, k) => zusatzIv[k].some(([a, b]) => Math.abs(a - x) < 0.06 || Math.abs(b - x) < 0.06)) ?? null
+  const w = netz.w(best.wid)
+  // AV-Bord (Plan A6, 13.11.2026 spät): Bordmodell entlang des gequerten OSM-Wegs ± BORD_ACHSE_M; die Achse des Streifens bleibt wie
+  // bisher, seine äusseren Enden kommen aus dem Schnitt mit dem Bord (Klemmung und Schätzung entfallen dort)
+  const achseBord = opt.bord?.mitBord ? achseAmWeg(netz, best.wid, best.k, best.q) : null
+  const bord = achseBord && opt.bord ? bordAnAchse(opt.bord, achseBord, c, links(dWeg)) : null
+  const e = streifenEnden(c, dWeg, fahrbahn.polys.map(t => t.poly), p => inseln.enthaelt(p),
+    fwq ? fwq.geom.map(([la, lo]) => lv95(la, lo)) : null,
+    { breiteOsm: osmBreite(w.t)[0], einbahn: !!w.ow, inselnHand: zusatz.map(z => z.ring), fusswegNurRichtung: !!fwq && fwq.tags.footway !== 'crossing',
+      bord: bord?.linien ?? null })
+  if (e === null) return { streifen: [], meldungen: [...meldungen, 'Die Achse quer zum Weg trifft keine AV-Fahrbahn (Strasse_Weg).'] }
+  meldungen.push(...e.meldungen)
+  if (bord && !(e.bordA && e.bordB)) meldungen.push(`Bordmodell: Rand unbekannt am Streifenende ${!e.bordA && !e.bordB ? 'A und B' : !e.bordA ? 'A' : 'B'} ` +
+    `– dort ${e.geklemmt ? 'aus dem OSM-Fussweg' : e.geschaetzt ? 'aus der OSM-Breite' : 'am Rand der Fläche Strasse_Weg'} (${BORD_GESCHAETZT})`)
+  const { achse: n, geklemmt, geschaetzt } = e
+  const bordNormale = bord?.normale ? (dot(bord.normale, n) >= 0 ? bord.normale : [-bord.normale[0], -bord.normale[1]] as P) : null
+  // Übergang aus dem Luftbild (daten/luftbildFgs.ts): der Fussweg trägt nur die Richtung des ETH-Modells
+  const achseText = e.achseText === 'fussweg' && fwq ? (fwq.tags.source === LUFTBILD_FGS_QUELLE ?
+    'entlang der Richtung aus dem Luftbild (ETH-Modell)' : `entlang des OSM-Fusswegs ${fwq.id}`) : `senkrecht zum OSM-Weg ${best.wid}`
+  const teile = e.abschnitte
   // AV-Verkehrsinsel auf der Achse (zwischen bzw. neben den Teilen): keine Insel nach OSM (auch nicht aus dem Luftbild)
-  const avInsel = osmInselTagRoh(u.tags) && !zusatz.length ? avInselAufAchse(inseln, c, n, teile[0][0], teile[teile.length - 1][1]) : undefined
+  const avInsel = osmInselTagRoh(u.tags) && !zusatz.length ? avInselAufAchse(inseln, c, n, teile[0].a, teile[teile.length - 1].b) : undefined
   // crossing:island=yes ohne AV-Insel und ohne Insel von Hand bzw. aus dem Luftbild: durchgehend, Hinweis
   const osmHinweis = avInsel === false ? osmInselHinweis() : ''
-  // zu kurze Teile neben einer solchen Insel nicht mitzählen (Nummern und «Teilstreifen i von n» nur für gebildete Teile)
-  if (zusatz.length) teile = teile.filter(([a, b]) => b - a >= TEIL_MIN_M)
-  // kein Teil übrig (Insel über fast die ganze Fahrbahn): Meldung statt leerer Liste
-  if (!teile.length) return { streifen: [], meldungen: [...meldungen, `Streifen aus OSM + AV: neben der Insel kein Fahrbahnteil ab ` +
-    `${f1(TEIL_MIN_M)} m – Insel prüfen.`], avInsel }
+  // kein Teil übrig (Insel über fast die ganze Fahrbahn): Meldung des Bausteins statt leerer Liste
+  if (!teile.length) return { streifen: [], meldungen, avInsel }
   // am Streifen: Inseln von Hand immer, die aus dem Luftbild nur, wenn sie die Achse kreuzen
-  const alleInseln = zusatz.filter((z, k) => z.herkunft === 'hand' || zusatzIv[k].length)
+  const alleInseln = zusatz.filter((z, k) => z.herkunft === 'hand' || e.inselnHandAufAchse[k])
   const streifen: Streifen[] = []
-  teile.forEach(([a, b], i) => {
+  teile.forEach(({ a, b, p0, p1, kern: mitteTeil, inselVor, inselNach }, i) => {
     if (b - a < TEIL_MIN_M) return
-    const p0 = add(c, n, a + RAND_ZUSCHLAG), p1 = add(c, n, b - RAND_ZUSCHLAG)
     const id = teile.length > 1 ? `${u.nid}-${i + 1}` : `${u.nid}`
     const s = neuerStreifen(id, `${u.nid}`, p0, p1, STREIFEN_BREITE_ANNAHME, 'osm_av', null, 0, u.nid)
     s.inseln = alleInseln
-    const mitteTeil = a >= fb[i0][0] - 1e-9 && b <= fb[i0][1] + 1e-9
-    const vorher = inselAn(a), nachher = inselAn(b)
+    s.bordAchse = bord ? achseBord : null
+    s.bordNormale = bordNormale
+    s.achseAngenommen = e.achseText === 'senkrecht'
+    const vorher = inselVor !== null ? zusatz[inselVor] : null, nachher = inselNach !== null ? zusatz[inselNach] : null
     const anInsel = vorher !== null || nachher !== null
+    // Bord (Plan A6): äussere Enden dieses Teils aus dem Bordmodell; innere Enden an einer Insel
+    const ersterTeil = i === teile.findIndex(t => t.b - t.a >= TEIL_MIN_M)
+    const letzterTeil = i === teile.length - 1 - [...teile].reverse().findIndex(t => t.b - t.a >= TEIL_MIN_M)
+    const bordA = !ersterTeil || e.bordA, bordB = !letzterTeil || e.bordB
     s.annahmen.push(`Streifenachse ${achseText}, Enden ` + (geklemmt && mitteTeil ?
       'aus dem OSM-Fussweg (footway=crossing; AV-Fahrbahn dort breiter)' : geschaetzt && mitteTeil ?
       'aus der Breite des OSM-Wegs geschätzt (AV-Fahrbahn dort sehr breit, kein OSM-Fussweg)' :
-      `${f1(RAND_ZUSCHLAG)} m vor der AV-Bordkante${anInsel ? ' bzw. der Insel' : ''}`) +
+      `${f1(RAND_ZUSCHLAG)} m vor der AV-Bordkante${anInsel ? ' bzw. der Insel' : ''}` +
+      (bord ? (e.bordA || e.bordB ? ' (Bordmodell)' : '') + randUnbekannt(bordA, bordB) : '')) +
       `; Breite ${f1(STREIFEN_BREITE_ANNAHME)} m angenommen`)
     const z = vorher ?? nachher
     if (teile.length > 1)

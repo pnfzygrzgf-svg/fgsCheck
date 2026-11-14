@@ -41,7 +41,7 @@ import { type P, dot, sub, add, dist, imPolygon, abstandStrecke, segSchnitt, lin
 import type { AvFlaeche } from '../daten/av'
 import { avMitPlan } from '../rechner/planflaechen'
 import { Fahrbahn, Inseln, intervalleImPolygon } from '../rechner/flaechen'
-import type { StreifenErgebnis } from '../rechner/typen'
+import { type StreifenErgebnis, messRichtungen } from '../rechner/typen'
 import { zufahrtNamen } from '../benennung'
 import { erkennungText } from '../texte'
 import { ERKENNUNG_FAKTOR, type Erkennung } from '../rechner/erkennung'
@@ -206,14 +206,14 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
       : q === 'amtlich' ? `Tempo der geraden Zufahrten (${tempoQuellenName(tz.map(z=>z.tempoQuelle))})` : q === 'geoportal' ? `Tempo der geraden Zufahrten (${GEOPORTAL_BERN}, signalisierte Höchstgeschwindigkeit)` : 'Tempo der geraden Zufahrten (OSM)')
   }
 
-  // Bordkanten entlang der Achse: L je Teilquerung, B über die ganze Querung
-  const s0 = st[0], n = einheit(sub(s0.p1, s0.p0))
-  const proj = (p: P) => dot(sub(p, s0.p0), n)
+  // Bordkanten der Rechnung: L je Teilquerung, B über die ganze Querung. Mit AV-Bord (Plan AV-Geometrie A6, rechner/typen.messRichtungen)
+  // B senkrecht zum Bord, L senkrecht zum Bord bei nur angenommener Achse (sonst entlang der Achse: Gehlänge eines schräg erfassten
+  // Streifens); ohne Bordmodell beide entlang der Achse wie bis dahin
+  const s0 = st[0], nB = messRichtungen(s0).breite, n = einheit(sub(s0.p1, s0.p0))
+  const projB = (p: P) => dot(sub(p, s0.p0), nB), proj = (p: P) => dot(sub(p, s0.p0), n)
   const alleAv = st.every(s => s.randQuelle === 'AV')
-  const L = st.map(s => {
-    const ns = einheit(sub(s.p1, s.p0))
-    return dot(sub(s.rand[1], s.rand[0]), ns)
-  })
+  const L = st.map(s => dot(sub(s.rand[1], s.rand[0]), messRichtungen(s).quer))
+  const senkrecht = !!s0.bordNormale
   // Teilstreifen an einer Insel länger als TEIL_MAX_M sind unplausibel (z. B. schräg über eine Einmündung); dann keine
   // Masse aus ihnen (Fahrbahnbreite, Teilquerungen, Durchfahrt), nur ein Hinweis. Die Rechnung selbst bleibt unverändert
   const teilLang = st.length > 1 && L.some(x => x > TEIL_MAX_M) ? Math.max(...L) : null
@@ -221,9 +221,10 @@ export function vorbelegen(g: QuerungGruppe, fall: Fall, angenommeneInseln: { ri
     'Durchfahrt nicht vorbelegt, Masse prüfen')
   if (teilLang !== null) { /* unplausibel lange Teilstreifen: keine Masse vorbelegen (Hinweis oben) */ }
   else if (alleAv && L.every(x => x > 0)) {
-    const ps = st.flatMap(s => s.rand).map(proj)
+    const ps = st.flatMap(s => s.rand).map(projB)
     const B = Math.max(...ps) - Math.min(...ps)
-    setze('fahrbahnB', r2(B), 'rechnung', `Bordkanten der Rechnung (AV${fall.flaechenPlan?.length ? ' bzw. Flächen (Plan)' : ''}) entlang der Achse` +
+    setze('fahrbahnB', r2(B), 'rechnung', `Bordkanten der Rechnung (AV${fall.flaechenPlan?.length ? ' bzw. Flächen (Plan)' : ''}) ` +
+      (senkrecht ? 'senkrecht zum AV-Bord' : 'entlang der Achse') +
       (st.length > 1 ? ', über die ganze Querung mit Insel' : ''))
     setze('querdistanzL', L.map(r2), 'rechnung', st.length > 1 ? 'Bordkante bis Insel je Teilquerung (Rechnung)' : 'Bordkante bis Bordkante (Rechnung)')
   } else if (st.length === 1 && s0.vermassung?.fahrbahnM != null && s0.vermassung.fahrbahnM > 0) {

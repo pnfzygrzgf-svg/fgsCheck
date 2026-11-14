@@ -141,6 +141,8 @@ import { AUTO_C } from './bedarf/automatikC'
 import { OsmNetz, fahrbahnRichtung } from './rechner/netz'
 import { fangen, fangRadiusM, FANG_PX, fixpunktVorschlaege, fixpunktName, fixMassTexte, naechsterStreifen, ART_TEXT, VORSCHLAG_M,
   type FixVorschlag } from './fixpunkt'
+// Breite eines Streifens von Hand (seit 14.11.2026 aus dem Kartenbaustein, gemeinsam mit dem VeloroutenCheck, Plan A5)
+import { STREIFEN_BREITE_MAX_M, STREIFEN_BREITE_MIN_M } from './kartenbaustein/streifenHand'
 
 interface QuellenStand extends QuellenQualitaet { kantone?: string[]; zeit?: string; name: string; objekte?: string; ms?: number; bytes?: number; server?: string; fehler?: string }
 /** Geoportal Stadt Bern für die Vorbelegung des Bedarfsmoduls (Haltestellen, Verkehrsdaten); nr = Ladevorgang (wie ParkStand) */
@@ -2507,7 +2509,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
                       : {f1(dist(s.p0, s.p1))} m lang,{' '}
                       {/* Breite (Balkenlänge) änderbar; setzt «angepasst» nicht: das beschreibt verschobene Enden, die Breite steht
                           in Liste und Bericht ohnehin als Zahl. Trottoirüberfahrt: die Breite kommt aus der Knotensicht (27.10.2026) */}
-                      {istTrottoirueberfahrt(fall, s.id) ? <>Trottoirüberfahrt, </> : <><ZahlFeld wert={s.breite} bereich={[0.5, 15]} titel={'Breite des Streifens (Balkenlänge entlang der Fahrbahn) in m, ' +
+                      {istTrottoirueberfahrt(fall, s.id) ? <>Trottoirüberfahrt, </> : <><ZahlFeld wert={s.breite} bereich={[STREIFEN_BREITE_MIN_M, STREIFEN_BREITE_MAX_M]} titel={'Breite des Streifens (Balkenlänge entlang der Fahrbahn) in m, ' +
                         '0,5 bis 15 m; Enter bzw. Feld verlassen übernimmt'} setze={x => {
                         if (x === s.breite) return
                         geaendert.current = s.id

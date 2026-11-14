@@ -33,14 +33,18 @@ import type { TempoAmtlich } from './tempo'
 import { vonHandAusFall, streifenHerkunftText, istTrottoirueberfahrt, handGeplant, type Fall } from '../fall'
 import { titelImFall } from '../benennung'
 import { brueckenumriss } from './bruecke'
+import { Bordquelle } from './bordquelle'
 
 const HAND_SCHRAEG_MAX = 60 * Math.PI / 180
 const HAND_MIN_M = 1.0                 // Streifen von Hand: kürzere (z. B. Länge 0) werden nicht gerechnet
 
 export function kontextBauen(osm: OsmDaten | null, av: AvFlaeche[], sosf: AvFlaeche[] = [], hindernisse: Hindernis[] = []): Kontext {
   eckCacheLeeren()
+  const netz = osm ? new OsmNetz(osm) : null
   return {
-    netz: osm ? new OsmNetz(osm) : null,
+    netz,
+    // AV-Bord (Plan AV-Geometrie A6, 13.11.2026 spät): Streifenenden, Fahrbahnbreite, Querdistanzen und Fahrlinie am Bordmodell
+    bord: new Bordquelle(av, netz),
     fahrbahn: new Fahrbahn(av),
     inseln: new Inseln(av),
     gebaeude: new Gebaeude(av),
@@ -59,7 +63,7 @@ export function rechneUebergang(osm: OsmDaten, av: AvFlaeche[], nid: number, kx:
   const u = osm.uebergaenge.find(x => x.id === nid)
   if (!u) return { streifen: [], meldungen: [`Übergang ${nid} nicht in den OSM-Daten.`], ms: 0 }
   const { streifen, meldungen } = streifenAusUebergang({ nid, p: lv95(u.lat, u.lon), tags: u.tags }, k.netz!, k.fahrbahn, k.inseln,
-    osm.querungen ?? [])
+    osm.querungen ?? [], { bord: k.bord })
   if (!streifen.length) return { streifen: [], meldungen, ms: performance.now() - t0 }
   const erg = pruefen(streifen, k)
   return { streifen: erg, meldungen, ms: performance.now() - t0 }
@@ -240,7 +244,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
     if (!u) return { streifen: [], meldungen: [`Übergang ${nid} nicht in den OSM-Daten.`], ms: 0, vorschlaege: [], streifenQuelle: quelle,
       markierung: null, hinweis: '', luftbild: null, parkVerworfen: [], doppelt: [], inseln: [], inselTeilt: false }
     const uw = { nid, p: lv95(u.lat, u.lon), tags: u.tags }
-    const r = streifenAusUebergang(uw, kxOhne.netz!, kxOhne.fahrbahn, kxOhne.inseln, osm.querungen ?? [], { inseln: handInseln })
+    const r = streifenAusUebergang(uw, kxOhne.netz!, kxOhne.fahrbahn, kxOhne.inseln, osm.querungen ?? [], { inseln: handInseln, bord: kxOhne.bord })
     streifen = r.streifen; meldungen = r.meldungen
     // Luftbild (E3): «erkannt» ersetzt die Streifen aus OSM + AV, «unsicher» bleibt Vorschlag. Die Erkennung läuft immer auf dem
     // Bestand (unverschnittene AV): sonst hinge das Ergebnis mit Flächen (Plan) davon ab, ob
@@ -249,7 +253,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
     // geplanten Bordkanten), ohne Teilen an einer Insel aus dem Luftbild
     if (bild && fall.luftbild !== false) {
       const kxB = mitPlan ? kontextBauen(osm, av0, sosf) : kxOhne
-      const avInselB = mitPlan ? streifenAusUebergang(uw, kxB.netz!, kxB.fahrbahn, kxB.inseln, osm.querungen ?? [], { inseln: handInseln }).avInsel
+      const avInselB = mitPlan ? streifenAusUebergang(uw, kxB.netz!, kxB.fahrbahn, kxB.inseln, osm.querungen ?? [], { inseln: handInseln, bord: kxB.bord }).avInsel
         : r.avInsel
       const erk = luftbildCache && luftbildCache.bild === bild && luftbildCache.nid === nid ? luftbildCache.erkennung : undefined
       const lb = luftbildStreifen(osm, kxB, nid, bild, { handInseln, erkennung: erk, avInsel: avInselB })
@@ -268,7 +272,7 @@ export function rechneFall(osm: OsmDaten, av0: AvFlaeche[], sosf: AvFlaeche[], n
         // «unsicher» mit Insel aus den Balken (INSEL_AUS_OSM): sie teilt den Streifen aus OSM + AV, wenn sie dessen Achse kreuzt
         // (sonst bleibt er durchgehend, mit Hinweis)
         const insel = lb.insel
-        const r2 = streifenAusUebergang(uw, kxOhne.netz!, kxOhne.fahrbahn, kxOhne.inseln, osm.querungen ?? [], { inseln: [insel] })
+        const r2 = streifenAusUebergang(uw, kxOhne.netz!, kxOhne.fahrbahn, kxOhne.inseln, osm.querungen ?? [], { inseln: [insel], bord: kxOhne.bord })
         if (r2.streifen.some(s => s.inseln.includes(insel))) {
           streifen = r2.streifen; meldungen = r2.meldungen
           inselTeilt = r2.streifen.length > 1

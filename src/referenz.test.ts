@@ -234,6 +234,9 @@ function streifenRechnen(s: RefS): void {
     for (const [lauf, vh] of [['A', vonHand], ['A0', undefined]] as [string, VonHand | undefined][]) {
       try {
         const k = kontextBauen(osm, av, sosf, lauf === 'A' ? hind : [])
+        // A und A0 prüfen die Portierung der Berner Rechnung, die quer zur OSM-Spur an der AV-Sehne misst: ohne AV-Bord (Plan
+        // AV-Geometrie A6, 13.11.2026 spät, eine bewusste Abweichung von Bern, geprüft in den Läufen B und B2 wie in der App)
+        k.bord = null
         k.vonHand = vh
         const r = rechneStreifen(osm, av, S(), k)
         const se = r.streifen.find(x => x.fgsId === String(s.fgs_id)) ?? null
@@ -321,6 +324,29 @@ describe.skipIf(!da)('Referenz Bern (nur lokal)', () => {
     streifenRechnen(s)
     expect(fehler.slice(vorher).filter(f => !f.includes('Cache fehlt'))).toEqual([])
   }, 60_000)
+
+  // Nachtrag B, BK4 (Nutzer 14.11.2026): feste Prüffälle mit Werten. Die Erwartung (erwartung.json) prüft nur, ob ein Schlüssel neu ist;
+  // 1135 und 1137 verschlechterten sich seit A6, ohne dass ein Schlüssel neu war. Ist = Stand 14.11.2026 (nach BK3/BK4), Soll (it.fails,
+  // bis die Ursache behoben ist): Sichtfeld höchstens 5 % neben dem letzten Commit vor A6 (1c0c68d). Ursachen (Plan Nachtrag B, Prüfung
+  // der Berner Referenz): 1135 konstruierte Führung 60,7 m über VERBINDUNG_MAX_M verworfen, Fahrlinie 2–4,3 m in der Mündung; 1137
+  // Aufweitung 5,6 → 10,7 m ohne erkannte Abweichung, die Fahrlinie folgt dem Rand hinaus (keine Klemmung mehr)
+  const FESTE = [
+    { lauf: 'B', fgs: 1135, zufahrt: '128', feld: 293.7, feldAlt: 359.5, feldBern: 392.5 },
+    { lauf: 'B', fgs: 1137, zufahrt: '215', feld: 506.7, feldAlt: 470.3, feldBern: 435.3 },
+    { lauf: 'B2', fgs: 1137, zufahrt: '215', feld: 474.5, feldAlt: 433.1, feldBern: 435.3 },
+  ]
+  for (const f of FESTE.filter(x => !NUR || NUR.includes(x.fgs))) {
+    const feld = (): number | null => {
+      const v = zeilen.find(z => z.lauf === f.lauf && z.fgs_id === f.fgs && z.zufahrt === f.zufahrt)?.app?.feld_m2
+      return typeof v === 'number' ? v : null
+    }
+    it(`fester Prüffall ${f.lauf}:${f.fgs}:${f.zufahrt}, Ist: Sichtfeld ${f.feld} m² (letzter Commit ${f.feldAlt}, Bern ${f.feldBern})`, () => {
+      expect(feld()).toBeCloseTo(f.feld, 0)
+    })
+    it.fails(`fester Prüffall ${f.lauf}:${f.fgs}:${f.zufahrt}, Soll: Sichtfeld höchstens 5 % neben dem letzten Commit (${f.feldAlt} m²)`, () => {
+      expect(Math.abs(feld()! - f.feldAlt) / f.feldAlt).toBeLessThanOrEqual(0.05)
+    })
+  }
 
   it('Zusammenfassung: Ursachen, Erwartung, vergleich.json', () => {
     // Ursachen von Hand (Durchsicht, Datei ausserhalb des Repos): {"A:fgs_id:zufahrt": "Ursache"}

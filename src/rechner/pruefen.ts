@@ -37,7 +37,8 @@ import { freiBis } from './freibis'
 import { D_VELO_M, RADSTREIFEN_M, TAB3, veloSichtweite } from '../knotensicht/rechner/velo'
 import { type Multi, type Poly, vereinigung, differenz, schnitt, flaeche, konvexeHuelle, enthaelt, abstandMulti, huelle, abstandLinieMulti } from './poly'
 import { type HindernisDaten, linieLaengeIn, laengsPolygon } from './hindernisse'
-import { RANG_STATUS, type ZufahrtErgebnis, type StreifenErgebnis, type Konflikt, type QuerungSicht, type AnnBasis, type AnnHand } from './typen'
+import { RANG_STATUS, messRichtungen, type ZufahrtErgebnis, type StreifenErgebnis, type Konflikt, type QuerungSicht, type AnnBasis, type AnnHand } from './typen'
+import { type Bordquelle, type SehnenQuelle, BORD_ANTEIL_MIN, BORD_GESCHAETZT, bordAmStreifen, bordZufahrt } from './bordquelle'
 import { type Augpunkt, type ErkennungErgebnis, type ErkennungEnde, ERKENNUNG_MAX_M, entlangLinie, erkennungRechnen, zielPunkte } from './erkennung'
 import { kurvenbogen } from './kurvenbogen'
 import { kurveStrasse, kurveQuelle, v85Soll, KURVE_SUCH_M, KURVE_NAH_M, type KurveStrasse } from './kurvenregel'
@@ -112,6 +113,9 @@ export interface Kontext {
   tempoAmtlich?: TempoAmtlich | null
   /** Ortslage aus dem Bedarfsblock des Falls (Feld innerorts; 30.10.2026); fehlt sie: OSM am gequerten Weg (ortslageSicht) */
   innerorts?: boolean | null
+  /** AV-Bord (Plan AV-Geometrie A6, 13.11.2026 spät): Bordmodelle für Streifenenden, Fahrbahnbreite, Querdistanzen und Fahrlinie;
+   *  fehlt bzw. ohne Bord in der AV: wie bisher quer zur OSM-Spur */
+  bord?: Bordquelle | null
 }
 
 /**
@@ -268,7 +272,11 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
   const tk = trennungKontext(S, netz, inseln)
   const vorab = new Map<string, [Zufahrt[], Entfallen[]]>()
   for (const s of S) {
-    const [r0, r1, rq] = raender(s, fahrbahn)
+    // AV-Bord am Streifen (Plan AV-Geometrie A6): Bordkanten an den Enden höchstens bis zum Schnitt der Achse mit dem Bordmodell,
+    // Normale zum Bord für Fahrbahnbreite und Querdistanz
+    const sb = kx.bord ? bordAmStreifen(kx.bord, s.p0, s.p1, s.bordAchse ?? null) : null
+    if (sb?.normale) s.bordNormale = sb.normale
+    const [r0, r1, rq] = raender(s, fahrbahn, sb?.linien ?? null)
     s.rand = [r0, r1]; s.randQuelle = rq
     s.warte = wartebereiche(s, fahrbahn)
     vorab.set(s.fgsId, zufahrtenBilden(s, netz, inseln, r0, r1, tk))
@@ -332,7 +340,8 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
     const status = keinFgs ? 'kein_fgs' :
       erg.length ? erg.reduce((b, e) => (RANG_STATUS[e.status] > RANG_STATUS[b] ? e.status : b), 'frei') : 'ohne_zufahrt'
     aus.push({ fgsId: fid, uebergangId: s.uebergangId, p0: s.p0, p1: s.p1, bw: s.bw, m: s.m, umriss: umrissRing(s), ann,
-      rand: s.rand, randQuelle: s.randQuelle, ...(lagen.size === 1 ? { wegLage: [...lagen][0] } : {}), strasse: s.strasse ?? '', netzQuelle: s.netzQuelle ?? '', lsa, lsaQuelle: lsaQ,
+      rand: s.rand, randQuelle: s.randQuelle, ...(s.bordNormale ? { bordNormale: s.bordNormale } : {}),
+      ...(s.achseAngenommen ? { achseAngenommen: true as const } : {}), ...(lagen.size === 1 ? { wegLage: [...lagen][0] } : {}), strasse: s.strasse ?? '', netzQuelle: s.netzQuelle ?? '', lsa, lsaQuelle: lsaQ,
       zufahrten: erg, entfallen: ent, status, annahmen: annahmenS, ...(ov && !keinFgs ? { querung: ov } : {}),
       ...(s.warte.length ? { warte: s.warte.map(w => [w[0], w[1]] as [P, P]) } : {}),
       ...(annBasis ? { annBasis } : {}), ...(annBasis && annH ? { annHand: [annH[0] ?? null, annH[1] ?? null] as [AnnHand | null, AnnHand | null] } : {}) })
@@ -343,10 +352,12 @@ export function pruefen(S: StreifenX[], kx: Kontext): StreifenErgebnis[] {
 /**
  * Querung ohne Vortritt (Bedarfsmodul E1): L = Querdistanz des Streifens entlang der Achse zwischen den Bordkanten der Rechnung
  * (bei angenommenen Bordkanten: 0,3 m vor den Enden); Insel nur markiert: über alle Teilstreifen derselben Querung (Übergang),
- * vom äussersten zum äussersten Rand (ganze Fahrbahn, 40 240 Z. 13.3). null: Fussgängerstreifen */
+ * vom äussersten zum äussersten Rand (ganze Fahrbahn, 40 240 Z. 13.3). null: Fussgängerstreifen
+ * Seit Plan A6 (13.11.2026 spät): bei nur angenommener Achse (senkrecht zum OSM-Weg) senkrecht zum AV-Bord gemessen (typen.messRichtungen),
+ * eine schiefe OSM-Linie verlängert L nicht mehr; ein schräg erfasster Streifen behält seine Gehlänge entlang der Achse */
 function ohneVortritt(s: StreifenX, S: StreifenX[], q: { typ: QuerungSicht; inselMarkiert: boolean } | null): OhneVortritt | null {
   if (!q) return null
-  const n = einheitV(sub(s.p1, s.p0))
+  const n = messRichtungen(s).quer
   const proj = (p: P) => dot(sub(p, s.p0), n)
   let L = proj(s.rand[1]) - proj(s.rand[0])
   const gruppe = S.filter(x => x.uebergangId === s.uebergangId)
@@ -358,7 +369,6 @@ function ohneVortritt(s: StreifenX, S: StreifenX[], q: { typ: QuerungSicht; inse
   if (!(L > 0)) L = dist(s.p0, s.p1)
   return { typ: q.typ, L: Math.round(L * 100) / 100, ganzeFahrbahn: ganz }
 }
-const einheitV = (v: P): P => { const l = Math.hypot(v[0], v[1]); return l > 0 ? [v[0] / l, v[1] / l] : [1, 0] }
 
 function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kreisel, sf: (p: P[]) => Multi,
   kf: (f: Multi, p: P[]) => Konflikt[], streifenPoly: Multi, bisher: ZufahrtErgebnis[], ov: OhneVortritt | null = null, einm = false):
@@ -557,7 +567,16 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   const abst: number[] = []
   for (let k = 0; k <= Math.floor(sw / SCHRITT); k++) abst.push(h + k * SCHRITT)
   abst.push(gesamt)
-  const ref = refAuf(weg, abst, versatz)
+  // AV-Bord entlang der Zufahrt (Plan AV-Geometrie A6, 13.11.2026 spät): Bordmodell mit den Messpunkten als Achse; Messnormalen
+  // senkrecht zum Bord statt zur OSM-Spur, Fahrbahnbreite und Querdistanzen bis zum gemessenen Rand (fbMess), Lage der Fahrlinie am
+  // Bord für Schnitte (fbLinie: Führungslinie, «Rand unbekannt» kurz überbrückt). Ohne Bord: wie bisher die AV-Sehne quer zur OSM-Spur
+  const ref0 = refAuf(weg, abst, versatz)
+  const bz = kx.bord ? bordZufahrt(kx.bord, fahrbahn, ref0, zf.g !== null && netz ? wegRoh : null) : null
+  const ref = bz ? bz.ref : ref0
+  const fbMess: SehnenQuelle = bz ? bz.rand : fahrbahn, fbLinie: SehnenQuelle = bz ? bz.fuehrung : fahrbahn
+  if (kx.bord && fahrbahn.polys.length && (!bz || bz.anteil < BORD_ANTEIL_MIN))
+    annahmen.push(`Fahrbahnrand entlang der Fahrlinie: ${BORD_GESCHAETZT} (Bordmodell ohne Rand an ${bz ? Math.round((1 - bz.anteil) * 100) : 100} % ` +
+      'der Messpunkte; AV-Fläche Strasse_Weg quer zur OSM-Linie gemessen)')
   const abschnG = zf.g !== null && netz ? wegeAbschnitte(netz, wegRoh) : []
   const messIdx = abst.map((_, i) => i).filter(i => i < ref.length && knotenM.every(km => Math.abs(abst[i] - km) > KNOTEN_SPERRE))
   const messBr = messIdx.map(i => (abschnG.length ? hochBei(netz!, abschnG, abst[i]) : null))
@@ -570,7 +589,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   const park = kx.hindernisse?.park ?? null, parkAlle = kx.hindernisse?.parkAlle ?? null
   const parkStart = park?.verwendung.length ?? 0, parkAlleStart = parkAlle?.verwendung.length ?? 0
   const parkZusatz: import('./parkEinfluss').ParkEinfluss[] = []
-  let fs: Fs | null = fahrstreifenmitte(mess, art, fahrbahn, abzugQ, s.breite, null, null, !!abzugHand, parkAlle)
+  let fs: Fs | null = fahrstreifenmitte(mess, art, fbMess, abzugQ, s.breite, null, null, !!abzugHand, parkAlle)
   if (messBr.some(x => x) && netz) {
     const widBr = messBr.find(x => x)!
     if (fs === null && ref.length && osmBreite(netz.w(widBr).t)[0] !== null) {
@@ -582,7 +601,8 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
   }
   let fsoLage: FsoLage | null = null, fsDv: number | null = null
   const rd = rechts(d)
-  const rLat = ref.length ? s.rand.map(r_ => dot(sub(r_, ref[0][0]), rd)) : [0, 0]
+  // Bordkanten am Streifen quer zur Fahrt: mit Bordmodell entlang der Messnormalen am ersten Punkt (senkrecht zum Bord, Plan A6)
+  const rLat = ref.length ? s.rand.map(r_ => dot(sub(r_, ref[0][0]), bz ? ref[0][1] : rd)) : [0, 0]
   const arS = Math.max(...rLat), alS = -Math.min(...rLat)
   let lage: number, vomRand: number, je: number, ms: number, abR: number
   let lageAv: number, vomRandAv: number, jeAv: number, msAv: number
@@ -672,14 +692,14 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
     if (quer_ab !== null && quer_ab < gesamt && netz) {
       const lagenZ: number[] = []
       for (let k = 0; k < 16; k++) lagenZ.push(quer_ab + VERSATZ_RUECK_M / 2 + 2 * k)
-      const refZ = refAuf(weg, lagenZ, versatz)
+      const refZ = bz ? bz.drehen(refAuf(weg, lagenZ, versatz)) : refAuf(weg, lagenZ, versatz)
       const zIdx = lagenZ.map((_, i) => i).filter(i => i < refZ.length &&
         knotenM.filter(km => Math.abs(km - quer_ab!) > 1.0).every(km => Math.abs(lagenZ[i] - km) > KNOTEN_SPERRE) &&
         !(abschnG.length && hochBei(netz, abschnG, lagenZ[i])))
       const messZ = zIdx.map(i => refZ[i])
       const fsoZ = fahrstreifenOsm(netz, zf.g, zf.sd!, su, kbe, wegRoh, lagenZ.filter((_, i) => i < refZ.length &&
         knotenM.filter(km => Math.abs(km - quer_ab!) > 1.0).every(km => Math.abs(lagenZ[i] - km) > KNOTEN_SPERRE)), 'beide')
-      const fsZ = fahrstreifenmitte(messZ, 'beide', fahrbahn, abzugHand ? () => abzugHand :
+      const fsZ = fahrstreifenmitte(messZ, 'beide', fbMess, abzugHand ? () => abzugHand :
         abzugAusOsm(netz, punkteAufSpur(wegRoh, zIdx.map(i => lagenZ[i]))), s.breite, fsoZ, null, !!abzugHand, parkAlle)
       let vomRandZwei: number | null = null
       if (fsZ && fsZ.osm) {
@@ -694,7 +714,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
         vomRandZwei = fsZ.vomRand
         vomRandG = abst.map(a_ => vomRand + (vomRandZwei! - vomRand) * Math.min(1, Math.max(0, (a_ - quer_ab! + VERSATZ_RUECK_M / 2) / VERSATZ_RUECK_M)))
       }
-      refG = querZweirichtig(fahrbahn, ref, abst, quer_ab, lage, vomRandZwei === null ? vomRand : vomRandZwei)[0]
+      refG = querZweirichtig(fbLinie, ref, abst, quer_ab, lage, vomRandZwei === null ? vomRand : vomRandZwei)[0]
     }
     // Brücken (BRUECKE_OSM) und Flächen ohne AV-Strasse (R2): OSM-Weg je Sichtpunkt aus der unverschobenen Spur. Auf einer Brücke
     // (bzw. am Brückenkopf im AV-Brückenumriss) weder AV-Messung noch Verschieben, Lage aus OSM; R2: liegt die Mitte der Spur an
@@ -743,12 +763,12 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       }
     }
     const naseP: [ParkRaster, number] | null = fs && fs.parkR && park ? [park, abR] : null
-    ;[sichtpunkte, nVerschoben] = amRandHalten(fahrbahn, refG, lage, vomRandG, 3.0, randInfo, zf.g !== null, ref, fest, naseP)
+    ;[sichtpunkte, nVerschoben] = amRandHalten(fbLinie, refG, lage, vomRandG, 3.0, randInfo, zf.g !== null, ref, fest, naseP)
     // FS_OSM_INSEL_RUECKFALL
     const inselNah = (pts: P[]) => pts.slice(1).filter(p => inseln.an(p, FS_OSM_INSEL_M)).length
     if (fsDv !== null && !kt && refG === ref && !Array.isArray(vomRandG) && (nVerschoben || inselNah(sichtpunkte))) {
       const infoAv: RandInfo = {}
-      const [spAv, nAv] = amRandHalten(fahrbahn, ref, lageAv, vomRandAv, 3.0, infoAv, zf.g !== null, ref, fest, naseP)
+      const [spAv, nAv] = amRandHalten(fbLinie, ref, lageAv, vomRandAv, 3.0, infoAv, zf.g !== null, ref, fest, naseP)
       const a1 = [nAv, inselNah(spAv)], b1 = [nVerschoben, inselNah(sichtpunkte)]
       if (a1[0] < b1[0] || (a1[0] === b1[0] && a1[1] < b1[1])) {
         sichtpunkte = spAv; nVerschoben = nAv
@@ -1004,7 +1024,7 @@ function geradeUndAbbiegend(s: StreifenX, zf: Zufahrt, kx: Kontext, kreisel: Kre
       swQuelle, fs, lageAb, vomRandAb, versatz, arS, alS, rd, art, verschiebung, refDa: ref.length > 0, streifenPoly,
       sichtfeld: sf, konflikte: kf,
       basisErgebnis: () => ({ randQuelle: s.randQuelle, netzQuelle: zf.netzQuelle }),
-      ...(ov ? { ov } : {}), ...(ort.ausserorts ? { ausserorts: true } : {}),
+      ...(ov ? { ov } : {}), ...(ort.ausserorts ? { ausserorts: true } : {}), bord: kx.bord ?? null,
     }
     for (const a of [...arme].sort((x, y) => x.dj - y.dj || richtungGrad(x.fahrt) - richtungGrad(y.fahrt))) {
       const r = abbiegeZufahrt(kontext, a)

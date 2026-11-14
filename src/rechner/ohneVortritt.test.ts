@@ -195,11 +195,15 @@ describe('Reichweite der geladenen Daten (Korrektur E1): ohne Vortritt geprüft 
       expect(z.sichtweiteQuelle === 'bis Wegende' && z.sichtweite > REICHWEITE_SICHT_M).toBe(false)
     }
     expect(zs.some(({ z }) => z.geprueftBisM === REICHWEITE_SICHT_M && z.sichtweite > REICHWEITE_SICHT_M)).toBe(true)
-    // Abbieger (Soll nach Z. 8.2 bis 490 m): höchstens bis zum Beginn des Abbiegens
+    // Abbieger (Soll nach Z. 8.2 über 200 m): höchstens bis zum Beginn des Abbiegens
     // (Annahme der App, 30.10.2026: die Quelle nennt den ungekürzten Wert nach Z. 8.2)
+    // L über die ganze Querung (Insel nur markiert): bis 13.11.2026 42,4 m, ein Fehlwert – die Fläche Strasse_Weg reicht hier auf beiden
+    // Seiten in Mündungen bzw. Fusswege, die Teilstreifen waren 16,4 + 22,6 m lang (Bern: 5,5 m je Teil). Seit Plan AV-Geometrie A6 enden
+    // sie am AV-Bord (10,8 + 3,9 m), L 18,13 m
+    expect(r.streifen.map(st => st.querung?.L)).toEqual([18.13, 18.13])
     for (const { z } of zs.filter(x => x.z.art === 'abbiegend')) {
-      expect(z.annahmeGrenze, z.zufahrt).toEqual({ grenze: 'bis Beginn des Abbiegens', normM: sichtOhneVortritt(z.tempo, 42.4) })
-      expect(z.sichtweiteQuelle, z.zufahrt).toBe(quelleOhneVortrittAbbiegen(42.4, sichtOhneVortritt(z.tempo, 42.4)))
+      expect(z.annahmeGrenze, z.zufahrt).toEqual({ grenze: 'bis Beginn des Abbiegens', normM: sichtOhneVortritt(z.tempo, 18.13) })
+      expect(z.sichtweiteQuelle, z.zufahrt).toBe(quelleOhneVortrittAbbiegen(18.13, sichtOhneVortritt(z.tempo, 18.13)))
     }
   })
 })
