@@ -62,6 +62,18 @@ describe('bordStuecke', () => {
   })
 })
 
+describe('S6: Wald und Gewässer als Bord', () => {
+  it('Strasse zwischen Wald und Gewässer: beide Ränder Bord (vorher «offen», Rand unbekannt); befestigte Fläche bleibt offen', () => {
+    const flaechen = (links: string, rechts: string) => [fl('Strasse_Weg', rechteck(-50, 150, -4, 4)), fl(links, rechteck(-50, 150, 4, 20)), fl(rechts, rechteck(-50, 150, -20, -4))]
+    const m = bordmodell({ flaechen: flaechen('geschlossener_Wald', 'Gewaesser_fliessendes'), achse: [pt(0, 0), pt(100, 0)] })
+    expect(alleN(m.rand.links.teile).every(n => Math.abs(n - 4) < 1e-9)).toBe(true)
+    expect(alleN(m.rand.rechts.teile).every(n => Math.abs(n + 4) < 1e-9)).toBe(true)
+    expect(querBei(m, 50).breite!).toBeCloseTo(8, 9)
+    const offen = bordmodell({ flaechen: flaechen('uebrige_befestigte', 'Bahn'), achse: [pt(0, 0), pt(100, 0)] })
+    expect([offen.rand.links.teile, offen.rand.rechts.teile]).toEqual([[], []])
+  })
+})
+
 describe('bordmodell: gerade Strasse', () => {
   it('Achse mittig: Rand N ±4, Breite 8,00, Führungslinie gleich dem Rand, keine Abweichung', () => {
     const m = bordmodell({ flaechen: gerade(), achse: [pt(0, 0), pt(100, 0)] })

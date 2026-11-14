@@ -159,7 +159,10 @@ export const INSEL_ART = 'Verkehrsinsel'
 /** Grün wie GRUEN_ARTEN in VeloroutenCheck breitenmessung.ts */
 export const GRUEN_ARTEN: readonly string[] = ['Gartenanlage', 'uebrige_humusierte', 'Acker_Wiese_Weide']
 /** Kante gegen diese Arten ist Bord; jede andere Art (z. B. uebrige_befestigte, Bahn) und keine Fläche: offen */
-export const BORD_ARTEN: readonly string[] = ['Trottoir', INSEL_ART, 'Gebaeude', ...GRUEN_ARTEN]
+/** S6 (14.11.2026, Hinweis des Nutzers): Wald, bestockte Flächen, Kulturen und Gewässer begrenzen die Fahrbahn ebenfalls (in den Testdaten
+ *  grenzte Strasse_Weg 30 km an Wald und 0,2 km an Gewässer «offen»); uebrige_befestigte (Parkplatz, Vorplatz) und Bahn bleiben offen */
+export const NATUR_ARTEN: readonly string[] = ['geschlossener_Wald', 'uebrige_bestockte', 'Reben', 'uebrige_Intensivkultur', 'Gewaesser_fliessendes', 'Gewaesser_stehendes']
+export const BORD_ARTEN: readonly string[] = ['Trottoir', INSEL_ART, 'Gebaeude', ...GRUEN_ARTEN, ...NATUR_ARTEN]
 
 const STOSS_M = 0.05          // Fahrbahnteile auf der Normalen mit so kleiner Lücke gehören zusammen (Stossstelle zweier Flächen)
 const TEIL_TOL_M = 0.02       // fremder Eckpunkt so nah an einer Kante teilt sie
