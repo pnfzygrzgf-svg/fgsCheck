@@ -149,8 +149,6 @@ function lageZurLinie(p: P, linie: readonly P[]): { d: number; r: P } {
  * Abzweigungen entlang einer Linie (Plan A6, Punkt 4): OSM-Knoten höchstens ABZW_NAH_M von der Linie mit mindestens drei Strassenarmen;
  * je Arm, der um mehr als ABZW_WINKEL_GRAD von der Linie abweicht, eine Abzweigung mit Punkt ABZW_ARM_M auf dem Arm.
  */
-/** FB11: ein fast paralleler Arm gilt als eigener Arm (nicht die Linie selbst), wenn sein Punkt ABZW_ARM_M weiter so weit neben der Linie liegt */
-export const ABZW_PARALLEL_WEG_M = 1
 export function abzweigungenEntlang(netz: OsmNetz, linie: readonly P[]): Abzweigung[] {
   if (linie.length < 2) return []
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
@@ -176,13 +174,9 @@ export function abzweigungenEntlang(netz: OsmNetz, linie: readonly P[]): Abzweig
     if (st.length < 3 && !zuf.length) continue
     for (const arm of st.length >= 3 ? [...st, ...zuf] : zuf) {
       const w = winkelGrad(netz.armRichtung(arm), lz.r)
+      // Codeprüfung 16.11.2026 (FB11): fast parallele Arme als nurInsel weiterzugeben, wurde im fgsCheck geprüft und zurückgenommen: am
+      // Eigerplatz (Schwarzenburgstrasse, OSM 4188102724) fiel dadurch ein Teilstreifen über die Insel weg. Im VeloroutenCheck umgesetzt
       if (Math.min(w, 180 - w) > ABZW_WINKEL_GRAD) aus.push({ p, arm: netz.armPunkt(arm, ABZW_ARM_M) })
-      else {
-        // Codeprüfung 16.11.2026 (FB11): ein fast paralleler Arm, der nicht die Linie selbst ist, zählt für die Seiteninsel (C1 wertet
-        // Strahlen bis 30° zur Achse), nicht als Einmündung
-        const ap = netz.armPunkt(arm, ABZW_ARM_M)
-        if (lageZurLinie(ap, linie).d > ABZW_PARALLEL_WEG_M) aus.push({ p, arm: ap, nurInsel: true })
-      }
     }
   }
   return aus

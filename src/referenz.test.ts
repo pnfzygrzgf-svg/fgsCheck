@@ -194,6 +194,10 @@ const STREIFEN = (REF_DATEN.streifen as RefS[]).filter(s => !NUR || NUR.includes
 const zeilen: Zeile[] = []
 const fehler: string[] = []
 const geometrie: Record<string, unknown>[] = []
+/** Codeprüfung 16.11.2026 (FB14 c): Sichtpunkte ALLER App-Zufahrten der Läufe B und B2 (auch der Zufahrten, die Bern nicht kennt), als
+ *  Vergleichsstand in ../referenz_bern/sichtpunkte_stand.json; Schlüssel Lauf:Ort:Streifen:Kennung:Art */
+const stand: Record<string, { status: string; sp: [number, number][] }> = {}
+const r2 = (x: number) => Math.round(x * 100) / 100
 
 /** Läufe A, A0, B und B2 eines Referenzstreifens; Ergebnis in zeilen, fehler und geometrie */
 function streifenRechnen(s: RefS): void {
@@ -296,6 +300,8 @@ function streifenRechnen(s: RefS): void {
         const kand = eigen.length ? eigen : r.streifen
         const se = kand.reduce<StreifenErgebnis | null>((b, x) => (b === null || dist(x.m, m) < dist(b.m, m) ? x : b), null)
         const z = vergleichen(lauf, s, se, true)
+        for (const x of r.streifen) for (const zz of x.zufahrten)
+          stand[`${lauf}:${s.fgs_id}:${x.fgsId}:${zz.kennung}:${zz.art}`] = { status: zz.status, sp: (zz.sichtpunkte ?? []).map(p => [r2(p[0]), r2(p[1])]) }
         if (se) for (const x of z) x.befund.push(`app_streifen ${se.fgsId} ${dist(se.m, m).toFixed(1)} m neben Bern`)
         zeilen.push(...z)
         // Lage des Streifens gegenüber Bern: Mitte, Achse (Winkel), Länge, Balkenlänge
@@ -388,6 +394,25 @@ describe.skipIf(!da)('Referenz Bern (nur lokal)', () => {
     const ERW = join(DIR, 'erwartung.json')
     if (process.env.FGS_REFERENZ_ERWARTUNG_SCHREIBEN && !NUR)
       writeFileSync(ERW, JSON.stringify({ stand: new Date().toISOString().slice(0, 10), ...Object.fromEntries(['A0', 'B', 'B2'].map(l => [l, ohneUrsache(l)])) }, null, 1))
+    // FB14 c: Sichtpunkte aller App-Zufahrten gegen den Vergleichsstand (Grenze STAND_TOL_M); Änderungen schlagen an, damit eine Wirkung
+    // auf Zufahrten ohne Berner Wert (z. B. Nr. 236, 392) nicht unbemerkt bleibt. Nachführen nach Durchsicht:
+    // FGS_REFERENZ_STAND_SCHREIBEN=1 npm run test:referenz
+    const STAND = join(DIR, 'sichtpunkte_stand.json'), STAND_TOL_M = 0.05
+    if (process.env.FGS_REFERENZ_STAND_SCHREIBEN && !NUR) writeFileSync(STAND, JSON.stringify({ stand: new Date().toISOString().slice(0, 10), zufahrten: stand }))
+    const alt: { stand?: string; zufahrten: typeof stand } | null = lesen(STAND)
+    if (!alt) console.log(`Kein Vergleichsstand der Sichtpunkte (${STAND}): nur protokolliert`)
+    else if (!NUR) {
+      const anders: string[] = []
+      for (const [k, v] of Object.entries(stand)) {
+        const a = alt.zufahrten[k]
+        if (!a) { anders.push(`${k}: neu`); continue }
+        const d = v.sp.length === a.sp.length ? Math.max(0, ...v.sp.map((p, i) => dist(p, a.sp[i]))) : Infinity
+        if (v.status !== a.status || d > STAND_TOL_M) anders.push(`${k}: ${a.status} → ${v.status}, Sichtpunkte ${Number.isFinite(d) ? d.toFixed(2) + ' m' : 'andere Zahl'}`)
+      }
+      for (const k of Object.keys(alt.zufahrten)) if (!stand[k]) anders.push(`${k}: entfallen`)
+      if (anders.length) console.log(`Sichtpunkte gegen den Vergleichsstand ${alt.stand ?? ''}:\n  ${anders.join('\n  ')}`)
+      expect(anders, 'Sichtpunkte gegen sichtpunkte_stand.json (nach Durchsicht mit FGS_REFERENZ_STAND_SCHREIBEN=1 nachführen)').toEqual([])
+    }
     const erwartung: Record<string, string[]> | null = lesen(ERW)
     if (!erwartung) console.log(`Keine Erwartung (${ERW}): Abweichungen ohne Ursache in A0, B, B2 nur protokolliert`)
     else if (!NUR) for (const lauf of ['A0', 'B', 'B2']) {

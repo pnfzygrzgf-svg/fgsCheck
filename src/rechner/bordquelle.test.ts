@@ -124,7 +124,7 @@ describe('AV-Bord: Streifen am Bord', () => {
   })
 })
 
-// Codeprüfung 16.11.2026 (FB14 d, FB11): Abzweigungen für das Bordmodell aus dem OSM-Netz
+// Codeprüfung 16.11.2026 (FB14 d): Abzweigungen für das Bordmodell aus dem OSM-Netz
 describe('abzweigungenEntlang', () => {
   const linie: P[] = [lv(-200, 0), lv(200, 0)]
   const netzMit = (...extra: OsmWeg[]) => new OsmNetz({ ...osm(), wege: [...osm().wege, ...extra] })
@@ -136,9 +136,8 @@ describe('abzweigungenEntlang', () => {
   it('ohne Zufahrt an einem Knoten mit zwei Strassenarmen keine Abzweigung (Knick der Strasse)', () => {
     expect(abzweigungenEntlang(netzMit(), linie)).toEqual([])
   })
-  it('fast paralleler Strassenarm (20°) an einem Knoten mit drei Strassenarmen: nur für die Seiteninsel (nurInsel)', () => {
+  it('fast paralleler Strassenarm (20°) an einem Knoten mit drei Strassenarmen: keine Abzweigung (FB11 im fgsCheck zurückgenommen)', () => {
     const t = Math.tan(20 * Math.PI / 180)
-    const z = abzweigungenEntlang(netzMit(weg(6, [[12, 0, 0], [60, 100, -100 * t]], { highway: 'residential' })), linie)
-    expect(z.map(x => x.nurInsel ?? false)).toEqual([true])
+    expect(abzweigungenEntlang(netzMit(weg(6, [[12, 0, 0], [60, 100, -100 * t]], { highway: 'residential' })), linie)).toEqual([])
   })
 })
