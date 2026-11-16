@@ -905,12 +905,13 @@ describe('Nachtrag C: Rand der eigenen Fahrbahn', () => {
     const nur = bordmodell({ flaechen: mitInsel(), achse: [pt(0, 0), pt(100, 0)], abzweigungen: [{ p: pt(50, -10), arm: pt(60, -10), nurInsel: true }] })
     expect(nur.rand).toEqual(mit.rand)
     expect(nur.querschnitte.map(q => q.rechts.punkt)).toEqual(mit.querschnitte.map(q => q.rechts.punkt))
-    // als Abzweigung für die Einmündungsregel zählt sie nicht: an einer Lücke daneben bleibt der Rand unbekannt
+    // als Abzweigung für die Einmündungsregel zählt sie nicht: die Lücke daneben ist keine Einmündung, sondern (gleiche Bordflucht) eine
+    // überbrückte Öffnung (Codeprüfung 16.11.2026, FB14: der Kommentar sagte «unbekannt»)
     const flaechen = [fl('Strasse_Weg', rechteck(-50, 150, -4, 4)), fl('Strasse_Weg', rechteck(44, 56, -30, -4)), fl('Trottoir', rechteck(-50, 150, 4, 7)),
       fl('Trottoir', rechteck(-50, 44, -30, -4)), fl('Trottoir', rechteck(56, 150, -30, -4))]
     const z = { p: pt(50, -4), arm: pt(50, -14) }
     expect(abw(bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)], abzweigungen: [z] }), 'rechts').map(a => a.art)).toEqual(['einmuendung'])
-    expect(abw(bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)], abzweigungen: [{ ...z, nurInsel: true }] }), 'rechts').map(a => a.art)).not.toContain('einmuendung')
+    expect(abw(bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)], abzweigungen: [{ ...z, nurInsel: true }] }), 'rechts').map(a => a.art)).toEqual(['oeffnung'])
   })
   it('kurzes Stück, das von beiden Nachbarn mehr als 2 m nach aussen wegläuft (Rand einer spitz einmündenden Parallelfläche, Grosser ' +
     'Muristalden 484734431), ist fremd: die Führung bleibt auf der Randlage', () => {
@@ -954,5 +955,79 @@ describe('Nachtrag C: Rand der eigenen Fahrbahn', () => {
     const m = bordmodell({ flaechen: mitInsel(), achse: [pt(0, 0), pt(100, 0)] })
     expect(alleN(m.rand.rechts.teile).every(n => Math.abs(n + 14) < 1e-9)).toBe(true)
     expect(m.querschnitte.every(q => Math.abs(q.breite! - 19) < 1e-9)).toBe(true)
+  })
+})
+
+// Codeprüfung 16.11.2026 (Fable, Befunde FB1–FB9): Fälle aus den Nachweisen, Erwartung wie 0.11.0 bzw. wie beschrieben
+describe('Codeprüfung 16.11.2026', () => {
+  const nBei = (m: Bordmodell, X: 'links' | 'rechts', s: number) => { const q = querBei(m, s)[X].punkt; return q ? rel(q)[1] : null }
+  it('FB1: auf gerader Strasse bleibt die Verbindung über die Mündung die Gerade, auch nach einer Schräge (Parkbucht) vor der Mündung', () => {
+    for (const [tiefe, schraege, muendung] of [[2, 5, 8], [2, 5, 20], [1, 1.5, 12]]) {
+      const e1 = 40 + muendung
+      const flaechen = [fl('Strasse_Weg', [pt(-50, -4 - tiefe), pt(40 - schraege, -4 - tiefe), pt(40, -4), pt(e1, -4), pt(170, -4), pt(170, 4), pt(-50, 4)]),
+        fl('Strasse_Weg', rechteck(40, e1, -40, -4)), fl('Trottoir', rechteck(-50, 170, 4, 7)),
+        fl('Trottoir', [pt(-50, -4 - tiefe), pt(40 - schraege, -4 - tiefe), pt(40, -4), pt(40, -40), pt(-50, -40)]), fl('Trottoir', rechteck(e1, 170, -40, -4))]
+      const m = bordmodell({ flaechen, achse: [pt(0, 0), pt(120, 0)], abzweigungen: [{ p: pt(40 + muendung / 2, 0), arm: pt(40 + muendung / 2, -10) }] })
+      const v = m.fuehrung.rechts.verbindungen
+      expect(v.length).toBe(1)
+      expect(Math.max(...v[0].linie.map(p => rel(p)[1]))).toBeCloseTo(-4, 6)
+    }
+  })
+  it('FB2: Trottoirstück 10 m zwischen zwei Einfahrten mit 2,5 m Rückkehr bleibt eigener Rand (Breite 8,00 wie 0.11.0)', () => {
+    const flaechen = [fl('Strasse_Weg', rechteck(-50, 150, -4, 4)), fl('Strasse_Weg', rechteck(26, 30, 4, 10)), fl('Strasse_Weg', rechteck(40, 44, 4, 10)),
+      fl('Trottoir', rechteck(-50, 26, 4, 6.5)), fl('Trottoir', rechteck(30, 40, 4, 6.5)), fl('Trottoir', rechteck(44, 150, 4, 6.5)),
+      fl('uebrige_befestigte', rechteck(-50, 150, 6.5, 12)), fl('Trottoir', rechteck(-50, 150, -7, -4))]
+    const m = bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)] })
+    for (const s of [31, 35, 39]) { expect(nBei(m, 'links', s)).toBeCloseTo(4, 6); expect(querBei(m, s).breite).toBeCloseTo(8, 6) }
+    expect(m.rand.links.fremd.length).toBe(0)
+  })
+  it('FB2: vorgezogenes Trottoir 10 m zwischen zwei Seitenstrassen bleibt Engstelle (7,00 statt 9,50 m)', () => {
+    const flaechen = [fl('Strasse_Weg', [pt(-50, -4), pt(150, -4), pt(150, 5.5), pt(52, 5.5), pt(46, 5.5), pt(46, 3), pt(36, 3), pt(36, 5.5), pt(30, 5.5), pt(-50, 5.5)]),
+      fl('Strasse_Weg', rechteck(30, 36, 5.5, 30)), fl('Strasse_Weg', rechteck(46, 52, 5.5, 30)),
+      fl('Trottoir', rechteck(-50, 30, 5.5, 8.5)), fl('Trottoir', [pt(36, 3), pt(46, 3), pt(46, 7), pt(36, 7)]), fl('uebrige_befestigte', rechteck(36, 46, 7, 30)),
+      fl('Trottoir', rechteck(52, 150, 5.5, 8.5)), fl('Trottoir', rechteck(-50, 150, -7, -4))]
+    const m = bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)], abzweigungen: [{ p: pt(33, 5), arm: pt(33, 20) }, { p: pt(49, 5), arm: pt(49, 20) }] })
+    for (const s of [38, 41, 44]) expect(querBei(m, s).breite).toBeCloseTo(7, 6)
+  })
+  it('FB4: Bordflucht über eine Öffnung 11 m gilt auch bei einem Knick der OSM-Linie von 3° bzw. 8°', () => {
+    const flaechen = [fl('Strasse_Weg', rechteck(-50, 150, -4, 4)), fl('Strasse_Weg', rechteck(45, 56, 4, 12)), fl('Trottoir', rechteck(-50, 45, 4, 12)),
+      fl('Trottoir', rechteck(56, 150, 4, 12)), fl('Trottoir', rechteck(-50, 150, -7, -4))]
+    for (const g of [3, -3, 8, -8]) {
+      const w = g * Math.PI / 180
+      const m = bordmodell({ flaechen, achse: [pt(0, 0), pt(50, 0), pt(50 + 40 * Math.cos(w), 40 * Math.sin(w))] })
+      expect(abw(m, 'links').map(a => a.art)).toEqual(['oeffnung'])
+    }
+  })
+  it('FB5: kurze Seiteninsel 9 m mit Abzweigung dahinter: nirgends ohne Bordpunkt, der Bord dahinter wie 0.11.0 (die Inselkante bleibt fremd)', () => {
+    const ins = rechteck(45, 54, -7, -5)
+    const flaechen = [fl('Strasse_Weg', rechteck(-50, 150, -14, 5), ins.slice().reverse()), fl('Verkehrsinsel', ins),
+      fl('Trottoir', rechteck(-50, 150, 5, 8)), fl('Trottoir', rechteck(-50, 150, -17, -14))]
+    const m = bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)], abzweigungen: [{ p: pt(40, -10), arm: pt(50, -10) }] })
+    for (const s of [40, 46, 48, 50, 52, 53, 56]) expect(nBei(m, 'rechts', s)).toBeCloseTo(-14, 6)
+  })
+  it('FB6 (Auslegung naturNurParallel, fgsCheck): Waldrand schräg (20°) zur Achse ist offen, achsparallel Bord', () => {
+    const t = Math.tan(20 * Math.PI / 180)
+    const schraeg = [fl('Strasse_Weg', [pt(-50, -4), pt(150, -4), pt(150, 4), pt(60, 4), pt(40, 4 + 20 * t), pt(20, 4), pt(-50, 4)]),
+      fl('Trottoir', rechteck(-50, 150, -7, -4)), fl('Trottoir', rechteck(-50, 20, 4, 7)), fl('Trottoir', rechteck(60, 150, 4, 7)),
+      fl('geschlossener_Wald', [pt(20, 4), pt(40, 4 + 20 * t), pt(60, 4), pt(60, 30), pt(20, 30)])]
+    const ms = bordmodell({ flaechen: schraeg, achse: [pt(0, 0), pt(100, 0)], auslegung: { naturNurParallel: true } })
+    expect(nBei(ms, 'links', 30)).toBeNull()
+    expect(nBei(bordmodell({ flaechen: schraeg, achse: [pt(0, 0), pt(100, 0)] }), 'links', 30)).not.toBeNull()   // ohne Auslegung wie S6
+    const parallel = [fl('Strasse_Weg', rechteck(-50, 150, -4, 4)), fl('Trottoir', rechteck(-50, 150, -7, -4)), fl('geschlossener_Wald', rechteck(-50, 150, 4, 30))]
+    const mp = bordmodell({ flaechen: parallel, achse: [pt(0, 0), pt(100, 0)], auslegung: { naturNurParallel: true } })
+    expect(nBei(mp, 'links', 30)).toBeCloseTo(4, 6)
+  })
+  it('FB8: Teilverdeckung (Kerntest C1): auf 0,1 m genau überall ein Bordpunkt', () => {
+    const ins = rechteck(20, 80, -7, -5)
+    const flaechen = [fl('Strasse_Weg', rechteck(-50, 150, -14, 5), ins.slice().reverse()), fl('Verkehrsinsel', ins),
+      fl('Trottoir', rechteck(-50, 150, 5, 8)), fl('Trottoir', rechteck(-50, 150, -17, -14))]
+    const m = bordmodell({ flaechen, achse: [pt(0, 0), pt(100, 0)], abzweigungen: [{ p: pt(50, -10), arm: pt(60, -10) }], schrittM: 0.1 })
+    expect(m.querschnitte.filter(q => !q.rechts.punkt).map(q => q.s)).toEqual([])
+  })
+  it('FB9: Achse am Anfang 2 m neben der Fahrbahn: der eigene Rand jenseits der Achse bleibt (Breite 8,00)', () => {
+    const flaechen = [fl('Strasse_Weg', rechteck(-50, 150, -4, 4)), fl('Trottoir', rechteck(-50, 150, 4, 7)),
+      fl('Trottoir', rechteck(-50, 10, -7, -4)), fl('uebrige_befestigte', rechteck(10, 16, -7, -4)), fl('Trottoir', rechteck(16, 150, -7, -4))]
+    const m = bordmodell({ flaechen, achse: [pt(0, -6), pt(100, 1)] })
+    for (const s of [2, 5, 8]) expect(querBei(m, s).breite).toBeCloseTo(8, 1)
   })
 })

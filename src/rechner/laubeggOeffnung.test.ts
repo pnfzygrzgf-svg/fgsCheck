@@ -39,8 +39,9 @@ describe('BK3 Laubeggstrasse FGS 275422258 im fgsCheck (derselbe Ausschnitt wie 
     const m = k.bord!.modell(achseAmWeg(k.netz!, gw.best.wid, gw.best.k, gw.best.q))!
     const o = m.abweichungen.filter(x => x.art === 'oeffnung')
     expect(o.map(x => [x.seite, x.verbunden, Math.round(dist(x.von!, x.bis!) * 10) / 10])).toEqual([['rechts', true, 11.3]])
-    // seit Nachtrag C (C4) Richtung und Versatz gegen die Achse gemessen (vorher 2,4° / 0,25 m gegen die Gerade des anderen Bords)
-    expect(o.map(x => x.grund)).toEqual(['Bordflucht über die Öffnung 11,3 m (Richtung 2,2°, Versatz 0,24 m)'])
+    // seit der Codeprüfung 16.11.2026 (FB4) zuerst wie 0.11.0 gegen die Gerade des anderen Bords (2,4° / 0,25 m); gegen die Achse wären
+    // es 2,2° / 0,24 m (Nachtrag C, C4), das gilt nur noch, wo die Prüfung am Bord allein nicht reicht (Öffnung in der Kurve)
+    expect(o.map(x => x.grund)).toEqual(['Bordflucht über die Öffnung 11,3 m (Richtung 2,4°, Versatz 0,25 m)'])
     const l = m.abweichungen.filter(x => x.seite === 'links' && x.art === 'einmuendung' && x.s1 > 35)
     expect(l.map(x => [x.verbunden, x.grund.replace(/\d+°/, 'W°')])).toEqual([[true, 'Richtungsänderung W° und OSM-Abzweigung 4,9 m']])
     for (const x of [...o, ...l]) expect(schnittBord(m, x.seite, 'rand').ueberbrueckt.map(y => y.grund)).toContain(x.grund)

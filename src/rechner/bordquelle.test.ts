@@ -7,6 +7,8 @@ import type { AvFlaeche } from '../daten/av'
 import { kontextBauen, rechneUebergang } from './index'
 import type { StreifenErgebnis, ZufahrtErgebnis } from './typen'
 import { messRichtungen } from './typen'
+import { OsmNetz } from './netz'
+import { abzweigungenEntlang } from './bordquelle'
 
 const O: P = [2600000, 1200000]
 const ll = (x: number, y: number): [number, number] => wgs(O[0] + x, O[1] + y)
@@ -119,5 +121,24 @@ describe('AV-Bord: Streifen am Bord', () => {
     expect(gerade(neu).map(z => z.fahrbahnM)).toEqual(gerade(alt).map(z => z.fahrbahnM))
     expect(gerade(neu).every(z => z.annahmen.some(a => a.startsWith('Fahrbahnrand entlang der Fahrlinie: Bord aus OSM geschätzt')))).toBe(true)
     expect(gerade(alt).every(z => !z.annahmen.some(a => a.includes('Bord aus OSM geschätzt')))).toBe(true)
+  })
+})
+
+// Codeprüfung 16.11.2026 (FB14 d, FB11): Abzweigungen für das Bordmodell aus dem OSM-Netz
+describe('abzweigungenEntlang', () => {
+  const linie: P[] = [lv(-200, 0), lv(200, 0)]
+  const netzMit = (...extra: OsmWeg[]) => new OsmNetz({ ...osm(), wege: [...osm().wege, ...extra] })
+  it('Zufahrt (highway=service) an einem Knoten mit nur zwei Strassenarmen zählt als Abzweigung (C4)', () => {
+    const z = abzweigungenEntlang(netzMit(weg(5, [[12, 0, 0], [50, 0, -30]], { highway: 'service' })), linie)
+    expect(z.length).toBe(1)
+    expect(z[0].nurInsel).toBeUndefined()
+  })
+  it('ohne Zufahrt an einem Knoten mit zwei Strassenarmen keine Abzweigung (Knick der Strasse)', () => {
+    expect(abzweigungenEntlang(netzMit(), linie)).toEqual([])
+  })
+  it('fast paralleler Strassenarm (20°) an einem Knoten mit drei Strassenarmen: nur für die Seiteninsel (nurInsel)', () => {
+    const t = Math.tan(20 * Math.PI / 180)
+    const z = abzweigungenEntlang(netzMit(weg(6, [[12, 0, 0], [60, 100, -100 * t]], { highway: 'residential' })), linie)
+    expect(z.map(x => x.nurInsel ?? false)).toEqual([true])
   })
 })

@@ -161,7 +161,9 @@ export const GRUEN_ARTEN: readonly string[] = ['Gartenanlage', 'uebrige_humusier
 /** Kante gegen diese Arten ist Bord; jede andere Art (z. B. uebrige_befestigte, Bahn) und keine Fläche: offen */
 /** S6 (14.11.2026, Hinweis des Nutzers): Wald, bestockte Flächen, Kulturen und Gewässer begrenzen die Fahrbahn ebenfalls (in den Testdaten
  *  grenzte Strasse_Weg 30 km an Wald und 0,2 km an Gewässer «offen»); uebrige_befestigte (Parkplatz, Vorplatz) und Bahn bleiben offen */
-export const NATUR_ARTEN: readonly string[] = ['geschlossener_Wald', 'uebrige_bestockte', 'Reben', 'uebrige_Intensivkultur', 'Gewaesser_fliessendes', 'Gewaesser_stehendes']
+// Codeprüfung 16.11.2026 (FB13): dazu Wytweide (dicht/offen, wie Wald bzw. Weide), Schilfgürtel und Moor (Namen nach AV DM.01)
+export const NATUR_ARTEN: readonly string[] = ['geschlossener_Wald', 'uebrige_bestockte', 'Wytweide_dicht', 'Wytweide_offen', 'Reben',
+  'uebrige_Intensivkultur', 'Gewaesser_fliessendes', 'Gewaesser_stehendes', 'Schilfguertel', 'Hoch_Flachmoor']
 export const BORD_ARTEN: readonly string[] = ['Trottoir', INSEL_ART, 'Gebaeude', ...GRUEN_ARTEN, ...NATUR_ARTEN]
 
 const STOSS_M = 0.05          // Fahrbahnteile auf der Normalen mit so kleiner Lücke gehören zusammen (Stossstelle zweier Flächen)
@@ -215,8 +217,9 @@ export interface BordmodellEingabe {
 }
 /** Auslegung des Bordmodells je Rechner. eigenerRand (Vorgabe true): Rand der eigenen Fahrbahn – stellenweise verdeckte Stücke getrennt,
  *  Randstücke einer anderen Fahrbahn entfernt (Nachtrag C). false: jeder physische Bord zählt wie bis Nachtrag B; so endet ein Streifen
- *  im fgsCheck an der Verbindungslinie über eine Mündung bis zum Bord der Querstrasse (Berner Ort 1416: 18,13 m statt 42,4 m) */
-export interface BordAuslegung { eigenerRand?: boolean }
+ *  im fgsCheck an der Verbindungslinie über eine Mündung bis zum Bord der Querstrasse (Berner Ort 1416: 18,13 m statt 42,4 m).
+ *  naturNurParallel (Vorgabe false, FB6): Kanten gegen NATUR_ARTEN nur etwa achsparallel als Bord (naturQuer) */
+export interface BordAuslegung { eigenerRand?: boolean; naturNurParallel?: boolean }
 
 // oeffnung (Nachtrag B, BK3, 14.11.2026): Lücke zwischen zwei Teilen des Rands ohne OSM-Abzweigung, über die der Bord in derselben
 // Flucht weiterläuft (Fussweg-Öffnung, Zufahrt ohne OSM-Weg): der Fahrbahnrand setzt sich gerade fort
@@ -246,7 +249,9 @@ export interface RandLuecke { s0: number; s1: number; von: P | null; bis: P | nu
 /** Gemessener Fahrbahnrand einer Seite: Teile entlang der Achse (Lücken dazwischen), folgt jeder Bucht, Nase und Einmündung.
  *  verdeckt (seit 14.11.2026, K2): entfernte Teile, die ganz hinter einem anderen Teil derselben Seite lagen (nur zur Anzeige).
  *  fremd (Nachtrag C, C2, 14.11.2026): Randstücke einer anderen Fahrbahn, die nicht zum Rand dieser Achse zählen (FREMD_*); sie sind
- *  trotzdem physischer Bord – ein Rechner kann sie für Schnitte quer zur Fahrbahn wieder dazunehmen (fgsCheck: Streifenenden) */
+ *  trotzdem physischer Bord. Für Schnitte quer zur Fahrbahn am physischen Bord (Streifenenden) reicht es nicht, sie wieder dazuzunehmen:
+ *  die Teilverdeckung trennt auch Strecken ab, die in verdeckt landen (Codeprüfung 16.11.2026, FB3, Querung 1416). Dafür das Modell mit
+ *  auslegung.eigenerRand = false rechnen (so der fgsCheck in bordquelle.ts) */
 export interface GemessenerRand { teile: P[][]; luecken: RandLuecke[]; verdeckt: P[][]; fremd: P[][] }
 /** Konstruierte Führung: gerade Verbindung bzw. Verlängerung an einem Abschnittsende (linie: von … bis, in Achsrichtung) */
 export interface Verbindung { art: 'einmuendung' | 'oeffnung' | 'bucht'; von: P; bis: P; linie: P[] }
@@ -680,13 +685,58 @@ const VORRANG: Record<AbweichungArt, number> = { bucht: 3, einmuendung: 2, oeffn
  * Beispiel: Strasse_Weg E −50…150 × N −4…4 mit Trottoir beidseits, Achse (0,0)–(100,0) → rand.links ein Teil (0,4)…(100,4), rand.rechts
  * (0,−4)…(100,−4), Querschnitte alle 1 m mit Breite 8,00, Herkunft 'av', Art 'normal'.
  */
+/** Codeprüfung 16.11.2026 (FB6, Querung 236 Turnierstrasse am Luftbild): eine Kante gegen Wald, Gewässer usw. (NATUR_ARTEN) ist nur dort
+ *  Bord, wo sie etwa achsparallel läuft (Richtung über NATUR_FENSTER_M um die Stückmitte, höchstens NATUR_GRAD zur Achse). Ein schräg
+ *  von der Fahrbahn weglaufender Waldrand hinter einem Kiesstreifen wurde sonst Rand der Zufahrt, die Sichtpunkte lagen neben dem Fahrstreifen.
+ *  Sonst gilt die Kante wie vor S6 als offen. Nur mit auslegung.naturNurParallel (fgsCheck): im SichtweitenCheck machte die Regel die
+ *  Waldecke am Sustenweg 253634793 offen, die Zufahrt erhielt eine 24 m lange Mündung und D rückte an die Inselspitze. */
+export const NATUR_GRAD = 10
+export const NATUR_FENSTER_M = 2.5
+function naturQuer(st: BordStueck[], ach: AchsLage): BordStueck[] {
+  const natur = new Set(NATUR_ARTEN)
+  const idx = st.map((_, k) => k).filter(k => st[k].nachbar === 'bord' && st[k].nachbarArt !== null && natur.has(st[k].nachbarArt!))
+  if (!idx.length || ach.laenge <= 0) return st
+  const zelle = new Map<string, number[]>()
+  for (const k of idx) for (const p of [st[k].a, st[k].b]) {
+    const z = zk(Math.floor(p[0] / ZELLE_M), Math.floor(p[1] / ZELLE_M)), l = zelle.get(z)
+    if (l) l.push(k); else zelle.set(z, [k])
+  }
+  const grenze = Math.cos(NATUR_GRAD * GRAD)
+  const aus = st.slice()
+  for (const k of idx) {
+    const x = st[k], m: P = [(x.a[0] + x.b[0]) / 2, (x.a[1] + x.b[1]) / 2], sq = ach.station(m)
+    if (Math.abs(sq.q) > BAND_M || sq.s < -BAND_M || sq.s > ach.laenge + BAND_M) continue
+    // Hauptrichtung der Kantenpunkte derselben Fläche im Fenster (gewichtet nach Stücklänge)
+    let sxx = 0, sxy = 0, syy = 0, w = 0
+    const gesehen = new Set<number>()
+    const ix = Math.floor(m[0] / ZELLE_M), iy = Math.floor(m[1] / ZELLE_M)
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (const j of zelle.get(zk(ix + dx, iy + dy)) ?? []) {
+      if (gesehen.has(j)) continue
+      gesehen.add(j)
+      const y = st[j]
+      if (y.flaeche !== x.flaeche || y.ring !== x.ring) continue
+      const c: P = [(y.a[0] + y.b[0]) / 2, (y.a[1] + y.b[1]) / 2]
+      if (dist(c, m) > NATUR_FENSTER_M) continue
+      const d = sub(y.b, y.a), l = Math.hypot(d[0], d[1])
+      if (l < 1e-9) continue
+      const u = [d[0] / l, d[1] / l]
+      sxx += l * u[0] * u[0]; sxy += l * u[0] * u[1]; syy += l * u[1] * u[1]; w += l
+    }
+    if (w <= 0) continue
+    const th = 0.5 * Math.atan2(2 * sxy, sxx - syy), r: P = [Math.cos(th), Math.sin(th)]
+    if (Math.abs(dot(r, ach.richtung(Math.max(0, Math.min(ach.laenge, sq.s))))) < grenze) aus[k] = { ...x, nachbar: 'offen' }
+  }
+  return aus
+}
+
 export function bordmodell(e: BordmodellEingabe): Bordmodell {
   const ach = achsLage(e.achse)
   const L = ach.laenge, schritt = e.schrittM && e.schrittM > 0 ? e.schrittM : 1
   const eigenerRand = e.auslegung?.eigenerRand ?? true
   const ka = kasten(ach.achse.length ? ach.achse : [[0, 0]])
   const bereich: Kasten = [ka[0] - 2 * BAND_M, ka[1] - 2 * BAND_M, ka[2] + 2 * BAND_M, ka[3] + 2 * BAND_M]
-  const stuecke = e.stuecke ? e.stuecke.slice() : bordStuecke(e.flaechen, bereich)
+  const roh = e.stuecke ? e.stuecke.slice() : bordStuecke(e.flaechen, bereich)
+  const stuecke = e.auslegung?.naturNurParallel ? naturQuer(roh, ach) : roh
   const gueltig = e.flaechen.filter(f => f.ringe.length && f.ringe[0].length >= 3)
   const strassen = gueltig.filter(f => f.art === STRASSE_ART).map(f => ({ ringe: f.ringe, box: kasten(f.ringe[0]) }))
   const inseln = gueltig.filter(f => f.art === INSEL_ART).map(f => ({ ringe: f.ringe, box: kasten(f.ringe[0]) }))
@@ -832,7 +882,7 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
   }
   // K2 (seit 14.11.2026, wie verdeckteTeile im VeloroutenCheck messquerschnitt.ts): Teile, die an allen Eckpunkten im Abschnitt hinter
   // einem anderen Teil derselben Seite liegen (der andere um mehr als VERDECKT_TOL_M näher an der Fahrbahn)
-  const verdeckte = (TT: Teil[], X: Seite): boolean[] => {
+  const verdeckte = (TT: Teil[], X: Seite, ohne: Teil[] = []): boolean[] => {
     if (TT.length < 2) return TT.map(() => false)
     const sg = X === 'links' ? 1 : -1
     const sb = TT.map(U => [Math.min(...U.s) - BAND_M, Math.max(...U.s) + BAND_M])
@@ -844,7 +894,8 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
         geprueft++
         const o = ach.punkt(s), n = links(ach.richtung(s))
         const naeher = TT.some((U, k) => k !== j && s >= sb[k][0] && s <= sb[k][1] &&
-          teilSchnitte(U, o, n, BAND_M).some(x => sg * x.t < sg * q - VERDECKT_TOL_M && sg * x.t > -NEBEN_M))
+          teilSchnitte(U, o, n, BAND_M).some(x => sg * x.t < sg * q - VERDECKT_TOL_M && sg * x.t > -NEBEN_M &&
+            (!ohne.length || !ohne.some(F => lageAuf(F, add(o, n, x.t)).d < 0.05))))
         if (!naeher) return false
       }
       return geprueft > 0
@@ -854,8 +905,10 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
   // Rand an einer Station ist der nächste Bord (wie der Querschnitt). Geprüft an Punkten höchstens TEILWEISE_SCHRITT_M auseinander.
   // Beispiel Knoten 2860577444: das Trottoir jenseits der Zufahrt läuft neben der Insel weiter und lag als Rand der Aarstrasse vor.
   // Die abgetrennten Strecken zählen als verdeckt (wie K2), damit der Querschnitt dort den Teil davor nimmt (Codeprüfung 14.11.2026)
-  const teilweise = (TT: Teil[], X: Seite): { teile: Teil[]; verdeckt: Teil[] } => {
+  // ohne: Stücke, die nicht verdecken (FB5: als fremd entfernte Stücke, Codeprüfung 16.11.2026)
+  const teilweise = (TT: Teil[], X: Seite, ohne: Teil[] = []): { teile: Teil[]; verdeckt: Teil[] } => {
     if (TT.length < 2) return { teile: TT, verdeckt: [] }
+    const zaehlt = (o: P, n: P, t: number) => !ohne.length || !ohne.some(F => lageAuf(F, add(o, n, t)).d < 0.05)
     const sg = X === 'links' ? 1 : -1
     const sb = TT.map(U => [Math.min(...U.s) - BAND_M, Math.max(...U.s) + BAND_M])
     const aus: Teil[] = [], weg: Teil[] = []
@@ -867,24 +920,40 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
       }
       dicht.push(T.p[T.p.length - 1])
       const D = teilVon(dicht, ach)
-      const hinten = D.p.map((_, i) => {
-        const s = D.s[i], q = D.q[i]
+      const hintenSq = (s: number, q: number) => {
         if (s < -1e-6 || s > L + 1e-6) return false
         const o = ach.punkt(s), n = links(ach.richtung(s))
         return TT.some((U, k) => k !== j && s >= sb[k][0] && s <= sb[k][1] &&
-          teilSchnitte(U, o, n, BAND_M).some(x => sg * x.t < sg * q - VERDECKT_TOL_M && sg * x.t > -NEBEN_M))
-      })
+          teilSchnitte(U, o, n, BAND_M).some(x => sg * x.t < sg * q - VERDECKT_TOL_M && sg * x.t > -NEBEN_M && zaehlt(o, n, x.t)))
+      }
+      const hinten = D.p.map((_, i) => hintenSq(D.s[i], D.q[i]))
       if (!hinten.some(Boolean)) { aus.push(T); return }
+      // Codeprüfung 16.11.2026 (FB8): Grenze zwischen sichtbarem und verdecktem Punkt auf rund 1 cm genau (Halbierung); sonst zählte die
+      // ganze Strecke dazwischen (bis TEILWEISE_SCHRITT_M) zum verdeckten Stück und der Querschnitt fand dort keinen Bordpunkt
+      const grenze = (sichtbar: P, verdeckt: P): P => {
+        let lo = sichtbar, hi = verdeckt
+        for (let it = 0; it < 7 && dist(lo, hi) > 0.01; it++) {
+          const m: P = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2], st = ach.station(m)
+          if (hintenSq(st.s, st.q)) hi = m; else lo = m
+        }
+        return lo
+      }
+      const gr = D.p.map((_, i) => (i > 0 && hinten[i] !== hinten[i - 1] ? grenze(hinten[i] ? D.p[i - 1] : D.p[i], hinten[i] ? D.p[i] : D.p[i - 1]) : null))
       let lauf: P[] = []
       const fertig = () => { if (lauf.length >= 2) { const U = teilVon(lauf, ach); if (teilLaenge(U) >= 0.05) aus.push(U) } lauf = [] }
-      D.p.forEach((p, i) => { if (hinten[i]) fertig(); else lauf.push(p) })
+      D.p.forEach((p, i) => {
+        const g = gr[i]
+        if (hinten[i]) { if (g) lauf.push(g); fertig() }
+        else { if (g) lauf.push(g); lauf.push(p) }
+      })
       fertig()
-      // verdeckte Strecken, je mit den angrenzenden sichtbaren Punkten (lückenlos bis an den sichtbaren Teil)
+      // verdeckte Strecken, je von Grenze zu Grenze (lückenlos bis an den sichtbaren Teil; am Teilende bis zum Endpunkt)
       for (let i = 0; i < D.p.length; i++) {
         if (!hinten[i]) continue
         let k = i
         while (k + 1 < D.p.length && hinten[k + 1]) k++
-        const U = teilVon(D.p.slice(Math.max(0, i - 1), Math.min(D.p.length, k + 2)), ach)
+        const pts: P[] = [...(gr[i] ? [gr[i]!] : []), ...D.p.slice(i, k + 1), ...(k + 1 < D.p.length && gr[k + 1] ? [gr[k + 1]!] : [])]
+        const U = teilVon(pts, ach)
         if (U.p.length >= 2 && teilLaenge(U) >= 0.05) weg.push(U)
         i = k
       }
@@ -905,11 +974,58 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
       const d = sub(T.p[i + 1], T.p[i]), l = Math.hypot(d[0], d[1])
       return l > 1e-9 && T.s[i] >= -1e-6 && T.s[i + 1] <= L + 1e-6 && dot([d[0] / l, d[1] / l], ach.richtung((T.s[i] + T.s[i + 1]) / 2)) >= Math.cos(EINM_WINKEL_GRAD * GRAD)
     }
-    const qE = (j: number) => { const T = TT[j]; for (let i = T.p.length - 2; i >= 0; i--) if (parallel(T, i)) return T.q[i + 1]; return qE0(j) }
-    const qA = (j: number) => { const T = TT[j]; for (let i = 0; i + 1 < T.p.length; i++) if (parallel(T, i)) return T.q[i]; return qA0(j) }
+    // Codeprüfung 16.11.2026 (FB2): Bezug nur aus einem achsparallelen Lauf von mindestens TEILUNG_MIN_M (ein 1,6 m kurzer Absatz in der
+    // Mündung von Querung 392 machte das eigene Trottoir dahinter fremd); ohne solchen Lauf wie bisher die erste achsparallele Kante
+    const lauf = (T: Teil, i: number) => dist(T.p[i], T.p[i + 1])
+    const qE = (j: number) => {
+      const T = TT[j]
+      let erst: number | null = null, l = 0, ende = -1
+      for (let i = T.p.length - 2; i >= 0; i--) {
+        if (!parallel(T, i)) { l = 0; ende = -1; continue }
+        if (erst === null) erst = T.q[i + 1]
+        if (ende < 0) ende = i + 1
+        l += lauf(T, i)
+        if (l >= TEILUNG_MIN_M - 1e-9) return T.q[ende]
+      }
+      return erst ?? qE0(j)
+    }
+    const qA = (j: number) => {
+      const T = TT[j]
+      let erst: number | null = null, l = 0, anf = -1
+      for (let i = 0; i + 1 < T.p.length; i++) {
+        if (!parallel(T, i)) { l = 0; anf = -1; continue }
+        if (erst === null) erst = T.q[i]
+        if (anf < 0) anf = i
+        l += lauf(T, i)
+        if (l >= TEILUNG_MIN_M - 1e-9) return T.q[anf]
+      }
+      return erst ?? qA0(j)
+    }
+    // FB2: eigene Randlage eines kurzen Stücks = Querlage seines längsten Laufs von mindestens TEILUNG_MIN_M höchstens TEILUNG_GRAD zur
+    // Achse (im Abschnitt), sonst null. Enden in Rückkehr oder Eckausrundung zählen dafür nicht. Nicht für Inselkanten (Insel bzw. Loch
+    // hinter dem Lauf, istInsel): Inselspitze und Inselrundung bleiben fremd (Turnierstrasse 255605324, Schänzlihalde 6048677147)
+    const eigeneLage = (j: number): number | null => {
+      const T = TT[j], grenze = Math.cos(TEILUNG_GRAD * GRAD)
+      let best: number | null = null, bl = 0, bs = 0, l = 0, sq = 0, ss = 0
+      for (let i = 0; i + 1 < T.p.length; i++) {
+        const d = sub(T.p[i + 1], T.p[i]), li = Math.hypot(d[0], d[1])
+        const ok = li > 1e-9 && T.s[i] >= -1e-6 && T.s[i + 1] <= L + 1e-6 && dot([d[0] / li, d[1] / li], ach.richtung((T.s[i] + T.s[i + 1]) / 2)) >= grenze
+        if (!ok) { l = 0; sq = 0; ss = 0; continue }
+        l += li; sq += li * (T.q[i] + T.q[i + 1]) / 2; ss += li * (T.s[i] + T.s[i + 1]) / 2
+        if (l >= TEILUNG_MIN_M - 1e-9 && l > bl) { bl = l; best = sq / l; bs = ss / l }
+      }
+      if (best === null) return null
+      const hinter = add(ach.punkt(bs), links(ach.richtung(bs)), best + sg * PRUEF_M)
+      return istInsel(hinter) ? null : best
+    }
     // ganz auf der anderen Seite der Achse: nur, wenn die Seite noch ein Stück diesseits hat (Codeprüfung 14.11.2026: liegt die Achse neben
     // der Fahrbahn, NEBEN_M, liegt der ganze eigene Rand jenseits)
-    const jenseits = TT.map(T => T.q.every(q => sg * q < -FREMD_SEITE_M))
+    // Codeprüfung 16.11.2026 (FB9): nur, wenn das Stück weiter als NEBEN_M jenseits liegt oder an denselben Stationen ein Stück diesseits
+    // liegt (Achse am Anfang neben der Fahrbahn: sonst fiel dort der eigene Rand weg)
+    const jRoh = TT.map(T => T.q.every(q => sg * q < -FREMD_SEITE_M))
+    const sBer = TT.map(T => [Math.min(...T.s), Math.max(...T.s)])
+    const jenseits = TT.map((T, j) => jRoh[j] && (T.q.every(q => sg * q < -NEBEN_M) ||
+      TT.some((_, k) => k !== j && !jRoh[k] && sBer[k][0] < sBer[j][1] && sBer[k][1] > sBer[j][0])))
     const aus = jenseits.every(Boolean) ? TT.map(() => false) : jenseits
     for (let j = 0; j < TT.length; j++) {
       if (aus[j] || lang[j] > FREMD_LAENGE_MAX_M) continue
@@ -923,6 +1039,12 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
       // (Codeprüfung 14.11.2026: ein eigenes kurzes Stück am Abschnittsanfang vor einer Mündung beginnt auf der Randlage und endet in der
       // Ausrundung); sonst gilt eine Seite ohne Nachbarn als abweichend (Inselrundung nach einem fremden Stück: Schänzlihalde 6048677147)
       const ix = imAb[j], T = TT[j], amAnfang = ix.length > 0 && T.s[ix[0]] <= 0.05, amEnde = ix.length > 0 && T.s[ix[ix.length - 1]] >= L - 0.05
+      // FB2: ein Stück mit eigenem achsparallelem Lauf auf der Randlage eines Nachbarn (oder näher an der Achse als alle Nachbarn: Engstelle,
+      // Trottoirnase) bleibt eigener Rand, auch wenn seine Enden in Rückkehr oder Ausrundung liegen (Trottoir zwischen zwei Einfahrten)
+      const qe = eigeneLage(j), bezug = [v >= 0 ? qE(v) : null, h >= 0 ? qA(h) : null].filter((x): x is number => x !== null)
+      const aufRandlage = qe !== null && bezug.length > 0 &&
+        (bezug.some(b => Math.abs(qe - b) <= FREMD_VERSATZ_M) || bezug.every(b => sg * qe < sg * b))
+      if (aufRandlage) continue
       const weitV = v >= 0 ? Math.abs(qA0(j) - qE(v)) > FREMD_VERSATZ_M : !(amAnfang && h >= 0 && Math.abs(qA0(j) - qA(h)) <= FREMD_VERSATZ_M)
       const weitH = h >= 0 ? Math.abs(qE0(j) - qA(h)) > FREMD_VERSATZ_M : !(amEnde && v >= 0 && Math.abs(qE0(j) - qE(v)) <= FREMD_VERSATZ_M)
       if (weitV && weitH) aus[j] = true
@@ -1009,19 +1131,22 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
         }
     }
     teile.sort((a, b) => a.s[0] - b.s[0])
-    const zus = zusammen(teile), vd = verdeckte(zus, X)
-    verdecktVon[X] = zus.filter((_, i) => vd[i])
-    teileVon[X] = verdecktVon[X].length ? zusammen(zus.filter((_, i) => !vd[i])) : zus
-    if (eigenerRand) {
-      const tw = teilweise(teileVon[X], X)
-      teileVon[X] = tw.teile
-      if (tw.verdeckt.length) verdecktVon[X] = [...verdecktVon[X], ...tw.verdeckt]
+    const zus = zusammen(teile)
+    // Verdeckung (K2, Teilverdeckung) und fremde Stücke (C2). Codeprüfung 16.11.2026 (FB5): ein als fremd entferntes Stück verdeckt nichts;
+    // sonst blieb der Rand dahinter weg (Seiteninsel 9 m: Bord dahinter verdeckt, Insel fremd, Querschnitt ohne Bordpunkt). Darum mit
+    // den fremden Stücken als Nicht-Verdecker ein zweites Mal
+    const rechne = (ohne: Teil[]) => {
+      const vd = verdeckte(zus, X, ohne)
+      let vv = zus.filter((_, i) => vd[i]), tt = vv.length ? zusammen(zus.filter((_, i) => !vd[i])) : zus
+      if (eigenerRand) { const tw = teilweise(tt, X, ohne); tt = tw.teile; if (tw.verdeckt.length) vv = [...vv, ...tw.verdeckt] }
+      const fr = eigenerRand ? fremde(tt, X) : tt.map(() => false)
+      return { tt, vv, fr }
     }
-    const fr = eigenerRand ? fremde(teileVon[X], X) : teileVon[X].map(() => false)
-    if (fr.some(Boolean)) {
-      fremdVon[X] = teileVon[X].filter((_, i) => fr[i])
-      teileVon[X] = teileVon[X].filter((_, i) => !fr[i])
-    }
+    let r = rechne([])
+    if (r.fr.some(Boolean)) r = rechne(r.tt.filter((_, i) => r.fr[i]))
+    verdecktVon[X] = r.vv
+    teileVon[X] = r.tt.filter((_, i) => !r.fr[i])
+    if (r.fr.some(Boolean)) fremdVon[X] = r.tt.filter((_, i) => r.fr[i])
   }
 
   // Abweichungen je Seite, daraus Führungslinie und Bereiche der Querschnitte
@@ -1068,8 +1193,8 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
     return pts.every(p => Math.abs(kreuz(d, sub(p, p0))) < 1e-3) ? [p0, p1] : pts
   }
   // C3 (Nachtrag C, 14.11.2026): Verbindung über eine Einmündung bzw. Öffnung als Bogen, der an beiden Anschlusspunkten tangential an
-  // den AV-Bord anschliesst (kubische Kurve mit den Bordrichtungen rA, rB, Hebel wie für einen Kreisbogen). Sie hängt nur von der AV
-  // ab, nicht von der OSM-Achse (2-cm-Stabilität); liegen beide Bordstücke in einer Flucht, ist sie die Gerade. An einem Knick der
+  // den AV-Bord anschliesst (kubische Kurve mit den Bordrichtungen rA, rB, Hebel wie für einen Kreisbogen). Die Form hängt nur von der AV
+  // ab; die OSM-Achse begrenzt nur den Anteil des Bogens (FB1, stetig); liegen beide Bordstücke in einer Flucht, ist sie die Gerade. An einem Knick der
   // Strasse folgt sie der Biegung (Kasernenstrasse bei der Blumenbergstrasse: Knick 28°, die Sehne lag bis 2,5 m daneben). Ohne
   // Bordrichtung die Gerade. Keine Schwelle: die Form ändert sich stetig mit den Bordrichtungen.
   const verbindungBogen = (A: P, B: P, rA: P | null, rB: P | null): P[] => {
@@ -1078,10 +1203,16 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
     // Hebel: für einen Kreisbogen mit der Richtungsänderung th exakt 4/3 · tan(th/4) · R (R = Sehne / (2 sin(th/2))), bei th → 0 ein
     // Drittel der Sehne
     const th = Math.acos(Math.max(-1, Math.min(1, dot(rA, rB))))
+    // Codeprüfung 16.11.2026 (FB1): der Bogen gilt nur so weit, wie auch die Strasse zwischen den Anschlusspunkten dreht. Auf gerader
+    // Strasse kommt eine Richtungsänderung der Bordstücke aus einer Schräge, Nasenflanke, Keilkante oder Ausrundung am Anschlusspunkt, und
+    // der Bogen lief in die Fahrbahn (Querung 1565: 2,57 m). Massgebend ist die kleinere der beiden Drehungen
+    const sA = ach.station(A).s, sB = ach.station(B).s
+    const thAchse = Math.acos(Math.max(-1, Math.min(1, dot(ach.richtung(sA), ach.richtung(sB)))))
+    const thWirk = Math.min(th, thAchse)
     // Anteil des Bogens stetig nach der Richtungsänderung (BOGEN_AB_GRAD … BOGEN_VOLL_GRAD, dazwischen weich): bei fast gleichen
     // Bordrichtungen die Sehne – die Richtung am Anschlusspunkt kommt aus einer Vieleckseite und springt, wenn sich der Punkt um eine
     // Ecke verschiebt (Philosophenweg: mit vollem Bogen K bei 1° gedrehter OSM-Linie 0,24 statt 0,08 m)
-    const u0 = Math.max(0, Math.min(1, (th / GRAD - BOGEN_AB_GRAD) / (BOGEN_VOLL_GRAD - BOGEN_AB_GRAD))), wb = u0 * u0 * (3 - 2 * u0)
+    const u0 = Math.max(0, Math.min(1, (thWirk / GRAD - BOGEN_AB_GRAD) / (BOGEN_VOLL_GRAD - BOGEN_AB_GRAD))), wb = u0 * u0 * (3 - 2 * u0)
     if (wb <= 0) return [A, B]
     const h = th > 1e-6 ? (4 / 3) * Math.tan(th / 4) * len / (2 * Math.sin(th / 2)) : len / 3
     const P1 = add(A, rA, h), P2 = add(B, rB, -h)
@@ -1148,6 +1279,11 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
       if (!rA || !rB || len < 1e-6 || len > VERBINDUNG_MAX_M + 1e-9 || dot(rA, sub(pb, pa)) <= 0) return null
       // Nachtrag C (C4, 14.11.2026): Richtung und Versatz gegen die Achse (Stationskoordinaten), damit eine Öffnung auch in einer Kurve als
       // Bordflucht gilt (Kasernenstrasse, zwei Einfahrten in der Kurve); auf gerader Achse wie die bisherige Geradenprüfung
+      // Codeprüfung 16.11.2026 (FB4): gilt auch, wenn die Prüfung am Bord allein (Geraden der beiden Bordstücke, wie 0.11.0) erfüllt ist;
+      // sonst machte ein Knick der OSM-Linie von 3° in einer 11-m-Öffnung aus einem geraden Bord «Rand unbekannt»
+      const w0 = winkelGrad(rA, rB), v0 = Math.max(Math.abs(kreuz(rA, sub(pb, pa))), Math.abs(kreuz(rB, sub(pa, pb))))
+      if (w0 <= BUCHT_PARALLEL_GRAD + 1e-9 && v0 <= OEFFNUNG_VERSATZ_M + 1e-9)
+        return `Bordflucht über die Öffnung ${f1(len)} m (Richtung ${f1(w0)}°, Versatz ${f2(v0)} m)`
       const a = ach.station(pa), b = ach.station(pb), ds = b.s - a.s
       if (ds <= 1e-6) return null
       const ra = ach.richtung(a.s), rb = ach.richtung(b.s)
@@ -1382,7 +1518,11 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
     const r = einheit(sub(punktBei(bt, bl + RICHTUNG_SEHNE_M), punktBei(bt, bl - RICHTUNG_SEHNE_M)))
     return r[0] || r[1] ? r : null
   }
-  const aufTeilen = (TT: Teil[], p: P) => TT.some(T => lageAuf(T, p).d < 1e-6)
+  // Codeprüfung 16.11.2026 (FB12): Kasten je Teil vorab prüfen, sonst wuchs die Zeit je Querschnitt mit der Zahl der verdeckten und
+  // fremden Teile (lange Achse mit vielen Lücken: 191 statt 7 µs)
+  const kaesten = new Map<Teil, Kasten>()
+  const kastenVon = (T: Teil) => { let k = kaesten.get(T); if (!k) { k = kasten(T.p); kaesten.set(T, k) } return k }
+  const aufTeilen = (TT: Teil[], p: P) => TT.some(T => { const k = kastenVon(T); return imKasten(p, [k[0] - 1e-3, k[1] - 1e-3, k[2] + 1e-3, k[3] + 1e-3]) && lageAuf(T, p).d < 1e-6 })
   // K3: Richtung des getroffenen Bordstücks in Achsrichtung (links läuft der Umriss gegen die Achse); ein sehr kurzes Stück: Sehne am Rand
   const stueckRichtung = (X: Seite, k: number, p: P): P | null => {
     const x = stuecke[k]
@@ -1408,6 +1548,11 @@ export function bordmodell(e: BordmodellEingabe): Bordmodell {
           let best: { t: number; T: Teil; k: number; lam: number } | null = null
           for (const T of teileVon[X]) for (const x of teilSchnitte(T, st.o, st.n, BAND_M))
             if (sg * x.t > sg * c && sg * x.t <= sg * t.t + 1e-9 && (!best || sg * x.t < sg * best.t)) best = { ...x, T }
+          // Codeprüfung 16.11.2026 (FB5): auf einem fremden Stück ohne Teil davor gilt der eigene Rand dahinter (nächster Schnitt jenseits;
+          // Seiteninsel vor dem Bord: sonst kein Bordpunkt)
+          if (!best && aufTeilen(fremdVon[X], t.punkt))
+            for (const T of teileVon[X]) for (const x of teilSchnitte(T, st.o, st.n, BAND_M))
+              if (sg * x.t > sg * t.t && (!best || sg * x.t < sg * best.t)) best = { ...x, T }
           if (best) { punkt = add(st.o, st.n, best.t); quer = best.t; richtung = teilRichtung(best.T, best.k, best.lam) }
         } else { punkt = [t.punkt[0], t.punkt[1]]; quer = t.t; richtung = stueckRichtung(X, t.stueck, t.punkt) }
       }

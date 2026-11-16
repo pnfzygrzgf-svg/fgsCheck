@@ -379,6 +379,8 @@ export function driftJeMeter(s: number[], m: number[]): number {
  * fahrstreifenmitte: seitliche Lage der Fahrstreifenmitte relativ zur Referenzspur (rechts positiv).
  * Abzüge (Parkierung/Velostreifen) aus OSM-Tags (abzug(k), Anteil wie PARK_MIN_TREFFER), sonst wie Python.
  */
+/** Sehnen mit höchstens dieser Breite (Summe beider Abstände) zählen nicht: der Messpunkt liegt ausserhalb der Fahrbahn */
+export const SEHNE_MIN_BREITE_M = 0.5
 export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: SehnenQuelle, abzug: AbzugQuelle | null, teilbreite: number,
   fso: Fso | null = null, idx: number[] | null = null, abzugVonHand = false, park: ParkRaster | null = null): Fs | null {
   const er: number[] = [], el: number[] = [], sGut: number[] = []
@@ -389,7 +391,9 @@ export function fahrstreifenmitte(ref: RefPunkt[], art: string, fahrbahn: Sehnen
   ref.forEach(([q, r], i) => {
     if (i > 0) sq += dist(ref[i - 1][0], q)
     const sh = fahrbahn.sehne(q, r)
-    if (sh === null) return
+    // Vergleich 15./16.11.2026 (Bremgartenstrasse 3022034633: Fahrbahn −2,14 m): eine Sehne ohne Fahrbahn dazwischen (Messpunkt ausserhalb,
+    // beide Abstände zusammen nicht positiv) zählt nicht
+    if (sh === null || sh[0] + sh[1] <= SEHNE_MIN_BREITE_M) return
     er.push(sh[0]); el.push(sh[1]); sGut.push(sq)
     // Parkstreifen: Parkfläche am Prüfpunkt PARK_SONDE_M innerhalb der Bordkante. Die Aufrufer übergeben seit dem 09.11.2026 das Raster
     // aller Klassen (parkAlle): auch Velo-/Mofa- und Motorradflächen lösen den Abzug aus, wie im SichtweitenCheck
