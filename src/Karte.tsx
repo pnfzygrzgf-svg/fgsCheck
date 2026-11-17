@@ -6,6 +6,7 @@ import { UNFALL_HINWEIS, unfallEbenen, unfallHtml } from './kartenbaustein/unfae
 import { useUnfaelle } from './kartenbaustein/unfaelleKarte'
 import { EbenenFenster, EbenenZeile, Legende, useFensterLage } from './kartenbaustein/EbenenFenster'
 import { orthofotoBern } from './kartenbaustein/hintergrund'
+import { messWerkzeug, type MessWerkzeugOptionen } from './kartenbaustein/messwerkzeug'
 import { kartenHover } from './kartenbaustein/hover'
 import { trefferObjekt } from './kartenbaustein/treffer'
 import { avErsatz, LUZERN_NAME } from './daten/ersatzLuzern'
@@ -47,8 +48,7 @@ import { schildLage, zufahrtNr, zufahrtText, type ZufahrtNamen } from './benennu
 import { ortZoom, type Ort } from './daten/ortssuche'
 import { KS_LAGE } from './tue/texte'
 import { ksDreieckSichtbar, ksFahrzeugStand, ksPhaseNach, tueFlaeche, tueGezeichnet, type KsPhase } from './tue/karte'
-import { messText, type MessStand } from './messen'
-import type { Kante } from './bordkanten'
+import { MESSEN_START_EVENT, type MessArt } from './messen'
 import { FARBE_VELO, VELO_SICHT_FARBE, fahrzeugFarbe, fgsFahrzeuge, tueFahrzeuge, type FahrzeugForm } from './fahrzeuge'
 import { erkennungBaender, erkennungSichtlinien, type SichtlinieKarte } from './erkennungKarte'
 import { sichtGelaendeLinieText } from './sichtGelaende'
@@ -430,9 +430,8 @@ export default function Karte(props: {
   fixVorschlaege: { p: P; text: string }[]           // vorgeschlagene Fixpunkte (blass; Tooltip, Klick übernimmt)
   onFixVorschlag?: (p: P) => void                    // Klick auf einen vorgeschlagenen Fixpunkt: übernehmen
   masslinien: Masslinie[]
-  messung?: MessStand | null                           // Werkzeug «Messen»: Stand (messen.ts), nicht im Fall
-  messKanten?: Kante[]                                 // Werkzeug «Messen»: Bordsteinkanten der AV (bordkanten.ts), orange
-  messKasten?: React.ReactNode                         // Werkzeug «Messen»: Kasten über der Karte (App.tsx)
+  messAv?: AvFlaeche[] | null                          // Messwerkzeug der Karte: AV des Falls samt Flächen (Plan), gilt vor der selbst geladenen
+  messUebernehmen?: MessWerkzeugOptionen['uebernehmen'] // Messwerkzeug der Karte: «übernehmen» ins zuletzt angeklickte Meterfeld (App.tsx)
   zufahrtNamen: Map<string, ZufahrtNamen>                  // Anzeige (benennung.ts) je Streifen: Nummer, Strasse und Herkunft
   streifenTitel: (fgsId: string) => string                 // Anzeige: Name bzw. «Streifen 1»
   /** Längsneigung der Fahrlinie je «fgsId|zufahrt» (Höhenprofil): Soll der Sicht vom Velo nach Tab. 3 */
@@ -661,7 +660,7 @@ export default function Karte(props: {
     const eb: Record<string, L.LayerGroup> = {
       masse: L.layerGroup().addTo(map), av: L.layerGroup().addTo(map), plan: L.layerGroup().addTo(map), osm: L.layerGroup().addTo(map), lbfgs: L.layerGroup().addTo(map), namen: L.layerGroup().addTo(map), sicht: L.layerGroup().addTo(map),
       nr: L.layerGroup().addTo(map), fahrzeug: L.layerGroup().addTo(map),
-      hind: L.layerGroup().addTo(map), fix: L.layerGroup().addTo(map), mess: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
+      hind: L.layerGroup().addTo(map), fix: L.layerGroup().addTo(map), auswahl: L.layerGroup().addTo(map), zeichnen: L.layerGroup().addTo(map),
       standort: L.layerGroup().addTo(map), ecken: L.layerGroup().addTo(map), inselVorschau: L.layerGroup().addTo(map),
       griffe: L.layerGroup().addTo(map), erkLinien: L.layerGroup().addTo(map),
     }
@@ -843,6 +842,14 @@ export default function Karte(props: {
       return div
     }
     standortKnopf.addTo(map)
+    // Messwerkzeug (Kartenbaustein, 17.11.2026): Zwei Punkte, Ab AV-Kante, Ganze Fläche, Linienzug, Flächeninhalt; unter dem Standortknopf
+    const mw = messWerkzeug(map, { avVorrang: () => cb.current.messAv, uebernehmen: {
+      ziel: () => cb.current.messUebernehmen?.ziel() ?? null, setzen: m => cb.current.messUebernehmen?.setzen(m),
+      wertText: m => cb.current.messUebernehmen?.wertText?.(m) ?? `${m.toFixed(2).replace('.', ',')} m`, ohneZiel: cb.current.messUebernehmen?.ohneZiel } })
+    // Knopf «messen» an einem Meterfeld bzw. «Messen» in der Gruppe Planen (messen.ts): Werkzeug mit der Messart einschalten
+    const messStart = (e: Event) => { mw.starten((e as CustomEvent<MessArt>).detail ?? 'hand') }
+    window.addEventListener(MESSEN_START_EVENT, messStart)
+    map.on('unload', () => window.removeEventListener(MESSEN_START_EVENT, messStart))
     const standort = () => {
       if (!window.isSecureContext) { setStandortHinweis({ text: 'Standort nur über eine sichere Verbindung (https) abrufbar.', fehler: true }); return }
       if (!('geolocation' in navigator)) { setStandortHinweis({ text: 'Dieser Browser kann den Standort nicht bestimmen.', fehler: true }); return }
@@ -1546,24 +1553,6 @@ export default function Karte(props: {
     }
   }, [fixpunkte, fixVorschlaege, masslinien, bearbeiten, werkzeug])
 
-  const messung = props.messung ?? null, messKanten = props.messKanten ?? null
-  // Werkzeug «Messen» (06.11.2026, nach VeloroutenCheck): Bordsteinkanten der AV orange, gesetzte Punkte, Messstrecke mit Wert
-  useEffect(() => {
-    const eb = ebenenRef.current
-    if (!eb) return
-    eb.mess.clearLayers()
-    if (!messung) return
-    if (messKanten?.length) L.polyline(messKanten.map(k => [ll(k.a), ll(k.b)]), { color: '#f97316', weight: 2.5, opacity: .95, interactive: false }).addTo(eb.mess)
-    const punkte = messung.ergebnis ? [messung.ergebnis.von, messung.ergebnis.bis] : messung.hand ? [messung.hand.a.p] : []
-    for (const p of punkte) L.circleMarker(ll(p), { radius: 5, color: MESS_FARBE, weight: 2, fillColor: '#ffffff', fillOpacity: 1, interactive: false }).addTo(eb.mess)
-    if (!messung.ergebnis) return
-    const { von, bis, breite } = messung.ergebnis
-    L.polyline([ll(von), ll(bis)], { color: MESS_FARBE, weight: 2.5, interactive: false }).addTo(eb.mess)
-    const mitte: P = [(von[0] + bis[0]) / 2, (von[1] + bis[1]) / 2]
-    L.marker(ll(mitte), { interactive: false, keyboard: false, icon: L.divIcon({ className: 'masstext messtext', iconSize: [0, 0],
-      html: `<span>${esc(messText(breite))}</span>` }) }).addTo(eb.mess)
-  }, [messung, messKanten])
-
   // Fahrzeuge und wartende Personen (27.10.2026, fahrzeuge.ts): Trottoirüberfahrt (Knotensicht) immer; am Fussgängerstreifen die Personen
   // immer, die Fahrzeuge der nicht gewählten Zufahrten blass erst ab Zoom FAHRZEUG_ZOOM (die gewählte kräftig in der Auswahl)
   useEffect(() => {
@@ -1772,7 +1761,6 @@ export default function Karte(props: {
       })()}
       <div className="kartenkopf">
         <Ortssuche onOrt={ortWaehlen} />
-        {props.messKasten}
         {hinweise.map(h => (
           <div key={h.text} className={'kartenhinweis' + (h.fehler ? ' fehler' : '')} role="status">
             {h.text}

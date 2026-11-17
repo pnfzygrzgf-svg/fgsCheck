@@ -1,7 +1,7 @@
-// Bordsteinkanten der AV und Messarten des Werkzeugs «Messen» (06.11.2026, nach VeloroutenCheck breitenmessung.ts)
+// Bordsteinkanten der AV und Messarten (06.11.2026, nach VeloroutenCheck breitenmessung.ts; Rechnung seit 17.11.2026 in kartenbaustein/messAv.ts)
 import { describe, expect, it } from 'vitest'
 import { FANG_M, bordkanten, fangeAnKante, messeAbKante, messeFlaeche } from './bordkanten'
-import { messArtFuerFeld, messLeer, messStandKlick, messStandText } from './messen'
+import { messArtFuerFeld } from './messen'
 import type { AvFlaeche } from './daten/av'
 
 const av = (art: string, ring: [number, number][]): AvFlaeche => ({ art, kanton: 'BE', qualitaet: 'AV93', bfs: null, ringe: [ring] })
@@ -40,30 +40,8 @@ describe('Bordsteinkanten', () => {
   })
 })
 
-describe('Werkzeug «Messen»: Stand je Messart', () => {
-  const kanten = bordkanten(AV)
-  it('Ganze Fläche: ein Klick in die Fahrbahn gibt die Breite, daneben eine Meldung', () => {
-    const m = messStandKlick(messLeer('flaeche'), [10, 2], AV, kanten, 2)
-    expect(m.ergebnis!.breite).toBeCloseTo(7, 6); expect(messStandText(m)).toBe('Breite: 7,00 m')
-    const f = messStandKlick(messLeer('flaeche'), [10, 30], AV, kanten, 2)
-    expect(f.ergebnis).toBeNull(); expect(f.fehler).toContain('Keine zwei Bordsteinkanten')
-    expect(messStandKlick(messLeer('flaeche'), [10, 2], AV, [], 2).fehler).toContain('Keine Bordsteinkanten der AV geladen')
-  })
-  it('Ab Bordsteinkante: Klick auf die Markierung, Strecke bis zur Kante', () => {
-    const m = messStandKlick(messLeer('kante'), [10, 5], AV, kanten, 2)
-    expect(m.ergebnis!.breite).toBeCloseTo(2, 6); expect(m.ergebnis!.bis).toEqual([10, 5])
-  })
-  it('Zwei Punkte: AV-Stützpunkt vor Bordkante vor freiem Punkt; der zweite Punkt rechtwinklig zur Kante', () => {
-    const a = messStandKlick(messLeer('hand'), [0.3, 0.2], AV, kanten, 1)
-    expect(a.hand!.a).toEqual({ p: [0, 0], art: 'av_punkt' }); expect(messStandText(a)).toBe('Jetzt den zweiten Punkt anklicken.')
-    const b = messStandKlick(messLeer('hand'), [10, 3], AV, kanten, 1)
-    expect(b.hand!.a.art).toBe('frei')
-    const c = messStandKlick(b, [10.5, 6.6], AV, kanten, 1)
-    expect(c.hand!.b!.art).toBe('bordkante'); expect(c.ergebnis!.breite).toBeCloseTo(4, 6)
-    expect(messStandText(c)).toBe('Strecke: 4,00 m (frei, Bordkante)')
-    expect(messStandText(messLeer('hand'))).toBe('Noch nicht gemessen.')
-  })
-  it('Messart je Feld der Bedarfsmaske: Fahrbahnbreiten als «Ganze Fläche», sonst «Zwei Punkte»', () => {
+describe('Knopf «messen» an den Feldern der Bedarfsmaske', () => {
+  it('Messart je Feld: Fahrbahnbreiten als «Ganze Fläche», sonst «Zwei Punkte»', () => {
     expect(messArtFuerFeld('fahrbahnB')).toBe('flaeche'); expect(messArtFuerFeld('restbreiteM')).toBe('flaeche')
     expect(messArtFuerFeld('abstandFgsM')).toBe('hand')
   })

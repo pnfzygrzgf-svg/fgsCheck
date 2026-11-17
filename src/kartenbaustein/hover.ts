@@ -42,6 +42,8 @@ export function kartenHover(map: L.Map, quellen: readonly HoverQuelle[]): () => 
     gesperrt = ''
   }
   const bewegt = (e: L.LeafletMouseEvent) => {
+    // Messwerkzeug eingeschaltet (messwerkzeug.ts): kein Tooltip, er läge über den Messpunkten
+    if (map.getContainer().classList.contains('mw-aktiv')) { weg(); return }
     if (gezeigt && stand && e.containerPoint.distanceTo(stand) < ZITTERN_PX) return
     weg()
     stand = e.containerPoint

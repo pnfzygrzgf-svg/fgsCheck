@@ -1,27 +1,10 @@
-// Werkzeug «Messen» (27.10.2026): Fang auf AV-Stützpunkte wie der Fixpunkt, Länge mit zwei Nachkommastellen, Übernahme auf 0,05 m
+// Messen ins Formular (27.10.2026; seit 17.11.2026 über das Messwerkzeug der Karte): Übernahme auf 0,05 m, Zielfelder, Knopf in Planen
 import { describe, expect, it } from 'vitest'
-import { inFeldSchreiben, inMetern, istZahlenfeld, messKlick, messLaenge, messPunkt, messText, messWert } from './messen'
+import { inFeldSchreiben, inMetern, istZahlenfeld, messWert } from './messen'
 import { FANG_PX } from './fixpunkt'
 import { PLAN_WERKZEUGE, WERKZEUGE, hilfeOrt } from './Planen'
-import type { AvFlaeche } from './daten/av'
-
-const AV: AvFlaeche[] = [{ art: 'Gebaeude', kanton: 'BE', qualitaet: 'AV93', bfs: null,
-  ringe: [[[100, 100], [110, 100], [110, 108], [100, 108], [100, 100]]] }]
 
 describe('Messen', () => {
-  it('Fang: Klick nahe einer Gebäudeecke fängt sie, sonst freier Punkt', () => {
-    expect(messPunkt([100.8, 99.6], AV, 2)).toEqual({ p: [100, 100], art: 'gebaeudeecke' })
-    expect(messPunkt([105, 90], AV, 2)).toEqual({ p: [105, 90], art: 'frei' })
-  })
-  it('zwei Klicks: Strecke mit Länge; der dritte beginnt eine neue Messung', () => {
-    const a = messKlick(null, messPunkt([100.3, 100.2], AV, 2))
-    expect(messLaenge(a)).toBeNull()
-    const b = messKlick(a, messPunkt([109.7, 107.9], AV, 2))
-    expect(messLaenge(b)).toBeCloseTo(Math.hypot(10, 8), 9)
-    expect(messText(messLaenge(b)!)).toBe('12,81 m')
-    const c = messKlick(b, messPunkt([50, 50], AV, 2))
-    expect(c.b).toBeNull(); expect(c.a.p).toEqual([50, 50])
-  })
   it('Übernahme auf 0,05 m gerundet, Dezimalkomma', () => {
     expect(messWert(12.806)).toBe('12,80')
     expect(messWert(12.83)).toBe('12,85')
@@ -63,7 +46,7 @@ describe('Messen', () => {
   })
   it('Werkzeug am Ende der Gruppe Planen, Tooltip kurz, Hilfe in der Gruppe', () => {
     expect(PLAN_WERKZEUGE[PLAN_WERKZEUGE.length - 1]).toBe('messen')
-    expect(WERKZEUGE.find(x => x[0] === 'messen')![2]).toBe('auf der Karte messen: ab Bordsteinkante der AV, ganze Fahrbahn oder zwei Punkte; Wert in ein Zahlenfeld übernehmen')
+    expect(WERKZEUGE.find(x => x[0] === 'messen')![2]).toContain('Messwerkzeug der Karte')
     expect(hilfeOrt('messen', true, false)).toBe('planen')
     expect(FANG_PX).toBe(12)
   })

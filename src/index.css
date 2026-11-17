@@ -210,7 +210,6 @@ button.aktiv { background: var(--accent); color: #ffffff; }
 .auge-griff { border: 2px solid #111827; border-radius: 50%; background: #ffffff; cursor: grab; box-sizing: border-box; }
 .auge-griff.hand { background: #111827; }
 /* Werkzeug «Messen» (27.10.2026): Länge in der Farbe der Messlinie, etwas grösser */
-.messtext span { color: #6d28d9; font-size: 13px; }
 /* Gruppen der Themen und Gliederung eines Themas nach der Norm (27.10.2026) */
 .themen-gruppe { margin: 0.8em 0 0.2em; font-size: 14px; }
 .thema-abschnitt { margin: 0.6em 0 0.2em; }
@@ -478,16 +477,6 @@ details.thema-angaben > summary { cursor: pointer; color: var(--bedarf); }
 .bericht-legende li.breit { grid-column: 1 / -1; }   /* Schlüssel der Zufahrten: über beide Spalten, sonst macht er die Zeile hoch */
 .bericht-legende .proben { flex: none; display: inline-flex; gap: 3px; margin-top: 2px; }
 .messen-knopf { margin-left: 4px; }
-/* Werkzeug «Messen» (06.11.2026): Kasten über der Karte (im .kartenkopf unter der Ortssuche), nach dem VeloroutenCheck */
-.messkasten { font-size: 12px; line-height: 1.45; background: #ffffff; border: 1px solid var(--accent); border-radius: 10px; padding: 8px 10px;
-  box-shadow: 0 4px 14px rgba(0,0,0,.25); color: var(--text); display: grid; gap: 6px; }
-.messkasten-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; color: var(--text-strong); }
-.messart { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; width: max-content; max-width: 100%; }
-.messart button { border: none; border-radius: 0; padding: 5px 10px; font-size: 12px; font-weight: 600; background: #ffffff; color: var(--text); }
-.messart button[aria-pressed=true] { background: var(--accent); color: #ffffff; }
-.messwert { font-weight: 600; color: var(--text-strong); }
-.messwert.fehler { color: var(--fehler); }
-.messziel { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .bericht-seite .status-farbe { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .bericht-bild { position: relative; width: 100%; background: #f1f5f9; border: 1px solid #000000; overflow: hidden; }
 .bericht-bild img, .bericht-bild svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }

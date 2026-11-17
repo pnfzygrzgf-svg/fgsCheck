@@ -17,6 +17,7 @@
 //   bleiben kurz; 30 m sind zugleich die Abdeckung der geladenen Daten um den Ladeort (abdeckung.NACHLADEN_M), die AV liegt
 //   dort sicher vor; Gebäude an einer innerörtlichen Querung stehen meist 5 bis 20 m vom Streifen (Vorgarten, Knoten).
 // AV-Stützpunkte sind keine vermarkten Grenzpunkte: die Bodenbedeckung hat eine Lagegenauigkeit je Qualitätsstufe der AV.
+// Seit 17.11.2026 liegt das Einrasten (knickGrad, avPunkte, fangen) im Kartenbaustein (messAv.ts) für das Messwerkzeug aller Rechner.
 
 import { type P, dist, sub, dot, abstandStrecke } from './geo'
 import type { AvFlaeche } from './daten/av'
@@ -24,13 +25,9 @@ import type { FixpunktArt } from './fall'
 import type { FixpunktMass } from './rechner/vermassung'
 import { f2 } from './texte'
 
-export const FANG_PX = 12
-export const FANG_MAX_M = 5
-export const ECKE_MIN_GRAD = 20
+import { avPunkte } from './kartenbaustein/messAv'
+export { FANG_PX, FANG_MAX_M, ECKE_MIN_GRAD, fangRadiusM, knickGrad, avPunkte, fangen, type AvPunkt } from './kartenbaustein/messAv'
 export const VORSCHLAG_M = 30
-
-/** Fangradius in Metern aus der Länge von FANG_PX Bildschirmpunkten in Metern (beim aktuellen Zoom), höchstens FANG_MAX_M */
-export const fangRadiusM = (fangPxInM: number): number => Math.min(FANG_MAX_M, Math.max(0, fangPxInM))
 
 const AV_NAME: Record<string, string> = { Gebaeude: 'Gebäude', Strasse_Weg: 'Strasse/Weg', Trottoir: 'Trottoir', Verkehrsinsel: 'Verkehrsinsel',
   uebrige_befestigte: 'übrige befestigte', uebrige_humusierte: 'übrige humusierte', Gartenanlage: 'Gartenanlage' }
@@ -44,51 +41,6 @@ export function fixpunktName(f: { art: FixpunktArt; name?: string; avArt?: strin
 }
 export const ART_TEXT: Record<FixpunktArt, string> = { gebaeudeecke: 'Gebäudeecke (AV)', av_punkt: 'Stützpunkt der AV-Bodenbedeckung',
   frei: 'freier Punkt, nicht aus der AV' }
-
-/** Knick des Umrisses am Punkt i eines Rings (Grad, 0 = gerade weiter); der Ring darf geschlossen sein (erster = letzter) */
-export function knickGrad(ring: P[], i: number): number {
-  const r = ring.length > 1 && dist(ring[0], ring[ring.length - 1]) < 1e-9 ? ring.slice(0, -1) : ring
-  const n = r.length
-  if (n < 3) return 0
-  const k = i % n
-  // nächste verschiedene Nachbarn (doppelte Punkte überspringen)
-  let a = (k - 1 + n) % n, b = (k + 1) % n
-  while (a !== k && dist(r[a], r[k]) < 1e-6) a = (a - 1 + n) % n
-  while (b !== k && dist(r[b], r[k]) < 1e-6) b = (b + 1) % n
-  const v1 = sub(r[k], r[a]), v2 = sub(r[b], r[k])
-  const l1 = Math.hypot(v1[0], v1[1]), l2 = Math.hypot(v2[0], v2[1])
-  if (!(l1 > 0) || !(l2 > 0)) return 0
-  return Math.acos(Math.max(-1, Math.min(1, dot(v1, v2) / (l1 * l2)))) * 180 / Math.PI
-}
-
-export interface AvPunkt { p: P; ecke: boolean; avArt: string }
-
-/** Stützpunkte der AV-Flächen nahe bei p (Hüllquader ± radius); ecke: Gebäudeecke (Knick ab ECKE_MIN_GRAD) */
-export function avPunkte(av: AvFlaeche[], p: P, radius: number): AvPunkt[] {
-  const aus: AvPunkt[] = []
-  for (const f of av) for (const ring of f.ringe) {
-    const n = ring.length > 1 && dist(ring[0], ring[ring.length - 1]) < 1e-9 ? ring.length - 1 : ring.length
-    for (let i = 0; i < n; i++) {
-      const q = ring[i]
-      if (Math.abs(q[0] - p[0]) > radius || Math.abs(q[1] - p[1]) > radius) continue
-      aus.push({ p: q, ecke: f.art === 'Gebaeude' && knickGrad(ring, i) >= ECKE_MIN_GRAD, avArt: f.art })
-    }
-  }
-  return aus
-}
-
-/** Klick auf die Karte fangen: nächster AV-Stützpunkt im Radius; am selben Punkt (1 cm) zählt eine Gebäudeecke vor anderen
- * Flächen (ein Gebäudepunkt ist zugleich Punkt der Nachbarfläche). Ohne Treffer: freier Punkt am Klick. */
-export function fangen(p: P, av: AvFlaeche[], radiusM: number): { p: P; art: FixpunktArt; avArt?: string } {
-  const kand = avPunkte(av, p, radiusM).map(x => ({ ...x, d: dist(x.p, p) })).filter(x => x.d <= radiusM + 1e-9)
-  if (!kand.length) return { p: [p[0], p[1]], art: 'frei' }
-  const best = kand.reduce((a, b) => (b.d < a.d ? b : a))
-  const gleich = kand.filter(x => dist(x.p, best.p) <= 0.01)
-  const ecke = gleich.find(x => x.ecke)
-  if (ecke) return { p: [ecke.p[0], ecke.p[1]], art: 'gebaeudeecke' }
-  const geb = gleich.find(x => x.avArt === 'Gebaeude')
-  return { p: [best.p[0], best.p[1]], art: 'av_punkt', avArt: (geb ?? best).avArt }
-}
 
 /** Abstand eines Punkts zum Umriss (0 im Umriss nicht unterschieden: Gebäudeecken liegen nie im Streifen) */
 export function abstandUmriss(p: P, umriss: P[]): number {

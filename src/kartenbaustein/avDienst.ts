@@ -52,3 +52,10 @@ export async function ladeAvLuzern(e: number, n: number, radiusM: number, holen:
   }
   return aus
 }
+
+/** Stadt Luzern in LV95: Der Kanton gibt die AV nicht frei, die Stadt ihre Strassenflächen schon */
+const LUZERN = [2660000, 1207000, 2671000, 1216000]
+export const inStadtLuzern = (e: number, n: number): boolean => e >= LUZERN[0] && e <= LUZERN[2] && n >= LUZERN[1] && n <= LUZERN[3]
+/** Bodenbedeckung um einen Ort: in der Stadt Luzern die Strassenflächen der Stadt, sonst die AV über geodienste.ch */
+export const ladeAvOrt = (e: number, n: number, radiusM: number, holen: AvHolen): Promise<AvFlaeche[]> =>
+  (inStadtLuzern(e, n) ? ladeAvLuzern(e, n, radiusM, holen) : ladeAv(e, n, radiusM, holen))

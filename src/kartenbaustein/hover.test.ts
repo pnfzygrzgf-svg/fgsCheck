@@ -4,10 +4,10 @@ const tip = vi.hoisted(() => { const t = { setContent: vi.fn(() => t), setLatLng
 vi.mock('leaflet', () => ({ default: { tooltip: () => tip } }))
 import { HOVER_RUHE_MS, kartenHover, type HoverQuelle } from './hover'
 
-function karte() {
+function karte(messen = false) {
   const griffe: Record<string, ((e?: unknown) => void)[]> = {}, offen = { an: false }
   const map = { on: (n: string, f: (e?: unknown) => void) => { (griffe[n] ??= []).push(f) }, off: vi.fn(), openTooltip: () => { offen.an = true }, closeTooltip: () => { offen.an = false },
-    hasLayer: () => offen.an, distance: () => 5, containerPointToLatLng: () => ({}), getContainer: () => ({ classList: { add: vi.fn(), remove: vi.fn() } }) }
+    hasLayer: () => offen.an, distance: () => 5, containerPointToLatLng: () => ({}), getContainer: () => ({ classList: { add: vi.fn(), remove: vi.fn(), contains: (k: string) => messen && k === 'mw-aktiv' } }) }
   const punkt = (x: number) => ({ x, add: () => ({}), distanceTo: (q: { x: number }) => Math.abs(x - q.x) })
   const ereignis = (x: number, ziel: unknown) => ({ originalEvent: { target: ziel }, latlng: { lat: 46.95, lng: 7.44 }, containerPoint: punkt(x) })
   return { map, offen, bewegen: (x = 0, ziel: unknown = null) => griffe.mousemove[0](ereignis(x, ziel)), klicken: () => griffe.click[0](), ruhen: () => vi.advanceTimersByTime(HOVER_RUHE_MS) }
@@ -18,6 +18,11 @@ beforeEach(() => { vi.useFakeTimers(); tip.setContent.mockClear() })
 afterEach(() => { vi.useRealTimers() })
 
 describe('kartenHover', () => {
+  it('bleibt aus, solange das Messwerkzeug läuft', () => {
+    const k = karte(true); kartenHover(k.map as never, [treffer('a')])
+    k.bewegen(); k.ruhen()
+    expect(k.offen.an).toBe(false)
+  })
   it('zeigt erst, wenn die Maus ruht', () => {
     const k = karte(); kartenHover(k.map as never, [treffer('a')])
     k.bewegen()

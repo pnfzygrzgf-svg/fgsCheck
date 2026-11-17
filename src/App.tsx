@@ -100,9 +100,7 @@ import { augenNachVerschieben, tueMasse, type KsPhase } from './tue/karte'
 import { LsaEinmuendung } from './tue/LsaEinmuendung'
 import { handSetzen } from './bedarf/fallBedarf'
 import { FARBE_HERAN, FARBE_WARTEND, FARBE_WARTEND_TROTTOIR, FARBE_VELO, VELO_SICHT_FARBE } from './fahrzeuge'
-import { inFeldSchreiben, inMetern, istZahlenfeld, messWert, messLeer, messStandKlick, messStandText, MESSART_NAME, MESSART_TEXT, type MessArt, type MessStand,
-  MESSEN_START_EVENT } from './messen'
-import { bordkanten } from './bordkanten'
+import { inFeldSchreiben, inMetern, istZahlenfeld, messenStarten, messWert } from './messen'
 import { AV_RADIUS_M, OSM_RADIUS_M, PARK_RADIUS_M, KATASTER_RADIUS_M, NACHLADEN_M, ORT_TOL_M, streifenMitte, streifenAbstand, planEntscheid,
   ortEntscheid, ortVerlegen, fallAmStreifen, nachladenText, nichtAbgedeckt, nichtAbgedecktText, ausserhalbText, planNeuText, abstandText,
   querungAusserhalb, querungWegText, querungVerschobenText, type OrtEntscheid, type Ausserhalb } from './abdeckung'
@@ -322,29 +320,29 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   const [, setVorschauNr] = useState(0)
   const vorschau = useRef<AvVorschau | null>(null)
   if (!vorschau.current) vorschau.current = new AvVorschau(() => setVorschauNr(x => x + 1))
-  // Werkzeug «Messen» (27.10.2026; Kasten auf der Karte seit 06.11.2026): Stand der Messung und das zuletzt angeklickte Zahlenfeld im
-  // Panel als Zielfeld (nur Sitzung, nicht im Fall)
-  const [messung, setMessung] = useState<MessStand | null>(null)
+  // Messwerkzeug der Karte (Kartenbaustein, seit 17.11.2026 auch für «übernehmen»): das zuletzt angeklickte Zahlenfeld in Metern im
+  // Panel ist Ziel von «übernehmen» (nur Sitzung, nicht im Fall)
   const zahlenfeld = useRef<HTMLInputElement | null>(null)
-  const [zahlenfeldName, setZahlenfeldName] = useState<string | null>(null)
+  const zahlenfeldName = useRef<string | null>(null)
   useEffect(() => {
     const fokus = (e: FocusEvent) => {
       const el = e.target as Element | null
       if (!istZahlenfeld(el) || !el.closest('.panel')) return
       // nur Felder in Metern (27.10.2026): ein anderes Zahlenfeld hebt die Wahl auf
-      if (!inMetern(el)) { zahlenfeld.current = null; setZahlenfeldName(null); return }
+      if (!inMetern(el)) { zahlenfeld.current = null; zahlenfeldName.current = null; return }
       zahlenfeld.current = el
-      setZahlenfeldName(el.getAttribute('aria-label') ?? el.getAttribute('title')?.split(/[;,(]/)[0] ?? 'Zahlenfeld')
+      zahlenfeldName.current = el.getAttribute('aria-label') ?? el.getAttribute('title')?.split(/[;,(]/)[0] ?? 'Zahlenfeld'
     }
     document.addEventListener('focusin', fokus)
     return () => document.removeEventListener('focusin', fokus)
   }, [])
-  // Knopf «messen» an einem Meterfeld der Bedarfsmaske (messen.ts): Werkzeug mit der Messart des Felds starten, das Feld hat schon den Fokus
-  useEffect(() => {
-    const start = (e: Event) => { setMessung(messLeer((e as CustomEvent<MessArt>).detail ?? 'hand')); setWerkzeug('messen') }
-    window.addEventListener(MESSEN_START_EVENT, start)
-    return () => window.removeEventListener(MESSEN_START_EVENT, start)
-  }, [])
+  // «übernehmen» des Messwerkzeugs: Wert auf 0,05 m gerundet ins Zielfeld; den Knopf «messen» an einem Meterfeld (messen.ts) empfängt die Karte
+  const messUebernehmen = useMemo(() => ({
+    ziel: () => (zahlenfeld.current?.isConnected ? zahlenfeldName.current : null),
+    setzen: (m: number) => { const el = zahlenfeld.current; if (el?.isConnected) inFeldSchreiben(el, messWert(m)) },
+    wertText: (m: number) => `${messWert(m)} m`,
+    ohneZiel: 'Ziel: zuerst ein Zahlenfeld in Metern im Panel anklicken; dann schreibt «übernehmen» den Wert hinein (auf 0,05 m gerundet).',
+  }), [])
   // Reiter im Panel (Sichtprüfung / Bedarf und Querungstyp, reiter.ts): Wahl im laufenden Fall, nur in der Sitzung; null = Vorgabe
   // nach dem Fall. Ein neuer Fall (Übergang, geplanter Streifen, Fall-Datei) beginnt wieder mit der Vorgabe
   const [reiterWahl, setReiterWahl] = useState<Reiter | null>(null)
@@ -1678,11 +1676,9 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   }, [srPruef, rechnung, rechnungFall])
   // Fangen der Ecken einer Fläche (Plan): AV-Stützpunkte und Ecken der übrigen Plan-Flächen (ohneId: die eben bearbeitete)
   const planFangen = (p: P, ohneId: string | null): P => fangen(p, [...(av ?? []), ...planAlsAv(fall?.flaechenPlan, ohneId)], fangRadius()).p
-  // Werkzeug «Messen»: Bordsteinkanten der AV samt Flächen (Plan) (bordkanten.ts), nur solange das Werkzeug läuft
-  const messKanten = useMemo(() => (werkzeug === 'messen' && av ? bordkanten(avMitPlan(av, fall?.flaechenPlan).av) : []),
-    [werkzeug, av, fall?.flaechenPlan])
+  // Messwerkzeug der Karte (Kartenbaustein): die AV des Falls samt Flächen (Plan) gilt dort vor der selbst geladenen
+  const messAv = useMemo(() => (av ? avMitPlan(av, fall?.flaechenPlan).av : null), [av, fall?.flaechenPlan])
   const klick = useCallback((p: P) => {
-    if (werkzeug === 'messen') { const r = fangRadius(); setMessung(m => messStandKlick(m ?? messLeer('hand'), p, av ?? [], messKanten, r)); return }
     if (werkzeug === 'eckeRunden') { eckeRundenBei(p); return }
     if (werkzeug === 'mittelinsel') { mittelinselBei(p); return }
     if (werkzeug === 'seitenraum') { seitenraumBei(p); return }
@@ -1694,10 +1690,10 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     zeichnungRef.current = neu
     if ((werkzeug === 'streifen' || werkzeug === 'tue') && neu.length === 2) { fertig(neu); return }
     setZeichnung(neu)
-  }, [werkzeug, fertig, av, fall, bearbeiten, rundenR, inselOrt, inselK, inselStreifen, inselNetz, inselFahrbahn, rechnung, messKanten])
+  }, [werkzeug, fertig, av, fall, bearbeiten, rundenR, inselOrt, inselK, inselStreifen, inselNetz, inselFahrbahn, rechnung])
 
   const doppelklick = useCallback(() => {
-    if (werkzeug === 'eckeRunden' || werkzeug === 'mittelinsel' || werkzeug === 'seitenraum' || werkzeug === 'messen') return
+    if (werkzeug === 'eckeRunden' || werkzeug === 'mittelinsel' || werkzeug === 'seitenraum') return
     // Doppelklick setzt zwei Klicks ab: den doppelten letzten Punkt weglassen
     const z = zeichnungRef.current
     const pts = z.length >= 2 && dist(z[z.length - 1], z[z.length - 2]) < 0.3 ? z.slice(0, -1) : z
@@ -1806,10 +1802,12 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
   }
 
   const werkzeugWaehlen = (w: Werkzeug) => {
-    setZeichnung([]); setBearbeiten(null); setMessung(null); setWerkzeug(x => (x === w ? null : w))
+    setZeichnung([]); setBearbeiten(null); setWerkzeug(x => (x === w ? null : w))
   }
   /** Knopf der Gruppe Planen; «Ecke runden» nimmt die gewählte Fläche (Plan), sonst die zuletzt gezeichnete (Wahl in der Hilfe) */
   const planWaehlen = (w: Exclude<Werkzeug, null>) => {
+    // «Messen» öffnet das Messwerkzeug der Karte (seit 17.11.2026; kein eigenes Werkzeug mehr)
+    if (w === 'messen') { werkzeugBeenden.current(); messenStarten(null, 'hand'); return }
     if (w !== 'eckeRunden') { werkzeugWaehlen(w); return }
     setZeichnung([]); zeichnungRef.current = []; setSpurFuer(null); setRundenFehler(null); setRundenAngebot(null)
     if (werkzeug === 'eckeRunden') { setWerkzeug(null); setBearbeiten(null); return }
@@ -1823,7 +1821,6 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
     if (!werkzeug) return
     if (werkzeug === 'eckeRunden') { setBearbeiten(null); setRundenFehler(null); setRundenAngebot(null) }
     if (werkzeug === 'mittelinsel') setInselOrt(null)
-    setMessung(null)
     setZeichnung([]); zeichnungRef.current = []; setSpurFuer(null); setWerkzeug(null)
   }
   useEffect(() => {
@@ -2289,32 +2286,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
       <div><button className="zweit" onClick={() => setWerkzeug(null)}>Abbrechen</button></div>
     </div>
   )
-  // Messen (06.11.2026, nach VeloroutenCheck): Kasten über der Karte mit Messart, Anleitung, Wert, Zielfeld und «übernehmen»
-  // (schreibt den Wert, auf 0,05 m gerundet, in das Zielfeld); «Fertig» und Esc beenden
-  const mess = messung ?? messLeer('hand')
-  const messKasten = werkzeug === 'messen' ? (
-    <div className="messkasten" role="group" aria-label="Messen">
-      <div className="messkasten-kopf"><b>📏 Messen</b>
-        <button type="button" className="zweit klein" onClick={() => { setMessung(null); setWerkzeug(null) }} aria-label="Fertig (Esc)">Fertig</button></div>
-      <div className="messart" role="group" aria-label="Messart">
-        {(['kante', 'flaeche', 'hand'] as MessArt[]).map(a => <button key={a} type="button" aria-pressed={mess.art === a}
-          onClick={() => setMessung(messLeer(a))}>{MESSART_NAME[a]}</button>)}
-      </div>
-      <div className="klein">{MESSART_TEXT[mess.art]}{mess.art !== 'hand' && !messKanten.length ? ' Hier sind keine Bordsteinkanten der AV geladen.' : ''}</div>
-      <div className={'messwert' + (mess.fehler ? ' fehler' : '')} role="status">{messStandText(mess)}</div>
-      <div className="messziel">
-        {zahlenfeldName ? <>Ziel: «{zahlenfeldName}»{' '}
-          <button type="button" className="klein" disabled={!mess.ergebnis}
-            title={mess.ergebnis ? `${messWert(mess.ergebnis.breite)} m in «${zahlenfeldName}» schreiben` : 'zuerst messen'}
-            onClick={() => {
-              const el = zahlenfeld.current
-              if (el && el.isConnected && mess.ergebnis) inFeldSchreiben(el, messWert(mess.ergebnis.breite)); else setZahlenfeldName(null)
-            }}>übernehmen</button></>
-          : <span className="klein">Ziel: zuerst ein Zahlenfeld in Metern im Panel anklicken; dann schreibt «übernehmen» den Wert hinein.</span>}
-      </div>
-    </div>
-  ) : null
-  const werkzeugHilfe = werkzeug === 'messen' ? null : werkzeug === 'mittelinsel' ? inselHilfe : werkzeug === 'seitenraum' ? srHilfe : werkzeug === 'eckeRunden' ? (
+  const werkzeugHilfe = werkzeug === 'mittelinsel' ? inselHilfe : werkzeug === 'seitenraum' ? srHilfe : werkzeug === 'eckeRunden' ? (
     <div className="werkzeughilfe">
       <b>Ecke runden{rundenPlan ? ` (${planTitel(rundenPlan.id)})` : ''}:</b>{(fall?.flaechenPlan?.length ?? 0) > 1 && <>{' '}
         <label>Fläche <select value={bearbeiten ?? ''} onChange={e => { setBearbeiten(e.target.value || null); setRundenFehler(null)
@@ -2372,7 +2344,7 @@ export default function App({ onStartseite }: { onStartseite?: () => void } = {}
         neigung={kurveNeigung && kurveNeigung.nr === ladeNr.current ? kurveNeigung.werte : null} gelaende={erkWerte}
         onRundenAngebot={ja => { if (ja) angebotAnnehmen(); else setRundenAngebot(null) }} fixpunkte={fall?.fixpunkte ?? LEER_FIX} fixVorschlaege={vorschlagKarte} onFixVorschlag={p => fixpunktSetzen(p, 'gebaeudeecke')}
         flaechenPlan={fall?.flaechenPlan ?? LEER_PLAN}
-        masslinien={masslinien} messung={werkzeug === 'messen' ? mess : null} messKanten={messKanten} messKasten={messKasten}
+        masslinien={masslinien} messAv={messAv} messUebernehmen={messUebernehmen}
         zufahrtNamen={zNamen} streifenTitel={titel}
         onUebergang={pruefen} onZufahrt={key => { setAuswahl(key); if (key) zurSicht() }}
         ksPhase={ksPhase} onKsPhase={setKsPhase}
