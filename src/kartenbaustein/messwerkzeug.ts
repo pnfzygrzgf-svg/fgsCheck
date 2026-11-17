@@ -80,11 +80,18 @@ export interface MessWerkzeugOptionen {
    *  setzen schreibt die Länge in Metern hinein, wertText zeigt den Wert so, wie er ins Feld kommt (z. B. gerundet) */
   uebernehmen?: { ziel: () => string | null; setzen: (m: number) => void; wertText?: (m: number) => string; ohneZiel?: string }
 }
+/** Einmaliges Ziel von «übernehmen» (zum Beispiel ein Feld eines Abschnitts im VeloroutenCheck): gilt vom Start bis zum Ausschalten,
+ *  vor `uebernehmen` der Optionen. setzen bekommt die Länge in Metern und die Messart; gibt es false zurück (Wert nicht übernommen, der
+ *  Rechner meldet warum), bleibt das Werkzeug offen, sonst schliesst es mit schliessen. */
+export interface MessZiel { text: string; setzen: (m: number, info: { form: MessForm }) => boolean | void; wertText?: (m: number) => string; schliessen?: boolean }
 export interface MessWerkzeug {
   an(): void; aus(): void; aktiv(): boolean; entfernen(): void
-  /** einschalten und die Messart wählen (zum Beispiel aus einem Knopf «messen» neben einem Feld) */
-  starten(f?: MessForm): void
+  /** einschalten und die Messart wählen (zum Beispiel aus einem Knopf «messen» neben einem Feld), mit einem einmaligen Ziel */
+  starten(f?: MessForm, ziel?: MessZiel): void
 }
+/** Werkzeug einer Karte, damit der Rechner es aus seinen Knöpfen starten kann, ohne den Verweis selbst zu halten */
+const WERKZEUGE = new WeakMap<L.Map, MessWerkzeug>()
+export const messWerkzeugFuer = (map: L.Map | null | undefined): MessWerkzeug | undefined => (map ? WERKZEUGE.get(map) : undefined)
 
 const fetchJson: AvHolen = async url => {
   const r = await fetch(url)
@@ -112,7 +119,7 @@ export function messWerkzeug(map: L.Map, opt: MessWerkzeugOptionen = {}): MessWe
   const gummiWert = L.marker([0, 0], { pane: WERT_PANE, interactive: false, keyboard: false,
     icon: L.divIcon({ className: 'mw-wert mw-gummi', iconSize: [0, 0], html: '' }) })
   let messungen: Messung[] = [], form: MessForm = 'hand', aktiv = false, zuletzt: Event | null = null, meldung: string | null = null
-  let infoOffen = false, tafelHtml = ''
+  let infoOffen = false, tafelHtml = '', einmalZiel: MessZiel | null = null
   let kette: Promise<void> = Promise.resolve()
   const punktZu = new WeakMap<Element, { m: Messung; i: number; marker: L.Marker }>()
   const original = intern._fireDOMEvent
@@ -357,7 +364,13 @@ export function messWerkzeug(map: L.Map, opt: MessWerkzeugOptionen = {}): MessWe
     else if (a === 'weg') letztenWeg()
     else if (a === 'fertig') abschliessen()
     else if (a === 'leeren') { messungen = []; meldung = null; gummiband(null); zeichnen() }
-    else if (a === 'uebernehmen') { const w = uebernahmeWert(); if (w !== null && opt.uebernehmen?.ziel()) opt.uebernehmen.setzen(w); tafel() }
+    else if (a === 'uebernehmen') {
+      const w = uebernahmeWert(), m = messungen[messungen.length - 1]
+      if (w === null || !m) return
+      if (einmalZiel) { const z = einmalZiel; if (z.setzen(w, { form: m.form }) !== false && z.schliessen) aus(); else tafel(); return }
+      if (opt.uebernehmen?.ziel()) opt.uebernehmen.setzen(w)
+      tafel()
+    }
   })
   steuerung.onAdd = () => box
   steuerung.addTo(map)
@@ -376,10 +389,10 @@ export function messWerkzeug(map: L.Map, opt: MessWerkzeugOptionen = {}): MessWe
     return m && m.fertig && m.form !== 'inhalt' && m.punkte.length > 1 ? streckenLaenge(lv(m.punkte)) : null
   }
   function uebernahmeZeile(): string {
-    const u = opt.uebernehmen
+    const u = einmalZiel ?? opt.uebernehmen
     if (!u) return ''
-    const ziel = u.ziel(), w = uebernahmeWert()
-    if (!ziel) return `<div class="mw-ziel">${u.ohneZiel ?? 'Ziel: zuerst ein Zahlenfeld in Metern anklicken; dann schreibt «übernehmen» den Wert hinein.'}</div>`
+    const ziel = einmalZiel ? einmalZiel.text : opt.uebernehmen!.ziel(), w = uebernahmeWert()
+    if (!ziel) return `<div class="mw-ziel">${opt.uebernehmen?.ohneZiel ?? 'Ziel: zuerst ein Zahlenfeld in Metern anklicken; dann schreibt «übernehmen» den Wert hinein.'}</div>`
     const wert = w === null ? null : (u.wertText ?? meterText)(w)
     return `<div class="mw-ziel">Ziel: «${ziel}» <button type="button" data-aktion="uebernehmen"${w === null ? ' disabled' : ''} ` +
       `title="${wert ? `${wert} in «${ziel}» schreiben` : 'zuerst messen (Flächeninhalt geht nicht)'}">übernehmen${wert ? ` (${wert})` : ''}</button></div>`
@@ -430,9 +443,11 @@ export function messWerkzeug(map: L.Map, opt: MessWerkzeugOptionen = {}): MessWe
   const neu = () => { zeichnen(); kantenZeichnen() }
   // ein anderes Feld angeklickt: das Ziel von «übernehmen» kann gewechselt haben (der Rechner merkt es sich im selben Ereignis)
   const zielGewechselt = (e: FocusEvent) => { if (opt.uebernehmen && !box.contains(e.target as Node)) window.setTimeout(tafel, 0) }
-  function starten(f?: MessForm) {
+  function starten(f?: MessForm, ziel?: MessZiel) {
     an()
-    if (f && f !== form) { abschliessen(); form = f; meldung = null; zeichnen() }
+    einmalZiel = ziel ?? null
+    if (f && f !== form) { abschliessen(); form = f; meldung = null }
+    zeichnen()
   }
   const verschoben = () => { kantenZeichnen(); vorladen() }
   function an() {
@@ -460,7 +475,7 @@ export function messWerkzeug(map: L.Map, opt: MessWerkzeugOptionen = {}): MessWe
     document.removeEventListener('keydown', taste)
     document.removeEventListener('focusin', zielGewechselt)
     map.off('zoomend', neu); map.off('moveend', verschoben)
-    messungen = []; meldung = null; gummiband(null); zeichnen(); kantenZeichnen()
+    messungen = []; meldung = null; einmalZiel = null; gummiband(null); zeichnen(); kantenZeichnen()
   }
   function entfernen() {
     aus()
@@ -468,5 +483,7 @@ export function messWerkzeug(map: L.Map, opt: MessWerkzeugOptionen = {}): MessWe
     map.off('unload', entfernen)
   }
   map.on('unload', entfernen)
-  return { an, aus, aktiv: () => aktiv, entfernen, starten }
+  const werkzeug: MessWerkzeug = { an, aus, aktiv: () => aktiv, entfernen, starten }
+  WERKZEUGE.set(map, werkzeug)
+  return werkzeug
 }

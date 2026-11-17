@@ -29,6 +29,39 @@ export function imPolygon(pt: P, ringe: P[][]): boolean {
 }
 
 /**
+ * Wie imPolygon, mit demselben Ergebnis, aber schnell bei vielen Abfragen auf dieselbe Fläche (17.11.2026): Die Gerade-Ungerade-Regel
+ * zählt nur Kanten, deren Höhenbereich den Punkt überdeckt (min(yi, yj) ≤ y < max(yi, yj)). Diese Kanten liegen je Fläche einmal nach
+ * waagrechten Streifen von STREIFEN_M vorsortiert bereit (gemerkt am Array der Ringe), geprüft wird mit genau derselben Bedingung.
+ * Die Bordkanten fragen je 2-m-Stück zwei Punkte gegen lange Strassenflächen ab; mit imPolygon kostete das im VeloroutenCheck beim
+ * Übernehmen einer Strecke rund 90 % der Rechenzeit.
+ */
+export function imPolygonSchnell(pt: P, ringe: P[][]): boolean {
+  let idx = STREIFEN_INDEX.get(ringe)
+  if (!idx) { idx = streifenIndex(ringe); STREIFEN_INDEX.set(ringe, idx) }
+  const k = idx.get(Math.floor(pt[1] / STREIFEN_M))
+  let innen = false
+  if (k) for (let n = 0; n < k.length; n += 4) {
+    const xi = k[n], yi = k[n + 1], xj = k[n + 2], yj = k[n + 3]
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) innen = !innen
+  }
+  return innen
+}
+const STREIFEN_M = 4
+const STREIFEN_INDEX = new WeakMap<P[][], Map<number, number[]>>()
+function streifenIndex(ringe: P[][]): Map<number, number[]> {
+  const idx = new Map<number, number[]>()
+  for (const r of ringe) {
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      const [xi, yi] = r[i], [xj, yj] = r[j]
+      if (yi === yj) continue                     // waagrechte Kante: die Bedingung trifft nie zu
+      const k0 = Math.floor(Math.min(yi, yj) / STREIFEN_M), k1 = Math.floor(Math.max(yi, yj) / STREIFEN_M)
+      for (let k = k0; k <= k1; k++) { let l = idx.get(k); if (!l) idx.set(k, l = []); l.push(xi, yi, xj, yj) }
+    }
+  }
+  return idx
+}
+
+/**
  * Schnitte der Geraden o + t·r mit Polylinien (seit 13.11.2026 spät, Plan AV-Geometrie A6): Parameter t aller Schnittpunkte, aufsteigend.
  * Beispiel: o (0, 0), r (0, 1), Linien [(−5, 4)–(5, 4)] und [(−5, −4)–(5, −4)] → [−4, 4].
  */

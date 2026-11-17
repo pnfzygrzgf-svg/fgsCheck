@@ -14,7 +14,7 @@
 // mit vielen Stützpunkten und kleinen Knicken erfasst, ihre Punkte gelten als AV-Punkt. Andere Stützpunkte: AV-Punkt. AV-Stützpunkte
 // sind keine vermarkten Grenzpunkte: die Bodenbedeckung hat eine Lagegenauigkeit je Qualitätsstufe der AV.
 
-import { dist, dot, imPolygon, sub, type P } from './geometrie'
+import { dist, dot, imPolygonSchnell, sub, type P } from './geometrie'
 
 /** AV-Fläche in LV95, so viel braucht die Messung (die Rechner halten mehr) */
 export interface MessAvFlaeche { art: string; ringe: P[][] }
@@ -56,8 +56,8 @@ export function bordkanten(flaechen: readonly MessAvFlaeche[]): Kante[] {
           const p0: P = [a[0] + de * t0, a[1] + dn * t0], q1: P = [a[0] + de * t1, a[1] + dn * t1]
           const m: P = [(p0[0] + q1[0]) / 2, (p0[1] + q1[1]) / 2]
           const p1: P = [m[0] + PRUEF_M * nx, m[1] + PRUEF_M * ny], p2: P = [m[0] - PRUEF_M * nx, m[1] - PRUEF_M * ny]
-          const aussen = imPolygon(p1, s.f.ringe) ? p2 : p1
-          const innen = strassen.some(o => o !== s && inBox(aussen, o.box) && imPolygon(aussen, o.f.ringe))
+          const aussen = imPolygonSchnell(p1, s.f.ringe) ? p2 : p1
+          const innen = strassen.some(o => o !== s && inBox(aussen, o.box) && imPolygonSchnell(aussen, o.f.ringe))
           if (!innen) { if (!start) start = p0 }
           else if (start) { aus.push({ a: start, b: p0 }); start = null }
           if (k === teile - 1 && start) aus.push({ a: start, b: q1 })
